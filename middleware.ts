@@ -192,6 +192,16 @@ async function handleMiddleware(request: NextRequest, nonce: string): Promise<Ne
 
   const pathname = normalizedPathname;
 
+  // API versioning: /api/v1/<anything> is rewritten by next.config.js to
+  // /api/<anything> at the routing layer, but middleware runs BEFORE the
+  // rewrite. Build a classification path that strips the v1 prefix so the
+  // admin/public-API prefix checks below treat versioned and unversioned
+  // requests identically. We still log the original pathname so audit trails
+  // can distinguish v1-specific traffic.
+  const classificationPath = pathname.startsWith("/api/v1/")
+    ? pathname.replace(/^\/api\/v1/, "/api")
+    : pathname;
+
   // 1b. Maintenance mode — redirect non-admin, non-API routes to /maintenance when enabled.
   // Skip: /admin/* (admins must always reach the panel), /api/* (internal calls),
   //        /maintenance (avoid redirect loop), internal maintenance-check requests.
@@ -219,13 +229,13 @@ async function handleMiddleware(request: NextRequest, nonce: string): Promise<Ne
   // Explicitly allow HEAD requests for public routes (monitoring)
   const isHeadRequest = request.method === "HEAD";
 
-  const isAdminApi = ADMIN_API_PREFIXES.some(p => pathname === p || pathname.startsWith(p + "/"));
+  const isAdminApi = ADMIN_API_PREFIXES.some(p => classificationPath === p || classificationPath.startsWith(p + "/"));
   const isAdminPage = ADMIN_PREFIXES.some(p => pathname === p || pathname.startsWith(p + "/"));
   const isAuthPage = AUTH_PAGES.has(pathname);
   const isGuestPublicRoute = GUEST_PUBLIC_ROUTES.has(pathname) || Array.from(GUEST_PUBLIC_ROUTES).some(p => pathname.startsWith(p + "/"));
   const isProtectedRoute = !isGuestPublicRoute && PROTECTED_PREFIXES.some(p => pathname === p || pathname.startsWith(p + "/"));
   const isApi = pathname.startsWith("/api/");
-  const isPublicApi = PUBLIC_API_PREFIXES.some(p => pathname === p || pathname.startsWith(p + "/"));
+  const isPublicApi = PUBLIC_API_PREFIXES.some(p => classificationPath === p || classificationPath.startsWith(p + "/"));
   const isPublicRoute = PUBLIC_ROUTES.has(pathname) || PUBLIC_PREFIXES.some(p => pathname.startsWith(p));
 
   // --- 3. Token Fetching (Single call, only when security/logic requires it) ---

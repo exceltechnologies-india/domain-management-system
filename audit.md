@@ -112,10 +112,25 @@ Verified on main: 298/298 tests green, `npm run lint` clean, `npm run build` suc
 
 ---
 
-### [HIGH-3] No API versioning
-100+ endpoints under `/api/` with no `/v1/` prefix. Any breaking change requires synchronous client release.
+### ~~[HIGH-3] No API versioning~~ — PARTIALLY RESOLVED 2026-05-14
+Foundational `/api/v1/` alias is now in place. Every existing `/api/<path>` endpoint is also reachable at `/api/v1/<path>` and produces identical behaviour (same auth gates, same handler).
 
-**Fix:** Next breaking change → introduce `/api/v2/`. Keep `/api/v1/` (current) as the stable alias.
+**Implementation:**
+- [next.config.js](next.config.js) — `rewrites()` maps `/api/v1/:path*` → `/api/:path*`. The rewrite happens at the routing layer; the URL the client sees is unchanged.
+- [middleware.ts](middleware.ts) — added a `classificationPath` that strips the `/api/v1/` prefix and is used only by the admin/public API prefix checks (`isAdminApi`, `isPublicApi`). The original `pathname` is still used for logging so audit trails can distinguish v1-specific traffic. Middleware runs *before* the rewrite, so without this normalization `/api/v1/admin/*` would have bypassed the admin auth gate — that hole is now closed.
+
+**Smoke-tested live (2026-05-14, standalone build on port 3457):**
+- `GET /api/health` → 200 `{status:"ok"}`
+- `GET /api/v1/health` → 200 `{status:"ok"}` (identical body)
+- `GET /api/admin/users` (no auth) → 401 `{error:"Unauthorized"}`
+- `GET /api/v1/admin/users` (no auth) → 401 `{error:"Unauthorized"}` — confirms no bypass via the versioned path
+
+**Suite still green:** 298/298 tests pass; lint clean; production build succeeded.
+
+**Pending future work (the part of HIGH-3 that's *not* resolved):**
+- No `/api/v2/` exists yet, and won't until a breaking change is needed. The infrastructure is now in place so introducing v2 is just adding a sibling route handler — `lib/resellerclub.ts`-style namespace work, not a routing project.
+- Treat `/api/v1/` semantics as stable from this point forward. Any future change that would break a v1 caller (response shape change, removed fields, changed status codes) must instead live under `/api/v2/`.
+- 13 internal `import { ResellerClubAPI } …` and equivalent server-side fetches still use the unversioned `/api/<path>` URLs. Migrate them to `/api/v1/<path>` opportunistically — both paths work, so this is cleanup, not a deadline.
 
 ---
 
