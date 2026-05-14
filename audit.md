@@ -25,15 +25,14 @@
 
 ## 2. Critical Flaws
 
-### ~~[CRITICAL-1] No git repository~~ — PARTIALLY RESOLVED 2026-05-14
-Initialized `main`-branch repository in [/](.) and verified `.gitignore` correctly excludes `.env.local`, `gcp-key.json`, `node_modules/`, `.next/`, `coverage/`, `deployment-logs/`, `*.tsbuildinfo`, and `*.log`. Confirmed zero files inside excluded directories were staged. Initial commit `2ceee43` contains 502 files / 113,935 lines.
+### ~~[CRITICAL-1] No git repository~~ — RESOLVED 2026-05-14
+Initialized `main`-branch repository in [/](.) and verified `.gitignore` correctly excludes `.env.local`, `gcp-key.json`, `node_modules/`, `.next/`, `coverage/`, `deployment-logs/`, `*.tsbuildinfo`, and `*.log`. Confirmed zero files inside excluded directories were staged. Initial commit `2ceee43` contains 502 files / 113,935 lines. Repo-local identity set to `Pawan <pawan@exceltechnologies.in>` (not global — only affects this repo).
 
-Repo-local identity set to `Pawan <pawan@exceltechnologies.in>` (not global — only affects this repo).
+Remote configured at `git@github.com:exceltechnologies-india/domain-management-system.git` (private). `main` tracks `origin/main`.
 
-**Still required:**
-1. Create a private GitHub/GitLab remote, `git remote add origin <url>`, `git push -u origin main`.
-2. Enable branch protection on `main` (require PR review + status checks before merge).
-3. Once a remote exists, gate [deploy.sh](deploy.sh) behind CI green status (covered separately by [MEDIUM-6](#medium-6)).
+Classic branch protection rule created on `main` requiring PR review (1 approval), status checks (no checks added yet pending CI from MEDIUM-6), and blocking force-pushes / deletions / bypass.
+
+**Caveat — known limitation, not a bug to fix:** GitHub Free orgs do not enforce branch protection or rulesets on private repositories. The rule is saved and will activate automatically when the org upgrades to GitHub Team (~$4/user/month) or if the repo is made public. Until then it serves as documented policy only. Re-evaluate when team size or risk profile justifies the upgrade.
 
 ---
 
@@ -298,7 +297,7 @@ All optional fields use sparse indexes so they don't pay storage for the null ma
 
 | Day | Task | Severity |
 |---|---|---|
-| 1 | ~~`git init`~~ ✅ 2026-05-14 · push to private remote, branch protection | CRITICAL-1 |
+| 1 | ~~`git init`, push to private remote, branch protection~~ ✅ 2026-05-14 (enforcement awaits GitHub Team upgrade) | CRITICAL-1 |
 | 2 | ~~Strip `.env.local` from build script~~ ✅ 2026-05-14 · move to Cloud Run secrets, rotate exposed credentials | CRITICAL-2 |
 | 3 | Sweeper cron for `PendingDomain` / `PendingHosting` with admin alerts | HIGH-5 |
 | 4 | Tests for `payments/verify` and Razorpay webhook | MEDIUM-5 |
