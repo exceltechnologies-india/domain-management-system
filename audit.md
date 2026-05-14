@@ -93,14 +93,14 @@ CSP is now per-route. [lib/security-headers.ts](lib/security-headers.ts) accepts
 
 ## 3. Architectural Issues
 
-### [HIGH-1] Monolithic service wrappers
+### ~~[HIGH-1] Monolithic service wrappers~~ — RESOLVED 2026-05-14
 
-| File | LOC (before) | LOC (after) | Status |
+| File | LOC (before) | LOC (after barrel) | Status |
 |---|---|---|---|
-| [lib/resellerclub.ts](lib/resellerclub.ts) | 2,452 | 95 (barrel) | ~~Split~~ ✅ 2026-05-14 |
-| [lib/directadmin.ts](lib/directadmin.ts) | 1,193 | 1,193 | pending |
-| [lib/zohobooks.ts](lib/zohobooks.ts) | 1,192 | 1,192 | pending |
-| [lib/auth-config.ts](lib/auth-config.ts) | 863 | 863 | pending |
+| [lib/resellerclub.ts](lib/resellerclub.ts) | 2,452 | 95 | ~~Split~~ ✅ |
+| [lib/directadmin.ts](lib/directadmin.ts) | 1,193 | 108 | ~~Split~~ ✅ |
+| [lib/zohobooks.ts](lib/zohobooks.ts) | 1,192 | 422 | ~~Split~~ ✅ |
+| [lib/auth-config.ts](lib/auth-config.ts) | 863 | 55 | ~~Split~~ ✅ |
 
 **resellerclub.ts split (2026-05-14):** The 2,452-line single class was split into 5 topical submodules + a shared client. The old [lib/resellerclub.ts](lib/resellerclub.ts) is now a 95-line backwards-compatible barrel exposing the same `ResellerClubAPI` class surface, so the 13 call sites across `app/`, `lib/`, and `lib/payment-services/` did not need to change.
 
@@ -122,7 +122,50 @@ lib/resellerclub/
 
 Verified on main: 298/298 tests green, `npm run lint` clean, `npm run build` succeeded. No call-site change required (zero files in `app/`, `tests/`, `models/` modified). Each method moved verbatim — no logic changes.
 
-**Pending fix for the other three large files** (`directadmin.ts`, `zohobooks.ts`, `auth-config.ts`) — same pattern when prioritised; each gets its own `lib/<name>/` directory with topical submodules and a thin barrel.
+**The other three large files were split on 2026-05-14:**
+
+```
+lib/directadmin/    (1,193 → 108 barrel)
+  client.ts        359  LOC  shared HTTP client: state (rate limit, circuit breaker,
+                              request queue), executeRequest, validators, error class,
+                              auth getter, constants (NAMESERVERS, KNOWN_PACKAGES)
+  packages.ts      148  LOC  listPackages, getPackageDetails, createPackage
+  users.ts         502  LOC  createUser, getUserConfig, getUserUsage, getUserDomains,
+                              changePackage, suspendUser, unsuspendUser, deleteUser,
+                              listUsers, getAllUserUsage, getOneTimeLoginUrl, domainExists
+  dns.ts           177  LOC  getDNSRecords, deleteDNSRecords, addDNSRecord,
+                              updateDNSNameservers
+  server.ts         82  LOC  getServerInfo, listResellers, getLicenseInfo
+
+lib/auth-config/    (863 → 55 barrel)
+  helpers.ts        48  LOC  GoogleProfile/GithubProfile types, extractSocialName,
+                              SOCIAL_PROVIDERS, useSecureCookies
+  providers.ts     221  LOC  the providers[] array (Google, Facebook, GitHub, Credentials
+                              with all its TOTP + bcrypt + session-activity wiring)
+  callbacks.ts     541  LOC  the callbacks { signIn, jwt, session, redirect } object
+  cookies.ts        46  LOC  the cookies {} object
+
+lib/zohobooks/      (1,192 → 422 barrel)
+  contacts.ts      286  LOC  contact-CRUD: getContactByEmail/Name, createContact,
+                              updateContactDetails, getContactPersons, updateContactPerson,
+                              updateContactToConsumer
+  invoices.ts      466  LOC  createInvoice, getInvoicesByEmail, getInvoicePdf,
+                              getAllInvoices, getInvoiceById, applyPaymentToInvoice,
+                              getInvoicesByReferenceNumber
+  recurring.ts     149  LOC  createRecurringInvoice
+  credit-notes.ts   85  LOC  createCreditNote
+  org.ts            35  LOC  getOrganizationDetails
+```
+
+**Judgement calls on the trickier shapes (worth knowing for future maintainers):**
+
+- **directadmin.ts** had module-level shared state baked into static class fields (rate-limit timer, circuit breaker, request queue). State + `executeRequest` moved to file-scoped `let` in `client.ts`. The barrel's `DirectAdminService` class re-exports `NAMESERVERS` / `KNOWN_PACKAGES` as static fields so `DirectAdminService.NAMESERVERS` still works for the 15 call sites that use it.
+
+- **zohobooks.ts** is a **singleton with instance state** (`accessToken`, `tokenExpiry`, `config`, `baseUrl`) — not a static-method class like resellerclub/directadmin. So the topical files take `self: ZohoBooksService` as their first arg and reach the singleton state via `_`-prefixed `@internal` accessors on the class (`_baseUrl`, `_orgId`, `_getHeaders()`, `_idempotentRetry`, etc.). Public class methods are 1-line `await import('./zohobooks/<topic>').then(m => m.fn(this, ...))` delegates — dynamic imports break the type cycle (topical files `import type` the class for the `self` param). Slightly more boilerplate than the other splits, but no public-API change so the 10 importers (payment-services, webhook route, admin endpoints, invoice download/pay routes) didn't move.
+
+- **auth-config.ts** is a config object so the split was straightforward — sections lifted out wholesale.
+
+**Verified on main:** 340/340 tests, lint clean, `tsc --noEmit` clean, production build succeeded. No call site outside the three subtrees was modified.
 
 ---
 
@@ -524,7 +567,7 @@ All optional fields use sparse indexes so they don't pay storage for the null ma
 | 2 | ~~Strip `.env.local` from build script~~ ✅ 2026-05-14 · move to Cloud Run secrets, rotate exposed credentials | CRITICAL-2 |
 | 3 | ~~Sweeper cron for `PendingDomain` / `PendingHosting` with admin alerts~~ ✅ 2026-05-14 (Cloud Scheduler job still needs to be created in GCP) | HIGH-5 |
 | 4 | ~~Tests for `payments/verify` and Razorpay webhook~~ ✅ 2026-05-14 (signature primitives unit-tested; route-level integration tests remain) | MEDIUM-5 |
-| 5 | ~~Split [lib/resellerclub.ts](lib/resellerclub.ts) into 5–6 focused modules~~ ✅ 2026-05-14 (3 other large files in HIGH-1 still pending) | HIGH-1 |
+| 5 | ~~Split [lib/resellerclub.ts](lib/resellerclub.ts), [lib/directadmin.ts](lib/directadmin.ts), [lib/zohobooks.ts](lib/zohobooks.ts), [lib/auth-config.ts](lib/auth-config.ts) into focused modules~~ ✅ 2026-05-14 | HIGH-1 |
 | 6 | ~~Add CI workflow (lint + test + audit)~~ ✅ 2026-05-14 (deploy gating + audit-blocking still pending) | MEDIUM-6 |
 | 7 | ~~Structured logger, remove `console.*` from server code, tighten ESLint~~ ✅ 2026-05-14 (extended to client code too — 67 swaps, 0 console warnings remaining) | MEDIUM-2 |
 | 8 | Atomic deploy (build to `.next.new`, atomic swap) | MEDIUM-8 |

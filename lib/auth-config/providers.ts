@@ -1,0 +1,221 @@
+/**
+ * NextAuth providers: Google, Facebook, GitHub, Credentials.
+ */
+
+import GoogleProvider from "next-auth/providers/google";
+import FacebookProvider from "next-auth/providers/facebook";
+import GithubProvider from "next-auth/providers/github";
+import CredentialsProvider from "next-auth/providers/credentials";
+import connectDB from "@/lib/mongodb";
+import User from "@/models/User";
+import { serverLogger } from "@/lib/server-logger";
+import { updateLastActivity } from "@/lib/session-activity";
+import { verifyTotpCode, verifyBackupCode } from "@/lib/totp";
+import { rateLimiters } from "@/lib/rate-limit";
+
+export const providers = [
+  GoogleProvider({
+    clientId: process.env.GOOGLE_CLIENT_ID!.trim(),
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET!.trim(),
+    authorization: {
+      params: {
+        // Request only basic scopes (sensitive scopes require Google verification)
+        scope: "openid email profile",
+        prompt: "consent",
+        access_type: "offline",
+        response_type: "code",
+      },
+    },
+    // Request additional profile fields
+    profile(profile) {
+      return {
+        id: profile.sub,
+        name: profile.name,
+        email: profile.email,
+        image: profile.picture,
+        role: "user" as const,
+        // Additional fields from Google profile
+        given_name: profile.given_name,
+        family_name: profile.family_name,
+        locale: profile.locale,
+      };
+    },
+  }),
+
+  ...(process.env.FACEBOOK_CLIENT_ID && process.env.FACEBOOK_CLIENT_SECRET
+    ? [
+        FacebookProvider({
+          clientId: process.env.FACEBOOK_CLIENT_ID,
+          clientSecret: process.env.FACEBOOK_CLIENT_SECRET,
+        }),
+      ]
+    : []),
+
+  ...(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET
+    ? [
+        GithubProvider({
+          clientId: process.env.GITHUB_CLIENT_ID,
+          clientSecret: process.env.GITHUB_CLIENT_SECRET,
+        }),
+      ]
+    : []),
+
+  CredentialsProvider({
+    name: "credentials",
+    credentials: {
+      email: { label: "Email", type: "email" },
+      password: { label: "Password", type: "password" },
+      recaptchaToken: { label: "reCAPTCHA Token", type: "text" },
+      totpCode: { label: "Authenticator Code", type: "text" },
+    },
+    async authorize(credentials, req) {
+      try {
+        if (!credentials?.email || !credentials?.password) {
+          throw new Error("Email and password are required");
+        }
+
+        // Rate limiting — keyed by email + IP so both per-user and per-IP attacks are caught
+        const reqHeaders = (req as any)?.headers ?? {};
+        const ip =
+          (typeof reqHeaders.get === "function"
+            ? reqHeaders.get("x-forwarded-for") || reqHeaders.get("x-real-ip")
+            : reqHeaders["x-forwarded-for"] || reqHeaders["x-real-ip"]) ||
+          "unknown";
+        const rateLimitKey = `login:${credentials.email.toLowerCase()}:${ip}`;
+        const rateLimit = await rateLimiters.login.checkKey(rateLimitKey);
+        if (!rateLimit.allowed) {
+          serverLogger.warn(`[AUTH] ❌ Rate limit exceeded for ${credentials.email} from ${ip}`);
+          throw new Error("TooManyRequests");
+        }
+
+        serverLogger.log(
+          "[AUTH] 🔑 Password provided:",
+          !!credentials.password
+        );
+
+        // Enforce reCAPTCHA only in production when the secret key is configured
+        const recaptchaConfigured = process.env.NODE_ENV === 'production' && !!process.env.RECAPTCHA_SECRET_KEY;
+        if (recaptchaConfigured && !credentials.recaptchaToken) {
+          serverLogger.warn("[AUTH] ❌ reCAPTCHA token missing for " + credentials.email);
+          throw new Error("reCAPTCHA verification is required");
+        }
+
+        if (credentials.recaptchaToken) {
+          try {
+            const { RecaptchaServer } = await import('@/lib/recaptcha');
+            const recaptchaResult = await RecaptchaServer.verifyToken(
+              credentials.recaptchaToken
+            );
+
+            if (!recaptchaResult.success) {
+              serverLogger.warn("[AUTH] ❌ reCAPTCHA verification failed for " + credentials.email);
+              throw new Error("reCAPTCHA verification failed. Please try again.");
+            }
+          } catch (error: any) {
+            if (error.message === "reCAPTCHA verification failed. Please try again.") {
+              throw error;
+            }
+            serverLogger.error("[AUTH] ❌ reCAPTCHA error:", error.message);
+            // Don't block login if reCAPTCHA service is down or there's a network error
+          }
+        }
+
+        // Race connectDB against timeout
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Connection timed out')), 10000)
+        );
+
+        await Promise.race([connectDB(), timeoutPromise]);
+
+        const user = await User.findOne({ email: credentials.email }).maxTimeMS(5000);
+        if (!user) {
+          throw new Error("Invalid email or password");
+        }
+
+        // Check if user is activated
+        if (!user.isActivated) {
+          serverLogger.error(
+            "[AUTH] ❌ User not activated:",
+            credentials.email
+          );
+          throw new Error("AccountNotActivated");
+        }
+
+        // Check if user is active
+        if (!user.isActive) {
+          serverLogger.error(
+            "[AUTH] ❌ User deactivated:",
+            credentials.email
+          );
+          throw new Error("AccountDeactivated");
+        }
+
+        // Verify password
+        const isPasswordValid = await user.comparePassword(
+          credentials.password
+        );
+        if (!isPasswordValid) {
+          serverLogger.error(
+            "[AUTH] ❌ Invalid password for:",
+            credentials.email
+          );
+          throw new Error("Invalid email or password");
+        }
+
+        // 2FA check — required for any account that has TOTP enabled
+        if (user.totpEnabled) {
+          if (!credentials.totpCode) {
+            throw new Error("TotpRequired");
+          }
+
+          const userWithSecrets = await User.findById(user._id).select(
+            "+totpSecret +totpBackupCodes"
+          );
+
+          const isValidTotp =
+            userWithSecrets?.totpSecret &&
+            verifyTotpCode(userWithSecrets.totpSecret, credentials.totpCode);
+
+          if (!isValidTotp) {
+            // Try backup codes (one-time use)
+            let matchedBackupHash: string | null = null;
+            if (userWithSecrets?.totpBackupCodes?.length) {
+              for (const hash of userWithSecrets.totpBackupCodes) {
+                if (await verifyBackupCode(credentials.totpCode, hash)) {
+                  matchedBackupHash = hash;
+                  break;
+                }
+              }
+            }
+            if (!matchedBackupHash) {
+              throw new Error("InvalidTotpCode");
+            }
+            // Consume the backup code so it cannot be reused
+            await User.updateOne(
+              { _id: user._id },
+              { $pull: { totpBackupCodes: matchedBackupHash } }
+            );
+            serverLogger.warn(
+              `[AUTH] ${user.email} signed in using a 2FA backup code`
+            );
+          }
+        }
+
+        // Update last activity on successful login
+        await updateLastActivity(String(user._id ?? user.id ?? ""));
+
+        const returnData = {
+          id: user._id?.toString() || "",
+          email: user.email,
+          name: `${user.firstName} ${user.lastName}`,
+          role: user.role,
+        };
+
+        return returnData;
+      } catch (error: any) {
+        serverLogger.error("[AUTH] Authorize Error:", error.message);
+        throw error;
+      }
+    },
+  }),
+];
