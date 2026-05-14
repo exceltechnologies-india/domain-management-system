@@ -169,10 +169,12 @@ export class SecurityValidator {
       errors.push("Filename contains potentially malicious content");
     }
 
-    // Check content size
+    // Check content size. Bail out before pattern-matching when oversized —
+    // the regex set crashes with "Maximum call stack size exceeded" on very
+    // large inputs (10 MB+) and the file is already rejected anyway.
     if (content.length > 10 * 1024 * 1024) {
-      // 10MB limit
       errors.push("File size exceeds maximum allowed size");
+      return { isValid: false, errors };
     }
 
     // Check for malicious patterns in content

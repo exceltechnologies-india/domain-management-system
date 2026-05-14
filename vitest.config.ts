@@ -18,10 +18,9 @@ export default defineConfig({
         "*.config.*",
         ".next/**",
         "scripts/**",
-        // Infrastructure files that require live external services or are
-        // mostly regex-pattern data — covered by integration tests, not units.
+        // Pricing-service requires a live external API to exercise meaningfully;
+        // covered by integration tests, not units.
         "lib/pricing-service.ts",
-        "lib/security.ts",
       ],
     },
     include: ["tests/unit/**/*.{test,spec}.{ts,tsx}"],
