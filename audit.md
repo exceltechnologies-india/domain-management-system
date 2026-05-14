@@ -380,10 +380,37 @@ Scripts (`npm run audit`, `audit:summary`) are wired up but no recent output cap
 
 ---
 
-### [LOW-2] No structured logging
-With 76 `console.*` calls and no log shipper, debugging in production means scrolling Cloud Run logs.
+### ~~[LOW-2] No structured logging~~ — RESOLVED 2026-05-14
+Per the audit's "pair with MEDIUM-2" guidance, this is now fully addressed by the work from [MEDIUM-2](#medium-2) plus per-request correlation IDs landed in this pass:
 
-**Fix:** Pair with MEDIUM-2 — once structured logging is in, ship to Google Cloud Logging with severity levels and request IDs.
+**Structured JSON output** (from MEDIUM-2): `serverLogger.*` emits one JSON line per entry in production, with `severity` matching Cloud Logging's `LogSeverity` enum, `message`, ISO `time`, and any object-arg fields merged to the top level. Cloud Logging auto-parses these into searchable structured entries.
+
+**Request-ID correlation** (new this pass):
+- [lib/request-id.ts](lib/request-id.ts) — `resolveRequestId(headers)` prefers Cloud Run's `X-Cloud-Trace-Context` header (so log entries automatically correlate with Cloud Trace spans), then any upstream `x-request-id`, then a fresh `crypto.randomUUID()`. Edge-runtime safe.
+- [middleware.ts](middleware.ts) — computes the request ID once per request and:
+  1. Attaches it to the response as `x-request-id` (client / load balancer / support correlation).
+  2. Attaches it to the **request** via `nextWithNonce` so route handlers can read `request.headers.get("x-request-id")` and include it in their own log meta args.
+  3. Includes `{ requestId }` in middleware's own structured logs (auth-attempt warnings, CSRF-failure warnings).
+- [lib/server-logger.ts](lib/server-logger.ts) — JSDoc now documents the `{ requestId }` meta-arg pattern so future log calls can join the correlation trail.
+
+**Live-verified on the standalone build:**
+```
+# Cloud Run-style trace header → request ID = the trace ID
+$ curl -H "X-Cloud-Trace-Context: 9d2f3a8e1b4c5d6e7f0a/1234;o=1" .../api/health
+→ x-request-id: 9d2f3a8e1b4c5d6e7f0a
+
+# Client-supplied header → echoed back
+$ curl -H "x-request-id: client-trace-abc-123" .../api/health
+→ x-request-id: client-trace-abc-123
+
+# Nothing supplied → fresh UUID
+$ curl .../api/health
+→ x-request-id: 4c4321d1-a67b-4c61-a4e7-105caa5bca3b
+```
+
+**Verified:** 340/340 tests, lint clean, tsc clean, production build succeeded.
+
+**Pending follow-up (optional):** Most route handlers do not yet pass `{ requestId }` to their log calls — the threading exists, the meta-arg propagation isn't retrofitted into every existing log site. Easy to extend incrementally when each route is next touched.
 
 ---
 

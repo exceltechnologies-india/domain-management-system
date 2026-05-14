@@ -5,6 +5,7 @@ import { getToken } from "next-auth/jwt";
 import { addSecurityHeaders, addCorsHeaders, buildPreflightResponse } from "@/lib/security-headers";
 import { SecurityValidator } from "@/lib/security";
 import { serverLogger } from "@/lib/server-logger";
+import { resolveRequestId, REQUEST_ID_HEADER } from "@/lib/request-id";
 
 // --- Route Configuration ---
 const PUBLIC_ROUTES = new Set([
@@ -87,10 +88,11 @@ const sanitizePathForLog = (path: string) => {
   return path.split("/").slice(0, 3).join("/");
 };
 
-const logAuthAttempt = (pathname: string, status: 401 | 403) => {
+const logAuthAttempt = (pathname: string, status: 401 | 403, requestId: string) => {
   const sanitized = sanitizePathForLog(pathname);
-  // Log status and sanitized path only - no role leakage
-  serverLogger.warn(`[Middleware Security] ${status} attempt on ${sanitized}`);
+  // Log status and sanitized path only - no role leakage. requestId is passed
+  // as a meta arg so the structured-JSON output carries it as a top-level field.
+  serverLogger.warn(`[Middleware Security] ${status} attempt on ${sanitized}`, { requestId });
 };
 
 const normalizePath = (path: string) => {
@@ -103,12 +105,15 @@ function generateNonce(): string {
   return Buffer.from(crypto.randomUUID()).toString("base64");
 }
 
-// Create a NextResponse.next() that forwards the nonce to the rendering context
-// via the x-nonce request header. Next.js 15 App Router reads this and automatically
-// attaches the nonce to its generated inline hydration scripts.
-function nextWithNonce(request: NextRequest, nonce: string): NextResponse {
+// Create a NextResponse.next() that forwards the nonce + request ID to the
+// rendering context via request headers. Next.js 15 App Router reads `x-nonce`
+// and automatically attaches it to its generated inline hydration scripts.
+// `x-request-id` is exposed for handlers that want to include it in their
+// own log entries (see lib/server-logger.ts).
+function nextWithNonce(request: NextRequest, nonce: string, requestId: string): NextResponse {
   const headers = new Headers(request.headers);
   headers.set("x-nonce", nonce);
+  headers.set(REQUEST_ID_HEADER, requestId);
   return NextResponse.next({ request: { headers } });
 }
 
@@ -146,10 +151,13 @@ async function getMaintenanceStatus(_origin: string): Promise<{ enabled: boolean
 }
 
 export async function middleware(request: NextRequest) {
-  const requestId = request.headers.get("x-request-id") ?? crypto.randomUUID();
+  // Prefer Cloud Run's X-Cloud-Trace-Context so log entries correlate with
+  // Cloud Trace spans automatically. Falls back to an upstream x-request-id
+  // (if a load balancer set one) or a fresh UUID.
+  const requestId = resolveRequestId(request.headers);
   const nonce = generateNonce();
-  const response = await handleMiddleware(request, nonce);
-  response.headers.set("x-request-id", requestId);
+  const response = await handleMiddleware(request, nonce, requestId);
+  response.headers.set(REQUEST_ID_HEADER, requestId);
 
   // Apply CORS headers to all API responses (non-OPTIONS — preflight is handled above)
   if (request.nextUrl.pathname.startsWith("/api/")) {
@@ -159,7 +167,7 @@ export async function middleware(request: NextRequest) {
   return response;
 }
 
-async function handleMiddleware(request: NextRequest, nonce: string): Promise<NextResponse> {
+async function handleMiddleware(request: NextRequest, nonce: string, requestId: string): Promise<NextResponse> {
   // 0a. HTTPS enforcement — redirect HTTP to HTTPS in production.
   // x-forwarded-proto covers reverse-proxy / Docker deployments where TLS
   // terminates at the load balancer and the internal request arrives as HTTP.
@@ -283,19 +291,19 @@ async function handleMiddleware(request: NextRequest, nonce: string): Promise<Ne
     // GET/HEAD/OPTIONS are skipped inside validateCSRF automatically.
     const csrfCheck = SecurityValidator.validateCSRF(request);
     if (!csrfCheck.isValid) {
-      serverLogger.warn(`[Middleware Security] CSRF validation failed on ${sanitizePathForLog(pathname)}: ${csrfCheck.error}`);
+      serverLogger.warn(`[Middleware Security] CSRF validation failed on ${sanitizePathForLog(pathname)}: ${csrfCheck.error}`, { requestId });
       return addSecurityHeaders(NextResponse.json({ error: "CSRF validation failed" }, { status: 403 }), { nonce, strictCSP: isStrictCSPRoute });
     }
 
     if (!token) {
-      logAuthAttempt(pathname, 401);
+      logAuthAttempt(pathname, 401, requestId);
       return addSecurityHeaders(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), { nonce, strictCSP: isStrictCSPRoute });
     }
     if (token.role !== "admin") {
-      logAuthAttempt(pathname, 403);
+      logAuthAttempt(pathname, 403, requestId);
       return addSecurityHeaders(NextResponse.json({ error: "Forbidden" }, { status: 403 }), { nonce, strictCSP: isStrictCSPRoute });
     }
-    return addSecurityHeaders(nextWithNonce(request, nonce), { nonce, strictCSP: isStrictCSPRoute });
+    return addSecurityHeaders(nextWithNonce(request, nonce, requestId), { nonce, strictCSP: isStrictCSPRoute });
   }
 
   // Auth pages: Redirect away if already logged in
@@ -306,26 +314,26 @@ async function handleMiddleware(request: NextRequest, nonce: string): Promise<Ne
 
   // Public / Public API / HEAD requests / Guest checkout: Bypass further checks
   if (isPublicRoute || isPublicApi || isHeadRequest || isGuestPublicRoute) {
-    return addSecurityHeaders(nextWithNonce(request, nonce), { nonce, strictCSP: isStrictCSPRoute });
+    return addSecurityHeaders(nextWithNonce(request, nonce, requestId), { nonce, strictCSP: isStrictCSPRoute });
   }
 
   // Admin Pages: Enforce admin role
   if (isAdminPage) {
     if (!token) {
-      logAuthAttempt(pathname, 401);
+      logAuthAttempt(pathname, 401, requestId);
       return addSecurityHeaders(NextResponse.redirect(new URL("/403", request.url)), { nonce, strictCSP: isStrictCSPRoute });
     }
     if (token.role !== "admin") {
-      logAuthAttempt(pathname, 403);
+      logAuthAttempt(pathname, 403, requestId);
       return addSecurityHeaders(NextResponse.redirect(new URL("/403", request.url)), { nonce, strictCSP: isStrictCSPRoute });
     }
-    return addSecurityHeaders(nextWithNonce(request, nonce), { nonce, strictCSP: isStrictCSPRoute });
+    return addSecurityHeaders(nextWithNonce(request, nonce, requestId), { nonce, strictCSP: isStrictCSPRoute });
   }
 
   // Protected User Routes
   if (isProtectedRoute) {
     if (!token) {
-      logAuthAttempt(pathname, 401);
+      logAuthAttempt(pathname, 401, requestId);
       return addSecurityHeaders(NextResponse.redirect(new URL("/403", request.url)), { nonce, strictCSP: isStrictCSPRoute });
     }
 
@@ -333,13 +341,13 @@ async function handleMiddleware(request: NextRequest, nonce: string): Promise<Ne
     if (token.role === "admin" && pathname.startsWith("/dashboard")) {
       return addSecurityHeaders(NextResponse.redirect(new URL("/admin/dashboard", request.url)), { nonce, strictCSP: isStrictCSPRoute });
     }
-    return addSecurityHeaders(nextWithNonce(request, nonce), { nonce, strictCSP: isStrictCSPRoute });
+    return addSecurityHeaders(nextWithNonce(request, nonce, requestId), { nonce, strictCSP: isStrictCSPRoute });
   }
 
   // General API Safety: No redirects for internal APIs
   if (isApi) {
     if (!token) {
-      logAuthAttempt(pathname, 401);
+      logAuthAttempt(pathname, 401, requestId);
       return addSecurityHeaders(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), { nonce, strictCSP: isStrictCSPRoute });
     }
   }
@@ -347,7 +355,7 @@ async function handleMiddleware(request: NextRequest, nonce: string): Promise<Ne
   // Default fallback
   const isPdfRoute = pathname.match(/^\/api\/user\/invoices\/[^/]+\/pdf$/) !== null;
   const isCheckoutRoute = pathname === "/checkout" || pathname.startsWith("/checkout/");
-  return addSecurityHeaders(nextWithNonce(request, nonce), { skipCSP: isPdfRoute || isCheckoutRoute, nonce, strictCSP: isStrictCSPRoute });
+  return addSecurityHeaders(nextWithNonce(request, nonce, requestId), { skipCSP: isPdfRoute || isCheckoutRoute, nonce, strictCSP: isStrictCSPRoute });
 }
 
 export const config = {
