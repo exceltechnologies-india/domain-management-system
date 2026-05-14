@@ -52,10 +52,19 @@ The Docker path was already safe in practice (`.env.local` is excluded by [.dock
 
 ---
 
-### [CRITICAL-3] Security module excluded from coverage
-[vitest.config.ts](vitest.config.ts) excludes `lib/security.ts` from coverage. The 60% threshold passes because the file isn't measured — actual security coverage is unknown.
+### ~~[CRITICAL-3] Security module excluded from coverage~~ — RESOLVED 2026-05-14
+[vitest.config.ts](vitest.config.ts) no longer excludes [lib/security.ts](lib/security.ts) from coverage. Added [tests/unit/lib/security.test.ts](tests/unit/lib/security.test.ts) — 42 tests covering every public method on `SecurityValidator`:
 
-**Fix:** Remove `lib/security.ts` from `coverage.exclude` and write tests for input sanitisation, rate-limiting helpers, and CSRF token validation.
+- `containsMaliciousPatterns`: SQL injection, NoSQL operators, XSS payloads, javascript:/event-handler URLs, path traversal (raw + URL-encoded), null-byte injection, command-injection metacharacters
+- `validateFileUpload`: dangerous extensions (`.exe`, `.bat`, `.cmd`, `.sh`, `.php`), oversized content, malicious content in safe-named file, path-traversal filenames
+- `sanitizeInput`: HTML stripping, max-length truncation, whitespace normalisation, special-char filtering
+- `validateEmailSecurity`: format validation, `..` / `@.` / `.@` rejection, max length, sanitised output is lowercase + trimmed
+- `validatePasswordSecurity`: length + variety requirements, common-pattern dictionary, medium / strong tiering
+- `validateCSRF`: GET/HEAD/OPTIONS bypass, Origin match, Referer fallback, production-strict header requirement, missing `NEXTAUTH_URL` rejection
+
+**Measured coverage of [lib/security.ts](lib/security.ts):** 98.93% lines, 95.38% branches, 100% functions, 98.88% statements. Suite moved from 298 → 340 tests, all green.
+
+**Bug fixed as a byproduct of exposing the file to tests:** `validateFileUpload` would crash with `RangeError: Maximum call stack size exceeded` when called with content larger than ~10 MB — the size check added an error but did not short-circuit, and the subsequent `containsMaliciousPatterns(content)` call overflowed the regex engine. [lib/security.ts](lib/security.ts) now returns early after the size check. Detected because the new oversized-file test failed on the first run; the fix is in the same commit.
 
 ---
 
