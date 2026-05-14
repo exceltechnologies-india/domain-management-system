@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
 import { verifyAdminAuth } from "@/lib/admin-auth";
 import { requireReAuth } from "@/lib/admin-security";
 import { serverLogger } from "@/lib/server-logger";
+import {
+  getUserByIdSafe,
+  getUserById,
+  countAdmins,
+  applyUserPatch,
+  softDeleteUser,
+} from "@/lib/services/users";
 
 // Force dynamic rendering - required for API routes
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 // GET - Get specific user (admin only)
 export async function GET(
@@ -21,9 +26,7 @@ export async function GET(
       return NextResponse.json({ error: authResult.error }, { status: 401 });
     }
 
-    await connectDB();
-
-    const user = await User.findById(id).select("-password");
+    const user = await getUserByIdSafe(id);
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
@@ -56,43 +59,25 @@ export async function PUT(
 
     const { firstName, lastName, email, role, isActive } = await request.json();
 
-    await connectDB();
-
-    const user = await User.findById(id);
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
     // Prevent admin from deactivating themselves
-    if (user._id?.toString() === authResult.user?.id && isActive === false) {
+    if (id === authResult.user?.id && isActive === false) {
       return NextResponse.json(
         { error: "Cannot deactivate your own account" },
         { status: 400 }
       );
     }
 
-    // Track if user is being disabled
-    const wasActive = user.isActive;
-    const isBeingDisabled = typeof isActive === "boolean" && !isActive && wasActive;
+    const user = await applyUserPatch(id, {
+      firstName,
+      lastName,
+      email,
+      role,
+      isActive,
+    });
 
-    // Update user fields
-    if (firstName) user.firstName = firstName;
-    if (lastName) user.lastName = lastName;
-    if (email) user.email = email;
-    if (role && ["user", "admin"].includes(role)) user.role = role;
-    if (typeof isActive === "boolean") {
-      user.isActive = isActive;
-      // Invalidate all sessions when user is disabled
-      if (isBeingDisabled) {
-        user.sessionInvalidatedAt = new Date();
-      }
-      // Clear invalidation timestamp when user is re-enabled
-      if (isActive && !wasActive) {
-        user.sessionInvalidatedAt = null;
-      }
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
-
-    await user.save();
 
     return NextResponse.json({
       success: true,
@@ -131,14 +116,16 @@ export async function DELETE(
     const reauth = await requireReAuth(request, authResult.user!.id);
     if (!reauth.passed) {
       return NextResponse.json(
-        { error: "Current password required to delete a user", code: "REAUTH_REQUIRED" },
+        {
+          error: "Current password required to delete a user",
+          code: "REAUTH_REQUIRED",
+        },
         { status: 403 }
       );
     }
 
-    await connectDB();
-
-    const user = await User.findById(id);
+    // Need the full user to check role + ownership before deleting.
+    const user = await getUserById(id);
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
@@ -153,7 +140,7 @@ export async function DELETE(
 
     // Prevent deleting the last admin
     if (user.role === "admin") {
-      const adminCount = await User.countDocuments({ role: "admin" });
+      const adminCount = await countAdmins();
       if (adminCount <= 1) {
         return NextResponse.json(
           { error: "Cannot delete the last admin user" },
@@ -162,14 +149,8 @@ export async function DELETE(
       }
     }
 
-    // Soft delete user by deactivating
-    // Invalidate all sessions immediately when user is disabled
-    await User.findByIdAndUpdate(id, {
-      isActive: false,
-      isDeleted: true,
-      deletedAt: new Date(),
-      sessionInvalidatedAt: new Date(), // Invalidate all sessions
-    });
+    // Soft delete user by deactivating + invalidating sessions
+    await softDeleteUser(id);
 
     return NextResponse.json({
       success: true,

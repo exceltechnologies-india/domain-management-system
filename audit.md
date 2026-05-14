@@ -167,8 +167,37 @@ Foundational `/api/v1/` alias is now in place. Every existing `/api/<path>` endp
 
 ---
 
-### [HIGH-4] No service / repository layer
-Routes call Mongoose models directly. Schema changes ripple into dozens of files. A half-formed pattern exists in [lib/payment-services/](lib/payment-services/) — extend it to domains, hosting, users, orders.
+### ~~[HIGH-4] No service / repository layer~~ — PARTIALLY RESOLVED 2026-05-14 (foundation + User done)
+**Footprint measured:** 107 route files, ~269 distinct Mongoose-model operations across the codebase. Top models by op count: User (93), Order (67), Hosting (28), HostingPlan (25), PendingDomain (16), Domain (12), SupportTicket (11), PendingHosting (8), DomainWatch (7).
+
+**Foundation laid for the rest:** Added [lib/services/](lib/services/) (parallel to the existing [lib/payment-services/](lib/payment-services/)). The pattern mirrors the audit's referenced "half-formed" pattern — domain-specific use-case functions, not a generic repository abstraction.
+
+**User done as the concrete first model:**
+
+[lib/services/users.ts](lib/services/users.ts) — exports:
+- Reads: `getUserById`, `getUserByIdSafe` (password-stripped, the default for client returns), `getUserByEmail`, `findUserRoleById` (lightweight role lookup for admin-guards), `countAdmins`, `countUsers`, `listUsers` (paginated admin listing with sane default projection)
+- Writes: `updateUserRole` (whitelist-locked findByIdAndUpdate to prevent mass-assignment), `softDeleteUser` (sets `isActive=false`, `isDeleted=true`, `deletedAt`, invalidates sessions), `permanentDeleteUser` (snapshots `userName`/`userEmail` onto historical Orders before dropping the user), `applyUserPatch` (admin field update with session-invalidation on `isActive: true → false`)
+
+**Migrations completed:** the two highest-User-concentration route files:
+- [app/api/admin/users/route.ts](app/api/admin/users/route.ts) — GET/PUT/DELETE — was 7 direct User calls → 0. Now uses `listUsers`, `findUserRoleById`, `updateUserRole`, `softDeleteUser`, `permanentDeleteUser`.
+- [app/api/admin/users/[id]/route.ts](app/api/admin/users/[id]/route.ts) — GET/PUT/DELETE — was 5 direct User calls → 0. Now uses `getUserByIdSafe`, `getUserById`, `countAdmins`, `applyUserPatch`, `softDeleteUser`. The 30-line in-route soft-delete + invalidate-sessions logic is now a 1-liner.
+
+The user-permanent-deletion "snapshot orders before deletion" logic — previously hand-inlined in the admin route — is now centralized inside `permanentDeleteUser` where any future caller benefits automatically.
+
+**Verified on main:** 340/340 tests, lint clean, tsc clean, production build succeeded.
+
+**Pending — incremental adoption:**
+1. **User model migration:** 12 done, ~81 sites remaining across `app/api/**` and `lib/**`. The service surface is in place; routes adopt as they're next touched.
+2. **Order service** (67 ops) — next priority since it's tightly coupled with payment-services.
+3. **Hosting service** (28 ops) — many admin + worker callers.
+4. **HostingPlan, PendingDomain, Domain, SupportTicket, etc.** — smaller but worth their own modules.
+5. The existing [lib/payment-services/](lib/payment-services/) should probably move under [lib/services/](lib/services/) for consistency — left in place this pass to avoid touching all the verification/order-creator/webhook-handlers files yet again.
+
+**Migration playbook for future routes:**
+- Identify the Mongoose calls in the file.
+- Map each to a service function (extend the service module with a use-case-named function if no existing one fits — avoid creating thin pass-throughs that just wrap a single Mongoose method).
+- Replace the route-level `await connectDB()` calls when the only reason they existed was the Mongoose access — services call it themselves.
+- Keep auth, validation, response shaping in the route. Push state-changing logic and queries into the service.
 
 ---
 

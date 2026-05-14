@@ -1,22 +1,25 @@
-import { NextRequest, NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
+import { NextRequest } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { Schemas } from "@/lib/validation";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { z } from "zod";
 import { serverLogger } from "@/lib/server-logger";
+import {
+  listUsers,
+  findUserRoleById,
+  updateUserRole,
+  softDeleteUser,
+  permanentDeleteUser,
+} from "@/lib/services/users";
 
 // Force dynamic rendering - required for API routes
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 const MAX_PAGE_SIZE = 100;
 
 // GET - Fetch users (admin only) with pagination
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
-
     // Authorization: Strict admin check
     const user = await AuthService.getUserFromRequest(request);
     if (!user || user.role !== "admin") {
@@ -25,31 +28,16 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
-    const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, parseInt(searchParams.get("limit") ?? "50", 10)));
-    const skip = (page - 1) * limit;
+    const limit = Math.min(
+      MAX_PAGE_SIZE,
+      Math.max(1, parseInt(searchParams.get("limit") ?? "50", 10))
+    );
 
-    const filter = {
-      role: { $ne: "admin" },
-      isDeleted: { $ne: true },
-    };
-
-    const [users, total] = await Promise.all([
-      User.find(
-        filter,
-        {
-          firstName: 1,
-          lastName: 1,
-          email: 1,
-          role: 1,
-          createdAt: 1,
-          isActive: 1,
-          hostingCreatedAt: 1,
-          hostingExpiresAt: 1,
-          totpEnabled: 1,
-        }
-      ).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
-      User.countDocuments(filter),
-    ]);
+    const { users, total, totalPages, hasMore } = await listUsers({
+      filter: { role: { $ne: "admin" }, isDeleted: { $ne: true } },
+      page,
+      limit,
+    });
 
     // Map to clean response objects
     const cleanUsers = users.map((u: any) => ({
@@ -72,8 +60,8 @@ export async function GET(request: NextRequest) {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit),
-        hasMore: page * limit < total,
+        totalPages,
+        hasMore,
       },
     });
   } catch (error) {
@@ -92,41 +80,42 @@ export async function PUT(request: NextRequest) {
 
     /**
      * 🛡️ DEFENSE-IN-DEPTH: Security Layer 2 - Schema Validation
-     * Uses Zod to strictly typed fields and prevent 'Role Escalation' or 
+     * Uses Zod to strictly typed fields and prevent 'Role Escalation' or
      * 'Mass Assignment' of other user properties.
      */
     const body = await request.json();
     const result = Schemas.adminUserUpdate.safeParse(body);
-    
+
     if (!result.success) {
-      return secureErrorResponse("Invalid request data", 400, "VALIDATION_ERROR", result.error.format());
+      return secureErrorResponse(
+        "Invalid request data",
+        400,
+        "VALIDATION_ERROR",
+        result.error.format()
+      );
     }
 
     const { userId, role } = result.data;
-
-    await connectDB();
 
     /**
      * 🛡️ DEFENSE-IN-DEPTH: Security Layer 3 - Privilege Guard
      * Prevents an admin from using this endpoint to demote or modify OTHER admins.
      * Admin escalation/modification should only happen through a higher-trust CLI or direct DB access.
      */
-    const targetUser = await User.findById(userId).select("role");
-    if (!targetUser) {
+    const targetRole = await findUserRoleById(userId);
+    if (!targetRole) {
       return secureErrorResponse("User not found", 404, "NOT_FOUND");
     }
 
-    if (targetUser.role === "admin") {
-      return secureErrorResponse("Cannot modify admin users via this endpoint", 403, "FORBIDDEN");
+    if (targetRole.role === "admin") {
+      return secureErrorResponse(
+        "Cannot modify admin users via this endpoint",
+        403,
+        "FORBIDDEN"
+      );
     }
 
-    // Update user role using specific whitelist update
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      { role },
-      { new: true, select: "firstName lastName email role" }
-    ).lean();
-
+    const updatedUser = await updateUserRole(userId, role);
     if (!updatedUser) {
       return secureErrorResponse("User not found", 404, "NOT_FOUND");
     }
@@ -159,7 +148,7 @@ export async function DELETE(request: NextRequest) {
     // Validation: Require User ID in body, strictly typed
     const body = await request.json();
     const result = z.object({ userId: Schemas.id }).safeParse(body);
-    
+
     if (!result.success) {
       return secureErrorResponse("Invalid User ID", 400, "VALIDATION_ERROR");
     }
@@ -168,18 +157,20 @@ export async function DELETE(request: NextRequest) {
 
     // Prevent admin from deleting themselves
     if (user._id?.toString() === userId) {
-      return secureErrorResponse("Cannot delete your own account", 400, "BAD_REQUEST");
+      return secureErrorResponse(
+        "Cannot delete your own account",
+        400,
+        "BAD_REQUEST"
+      );
     }
 
-    await connectDB();
-
     // Safety: Check if target user is an admin
-    const targetUser = await User.findById(userId).select("role");
-    if (!targetUser) {
+    const targetRole = await findUserRoleById(userId);
+    if (!targetRole) {
       return secureErrorResponse("User not found", 404, "NOT_FOUND");
     }
 
-    if (targetUser.role === "admin") {
+    if (targetRole.role === "admin") {
       return secureErrorResponse("Cannot delete admin users", 403, "FORBIDDEN");
     }
 
@@ -188,29 +179,15 @@ export async function DELETE(request: NextRequest) {
 
     if (isPermanent) {
       // PERMANENT DELETION - Extreme action, logging mandatory
-      serverLogger.info(`🚨 [USER-DELETE] Permanent deletion initiated for user ${userId}`);
-      
-      // Safety: Snapshot user details into orders before they are gone forever
-      try {
-        const Order = (await import("@/models/Order")).default;
-        const targetUserDetails = await User.findById(userId).select("firstName lastName email");
-        if (targetUserDetails) {
-          const fullName = `${targetUserDetails.firstName || ''} ${targetUserDetails.lastName || ''}`.trim();
-          const email = targetUserDetails.email;
-          
-          const result = await Order.updateMany(
-            { userId: userId, $or: [{ userName: { $exists: false } }, { userName: "" }] },
-            { $set: { userName: fullName, userEmail: email } }
-          );
-          serverLogger.info(`✅ [USER-DELETE] Snapshotted user details for ${result.modifiedCount} orders before deletion.`);
-        }
-      } catch (snapshotError) {
-        serverLogger.error(`⚠️ [USER-DELETE] Failed to snapshot orders before deletion:`, snapshotError);
-        // We continue with deletion as the admin explicitly requested it, 
-        // but we've logged the failure.
-      }
+      serverLogger.info(
+        `🚨 [USER-DELETE] Permanent deletion initiated for user ${userId}`
+      );
 
-      await User.findByIdAndDelete(userId);
+      const { ordersSnapshotted } = await permanentDeleteUser(userId);
+      serverLogger.info(
+        `✅ [USER-DELETE] Snapshotted user details for ${ordersSnapshotted} orders before deletion.`
+      );
+
       return secureJsonResponse({
         success: true,
         message: "User permanently deleted",
@@ -218,17 +195,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Soft delete user by deactivating and invalidating sessions
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      {
-        isActive: false,
-        isDeleted: true,
-        deletedAt: new Date(),
-        sessionInvalidatedAt: new Date(),
-      },
-      { new: true }
-    );
-
+    const updatedUser = await softDeleteUser(userId);
     if (!updatedUser) {
       return secureErrorResponse("User not found", 404, "NOT_FOUND");
     }
