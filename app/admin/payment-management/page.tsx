@@ -11,6 +11,7 @@ import AdminDataTable from '@/components/admin/AdminDataTable';
 import { formatIndianDate, formatIndianTime, formatIndianDateTime, formatIndianCurrency } from '@/lib/dateUtils';
 import { performLogout } from '@/lib/logout';
 import { safeLocalStorage } from '@/lib/storage';
+import { logger } from '@/lib/logger';
 
 interface Payment {
   id: string;
@@ -134,12 +135,12 @@ export default function AdminPayments() {
         setTotalItems(data.total || 0);
         // Payments loaded successfully
       } else {
-        console.error('Failed to load payments:', response.statusText);
+        logger.error('Failed to load payments:', response.statusText);
         setPayments([]);
         setTotalItems(0);
       }
     } catch (error) {
-      console.error('Failed to load payments:', error);
+      logger.error('Failed to load payments:', error);
       setPayments([]);
       setTotalItems(0);
     } finally {

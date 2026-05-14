@@ -8,6 +8,7 @@ import { safeLocalStorage, safeSessionStorage } from '@/lib/storage';
 import Footer from '@/components/Footer';
 import { PaymentSuccessPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import Link from 'next/link';
+import { logger } from '@/lib/logger';
 
 const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@anutech.in';
 
@@ -70,7 +71,7 @@ export default function PaymentResultPage() {
         const userObj = JSON.parse(userData);
         setUser(userObj);
       } catch (error) {
-        console.error('Error parsing user data:', error);
+        logger.error('Error parsing user data:', error);
       }
     }
 
@@ -85,7 +86,7 @@ export default function PaymentResultPage() {
         // Clear the session storage after reading
         safeSessionStorage.removeItem('paymentResult');
       } catch (error) {
-        console.error('Error parsing payment result:', error);
+        logger.error('Error parsing payment result:', error);
         setResult(null);
       }
     } else {

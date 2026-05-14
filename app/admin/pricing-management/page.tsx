@@ -30,6 +30,7 @@ import AdminDataTable from '@/components/admin/AdminDataTable';
 import { formatIndianCurrency, formatIndianNumber, formatIndianDateTime } from '@/lib/dateUtils';
 import { performLogout } from '@/lib/logout';
 import { safeLocalStorage } from '@/lib/storage';
+import { logger } from '@/lib/logger';
 
 /**
  * TLD Pricing Interface
@@ -170,11 +171,11 @@ export default function AdminTLDPricing() {
         setIsCached(data.cached || false);
         setCachedAt(data.cachedAt || '');
       } else {
-        console.error('Failed to load TLD pricing:', response.statusText);
+        logger.error('Failed to load TLD pricing:', response.statusText);
         setTldPricing([]);
       }
     } catch (error) {
-      console.error('Failed to load TLD pricing:', error);
+      logger.error('Failed to load TLD pricing:', error);
       setTldPricing([]);
     } finally {
       setIsDataLoading(false);
@@ -193,14 +194,14 @@ export default function AdminTLDPricing() {
       });
 
       if (response.ok) {
-        console.log('Cache purged successfully');
+        logger.log('Cache purged successfully');
         // Reload pricing data (cache is already cleared, so will fetch fresh from API)
         await loadTLDPricing();
       } else {
-        console.error('Failed to purge cache');
+        logger.error('Failed to purge cache');
       }
     } catch (error) {
-      console.error('Error purging cache:', error);
+      logger.error('Error purging cache:', error);
     } finally {
       setIsPurgingCache(false);
     }

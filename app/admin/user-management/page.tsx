@@ -14,6 +14,7 @@ import { formatIndianDate, formatIndianLongDateTime, formatIndianDateTime } from
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
 import { performLogout } from '@/lib/logout';
 import { safeLocalStorage } from '@/lib/storage';
+import { logger } from '@/lib/logger';
 
 interface User {
   _id: string;
@@ -202,11 +203,11 @@ export default function AdminUsers() {
         setServiceUsers(servicesData.users || []);
       } else {
         const errorMsg = servicesResult.status === 'fulfilled' ? servicesResult.value.statusText : 'Network Error';
-        console.warn('Failed to fetch service users:', errorMsg);
+        logger.warn('Failed to fetch service users:', errorMsg);
         setServiceUsers([]);
       }
     } catch (error) {
-      console.error('Error loading users:', error);
+      logger.error('Error loading users:', error);
       setUsers([]);
       setDeactivatedUsers([]);
       setServiceUsers([]);

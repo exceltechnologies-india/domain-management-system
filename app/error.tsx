@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Button from '@/components/Button';
 import { safeLocalStorage } from '@/lib/storage';
+import { logger } from '@/lib/logger';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 
@@ -35,7 +36,7 @@ export default function Error({ error, reset }: ErrorProps) {
         service: 'frontend-client',
         metadata: { digest: error.digest }
       })
-    }).catch(console.error);
+    }).catch(logger.error);
 
     // Check if user is logged in
     const getCookieValue = (name: string) => {

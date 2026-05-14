@@ -26,6 +26,7 @@ import { safeLocalStorage } from '@/lib/storage';
 import { performLogout } from '@/lib/logout';
 import { formatIndianDateTime } from '@/lib/dateUtils';
 import toast from 'react-hot-toast';
+import { logger } from '@/lib/logger';
 
 interface User {
   firstName: string;
@@ -120,7 +121,7 @@ export default function AdminPendingHostingPage() {
         toast.error('Failed to fetch pending hosting data');
       }
     } catch (error) {
-      console.error('Error fetching pending data:', error);
+      logger.error('Error fetching pending data:', error);
       toast.error('Error loading pending data');
     } finally {
       setIsLoadingData(false);

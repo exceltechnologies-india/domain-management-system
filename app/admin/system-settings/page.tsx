@@ -12,6 +12,7 @@ import AdminPasswordReset from '@/components/AdminPasswordReset';
 import { performLogout } from '@/lib/logout';
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
 import { safeLocalStorage } from '@/lib/storage';
+import { logger } from '@/lib/logger';
 
 export default function AdminSettings() {
   const [user, setUser] = useState<any>(null);
@@ -123,7 +124,7 @@ export default function AdminSettings() {
         setRazorpayLiveKeyId(data.liveKeyId || '');
       }
     } catch (e) {
-      console.error('Failed to load Razorpay mode', e);
+      logger.error('Failed to load Razorpay mode', e);
     }
   };
 
@@ -243,7 +244,7 @@ export default function AdminSettings() {
         }
       }
     } catch (error) {
-      console.error('Error loading IP whitelist settings:', error);
+      logger.error('Error loading IP whitelist settings:', error);
     }
   };
 
@@ -269,7 +270,7 @@ export default function AdminSettings() {
         }
       }
     } catch (error) {
-      console.error('Error fetching current IP:', error);
+      logger.error('Error fetching current IP:', error);
     } finally {
       setIsLoadingIP(false);
     }
@@ -318,7 +319,7 @@ export default function AdminSettings() {
 
       showSuccessToast('IP whitelist settings saved successfully');
     } catch (error) {
-      console.error('Error saving IP whitelist settings:', error);
+      logger.error('Error saving IP whitelist settings:', error);
       showErrorToast('Failed to save IP whitelist settings');
     } finally {
       setIsSavingWhitelist(false);
@@ -372,7 +373,7 @@ export default function AdminSettings() {
         }
       }
     } catch (error) {
-      console.error('Error loading captcha settings:', error);
+      logger.error('Error loading captcha settings:', error);
     }
   };
 
@@ -398,7 +399,7 @@ export default function AdminSettings() {
 
       showSuccessToast(`Captcha ${captchaEnabled ? 'enabled' : 'disabled'} successfully`);
     } catch (error) {
-      console.error('Error saving captcha settings:', error);
+      logger.error('Error saving captcha settings:', error);
       showErrorToast('Failed to save captcha settings');
     } finally {
       setIsSavingCaptcha(false);
@@ -439,7 +440,7 @@ export default function AdminSettings() {
         }
       }
     } catch (error) {
-      console.error('Error loading CORS settings:', error);
+      logger.error('Error loading CORS settings:', error);
     }
   };
 
@@ -490,7 +491,7 @@ export default function AdminSettings() {
 
       showSuccessToast('CORS settings saved successfully');
     } catch (error) {
-      console.error('Error saving CORS settings:', error);
+      logger.error('Error saving CORS settings:', error);
       showErrorToast('Failed to save CORS settings');
     } finally {
       setIsSavingCors(false);
@@ -570,7 +571,7 @@ export default function AdminSettings() {
       setIsBackupModalOpen(false);
       setBackupPassword('');
     } catch (error: any) {
-      console.error('Backup error:', error);
+      logger.error('Backup error:', error);
       // Determine if it was a network error or API error
       const errorMessage = error.message === 'Failed to fetch'
         ? 'Network error. Please check your connection.'

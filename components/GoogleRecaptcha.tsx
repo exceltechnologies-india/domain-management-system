@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { RecaptchaClient } from '@/lib/recaptcha';
+import { logger } from '@/lib/logger';
 
 interface GoogleRecaptchaProps {
   onSuccess?: (token: string) => void;
@@ -55,7 +56,7 @@ export default function GoogleRecaptcha({
             }
           } else {
             // Non-ok response (e.g. 401, 500) — treat as "enabled" to preserve security
-            console.warn('[GoogleRecaptcha] captcha-status returned', res.status, '— showing captcha');
+            logger.warn('[GoogleRecaptcha] captcha-status returned', res.status, '— showing captcha');
           }
         } catch {
           // Network error — treat as enabled to preserve security
@@ -63,7 +64,7 @@ export default function GoogleRecaptcha({
 
         const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
         if (!siteKey || siteKey === 'your-recaptcha-site-key') {
-          console.warn('reCAPTCHA not configured - allowing form submission without verification');
+          logger.warn('reCAPTCHA not configured - allowing form submission without verification');
           if (handlersRef.current.onSuccess) {
             handlersRef.current.onSuccess('manual-pass');
           }
@@ -72,7 +73,7 @@ export default function GoogleRecaptcha({
 
         if (containerRef.current) {
           try {
-            console.log(`[GoogleRecaptcha] Attempting to render in ${containerId}...`);
+            logger.log(`[GoogleRecaptcha] Attempting to render in ${containerId}...`);
             const widgetId = await RecaptchaClient.render(containerRef.current, {
               theme,
               size,
@@ -92,20 +93,20 @@ export default function GoogleRecaptcha({
             if (isMounted && widgetId !== null) {
               widgetIdRef.current = widgetId;
               renderedRef.current = true;
-              console.log(`[GoogleRecaptcha] Rendered successfully with ID: ${widgetId}`);
+              logger.log(`[GoogleRecaptcha] Rendered successfully with ID: ${widgetId}`);
             }
           } catch (renderError) {
             if (isMounted) {
               // Ignore "already rendered" error as it's harmless if we already have a widget
               const errorMsg = renderError instanceof Error ? renderError.message : String(renderError);
               if (errorMsg.includes('already been rendered')) {
-                console.warn('[GoogleRecaptcha] Container already rendered, ignoring error.');
+                logger.warn('[GoogleRecaptcha] Container already rendered, ignoring error.');
                 renderedRef.current = true;
                 return;
               }
 
               setError('Failed to render verification widget');
-              console.error('reCAPTCHA render error:', renderError);
+              logger.error('reCAPTCHA render error:', renderError);
               if (handlersRef.current.onError) handlersRef.current.onError();
             }
           }
@@ -113,7 +114,7 @@ export default function GoogleRecaptcha({
       } catch (err) {
         if (isMounted) {
           setError('An unexpected error occurred with verification');
-          console.error('reCAPTCHA overall error:', err);
+          logger.error('reCAPTCHA overall error:', err);
         }
       }
     };
