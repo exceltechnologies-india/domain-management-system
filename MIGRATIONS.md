@@ -84,7 +84,7 @@ All three load `MONGODB_URI` from [.env.local](.env.local).
 
 - Build artifacts are produced ✅
 - DB is unchanged ❌ (migration failed before applying it)
-- Old PM2 process is already gone ⚠️ — operator must investigate and either fix the migration or roll back the deploy
+- Old standalone server process is already gone ⚠️ — operator must investigate and either fix the migration or roll back the deploy
 
 Logs land at `deployment-logs/<timestamp>/migrate.log`.
 
@@ -92,7 +92,7 @@ Logs land at `deployment-logs/<timestamp>/migrate.log`.
 
 There is **no automatic rollback**. If a migration causes a problem post-deploy:
 
-1. Stop the PM2 process (`pm2 stop next-app`).
+1. Stop the standalone server process (`kill -TERM "$(cat deployment-logs/.server.pid)"`, or stop the systemd / Cloud Run service that supervises it).
 2. Run the migration's `down(db)` manually via a one-off ts-node invocation, or revert the data change by hand if the impact is small.
 3. Delete the migration's row from the `_migrations` collection so the runner will re-attempt on the next deploy:
    ```

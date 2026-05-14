@@ -186,19 +186,42 @@ export async function POST(request: NextRequest) {
       }
       writeEnvFile(envUpdates);
 
-      // Restart PM2 app (non-blocking — fire and forget)
+      // Signal the standalone server to exit so the host's process supervisor
+      // (systemd on VPS, Cloud Run on managed hosting) restarts it with the
+      // new .env.local values. We read the PID written by deploy.sh and send
+      // SIGTERM — the server will drain in-flight requests, then exit, then
+      // the supervisor re-spawns it.
+      //
+      // If no supervisor is set up, the server stays down after this signal
+      // and an operator must re-run deploy.sh. That's a known limitation of
+      // PM2-less VPS deploys; the admin response makes the contract explicit.
+      let restartTriggered = false;
       try {
-        execSync("pm2 restart next-app --update-env 2>&1 || true", { timeout: 10000 });
+        const pidPath = path.join(process.cwd(), "deployment-logs", ".server.pid");
+        const pidRaw = fs.readFileSync(pidPath, "utf8").trim();
+        const pid = parseInt(pidRaw, 10);
+        if (Number.isFinite(pid) && pid > 0) {
+          // Use shell `kill` rather than process.kill so we don't accidentally
+          // signal *this* process (which is also the server) before the
+          // response has flushed. Fire-and-forget.
+          execSync(`kill -TERM ${pid} 2>/dev/null || true`, { timeout: 2000 });
+          restartTriggered = true;
+        }
       } catch (e) {
-        // PM2 may not be running in dev mode — log but don't fail
-        serverLogger.warn("PM2 restart skipped (not running or not available)", { error: String(e) });
+        serverLogger.warn(
+          "Razorpay mode: could not signal server for restart — env change saved but takes effect on next deploy",
+          { error: String(e) }
+        );
       }
 
-      serverLogger.info("Razorpay mode switched", { adminId: user._id, mode });
+      serverLogger.info("Razorpay mode switched", { adminId: user._id, mode, restartTriggered });
       return NextResponse.json({
         success: true,
-        message: `Switched to ${mode} mode. Server is restarting — this may take a few seconds.`,
+        message: restartTriggered
+          ? `Switched to ${mode} mode. Server is restarting — this may take a few seconds.`
+          : `Switched to ${mode} mode. New keys saved to .env.local but server was not restarted — re-deploy to apply.`,
         mode,
+        restartTriggered,
       });
     }
 

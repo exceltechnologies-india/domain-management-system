@@ -118,7 +118,7 @@ function nextWithNonce(request: NextRequest, nonce: string, requestId: string): 
 }
 
 // --- Maintenance Mode Cache ---
-// Module-level cache (persists across requests in Node.js standalone / PM2 process).
+// Module-level cache (persists across requests inside a single Node.js standalone-server process).
 // Falls back to a fresh fetch on every request in edge-like environments where module
 // state is not preserved between invocations, which is still acceptable.
 let _mCache: { enabled: boolean; message: string; scheduledEnd: string | null; expires: number } | null = null;
