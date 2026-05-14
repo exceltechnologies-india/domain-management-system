@@ -1,6 +1,7 @@
 import { AUTH_SECRET } from "@/lib/auth-secret";
 import { serverLogger } from "@/lib/server-logger";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import { NextRequest } from "next/server";
 import connectDB from "./mongodb";
 import User, { type IUser } from "@/models/User";
@@ -39,7 +40,11 @@ export class AuthService {
     // Add additional security claims to payload
     const enhancedPayload = {
       ...payload,
-      jti: `${payload.userId}_${Date.now()}`, // Unique token ID
+      // Unique token ID. Date.now() alone collides when two tokens are minted
+      // in the same millisecond (CI used to flake on this; same-ms minting
+      // also breaks any future JTI-based revocation list / replay detection).
+      // Add a crypto-random suffix so JTIs are unique regardless of timing.
+      jti: `${payload.userId}_${Date.now()}_${crypto.randomBytes(8).toString("hex")}`,
       iat: Math.floor(Date.now() / 1000), // Issued at
     };
 
