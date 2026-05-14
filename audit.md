@@ -243,17 +243,39 @@ Verified live (NODE_ENV=production):
 
 ---
 
-### [MEDIUM-3] Massive React components
-| File | LOC |
-|---|---|
-| [components/skeletons/PageSkeletons.tsx](components/skeletons/PageSkeletons.tsx) | 1,007 |
-| [components/RegisterForm.tsx](components/RegisterForm.tsx) | 686 |
-| [components/admin/InvoiceDiagnostics.tsx](components/admin/InvoiceDiagnostics.tsx) | 429 |
-| [components/HostingUpgradeModal.tsx](components/HostingUpgradeModal.tsx) | 414 |
+### [MEDIUM-3] Massive React components — `PageSkeletons.tsx` ~~split~~ ✅ 2026-05-14
+| File | LOC (before) | LOC (after) | Status |
+|---|---|---|---|
+| [components/skeletons/PageSkeletons.tsx](components/skeletons/PageSkeletons.tsx) | 1,007 | 14 (barrel) | ~~Split~~ ✅ |
+| [components/RegisterForm.tsx](components/RegisterForm.tsx) | 686 | 686 | pending |
+| [components/admin/InvoiceDiagnostics.tsx](components/admin/InvoiceDiagnostics.tsx) | 429 | 429 | pending |
+| [components/HostingUpgradeModal.tsx](components/HostingUpgradeModal.tsx) | 414 | 414 | pending |
 
-**Fix priority:**
-- `PageSkeletons.tsx` — split per route, import dynamically. This is almost certainly costing measurable JS bundle weight on first load.
-- `RegisterForm.tsx` — split address / personal / credentials sections.
+**PageSkeletons split (2026-05-14):** The 1,007-line client component file is now a 14-line backwards-compatible barrel that re-exports from 5 topical files alongside it. The 32 importing pages in `app/**` did not need to change.
+
+```
+components/skeletons/
+  _primitives.tsx     77 LOC   Sk, PageHeader, TableSkeleton, FormSection (internal helpers; not re-exported)
+  AdminLayout.tsx     76 LOC   AdminLayoutSkeleton, AdminTableRowsSkeleton
+  AdminPages.tsx     204 LOC   9 admin per-page skeletons
+  UserDashboard.tsx  489 LOC   12 user-dashboard skeletons
+  PaymentPages.tsx   188 LOC   CheckoutPageSkeleton, PaymentSuccessPageSkeleton, CartPageSkeleton
+  PageSkeletons.tsx   14 LOC   barrel re-export
+```
+
+**Honest bundle-size delta (build before vs after):**
+| Route | Before | After | Δ First-Load JS |
+|---|---|---|---|
+| `/cart` | 150 kB | 149 kB | **-1 kB** |
+| `/admin/hosting/packages` | 6.26 / 130 kB | 6.25 / 130 kB | -0.01 kB |
+| `/payment-success` | 4.43 / 141 kB | 4.42 / 141 kB | -0.01 kB |
+| All other routes (~32 importers) | — | — | unchanged |
+
+The audit predicted "almost certainly costing measurable JS bundle weight." That turned out to be partially wrong — Next.js's tree-shaker was already dropping unused named exports from the single-file module on most routes. The refactor's real value here is **maintainability** (5 ~200-LOC files instead of one 1,007-LOC monster, less merge-conflict surface, lower lint/tsc cost per file). One real bundle win on `/cart`; the rest are flat.
+
+**Verified:** 340/340 tests, lint clean, `tsc --noEmit` clean, production build succeeded. No call-site outside `components/skeletons/` modified.
+
+**Pending follow-up (the still-unresolved part):** Three other oversized client components still untouched — [RegisterForm.tsx](components/RegisterForm.tsx) (686), [InvoiceDiagnostics.tsx](components/admin/InvoiceDiagnostics.tsx) (429), [HostingUpgradeModal.tsx](components/HostingUpgradeModal.tsx) (414). These have richer internal state than the skeletons (forms, queries, transitions), so splitting requires actual decomposition rather than mechanical extraction. Worth doing when those areas next change.
 
 ---
 
