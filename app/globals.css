@@ -1,0 +1,405 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom scrollbar styles for modal content */
+.modal-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal-scrollbar::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.modal-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+  transition: background-color 0.2s ease;
+}
+
+.modal-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Firefox scrollbar styles */
+.modal-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f5f9;
+}
+
+/* Smooth scrolling */
+.modal-scrollbar {
+  scroll-behavior: smooth;
+}
+
+/* Focus styles for accessibility */
+.modal-scrollbar:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+@layer base {
+  html {
+    font-family: 'Roboto', system-ui, sans-serif;
+    scroll-behavior: smooth;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: 'Google Sans', system-ui, sans-serif;
+  }
+
+  h2 {
+    line-height: 1.6;
+  }
+
+  /* Google Workspace Color Variables */
+  :root {
+    /* Primary Colors */
+    --google-blue: #1A73E8;
+    --google-blue-hover: #1557B0;
+    --google-blue-light: #E8F0FE;
+
+    /* Text Colors */
+    --google-text-primary: #202124;
+    --google-text-secondary: #5F6368;
+    --google-text-tertiary: #9AA0A6;
+
+    /* Background Colors */
+    --google-bg-primary: #FFFFFF;
+    --google-bg-secondary: #F8F9FA;
+    --google-bg-tertiary: #F1F3F4;
+
+    /* Border Colors */
+    --google-border: #DADCE0;
+    --google-border-light: #E8EAED;
+
+    /* Google App Colors */
+    --google-red: #EA4335;
+    --google-yellow: #FBBC04;
+    --google-green: #34A853;
+    --google-purple: #9C27B0;
+    --google-orange: #FF9800;
+
+    /* Status Colors */
+    --google-success: #34A853;
+    --google-warning: #FBBC04;
+    --google-error: #EA4335;
+    --google-info: #1A73E8;
+  }
+}
+
+@layer components {
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+  /* Google Workspace Button Styles */
+  .btn {
+    @apply px-3 py-1.5 rounded-lg font-medium transition-all duration-200 font-['Google_Sans'];
+  }
+
+  .btn-primary {
+    @apply text-white focus:ring-2 focus:ring-offset-2;
+    background-color: var(--google-blue);
+    border: 1px solid var(--google-blue);
+  }
+
+  .btn-primary:hover {
+    background-color: var(--google-blue-hover);
+    border-color: var(--google-blue-hover);
+  }
+
+  .btn-primary:focus {
+    --tw-ring-color: var(--google-blue);
+  }
+
+  .btn-secondary {
+    @apply text-[var(--google-text-primary)] focus:ring-2 focus:ring-offset-2;
+    background-color: var(--google-bg-primary);
+    border: 1px solid var(--google-border);
+  }
+
+  .btn-secondary:hover {
+    background-color: var(--google-bg-secondary);
+  }
+
+  .btn-secondary:focus {
+    --tw-ring-color: var(--google-blue);
+  }
+
+  .btn-danger {
+    @apply text-white focus:ring-2 focus:ring-offset-2;
+    background-color: var(--google-error);
+    border: 1px solid var(--google-error);
+  }
+
+  .btn-danger:hover {
+    background-color: #D33B2C;
+  }
+
+  .btn-danger:focus {
+    --tw-ring-color: var(--google-error);
+  }
+
+  /* Google Workspace Input Styles */
+  .input {
+    @apply w-full px-3 py-2 rounded-lg focus:ring-2 focus:ring-offset-0 transition-all duration-200;
+    background-color: var(--google-bg-primary);
+    border: 1px solid var(--google-border);
+    color: var(--google-text-primary);
+  }
+
+  .input:focus {
+    border-color: var(--google-blue);
+    --tw-ring-color: var(--google-blue);
+  }
+
+  .input::placeholder {
+    color: var(--google-text-tertiary);
+  }
+
+  /* Google Workspace Card Styles */
+  .card {
+    @apply rounded-lg shadow-sm;
+    background-color: var(--google-bg-primary);
+    border: 1px solid var(--google-border-light);
+  }
+
+  .card-header {
+    @apply px-4 py-3;
+    border-bottom: 1px solid var(--google-border-light);
+  }
+
+  .card-body {
+    @apply px-4 py-3;
+  }
+
+  /* Google Workspace Text Styles */
+  .text-primary {
+    color: var(--google-text-primary);
+  }
+
+  .text-secondary {
+    color: var(--google-text-secondary);
+  }
+
+  .text-tertiary {
+    color: var(--google-text-tertiary);
+  }
+
+  .bg-primary {
+    background-color: var(--google-bg-primary);
+  }
+
+  .bg-secondary {
+    background-color: var(--google-bg-secondary);
+  }
+
+  .bg-tertiary {
+    background-color: var(--google-bg-tertiary);
+  }
+
+  .border-google {
+    border-color: var(--google-border);
+  }
+
+  .border-google-light {
+    border-color: var(--google-border-light);
+  }
+}
+
+/* Custom animations for domain search loading */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.6s ease-in-out;
+}
+
+/* Enhanced bounce animation for loading text */
+@keyframes bounce-enhanced {
+
+  0%,
+  20%,
+  50%,
+  80%,
+  100% {
+    transform: translateY(0);
+  }
+
+  40% {
+    transform: translateY(-8px);
+  }
+
+  60% {
+    transform: translateY(-4px);
+  }
+}
+
+.animate-bounce-enhanced {
+  animation: bounce-enhanced 1s infinite;
+}
+
+/* Toast progress bar animation */
+@keyframes shrink {
+  from {
+    width: 100%;
+  }
+
+  to {
+    width: 0%;
+  }
+}
+
+/* Toast enter/leave animations */
+@keyframes animate-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.95);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes animate-leave {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.95);
+  }
+}
+
+.animate-enter {
+  animation: animate-enter 0.2s ease-out;
+}
+
+.animate-leave {
+  animation: animate-leave 0.15s ease-in forwards;
+}
+
+/* Toast Container Positioning - Bottom Right */
+.toast-container {
+  z-index: 40 !important;
+  position: fixed !important;
+  bottom: 80px !important;
+  right: 80px !important;
+  top: auto !important;
+}
+
+/* Individual Toast Notification */
+.toast-notification {
+  z-index: 40 !important;
+  pointer-events: auto !important;
+}
+
+/* Ensure toasts don't block interactive elements */
+[data-sonner-toaster],
+[data-react-hot-toast] {
+  z-index: 40 !important;
+}
+
+/* Modal animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.animate-slideInRight {
+  animation: slideInRight 0.3s ease-out;
+}
+
+/* Google reCAPTCHA styling handled by GoogleRecaptcha component */
+
+/* Cart flash animation - draws attention when cart has items */
+@keyframes cart-flash {
+
+  0%,
+  100% {
+    box-shadow: 0 10px 25px -5px rgba(34, 197, 94, 0.5), 0 0 0 0 rgba(34, 197, 94, 0.7);
+    transform: scale(1);
+  }
+
+  25% {
+    box-shadow: 0 10px 25px -5px rgba(34, 197, 94, 0.8), 0 0 0 10px rgba(34, 197, 94, 0.4);
+    transform: scale(1.05);
+  }
+
+  50% {
+    box-shadow: 0 10px 25px -5px rgba(34, 197, 94, 0.6), 0 0 0 5px rgba(34, 197, 94, 0.5);
+    transform: scale(1);
+  }
+
+  75% {
+    box-shadow: 0 10px 25px -5px rgba(34, 197, 94, 0.8), 0 0 0 8px rgba(34, 197, 94, 0.3);
+    transform: scale(1.03);
+  }
+}
+
+.animate-cart-flash {
+  animation: cart-flash 2s ease-in-out infinite;
+}
+
+/* ── Skeleton shimmer ─────────────────────────────────────── */
+@keyframes skeleton-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 25%,
+    #e8e8e8 37%,
+    #f0f0f0 63%
+  );
+  background-size: 800px 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+  border-radius: 4px;
+}

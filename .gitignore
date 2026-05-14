@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js build output
+.next/
+out/
+
+# Production build
+build/
+dist/
+
+# Environment files — NEVER commit secrets
+.env
+.env.*
+!.env.example
+
+# GCP service account keys and other credentials
+*.json.key
+gcp-key.json
+service-account*.json
+
+# Debug logs
+*.log
+auth-debug.log
+debug_payment.log
+
+# Deployment artefacts
+deployment-logs/
+
+# Scratch / temporary working files
+scratch/
+tmp/
+temp/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test coverage
+coverage/
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# PM2 logs
+logs/

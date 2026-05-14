@@ -1,0 +1,109 @@
+import { NextRequest, NextResponse } from "next/server";
+import { AuthService } from "@/lib/auth";
+import { DirectAdminService } from "@/lib/directadmin";
+import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
+import { serverLogger } from "@/lib/server-logger";
+import User from "@/models/User";
+import connectDB from "@/lib/mongodb";
+
+/**
+ * POST /api/admin/hosting/assign
+ * Manually assigns a hosting package to a user.
+ * Restricted to Admins only.
+ */
+export async function POST(request: NextRequest) {
+  try {
+    // 1. Authenticate and check Admin role
+    const isAdmin = await AuthService.isAdmin(request);
+    if (!isAdmin) {
+      serverLogger.warn("Admin Hosting Assignment Attempt: Unauthorized access");
+      return secureErrorResponse("Unauthorized. Admin access required.", 403, "FORBIDDEN");
+    }
+
+    // 2. Parse request body
+    const body = await request.json();
+    const { userId, package: packageName, domain } = body;
+
+    if (!userId || !packageName || !domain) {
+      return secureErrorResponse("Missing required fields: userId, package, domain", 400, "INVALID_INPUT");
+    }
+
+    await connectDB();
+    const user = await User.findById(userId);
+    
+    if (!user) {
+        return secureErrorResponse("User not found", 404, "USER_NOT_FOUND");
+    }
+
+    // 3. Generate DA Username if not exists
+    let daUsername = user.directAdminUsername;
+    if (!daUsername) {
+        const cleanDomain = domain.replace(/[^a-zA-Z0-9]/g, "").substring(0, 8);
+        const random = Math.random().toString(36).substring(2, 6);
+        daUsername = `${cleanDomain}${random}`.toLowerCase();
+        
+        if (daUsername.length > 14) {
+            daUsername = daUsername.substring(0, 14);
+        }
+    }
+
+    serverLogger.info(`Admin assigning hosting for user ${user.email} (DA: ${daUsername}) - Domain: ${domain}, Package: ${packageName}`);
+
+    // 4. Create User in DirectAdmin
+    const result = await DirectAdminService.createUser(daUsername, user.email, domain, packageName);
+
+    // 4.5. Update DNS Nameservers in DirectAdmin
+    try {
+      const resellerClubNameServers = [
+        "deepak1299294.mercury.orderbox-dns.com",
+        "deepak1299294.venus.orderbox-dns.com",
+        "deepak1299294.earth.orderbox-dns.com",
+        "deepak1299294.mars.orderbox-dns.com",
+      ];
+
+      serverLogger.info(`Updating DNS nameservers for ${domain} in DirectAdmin`);
+
+      await DirectAdminService.updateDNSNameservers(
+        daUsername,
+        domain,
+        resellerClubNameServers
+      );
+
+      serverLogger.info(`DNS nameservers updated successfully for ${domain}`);
+    } catch (dnsError: any) {
+      // Log but don't fail the entire provisioning if DNS update fails
+      serverLogger.warn(`Failed to update DNS nameservers for ${domain}: ${dnsError.message}`);
+    }
+
+    // 5. Update User Record
+    if (!user.directAdminUsername) {
+        user.directAdminUsername = daUsername;
+        await user.save();
+    }
+
+    return secureJsonResponse({ 
+      success: true, 
+      message: `Hosting assigned successfully to ${user.email}`,
+      data: {
+        daUsername,
+        domain,
+        package: packageName,
+        result
+      }
+    });
+
+  } catch (error: any) {
+    serverLogger.error(`Admin Hosting Assignment Error:`, error.message);
+    
+    // Handle specific DA errors nicely
+    if (error.message && error.message.includes("already exists")) {
+        return secureErrorResponse("User or Domain already exists on the server.", 409, "ALREADY_EXISTS");
+    }
+
+    return secureErrorResponse(
+      `Failed to assign hosting: ${error.message}`,
+      500,
+      "ASSIGNMENT_FAILED"
+    );
+  }
+}
