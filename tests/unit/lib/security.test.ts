@@ -251,7 +251,7 @@ describe("SecurityValidator.validateCSRF", () => {
   afterEach(() => {
     process.env.NEXTAUTH_URL = originalNextAuthUrl;
     process.env.APP_URL = originalAppUrl;
-    process.env.NODE_ENV = originalNodeEnv;
+    (process.env as Record<string, string | undefined>).NODE_ENV = originalNodeEnv;
   });
 
   const makeRequest = (
@@ -297,14 +297,14 @@ describe("SecurityValidator.validateCSRF", () => {
   });
 
   it("rejects a production POST that has neither Origin nor Referer", () => {
-    process.env.NODE_ENV = "production";
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
     const r = SecurityValidator.validateCSRF(makeRequest("POST"));
     expect(r.isValid).toBe(false);
     expect(r.error).toMatch(/missing/i);
   });
 
   it("allows a non-production POST without either header (dev convenience)", () => {
-    process.env.NODE_ENV = "development";
+    (process.env as Record<string, string | undefined>).NODE_ENV = "development";
     const r = SecurityValidator.validateCSRF(makeRequest("POST"));
     expect(r.isValid).toBe(true);
   });
