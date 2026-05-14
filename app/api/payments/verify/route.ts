@@ -18,12 +18,18 @@ import {
   createCompletedOrder,
 } from "@/lib/payment-services/order-creator";
 import { handleVerificationError } from "@/lib/payment-services/verification-error";
+import { withRequestLogContext } from "@/lib/request-context";
 import type { IUser } from "@/models/User";
 import type { CartItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(request: NextRequest) {
+// withRequestLogContext binds the request ID from `x-request-id` (set by
+// middleware) into AsyncLocalStorage for the duration of the handler. Every
+// serverLogger.* call below — and inside the payment-services modules this
+// handler invokes — automatically carries `requestId` in its structured-JSON
+// output, with no per-call-site change needed.
+export const POST = withRequestLogContext(async (request: NextRequest) => {
   let user: IUser | null = null;
   let cartItems: CartItem[] = [];
 
@@ -253,4 +259,4 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return handleVerificationError({ error, user, cartItems });
   }
-}
+});

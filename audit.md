@@ -410,7 +410,34 @@ $ curl .../api/health
 
 **Verified:** 340/340 tests, lint clean, tsc clean, production build succeeded.
 
-**Pending follow-up (optional):** Most route handlers do not yet pass `{ requestId }` to their log calls — the threading exists, the meta-arg propagation isn't retrofitted into every existing log site. Easy to extend incrementally when each route is next touched.
+**Auto-propagation via AsyncLocalStorage (2026-05-14):** Routes no longer need to pass `{ requestId }` manually. [lib/request-context.ts](lib/request-context.ts) registers an `AsyncLocalStorage` instance on `globalThis`, and `serverLogger` reads from it on every call. Wrapping a route handler with `withRequestLogContext(...)` binds `x-request-id` for the lifetime of that request — every async operation it spawns (DB queries, service-module calls, fetch) inherits the same context and every log line that fires inside it automatically carries `requestId` in the JSON output.
+
+Wired as a demonstration on [app/api/payments/verify/route.ts](app/api/payments/verify/route.ts):
+
+```ts
+export const POST = withRequestLogContext(async (request: NextRequest) => {
+  // ... existing logic ...
+  // every serverLogger.* call below + every payment-services helper
+  // automatically logs with requestId attached
+});
+```
+
+**Direct-test verification:**
+```
+--- outside context ---
+{"severity":"INFO","message":"hello from outside","time":"…"}
+
+--- inside withRequestContext({requestId:"demo-123"}) ---
+{"severity":"INFO","message":"first log inside ALS","time":"…","requestId":"demo-123"}
+{"severity":"WARNING","message":"second log, still inside","time":"…","requestId":"demo-123","orderId":"ord-42"}
+
+--- back outside ---
+{"severity":"INFO","message":"hello from outside again","time":"…"}
+```
+
+**Decoupling note:** request-context imports `node:async_hooks` which Webpack rejects in the Edge runtime (middleware). To avoid pulling the import into the Edge bundle, request-context publishes its storage on `globalThis.__requestContextStorage` and server-logger reads from globalThis instead of importing the module directly. Middleware (Edge) still passes `{ requestId }` explicitly to its serverLogger calls; route handlers (Node) get auto-flow.
+
+**Pending follow-up (optional, incremental):** Other route handlers can adopt `withRequestLogContext` opportunistically when next touched. No big-bang migration needed — the auto-flow is already in place for any route that wraps itself, and middleware-set request IDs are still on the response header for client-side support correlation regardless.
 
 ---
 
