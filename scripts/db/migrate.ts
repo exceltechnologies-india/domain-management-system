@@ -6,9 +6,9 @@
  * Applied migrations are tracked in the `_migrations` MongoDB collection.
  *
  * Usage:
- *   npx ts-node scripts/db/migrate.ts          — run all pending migrations
- *   npx ts-node scripts/db/migrate.ts --status  — show migration status
- *   npx ts-node scripts/db/migrate.ts --dry-run — list pending without applying
+ *   npm run migrate          — run all pending migrations
+ *   npm run migrate:status   — show migration status
+ *   npm run migrate:dry      — list pending without applying
  */
 
 import path from "path";
