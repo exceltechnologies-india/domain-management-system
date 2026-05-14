@@ -52,3 +52,8 @@ coverage/
 
 # PM2 logs
 logs/
+
+# Local deploy cache (md5 of package-lock.json, rewritten by deploy.sh on every
+# install). Per-environment — not source. See deploy.sh's "Dependencies changed"
+# block.
+.npm-lock-hash
