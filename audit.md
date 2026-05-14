@@ -25,16 +25,15 @@
 
 ## 2. Critical Flaws
 
-### [CRITICAL-1] No git repository
-`git rev-parse` reports the project is not under version control. A production codebase with daily deploys has no history, rollback, blame, or PR review.
+### ~~[CRITICAL-1] No git repository~~ — PARTIALLY RESOLVED 2026-05-14
+Initialized `main`-branch repository in [/](.) and verified `.gitignore` correctly excludes `.env.local`, `gcp-key.json`, `node_modules/`, `.next/`, `coverage/`, `deployment-logs/`, `*.tsbuildinfo`, and `*.log`. Confirmed zero files inside excluded directories were staged. Initial commit `2ceee43` contains 502 files / 113,935 lines.
 
-**Risk:** Total loss on disk failure; no way to recover from a bad change.
+Repo-local identity set to `Pawan <pawan@exceltechnologies.in>` (not global — only affects this repo).
 
-**Fix:**
-1. `git init`
-2. Verify `.gitignore` excludes `.env*`, `gcp-key.json`, `*.log`, `node_modules/`, `.next/`, `coverage/`, `deployment-logs/`, `tsconfig.tsbuildinfo` (already true).
-3. `git add . && git commit -m "initial commit"`
-4. Push to private remote (GitHub/GitLab) with branch protection on `main`.
+**Still required:**
+1. Create a private GitHub/GitLab remote, `git remote add origin <url>`, `git push -u origin main`.
+2. Enable branch protection on `main` (require PR review + status checks before merge).
+3. Once a remote exists, gate [deploy.sh](deploy.sh) behind CI green status (covered separately by [MEDIUM-6](#medium-6)).
 
 ---
 
@@ -299,7 +298,7 @@ All optional fields use sparse indexes so they don't pay storage for the null ma
 
 | Day | Task | Severity |
 |---|---|---|
-| 1 | `git init`, push to private remote, branch protection | CRITICAL-1 |
+| 1 | ~~`git init`~~ ✅ 2026-05-14 · push to private remote, branch protection | CRITICAL-1 |
 | 2 | ~~Strip `.env.local` from build script~~ ✅ 2026-05-14 · move to Cloud Run secrets, rotate exposed credentials | CRITICAL-2 |
 | 3 | Sweeper cron for `PendingDomain` / `PendingHosting` with admin alerts | HIGH-5 |
 | 4 | Tests for `payments/verify` and Razorpay webhook | MEDIUM-5 |
