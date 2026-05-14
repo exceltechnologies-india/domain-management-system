@@ -18,6 +18,7 @@ import UserLayout from '@/components/user/UserLayout';
 import { DashboardLayoutSkeleton, DNSPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import ClientOnly from '@/components/ClientOnly';
 import RefreshButton from '@/components/dashboard/RefreshButton';
+import { logger } from '@/lib/logger';
 
 interface User {
   id: string;
@@ -196,7 +197,7 @@ export default function DNSManagementPage() {
           }
         }
       } catch (error) {
-        console.error("Failed to check services", error);
+        logger.error("Failed to check services", error);
       } finally {
         setCheckingServices(false);
       }

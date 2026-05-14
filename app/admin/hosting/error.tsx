@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { AlertTriangle, RefreshCw, Home, Terminal } from 'lucide-react';
 import Link from 'next/link';
 import Button from '@/components/Button';
+import { logger } from '@/lib/logger';
 
 export default function AdminHostingError({
   error,
@@ -14,7 +15,7 @@ export default function AdminHostingError({
 }) {
   useEffect(() => {
     // Log the error to console for debugging
-    console.error('Admin Hosting Error:', error);
+    logger.error('Admin Hosting Error:', error);
   }, [error]);
 
   return (

@@ -15,6 +15,7 @@ import { CheckoutPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import OrderTimeline from '@/components/checkout/OrderTimeline';
 import { getMinRegistrationPeriod } from '@/lib/tld-min-periods';
 import { getDeviceFingerprint } from '@/lib/device-fingerprint';
+import { logger } from '@/lib/logger';
 
 const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@anutech.in';
 
@@ -317,7 +318,7 @@ export default function CheckoutPage() {
             setIsProcessing(false);
           }
         } catch (error) {
-          console.error("Verification failed:", error);
+          logger.error("Verification failed:", error);
           toast.error("An error occurred during verification.");
           setIsVerifying(false);
           setIsProcessing(false);

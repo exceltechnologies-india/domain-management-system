@@ -36,6 +36,7 @@ import { performLogout } from '@/lib/logout';
 import toast from 'react-hot-toast';
 import { formatBytes } from '@/lib/format-utils';
 import { getRelativeTime, formatIndianDateTime } from '@/lib/dateUtils';
+import { logger } from '@/lib/logger';
 
 interface User {
   firstName: string;
@@ -269,7 +270,7 @@ export default function AdminHostingPage() {
       }
       if (userData.success) setUsersNoHosting(userData.data);
     } catch (error) {
-      console.error('Error fetching provision deps:', error);
+      logger.error('Error fetching provision deps:', error);
       toast.error('Failed to load packages or users');
       setShowProvisionModal(false);
     } finally {
@@ -389,7 +390,7 @@ export default function AdminHostingPage() {
       }
     } catch (error) {
       toast.error("An error occurred");
-      console.error(error);
+      logger.error(error);
     } finally {
       setIsDeleting(false);
       setActiveMenuId(null);
@@ -467,7 +468,7 @@ export default function AdminHostingPage() {
       }
     } catch (error) {
       toast.error('An error occurred while changing package');
-      console.error(error);
+      logger.error(error);
     } finally {
       setIsChangingPackage(false);
     }

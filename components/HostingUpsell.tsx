@@ -6,6 +6,7 @@ import { useCartStore } from '@/store/cartStore';
 import toast from 'react-hot-toast';
 
 import { HOSTING_PLANS } from '@/config/hosting-plans';
+import { logger } from '@/lib/logger';
 
 // Standard plan details for display
 const standardPlan = {
@@ -78,7 +79,7 @@ export default function HostingUpsell() {
       addItem(hostingItem);
       toast.success(`${planData.name} Hosting added to cart!`);
     } catch (error) {
-      console.error("Error adding hosting:", error);
+      logger.error("Error adding hosting:", error);
       toast.error("Failed to add hosting. Please try again.");
     } finally {
       setIsAdding(false);

@@ -16,6 +16,7 @@ import { DashboardLayoutSkeleton, InvoicesPageSkeleton } from '@/components/skel
 import { formatIndianDate, formatIndianDateTime } from '@/lib/dateUtils';
 import Script from 'next/script';
 import RefreshButton from '@/components/dashboard/RefreshButton';
+import { logger } from '@/lib/logger';
 
 interface Invoice {
   invoice_id: string;
@@ -169,7 +170,7 @@ export default function InvoicesPage() {
         showErrorToast('Failed to download invoice');
       }
     } catch (error) {
-      console.error('Error downloading invoice:', error);
+      logger.error('Error downloading invoice:', error);
       showErrorToast('Failed to download invoice');
     } finally {
       setDownloadingId(null);

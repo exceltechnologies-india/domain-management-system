@@ -33,6 +33,7 @@ import { AdminLayoutSkeleton, AdminGenericPageSkeleton } from '@/components/skel
 import { performLogout } from '@/lib/logout';
 import { confirmDialog } from '@/lib/confirm-dialog';
 import { safeLocalStorage } from '@/lib/storage';
+import { logger } from '@/lib/logger';
 
 interface Domain {
   id: string;
@@ -199,7 +200,7 @@ function AdminDNSManagementContent() {
       setIsAuthLoading(false);
       loadAllDomains(false);
     } catch (error) {
-      console.error('Error parsing user data:', error);
+      logger.error('Error parsing user data:', error);
       router.push('/login');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -245,7 +246,7 @@ function AdminDNSManagementContent() {
         toast.error('Failed to load domains');
       }
     } catch (error) {
-      console.error('Error loading domains:', error);
+      logger.error('Error loading domains:', error);
       toast.error('Failed to load domains');
     } finally {
       setIsDataLoading(false);

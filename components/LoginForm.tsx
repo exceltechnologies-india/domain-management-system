@@ -13,6 +13,7 @@ import { showSuccessToast, showErrorToast, showAccountDeactivated } from '@/lib/
 import { safeLocalStorage } from '@/lib/storage';
 import GoogleRecaptcha from './GoogleRecaptcha';
 import AuthShell from './AuthShell';
+import { logger } from '@/lib/logger';
 
 interface LoginFormProps {
   className?: string;
@@ -137,7 +138,7 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
       });
 
       if (result?.error || !result?.ok) {
-        console.error('SignIn failed:', result?.error);
+        logger.error('SignIn failed:', result?.error);
         // Handle specific error cases if needed, otherwise show generic error
         if (result?.error === 'TotpRequired') {
           // Password correct — reveal TOTP step without showing an error
@@ -184,7 +185,7 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
     } catch (error: any) {
       // This catch block might not be hit if signIn doesn't throw on redirect: false
       // But keeping it for safety for other synchronous errors in the block
-      console.error("Login error:", error);
+      logger.error("Login error:", error);
       showErrorToast('An unexpected error occurred. Please try again.');
       setIsLoading(false);
     }

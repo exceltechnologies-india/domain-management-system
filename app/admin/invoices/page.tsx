@@ -27,6 +27,7 @@ import { performLogout } from '@/lib/logout';
 import { safeLocalStorage } from '@/lib/storage';
 import AdminDataTable from '@/components/admin/AdminDataTable';
 import InvoiceDiagnostics from '@/components/admin/InvoiceDiagnostics';
+import { logger } from '@/lib/logger';
 
 interface Invoice {
   invoice_id: string;
@@ -141,7 +142,7 @@ export default function AdminInvoicesPage() {
         showErrorToast('Failed to fetch invoices');
       }
     } catch (error) {
-      console.error('Error fetching invoices:', error);
+      logger.error('Error fetching invoices:', error);
     } finally {
       fetchingPages.current.delete(targetPage);
       if (!isBackground) setIsDataLoading(false);
@@ -178,7 +179,7 @@ export default function AdminInvoicesPage() {
       }
 
     } catch (error) {
-      console.error(error);
+      logger.error(error);
     } finally {
       setDownloadingId(null);
     }

@@ -217,7 +217,7 @@ Across `lib/`, `app/`, `components/`. TypeScript is doing far less work than it 
 
 ---
 
-### ~~[MEDIUM-2] 76 raw `console.*` calls in production code~~ — PARTIALLY RESOLVED 2026-05-14
+### ~~[MEDIUM-2] 76 raw `console.*` calls in production code~~ — RESOLVED 2026-05-14
 [lib/server-logger.ts](lib/server-logger.ts) now emits **structured JSON in production** — one line per log entry with `severity`, `message`, ISO `time`, plus any object-arg fields merged into the top level. Cloud Logging auto-parses these and surfaces them with the right `severity` icon, full `jsonPayload`, and searchable fields. Dev mode is unchanged: human-readable `[INFO]` / `[WARNING]` / `[ERROR]` prefix on `console.*` for readability in the terminal.
 
 Verified live (NODE_ENV=production):
@@ -226,20 +226,18 @@ Verified live (NODE_ENV=production):
 {"severity":"WARNING","message":"warn-level event","time":"2026-05-14T07:56:01.043Z","route":"/api/x"}
 ```
 
-**Server-side `console.*` calls migrated to `serverLogger`:**
-- [middleware.ts](middleware.ts) — 2 security-audit warns
-- [lib/recaptcha.ts](lib/recaptcha.ts) `RecaptchaServer` class — 1 warn + 1 error
+**All `console.*` call sites migrated.** 67 swaps across two passes:
 
-**Client-side `console.*` calls migrated to existing [lib/logger.ts](lib/logger.ts):**
-- [lib/recaptcha.ts](lib/recaptcha.ts) `RecaptchaClient` class — 1 warn + 2 errors
-- [lib/logout.ts](lib/logout.ts) — 1 warn
-- [lib/storage.ts](lib/storage.ts) — 2 warns
+| Pass | Target | Sink |
+|---|---|---|
+| 1 (2026-05-14, server) | middleware.ts (2), lib/recaptcha.ts server class (2), lib/recaptcha.ts client class (3), lib/logout.ts (1), lib/storage.ts (2) | mixed (`serverLogger` for server, `logger` for client) |
+| 2 (2026-05-14, client) | 26 files in app/**/*.tsx + components/*.tsx (system-settings, GoogleRecaptcha, pricing-management, user-management, error boundaries, etc.) | `logger` |
 
-**ESLint tightened** ([.eslintrc.json](.eslintrc.json)): `"no-console": ["warn", { "allow": ["error"] }]` site-wide, with an override that keeps `no-console: off` only on the two logger files themselves (which legitimately *are* the `console.*` output sink). Lint surfaces 8 remaining `console.*` calls in `app/admin/*` and `components/*` UI files — these are client-side React paths and out of scope for the "Cloud Run unstructured logs" concern. They can be migrated opportunistically.
+**ESLint hardened** ([.eslintrc.json](.eslintrc.json)) — `"no-console": "warn"` site-wide with **no allowlist**. The previous `allow: ["error"]` exception was dropped now that every `console.error` is migrated. Override keeps the rule off only on [lib/server-logger.ts](lib/server-logger.ts) and [lib/logger.ts](lib/logger.ts) (the legitimate output sinks). Lint surfaces **0 console warnings** site-wide.
 
-**Suite still green:** 340/340 tests, build clean, smoke-tested structured output on the standalone server.
+Any remaining `console.*` text in the codebase lives only inside comments (`// console.error(...)`), JSDoc `@example` blocks (pricing-service.ts, resellerclub/search.ts), or string literals (field-encryption.ts shows users how to generate a key via `node -e "console.log(...)"`). ESLint correctly ignores all of these — they aren't call sites.
 
-**Pending follow-up:** 51 `console.*` calls remain in `app/**/*.tsx` page files (mostly client-side React, mostly `console.error` which is explicitly allowed by the new rule). Migrating these to `logger` would just centralize error telemetry — useful but not Cloud-Run-blocking.
+**Verified:** 340/340 tests, lint clean (0 warnings), `tsc --noEmit` clean, production build succeeded.
 
 ---
 
@@ -433,7 +431,7 @@ All optional fields use sparse indexes so they don't pay storage for the null ma
 | 4 | ~~Tests for `payments/verify` and Razorpay webhook~~ ✅ 2026-05-14 (signature primitives unit-tested; route-level integration tests remain) | MEDIUM-5 |
 | 5 | ~~Split [lib/resellerclub.ts](lib/resellerclub.ts) into 5–6 focused modules~~ ✅ 2026-05-14 (3 other large files in HIGH-1 still pending) | HIGH-1 |
 | 6 | ~~Add CI workflow (lint + test + audit)~~ ✅ 2026-05-14 (deploy gating + audit-blocking still pending) | MEDIUM-6 |
-| 7 | Structured logger, remove `console.*` from server code, tighten ESLint | MEDIUM-2 |
+| 7 | ~~Structured logger, remove `console.*` from server code, tighten ESLint~~ ✅ 2026-05-14 (extended to client code too — 67 swaps, 0 console warnings remaining) | MEDIUM-2 |
 | 8 | Atomic deploy (build to `.next.new`, atomic swap) | MEDIUM-8 |
 | 9 | Rotate GCP service account key, delete backup | Resolved follow-up |
 | 10 | DB index audit on Mongoose models | LOW-4 |

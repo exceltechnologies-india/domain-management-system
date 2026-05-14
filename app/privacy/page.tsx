@@ -9,6 +9,7 @@ import { motion } from 'framer-motion';
 import { Shield, Calendar, Lock, Eye, Database, Mail } from 'lucide-react';
 import { formatIndianDate } from '@/lib/dateUtils';
 import { safeLocalStorage } from '@/lib/storage';
+import { logger } from '@/lib/logger';
 
 interface User {
   firstName: string;
@@ -35,7 +36,7 @@ export default function PrivacyPage() {
           return;
         }
       } catch (error) {
-        console.error('Error parsing user data:', error);
+        logger.error('Error parsing user data:', error);
       }
     }
   }, [router]);

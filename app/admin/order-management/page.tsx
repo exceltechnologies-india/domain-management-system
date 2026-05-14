@@ -14,6 +14,7 @@ import { formatIndianDate, formatIndianDateTime } from '@/lib/dateUtils';
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
 import { performLogout } from '@/lib/logout';
 import { safeLocalStorage } from '@/lib/storage';
+import { logger } from '@/lib/logger';
 
 interface Order {
   _id: string;
@@ -258,7 +259,7 @@ export default function AdminOrders() {
         }
       }
     } catch (error) {
-      console.error('Error loading orders:', error);
+      logger.error('Error loading orders:', error);
     } finally {
       fetching.current.delete(targetPage);
       if (!isBackground) setIsDataLoading(false);

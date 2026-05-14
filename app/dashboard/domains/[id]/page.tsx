@@ -11,6 +11,7 @@ import ClientOnly from '@/components/ClientOnly';
 import { performLogout } from '@/lib/logout';
 import { safeLocalStorage } from '@/lib/storage';
 import { formatIndianDateTime } from '@/lib/dateUtils';
+import { logger } from '@/lib/logger';
 
 interface User {
   id: string;
@@ -120,7 +121,7 @@ export default function ManageDomain() {
         toast.error('Failed to load domain details');
       }
     } catch (error) {
-      console.error('Error loading domain:', error);
+      logger.error('Error loading domain:', error);
       toast.error('Failed to load domain details');
     } finally {
       setIsLoading(false);
@@ -153,7 +154,7 @@ export default function ManageDomain() {
         }
       }
     } catch (error) {
-      console.error('Error loading nameservers:', error);
+      logger.error('Error loading nameservers:', error);
     } finally {
       setIsNameserverLoading(false);
     }
@@ -191,7 +192,7 @@ export default function ManageDomain() {
         toast.error(data.error || 'Failed to update nameservers');
       }
     } catch (error) {
-      console.error('Error updating nameservers:', error);
+      logger.error('Error updating nameservers:', error);
       toast.error('Failed to update nameservers');
     } finally {
       setIsUpdating(false);

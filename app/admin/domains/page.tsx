@@ -28,6 +28,7 @@ import { safeLocalStorage } from '@/lib/storage';
 import { performLogout } from '@/lib/logout';
 import toast from 'react-hot-toast';
 import { formatIndianDateTime } from '@/lib/dateUtils';
+import { logger } from '@/lib/logger';
 
 interface Domain {
   id: string;
@@ -136,7 +137,7 @@ export default function AdminDomainsPage() {
         toast.error('Failed to fetch domains');
       }
     } catch (error) {
-      console.error('Error fetching domains:', error);
+      logger.error('Error fetching domains:', error);
       toast.error('Error loading data');
     } finally {
       setIsLoading(false);
@@ -200,7 +201,7 @@ export default function AdminDomainsPage() {
         toast.error(data.error || 'Sync failed', { id: `sync-${domain.id}` });
       }
     } catch (error) {
-      console.error('Sync error:', error);
+      logger.error('Sync error:', error);
       toast.error('Network error during sync', { id: `sync-${domain.id}` });
     }
   };

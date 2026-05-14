@@ -21,6 +21,7 @@ import toast from 'react-hot-toast';
 import { HOSTING_PLANS, CUSTOM_PLAN_FEATURES } from '@/config/hosting-plans';
 import { getDeviceFingerprint } from '@/lib/device-fingerprint';
 import TrialOtpModal from '@/components/hosting/TrialOtpModal';
+import { logger } from '@/lib/logger';
 
 interface User {
   firstName: string;
@@ -180,7 +181,7 @@ export default function HostingPage() {
     // Auto-link if we found a domain and it's not already linked to another hosting plan
     if (existingDomain && !isDomainAlreadyLinked) {
       hostingItem.linkedDomain = existingDomain.domainName;
-      console.log(`🔗 [HOSTING-PAGE] Auto-linking ${plan.name} to existing domain: ${existingDomain.domainName}`);
+      logger.log(`🔗 [HOSTING-PAGE] Auto-linking ${plan.name} to existing domain: ${existingDomain.domainName}`);
     }
  
     addItem(hostingItem);

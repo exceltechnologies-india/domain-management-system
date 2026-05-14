@@ -34,6 +34,7 @@ import AdminLayout from "@/components/admin/AdminLayoutNew";
 import { AdminLayoutSkeleton, AdminDashboardSkeleton } from "@/components/skeletons/PageSkeletons";
 import { performLogout } from "@/lib/logout";
 import { safeLocalStorage } from "@/lib/storage";
+import { logger } from "@/lib/logger";
 
 interface SystemHealthData {
   database: {
@@ -265,7 +266,7 @@ export default function AdminDashboard() {
       setData(res.data);
     } catch (error) {
       toast.error("Failed to fetch system health data.");
-      console.error(error);
+      logger.error(error);
     } finally {
       setLoading(false);
     }

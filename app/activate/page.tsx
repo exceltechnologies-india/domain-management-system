@@ -8,6 +8,7 @@ import Logo from '@/components/Logo';
 import Button from '@/components/Button';
 import toast from 'react-hot-toast';
 import { safeLocalStorage } from '@/lib/storage';
+import { logger } from '@/lib/logger';
 
 export default function ActivatePage() {
   const [isLoading, setIsLoading] = useState(true);
@@ -92,7 +93,7 @@ export default function ActivatePage() {
         router.push('/login?message=Please log in to activate your account.');
       }
     } catch (error) {
-      console.error('Check activation status error:', error);
+      logger.error('Check activation status error:', error);
       // If there's an error checking status, redirect to login
       router.push('/login?message=Unable to check activation status. Please log in.');
     } finally {
@@ -148,7 +149,7 @@ export default function ActivatePage() {
         }
       }
     } catch (error) {
-      console.error('Activation error:', error);
+      logger.error('Activation error:', error);
       setActivationStatus('error');
       setMessage('Network error. Please check your connection and try again.');
     } finally {
@@ -182,7 +183,7 @@ export default function ActivatePage() {
         toast.error(data.error || 'Failed to send activation email.');
       }
     } catch (error) {
-      console.error('Resend activation error:', error);
+      logger.error('Resend activation error:', error);
       toast.error('Network error. Please try again.');
     } finally {
       setIsActivating(false);
