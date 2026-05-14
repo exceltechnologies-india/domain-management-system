@@ -398,9 +398,11 @@ Rollback = `mv .next .next.failed && mv .next.prev .next && pm2 reload`.
 
 ---
 
-### [MEDIUM-9] Repo-root clutter
-- [test-full-app.js](test-full-app.js) — 71 KB ad-hoc script; move to [scripts/](scripts/) or delete
-- [tsconfig.tsbuildinfo](tsconfig.tsbuildinfo) — 559 KB build artifact; gitignored already, just delete from disk
+### ~~[MEDIUM-9] Repo-root clutter~~ — RESOLVED 2026-05-14
+- **`test-full-app.js`** (1,258 lines / 71 KB) deleted. It was a one-off Playwright admin-flow probe with **hardcoded credentials** (`ADMIN_PASSWORD='admin123'` in source), `BASE_URL='https://localhost'`, no integration into any test runner, and not referenced from anywhere except audit.md itself. Moving it to `scripts/` would just preserve that footgun under a different path — deletion is the correct outcome.
+- **`tsconfig.tsbuildinfo`** (524 KB) deleted from disk. Already gitignored; will be regenerated on the next `tsc` run.
+
+**Out-of-scope flag (separate from MEDIUM-9):** the same `admin123` literal also appears in [scripts/init-db.js](scripts/init-db.js) and [scripts/setup.js](scripts/setup.js) as a seed admin password. Those are bootstrap scripts (not in active production paths) but should be reviewed when the admin onboarding flow is next touched — a seed password baked into source is an easy target.
 
 ---
 
