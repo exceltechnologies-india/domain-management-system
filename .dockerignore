@@ -43,7 +43,6 @@ DA-Integration.md
 SETUP.md
 
 # Deployment / VPS tooling (not applicable in Cloud Run)
-ecosystem.config.js
 deploy.sh
 view-logs.sh
 deployment-logs

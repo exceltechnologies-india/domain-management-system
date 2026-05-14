@@ -13,7 +13,7 @@ if [ ! -d "deployment-logs" ]; then
 fi
 
 # Count total deployments
-TOTAL=$(ls -1 deployment-logs/ | wc -l)
+TOTAL=$(find deployment-logs -maxdepth 1 -mindepth 1 -type d | wc -l)
 echo "📊 Total deployments: $TOTAL"
 echo ""
 
@@ -23,76 +23,70 @@ echo "-----------------------------------"
 ls -lt deployment-logs/ | head -6
 echo ""
 
-# If argument provided, show specific deployment
-if [ -n "$1" ]; then
-    if [ -d "deployment-logs/$1" ]; then
-        echo "📄 Viewing deployment: $1"
-        echo "=================================="
-        echo ""
-        
-        # Show deployment summary
-        if [ -f "deployment-logs/$1/deployment-summary.txt" ]; then
-            cat "deployment-logs/$1/deployment-summary.txt"
-            echo ""
-        fi
-        
-        # Show PM2 status after deployment
-        if [ -f "deployment-logs/$1/pm2-status-after-deploy.txt" ]; then
-            echo "PM2 Status After Deployment:"
-            echo "-----------------------------------"
-            cat "deployment-logs/$1/pm2-status-after-deploy.txt"
-            echo ""
-        fi
-        
-        # Ask if user wants to see logs
-        echo "Available log files in this deployment:"
-        ls -1 "deployment-logs/$1/"
-        echo ""
-        echo "To view a specific log file, use:"
-        echo "  cat deployment-logs/$1/<filename>"
-    else
-        echo "❌ Deployment '$1' not found."
+show_deployment() {
+    local id="$1"
+    local dir="deployment-logs/$id"
+    if [ ! -d "$dir" ]; then
+        echo "❌ Deployment '$id' not found."
         echo ""
         echo "Available deployments:"
         ls -1 deployment-logs/
+        return 1
     fi
-else
+
+    echo "📄 Viewing deployment: $id"
+    echo "=================================="
+    echo ""
+
+    if [ -f "$dir/deployment-summary.txt" ]; then
+        cat "$dir/deployment-summary.txt"
+        echo ""
+    fi
+
+    if [ -f "$dir/server.log" ]; then
+        echo "Last 30 lines of server.log:"
+        echo "-----------------------------------"
+        tail -n 30 "$dir/server.log"
+        echo ""
+    fi
+
+    if [ -f "$dir/migrate.log" ]; then
+        echo "Last 20 lines of migrate.log:"
+        echo "-----------------------------------"
+        tail -n 20 "$dir/migrate.log"
+        echo ""
+    fi
+
+    echo "Available log files in this deployment:"
+    ls -1 "$dir/"
+    echo ""
+    echo "To view a specific log file:"
+    echo "  cat $dir/<filename>"
+    echo "To tail the live server log (only useful if this is the most recent deploy):"
+    echo "  tail -f $dir/server.log"
+}
+
+if [ -z "$1" ]; then
     echo "💡 Usage:"
     echo "  ./view-logs.sh                    - List all deployments"
     echo "  ./view-logs.sh <timestamp>        - View specific deployment"
     echo "  ./view-logs.sh latest             - View latest deployment"
-    echo ""
-    echo "Example:"
-    echo "  ./view-logs.sh $(ls -t deployment-logs/ | head -1)"
+    LATEST_HINT=$(ls -t deployment-logs/ 2>/dev/null | head -1)
+    if [ -n "$LATEST_HINT" ]; then
+        echo ""
+        echo "Example:"
+        echo "  ./view-logs.sh $LATEST_HINT"
+    fi
+    exit 0
 fi
 
-# Handle 'latest' option
 if [ "$1" = "latest" ]; then
-    LATEST=$(ls -t deployment-logs/ | head -1)
+    LATEST=$(ls -t deployment-logs/ 2>/dev/null | head -1)
     if [ -n "$LATEST" ]; then
-        echo "📄 Latest deployment: $LATEST"
-        echo "=================================="
-        echo ""
-        
-        # Show deployment summary
-        if [ -f "deployment-logs/$LATEST/deployment-summary.txt" ]; then
-            cat "deployment-logs/$LATEST/deployment-summary.txt"
-            echo ""
-        fi
-        
-        # Show PM2 status
-        if [ -f "deployment-logs/$LATEST/pm2-status-after-deploy.txt" ]; then
-            echo "PM2 Status:"
-            echo "-----------------------------------"
-            cat "deployment-logs/$LATEST/pm2-status-after-deploy.txt"
-            echo ""
-        fi
-        
-        # Show last 20 lines of logs
-        if [ -f "deployment-logs/$LATEST/pm2-logs-after-deploy.log" ]; then
-            echo "Last 20 lines of PM2 logs:"
-            echo "-----------------------------------"
-            tail -20 "deployment-logs/$LATEST/pm2-logs-after-deploy.log"
-        fi
+        show_deployment "$LATEST"
+    else
+        echo "❌ No deployments yet."
     fi
+else
+    show_deployment "$1"
 fi

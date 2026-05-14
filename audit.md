@@ -18,7 +18,7 @@
 | Payments | Razorpay |
 | Integrations | ResellerClub, DirectAdmin, Zoho Books, GCP Cloud Tasks, Redis, Anthropic Claude |
 | Tests | Vitest + Playwright (60% threshold, ~15 test files) |
-| Deploy | Docker → GCP Cloud Run, PM2 (fork mode, 1500 MB cap) |
+| Deploy | Docker → GCP Cloud Run (primary); deploy.sh + plain `node --env-file=.env.local .next/standalone/server.js` (VPS fallback) |
 | Source files | ~250 TS/TSX, ~100 API routes, 103 components, 77 lib modules, 17 models |
 
 ---
@@ -375,12 +375,22 @@ The audit step is **deliberately non-blocking** for now: `npm audit` currently r
 
 ## 6. Operational
 
-### [MEDIUM-7] PM2 single-instance fork mode
-[ecosystem.config.js](ecosystem.config.js) — `instances: 1`, `exec_mode: 'fork'`. One crash = downtime. The 1500 MB cap forces a hard restart that drops in-flight Razorpay webhooks.
+### ~~[MEDIUM-7] PM2 single-instance fork mode~~ — RESOLVED 2026-05-14
+PM2 wiring removed across the project. Cloud Run path (Dockerfile → `node server.js`) was already PM2-free; the cleanup is on the VPS side.
 
-**Fix:**
-- If running on Cloud Run: PM2 is redundant — Cloud Run autoscales. Drop PM2 and let Cloud Run manage process lifecycle.
-- If running on a VM: switch to `exec_mode: 'cluster'` with `instances: 2` minimum.
+**Changes:**
+- `ecosystem.config.js` **deleted**. The settings it held (`PORT`, `NODE_OPTIONS`, `NODE_ENV`) now live in [deploy.sh](deploy.sh) and `.env.local`.
+- [deploy.sh](deploy.sh) rewritten. The PM2 lifecycle (`pm2 delete` / `pm2 start` / `pm2 logs` / `pm2 status`) is replaced by:
+  - **Graceful stop** — read PID from `deployment-logs/.server.pid`, send SIGTERM, wait up to 10 s for in-flight requests to drain, fall back to SIGKILL. Strictly better than the old `pm2 delete + kill -9 port` combo at preserving Razorpay webhooks.
+  - **Detached start** — `nohup setsid node --env-file=.env.local .next/standalone/server.js >> $LOG_DIR/server.log 2>&1 &`, write PID, `disown`. `--env-file` replaces the env-loading PM2 was doing.
+  - **Liveness check** — confirms the new process is still alive 3 s after spawn, prints last 50 log lines if not.
+- [view-logs.sh](view-logs.sh) refactored to read `server.log` + `migrate.log` instead of `pm2-logs-*.log`.
+- [app/api/admin/razorpay-mode/route.ts](app/api/admin/razorpay-mode/route.ts) — the admin "switch test/live mode" endpoint previously called `pm2 restart next-app --update-env` to pick up the new `RAZORPAY_KEY_*` env values. Now sends SIGTERM to the PID from `deployment-logs/.server.pid`; the host's process supervisor (systemd on VPS, Cloud Run on managed hosting) is responsible for re-spawning. The admin response is explicit when no supervisor is configured: *"server was not restarted — re-deploy to apply"*.
+- [middleware.ts](middleware.ts) + [MIGRATIONS.md](MIGRATIONS.md) + [.dockerignore](.dockerignore) — comment/text updates removing stale PM2 references.
+
+**Verified:** 340/340 tests, lint clean, tsc clean, `bash -n` on both scripts, production build succeeded. The graceful-stop path also avoids the old PM2 1500 MB hard-restart that the audit flagged as dropping in-flight webhooks — the new path doesn't impose a memory cap; if you want one, set `NODE_OPTIONS="--max-old-space-size=N"` in `.env.local` (deploy.sh defaults it to 1024).
+
+**Operational note for VPS users:** deploy.sh starts the server detached but does **not** supervise it. If the node process crashes mid-life, nothing restarts it. Use a systemd unit (or any init supervisor) with `Restart=always` pointing at `.next/standalone/server.js`. On Cloud Run this is the platform's job and no supervisor setup is needed.
 
 ---
 
