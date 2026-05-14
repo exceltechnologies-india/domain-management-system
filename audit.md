@@ -73,28 +73,34 @@ The Docker path was already safe in practice (`.env.local` is excluded by [.dock
 
 ### [HIGH-1] Monolithic service wrappers
 
-| File | LOC | Concerns |
-|---|---|---|
-| [lib/resellerclub.ts](lib/resellerclub.ts) | 2,452 | Search + registration + renewal + transfer + DNS + WHOIS + SSL |
-| [lib/directadmin.ts](lib/directadmin.ts) | 1,193 | Provisioning + user management + package management |
-| [lib/zohobooks.ts](lib/zohobooks.ts) | 1,192 | Invoicing + GST + customer sync |
-| [lib/auth-config.ts](lib/auth-config.ts) | 863 | Provider config across 4 OAuth providers |
+| File | LOC (before) | LOC (after) | Status |
+|---|---|---|---|
+| [lib/resellerclub.ts](lib/resellerclub.ts) | 2,452 | 95 (barrel) | ~~Split~~ ✅ 2026-05-14 |
+| [lib/directadmin.ts](lib/directadmin.ts) | 1,193 | 1,193 | pending |
+| [lib/zohobooks.ts](lib/zohobooks.ts) | 1,192 | 1,192 | pending |
+| [lib/auth-config.ts](lib/auth-config.ts) | 863 | 863 | pending |
 
-**Fix:** Split each by responsibility, e.g.:
+**resellerclub.ts split (2026-05-14):** The 2,452-line single class was split into 5 topical submodules + a shared client. The old [lib/resellerclub.ts](lib/resellerclub.ts) is now a 95-line backwards-compatible barrel exposing the same `ResellerClubAPI` class surface, so the 13 call sites across `app/`, `lib/`, and `lib/payment-services/` did not need to change.
 
 ```
 lib/resellerclub/
-  search.ts
-  registration.ts
-  renewal.ts
-  transfer.ts
-  dns.ts
-  whois.ts
-  client.ts        # shared http client
-  types.ts         # response types
+  client.ts            85 LOC   shared axios instance + env validation + interceptors
+  search.ts           835 LOC   getDomainPricing, getTLDPricing, searchDomain,
+                                searchDomainWithTlds, getResellerPricingForTLD, getResellerDetails
+  customers.ts        663 LOC   getCustomerId, createCustomer, modifyCustomer, modifyContact,
+                                createContact, getOrCreateCustomerAndContact, getCustomerDetails,
+                                getCustomerDomains
+  registration.ts     364 LOC   deleteDomainOrder, registerDomain, getDomainDetails,
+                                getDomainExpiry, getDomainOrderId
+  dns.ts              393 LOC   activateDNSManagement, getDNSRecords, addDNSRecord,
+                                updateDNSRecord, deleteDNSRecord, setDefaultNameservers,
+                                setCustomNameservers, getNameservers
+  renewal-transfer.ts 125 LOC   getRenewalPricing, renewDomain, transferDomain
 ```
 
-Each module gets its own focused tests and types.
+Verified on main: 298/298 tests green, `npm run lint` clean, `npm run build` succeeded. No call-site change required (zero files in `app/`, `tests/`, `models/` modified). Each method moved verbatim — no logic changes.
+
+**Pending fix for the other three large files** (`directadmin.ts`, `zohobooks.ts`, `auth-config.ts`) — same pattern when prioritised; each gets its own `lib/<name>/` directory with topical submodules and a thin barrel.
 
 ---
 
@@ -324,7 +330,7 @@ All optional fields use sparse indexes so they don't pay storage for the null ma
 | 2 | ~~Strip `.env.local` from build script~~ ✅ 2026-05-14 · move to Cloud Run secrets, rotate exposed credentials | CRITICAL-2 |
 | 3 | ~~Sweeper cron for `PendingDomain` / `PendingHosting` with admin alerts~~ ✅ 2026-05-14 (Cloud Scheduler job still needs to be created in GCP) | HIGH-5 |
 | 4 | ~~Tests for `payments/verify` and Razorpay webhook~~ ✅ 2026-05-14 (signature primitives unit-tested; route-level integration tests remain) | MEDIUM-5 |
-| 5 | Split [lib/resellerclub.ts](lib/resellerclub.ts) into 5–6 focused modules | HIGH-1 |
+| 5 | ~~Split [lib/resellerclub.ts](lib/resellerclub.ts) into 5–6 focused modules~~ ✅ 2026-05-14 (3 other large files in HIGH-1 still pending) | HIGH-1 |
 | 6 | Add CI workflow (lint + test + audit), gate deploys behind it | MEDIUM-6 |
 | 7 | Structured logger, remove `console.*` from server code, tighten ESLint | MEDIUM-2 |
 | 8 | Atomic deploy (build to `.next.new`, atomic swap) | MEDIUM-8 |
