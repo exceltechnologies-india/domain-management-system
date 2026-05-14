@@ -1,0 +1,90 @@
+import { sendEmail, SUPPORT_EMAIL } from "./transporter";
+
+export async function sendHostingProvisionedEmail(
+  userEmail: string,
+  userName: string,
+  hostingDetails: {
+    domainName: string;
+    packageName: string;
+    planName?: string;
+    serverIp: string;
+    nameservers: string[];
+  }
+): Promise<boolean> {
+  const subject = "Hosting Account Provisioned Successfully";
+  const nameserversList = hostingDetails.nameservers
+    .map((ns) => `<li>${ns}</li>`)
+    .join("");
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+      <div style="background: linear-gradient(135deg, #1A73E8, #1557B0); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
+        <h1 style="margin: 0; font-size: 24px; font-weight: bold;">Hosting Account Active</h1>
+      </div>
+
+      <div style="padding: 30px; background-color: #ffffff;">
+        <p style="font-size: 16px; color: #374151; margin-bottom: 20px;">Hello ${userName},</p>
+
+        <div style="background-color: #D1FAE5; border: 1px solid #10B981; border-radius: 8px; padding: 20px; margin: 20px 0;">
+          <h3 style="color: #065F46; margin: 0 0 10px 0; font-size: 18px;">✅ Service Activated</h3>
+          <p style="color: #065F46; margin: 0; font-size: 14px;">
+            Your web hosting for <strong>${hostingDetails.domainName}</strong> has been successfully provisioned and is ready to use.
+          </p>
+        </div>
+
+        <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
+          <h3 style="color: #1f2937; margin: 0 0 15px 0; font-size: 16px;">Account Details</h3>
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; color: #6b7280; width: 140px;">Domain:</td>
+              <td style="padding: 8px 0; font-weight: 600; color: #1f2937;">${hostingDetails.domainName}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #6b7280;">Package:</td>
+              <td style="padding: 8px 0; font-weight: 600; color: #1f2937;">${hostingDetails.planName || hostingDetails.packageName}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #6b7280;">Server IP:</td>
+              <td style="padding: 8px 0; font-weight: 600; color: #1f2937;">${hostingDetails.serverIp}</td>
+            </tr>
+          </table>
+        </div>
+
+        <h3 style="color: #1f2937; margin: 25px 0 15px 0; font-size: 18px;">How to Manage Your Hosting</h3>
+
+        <div style="margin-bottom: 20px;">
+          <p style="font-size: 14px; color: #374151; margin-bottom: 10px;"><strong>1. Access Control Panel</strong></p>
+          <p style="font-size: 14px; color: #6b7280; margin-bottom: 0;">
+            You can log in to your DirectAdmin control panel directly from your dashboard without needing separate credentials.
+          </p>
+        </div>
+
+        <div style="text-align: center; margin: 20px 0;">
+          <a href="${process.env.NEXTAUTH_URL}/dashboard/hosting" style="display: inline-block; background: linear-gradient(135deg, #1A73E8, #1557B0); color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px;">Go to Hosting Dashboard</a>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+          <p style="font-size: 14px; color: #374151; margin-bottom: 10px;"><strong>2. Update Nameservers</strong></p>
+          <p style="font-size: 14px; color: #6b7280; margin-bottom: 10px;">
+            If you purchased your domain from us, these nameservers are automatically configured. If your domain is with another registrar, update your nameservers to:
+          </p>
+          <ul style="background-color: #f8fafc; padding: 15px 15px 15px 35px; border-radius: 6px; color: #4b5563; font-family: monospace; font-size: 13px;">
+            ${nameserversList}
+          </ul>
+        </div>
+
+        <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">
+          If you have any questions, please contact our support team at <a href="mailto:${SUPPORT_EMAIL}" style="color: #1A73E8;">${SUPPORT_EMAIL}</a>.
+        </p>
+      </div>
+
+      <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
+        <p style="margin: 0; font-size: 14px; color: #6b7280;">
+          Best regards,<br>
+          <strong>Anutech Digital Private Limited Team</strong>
+        </p>
+      </div>
+    </div>
+  `;
+  return sendEmail({ to: userEmail, subject, html });
+}

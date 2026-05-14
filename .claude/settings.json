@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -sv http://localhost:3000/login)",
+      "Bash(curl -sk \"https://localhost/api/admin/hosting/packages\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(p.get\\('planId',''\\), p.get\\('name',''\\)\\) for p in d.get\\('plans',d.get\\('packages',d if isinstance\\(d,list\\) else []\\)\\)]\")",
+      "Bash(curl -sk \"https://localhost/api/domains/pricing\")",
+      "Bash(node -e ' *)",
+      "Bash(pkill -f \"next-server\")",
+      "Bash(PORT=3000 nohup npm start)",
+      "Bash(curl -sk https://localhost/api/health)",
+      "Bash(npm list *)",
+      "Bash(node -e \"require\\('playwright'\\)\")",
+      "Bash(find /home/rsa-key-20251224 -name \"package.json\" -maxdepth 3 2>/dev/null | head -10)",
+      "Read(//home/rsa-key-20251224/**)",
+      "Bash(node -e \"const {chromium} = require\\('/home/rsa-key-20251224/dd/node_modules/playwright'\\); console.log\\('playwright ok', chromium\\);\")",
+      "Bash(node /tmp/uiux-audit/audit.js)",
+      "Bash(curl -sk http://127.0.0.1:3000/)",
+      "Bash(curl -sk http://127.0.0.1:3000/ -o /dev/null -w \"%{http_code}\")",
+      "Bash(curl -sk https://127.0.0.1:3000/ -o /dev/null -w \"%{http_code}\")",
+      "Bash(curl -sk https://127.0.0.1:3000/admin/dashboard -o /dev/null -w \"%{http_code}\\\\n\")",
+      "Bash(curl -s http://127.0.0.1:3000/ -L -o /dev/null -w \"%{http_code} %{url_effective}\\\\n\")",
+      "Bash(curl -s http://127.0.0.1:3000/login -o /dev/null -w \"%{http_code}\\\\n\")",
+      "Read(//var/log/nginx/**)",
+      "Bash(curl -s http://127.0.0.1:3000/api/health -o /dev/null -w \"%{http_code}\\\\n\")",
+      "Bash(cp -r /home/rsa-key-20251224/dd/.next/static /home/rsa-key-20251224/dd/.next/standalone/.next/static)",
+      "Bash(cp -r /home/rsa-key-20251224/dd/public /home/rsa-key-20251224/dd/.next/standalone/public)",
+      "Bash(pm2 jlist *)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('script:', d[0]['pm2_env']['pm_exec_path']\\); print\\('port env:', d[0]['pm2_env'].get\\('PORT', 'not set'\\)\\); print\\('args:', d[0]['pm2_env'].get\\('args', []\\)\\)\")",
+      "Bash(curl -s -X POST http://127.0.0.1:3000/api/payments/guest/create-order -H 'Content-Type: application/json' -d '{}')",
+      "Bash(awk -F= '{print $1}')",
+      "Bash(sed -i \"s|/dd/.env'|/dd/.env.local'|\" /tmp/test_modify_contact.js)",
+      "Bash(node /tmp/test_modify_contact.js)",
+      "Bash(node /tmp/test_user_creation.js)",
+      "Bash(sed -i \"s/env\\\\.JWT_SECRET/env.NEXTAUTH_SECRET/\" /tmp/test_settings_sync.js)",
+      "Bash(node /tmp/test_settings_sync.js)",
+      "Bash(node /tmp/test_settings_v2.js)"
+    ]
+  }
+}

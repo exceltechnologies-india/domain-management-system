@@ -1,0 +1,106 @@
+import { NextRequest, NextResponse } from "next/server";
+import connectDB from "@/lib/mongodb";
+import User from "@/models/User";
+import { RecaptchaServer } from "@/lib/recaptcha";
+import { Schemas } from "@/lib/validation";
+import { SecurityValidator } from "@/lib/security";
+import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
+import { serverLogger } from "@/lib/server-logger";
+
+// Force dynamic rendering - required for API routes
+export const dynamic = "force-dynamic";
+
+export async function POST(request: NextRequest) {
+  try {
+    /**
+     * 🛡️ DEFENSE-IN-DEPTH: Security Layer 1 - CSRF Protection
+     */
+    const csrfCheck = SecurityValidator.validateCSRF(request);
+    if (!csrfCheck.isValid) {
+      return secureErrorResponse(csrfCheck.error || "CSRF Validation Failed", 403, "CSRF_ERROR");
+    }
+
+    const body = await request.json();
+
+    /**
+     * 🛡️ DEFENSE-IN-DEPTH: Security Layer 2 - Zod Validation
+     * Strictly validates the reset token, the new password, and the recaptcha token.
+     */
+    const result = Schemas.resetPassword.safeParse(body);
+    if (!result.success) {
+      // Extract the first error message for better user feedback
+      const firstError = result.error.issues[0]?.message || "Invalid reset data";
+      return secureErrorResponse(firstError, 400, "VALIDATION_ERROR", result.error.format());
+    }
+
+    const { token, password, recaptchaToken } = result.data;
+
+    /**
+     * 🛡️ DEFENSE-IN-DEPTH: Security Layer 3 - reCAPTCHA Verification
+     */
+    const clientIP = request.headers.get("x-forwarded-for")?.split(",")[0] ||
+                     request.headers.get("x-real-ip") ||
+                     "unknown";
+    const recaptchaResult = await RecaptchaServer.verifyToken(
+      recaptchaToken,
+      clientIP
+    );
+
+    if (!recaptchaResult.success) {
+      return secureErrorResponse("Security verification failed. Please try again.", 403, "SECURITY_CHECK_FAILED");
+    }
+
+    await connectDB();
+
+    /**
+     * 🛡️ DEFENSE-IN-DEPTH: Security Layer 4 - Token Verification
+     * Checks for a matching token that hasn't expired.
+     */
+    const user = await User.findOne({
+      resetToken: token,
+      resetTokenExpiry: { $gt: new Date() },
+    });
+
+    if (!user) {
+      return secureErrorResponse("Invalid or expired reset token", 400, "INVALID_TOKEN");
+    }
+
+    /**
+     * 🛡️ DEFENSE-IN-DEPTH: Security Layer 5 - Admin Protection
+     * Ensures admins cannot use this public flow to reset their own passwords.
+     */
+    if (user.role === "admin") {
+      return secureErrorResponse("Admin password reset is not allowed through this method", 403, "UNAUTHORIZED");
+    }
+
+    /**
+     * Update the record and invalidate the token once used.
+     * The password will be automatically hashed by the User model's pre-save hook.
+     */
+    user.password = password;
+    user.resetToken = undefined;
+    user.resetTokenExpiry = undefined;
+    await user.save();
+
+    /**
+     * 🛡️ DEFENSE-IN-DEPTH: Security Layer 7 - Audit Notification
+     * Send email notification indicating that the password was changed.
+     */
+    try {
+      const { EmailService } = await import('@/lib/email');
+      EmailService.sendPasswordChangeNotificationEmail(
+        user.email,
+        `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+        false
+      ).catch(e => serverLogger.error("[RESET-PASSWORD] Notification failed:", e));
+    } catch (emailError) {
+      // fail silently on notification import errors for reliability
+    }
+
+    return secureJsonResponse({
+      message: "Password has been reset successfully",
+    });
+  } catch (error) {
+    return secureErrorResponse("Reset password failed", 500, "SERVER_ERROR", error);
+  }
+}

@@ -1,0 +1,53 @@
+# Build artifacts
+node_modules
+.next
+out
+build
+
+# Version control
+.git
+.github
+.gitignore
+
+# Logs (ephemeral on Cloud Run – never copy into image)
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+auth-debug.log
+auth-debug.log.1
+
+# Secrets & credentials (must never be in the image)
+.env
+.env.local
+.env.production
+.env*.local
+gcp-key.json
+
+# Dev tooling
+.vscode
+.idea
+*.swp
+
+# Tests & scripts (not needed at runtime)
+tests/
+scripts/
+coverage/
+
+# Documentation
+README.md
+PROJECT_STRUCTURE.md
+API.md
+CLOUD_SCHEDULER.md
+DA-Integration.md
+SETUP.md
+
+# Deployment / VPS tooling (not applicable in Cloud Run)
+ecosystem.config.js
+deploy.sh
+view-logs.sh
+deployment-logs
+
+# Docker build files (no need to copy into themselves)
+.dockerignore
+Dockerfile
