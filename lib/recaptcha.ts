@@ -2,6 +2,9 @@
  * Google reCAPTCHA utilities for client and server
  */
 
+import { logger } from "@/lib/logger";
+import { serverLogger } from "@/lib/server-logger";
+
 // Client-side: Load reCAPTCHA script and handle widget
 export class RecaptchaClient {
   private static siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || "";
@@ -77,7 +80,7 @@ export class RecaptchaClient {
     const currentSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || this.siteKey;
 
     if (!currentSiteKey || currentSiteKey === 'your-recaptcha-site-key') {
-      console.warn("reCAPTCHA site key not configured correctly");
+      logger.warn("reCAPTCHA site key not configured correctly");
       return null;
     }
 
@@ -95,7 +98,7 @@ export class RecaptchaClient {
 
       return widgetId;
     } catch (error) {
-      console.error("reCAPTCHA render error:", error);
+      logger.error("reCAPTCHA render error:", error);
       throw error;
     }
   }
@@ -111,7 +114,7 @@ export class RecaptchaClient {
     try {
       (window as any).grecaptcha.reset(widgetId);
     } catch (error) {
-      console.error("Error resetting reCAPTCHA:", error);
+      logger.error("Error resetting reCAPTCHA:", error);
     }
   }
 
@@ -163,7 +166,7 @@ export class RecaptchaServer {
     }
 
     if (!this.secretKey || this.secretKey === 'your-recaptcha-secret-key') {
-      console.warn("reCAPTCHA secret key not configured - skipping verification");
+      serverLogger.warn("reCAPTCHA secret key not configured - skipping verification");
       return { success: true };
     }
 
@@ -199,7 +202,7 @@ export class RecaptchaServer {
 
       return { success: true };
     } catch (error) {
-      console.error("reCAPTCHA verification error:", error);
+      serverLogger.error("reCAPTCHA verification error:", error);
       return {
         success: false,
         error: "Failed to verify reCAPTCHA",

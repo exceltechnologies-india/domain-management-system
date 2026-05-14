@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { addSecurityHeaders, addCorsHeaders, buildPreflightResponse } from "@/lib/security-headers";
 import { SecurityValidator } from "@/lib/security";
+import { serverLogger } from "@/lib/server-logger";
 
 // --- Route Configuration ---
 const PUBLIC_ROUTES = new Set([
@@ -89,7 +90,7 @@ const sanitizePathForLog = (path: string) => {
 const logAuthAttempt = (pathname: string, status: 401 | 403) => {
   const sanitized = sanitizePathForLog(pathname);
   // Log status and sanitized path only - no role leakage
-  console.warn(`[Middleware Security] ${status} attempt on ${sanitized}`);
+  serverLogger.warn(`[Middleware Security] ${status} attempt on ${sanitized}`);
 };
 
 const normalizePath = (path: string) => {
@@ -282,7 +283,7 @@ async function handleMiddleware(request: NextRequest, nonce: string): Promise<Ne
     // GET/HEAD/OPTIONS are skipped inside validateCSRF automatically.
     const csrfCheck = SecurityValidator.validateCSRF(request);
     if (!csrfCheck.isValid) {
-      console.warn(`[Middleware Security] CSRF validation failed on ${sanitizePathForLog(pathname)}: ${csrfCheck.error}`);
+      serverLogger.warn(`[Middleware Security] CSRF validation failed on ${sanitizePathForLog(pathname)}: ${csrfCheck.error}`);
       return addSecurityHeaders(NextResponse.json({ error: "CSRF validation failed" }, { status: 403 }), { nonce, strictCSP: isStrictCSPRoute });
     }
 
