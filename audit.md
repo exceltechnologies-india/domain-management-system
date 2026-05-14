@@ -217,13 +217,29 @@ Across `lib/`, `app/`, `components/`. TypeScript is doing far less work than it 
 
 ---
 
-### [MEDIUM-2] 76 raw `console.*` calls in production code
-[.eslintrc.json](.eslintrc.json) sets `"no-console": "off"`, so this won't be caught. Cloud Run dumps them all into one unstructured stream.
+### ~~[MEDIUM-2] 76 raw `console.*` calls in production code~~ — PARTIALLY RESOLVED 2026-05-14
+[lib/server-logger.ts](lib/server-logger.ts) now emits **structured JSON in production** — one line per log entry with `severity`, `message`, ISO `time`, plus any object-arg fields merged into the top level. Cloud Logging auto-parses these and surfaces them with the right `severity` icon, full `jsonPayload`, and searchable fields. Dev mode is unchanged: human-readable `[INFO]` / `[WARNING]` / `[ERROR]` prefix on `console.*` for readability in the terminal.
 
-**Fix:**
-1. Add `lib/logger.ts` wrapping `pino` (or use the existing `serverLogger` consistently — it's already imported in some places).
-2. Replace `console.*` with `logger.*`.
-3. Flip ESLint to `"no-console": ["warn", { "allow": ["error"] }]`.
+Verified live (NODE_ENV=production):
+```
+{"severity":"INFO","message":"hello from prod","time":"2026-05-14T07:56:01.041Z","requestId":"abc-123","userId":"u-42"}
+{"severity":"WARNING","message":"warn-level event","time":"2026-05-14T07:56:01.043Z","route":"/api/x"}
+```
+
+**Server-side `console.*` calls migrated to `serverLogger`:**
+- [middleware.ts](middleware.ts) — 2 security-audit warns
+- [lib/recaptcha.ts](lib/recaptcha.ts) `RecaptchaServer` class — 1 warn + 1 error
+
+**Client-side `console.*` calls migrated to existing [lib/logger.ts](lib/logger.ts):**
+- [lib/recaptcha.ts](lib/recaptcha.ts) `RecaptchaClient` class — 1 warn + 2 errors
+- [lib/logout.ts](lib/logout.ts) — 1 warn
+- [lib/storage.ts](lib/storage.ts) — 2 warns
+
+**ESLint tightened** ([.eslintrc.json](.eslintrc.json)): `"no-console": ["warn", { "allow": ["error"] }]` site-wide, with an override that keeps `no-console: off` only on the two logger files themselves (which legitimately *are* the `console.*` output sink). Lint surfaces 8 remaining `console.*` calls in `app/admin/*` and `components/*` UI files — these are client-side React paths and out of scope for the "Cloud Run unstructured logs" concern. They can be migrated opportunistically.
+
+**Suite still green:** 340/340 tests, build clean, smoke-tested structured output on the standalone server.
+
+**Pending follow-up:** 51 `console.*` calls remain in `app/**/*.tsx` page files (mostly client-side React, mostly `console.error` which is explicitly allowed by the new rule). Migrating these to `logger` would just centralize error telemetry — useful but not Cloud-Run-blocking.
 
 ---
 

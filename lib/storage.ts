@@ -3,6 +3,8 @@
  * This often happens in privacy modes or when cookies/storage are blocked
  */
 
+import { logger } from "@/lib/logger";
+
 type StorageType = 'localStorage' | 'sessionStorage';
 
 class MemoryStorage implements Storage {
@@ -56,7 +58,7 @@ class SafeStorage implements Storage {
         return window[this.storageType];
       }
     } catch (e) {
-      console.warn(`Access to ${this.storageType} is blocked, falling back to in-memory storage`);
+      logger.warn(`Access to ${this.storageType} is blocked, falling back to in-memory storage`);
     }
     return new MemoryStorage();
   }
@@ -85,7 +87,7 @@ class SafeStorage implements Storage {
     try {
       this.storage.setItem(key, value);
     } catch (e) {
-      console.warn(`Failed to set item in ${this.storageType} even with fallback:`, e);
+      logger.warn(`Failed to set item in ${this.storageType} even with fallback:`, e);
     }
   }
 }

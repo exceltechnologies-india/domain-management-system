@@ -2,6 +2,7 @@ import toast from "react-hot-toast";
 import { signOut } from "next-auth/react";
 import { useCallback } from "react";
 import { safeLocalStorage, safeSessionStorage } from "@/lib/storage";
+import { logger } from "@/lib/logger";
 
 /**
  * Direct logout function that can be called without hooks
@@ -15,7 +16,7 @@ export const performLogout = async () => {
     try {
       await signOut({ redirect: false });
     } catch (signOutError) {
-      console.warn('NextAuth signOut failed, continuing with logout:', signOutError);
+      logger.warn('NextAuth signOut failed, continuing with logout:', signOutError);
     }
 
     // Clear all localStorage and sessionStorage data
