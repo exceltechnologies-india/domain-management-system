@@ -59,13 +59,26 @@ The Docker path was already safe in practice (`.env.local` is excluded by [.dock
 
 ---
 
-### [CRITICAL-4] `unsafe-eval` and `unsafe-inline` in CSP
-[lib/security-headers.ts:95-103](lib/security-headers.ts) — required for Razorpay checkout and reCAPTCHA, but the combination negates most of CSP's value.
+### ~~[CRITICAL-4] `unsafe-eval` and `unsafe-inline` in CSP~~ — PARTIALLY RESOLVED 2026-05-14
+CSP is now per-route. [lib/security-headers.ts](lib/security-headers.ts) accepts a `strictCSP` option that strips `'unsafe-inline'` and `'unsafe-eval'` from `script-src`, leaving the nonce as the only allowed inline-script execution path. [middleware.ts](middleware.ts) sets the flag based on the request path.
 
-**Fix:**
-- Audit whether every page that loads needs `unsafe-eval` — restrict CSP per-route if possible (apply the relaxed CSP only on checkout/auth pages).
-- Use nonce-only `script-src` everywhere else.
-- Consider loading Razorpay inside an iframe with its own CSP.
+**Strict CSP applied to:**
+- All `/api/*` routes (including the `/api/v1/*` alias) — JSON responses, no scripts execute
+- Static legal/marketing/error pages: `/about`, `/cancellation-refund`, `/data-deletion`, `/privacy`, `/terms-and-conditions`, `/maintenance`, `/403`
+
+**Relaxed CSP retained for:** dashboard, admin, auth (login/register/reset-password/activate/contact), cart, checkout, home, and any other page that may surface a Razorpay renewal/upgrade modal or reCAPTCHA widget. Conservative on purpose — Razorpay still requires `unsafe-eval`, and these modals can appear dynamically.
+
+**Live verification (standalone build on port 3458):**
+- `/api/health` and `/api/v1/health` → `script-src 'self' 'nonce-…' blob: data: https://…` (no unsafe-*)
+- `/privacy` and `/about` → same nonce-only script-src; 200 OK; every `<script>` tag in the rendered HTML carries the correct nonce (0 unnonced scripts)
+- `/login` → still `script-src 'self' 'nonce-…' 'unsafe-inline' 'unsafe-eval' …` (relaxed as intended)
+
+**Suite still green:** 298/298 tests, lint clean, production build succeeded.
+
+**Pending (the still-unresolved part):**
+1. Most user-facing pages still run with `unsafe-eval` because of Razorpay's eval-using checkout SDK. Replacing it with Razorpay's "Elements" integration (the iframe variant) would remove the dependency from our origin entirely and let strict CSP roll out site-wide.
+2. `style-src 'unsafe-inline'` is unchanged — Tailwind's utility classes and Next.js's style injection emit unhashed inline styles. Switching to a nonce-only style-src would require either a Next.js style hash plan or a CSS-modules migration; out of scope here.
+3. The strict-page allowlist is conservative. As features are confirmed not to depend on eval/inline scripts (e.g. `/payment-success`, `/hosting`, `/domains/search` after manual audit), they can move onto the strict list.
 
 ---
 

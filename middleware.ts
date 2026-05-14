@@ -34,6 +34,19 @@ const GUEST_PUBLIC_ROUTES = new Set(["/checkout/guest"]);
 const ADMIN_PREFIXES = ["/admin"];
 const ADMIN_API_PREFIXES = ["/api/admin"];
 
+// Pages eligible for strict CSP (nonce-only script-src; no unsafe-eval/inline).
+// These are static legal/marketing/error pages that load no third-party JS.
+// API routes get strict CSP automatically (JSON responses, no scripts run).
+const STRICT_CSP_PAGE_PATHS = new Set([
+  "/about",
+  "/cancellation-refund",
+  "/data-deletion",
+  "/privacy",
+  "/terms-and-conditions",
+  "/maintenance",
+  "/403",
+]);
+
 // API routes that are explicitly public (auth, webhooks, or operational)
 const PUBLIC_API_PREFIXES = [
   "/api/auth",
@@ -184,23 +197,35 @@ async function handleMiddleware(request: NextRequest, nonce: string): Promise<Ne
   const rawPathname = request.nextUrl.pathname;
   const normalizedPathname = normalizePath(rawPathname);
 
-  if (rawPathname !== normalizedPathname) {
-    const url = request.nextUrl.clone();
-    url.pathname = normalizedPathname;
-    return addSecurityHeaders(NextResponse.redirect(url, 307), { nonce }); // Use 307 (Temporary) to avoid permanent redirection cache
-  }
-
-  const pathname = normalizedPathname;
-
   // API versioning: /api/v1/<anything> is rewritten by next.config.js to
   // /api/<anything> at the routing layer, but middleware runs BEFORE the
   // rewrite. Build a classification path that strips the v1 prefix so the
   // admin/public-API prefix checks below treat versioned and unversioned
   // requests identically. We still log the original pathname so audit trails
   // can distinguish v1-specific traffic.
-  const classificationPath = pathname.startsWith("/api/v1/")
-    ? pathname.replace(/^\/api\/v1/, "/api")
-    : pathname;
+  const classificationPath = normalizedPathname.startsWith("/api/v1/")
+    ? normalizedPathname.replace(/^\/api\/v1/, "/api")
+    : normalizedPathname;
+
+  // Strict CSP eligibility: pages that do NOT load Razorpay checkout,
+  // reCAPTCHA, or any third-party JS that relies on eval/new Function().
+  // These get a nonce-only script-src — no 'unsafe-eval', no 'unsafe-inline'.
+  // Dashboard, admin, auth, cart, checkout pages all stay on the relaxed CSP
+  // because Razorpay or reCAPTCHA can appear dynamically (e.g. renewal modals).
+  // Computed BEFORE the URL-normalize redirect so the redirect response carries
+  // the right CSP for the destination route, and so later addSecurityHeaders
+  // calls don't hit a temporal-dead-zone reference.
+  const isStrictCSPRoute =
+    classificationPath.startsWith("/api/") ||
+    STRICT_CSP_PAGE_PATHS.has(normalizedPathname);
+
+  if (rawPathname !== normalizedPathname) {
+    const url = request.nextUrl.clone();
+    url.pathname = normalizedPathname;
+    return addSecurityHeaders(NextResponse.redirect(url, 307), { nonce, strictCSP: isStrictCSPRoute }); // Use 307 (Temporary) to avoid permanent redirection cache
+  }
+
+  const pathname = normalizedPathname;
 
   // 1b. Maintenance mode — redirect non-admin, non-API routes to /maintenance when enabled.
   // Skip: /admin/* (admins must always reach the panel), /api/* (internal calls),
@@ -221,7 +246,7 @@ async function handleMiddleware(request: NextRequest, nonce: string): Promise<Ne
     if (maintenance.enabled) {
       const url = request.nextUrl.clone();
       url.pathname = '/maintenance';
-      return addSecurityHeaders(NextResponse.redirect(url, { status: 307 }), { nonce });
+      return addSecurityHeaders(NextResponse.redirect(url, { status: 307 }), { nonce, strictCSP: isStrictCSPRoute });
     }
   }
 
@@ -258,70 +283,70 @@ async function handleMiddleware(request: NextRequest, nonce: string): Promise<Ne
     const csrfCheck = SecurityValidator.validateCSRF(request);
     if (!csrfCheck.isValid) {
       console.warn(`[Middleware Security] CSRF validation failed on ${sanitizePathForLog(pathname)}: ${csrfCheck.error}`);
-      return addSecurityHeaders(NextResponse.json({ error: "CSRF validation failed" }, { status: 403 }), { nonce });
+      return addSecurityHeaders(NextResponse.json({ error: "CSRF validation failed" }, { status: 403 }), { nonce, strictCSP: isStrictCSPRoute });
     }
 
     if (!token) {
       logAuthAttempt(pathname, 401);
-      return addSecurityHeaders(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), { nonce });
+      return addSecurityHeaders(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), { nonce, strictCSP: isStrictCSPRoute });
     }
     if (token.role !== "admin") {
       logAuthAttempt(pathname, 403);
-      return addSecurityHeaders(NextResponse.json({ error: "Forbidden" }, { status: 403 }), { nonce });
+      return addSecurityHeaders(NextResponse.json({ error: "Forbidden" }, { status: 403 }), { nonce, strictCSP: isStrictCSPRoute });
     }
-    return addSecurityHeaders(nextWithNonce(request, nonce), { nonce });
+    return addSecurityHeaders(nextWithNonce(request, nonce), { nonce, strictCSP: isStrictCSPRoute });
   }
 
   // Auth pages: Redirect away if already logged in
   if (isAuthPage && token) {
     const redirectPath = token.role === "admin" ? "/admin/dashboard" : "/dashboard";
-    return addSecurityHeaders(NextResponse.redirect(new URL(redirectPath, request.url)), { nonce });
+    return addSecurityHeaders(NextResponse.redirect(new URL(redirectPath, request.url)), { nonce, strictCSP: isStrictCSPRoute });
   }
 
   // Public / Public API / HEAD requests / Guest checkout: Bypass further checks
   if (isPublicRoute || isPublicApi || isHeadRequest || isGuestPublicRoute) {
-    return addSecurityHeaders(nextWithNonce(request, nonce), { nonce });
+    return addSecurityHeaders(nextWithNonce(request, nonce), { nonce, strictCSP: isStrictCSPRoute });
   }
 
   // Admin Pages: Enforce admin role
   if (isAdminPage) {
     if (!token) {
       logAuthAttempt(pathname, 401);
-      return addSecurityHeaders(NextResponse.redirect(new URL("/403", request.url)), { nonce });
+      return addSecurityHeaders(NextResponse.redirect(new URL("/403", request.url)), { nonce, strictCSP: isStrictCSPRoute });
     }
     if (token.role !== "admin") {
       logAuthAttempt(pathname, 403);
-      return addSecurityHeaders(NextResponse.redirect(new URL("/403", request.url)), { nonce });
+      return addSecurityHeaders(NextResponse.redirect(new URL("/403", request.url)), { nonce, strictCSP: isStrictCSPRoute });
     }
-    return addSecurityHeaders(nextWithNonce(request, nonce), { nonce });
+    return addSecurityHeaders(nextWithNonce(request, nonce), { nonce, strictCSP: isStrictCSPRoute });
   }
 
   // Protected User Routes
   if (isProtectedRoute) {
     if (!token) {
       logAuthAttempt(pathname, 401);
-      return addSecurityHeaders(NextResponse.redirect(new URL("/403", request.url)), { nonce });
+      return addSecurityHeaders(NextResponse.redirect(new URL("/403", request.url)), { nonce, strictCSP: isStrictCSPRoute });
     }
 
     // Safety: prevent admins from accessing regular dashboards
     if (token.role === "admin" && pathname.startsWith("/dashboard")) {
-      return addSecurityHeaders(NextResponse.redirect(new URL("/admin/dashboard", request.url)), { nonce });
+      return addSecurityHeaders(NextResponse.redirect(new URL("/admin/dashboard", request.url)), { nonce, strictCSP: isStrictCSPRoute });
     }
-    return addSecurityHeaders(nextWithNonce(request, nonce), { nonce });
+    return addSecurityHeaders(nextWithNonce(request, nonce), { nonce, strictCSP: isStrictCSPRoute });
   }
 
   // General API Safety: No redirects for internal APIs
   if (isApi) {
     if (!token) {
       logAuthAttempt(pathname, 401);
-      return addSecurityHeaders(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), { nonce });
+      return addSecurityHeaders(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), { nonce, strictCSP: isStrictCSPRoute });
     }
   }
 
   // Default fallback
   const isPdfRoute = pathname.match(/^\/api\/user\/invoices\/[^/]+\/pdf$/) !== null;
   const isCheckoutRoute = pathname === "/checkout" || pathname.startsWith("/checkout/");
-  return addSecurityHeaders(nextWithNonce(request, nonce), { skipCSP: isPdfRoute || isCheckoutRoute, nonce });
+  return addSecurityHeaders(nextWithNonce(request, nonce), { skipCSP: isPdfRoute || isCheckoutRoute, nonce, strictCSP: isStrictCSPRoute });
 }
 
 export const config = {
