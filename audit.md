@@ -118,15 +118,32 @@ Routes call Mongoose models directly. Schema changes ripple into dozens of files
 
 ---
 
-### [HIGH-5] `Pending*` collections risk orphans
-[models/PendingDomain.ts](models/PendingDomain.ts), [models/PendingHosting.ts](models/PendingHosting.ts) — staging tables with `attempts` and `lastAttemptAt` counters. No janitor visible.
+### ~~[HIGH-5] `Pending*` collections risk orphans~~ — RESOLVED 2026-05-14
+Added [app/api/cron/pending-sweeper/route.ts](app/api/cron/pending-sweeper/route.ts) — a daily sweeper that scans both `PendingDomain` (skipping `isArchived`) and `PendingHosting` for records older than 24h in non-terminal statuses (`pending` / `processing` / `failed`).
 
-**Risk:** A failing ResellerClub provisioning leaves a customer paid but with no domain, and nobody is alerted.
+**Severity tiers in the admin digest:**
+- WARN — 24h to 7d old
+- CRITICAL — older than 7d, OR `verificationAttempts > 5` on `PendingDomain`
 
-**Fix:** Add a sweeper cron under [app/api/cron/](app/api/cron/) that:
-- Flags `Pending*` records older than 24 h with status `pending` for admin review
-- Sends a Slack/email alert when `attempts > 5`
-- Optionally TTL-indexes records older than 30 days
+**Alert pattern:** Single digest email to `ADMIN_EMAIL` per run via `EmailService.sendAdminNotification`, mirroring the existing [check-unprovisioned](app/api/cron/check-unprovisioned/route.ts) cron (same auth, same logger, same email helper, same response wrappers). Records are sorted CRITICAL-first, then by age descending.
+
+**Auth:** `x-cron-secret` header (timing-safe) OR admin session.
+
+**Dedupe strategy:** Run daily, not hourly. One digest per day is the dedupe — admin sees the same record listed each morning until they resolve it. Avoids needing a `lastAlertedAt` field on the models.
+
+**Deliberately *not* implemented:** Auto-archive / TTL deletion of >30d records. Silently deleting paid-but-unprovisioned customer state would mask exactly the failure mode this cron is meant to surface. Admin archives manually via the existing UI after resolution.
+
+**Cloud Scheduler setup** (needs to be run during the deploy):
+
+```
+gcloud scheduler jobs create http pending-sweeper \
+  --schedule="0 9 * * *" --time-zone="Asia/Kolkata" \
+  --uri="https://app.anutech.in/api/cron/pending-sweeper" \
+  --http-method=GET \
+  --headers="x-cron-secret=$CRON_SECRET"
+```
+
+09:00 IST puts the digest in admin's inbox before the business day starts.
 
 ---
 
@@ -299,7 +316,7 @@ All optional fields use sparse indexes so they don't pay storage for the null ma
 |---|---|---|
 | 1 | ~~`git init`, push to private remote, branch protection~~ ✅ 2026-05-14 (enforcement awaits GitHub Team upgrade) | CRITICAL-1 |
 | 2 | ~~Strip `.env.local` from build script~~ ✅ 2026-05-14 · move to Cloud Run secrets, rotate exposed credentials | CRITICAL-2 |
-| 3 | Sweeper cron for `PendingDomain` / `PendingHosting` with admin alerts | HIGH-5 |
+| 3 | ~~Sweeper cron for `PendingDomain` / `PendingHosting` with admin alerts~~ ✅ 2026-05-14 (Cloud Scheduler job still needs to be created in GCP) | HIGH-5 |
 | 4 | Tests for `payments/verify` and Razorpay webhook | MEDIUM-5 |
 | 5 | Split [lib/resellerclub.ts](lib/resellerclub.ts) into 5–6 focused modules | HIGH-1 |
 | 6 | Add CI workflow (lint + test + audit), gate deploys behind it | MEDIUM-6 |
