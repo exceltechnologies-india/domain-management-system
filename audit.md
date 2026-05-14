@@ -206,17 +206,23 @@ Across `lib/`, `app/`, `components/`. TypeScript is doing far less work than it 
 
 ## 5. Testing
 
-### [MEDIUM-5] Thin test coverage
-- 15 test files for ~250 source files
-- [coverage/lcov.info](coverage/lcov.info) is 17 KB total
-- The 60% threshold "passes" because most files are excluded
-- Last coverage run: May 1 (almost 2 weeks stale)
+### ~~[MEDIUM-5] Thin test coverage~~ — PARTIALLY RESOLVED 2026-05-14
+Added [tests/unit/lib/razorpay.test.ts](tests/unit/lib/razorpay.test.ts) — 17 tests covering the security-critical signature primitives that both [app/api/payments/verify/route.ts](app/api/payments/verify/route.ts) and [app/api/webhooks/razorpay/route.ts](app/api/webhooks/razorpay/route.ts) depend on as their first line of defense:
 
-**Fix priority:**
-1. Payment verification ([app/api/payments/verify/route.ts](app/api/payments/verify/route.ts), [app/api/webhooks/razorpay/route.ts](app/api/webhooks/razorpay/route.ts))
-2. Auth (TOTP setup/confirm, password reset, session timeout)
-3. Domain provisioning lifecycle (`Pending → Domain` promotion)
-4. CSRF and rate-limit middleware
+- `verifyPayment` order flow: correct signature accepted, tampered order_id/payment_id/signature rejected
+- `verifyPayment` subscription flow: correct signature accepted, swapped sub_id rejected, order-flow sig sent in subscription slot rejected (guards against developer mistakes mixing the two HMAC formulas)
+- `verifyPayment` input safety: missing both order_id and subscription_id, length-mismatched signature (timingSafeEqual throw), non-hex signature, empty signature — all return false without throwing
+- `verifyWebhookSignature`: matching body+sig accepted; tampered body, forged delivery with wrong secret, empty signature, non-hex signature, and event-swapping replay all rejected
+
+Test count moved from 281 → 298, all green.
+
+**Deliberately deferred to integration tests (deemed remaining work):**
+1. Route-level tests for [payments/verify](app/api/payments/verify/route.ts) and [webhooks/razorpay](app/api/webhooks/razorpay/route.ts). Each route has 10+ collaborators (AuthService, MongoDB models, Razorpay client, Email, Cloud Tasks, payment-services helpers, Redis nonce). Mocking that surface to test 4 early-return paths is high-effort, low-value — integration tests using a test Mongo + Razorpay sandbox are the right place.
+2. Auth surface (TOTP setup/confirm, password reset, session timeout).
+3. Domain provisioning lifecycle (`Pending → Domain` promotion).
+4. CSRF and rate-limit middleware.
+
+**Coverage threshold caveat unchanged:** [vitest.config.ts](vitest.config.ts) still excludes `lib/security.ts` and `lib/pricing-service.ts` from coverage. The 60% threshold is on whatever's measured, not the codebase. [CRITICAL-3](#critical-3) tracks the security.ts exclusion separately.
 
 ---
 
@@ -317,7 +323,7 @@ All optional fields use sparse indexes so they don't pay storage for the null ma
 | 1 | ~~`git init`, push to private remote, branch protection~~ ✅ 2026-05-14 (enforcement awaits GitHub Team upgrade) | CRITICAL-1 |
 | 2 | ~~Strip `.env.local` from build script~~ ✅ 2026-05-14 · move to Cloud Run secrets, rotate exposed credentials | CRITICAL-2 |
 | 3 | ~~Sweeper cron for `PendingDomain` / `PendingHosting` with admin alerts~~ ✅ 2026-05-14 (Cloud Scheduler job still needs to be created in GCP) | HIGH-5 |
-| 4 | Tests for `payments/verify` and Razorpay webhook | MEDIUM-5 |
+| 4 | ~~Tests for `payments/verify` and Razorpay webhook~~ ✅ 2026-05-14 (signature primitives unit-tested; route-level integration tests remain) | MEDIUM-5 |
 | 5 | Split [lib/resellerclub.ts](lib/resellerclub.ts) into 5–6 focused modules | HIGH-1 |
 | 6 | Add CI workflow (lint + test + audit), gate deploys behind it | MEDIUM-6 |
 | 7 | Structured logger, remove `console.*` from server code, tighten ESLint | MEDIUM-2 |
