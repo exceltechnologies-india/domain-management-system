@@ -121,12 +121,32 @@ function emit(severity: Severity, args: any[]) {
   const isProd = process.env.NODE_ENV === "production";
   const { message, meta } = compose(args);
 
+  // Pull requestId from the AsyncLocalStorage context if a handler set one
+  // via withRequestLogContext. An explicit `{ requestId }` in the call args
+  // takes precedence so callers can override (e.g. middleware passes its own).
+  //
+  // We read the storage off globalThis instead of importing it — request-
+  // context.ts pulls node:async_hooks which Webpack rejects in the Edge
+  // runtime (middleware). The globalThis hop keeps middleware's import path
+  // clean while still letting Node route handlers benefit from auto-flow.
+  let ambientRequestId: string | undefined;
+  try {
+    const storage = (globalThis as any).__requestContextStorage;
+    ambientRequestId = storage?.getStore?.()?.requestId;
+  } catch {
+    /* defensive: never let logging crash a request */
+  }
+
+  const mergedMeta = ambientRequestId
+    ? { requestId: ambientRequestId, ...(meta ?? {}) }
+    : meta;
+
   if (isProd) {
     const payload = JSON.stringify({
       severity,
       message,
       time: new Date().toISOString(),
-      ...(meta ?? {}),
+      ...(mergedMeta ?? {}),
     });
     if (severity === "ERROR") {
       // eslint-disable-next-line no-console
