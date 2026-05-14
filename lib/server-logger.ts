@@ -14,6 +14,20 @@
  * - In development, output is human-readable with a coloured-ish prefix
  *   so it stays readable in a terminal.
  *
+ * Including a request ID in a log entry:
+ *   Any object argument is merged into the top-level JSON output, so the
+ *   convention is to pass `{ requestId }` (and any other meta) as the
+ *   trailing arg:
+ *
+ *     serverLogger.info("payment captured", { requestId, orderId });
+ *
+ *   In a route handler, the request ID is on the `x-request-id` header
+ *   (set by middleware.ts; preferred source is Cloud Run's
+ *   X-Cloud-Trace-Context so logs correlate with Cloud Trace spans):
+ *
+ *     const requestId = request.headers.get("x-request-id");
+ *     serverLogger.info("...", { requestId });
+ *
  * Retained features from the original implementation:
  * - Path sanitization: strips the project root dir from messages so internal
  *   paths are never exposed in logs visible to operators.
