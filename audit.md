@@ -296,16 +296,31 @@ Test count moved from 281 → 298, all green.
 
 ---
 
-### [MEDIUM-6] No visible CI
-No `.github/workflows/`, no GitLab CI, no Jenkinsfile. Tests only run when a developer remembers.
+### ~~[MEDIUM-6] No visible CI~~ — PARTIALLY RESOLVED 2026-05-14
+Added [.github/workflows/ci.yml](.github/workflows/ci.yml) with two jobs triggered on push to `main` and on pull requests:
 
-**Fix (after CRITICAL-1 is done):**
-1. Add `.github/workflows/ci.yml`:
-   - `npm ci`
-   - `npm run lint`
-   - `npm test`
-   - `npm audit --audit-level=high`
-2. Gate `deploy.sh` behind CI green status.
+**Job 1: `ci` (Lint + Test + Type-check) — blocking**
+- `npm ci` on Node 20 (matches `package.json#engines`)
+- `npm run lint`
+- `npx tsc --noEmit` (full project type-check)
+- `npm test` (vitest, 340 tests)
+- `PUPPETEER_SKIP_DOWNLOAD=true` so CI doesn't waste minutes downloading Chromium
+
+**Job 2: `audit` (npm audit) — informational only (`continue-on-error: true`)**
+- `npm audit --audit-level=high` against the lockfile
+
+The audit step is **deliberately non-blocking** for now: `npm audit` currently reports 13 high-severity advisories, all in Next.js (XSS / SSRF / cache-poisoning / middleware bypass / DoS variants on `^15.5.15`). Making it blocking today would red-bar every PR. Promote it to required once Next.js is bumped to a patched 15.x (or a per-vuln allowlist is added).
+
+**Pre-flight fixes landed alongside the workflow:**
+- [tests/unit/lib/auth.test.ts](tests/unit/lib/auth.test.ts) — fixed a possibly-null deref in the bearer-token test (`result.email` → `result!.email`).
+- [tests/unit/lib/security.test.ts](tests/unit/lib/security.test.ts) — cast `process.env` to a writable record before assigning `NODE_ENV` (TypeScript 6 / @types/node 24+ types `NODE_ENV` as read-only).
+
+**Verified:** vitest 340/340, lint clean (8 expected `console.*` warnings, exit 0), `tsc --noEmit` clean.
+
+**Pending follow-up (the still-unresolved part):**
+1. **Gate `deploy.sh` behind CI green status.** Requires `gh` CLI authenticated on the deploy host, then a step like `gh run list --branch main --limit 1 --json conclusion` to inspect the latest run before proceeding. Defer until the team has reviewed the CI workflow output for a few cycles.
+2. **Wire the required-status-check on the `main` ruleset/branch-protection rule.** Once CI runs at least once, the GitHub UI surfaces `CI / Lint + Test + Type-check` in the "required status checks" dropdown — pick it there. (No code change needed; only the existing GitHub limitation that ruleset enforcement on Free private repos is cosmetic until upgrading to Team — see [CRITICAL-1](#critical-1).)
+3. **Upgrade Next.js + flip the audit job to blocking.** Likely a `npm audit fix` on `next` will patch all 13 advisories. Smoke-test on a branch before merging.
 
 ---
 
@@ -395,7 +410,7 @@ All optional fields use sparse indexes so they don't pay storage for the null ma
 | 3 | ~~Sweeper cron for `PendingDomain` / `PendingHosting` with admin alerts~~ ✅ 2026-05-14 (Cloud Scheduler job still needs to be created in GCP) | HIGH-5 |
 | 4 | ~~Tests for `payments/verify` and Razorpay webhook~~ ✅ 2026-05-14 (signature primitives unit-tested; route-level integration tests remain) | MEDIUM-5 |
 | 5 | ~~Split [lib/resellerclub.ts](lib/resellerclub.ts) into 5–6 focused modules~~ ✅ 2026-05-14 (3 other large files in HIGH-1 still pending) | HIGH-1 |
-| 6 | Add CI workflow (lint + test + audit), gate deploys behind it | MEDIUM-6 |
+| 6 | ~~Add CI workflow (lint + test + audit)~~ ✅ 2026-05-14 (deploy gating + audit-blocking still pending) | MEDIUM-6 |
 | 7 | Structured logger, remove `console.*` from server code, tighten ESLint | MEDIUM-2 |
 | 8 | Atomic deploy (build to `.next.new`, atomic swap) | MEDIUM-8 |
 | 9 | Rotate GCP service account key, delete backup | Resolved follow-up |

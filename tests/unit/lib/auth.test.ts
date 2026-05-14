@@ -275,7 +275,7 @@ describe("AuthService.getUserFromRequest", () => {
       makeRequest(`Bearer ${token}`)
     );
     expect(result).not.toBeNull();
-    expect(result.email).toBe("test@example.com");
+    expect(result!.email).toBe("test@example.com");
   });
 
   it("returns null when the Bearer token is invalid", async () => {
