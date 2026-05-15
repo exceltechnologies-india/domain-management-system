@@ -107,7 +107,7 @@ gcloud run deploy "$SERVICE" \
   --concurrency=80 \
   --service-account="$SERVICE_ACCOUNT" \
   --vpc-connector="$VPC_CONNECTOR" \
-  --vpc-egress=private-ranges-only \
+  --vpc-egress=all-traffic \
   --set-secrets="$SECRETS_FLAG" \
   --set-env-vars="^|^${ENV_VARS}" \
   --quiet 2>&1 | tail -5
