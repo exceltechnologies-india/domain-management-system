@@ -90,18 +90,29 @@ else
   echo "📍 Dependencies unchanged — skipping reinstall"
 fi
 
-# 4. Clear previous build output but preserve Next.js compile cache
-echo "📍 Clearing previous build output (preserving cache)..."
-rm -rf .next/static .next/server .next/BUILD_ID \
-       .next/app-path-routes-manifest.json \
-       .next/routes-manifest.json \
-       .next/build-manifest.json \
-       .next/prerender-manifest.json \
-       .next/react-loadable-manifest.json
+# 4. Atomic-swap setup: preserve the current .next as .next.prev so any failure
+#    after this point can be rolled back to the last good build. This replaces
+#    the old "clear partial build, keep the cache" trick. Cost: build no longer
+#    benefits from the incremental compile cache, so it runs ~30-60s longer.
+#    Trade-off accepted in exchange for atomicity — a failed build no longer
+#    leaves the deployment in a broken half-state.
+echo "📍 Preserving current build as .next.prev (rollback point)..."
+rm -rf .next.prev
+[ -d .next ] && mv .next .next.prev
+
+# Helper: roll back .next from .next.prev. Called on any failure between here
+# and the final "atomic swap complete" line.
+rollback_next() {
+  local reason="$1"
+  echo "⏪ Rolling back .next/ (reason: $reason)"
+  rm -rf .next
+  [ -d .next.prev ] && mv .next.prev .next
+}
 
 # 4a. Lint check (fast pre-build gate)
 echo "📍 Running lint..."
 if ! npm run lint >> "$LOG_DIR/build-output.log" 2>&1; then
+  rollback_next "lint failed"
   echo "❌ Lint failed! Fix errors before deploying."
   echo "Check logs at: $LOG_DIR/build-output.log"
   exit 1
@@ -111,6 +122,7 @@ echo "📍 Building application..."
 if npm run build >> "$LOG_DIR/build-output.log" 2>&1; then
   echo "✅ Build successful!"
 else
+  rollback_next "build failed"
   echo "❌ Build failed! Deployment aborted."
   echo "Check logs at: $LOG_DIR/build-output.log"
   exit 1
@@ -120,17 +132,30 @@ fi
 # and before server start (so new code never sees a stale schema).
 echo "📍 Checking DB migration status..."
 if ! npm run migrate:status >> "$LOG_DIR/migrate.log" 2>&1; then
+  rollback_next "migration status check failed"
   echo "❌ Migration status check failed. See $LOG_DIR/migrate.log"
   exit 1
 fi
 
 echo "📍 Applying pending DB migrations..."
 if ! npm run migrate >> "$LOG_DIR/migrate.log" 2>&1; then
+  # Note: schema may be in a partially-migrated state on this path. The fresh
+  # build is rolled back, but the DB is not — a migration that ran half-way
+  # cannot be undone from the deploy script. Operator must inspect manually.
+  rollback_next "migration failed (DB may be partially applied — investigate)"
   echo "❌ DB migration failed. Deployment aborted."
   echo "Check logs at: $LOG_DIR/migrate.log"
   exit 1
 fi
 echo "✅ Migrations up to date"
+
+# Atomic swap is now complete. From this point on .next is the new build and
+# .next.prev is the previous-good rollback target. To roll back to the
+# previous deploy after this point:
+#   ./deploy.sh stop     (manually kill the running server via the PID file)
+#   mv .next .next.failed && mv .next.prev .next
+#   then re-run the start step (or re-run deploy.sh from scratch — it will
+#   pick up .next as the "current" state).
 
 # Copy public assets and static files into the standalone output.
 # next build with output:'standalone' creates .next/standalone/server.js which

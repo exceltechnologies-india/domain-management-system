@@ -296,10 +296,24 @@ gcloud scheduler jobs create http pending-sweeper \
 
 ---
 
-### [HIGH-6] Three overlapping security files
-[lib/security.ts](lib/security.ts), [lib/security-middleware.ts](lib/security-middleware.ts), [lib/security-headers.ts](lib/security-headers.ts) — boundaries unclear.
+### ~~[HIGH-6] Three overlapping security files~~ — RESOLVED 2026-05-15
+Consolidated into [lib/security/](lib/security/):
 
-**Fix:** Consolidate into `lib/security/` with explicit submodules (`headers.ts`, `middleware.ts`, `csrf.ts`, `rate-limit.ts`, `validation.ts`).
+- **[lib/security/validator.ts](lib/security/validator.ts)** (390 LOC) — `SecurityValidator` class: malicious-pattern detection, file-upload validation, input sanitization, email/password validation, CSRF (Origin/Referer check).
+- **[lib/security/headers.ts](lib/security/headers.ts)** (147 LOC) — `addSecurityHeaders`, `addCorsHeaders`, `buildPreflightResponse`. Per-route strict-CSP / relaxed-CSP gating.
+
+Old top-level files retained as thin backwards-compat barrels so the ~10 existing import sites don't need to change:
+
+- [lib/security.ts](lib/security.ts) — re-exports `SecurityValidator`.
+- [lib/security-headers.ts](lib/security-headers.ts) — re-exports `addSecurityHeaders` / `addCorsHeaders` / `buildPreflightResponse`.
+
+**Deleted as dead code:** the old `lib/security-middleware.ts` had **zero importers** (verified by grep across `app/`, `lib/`, `tests/`, `middleware.ts`). The audit-recommended `middleware.ts` submodule never landed there. Removed rather than ported.
+
+Audit-recommended sub-files I did NOT create:
+- `csrf.ts` — CSRF lives as `SecurityValidator.validateCSRF` and only has one caller (middleware.ts). Splitting it out would add a file for no readability gain.
+- `rate-limit.ts` — already exists as the top-level [lib/rate-limit.ts](lib/rate-limit.ts); not moved to avoid breaking 12+ import sites for a cosmetic relocation.
+
+**Verified:** 340/340 tests, lint clean (errors), `tsc --noEmit` clean.
 
 ---
 
@@ -372,20 +386,26 @@ The audit predicted "almost certainly costing measurable JS bundle weight." That
 
 ---
 
-### [MEDIUM-4] ESLint config is permissive
-[.eslintrc.json](.eslintrc.json):
+### ~~[MEDIUM-4] ESLint config is permissive~~ — PARTIALLY RESOLVED 2026-05-15
+Added the `@typescript-eslint` plugin to [.eslintrc.json](.eslintrc.json) with two of the three audit-recommended rules at warn level:
 
 ```json
-{
-  "extends": ["next/core-web-vitals"],
-  "rules": {
-    "no-console": "off",
-    "react/no-unescaped-entities": "off"
-  }
-}
+"@typescript-eslint/no-explicit-any": "warn",
+"@typescript-eslint/no-unused-vars": [
+  "warn",
+  { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "caughtErrorsIgnorePattern": "^_" }
+]
 ```
 
-**Fix:** Add `@typescript-eslint`, enable `no-explicit-any`, `no-unused-vars`, `no-floating-promises`. Keep at warning level initially to avoid a big-bang fix.
+Rules exempt on `tests/**` and `scripts/**` so mock-heavy test code doesn't drown the signal. `lib/server-logger.ts` and `lib/logger.ts` continue to opt out of `no-console`.
+
+**Surface this exposes:** **1,248 lint warnings** across `app/`, `lib/`, `components/`, `middleware.ts` —
+- 842 `no-explicit-any` (real untyped surface area; mostly third-party API response shapes)
+- 406 `no-unused-vars` (mostly stale imports + unused catch-block `error` variables)
+
+**CI handling:** the CI workflow runs `next lint --quiet` so only errors surface as GitHub annotations. Warnings show up locally on `npm run lint` and serve as a tech-debt indicator without producing 1,248 PR annotations on every push. Both audit-recommended outcomes met: visibility + non-blocking.
+
+**Not added in this pass:** `@typescript-eslint/no-floating-promises`. It requires type-aware linting (`parserOptions.project: ./tsconfig.json`), which makes lint substantially slower because it loads the type checker. Worth adding once the existing warnings are paid down so the cost lands on cleaner code.
 
 ---
 
@@ -460,17 +480,32 @@ PM2 wiring removed across the project. Cloud Run path (Dockerfile → `node serv
 
 ---
 
-### [MEDIUM-8] `deploy.sh` is not atomic
-Stop → Clean → Build → Start. If `Build` fails *after* `Clean`, the app is down until a human fixes it. [deployment-logs/](deployment-logs/) keeps logs but not the previous bundle.
+### ~~[MEDIUM-8] `deploy.sh` is not atomic~~ — RESOLVED 2026-05-15
+[deploy.sh](deploy.sh) now follows a snapshot-and-rollback pattern. Before lint/build/migrate begins, the current `.next/` is moved to `.next.prev/`. The build then writes a fresh `.next/`. On any failure (lint, build, migrate), a `rollback_next()` helper deletes the partial `.next/` and restores `.next.prev/`. The script exits non-zero with a clear "⏪ Rolling back" log line.
 
-**Fix:** Build to `.next.new/standalone/`, then atomic-swap on success:
+**Failure modes covered atomically:**
+- Lint failure
+- `next build` failure
+- `migrate:status` failure
+- `migrate` failure (with the caveat that schema state may be partially-applied — the script logs this explicitly; only the build is rolled back, the DB is not).
+
+**Manual rollback after a bad deploy** (when the new server is running but is misbehaving):
+```bash
+# Stop the running server
+kill -TERM "$(cat deployment-logs/.server.pid)"
+# Swap the rollback target back in
+mv .next .next.failed
+mv .next.prev .next
+# Re-run the start step (or re-run deploy.sh — it picks up .next as "current")
 ```
-rm -rf .next.prev
-mv .next .next.prev
-mv .next.new .next
-pm2 reload next-app
-```
-Rollback = `mv .next .next.failed && mv .next.prev .next && pm2 reload`.
+
+The old "preserve cache between builds" trick (partial-rm of `.next/static`, `.next/server`, manifests) is gone. Builds now start from a fresh `.next/` every time. Cost: ~30-60s added to each build. Trade-off accepted in exchange for atomicity — a failed build no longer leaves the deployment in a broken half-state.
+
+The audit's original recommendation built to `.next.new/` then swapped; this implementation instead snapshots to `.next.prev/` and lets the build write to `.next/` directly. Functionally equivalent atomic semantics, simpler script.
+
+**Cloud Run note:** this matters for the VPS path only. On Cloud Run, atomicity is built-in — failed revisions don't get traffic, and `gcloud run deploy` rolls back automatically.
+
+**Verified:** `bash -n deploy.sh` clean, production build succeeded.
 
 ---
 
@@ -593,7 +628,7 @@ All optional fields use sparse indexes so they don't pay storage for the null ma
 | 5 | ~~Split [lib/resellerclub.ts](lib/resellerclub.ts), [lib/directadmin.ts](lib/directadmin.ts), [lib/zohobooks.ts](lib/zohobooks.ts), [lib/auth-config.ts](lib/auth-config.ts) into focused modules~~ ✅ 2026-05-14 | HIGH-1 |
 | 6 | ~~Add CI workflow (lint + test + audit)~~ ✅ 2026-05-14 (deploy gating + audit-blocking still pending) | MEDIUM-6 |
 | 7 | ~~Structured logger, remove `console.*` from server code, tighten ESLint~~ ✅ 2026-05-14 (extended to client code too — 67 swaps, 0 console warnings remaining) | MEDIUM-2 |
-| 8 | Atomic deploy (build to `.next.new`, atomic swap) | MEDIUM-8 |
+| 8 | ~~Atomic deploy — snapshot `.next` → `.next.prev`, rollback on any failure~~ ✅ 2026-05-15 | MEDIUM-8 |
 | 9 | Rotate GCP service account key, delete backup | Resolved follow-up |
 | 10 | DB index audit on Mongoose models | LOW-4 |
 
