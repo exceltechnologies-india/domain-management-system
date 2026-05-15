@@ -241,6 +241,15 @@ export async function executeRequest<T>(
   validateCredentials();
   logDebugCredentials(); // Helpful for debugging auth issues
 
+  // When the lockout window expires, reset failure state so a single transient
+  // post-recovery error doesn't instantly re-trip the breaker. Without this,
+  // circuitFailures stays at its prior (>=threshold) value and the next failed
+  // attempt re-opens immediately, trapping the breaker indefinitely.
+  if (circuitOpenUntil > 0 && Date.now() >= circuitOpenUntil) {
+    circuitFailures = 0;
+    circuitOpenUntil = 0;
+  }
+
   // Circuit breaker: reject immediately if open
   if (Date.now() < circuitOpenUntil) {
     const remainingSec = Math.ceil((circuitOpenUntil - Date.now()) / 1000);
