@@ -1,0 +1,41 @@
+# Cloud Build config for the dms image.
+#
+# Invoked from scripts/build-image.sh (or directly):
+#   gcloud builds submit --config=cloudbuild.yaml \
+#     --substitutions=_NEXT_PUBLIC_RAZORPAY_KEY_ID=...,...
+#
+# Why a cloudbuild.yaml instead of plain `gcloud builds submit --tag`?
+# Next.js bakes every NEXT_PUBLIC_* env var into the client bundle at build
+# time. They MUST be passed as --build-arg to `docker build`. The plain
+# --tag form of `gcloud builds submit` doesn't expose --build-arg, so this
+# yaml file explicitly invokes the docker builder with the args.
+
+substitutions:
+  _NEXT_PUBLIC_RAZORPAY_KEY_ID: ''
+  _NEXT_PUBLIC_RECAPTCHA_SITE_KEY: ''
+  _NEXT_PUBLIC_FACEBOOK_ENABLED: 'false'
+  _NEXT_PUBLIC_GITHUB_ENABLED: 'false'
+  _NEXT_PUBLIC_SUPPORT_EMAIL: 'support@anutech.in'
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '--build-arg=NEXT_PUBLIC_RAZORPAY_KEY_ID=${_NEXT_PUBLIC_RAZORPAY_KEY_ID}'
+      - '--build-arg=NEXT_PUBLIC_RECAPTCHA_SITE_KEY=${_NEXT_PUBLIC_RECAPTCHA_SITE_KEY}'
+      - '--build-arg=NEXT_PUBLIC_FACEBOOK_ENABLED=${_NEXT_PUBLIC_FACEBOOK_ENABLED}'
+      - '--build-arg=NEXT_PUBLIC_GITHUB_ENABLED=${_NEXT_PUBLIC_GITHUB_ENABLED}'
+      - '--build-arg=NEXT_PUBLIC_SUPPORT_EMAIL=${_NEXT_PUBLIC_SUPPORT_EMAIL}'
+      - '--tag=us-central1-docker.pkg.dev/$PROJECT_ID/dms/dms:latest'
+      - '.'
+
+images:
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/dms/dms:latest'
+
+# Default machine type is e2-medium; build is ~5-10 minutes. Bump to
+# e2-highcpu-8 (or N1_HIGHCPU_8) if iteration speed matters.
+options:
+  machineType: 'E2_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: '1800s'
