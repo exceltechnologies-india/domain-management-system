@@ -1,14 +1,31 @@
 {
   "extends": ["next/core-web-vitals"],
+  "plugins": ["@typescript-eslint"],
   "rules": {
     "no-console": "warn",
-    "react/no-unescaped-entities": "off"
+    "react/no-unescaped-entities": "off",
+    "@typescript-eslint/no-explicit-any": "warn",
+    "@typescript-eslint/no-unused-vars": [
+      "warn",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_"
+      }
+    ]
   },
   "overrides": [
     {
       "files": ["lib/server-logger.ts", "lib/logger.ts"],
       "rules": {
         "no-console": "off"
+      }
+    },
+    {
+      "files": ["tests/**/*.{ts,tsx}", "scripts/**/*.{ts,js}"],
+      "rules": {
+        "@typescript-eslint/no-explicit-any": "off",
+        "@typescript-eslint/no-unused-vars": "off"
       }
     }
   ]

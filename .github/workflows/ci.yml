@@ -27,8 +27,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint
-        run: npm run lint
+      - name: Lint (errors only — warnings tracked separately to avoid GitHub annotation spam)
+        run: npx next lint --quiet
 
       - name: Type-check
         run: npx tsc --noEmit
