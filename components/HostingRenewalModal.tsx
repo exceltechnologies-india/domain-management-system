@@ -6,6 +6,7 @@ import { formatIndianDate, formatIndianCurrency } from '@/lib/dateUtils';
 import { toast } from 'react-hot-toast';
 import { safeLocalStorage, safeSessionStorage } from '@/lib/storage';
 import { useRouter } from 'next/navigation';
+import { useRazorpayCheckout } from '@/components/RazorpayCheckoutFrame';
 
 interface HostingRenewalModalProps {
   isOpen: boolean;
@@ -26,12 +27,6 @@ interface RenewalInfo {
   };
 }
 
-declare global {
-  interface Window {
-    Razorpay: any;
-  }
-}
-
 export default function HostingRenewalModal({
   isOpen,
   onClose,
@@ -42,25 +37,17 @@ export default function HostingRenewalModal({
   const [isProcessing, setIsProcessing] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const router = useRouter();
+  // Razorpay checkout is loaded inside an isolated iframe (see
+  // components/RazorpayCheckoutFrame.tsx) so this page can keep a strict CSP
+  // without the eval-using checkout.js script.
+  const razorpay = useRazorpayCheckout();
 
   useEffect(() => {
     if (isOpen) {
       loadRenewalInfo();
-      loadRazorpayScript();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, domainName]);
-
-  const loadRazorpayScript = () => {
-    if (window.Razorpay) return;
-    const script = document.createElement('script');
-    // SRI (integrity attribute) is not applied: Razorpay does not publish stable
-    // hashes for checkout.js and updates the script without versioning the URL.
-    // Mitigation: CSP script-src restricts execution to checkout.razorpay.com only.
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.async = true;
-    document.body.appendChild(script);
-  };
 
   const loadRenewalInfo = async () => {
     setIsLoading(true);
@@ -112,78 +99,80 @@ export default function HostingRenewalModal({
 
       const { data } = await response.json();
 
-      // 2. Open Razorpay Checkout
-      const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: data.amount * 100, // Not strictly required if order_id is present, but good practice
-        currency: data.currency,
-        name: 'AnuTech Hosting',
-        description: `Renewal for ${domainName} (1 Year)`,
-        order_id: data.razorpayOrderId,
-        handler: async function (paymentResponse: any) {
-          setIsVerifying(true);
-          try {
-            // 3. Verify Payment
-            const verifyRes = await fetch('/api/payments/verify', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-              },
-              body: JSON.stringify({
-                razorpay_order_id: paymentResponse.razorpay_order_id,
-                razorpay_payment_id: paymentResponse.razorpay_payment_id,
-                razorpay_signature: paymentResponse.razorpay_signature,
-                cartItems: [{
-                    itemType: 'hosting',
-                    domainName: domainName,
-                    price: renewalInfo.renewalPricing.price / 12, // Monthly price for verification logic
-                    registrationPeriod: 12,
-                    periodUnit: 'months'
-                }]
-              }),
-            });
-
-            if (verifyRes.ok) {
-              const verifyData = await verifyRes.json();
-              toast.success('Hosting renewed successfully!');
-              
-              // Store result for success page if needed
-              safeSessionStorage.setItem('paymentResult', JSON.stringify({
-                status: 'success',
-                message: 'Your hosting has been renewed successfully.',
-                orderId: data.orderId,
-                timestamp: Date.now()
-              }));
-              
-              onClose();
-              router.push('/payment-success');
-            } else {
-              const error = await verifyRes.json();
-              toast.error(error.error || 'Payment verification failed');
-            }
-          } catch (err) {
-            toast.error('Verification failed. Please contact support.');
-          } finally {
-            setIsVerifying(false);
-          }
-        },
-        prefill: {
-          email: safeLocalStorage.getItem('user') ? JSON.parse(safeLocalStorage.getItem('user')!).email : ''
-        },
-        theme: {
-          color: '#2563eb'
-        },
-        modal: {
-          ondismiss: () => {
-            setIsProcessing(false);
-          }
+      // 2. Open Razorpay Checkout inside the isolated iframe.
+      let paymentResponse;
+      try {
+        paymentResponse = await razorpay.open({
+          key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
+          amount: data.amount * 100, // Not strictly required if order_id is present, but good practice
+          currency: data.currency,
+          name: 'AnuTech Hosting',
+          description: `Renewal for ${domainName} (1 Year)`,
+          order_id: data.razorpayOrderId,
+          prefill: {
+            email: safeLocalStorage.getItem('user')
+              ? JSON.parse(safeLocalStorage.getItem('user')!).email
+              : ''
+          },
+          theme: { color: '#2563eb' }
+        });
+      } catch (err: any) {
+        // User dismissed the modal, or the iframe reported an error.
+        if (err?.kind === 'dismissed') {
+          setIsProcessing(false);
+          return;
         }
-      };
+        toast.error(err?.message || 'Payment was not completed');
+        setIsProcessing(false);
+        return;
+      }
 
-      const rzp = new window.Razorpay(options);
-      rzp.open();
+      // 3. Verify Payment
+      setIsVerifying(true);
+      try {
+        const verifyRes = await fetch('/api/payments/verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            razorpay_order_id: paymentResponse.razorpay_order_id,
+            razorpay_payment_id: paymentResponse.razorpay_payment_id,
+            razorpay_signature: paymentResponse.razorpay_signature,
+            cartItems: [{
+                itemType: 'hosting',
+                domainName: domainName,
+                price: renewalInfo.renewalPricing.price / 12, // Monthly price for verification logic
+                registrationPeriod: 12,
+                periodUnit: 'months'
+            }]
+          }),
+        });
 
+        if (verifyRes.ok) {
+          await verifyRes.json();
+          toast.success('Hosting renewed successfully!');
+
+          // Store result for success page if needed
+          safeSessionStorage.setItem('paymentResult', JSON.stringify({
+            status: 'success',
+            message: 'Your hosting has been renewed successfully.',
+            orderId: data.orderId,
+            timestamp: Date.now()
+          }));
+
+          onClose();
+          router.push('/payment-success');
+        } else {
+          const error = await verifyRes.json();
+          toast.error(error.error || 'Payment verification failed');
+        }
+      } catch (err) {
+        toast.error('Verification failed. Please contact support.');
+      } finally {
+        setIsVerifying(false);
+      }
     } catch (error: any) {
       toast.error(error.message || 'Failed to process renewal');
       setIsProcessing(false);
@@ -204,6 +193,8 @@ export default function HostingRenewalModal({
   const isExpiringSoon = daysUntilExpiry <= 30;
 
   return (
+    <>
+    <razorpay.Frame />
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in duration-200">
         {/* Header */}
@@ -350,5 +341,6 @@ export default function HostingRenewalModal({
         </div>
       </div>
     </div>
+    </>
   );
 }

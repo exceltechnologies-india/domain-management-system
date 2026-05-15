@@ -68,7 +68,7 @@ The Docker path was already safe in practice (`.env.local` is excluded by [.dock
 
 ---
 
-### ~~[CRITICAL-4] `unsafe-eval` and `unsafe-inline` in CSP~~ — PARTIALLY RESOLVED 2026-05-14
+### ~~[CRITICAL-4] `unsafe-eval` and `unsafe-inline` in CSP~~ — PARTIALLY RESOLVED 2026-05-14 (iframe-isolation infrastructure + 1 of 5 flows migrated 2026-05-15)
 CSP is now per-route. [lib/security-headers.ts](lib/security-headers.ts) accepts a `strictCSP` option that strips `'unsafe-inline'` and `'unsafe-eval'` from `script-src`, leaving the nonce as the only allowed inline-script execution path. [middleware.ts](middleware.ts) sets the flag based on the request path.
 
 **Strict CSP applied to:**
@@ -84,10 +84,33 @@ CSP is now per-route. [lib/security-headers.ts](lib/security-headers.ts) accepts
 
 **Suite still green:** 298/298 tests, lint clean, production build succeeded.
 
-**Pending (the still-unresolved part):**
-1. Most user-facing pages still run with `unsafe-eval` because of Razorpay's eval-using checkout SDK. Replacing it with Razorpay's "Elements" integration (the iframe variant) would remove the dependency from our origin entirely and let strict CSP roll out site-wide.
-2. `style-src 'unsafe-inline'` is unchanged — Tailwind's utility classes and Next.js's style injection emit unhashed inline styles. Switching to a nonce-only style-src would require either a Next.js style hash plan or a CSS-modules migration; out of scope here.
-3. The strict-page allowlist is conservative. As features are confirmed not to depend on eval/inline scripts (e.g. `/payment-success`, `/hosting`, `/domains/search` after manual audit), they can move onto the strict list.
+**Iframe-isolation infrastructure landed 2026-05-15:** New route [/razorpay-checkout](app/razorpay-checkout/page.tsx) is the *only* place in the app that loads `checkout.razorpay.com/v1/checkout.js`. Parent pages embed it as an iframe and exchange `{type, …}` messages defined in [lib/razorpay-checkout-protocol.ts](lib/razorpay-checkout-protocol.ts). React wrapper [components/RazorpayCheckoutFrame.tsx](components/RazorpayCheckoutFrame.tsx) gives consumers a `useRazorpayCheckout()` hook with a Promise-shaped `open(options)` API and a `<Frame />` overlay component that mounts on demand.
+
+**Migrated as pilot:** [components/HostingRenewalModal.tsx](components/HostingRenewalModal.tsx) — direct `new window.Razorpay(options).open()` replaced with `await razorpay.open(options)`. The handler/dismiss closures are now a linear try/catch instead of nested callbacks. 340/340 tests, lint + tsc clean, production build succeeded (62 static pages, up from 61 — the new iframe page).
+
+**Still using direct checkout.js (need the same migration):**
+- [app/checkout/page.tsx](app/checkout/page.tsx) — main checkout (order + subscription paths)
+- [app/checkout/guest/page.tsx](app/checkout/guest/page.tsx) — guest checkout
+- [app/dashboard/invoices/page.tsx](app/dashboard/invoices/page.tsx) — invoice repayment
+- [components/HostingUpgradeModal.tsx](components/HostingUpgradeModal.tsx)
+
+**Migration playbook for each** (mirrors the HostingRenewalModal diff):
+1. Drop the `declare global { interface Window { Razorpay: any } }` block.
+2. Drop the `loadRazorpayScript()` function and the `useEffect` that calls it; the iframe loads its own copy of checkout.js.
+3. `import { useRazorpayCheckout } from '@/components/RazorpayCheckoutFrame'` and call the hook inside the component.
+4. Replace the `new window.Razorpay(options); rzp.open();` pair with `const payload = await razorpay.open(options);` inside a try/catch. Catch the `{ kind: 'dismissed' }` rejection to mirror the old `ondismiss` callback; treat any other rejection as the "Payment was not completed" branch.
+5. Hoist what was the `handler:` callback body to right after `await razorpay.open(...)` — it's now a linear continuation, not a closure.
+6. Add `<razorpay.Frame />` to the JSX return (anywhere — it's a portal-style overlay, position-fixed).
+7. Smoke-test in dev with Razorpay test mode before deploying.
+
+**Final CSP cleanup (blocked on all 4 migrations completing):**
+Once the four remaining consumers no longer reference `checkout.razorpay.com` directly:
+- Add `/razorpay-checkout` to the **relaxed-CSP** route list as the only entry; **invert** the strict-CSP allowlist into a deny-list with that single exception. Net effect: `unsafe-eval` and `unsafe-inline` live on exactly one same-origin page that doesn't render any user content — the rest of the app runs nonce-only.
+- This change is one line in [middleware.ts](middleware.ts) once it's safe.
+
+**Unchanged in this pass:**
+- `style-src 'unsafe-inline'` still required by Tailwind's utility classes and Next.js's style injection. Switching to nonce-only style-src would require either a Next.js style hash plan or a CSS-modules migration; out of scope.
+- The strict-page allowlist is still conservative. `/payment-success`, `/hosting`, `/domains/search` could likely move onto the strict list after a manual audit — track separately from CRITICAL-4.
 
 ---
 
