@@ -68,7 +68,7 @@ The Docker path was already safe in practice (`.env.local` is excluded by [.dock
 
 ---
 
-### ~~[CRITICAL-4] `unsafe-eval` and `unsafe-inline` in CSP~~ — PARTIALLY RESOLVED 2026-05-14 (iframe-isolation infrastructure + 1 of 5 flows migrated 2026-05-15)
+### ~~[CRITICAL-4] `unsafe-eval` and `unsafe-inline` in CSP~~ — PARTIALLY RESOLVED 2026-05-14 (iframe-isolation infrastructure + 2 of 5 flows migrated by 2026-05-15)
 CSP is now per-route. [lib/security-headers.ts](lib/security-headers.ts) accepts a `strictCSP` option that strips `'unsafe-inline'` and `'unsafe-eval'` from `script-src`, leaving the nonce as the only allowed inline-script execution path. [middleware.ts](middleware.ts) sets the flag based on the request path.
 
 **Strict CSP applied to:**
@@ -88,11 +88,12 @@ CSP is now per-route. [lib/security-headers.ts](lib/security-headers.ts) accepts
 
 **Migrated as pilot:** [components/HostingRenewalModal.tsx](components/HostingRenewalModal.tsx) — direct `new window.Razorpay(options).open()` replaced with `await razorpay.open(options)`. The handler/dismiss closures are now a linear try/catch instead of nested callbacks. 340/340 tests, lint + tsc clean, production build succeeded (62 static pages, up from 61 — the new iframe page).
 
+**Migrated additionally 2026-05-15:** [components/HostingUpgradeModal.tsx](components/HostingUpgradeModal.tsx) — happened as part of the MEDIUM-3 decomposition pass. Now uses `useRazorpayCheckout()`.
+
 **Still using direct checkout.js (need the same migration):**
 - [app/checkout/page.tsx](app/checkout/page.tsx) — main checkout (order + subscription paths)
 - [app/checkout/guest/page.tsx](app/checkout/guest/page.tsx) — guest checkout
 - [app/dashboard/invoices/page.tsx](app/dashboard/invoices/page.tsx) — invoice repayment
-- [components/HostingUpgradeModal.tsx](components/HostingUpgradeModal.tsx)
 
 **Migration playbook for each** (mirrors the HostingRenewalModal diff):
 1. Drop the `declare global { interface Window { Razorpay: any } }` block.
@@ -350,13 +351,13 @@ Any remaining `console.*` text in the codebase lives only inside comments (`// c
 
 ---
 
-### [MEDIUM-3] Massive React components — `PageSkeletons.tsx` ~~split~~ ✅ 2026-05-14
-| File | LOC (before) | LOC (after) | Status |
-|---|---|---|---|
-| [components/skeletons/PageSkeletons.tsx](components/skeletons/PageSkeletons.tsx) | 1,007 | 14 (barrel) | ~~Split~~ ✅ |
-| [components/RegisterForm.tsx](components/RegisterForm.tsx) | 686 | 686 | pending |
-| [components/admin/InvoiceDiagnostics.tsx](components/admin/InvoiceDiagnostics.tsx) | 429 | 429 | pending |
-| [components/HostingUpgradeModal.tsx](components/HostingUpgradeModal.tsx) | 414 | 414 | pending |
+### ~~[MEDIUM-3] Massive React components~~ — RESOLVED 2026-05-15
+| File | LOC (before) | LOC (after) | Sub-components | Status |
+|---|---|---|---|---|
+| [components/skeletons/PageSkeletons.tsx](components/skeletons/PageSkeletons.tsx) | 1,007 | 14 (barrel) | 5 in `components/skeletons/` | ~~Split~~ ✅ 2026-05-14 |
+| [components/RegisterForm.tsx](components/RegisterForm.tsx) | 686 | 474 | 3 in `components/register/` | ~~Split~~ ✅ 2026-05-15 |
+| [components/admin/InvoiceDiagnostics.tsx](components/admin/InvoiceDiagnostics.tsx) | 429 | 186 | 3 in `components/admin/invoice-diagnostics/` | ~~Split~~ ✅ 2026-05-15 |
+| [components/HostingUpgradeModal.tsx](components/HostingUpgradeModal.tsx) | 414 | 276 | 2 in `components/hosting-upgrade/` | ~~Split~~ ✅ 2026-05-15 |
 
 **PageSkeletons split (2026-05-14):** The 1,007-line client component file is now a 14-line backwards-compatible barrel that re-exports from 5 topical files alongside it. The 32 importing pages in `app/**` did not need to change.
 
@@ -382,7 +383,27 @@ The audit predicted "almost certainly costing measurable JS bundle weight." That
 
 **Verified:** 340/340 tests, lint clean, `tsc --noEmit` clean, production build succeeded. No call-site outside `components/skeletons/` modified.
 
-**Pending follow-up (the still-unresolved part):** Three other oversized client components still untouched — [RegisterForm.tsx](components/RegisterForm.tsx) (686), [InvoiceDiagnostics.tsx](components/admin/InvoiceDiagnostics.tsx) (429), [HostingUpgradeModal.tsx](components/HostingUpgradeModal.tsx) (414). These have richer internal state than the skeletons (forms, queries, transitions), so splitting requires actual decomposition rather than mechanical extraction. Worth doing when those areas next change.
+**Three stateful components split (2026-05-15)** — each had richer internal state than the skeletons (forms, queries, transitions, payment flow), so splitting required actual decomposition rather than mechanical extraction.
+
+**RegisterForm.tsx → 686 / 474** (1.45× ratio is honest — the `detectLocation` geocoding helper is ~160 LOC of fallback logic that has to stay in the parent because it owns `formData` setState. Could be lifted to a custom hook later if it grows; not today.) Split into:
+- `components/register/PersonalInfoSection.tsx` (93) — first/last name, email, company, phone
+- `components/register/AddressSection.tsx` (115) — Address Line 1, city/state/country/zipcode + auto-fill button
+- `components/register/CredentialsSection.tsx` (79) — password + confirm with self-owned show/hide toggles
+- `components/register/types.ts` (29) — `RegisterFormData`, `RegisterAddress`, `RegisterChangeHandler`
+
+**InvoiceDiagnostics.tsx → 429 / 186** — admin parent keeps state, data fetching, action handlers, top-level layout. Three sub-components extracted:
+- `components/admin/invoice-diagnostics/DiagnosticsHeader.tsx` (86) — collapsible row with status pill + refresh chip
+- `components/admin/invoice-diagnostics/ConflictsTable.tsx` (116) — invoiceNumber-collision groups with per-row "Clear #" action
+- `components/admin/invoice-diagnostics/StuckOrdersTable.tsx` (118) — paid-orders-without-Zoho-invoice rows + bulk re-sync UI
+- `components/admin/invoice-diagnostics/types.ts` (40)
+
+**HostingUpgradeModal.tsx → 414 / 276** — **double-duty migration**: simultaneously decomposed AND migrated to the iframe-based `useRazorpayCheckout()` flow added for [CRITICAL-4](#critical-4). The 7-state UI ([loading, select, confirm, paying, verifying, success, error]) keeps small states inline; the two big states extracted:
+- `components/hosting-upgrade/SelectPlanStep.tsx` (96) — plan-selection list with prorated charges
+- `components/hosting-upgrade/ConfirmStep.tsx` (92) — confirmation block + Back/Pay buttons
+- `components/hosting-upgrade/types.ts` (33)
+- Razorpay opens inside the isolated `/razorpay-checkout` iframe — kills two birds: closes a MEDIUM-3 item and migrates a CRITICAL-4 remainder consumer in the same commit. Three Razorpay flows still need migration (`app/checkout/page.tsx`, `app/checkout/guest/page.tsx`, `app/dashboard/invoices/page.tsx`); when those land too, `unsafe-eval` drops from app pages site-wide.
+
+**Verified:** 340/340 tests, lint clean (errors), `tsc --noEmit` clean, production build succeeded (62 static pages).
 
 ---
 

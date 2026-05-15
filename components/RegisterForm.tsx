@@ -2,42 +2,43 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff, Lock, Mail, User, UserPlus, Phone, MapPin, MapPinIcon, Loader2 } from 'lucide-react';
+import { UserPlus } from 'lucide-react';
 import Button from './Button';
-import Input from './Input';
 import Card from './Card';
 import Logo from './Logo';
 import SocialLoginButtons from './SocialLoginButtons';
 import toast from 'react-hot-toast';
-import { showSuccessToast, showErrorToast, showAccountDeactivated } from '@/lib/toast';
 import { safeLocalStorage } from '@/lib/storage';
 import GoogleRecaptcha from './GoogleRecaptcha';
-import { INDIAN_STATES } from '@/lib/constants';
+import PersonalInfoSection from './register/PersonalInfoSection';
+import AddressSection from './register/AddressSection';
+import CredentialsSection from './register/CredentialsSection';
+import type { RegisterFormData } from './register/types';
 
 interface RegisterFormProps {
   className?: string;
 }
 
+const EMPTY_FORM: RegisterFormData = {
+  firstName: '',
+  lastName: '',
+  email: '',
+  password: '',
+  confirmPassword: '',
+  phone: '',
+  phoneCc: '+91',
+  companyName: '',
+  address: {
+    line1: '',
+    city: '',
+    state: '',
+    country: 'IN',
+    zipcode: '',
+  },
+};
+
 export default function RegisterForm({ className = '' }: RegisterFormProps) {
-  const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-    phone: '',
-    phoneCc: '+91',
-    companyName: '',
-    address: {
-      line1: '',
-      city: '',
-      state: '',
-      country: 'IN',
-      zipcode: '',
-    },
-  });
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [formData, setFormData] = useState<RegisterFormData>(EMPTY_FORM);
   const [isLoading, setIsLoading] = useState(false);
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
@@ -76,18 +77,6 @@ export default function RegisterForm({ className = '' }: RegisterFormProps) {
     }
   };
 
-  const prevStep = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-
-  const goToStep = (step: number) => {
-    if (step <= currentStep || completedSteps.includes(step - 1)) {
-      setCurrentStep(step);
-    }
-  };
-
   // Load form data from localStorage on component mount (excluding passwords)
   useEffect(() => {
     const savedData = safeLocalStorage.getItem('registerFormData');
@@ -111,7 +100,7 @@ export default function RegisterForm({ className = '' }: RegisterFormProps) {
           password: '',
           confirmPassword: '',
         }));
-      } catch (error) {
+      } catch (_error) {
         // Silent error handling
       }
     }
@@ -207,7 +196,7 @@ export default function RegisterForm({ className = '' }: RegisterFormProps) {
       } else {
         toast.error(data.error || 'Registration failed');
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error('An error occurred. Please try again.');
     } finally {
       setIsLoading(false);
@@ -279,7 +268,7 @@ export default function RegisterForm({ className = '' }: RegisterFormProps) {
         }
 
         data = await response.json();
-      } catch (primaryError) {
+      } catch (_primaryError) {
         // Try fallback service
 
         // Fallback service: OpenStreetMap Nominatim (free, no API key required)
@@ -320,10 +309,10 @@ export default function RegisterForm({ className = '' }: RegisterFormProps) {
       const adminList = data.localityInfo?.administrative || [];
       const countryIndex = adminList.findIndex((item: any) => item.adminLevel === 2 || item.description?.toLowerCase().includes('country') || item.name?.toLowerCase() === 'india');
       const stateIndex = adminList.findIndex((item: any) => item.adminLevel === 4 || item.description?.toLowerCase().includes('state') || item.name?.toLowerCase().includes('delhi'));
-      
+
       // Filter out country and state from line1 candidates if possible
       const moreSpecificEntries = adminList.filter((_: any, index: number) => index > Math.max(countryIndex, stateIndex));
-      
+
       let line1 = '';
       if (moreSpecificEntries.length > 0) {
         // Use the most specific locality for line1
@@ -358,7 +347,7 @@ export default function RegisterForm({ className = '' }: RegisterFormProps) {
             const fallbackData = await fallbackResponse.json();
             zipcode = fallbackData.address?.postcode || '';
           }
-        } catch (e) {
+        } catch (_e) {
           // Silent fallback failure
         }
       }
@@ -378,7 +367,6 @@ export default function RegisterForm({ className = '' }: RegisterFormProps) {
       toast.success('Location detected and address filled automatically!');
     } catch (error: any) {
       // Location detection failed
-
       if (error.code === 1) {
         if (error.message.includes('secure origins')) {
           toast.error('Location detection requires HTTPS. Please use a secure connection or fill the address manually.');
@@ -423,7 +411,7 @@ export default function RegisterForm({ className = '' }: RegisterFormProps) {
         </div>
 
         <Card>
-          <div 
+          <div
             className="space-y-6"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
@@ -431,216 +419,16 @@ export default function RegisterForm({ className = '' }: RegisterFormProps) {
               }
             }}
           >
-            <div className="grid grid-cols-2 gap-4">
-              <Input
-                label="First name"
-                name="firstName"
-                placeholder="Enter your first name"
-                value={formData.firstName}
-                onChange={handleChange}
-                required
-                fullWidth
-                icon={<User className="h-4 w-4 text-gray-400" />}
-              />
-              <Input
-                label="Last name"
-                name="lastName"
-                placeholder="Enter your last name"
-                value={formData.lastName}
-                onChange={handleChange}
-                required
-                fullWidth
-                icon={<User className="h-4 w-4 text-gray-400" />}
-              />
-            </div>
+            <PersonalInfoSection formData={formData} onChange={handleChange} />
 
-            <Input
-              label="Email address"
-              name="email"
-              type="email"
-              placeholder="Enter your email address"
-              value={formData.email}
+            <AddressSection
+              formData={formData}
               onChange={handleChange}
-              required
-              fullWidth
-              icon={<Mail className="h-4 w-4 text-gray-400" />}
+              isDetectingLocation={isDetectingLocation}
+              onDetectLocation={detectLocation}
             />
 
-            <Input
-              label="Company name"
-              name="companyName"
-              placeholder="Enter your company name"
-              value={formData.companyName}
-              onChange={handleChange}
-              required
-              fullWidth
-              icon={<User className="h-4 w-4 text-gray-400" />}
-            />
-
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Country Code
-                </label>
-                <div className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 text-gray-700 font-medium">
-                  🇮🇳 +91 (India)
-                </div>
-                <input type="hidden" name="phoneCc" value="+91" />
-              </div>
-              <div className="col-span-2">
-                <Input
-                  label="Phone number"
-                  name="phone"
-                  type="tel"
-                  placeholder="Enter your phone number"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  required
-                  fullWidth
-                  icon={<Phone className="h-4 w-4 text-gray-400" />}
-                  helperText="Enter phone number without country code"
-                />
-              </div>
-            </div>
-
-
-            {/* Address Section */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium text-gray-900 flex items-center">
-                  <MapPin className="h-5 w-5 text-gray-400 mr-2" />
-                  Address Information
-                </h3>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={detectLocation}
-                  disabled={isDetectingLocation}
-                  loading={isDetectingLocation}
-                  icon={!isDetectingLocation && <MapPinIcon className="h-4 w-4" />}
-                  className="text-blue-600"
-                >
-                  Auto-fill
-                </Button>
-              </div>
-
-              <Input
-                label="Address Line 1"
-                name="address.line1"
-                placeholder="Street address, P.O. box"
-                value={formData.address.line1}
-                onChange={handleChange}
-                required
-                fullWidth
-                icon={<MapPin className="h-4 w-4 text-gray-400" />}
-              />
-
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  label="City"
-                  name="address.city"
-                  placeholder="Enter city"
-                  value={formData.address.city}
-                  onChange={handleChange}
-                  required
-                  fullWidth
-                />
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    State/Province
-                  </label>
-                  <select
-                    name="address.state"
-                    value={formData.address.state}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white"
-                  >
-                    <option value="" disabled>Select state</option>
-                    {INDIAN_STATES.map(state => (
-                      <option key={state} value={state}>{state}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Country
-                  </label>
-                  <div className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 text-gray-700 font-medium">
-                    🇮🇳 India
-                  </div>
-                  <input type="hidden" name="address.country" value="IN" />
-                </div>
-                <Input
-                  label="ZIP/Postal Code"
-                  name="address.zipcode"
-                  placeholder="Enter ZIP code"
-                  value={formData.address.zipcode}
-                  onChange={handleChange}
-                  required
-                  fullWidth
-                />
-              </div>
-            </div>
-
-            <div className="relative">
-              <Input
-                label="Password"
-                name="password"
-                type={showPassword ? 'text' : 'password'}
-                placeholder="Create a strong password"
-                value={formData.password}
-                onChange={handleChange}
-                required
-                fullWidth
-                icon={<Lock className="h-4 w-4 text-gray-400" />}
-                helperText="Min. 8 characters with uppercase, lowercase, number, and special character"
-                rightIcon={
-                  <button
-                    type="button"
-                    className="text-gray-500 hover:text-gray-700 focus:outline-none"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </button>
-                }
-              />
-            </div>
-
-            <div className="relative">
-              <Input
-                label="Confirm password"
-                name="confirmPassword"
-                type={showConfirmPassword ? 'text' : 'password'}
-                placeholder="Confirm your password"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                required
-                fullWidth
-                icon={<Lock className="h-4 w-4 text-gray-400" />}
-                rightIcon={
-                  <button
-                    type="button"
-                    className="text-gray-500 hover:text-gray-700 focus:outline-none"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  >
-                    {showConfirmPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </button>
-                }
-              />
-            </div>
+            <CredentialsSection formData={formData} onChange={handleChange} />
 
             {currentStep === totalSteps &&
               process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY &&
@@ -674,7 +462,7 @@ export default function RegisterForm({ className = '' }: RegisterFormProps) {
                   router.push('/dashboard');
                 }, 100);
               }}
-              onError={(error) => {
+              onError={(_error) => {
                 // Social login error handled
               }}
             />
