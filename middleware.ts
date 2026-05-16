@@ -36,17 +36,25 @@ const GUEST_PUBLIC_ROUTES = new Set(["/checkout/guest"]);
 const ADMIN_PREFIXES = ["/admin"];
 const ADMIN_API_PREFIXES = ["/api/admin"];
 
-// Pages eligible for strict CSP (nonce-only script-src; no unsafe-eval/inline).
-// These are static legal/marketing/error pages that load no third-party JS.
-// API routes get strict CSP automatically (JSON responses, no scripts run).
-const STRICT_CSP_PAGE_PATHS = new Set([
-  "/about",
-  "/cancellation-refund",
-  "/data-deletion",
-  "/privacy",
-  "/terms-and-conditions",
-  "/maintenance",
-  "/403",
+// Pages that REQUIRE relaxed CSP (unsafe-eval / unsafe-inline) because they
+// load third-party JS that uses eval/new Function(). Everything else — and
+// all API routes — defaults to STRICT (nonce-only script-src).
+//
+// - /razorpay-checkout: hosts checkout.razorpay.com inside an iframe. The
+//   rest of the app interacts with Razorpay through this isolated route
+//   (see components/RazorpayCheckoutFrame.tsx), so /checkout, /dashboard/*,
+//   /cart, etc. all run strict.
+// - login / register / forgot-password / reset-password / contact: render
+//   the Google reCAPTCHA v2 widget, which loads google.com/recaptcha/api.js
+//   and requires unsafe-eval. Migrating reCAPTCHA behind a similar iframe
+//   shim would be the next step to make these strict too.
+const RELAXED_CSP_PAGE_PATHS = new Set([
+  "/razorpay-checkout",
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
+  "/contact",
 ]);
 
 // API routes that are explicitly public (auth, webhooks, or operational)
@@ -216,17 +224,17 @@ async function handleMiddleware(request: NextRequest, nonce: string, requestId: 
     ? normalizedPathname.replace(/^\/api\/v1/, "/api")
     : normalizedPathname;
 
-  // Strict CSP eligibility: pages that do NOT load Razorpay checkout,
-  // reCAPTCHA, or any third-party JS that relies on eval/new Function().
-  // These get a nonce-only script-src — no 'unsafe-eval', no 'unsafe-inline'.
-  // Dashboard, admin, auth, cart, checkout pages all stay on the relaxed CSP
-  // because Razorpay or reCAPTCHA can appear dynamically (e.g. renewal modals).
-  // Computed BEFORE the URL-normalize redirect so the redirect response carries
-  // the right CSP for the destination route, and so later addSecurityHeaders
-  // calls don't hit a temporal-dead-zone reference.
+  // Strict CSP is now the default. Only pages on the explicit RELAXED list
+  // (Razorpay iframe host + reCAPTCHA-rendering forms) get unsafe-eval /
+  // unsafe-inline. Everything else — dashboard, admin, cart, /checkout
+  // (which now delegates to the /razorpay-checkout iframe), payment-success,
+  // domains/*, home, legal pages, and all API routes — runs nonce-only.
+  // Computed BEFORE the URL-normalize redirect so the redirect response
+  // carries the right CSP for the destination, and so later
+  // addSecurityHeaders calls don't hit a temporal-dead-zone reference.
   const isStrictCSPRoute =
     classificationPath.startsWith("/api/") ||
-    STRICT_CSP_PAGE_PATHS.has(normalizedPathname);
+    !RELAXED_CSP_PAGE_PATHS.has(normalizedPathname);
 
   if (rawPathname !== normalizedPathname) {
     const url = request.nextUrl.clone();

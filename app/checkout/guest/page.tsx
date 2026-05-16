@@ -16,10 +16,7 @@ import Link from 'next/link';
 import { getMinRegistrationPeriod } from '@/lib/tld-min-periods';
 import { INDIAN_STATES } from '@/lib/constants';
 import { getDeviceFingerprint } from '@/lib/device-fingerprint';
-
-declare global {
-  interface Window { Razorpay: any; }
-}
+import { useRazorpayCheckout } from '@/components/RazorpayCheckoutFrame';
 
 const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@anutech.in';
 
@@ -31,6 +28,7 @@ function GuestCheckoutInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { items: cartItems, getTotalPrice, getItemCount, clearCart, isLoading } = useCartStore();
+  const razorpay = useRazorpayCheckout();
 
   // Hydration-safe mounted flag: cartItems come from Zustand-persist which
   // reads localStorage synchronously, so the server-rendered HTML (empty
@@ -76,15 +74,6 @@ function GuestCheckoutInner() {
     if (emailParam) setGuestEmail(decodeURIComponent(emailParam));
     if (tokenParam) setGuestToken(tokenParam);
   }, [searchParams]);
-
-  // Load Razorpay script
-  useEffect(() => {
-    const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.async = true;
-    document.body.appendChild(script);
-    return () => { if (document.body.contains(script)) document.body.removeChild(script); };
-  }, []);
 
   // Redirect if cart is empty
   useEffect(() => {
@@ -228,11 +217,6 @@ function GuestCheckoutInner() {
       return;
     }
 
-    if (typeof window === 'undefined' || !window.Razorpay) {
-      toast.error('Payment script not loaded. Please refresh and try again.');
-      return;
-    }
-
     setIsProcessing(true);
     setIsPaymentInProgress(true);
 
@@ -243,7 +227,7 @@ function GuestCheckoutInner() {
 
       // Create order — registrant details are sent on first call and signed
       // into the guestToken; subsequent calls reuse the token's signed values.
-      const orderRes = await fetch('/api/payments/guest/create-order', {
+      const orderRes = await fetch('/api/v1/payments/guest/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -278,7 +262,7 @@ function GuestCheckoutInner() {
       const verifyPayment = async (orderId: string, paymentId: string, signature: string) => {
         setIsVerifying(true);
         try {
-          const verifyRes = await fetch('/api/payments/guest/verify', {
+          const verifyRes = await fetch('/api/v1/payments/guest/verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -316,34 +300,33 @@ function GuestCheckoutInner() {
         }
       };
 
-      const rzpOptions = {
-        key: keyId,
-        name: 'AnuTech Digital',
-        description: `Domain registration (${getItemCount()} item${getItemCount() !== 1 ? 's' : ''})`,
-        order_id: razorpayOrderId,
-        handler: async (response: any) => {
-          await verifyPayment(
-            response.razorpay_order_id,
-            response.razorpay_payment_id,
-            response.razorpay_signature
-          );
-        },
-        prefill: {
-          email: confirmedEmail ?? email,
-          name: `${firstName.trim()} ${lastName.trim()}`.trim(),
-          contact: `+91${phone}`,
-        },
-        theme: { color: '#3b82f6' },
-        modal: {
-          ondismiss: () => {
-            setIsProcessing(false);
-            setIsPaymentInProgress(false);
+      try {
+        const response = await razorpay.open({
+          key: keyId,
+          name: 'AnuTech Digital',
+          description: `Domain registration (${getItemCount()} item${getItemCount() !== 1 ? 's' : ''})`,
+          order_id: razorpayOrderId,
+          prefill: {
+            email: confirmedEmail ?? email,
+            name: `${firstName.trim()} ${lastName.trim()}`.trim(),
+            contact: `+91${phone}`,
           },
-        },
-      };
+          theme: { color: '#3b82f6' },
+        });
 
-      const rzp = new window.Razorpay(rzpOptions);
-      rzp.open();
+        await verifyPayment(
+          response.razorpay_order_id || '',
+          response.razorpay_payment_id,
+          response.razorpay_signature
+        );
+      } catch (err: any) {
+        if (err?.kind === 'dismissed') {
+          setIsProcessing(false);
+          setIsPaymentInProgress(false);
+          return;
+        }
+        throw err;
+      }
     } catch (error: any) {
       toast.error(error?.message || 'Payment initialization failed');
       setIsProcessing(false);
@@ -402,6 +385,8 @@ function GuestCheckoutInner() {
   const iconInputCls = "w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500";
 
   return (
+    <>
+    <razorpay.Frame />
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <Navigation user={null} />
 
@@ -767,6 +752,7 @@ function GuestCheckoutInner() {
 
       <Footer />
     </div>
+    </>
   );
 }
 

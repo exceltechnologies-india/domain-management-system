@@ -14,9 +14,9 @@ import UserLayout from '@/components/user/UserLayout';
 import { performLogout } from '@/lib/logout';
 import { DashboardLayoutSkeleton, InvoicesPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import { formatIndianDate, formatIndianDateTime } from '@/lib/dateUtils';
-import Script from 'next/script';
 import RefreshButton from '@/components/dashboard/RefreshButton';
 import { logger } from '@/lib/logger';
+import { useRazorpayCheckout } from '@/components/RazorpayCheckoutFrame';
 
 interface Invoice {
   invoice_id: string;
@@ -35,6 +35,7 @@ interface Invoice {
 export default function InvoicesPage() {
   const { user, isLoading: isAuthLoading } = useUser();
   const router = useRouter();
+  const razorpay = useRazorpayCheckout();
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -45,7 +46,7 @@ export default function InvoicesPage() {
     isValidating,
     mutate,
   } = useSWR<{ invoices: Invoice[] }>(
-    user ? '/api/user/invoices' : null,
+    user ? '/api/v1/user/invoices' : null,
     fetcher,
     { revalidateOnFocus: false }
   );
@@ -64,60 +65,62 @@ export default function InvoicesPage() {
   const handlePayNow = async (invoice: Invoice) => {
     try {
       setIsProcessingPayment(true);
-      const response = await fetch(`/api/user/invoices/${invoice.invoice_id}/pay`, {
+      const response = await fetch(`/api/v1/user/invoices/${invoice.invoice_id}/pay`, {
         method: 'POST',
       });
 
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed to initiate payment');
 
-      const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: data.amount * 100,
-        currency: data.currency,
-        name: "Anutech Digital",
-        description: `Payment for Invoice ${data.invoiceNumber}`,
-        order_id: data.razorpayOrderId,
-        handler: async (response: any) => {
-          try {
-            setIsProcessingPayment(true);
-            const verifyRes = await fetch('/api/payments/verify', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                ...response,
-                orderId: data.orderId,
-                cartItems: [{
-                  itemType: 'hosting',
-                  price: data.amount,
-                  currency: data.currency,
-                  domainName: 'Invoice Renewal'
-                }]
-              })
-            });
+      let payment;
+      try {
+        payment = await razorpay.open({
+          key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
+          amount: data.amount * 100,
+          currency: data.currency,
+          name: "Anutech Digital",
+          description: `Payment for Invoice ${data.invoiceNumber}`,
+          order_id: data.razorpayOrderId,
+          prefill: {
+            email: user?.email,
+            name: `${user?.firstName} ${user?.lastName}`
+          },
+          theme: { color: "#2563eb" }
+        });
+      } catch (err: any) {
+        if (err?.kind === 'dismissed') {
+          setIsProcessingPayment(false);
+          return;
+        }
+        throw err;
+      }
 
-            if (verifyRes.ok) {
-              showSuccessToast('Payment successful! Services are being reactivated.');
-              mutate();
-              router.push('/dashboard/hosting');
-            } else {
-              showErrorToast('Payment verified but service reactivation failed. Please contact support.');
-            }
-          } catch (err) {
-            showErrorToast('Failed to verify payment');
-          } finally {
-            setIsProcessingPayment(false);
-          }
-        },
-        prefill: {
-          email: user?.email,
-          name: `${user?.firstName} ${user?.lastName}`
-        },
-        theme: { color: "#2563eb" }
-      };
+      try {
+        const verifyRes = await fetch('/api/v1/payments/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...payment,
+            orderId: data.orderId,
+            cartItems: [{
+              itemType: 'hosting',
+              price: data.amount,
+              currency: data.currency,
+              domainName: 'Invoice Renewal'
+            }]
+          })
+        });
 
-      const rzp = new (window as any).Razorpay(options);
-      rzp.open();
+        if (verifyRes.ok) {
+          showSuccessToast('Payment successful! Services are being reactivated.');
+          mutate();
+          router.push('/dashboard/hosting');
+        } else {
+          showErrorToast('Payment verified but service reactivation failed. Please contact support.');
+        }
+      } catch (err) {
+        showErrorToast('Failed to verify payment');
+      }
     } catch (error: any) {
       showErrorToast(error.message);
     } finally {
@@ -128,7 +131,7 @@ export default function InvoicesPage() {
   const handleSyncNow = async () => {
     try {
       setIsSyncing(true);
-      const res = await fetch('/api/user/invoices/sync', { method: 'POST' });
+      const res = await fetch('/api/v1/user/invoices/sync', { method: 'POST' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Sync failed');
 
@@ -153,7 +156,7 @@ export default function InvoicesPage() {
   const handleDownload = async (invoiceId: string, invoiceNumber: string) => {
     try {
       setDownloadingId(invoiceId);
-      const response = await fetch(`/api/user/invoices/${invoiceId}/pdf`);
+      const response = await fetch(`/api/v1/user/invoices/${invoiceId}/pdf`);
 
       if (response.ok) {
         const blob = await response.blob();
@@ -209,9 +212,7 @@ export default function InvoicesPage() {
 
   return (
     <UserLayout user={user} onLogout={performLogout}>
-      {/* SRI not applied: Razorpay does not publish stable hashes for checkout.js;
-          updates happen without versioning the URL. CSP restricts to checkout.razorpay.com. */}
-      <Script src="https://checkout.razorpay.com/v1/checkout.js" />
+      <razorpay.Frame />
       <div className="p-6 space-y-6">
 
         {/* ── Page header ── */}
