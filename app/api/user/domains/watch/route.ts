@@ -1,23 +1,22 @@
 import { NextRequest } from "next/server";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { AuthService } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import DomainWatch from "@/models/DomainWatch";
+import {
+  countWatchesForUser,
+  listWatchesForUser,
+  removeUserWatch,
+  upsertUserWatch,
+} from "@/lib/services/domain-watches";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/user/domains/watch — list watched domains for the current user
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
     const user = await AuthService.getUserFromRequest(request);
     if (!user) return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
 
-    const watches = await DomainWatch.find({ userId: user._id })
-      .select("domainName lastCheckedAt lastStatus notifiedAt createdAt")
-      .sort({ createdAt: -1 })
-      .lean();
-
+    const watches = await listWatchesForUser(String(user._id));
     return secureJsonResponse({ watches });
   } catch (error) {
     return secureErrorResponse("Internal server error", 500, "SERVER_ERROR", error);
@@ -27,7 +26,6 @@ export async function GET(request: NextRequest) {
 // POST /api/user/domains/watch — add a domain to watch list
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
     const user = await AuthService.getUserFromRequest(request);
     if (!user) return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
 
@@ -40,7 +38,7 @@ export async function POST(request: NextRequest) {
 
     // Enforce per-user limit to prevent abuse
     const MAX_WATCHES = 20;
-    const count = await DomainWatch.countDocuments({ userId: user._id });
+    const count = await countWatchesForUser(String(user._id));
     if (count >= MAX_WATCHES) {
       return secureErrorResponse(
         `Watch list limit reached (max ${MAX_WATCHES})`,
@@ -49,12 +47,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const watch = await DomainWatch.findOneAndUpdate(
-      { userId: user._id, domainName },
-      { userId: user._id, domainName, lastStatus: "unknown" },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
-
+    const watch = await upsertUserWatch(String(user._id), domainName);
     return secureJsonResponse({ watch }, 201);
   } catch (error: any) {
     if (error.code === 11000) {
@@ -67,7 +60,6 @@ export async function POST(request: NextRequest) {
 // DELETE /api/user/domains/watch — remove a domain from watch list
 export async function DELETE(request: NextRequest) {
   try {
-    await connectDB();
     const user = await AuthService.getUserFromRequest(request);
     if (!user) return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
 
@@ -78,8 +70,8 @@ export async function DELETE(request: NextRequest) {
       return secureErrorResponse("Missing domain parameter", 400, "MISSING_DOMAIN");
     }
 
-    const result = await DomainWatch.deleteOne({ userId: user._id, domainName });
-    if (result.deletedCount === 0) {
+    const removed = await removeUserWatch(String(user._id), domainName);
+    if (!removed) {
       return secureErrorResponse("Watch not found", 404, "NOT_FOUND");
     }
 

@@ -246,7 +246,7 @@ Top hotspots: `app/admin/settings/page.tsx` (22), `app/admin/system-settings/pag
 
 ---
 
-### ~~[HIGH-4] No service / repository layer~~ — PARTIALLY RESOLVED 2026-05-14 (foundation + User + Order + Hosting + Zoho-invoice lease + HostingPlan + PendingDomain + Domain done)
+### ~~[HIGH-4] No service / repository layer~~ — PARTIALLY RESOLVED 2026-05-14 (foundation + User + Order + Hosting + Zoho-invoice lease + HostingPlan + PendingDomain + Domain + SupportTicket + DomainWatch done)
 **Footprint measured:** 107 route files, ~269 distinct Mongoose-model operations across the codebase. Top models by op count: User (93), Order (67), Hosting (28), HostingPlan (25), PendingDomain (16), Domain (12), SupportTicket (11), PendingHosting (8), DomainWatch (7).
 
 **Foundation laid for the rest:** Added [lib/services/](lib/services/) (parallel to the existing [lib/payment-services/](lib/payment-services/)). The pattern mirrors the audit's referenced "half-formed" pattern — domain-specific use-case functions, not a generic repository abstraction.
@@ -295,6 +295,14 @@ The user-permanent-deletion "snapshot orders before deletion" logic — previous
 **Domain service added 2026-05-16:** [lib/services/domains.ts](lib/services/domains.ts) — slim by design: only the two patterns that actually repeat (`listDomainsForUser` for dashboard/index/DNS-manager views, `getDomainById` for test-automation routes). The rest of Domain access — provisioner inserts, cron lease updates, verification claims, admin cleanup deletes — is bespoke business logic that doesn't share shape across callers and stays as direct model access.
 
 **Sites migrated:** [app/api/user/domains/route.ts](app/api/user/domains/route.ts), [app/api/user/dashboard/route.ts](app/api/user/dashboard/route.ts), [app/api/user/domains/dns/route.ts](app/api/user/domains/dns/route.ts) (the three `Domain.find({ userId })` callers), [app/api/test/automation/status/route.ts](app/api/test/automation/status/route.ts), [app/api/test/automation/trigger/route.ts](app/api/test/automation/trigger/route.ts) (the two `findById` callers).
+
+**SupportTicket service added 2026-05-16:** [lib/services/support-tickets.ts](lib/services/support-tickets.ts) — `findUserTicket` + `findUserTicketLean` (the user-scoped fetches bake the `{ _id, userId }` ownership filter so a missing-userId foot-gun can't surface a foreign ticket), `listTicketsForUser`, `listTicketsForUserSummary` (consolidates the user-list `messageCount`/`lastMessage` projection), `getTicketById` + `getTicketByIdLean`, `listTicketsForAdmin` (paginated with the same summary-row shaping), `countOpenTickets` (encapsulates the `{ status: { $in: ['open','in_progress'] } }` definition for system-health). The user-side ticket-create and admin status/priority `findByIdAndUpdate` stay as direct model access — each has route-specific validation (attachments, status whitelist) and the service wrapper would just thinly forward.
+
+**Sites migrated:** [app/api/user/support/route.ts](app/api/user/support/route.ts) (list), [app/api/user/support/[id]/route.ts](app/api/user/support/[id]/route.ts) (3 of 3 findOne sites — the unused `SupportTicket` direct import dropped entirely), [app/api/admin/support-tickets/route.ts](app/api/admin/support-tickets/route.ts) (full rewrite — the 25-line list+map+pagination collapsed into a single service call), [app/api/admin/support-tickets/[id]/route.ts](app/api/admin/support-tickets/[id]/route.ts) (2 findById sites), [app/api/admin/system-health/route.ts](app/api/admin/system-health/route.ts) (open-tickets count).
+
+**DomainWatch service added 2026-05-16:** [lib/services/domain-watches.ts](lib/services/domain-watches.ts) — user side: `listWatchesForUser`, `countWatchesForUser` (used by the per-user limit check), `upsertUserWatch` (idempotent add via the unique `(userId, domainName)` index), `removeUserWatch` (returns whether anything was actually deleted so the route can 404 cleanly). Cron side: `listWatchesForCron(batchSize)` (lean + `userId` populated for the notification email), `recordWatchCheck(id, status)`, `removeWatchById(id)`.
+
+**Sites migrated:** [app/api/user/domains/watch/route.ts](app/api/user/domains/watch/route.ts) (full rewrite — every method's direct DomainWatch call replaced), [app/api/workers/check-domain-watch/route.ts](app/api/workers/check-domain-watch/route.ts) (3 of 3 sites). Zero remaining `DomainWatch.X(...)` calls outside the model file itself.
 
 **Verified on main 2026-05-16:** 340/340 tests, lint clean, tsc clean, production build succeeded.
 

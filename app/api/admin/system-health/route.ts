@@ -10,7 +10,7 @@ import Settings from "@/models/Settings";
 import User from "@/models/User";
 import Order from "@/models/Order";
 import Domain from "@/models/Domain";
-import SupportTicket from "@/models/SupportTicket";
+import { countOpenTickets } from "@/lib/services/support-tickets";
 import { ResellerClubAPI } from "@/lib/resellerclub";
 import { DirectAdminService } from "@/lib/directadmin";
 import { razorpay } from "@/lib/razorpay";
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
         User.countDocuments(),
         Order.countDocuments(),
         Domain.countDocuments(),
-        SupportTicket.countDocuments({ status: { $in: ["open", "in_progress"] } }),
+        countOpenTickets(),
         PendingDomain.countDocuments({ status: "pending" }),
         PendingHosting.countDocuments({ status: "pending" }),
       ]);

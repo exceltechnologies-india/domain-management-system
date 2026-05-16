@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
-import SupportTicket from "@/models/SupportTicket";
+import { findUserTicket, findUserTicketLean } from "@/lib/services/support-tickets";
 import { EmailService } from "@/lib/email";
 import {
   validateAttachments,
@@ -33,7 +33,7 @@ export async function GET(
     const { id } = await params;
     await connectDB();
 
-    const ticket = await SupportTicket.findOne({ _id: id, userId: user._id }).lean();
+    const ticket = await findUserTicketLean(id, String(user._id));
     if (!ticket) return secureErrorResponse("Ticket not found", 404, "NOT_FOUND");
 
     return secureJsonResponse({ ticket });
@@ -66,7 +66,7 @@ export async function PATCH(
 
     await connectDB();
 
-    const ticket = await SupportTicket.findOne({ _id: id, userId: user._id });
+    const ticket = await findUserTicket(id, String(user._id));
     if (!ticket) return secureErrorResponse("Ticket not found", 404, "NOT_FOUND");
 
     if (ticket.status === "closed") {
@@ -133,7 +133,7 @@ export async function POST(
 
     await connectDB();
 
-    const ticket = await SupportTicket.findOne({ _id: id, userId: user._id });
+    const ticket = await findUserTicket(id, String(user._id));
     if (!ticket) return secureErrorResponse("Ticket not found", 404, "NOT_FOUND");
     if (ticket.status === "closed") return secureErrorResponse("Ticket is closed", 400, "TICKET_CLOSED");
 
