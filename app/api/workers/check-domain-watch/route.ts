@@ -4,8 +4,11 @@ import {
   secureErrorResponse,
 } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
-import connectDB from "@/lib/mongodb";
-import DomainWatch from "@/models/DomainWatch";
+import {
+  listWatchesForCron,
+  recordWatchCheck,
+  removeWatchById,
+} from "@/lib/services/domain-watches";
 import { ResellerClubAPI } from "@/lib/resellerclub";
 import { EmailService } from "@/lib/email";
 
@@ -30,12 +33,7 @@ export async function POST(request: NextRequest) {
       return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
     }
 
-    await connectDB();
-
-    const watches = await DomainWatch.find({})
-      .populate("userId", "email firstName lastName")
-      .limit(BATCH_SIZE)
-      .lean();
+    const watches = await listWatchesForCron(BATCH_SIZE);
 
     if (watches.length === 0) {
       return secureJsonResponse({ success: true, checked: 0, notified: 0 });
@@ -53,10 +51,7 @@ export async function POST(request: NextRequest) {
         const isAvailable = match?.available === true;
         const newStatus = isAvailable ? "available" : "taken";
 
-        await DomainWatch.updateOne(
-          { _id: watch._id },
-          { $set: { lastCheckedAt: new Date(), lastStatus: newStatus } }
-        );
+        await recordWatchCheck(String(watch._id), newStatus);
 
         results.checked++;
 
@@ -79,7 +74,7 @@ export async function POST(request: NextRequest) {
         );
 
         // Remove watch so the user only gets one notification
-        await DomainWatch.deleteOne({ _id: watch._id });
+        await removeWatchById(String(watch._id));
 
         results.notified++;
         serverLogger.info(

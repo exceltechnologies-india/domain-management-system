@@ -3,6 +3,7 @@ import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrap
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import SupportTicket from "@/models/SupportTicket";
+import { listTicketsForUserSummary } from "@/lib/services/support-tickets";
 import { EmailService } from "@/lib/email";
 import { validateAttachments } from "@/lib/support-attachments";
 import { rateLimiters } from "@/lib/rate-limit";
@@ -25,19 +26,9 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
-    const tickets = await SupportTicket.find({ userId: user._id })
-      .select("ticketNumber subject category status priority createdAt updatedAt messages")
-      .sort({ updatedAt: -1 })
-      .lean();
+    const tickets = await listTicketsForUserSummary(String(user._id));
 
-    const mapped = tickets.map((t) => ({
-      ...t,
-      messageCount: t.messages.length,
-      lastMessage: t.messages.at(-1) ?? null,
-      messages: undefined,
-    }));
-
-    return secureJsonResponse({ tickets: mapped });
+    return secureJsonResponse({ tickets });
   } catch (error) {
     return secureErrorResponse("Internal server error", 500, "SERVER_ERROR", error);
   }

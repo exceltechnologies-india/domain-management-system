@@ -3,6 +3,7 @@ import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrap
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import SupportTicket from "@/models/SupportTicket";
+import { getTicketById, getTicketByIdLean } from "@/lib/services/support-tickets";
 import { EmailService } from "@/lib/email";
 import {
   validateAttachments,
@@ -31,7 +32,7 @@ export async function GET(
     const { id } = await params;
     await connectDB();
 
-    const ticket = await SupportTicket.findById(id).lean();
+    const ticket = await getTicketByIdLean(id);
     if (!ticket) return secureErrorResponse("Ticket not found", 404, "NOT_FOUND");
 
     return secureJsonResponse({ ticket });
@@ -109,7 +110,7 @@ export async function POST(
 
     await connectDB();
 
-    const ticket = await SupportTicket.findById(id);
+    const ticket = await getTicketById(id);
     if (!ticket) return secureErrorResponse("Ticket not found", 404, "NOT_FOUND");
     if (ticket.status === "closed") return secureErrorResponse("Ticket is closed", 400, "TICKET_CLOSED");
 
