@@ -9,6 +9,12 @@ import axios, { AxiosError, AxiosResponse } from "axios";
 import { ResellerClubResponse } from "./types";
 import { serverLogger } from "./server-logger";
 
+/** Narrows a catch-block error to an HTTP status when the cause was Axios. */
+function axiosStatus(err: unknown): number | undefined {
+  if (err instanceof AxiosError) return err.response?.status;
+  return undefined;
+}
+
 // Environment configuration
 const RESELLERCLUB_API_URL = process.env.RESELLERCLUB_API_URL;
 const RESELLERCLUB_ID = process.env.RESELLERCLUB_ID;
@@ -81,11 +87,11 @@ export class ResellerClubDNSSpecific {
         status: "success",
         data: response.data,
       };
-    } catch (error: any) {
+    } catch (error) {
       serverLogger.error("ResellerClub search DNS records error:", error);
       return {
         status: "error",
-        message: error.response?.status === 404
+        message: axiosStatus(error) === 404
           ? "Request failed with status code 404"
           : "Failed to search DNS records",
       };
@@ -120,7 +126,7 @@ export class ResellerClubDNSSpecific {
         status: "success",
         data: response.data,
       };
-    } catch (error: any) {
+    } catch (error) {
       serverLogger.error("ResellerClub add IPv4 record error:", error);
       return {
         status: "error",
@@ -155,7 +161,7 @@ export class ResellerClubDNSSpecific {
         status: "success",
         data: response.data,
       };
-    } catch (error: any) {
+    } catch (error) {
       serverLogger.error("ResellerClub add IPv6 record error:", error);
       return {
         status: "error",
@@ -190,7 +196,7 @@ export class ResellerClubDNSSpecific {
         status: "success",
         data: response.data,
       };
-    } catch (error: any) {
+    } catch (error) {
       serverLogger.error("ResellerClub add CNAME record error:", error);
       return {
         status: "error",
@@ -227,7 +233,7 @@ export class ResellerClubDNSSpecific {
         status: "success",
         data: response.data,
       };
-    } catch (error: any) {
+    } catch (error) {
       serverLogger.error("ResellerClub add MX record error:", error);
       return {
         status: "error",
@@ -262,7 +268,7 @@ export class ResellerClubDNSSpecific {
         status: "success",
         data: response.data,
       };
-    } catch (error: any) {
+    } catch (error) {
       serverLogger.error("ResellerClub add NS record error:", error);
       return {
         status: "error",
@@ -297,7 +303,7 @@ export class ResellerClubDNSSpecific {
         status: "success",
         data: response.data,
       };
-    } catch (error: any) {
+    } catch (error) {
       serverLogger.error("ResellerClub add TXT record error:", error);
       return {
         status: "error",
@@ -338,7 +344,7 @@ export class ResellerClubDNSSpecific {
         status: "success",
         data: response.data,
       };
-    } catch (error: any) {
+    } catch (error) {
       serverLogger.error("ResellerClub add SRV record error:", error);
       return {
         status: "error",
@@ -377,7 +383,7 @@ export class ResellerClubDNSSpecific {
         status: "success",
         data: response.data,
       };
-    } catch (error: any) {
+    } catch (error) {
       serverLogger.error("ResellerClub modify IPv4 record error:", error);
       return {
         status: "error",
@@ -414,7 +420,7 @@ export class ResellerClubDNSSpecific {
         status: "success",
         data: response.data,
       };
-    } catch (error: any) {
+    } catch (error) {
       serverLogger.error("ResellerClub modify IPv6 record error:", error);
       return {
         status: "error",
@@ -451,7 +457,7 @@ export class ResellerClubDNSSpecific {
         status: "success",
         data: response.data,
       };
-    } catch (error: any) {
+    } catch (error) {
       serverLogger.error("ResellerClub modify CNAME record error:", error);
       return {
         status: "error",
@@ -490,7 +496,7 @@ export class ResellerClubDNSSpecific {
         status: "success",
         data: response.data,
       };
-    } catch (error: any) {
+    } catch (error) {
       serverLogger.error("ResellerClub modify MX record error:", error);
       return {
         status: "error",
@@ -527,7 +533,7 @@ export class ResellerClubDNSSpecific {
         status: "success",
         data: response.data,
       };
-    } catch (error: any) {
+    } catch (error) {
       serverLogger.error("ResellerClub modify NS record error:", error);
       return {
         status: "error",
@@ -564,7 +570,7 @@ export class ResellerClubDNSSpecific {
         status: "success",
         data: response.data,
       };
-    } catch (error: any) {
+    } catch (error) {
       serverLogger.error("ResellerClub modify TXT record error:", error);
       return {
         status: "error",
@@ -607,7 +613,7 @@ export class ResellerClubDNSSpecific {
         status: "success",
         data: response.data,
       };
-    } catch (error: any) {
+    } catch (error) {
       serverLogger.error("ResellerClub modify SRV record error:", error);
       return {
         status: "error",
@@ -652,7 +658,7 @@ export class ResellerClubDNSSpecific {
         status: "success",
         data: response.data,
       };
-    } catch (error: any) {
+    } catch (error) {
       serverLogger.error("ResellerClub modify SOA record error:", error);
       return {
         status: "error",
@@ -683,7 +689,7 @@ export class ResellerClubDNSSpecific {
         status: "success",
         data: response.data,
       };
-    } catch (error: any) {
+    } catch (error) {
       serverLogger.error("ResellerClub delete IPv4 record error:", error);
       return {
         status: "error",
@@ -712,7 +718,7 @@ export class ResellerClubDNSSpecific {
         status: "success",
         data: response.data,
       };
-    } catch (error: any) {
+    } catch (error) {
       serverLogger.error("ResellerClub delete IPv6 record error:", error);
       return {
         status: "error",
@@ -741,7 +747,7 @@ export class ResellerClubDNSSpecific {
         status: "success",
         data: response.data,
       };
-    } catch (error: any) {
+    } catch (error) {
       serverLogger.error("ResellerClub delete CNAME record error:", error);
       return {
         status: "error",
@@ -770,7 +776,7 @@ export class ResellerClubDNSSpecific {
         status: "success",
         data: response.data,
       };
-    } catch (error: any) {
+    } catch (error) {
       serverLogger.error("ResellerClub delete MX record error:", error);
       return {
         status: "error",
@@ -799,7 +805,7 @@ export class ResellerClubDNSSpecific {
         status: "success",
         data: response.data,
       };
-    } catch (error: any) {
+    } catch (error) {
       serverLogger.error("ResellerClub delete NS record error:", error);
       return {
         status: "error",
@@ -828,7 +834,7 @@ export class ResellerClubDNSSpecific {
         status: "success",
         data: response.data,
       };
-    } catch (error: any) {
+    } catch (error) {
       serverLogger.error("ResellerClub delete TXT record error:", error);
       return {
         status: "error",
@@ -857,7 +863,7 @@ export class ResellerClubDNSSpecific {
         status: "success",
         data: response.data,
       };
-    } catch (error: any) {
+    } catch (error) {
       serverLogger.error("ResellerClub delete SRV record error:", error);
       return {
         status: "error",
