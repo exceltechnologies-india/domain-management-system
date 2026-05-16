@@ -63,36 +63,51 @@ export default function HomePage() {
         <HeroSection
           background="image"
           backgroundImage="/domain-1.jpeg"
-          overlayOpacity={0.92}
-          className="min-h-[64vh] sm:min-h-[58vh] flex items-center py-14 sm:py-12"
+          overlayOpacity={0.96}
+          className="flex items-center py-12 sm:py-16 lg:min-h-[56vh]"
         >
-          <div className="text-center w-full px-2 sm:px-4">
-            {/* Eyebrow: icon + label inline */}
+          <div className="text-center w-full max-w-3xl mx-auto">
+            {/* Eyebrow */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15 }}
-              className="inline-flex items-center gap-2 mb-5 sm:mb-6 bg-white/10 backdrop-blur-md border border-white/25 rounded-full pl-1.5 pr-4 py-1.5 shadow-lg"
+              className="inline-flex items-center gap-2 mb-6 sm:mb-7 bg-white/15 border border-white/20 rounded-full px-3.5 py-1.5"
             >
-              <span className="flex items-center justify-center h-6 w-6 rounded-full bg-blue-500/90">
-                <Globe className="h-3.5 w-3.5 text-white" />
-              </span>
-              <span className="text-white text-[11px] sm:text-xs font-semibold tracking-[0.2em] uppercase">
+              <Globe className="h-3.5 w-3.5 text-blue-200" />
+              <span className="text-white/90 text-[11px] sm:text-xs font-semibold tracking-[0.18em] uppercase">
                 Domain Registration
               </span>
             </motion.div>
 
-            {/* Domain Search Feature */}
-            <div className="w-full max-w-screen-2xl mx-auto px-2">
+            {/* Headline + subtitle (rendered here for a tighter rhythm with the
+                search box below; DomainSearch handles the input + results). */}
+            <motion.div
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.05 }}
+            >
+              <h1
+                className="text-white text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-[1.1] mb-3 sm:mb-4"
+                style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}
+              >
+                Claim Your Piece of the{' '}
+                <span className="text-blue-300">Digital World</span>
+              </h1>
+              <p className="text-blue-100/85 text-sm sm:text-base max-w-xl mx-auto mb-6 sm:mb-8 leading-relaxed">
+                Join 5,000+ customers who&apos;ve secured their identity with Anutech.
+              </p>
+            </motion.div>
+
+            {/* Domain Search — light theme renders a solid white card that
+                reads crisply against the blue hero background. */}
+            <div className="w-full">
               <DomainSearch
                 className="mb-0"
                 redirectOnSearch={true}
-                title={
-                  <span className="text-white drop-shadow-md">
-                    Claim Your Piece of the <span className="text-blue-400">Digital World</span>
-                  </span>
-                }
-                subtitle="Join 5,000+ happy customers who have secured their identity with Anutech."
+                showHeroText={false}
+                theme="light"
+                compact
               />
             </div>
           </div>
