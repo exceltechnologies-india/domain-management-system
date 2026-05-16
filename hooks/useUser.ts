@@ -55,7 +55,7 @@ export function useUser(): { user: DashboardUser | null; isLoading: boolean } {
   // dedupingInterval: 60 s — all dashboard pages share this cached value for 1 minute.
   // revalidateOnFocus: false — avoid a DB hit every time the user switches tabs.
   const { data: meData, isLoading: meLoading } = useSWR<MeResponse>(
-    sessionReady && !!session?.user ? '/api/auth/me' : null,
+    sessionReady && !!session?.user ? '/api/v1/auth/me' : null,
     fetcher,
     { dedupingInterval: 60_000, revalidateOnFocus: false }
   );

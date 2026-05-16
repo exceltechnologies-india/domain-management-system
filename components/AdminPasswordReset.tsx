@@ -24,7 +24,7 @@ export default function AdminPasswordReset() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/admin/reset-password', {
+      const response = await fetch('/api/v1/admin/reset-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

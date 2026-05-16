@@ -48,7 +48,7 @@ export default function HostingUpgradeModal({
     try {
       const token = safeLocalStorage.getItem('token');
       const response = await fetch(
-        `/api/user/hosting/upgrade-info?domainName=${encodeURIComponent(domainName)}`,
+        `/api/v1/user/hosting/upgrade-info?domainName=${encodeURIComponent(domainName)}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const json = await response.json();
@@ -84,7 +84,7 @@ export default function HostingUpgradeModal({
       const token = safeLocalStorage.getItem('token');
 
       // 1. Create the Razorpay order via our backend.
-      const orderRes = await fetch('/api/user/hosting/upgrade', {
+      const orderRes = await fetch('/api/v1/user/hosting/upgrade', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -128,7 +128,7 @@ export default function HostingUpgradeModal({
 
       // 3. Verify Payment
       setStep('verifying');
-      const verifyRes = await fetch('/api/payments/verify', {
+      const verifyRes = await fetch('/api/v1/payments/verify', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -86,7 +86,7 @@ export default function HostingPage() {
     isValidating: refreshing,
     mutate,
   } = useSWR<HostingStatsResponse>(
-    user ? '/api/user/hosting/stats' : null,
+    user ? '/api/v1/user/hosting/stats' : null,
     fetcher,
     { revalidateOnFocus: false, shouldRetryOnError: false }
   );
@@ -114,8 +114,8 @@ export default function HostingPage() {
     const token = safeLocalStorage.getItem('token');
     // Point to the correct custom API route, passing the JWT token for auth
     const url = username
-      ? `/api/user/hosting/sso?username=${username}&token=${token}`
-      : `/api/user/hosting/sso?token=${token}`;
+      ? `/api/v1/user/hosting/sso?username=${username}&token=${token}`
+      : `/api/v1/user/hosting/sso?token=${token}`;
     window.open(url, '_blank');
   };
 
@@ -147,7 +147,7 @@ export default function HostingPage() {
     if (!ok) return;
     setIsCancellingTrial(true);
     try {
-      const res = await fetch('/api/user/hosting/cancel-trial', {
+      const res = await fetch('/api/v1/user/hosting/cancel-trial', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -169,7 +169,7 @@ export default function HostingPage() {
     const key = hostingStats.domain;
     setAutoRenewLoading(prev => ({ ...prev, [key]: true }));
     try {
-      const res = await fetch(`/api/user/hosting/${hostingStats.hostingId}/auto-renew`, {
+      const res = await fetch(`/api/v1/user/hosting/${hostingStats.hostingId}/auto-renew`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

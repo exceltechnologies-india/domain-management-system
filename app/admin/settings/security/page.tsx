@@ -48,7 +48,7 @@ export default function AdminSecurityPage() {
   const [showDisablePassword, setShowDisablePassword] = useState(false);
 
   useEffect(() => {
-    fetch("/api/auth/totp/setup")
+    fetch("/api/v1/auth/totp/setup")
       .then((r) => r.json())
       .then((d) => setTotpEnabled(d.totpEnabled ?? false))
       .catch(() => setTotpEnabled(false));
@@ -57,7 +57,7 @@ export default function AdminSecurityPage() {
   async function handleStartSetup() {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/auth/totp/setup", { method: "POST" });
+      const res = await fetch("/api/v1/auth/totp/setup", { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Setup failed");
       setQrCodeDataUrl(data.qrCodeDataUrl);
@@ -77,7 +77,7 @@ export default function AdminSecurityPage() {
     }
     setIsLoading(true);
     try {
-      const res = await fetch("/api/auth/totp/confirm", {
+      const res = await fetch("/api/v1/auth/totp/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code: verifyCode }),
@@ -102,7 +102,7 @@ export default function AdminSecurityPage() {
     }
     setIsLoading(true);
     try {
-      const res = await fetch("/api/auth/totp/disable", {
+      const res = await fetch("/api/v1/auth/totp/disable", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code: disableCode, password: disablePassword }),

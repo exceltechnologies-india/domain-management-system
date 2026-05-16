@@ -233,7 +233,7 @@ export default function AdminOrders() {
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const response = await fetch(`/api/admin/orders?page=${targetPage}&per_page=10&archived=${archivedParam}`, {
+      const response = await fetch(`/api/v1/admin/orders?page=${targetPage}&per_page=10&archived=${archivedParam}`, {
         method: 'GET',
         headers,
         credentials: 'include'
@@ -311,7 +311,7 @@ export default function AdminOrders() {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const url = `/api/admin/orders/${orderToDelete._id}${activeTab === 'archived' ? '?permanent=true' : ''}`;
+      const url = `/api/v1/admin/orders/${orderToDelete._id}${activeTab === 'archived' ? '?permanent=true' : ''}`;
 
       const response = await fetch(url, {
         method: 'DELETE',
@@ -374,7 +374,7 @@ export default function AdminOrders() {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch(`/api/admin/orders/${orderToUnarchive._id}`, {
+      const response = await fetch(`/api/v1/admin/orders/${orderToUnarchive._id}`, {
         method: 'PATCH',
         headers,
         credentials: 'include',

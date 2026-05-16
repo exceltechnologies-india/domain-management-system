@@ -63,7 +63,7 @@ function remoteLog(args: any[]) {
       typeof a === "object" && !(a instanceof Error) ? JSON.stringify(a) : String(a)
     );
 
-    fetch(`${appUrl}/api/admin/log-error`, {
+    fetch(`${appUrl}/api/v1/admin/log-error`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

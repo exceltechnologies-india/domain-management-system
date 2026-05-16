@@ -138,7 +138,7 @@ export async function GET(request: NextRequest) {
     );
 
     const queueName = process.env.GCP_QUEUE_NAME || "service-expiry-queue";
-    const workerUrl = `${process.env.NEXTAUTH_URL}/api/workers/process-service-expiry`;
+    const workerUrl = `${process.env.NEXTAUTH_URL}/api/v1/workers/process-service-expiry`;
 
     const results = {
       queuedHostings: 0,
@@ -244,7 +244,7 @@ export async function GET(request: NextRequest) {
     // Errors here never block service expiry processing.
     const domainWatchResult = await (async () => {
       try {
-        const workerWatchUrl = `${process.env.NEXTAUTH_URL}/api/workers/check-domain-watch`;
+        const workerWatchUrl = `${process.env.NEXTAUTH_URL}/api/v1/workers/check-domain-watch`;
         const res = await fetch(workerWatchUrl, {
           method: "POST",
           headers: {

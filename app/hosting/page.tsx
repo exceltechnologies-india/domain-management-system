@@ -63,7 +63,7 @@ export default function HostingPage() {
           ? sessionStorage.getItem('trial-otp-token') || undefined
           : undefined;
 
-      const res = await fetch('/api/user/hosting/trial-eligibility', {
+      const res = await fetch('/api/v1/user/hosting/trial-eligibility', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -214,7 +214,7 @@ export default function HostingPage() {
 
   // Fetch ₹1 test plan status (public endpoint, no auth required)
   useEffect(() => {
-    fetch('/api/public/hosting-test-plan')
+    fetch('/api/v1/public/hosting-test-plan')
       .then(r => r.json())
       .then(data => { if (data.enabled && data.plan) setTestPlan(data.plan); })
       .catch(() => {});

@@ -21,7 +21,7 @@ export default function LivePricingIndicator({ domainName, tld, onPriceUpdate }:
     setError(null);
 
     try {
-      const response = await fetch(`/api/domains/pricing?tlds=${tld}`);
+      const response = await fetch(`/api/v1/domains/pricing?tlds=${tld}`);
       const data = await response.json();
 
       if (data.success && data.data[tld]) {

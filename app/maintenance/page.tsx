@@ -42,7 +42,7 @@ export default function MaintenancePage() {
 
   const fetchStatus = async () => {
     try {
-      const res = await fetch('/api/public/maintenance-status', { cache: 'no-store' });
+      const res = await fetch('/api/v1/public/maintenance-status', { cache: 'no-store' });
       const data = await res.json();
       setStatus(data);
     } catch {
@@ -55,7 +55,7 @@ export default function MaintenancePage() {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      const res = await fetch('/api/public/maintenance-status', { cache: 'no-store' });
+      const res = await fetch('/api/v1/public/maintenance-status', { cache: 'no-store' });
       const data = await res.json();
       setStatus(data);
       if (!data.enabled) {

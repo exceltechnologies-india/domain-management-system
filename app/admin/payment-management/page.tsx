@@ -124,7 +124,7 @@ export default function AdminPayments() {
       }
 
       // Always fetch only the latest 5 transactions (no pagination)
-      const response = await fetch(`/api/admin/payments?limit=5&skip=0`, {
+      const response = await fetch(`/api/v1/admin/payments?limit=5&skip=0`, {
         headers,
         credentials: 'include'
       });

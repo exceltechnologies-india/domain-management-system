@@ -22,7 +22,7 @@ export default function InvoiceDiagnostics() {
   const fetchDiagnostics = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/admin/orders/invoice-conflicts');
+      const res = await fetch('/api/v1/admin/orders/invoice-conflicts');
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to load diagnostics');
       setData(json);
@@ -53,7 +53,7 @@ export default function InvoiceDiagnostics() {
     if (!ok) return;
     try {
       setPendingId(orderId);
-      const res = await fetch(`/api/admin/orders/${encodeURIComponent(orderId)}/clear-invoice-number`, {
+      const res = await fetch(`/api/v1/admin/orders/${encodeURIComponent(orderId)}/clear-invoice-number`, {
         method: 'POST',
       });
       const json = await res.json();
@@ -70,7 +70,7 @@ export default function InvoiceDiagnostics() {
   const handleResync = async (orderId: string) => {
     try {
       setPendingId(orderId);
-      const res = await fetch(`/api/admin/orders/${encodeURIComponent(orderId)}/re-sync-invoice`, {
+      const res = await fetch(`/api/v1/admin/orders/${encodeURIComponent(orderId)}/re-sync-invoice`, {
         method: 'POST',
       });
       const json = await res.json();
@@ -104,7 +104,7 @@ export default function InvoiceDiagnostics() {
       const o = orders[i];
       try {
         const res = await fetch(
-          `/api/admin/orders/${encodeURIComponent(o.orderId)}/re-sync-invoice`,
+          `/api/v1/admin/orders/${encodeURIComponent(o.orderId)}/re-sync-invoice`,
           { method: 'POST' }
         );
         const json = await res.json().catch(() => ({}));

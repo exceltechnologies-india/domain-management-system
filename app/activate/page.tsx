@@ -61,7 +61,7 @@ export default function ActivatePage() {
       }
 
       // Make fresh API call to get current user status
-      const response = await fetch('/api/auth/me', {
+      const response = await fetch('/api/v1/auth/me', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -104,7 +104,7 @@ export default function ActivatePage() {
   const activateAccount = async (activationToken: string) => {
     try {
       setIsActivating(true);
-      const response = await fetch('/api/auth/activate', {
+      const response = await fetch('/api/v1/auth/activate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -166,7 +166,7 @@ export default function ActivatePage() {
 
     try {
       setIsActivating(true);
-      const response = await fetch('/api/auth/resend-activation', {
+      const response = await fetch('/api/v1/auth/resend-activation', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

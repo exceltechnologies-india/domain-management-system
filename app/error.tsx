@@ -25,7 +25,7 @@ export default function Error({ error, reset }: ErrorProps) {
 
   useEffect(() => {
     // Custom error tracking
-    fetch('/api/admin/log-error', {
+    fetch('/api/v1/admin/log-error', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

@@ -107,7 +107,7 @@ export default function AdminSupportTicketsPage() {
         const token = getAuthToken();
         const headers: HeadersInit = { "Content-Type": "application/json" };
         if (token) headers["Authorization"] = `Bearer ${token}`;
-        const res = await fetch("/api/auth/me", { method: "GET", headers, credentials: "include" });
+        const res = await fetch("/api/v1/auth/me", { method: "GET", headers, credentials: "include" });
         if (res.ok) {
           const data = await res.json();
           if (data.user?.role === "admin") { setUser(data.user); setIsAuthLoading(false); }
@@ -126,7 +126,7 @@ export default function AdminSupportTicketsPage() {
       const token = getAuthToken();
       const headers: HeadersInit = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
-      const res = await fetch(`/api/admin/support-tickets?status=${activeTab}`, { headers, credentials: "include" });
+      const res = await fetch(`/api/v1/admin/support-tickets?status=${activeTab}`, { headers, credentials: "include" });
       const data = await res.json();
       if (res.ok) setTickets(data.tickets ?? []);
       else toast.error(data.error ?? "Failed to load tickets");

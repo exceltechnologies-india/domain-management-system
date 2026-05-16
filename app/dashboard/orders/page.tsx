@@ -57,7 +57,7 @@ export default function UserOrders() {
     isValidating,
     mutate,
   } = useSWR<{ orders: Order[] }>(
-    user ? '/api/orders' : null,
+    user ? '/api/v1/orders' : null,
     fetcher,
     { revalidateOnFocus: false }
   );
@@ -130,7 +130,7 @@ export default function UserOrders() {
 
       toast.loading('Downloading invoice...', { id: 'download-invoice' });
 
-      const response = await fetch(`/api/orders/${order._id}/invoice`, {
+      const response = await fetch(`/api/v1/orders/${order._id}/invoice`, {
         method: 'GET',
         headers,
         credentials: 'include', // Include cookies for NextAuth session

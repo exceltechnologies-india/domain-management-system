@@ -81,7 +81,7 @@ export default function ManageDomain() {
       setIsLoading(true);
 
       // 1. Check services to see which domains are hosted
-      const statusRes = await fetch('/api/user/services/status');
+      const statusRes = await fetch('/api/v1/user/services/status');
       let hostedDomains: string[] = [];
       if (statusRes.ok) {
         const statusData = await statusRes.json();
@@ -96,7 +96,7 @@ export default function ManageDomain() {
 
       // Fetch all domains and find the one matching the ID
       // Ideally we should have a single domain endpoint, but this works for now
-      const response = await fetch('/api/user/domains', {
+      const response = await fetch('/api/v1/user/domains', {
         headers,
         credentials: 'include'
       });
@@ -135,7 +135,7 @@ export default function ManageDomain() {
       const headers: HeadersInit = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const response = await fetch(`/api/domains/nameservers?domainName=${encodeURIComponent(domainName)}`, {
+      const response = await fetch(`/api/v1/domains/nameservers?domainName=${encodeURIComponent(domainName)}`, {
         headers
       });
 
@@ -177,7 +177,7 @@ export default function ManageDomain() {
         nameservers: nsMethod === 'custom' ? customNs.filter(ns => ns.trim()) : undefined
       };
 
-      const response = await fetch('/api/user/domains/nameservers', {
+      const response = await fetch('/api/v1/user/domains/nameservers', {
         method: 'POST',
         headers,
         body: JSON.stringify(payload)
