@@ -7,6 +7,8 @@
 
 import { serverLogger } from '@/lib/server-logger';
 import { HOSTING_PLANS } from '@/config/hosting-plans';
+import type { DAErrorPayload, DAParsedResponse } from './types';
+import { unwrapDAError } from './types';
 
 export const DA_URL = process.env.DIRECTADMIN_URL;
 export const ADMIN_USER = process.env.DIRECTADMIN_ADMIN_USER;
@@ -25,10 +27,10 @@ export const API_KEY = process.env.DIRECTADMIN_API_KEY;
 
 export class DirectAdminError extends Error {
   public readonly status?: number;
-  public readonly response?: any;
+  public readonly response?: unknown;
   public readonly context?: string;
 
-  constructor(message: string, context?: string, status?: number, response?: any) {
+  constructor(message: string, context?: string, status?: number, response?: unknown) {
     super(message);
     this.name = 'DirectAdminError';
     this.context = context;
@@ -59,7 +61,7 @@ const CIRCUIT_RESET_MS = 60_000;
 const SLOW_REQUEST_MS = 2000;
 
 // Request queue to serialize all DA requests
-let requestQueue: Promise<any> = Promise.resolve();
+let requestQueue: Promise<unknown> = Promise.resolve();
 
 export function getAuth() {
   if (!ADMIN_USER || !API_KEY) {
@@ -116,13 +118,16 @@ async function enforceRateLimit(): Promise<void> {
  * 2. HTML (often just the error text wrapped in tags)
  * 3. JSON (in newer APIs)
  */
-export function parseDAError(data: any): string {
+export function parseDAError(data: unknown): string {
   if (!data) return "Unknown DirectAdmin error";
 
   // If it's an object with error field
-  if (data.error && typeof data.error === 'string') return data.error;
-  if (data.text && typeof data.text === 'string') return data.text;
-  if (data.details && typeof data.details === 'string') return data.details;
+  if (typeof data === 'object' && data !== null) {
+    const d = data as DAErrorPayload;
+    if (d.error && typeof d.error === 'string') return d.error;
+    if (d.text && typeof d.text === 'string') return d.text;
+    if (d.details && typeof d.details === 'string') return d.details;
+  }
 
   // If it's a string, try to parse it
   if (typeof data === 'string') {
@@ -154,21 +159,21 @@ export function parseDAError(data: any): string {
  * Helper to parse URL-encoded response data from DirectAdmin into a JSON object.
  * DA often returns data like: key1=value1&key2=value2 or list[]=val1&list[]=val2
  */
-export function parseResponseData(data: any): any {
-  if (typeof data !== 'string') return data;
+export function parseResponseData(data: unknown): DAParsedResponse {
+  if (typeof data !== 'string') return data as DAParsedResponse;
 
   // If it looks like URL encoded string
   if (data.includes('=')) {
-      const result: any = {};
+      const result: { [k: string]: string | string[] } = {};
       const params = new URLSearchParams(data);
 
       params.forEach((value, key) => {
           // If key already exists, convert to array or push to array
-          if (result[key]) {
+          if (result[key] !== undefined) {
               if (Array.isArray(result[key])) {
-                  result[key].push(value);
+                  (result[key] as string[]).push(value);
               } else {
-                  result[key] = [result[key], value];
+                  result[key] = [result[key] as string, value];
               }
           } else {
               result[key] = value;
@@ -262,7 +267,7 @@ export async function executeRequest<T>(
   // Queue this request to ensure serialization
   return new Promise((resolve, reject) => {
     requestQueue = requestQueue.then(async () => {
-      let lastError: any;
+      let lastError: unknown;
 
       for (let attempt = 0; attempt <= maxRetries; attempt++) {
         try {
@@ -280,7 +285,7 @@ export async function executeRequest<T>(
           // Global check: If result is a string resembling HTML, it's likely a login page intercepting the API call
           if (typeof result === 'string' && (result.includes('<!DOCTYPE html>') || result.includes('<html'))) {
                // Try to get the final URL to see if it redirected
-               const finalUrl = (result as any)?.config?.url || 'unknown';
+               const finalUrl = (result as { config?: { url?: string } })?.config?.url || 'unknown';
                const errorMsg = `DirectAdmin returned HTML (Login Page) from ${finalUrl}. Check credentials, IP allowlist, or if 2FA is enabled.`;
 
                serverLogger.error(`[DA-FAIL] ${operation}: ${errorMsg}`);
@@ -293,15 +298,16 @@ export async function executeRequest<T>(
           circuitFailures = 0;
           resolve(result);
           return;
-        } catch (error: any) {
+        } catch (error) {
           lastError = error;
-          const status = error.response?.status;
+          const unwrapped = unwrapDAError(error);
+          const status = unwrapped.status;
 
           // NEVER retry on authentication errors (401/403) - fail immediately
           if (status === 401 || status === 403) {
-            const daErrorMessage = parseDAError(error.response?.data) || 'Authentication failed';
+            const daErrorMessage = parseDAError(unwrapped.data) || 'Authentication failed';
             serverLogger.error(`[DA-REQUEST] ${operation} failed with auth error (${status}). Stopping immediately.`);
-            reject(new DirectAdminError(daErrorMessage, operation, status, error.response?.data));
+            reject(new DirectAdminError(daErrorMessage, operation, status, unwrapped.data));
             return;
           }
 
@@ -322,43 +328,47 @@ export async function executeRequest<T>(
             continue; // Retry
           } else {
             // Check for connection specific errors
-            const isConnectionError = error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED' || error.code === 'ENOTFOUND';
+            const code = unwrapped.code;
+            const isConnectionError = code === 'ECONNREFUSED' || code === 'ETIMEDOUT' || code === 'ECONNABORTED' || code === 'ENOTFOUND';
 
             if (isConnectionError || status === 502 || status === 503 || status === 504) {
                let msg = "DirectAdmin server is currently unreachable";
 
-               if (error.code === 'ECONNREFUSED') {
+               if (code === 'ECONNREFUSED') {
                   msg = "Connection Refused: DirectAdmin server is up but port 2222 is closed or service is down.";
-               } else if (error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
+               } else if (code === 'ETIMEDOUT' || code === 'ECONNABORTED') {
                   msg = "Connection Timed Out: DirectAdmin server is unreachable. Check firewall (port 2222) and IP whitelist.";
-               } else if (error.code === 'ENOTFOUND') {
+               } else if (code === 'ENOTFOUND') {
                   msg = "DNS Lookup Failed: DirectAdmin hostname does not resolve.";
                }
 
-               serverLogger.error(`[DA-FAIL] ${operation} Connection Failed: ${error.message} (${error.code})`);
+               serverLogger.error(`[DA-FAIL] ${operation} Connection Failed: ${unwrapped.message} (${code})`);
                circuitFailures += 1;
                if (circuitFailures >= CIRCUIT_THRESHOLD) {
                  circuitOpenUntil = Date.now() + CIRCUIT_RESET_MS;
                  serverLogger.error(`[DA-CIRCUIT] Circuit breaker opened after ${circuitFailures} failures — pausing for ${CIRCUIT_RESET_MS / 1000}s`);
                }
-               reject(new DirectAdminError(msg, operation, 503, { error: msg, code: error.code || 'DA_SERVER_DOWN' }));
+               reject(new DirectAdminError(msg, operation, 503, { error: msg, code: code || 'DA_SERVER_DOWN' }));
                return;
             }
 
             // Final fallback if loop exits naturally (should generally not reach here due to reject/resolve/return)
-            const daErrorMessage = parseDAError(error.response?.data) || error.message;
-            serverLogger.error(`[DA-FAIL] ${operation} failed permanently after attempts: ${error.message}`, {
+            const daErrorMessage = parseDAError(unwrapped.data) || unwrapped.message;
+            const requestUrl = error instanceof Error && 'config' in error
+              ? (error as Error & { config?: { url?: string } }).config?.url
+              : undefined;
+            serverLogger.error(`[DA-FAIL] ${operation} failed permanently after attempts: ${unwrapped.message}`, {
                 message: daErrorMessage,
                 status: status,
-                requestUrl: error.config?.url,
-                response: error.response?.data
+                requestUrl,
+                response: unwrapped.data
             });
             circuitFailures += 1;
             if (circuitFailures >= CIRCUIT_THRESHOLD) {
               circuitOpenUntil = Date.now() + CIRCUIT_RESET_MS;
               serverLogger.error(`[DA-CIRCUIT] Circuit breaker opened after ${circuitFailures} failures — pausing for ${CIRCUIT_RESET_MS / 1000}s`);
             }
-            reject(new DirectAdminError(daErrorMessage, operation, status, error.response?.data));
+            reject(new DirectAdminError(daErrorMessage, operation, status, unwrapped.data));
             return;
           }
           }

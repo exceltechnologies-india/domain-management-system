@@ -17,6 +17,7 @@ import {
   parseResponseData,
   validatePackageName,
 } from './client';
+import { unwrapDAError } from './types';
 
 /**
  * Lists all existing hosting packages available on the DirectAdmin server.
@@ -46,7 +47,7 @@ export async function listPackages(): Promise<string[]> {
            throw new DirectAdminError(parseDAError(response.data), 'ListPackages', 200, response.data);
       }
 
-      const data = parseResponseData(response.data);
+      const data = parseResponseData(response.data) as Record<string, string | string[] | undefined>;
       serverLogger.info('[ListPackages] Raw parsed response:', JSON.stringify(data));
 
       // DirectAdmin can return packages as list[], list, or packages
@@ -66,7 +67,7 @@ export async function listPackages(): Promise<string[]> {
  * Fetches detailed configuration for a specific package.
  * Returns object with quota, bandwidth, etc.
  */
-export async function getPackageDetails(packageName: string): Promise<any> {
+export async function getPackageDetails(packageName: string): Promise<Record<string, string | undefined>> {
   packageName = normalizePackageName(packageName);
 
   return executeRequest(
@@ -86,7 +87,7 @@ export async function getPackageDetails(packageName: string): Promise<any> {
                throw new DirectAdminError(parseDAError(response.data), 'GetPackageDetails', 200, response.data);
           }
 
-          return parseResponseData(response.data);
+          return parseResponseData(response.data) as Record<string, string | undefined>;
       },
       `GetPackageDetails-${packageName}`
   );
@@ -99,7 +100,7 @@ export async function getPackageDetails(packageName: string): Promise<any> {
  * @param options Resource limits (quota, bandwidth, mysql, etc.)
  * @returns DirectAdmin API response
  */
-export async function createPackage(packageName: string, options: any = {}) {
+export async function createPackage(packageName: string, options: Record<string, string | undefined> = {}) {
   packageName = normalizePackageName(packageName);
   validatePackageName(packageName);
 
@@ -138,10 +139,11 @@ export async function createPackage(packageName: string, options: any = {}) {
       return response.data;
     },
     `CreatePackage-${packageName}`
-  ).catch((error: any) => {
+  ).catch((error: unknown) => {
      if (error instanceof DirectAdminError) throw error;
 
-     const errorMessage = parseDAError(error.response?.data) || error.message;
+     const u = unwrapDAError(error);
+     const errorMessage = parseDAError(u.data) || u.message;
      serverLogger.error(`DirectAdmin Package Creation Error (${packageName}):`, errorMessage);
      throw new Error(`Failed to create hosting package: ${errorMessage}`);
   });

@@ -16,7 +16,7 @@ import {
 /**
  * Fetches system-wide information including software versions.
  */
-export async function getServerInfo(): Promise<any> {
+export async function getServerInfo(): Promise<Record<string, string | undefined>> {
   return executeRequest(
     async () => {
       const response = await axios.get(`${DA_URL}/CMD_API_SYSTEM_INFO`, {
@@ -29,7 +29,7 @@ export async function getServerInfo(): Promise<any> {
            throw new DirectAdminError(parseDAError(response.data), 'GetServerInfo', 200, response.data);
       }
 
-      return parseResponseData(response.data);
+      return parseResponseData(response.data) as Record<string, string | undefined>;
     },
     'GetServerInfo'
   );
@@ -50,7 +50,7 @@ export async function listResellers(): Promise<string[]> {
            throw new DirectAdminError(parseDAError(response.data), 'ListResellers', 200, response.data);
       }
 
-      const data = parseResponseData(response.data);
+      const data = parseResponseData(response.data) as Record<string, string | string[] | undefined>;
       const rawList = data['list[]'] || data.list || [];
       const resellers = Array.isArray(rawList) ? rawList : [rawList];
 
@@ -63,7 +63,7 @@ export async function listResellers(): Promise<string[]> {
 /**
  * Fetches the current DirectAdmin license information and account counts
  */
-export async function getLicenseInfo(): Promise<any> {
+export async function getLicenseInfo(): Promise<Record<string, string | undefined>> {
   return executeRequest(
     async () => {
       const response = await axios.get(`${DA_URL}/CMD_API_LICENSE`, {
@@ -75,7 +75,7 @@ export async function getLicenseInfo(): Promise<any> {
            throw new DirectAdminError(parseDAError(response.data), 'GetLicenseInfo', 200, response.data);
       }
 
-      return parseResponseData(response.data);
+      return parseResponseData(response.data) as Record<string, string | undefined>;
     },
     'GetLicenseInfo'
   );

@@ -43,10 +43,10 @@ export async function GET(request: NextRequest) {
     // Use ResellerClub nameservers instead of DA defaults (fallback)
     let nameservers = DirectAdminService.NAMESERVERS;
     try {
-        const dnsRecords = await DirectAdminService.getDNSRecords(username, daConfig.domain);
+        const dnsRecords = await DirectAdminService.getDNSRecords(username, daConfig.domain ?? '');
         const actualNs = dnsRecords
-            .filter((r: any) => r.type === 'NS')
-            .map((r: any) => r.value.replace(/\.$/, '')); // Remove trailing dot if present
+            .filter((r) => r.type === 'NS')
+            .map((r) => (r.value ?? '').replace(/\.$/, '')); // Remove trailing dot if present
         
         if (actualNs.length > 0) {
             nameservers = actualNs;

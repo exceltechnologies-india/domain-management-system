@@ -5,11 +5,13 @@
 import axios from 'axios';
 import { serverLogger } from '../server-logger';
 import type { ZohoBooksService } from '../zohobooks';
+import type { ZohoOrganization } from './types';
+import { unwrapZohoError } from './types';
 
 /**
  * Get primary organization details to check plan status
  */
-export async function getOrganizationDetails(self: ZohoBooksService): Promise<any | null> {
+export async function getOrganizationDetails(self: ZohoBooksService): Promise<ZohoOrganization | null> {
   if (!self._hasRefreshToken()) return null;
 
   try {
@@ -20,16 +22,18 @@ export async function getOrganizationDetails(self: ZohoBooksService): Promise<an
     );
 
     if (response.data.code === 0 && response.data.organizations) {
+      const orgs = response.data.organizations as ZohoOrganization[];
       // Find the organization matching our orgId, or fallback to the first one
-      const org = response.data.organizations.find((o: any) =>
+      const org = orgs.find((o) =>
           String(o.organization_id) === String(self._orgId)
-      ) || response.data.organizations[0];
+      ) || orgs[0];
 
       return org;
     }
     return null;
-  } catch (error: any) {
-    serverLogger.error('[ZohoBooks] Failed to fetch organization details', error.response?.data || error.message);
+  } catch (error) {
+    const u = unwrapZohoError(error);
+    serverLogger.error('[ZohoBooks] Failed to fetch organization details', u.data || u.message);
     return null;
   }
 }
