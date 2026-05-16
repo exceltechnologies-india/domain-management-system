@@ -34,60 +34,52 @@ export default function SearchInput({
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.4, delay: 0.2 }}
     >
-      <div className="absolute -inset-2 bg-blue-500/10 rounded-[2.5rem] blur-xl opacity-40 transition duration-1000"></div>
+      {/* Two-piece search: a white input pill + an attached solid-colour
+          search button. Modelled on the registrar-style search bars (the
+          input and button are visually distinct units sharing one row
+          instead of nesting inside a wrapping card). */}
       <div
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.shiftKey) {
             onSearch(e as unknown as React.FormEvent);
           }
         }}
-        className={`relative transition-all duration-300 ${
-          compact
-            ? 'rounded-xl sm:rounded-2xl p-0.5 sm:p-1 gap-1 sm:gap-1.5'
-            : 'rounded-2xl sm:rounded-[1.5rem] p-1 sm:p-1.5 gap-1.5 sm:gap-2'
-        } flex flex-row items-stretch ${
-          theme === 'dark'
-            ? 'bg-white/10 backdrop-blur-2xl border border-white/20 shadow-[0_20px_50px_rgba(0,0,0,0.3)]'
-            : 'bg-white border-2 border-blue-100 shadow-[0_20px_50px_rgba(0,0,0,0.08)]'
-        }`}
+        className="relative flex flex-row items-stretch gap-2 sm:gap-2.5"
       >
+        {/* Input pill */}
         <div
-          className={`flex-1 min-w-0 relative flex items-center rounded-2xl transition-all duration-300 ${
+          className={`flex-1 min-w-0 relative flex items-center rounded-xl sm:rounded-2xl transition-all duration-300 ${
             isSearching ? 'opacity-50 pointer-events-none' : ''
           } ${
             theme === 'dark'
-              ? 'bg-white/10 border border-white/10 focus-within:bg-white/20 focus-within:border-blue-400 focus-within:shadow-[0_0_20px_rgba(96,165,250,0.3)]'
-              : 'bg-gray-50 border-transparent focus-within:bg-white focus-within:border-blue-400 focus-within:shadow-[0_0_20px_rgba(96,165,250,0.2)]'
+              ? 'bg-white/95 shadow-[0_10px_30px_rgba(0,0,0,0.18)] focus-within:bg-white focus-within:shadow-[0_12px_40px_rgba(0,0,0,0.22)]'
+              : 'bg-white border border-gray-200 shadow-[0_10px_30px_rgba(0,0,0,0.06)] focus-within:border-blue-400 focus-within:shadow-[0_12px_40px_rgba(96,165,250,0.18)]'
           }`}
         >
-          <Search
-            className={`absolute left-5 h-6 w-6 transition-colors duration-300 ${
-              theme === 'dark' ? 'text-blue-100/70' : 'text-gray-400'
-            }`}
-          />
           <input
             type="text"
             value={searchTerm}
             onChange={onChange}
-            placeholder="Find your online identity (e.g., mysite)"
-            className={`w-full pl-12 sm:pl-14 pr-4 sm:pr-6 bg-transparent border-0 focus:ring-0 focus:outline-none font-medium transition-colors duration-300 ${
-              compact ? 'py-2 sm:py-2.5 text-sm sm:text-base' : 'py-2.5 sm:py-3 text-sm sm:text-lg'
-            } ${
-              theme === 'dark'
-                ? 'text-white placeholder-blue-100/40'
-                : 'text-gray-900 placeholder-gray-400'
+            placeholder="Register a domain name to start"
+            className={`w-full px-4 sm:px-5 bg-transparent border-0 focus:ring-0 focus:outline-none font-medium text-gray-900 placeholder-gray-400 ${
+              compact ? 'py-3 sm:py-3.5 text-sm sm:text-base' : 'py-3.5 sm:py-4 text-sm sm:text-lg'
             }`}
             style={{ fontFamily: 'Roboto, system-ui, sans-serif' }}
             disabled={isSearching}
           />
         </div>
+        {/* Search button — solid blue square attached to the right. On
+            mobile only the icon is shown so the button stays compact. */}
         <button
           type="button"
           onClick={() => onSearch()}
           disabled={isSearching || !searchTerm.trim()}
-          className={`flex-shrink-0 ${
-            compact ? 'px-3 sm:px-5 py-2 sm:py-2.5 text-sm' : 'px-4 sm:px-6 py-2.5 sm:py-3 text-base'
-          } bg-blue-500 hover:bg-blue-400 text-white font-bold rounded-xl transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 shadow-lg hover:shadow-blue-500/30 disabled:opacity-50 active:scale-95`}
+          aria-label="Search domains"
+          className={`flex-shrink-0 bg-blue-500 hover:bg-blue-400 text-white font-bold rounded-xl sm:rounded-2xl transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 shadow-[0_10px_30px_rgba(0,0,0,0.18)] hover:shadow-[0_12px_40px_rgba(59,130,246,0.45)] disabled:opacity-50 active:scale-95 ${
+            compact
+              ? 'w-12 sm:w-auto sm:px-5 py-3 sm:py-3.5 text-sm'
+              : 'w-14 sm:w-auto sm:px-6 py-3.5 sm:py-4 text-base'
+          }`}
         >
           <AnimatePresence mode="wait">
             {isSearching ? (
@@ -99,8 +91,6 @@ export default function SearchInput({
                 className="flex items-center gap-1.5 sm:gap-2"
               >
                 <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" />
-                {/* "Searching..." copy hidden on phones to keep the button
-                    short enough to stay on the same row as the input. */}
                 <span className="hidden sm:inline">Searching...</span>
               </motion.div>
             ) : (
