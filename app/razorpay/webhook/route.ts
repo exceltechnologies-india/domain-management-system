@@ -1,3 +1,4 @@
+import { getUserById } from "@/lib/services/users";
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import connectDB from "@/lib/mongodb";
@@ -102,7 +103,7 @@ async function handlePaymentCaptured(payload: any) {
             // We need User details and Items to create invoice
             // Fetch User
            const User = (await import("@/models/User")).default; // Dynamic import to avoid cycles/init issues
-           const user = await User.findById(order.userId);
+           const user = await getUserById(order.userId);
            if (!user) throw new Error("User not found for order");
 
            // Reconstruct items from Order (since we need to pass them to Zoho)
@@ -189,7 +190,7 @@ async function handleRefundProcessed(payload: any) {
   try {
     const zohoService = ZohoBooksService.getInstance();
     const User = (await import("@/models/User")).default;
-    const user = await User.findById(order.userId);
+    const user = await getUserById(order.userId);
     if (!user) throw new Error("User not found for refunded order");
 
     // Look up the Zoho contact for this user
@@ -214,7 +215,7 @@ async function handleRefundProcessed(payload: any) {
 
 async function provisionServices(order: any) {
     const User = (await import("@/models/User")).default;
-    const user = await User.findById(order.userId);
+    const user = await getUserById(order.userId);
     if (!user) throw new Error("User not found for provisioning");
     
     // Import dynamically to avoid circle if any (though lib should be fine)

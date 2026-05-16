@@ -1,6 +1,7 @@
 import { AUTH_SECRET } from "@/lib/auth-secret";
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
+import { getUserById, getUserByIdSafe } from "@/lib/services/users";
 import User from "@/models/User";
 import { AuthService } from "@/lib/auth";
 import { getToken } from "next-auth/jwt";
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
       
       if (token?.id) {
         // Get user by id from NextAuth token
-        user = await User.findById(token.id).select("-password");
+        user = await getUserByIdSafe(token.id);
         
         if (!user || !user.isActive) {
           return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -68,7 +69,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Find the target user
-    const targetUser = await User.findById(userId);
+    const targetUser = await getUserById(userId);
     if (!targetUser) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }

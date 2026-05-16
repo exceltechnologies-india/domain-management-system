@@ -4,6 +4,7 @@ import { DirectAdminService } from "@/lib/directadmin";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 import { EmailService } from "@/lib/email";
+import { getUserById } from "@/lib/services/users";
 import User from "@/models/User";
 import Hosting from "@/models/Hosting";
 import PendingHosting from "@/models/PendingHosting";
@@ -33,7 +34,7 @@ export async function POST(
     const { userId, domain, package: packageName, daUsername } = pendingEntry;
 
     // 3. Find user
-    const user = await User.findById(userId);
+    const user = await getUserById(userId);
     if (!user) {
       return secureErrorResponse("User associated with this entry not found.", 404, "USER_NOT_FOUND");
     }

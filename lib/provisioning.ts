@@ -1,6 +1,5 @@
 import connectDB from "@/lib/mongodb";
 import Order from "@/models/Order";
-import User from "@/models/User";
 import { ResellerClubAPI } from "@/lib/resellerclub";
 import { DirectAdminService } from "@/lib/directadmin";
 import { EmailService } from "@/lib/email";

@@ -4,7 +4,7 @@ import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import { DomainVerificationService } from "@/lib/domain-verification";
 import { getToken } from "next-auth/jwt";
-import User from "@/models/User";
+import { getUserByIdSafe } from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
 
 // Force dynamic rendering - required for API routes
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       });
       
       if (token?.id) {
-        user = await User.findById(token.id).select("-password");
+        user = await getUserByIdSafe(token.id);
       }
     }
 

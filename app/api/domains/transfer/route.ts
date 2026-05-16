@@ -5,6 +5,7 @@ import { AuthService } from "@/lib/auth";
 import { rateLimiters } from "@/lib/rate-limit";
 import connectDB from "@/lib/mongodb";
 import Domain from "@/models/Domain";
+import { getUserById } from "@/lib/services/users";
 import User from "@/models/User";
 import { serverLogger } from "@/lib/server-logger";
 
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
     await connectDB();
 
     // Find user details to ensure we have a customer in ResellerClub
-    const dbUser = await User.findById(user._id);
+    const dbUser = await getUserById(String(user._id));
     if (!dbUser) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }

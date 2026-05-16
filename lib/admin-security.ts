@@ -8,6 +8,7 @@ import { NextRequest } from "next/server";
 import { serverLogger } from "@/lib/server-logger";
 import { getToken } from "next-auth/jwt";
 import connectDB from "@/lib/mongodb";
+import { getUserByIdSafe } from "@/lib/services/users";
 import User from "@/models/User";
 import bcrypt from "bcryptjs";
 import Settings from "@/models/Settings";
@@ -55,7 +56,7 @@ export async function verifyAdminSecurity(
 
     // 3. Verify user exists and is active
     await connectDB();
-    const user = await User.findById(token.id).select("-password");
+    const user = await getUserByIdSafe(token.id);
 
     if (!user) {
       return {

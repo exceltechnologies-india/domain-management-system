@@ -4,6 +4,7 @@ import { AuthService } from "@/lib/auth";
 import { getToken } from "next-auth/jwt";
 import connectDB from "@/lib/mongodb";
 import IPCheck from "@/models/IPCheck";
+import { getUserByIdSafe } from "@/lib/services/users";
 import User from "@/models/User";
 import { serverLogger } from "@/lib/server-logger";
 
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
 
       if (token?.id) {
         // Get user by id from NextAuth token
-        user = await User.findById(token.id).select("-password");
+        user = await getUserByIdSafe(token.id);
 
         if (!user || !user.isActive) {
           return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

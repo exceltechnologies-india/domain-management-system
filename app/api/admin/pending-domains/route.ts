@@ -5,7 +5,7 @@ import connectDB from "@/lib/mongodb";
 import PendingDomain from "@/models/PendingDomain";
 import { getPendingDomainByName } from "@/lib/services/pending-domains";
 import Order from "@/models/Order";
-import User from "@/models/User";
+import { getUserByIdSafe } from "@/lib/services/users";
 import { getToken } from "next-auth/jwt";
 import { serverLogger } from "@/lib/server-logger";
 
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
       
       if (token?.id) {
         // Get user by id from NextAuth token
-        user = await User.findById(token.id).select("-password");
+        user = await getUserByIdSafe(token.id);
         
         if (!user || !user.isActive) {
           return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -227,7 +227,7 @@ export async function POST(request: NextRequest) {
       
       if (token?.id) {
         // Get user by id from NextAuth token
-        user = await User.findById(token.id).select("-password");
+        user = await getUserByIdSafe(token.id);
         
         if (!user || !user.isActive) {
           return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

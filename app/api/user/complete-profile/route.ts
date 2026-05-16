@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
 import { AuthService } from "@/lib/auth";
 import { serverLogger } from "@/lib/server-logger";
 

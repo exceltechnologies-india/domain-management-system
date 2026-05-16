@@ -4,7 +4,7 @@ import { serverLogger } from "@/lib/server-logger";
 import type { IOrder } from "@/models/Order";
 import type { IUser } from "@/models/User";
 import type { CartItem, RazorpayPaymentDetails, ZohoInvoice } from "@/lib/types";
-import type { OrderDomain } from "@/lib/payment-services/provisioner";
+import type { OrderDomain } from "@/lib/services/payment/provisioner";
 import {
   claimOrderForZohoInvoice,
   recordZohoInvoiceForOrder,

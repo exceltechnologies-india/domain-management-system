@@ -3,21 +3,21 @@ import { serverLogger } from "@/lib/server-logger";
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import Order from "@/models/Order";
-import { handleRenewalPayment } from "@/lib/payment-services/renewal";
-import { handleAlreadyProcessedPayment } from "@/lib/payment-services/idempotency";
+import { handleRenewalPayment } from "@/lib/services/payment/renewal";
+import { handleAlreadyProcessedPayment } from "@/lib/services/payment/idempotency";
 import {
   createZohoInvoice,
   runPostPaymentTasks,
-} from "@/lib/payment-services/post-tasks";
+} from "@/lib/services/payment/post-tasks";
 import {
   verifyRazorpayPayment,
   validateOrderAmountMatchesRazorpay,
-} from "@/lib/payment-services/verification";
+} from "@/lib/services/payment/verification";
 import {
   validateNoRestrictedDomains,
   createCompletedOrder,
-} from "@/lib/payment-services/order-creator";
-import { handleVerificationError } from "@/lib/payment-services/verification-error";
+} from "@/lib/services/payment/order-creator";
+import { handleVerificationError } from "@/lib/services/payment/verification-error";
 import { withRequestLogContext } from "@/lib/request-context";
 import type { IUser } from "@/models/User";
 import type { CartItem } from "@/lib/types";
@@ -126,7 +126,7 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
     // 5) Hosting upgrade flow (detected via DB orderType)
     if (existingOrder?.orderType === "hosting_upgrade") {
       const { handleUpgradePayment } = await import(
-        "@/lib/payment-services/upgrade"
+        "@/lib/services/payment/upgrade"
       );
       return await handleUpgradePayment(
         razorpay_order_id!,

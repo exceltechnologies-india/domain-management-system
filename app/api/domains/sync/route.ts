@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
+import { getUserById } from "@/lib/services/users";
 import User from "@/models/User";
 import Order from "@/models/Order";
 import { ResellerClubAPI } from "@/lib/resellerclub";
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
     await connectDB();
 
     // Get user from database
-    const dbUser = await User.findById(user._id);
+    const dbUser = await getUserById(String(user._id));
     if (!dbUser) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }

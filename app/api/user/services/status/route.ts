@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
+import { getUserByIdSafe } from "@/lib/services/users";
 import Order from "@/models/Order";
 import { AuthService } from "@/lib/auth";
 import { getToken } from "next-auth/jwt";
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       });
       
       if (token?.id) {
-        user = await User.findById(token.id).select("-password");
+        user = await getUserByIdSafe(token.id);
         
         if (!user || !user.isActive) {
           serverLogger.warn(`[ServiceStatusAPI] User invalid: ${token.id}`);

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { getToken } from "next-auth/jwt";
 import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
+import { getUserByIdSafe } from "@/lib/services/users";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
 
       if (token?.id) {
         // Get user by id from NextAuth token
-        user = await User.findById(token.id).select("-password");
+        user = await getUserByIdSafe(token.id);
 
         if (!user || !user.isActive) {
           return secureErrorResponse("Not authenticated", 401, "UNAUTHORIZED");

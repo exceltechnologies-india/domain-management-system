@@ -4,6 +4,7 @@ import { serverLogger } from "@/lib/server-logger";
 import connectDB from "@/lib/mongodb";
 import crypto from "crypto";
 import Hosting from "@/models/Hosting";
+import { getUserById } from "@/lib/services/users";
 import User from "@/models/User";
 import Order from "@/models/Order";
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
         // The invoice will be created (and immediately marked paid) only after
         // the user completes the renewal payment. This avoids a "due invoice"
         // appearing in Zoho Books before the user has paid anything.
-        const user = await User.findById(hosting.userId);
+        const user = await getUserById(hosting.userId);
         
         if (user) {
             let renewalPrice = 0;

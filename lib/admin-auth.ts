@@ -2,6 +2,7 @@ import { AUTH_SECRET } from "@/lib/auth-secret";
 import { serverLogger } from "@/lib/server-logger";
 import { NextRequest } from "next/server";
 import connectDB from "@/lib/mongodb";
+import { getUserById } from "@/lib/services/users";
 import User from "@/models/User";
 import jwt from "jsonwebtoken";
 import { logAdminAction } from "@/lib/audit-log";
@@ -44,7 +45,7 @@ export async function verifyAdminAuth(
 
     // Connect to database and verify user exists
     await connectDB();
-    const user = await User.findById(decoded.userId);
+    const user = await getUserById(decoded.userId);
 
     if (!user) {
       return {
@@ -134,7 +135,7 @@ export async function verifyUserAuth(
     }
 
     await connectDB();
-    const user = await User.findById(decoded.userId);
+    const user = await getUserById(decoded.userId);
 
     if (!user) {
       return {

@@ -8,6 +8,7 @@
  * callers don't double-create.
  */
 
+import { getUserById } from "@/lib/services/users";
 import User from "@/models/User";
 import { ZohoBooksService } from "@/lib/zohobooks";
 import { serverLogger } from "@/lib/server-logger";
@@ -58,7 +59,7 @@ async function retryOne(
     return { ok: false, orderId: order.orderId, skipped: "already_done" };
   }
 
-  const user = await User.findById(order.userId);
+  const user = await getUserById(order.userId);
   if (!user) {
     serverLogger.warn(`[ZohoRetry] User not found for order ${order.orderId}`);
     await markZohoInvoiceCreationFailed(order._id);
