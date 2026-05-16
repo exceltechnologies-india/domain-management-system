@@ -5,7 +5,7 @@ import { getToken } from "next-auth/jwt";
 import { tldPricingCache } from "@/lib/tld-pricing-cache";
 import Settings from "@/models/Settings";
 import { connectToDatabase } from "@/lib/mongoose";
-import User from "@/models/User";
+import { getUserByIdSafe } from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
 
 // Force dynamic rendering - required for API routes
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 
       if (token?.id) {
         // Get user by id from NextAuth token
-        user = await User.findById(token.id).select("-password");
+        user = await getUserByIdSafe(token.id);
 
         if (!user || !user.isActive) {
           return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -83,7 +83,7 @@ export async function DELETE(request: NextRequest) {
 
       if (token?.id) {
         // Get user by id from NextAuth token
-        user = await User.findById(token.id).select("-password");
+        user = await getUserByIdSafe(token.id);
 
         if (!user || !user.isActive) {
           return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -136,7 +136,7 @@ export async function PUT(request: NextRequest) {
 
       if (token?.id) {
         // Get user by id from NextAuth token
-        user = await User.findById(token.id).select("-password");
+        user = await getUserByIdSafe(token.id);
 
         if (!user || !user.isActive) {
           return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

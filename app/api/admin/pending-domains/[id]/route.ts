@@ -7,7 +7,7 @@ import connectDB from "@/lib/mongodb";
 import PendingDomain from "@/models/PendingDomain";
 import { getPendingDomainById } from "@/lib/services/pending-domains";
 import Order from "@/models/Order";
-import User from "@/models/User";
+import { getUserByIdSafe } from "@/lib/services/users";
 import Domain from "@/models/Domain";
 import { getToken } from "next-auth/jwt";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
@@ -35,7 +35,7 @@ export async function GET(
       
       if (token?.id) {
         // Get user by id from NextAuth token
-        user = await User.findById(token.id).select("-password");
+        user = await getUserByIdSafe(token.id);
         
         if (!user || !user.isActive) {
           return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -90,7 +90,7 @@ export async function PUT(
       
       if (token?.id) {
         // Get user by id from NextAuth token
-        user = await User.findById(token.id).select("-password");
+        user = await getUserByIdSafe(token.id);
         
         if (!user || !user.isActive) {
           return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -218,7 +218,7 @@ export async function DELETE(
 
       if (token?.id) {
         // Get user by id from NextAuth token
-        user = await User.findById(token.id).select("-password");
+        user = await getUserByIdSafe(token.id);
 
         if (!user || !user.isActive) {
           serverLogger.warn(`[${reqId}] User not found or inactive`);

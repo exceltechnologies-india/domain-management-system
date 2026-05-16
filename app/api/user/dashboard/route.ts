@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
+import { getUserByIdSafe } from "@/lib/services/users";
 import Order from "@/models/Order";
 import { listDomainsForUser } from "@/lib/services/domains";
 import { listActivePendingDomainsForUser } from "@/lib/services/pending-domains";
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
       
       if (token?.id) {
         // Get user by id from NextAuth token
-        user = await User.findById(token.id).select("-password");
+        user = await getUserByIdSafe(token.id);
         
         if (!user || !user.isActive) {
           serverLogger.warn(`[DashboardAPI] User found in token but invalid in DB. ID: ${token.id}`);

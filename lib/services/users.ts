@@ -6,9 +6,9 @@
  * select/projection patterns (e.g. always strip `-password` for non-auth
  * reads), and surface domain-meaningful use cases instead of raw CRUD.
  *
- * This is the first concrete step toward HIGH-4. The pattern is modelled on
- * lib/payment-services/ — domain-specific use-case functions rather than a
- * generic repository abstraction.
+ * This was the first concrete step toward HIGH-4. The pattern is modelled on
+ * lib/services/payment/ (formerly lib/payment-services/) — domain-specific
+ * use-case functions rather than a generic repository abstraction.
  */
 
 import connectDB from "@/lib/mongodb";

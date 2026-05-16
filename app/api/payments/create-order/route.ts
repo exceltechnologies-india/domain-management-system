@@ -3,7 +3,7 @@ import { AuthService } from "@/lib/auth";
 import { RazorpayService } from "@/lib/razorpay";
 import { serverLogger } from "@/lib/server-logger";
 import { validateDomainPeriod } from "@/lib/tld-policies";
-import { verifyDomainPrices } from "@/lib/payment-services/price-verifier";
+import { verifyDomainPrices } from "@/lib/services/payment/price-verifier";
 import {
   evaluateTrialAbuse,
   getClientIp,

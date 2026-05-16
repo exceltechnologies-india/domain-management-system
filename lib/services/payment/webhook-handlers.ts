@@ -1,5 +1,5 @@
 import Order from "@/models/Order";
-import User from "@/models/User";
+import { getUserById } from "@/lib/services/users";
 import Hosting from "@/models/Hosting";
 import { getPlanByRazorpaySubscriptionPlanId } from "@/lib/services/hosting-plans";
 import { findUserHosting, getHostingById } from "@/lib/services/hostings";
@@ -126,7 +126,7 @@ export async function handleSubscriptionCharged(payload: any) {
   // ── Step 5: Load service and user ─────────────────────────────────────────
   const [hosting, user] = await Promise.all([
     getHostingById(String(renewal.serviceId)),
-    User.findById(userId),
+    getUserById(userId),
   ]);
 
   if (!hosting || !user) {

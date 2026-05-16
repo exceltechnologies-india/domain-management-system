@@ -5,6 +5,7 @@ import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrap
 import { serverLogger } from "@/lib/server-logger";
 import { EmailService } from "@/lib/email";
 import { ZohoBooksService } from "@/lib/zohobooks";
+import { getUserById } from "@/lib/services/users";
 import User from "@/models/User";
 import PendingHosting from "@/models/PendingHosting";
 import Hosting from "@/models/Hosting";
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
     await connectDB();
     
     // 3. Find user
-    const user = await User.findById(userId);
+    const user = await getUserById(userId);
     if (!user) {
       return secureErrorResponse("User not found.", 404, "USER_NOT_FOUND");
     }

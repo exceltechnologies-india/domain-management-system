@@ -8,7 +8,7 @@ import {
 } from "@/lib/guest-token";
 import { InputValidator } from "@/lib/validation";
 import { validateDomainPeriod } from "@/lib/tld-policies";
-import { verifyDomainPrices } from "@/lib/payment-services/price-verifier";
+import { verifyDomainPrices } from "@/lib/services/payment/price-verifier";
 import { isDisposableEmail } from "@/lib/disposable-emails";
 import { getClientIp, hashIp } from "@/lib/trial-abuse";
 

@@ -4,7 +4,7 @@ import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import PendingDomain from "@/models/PendingDomain";
 import Order from "@/models/Order";
-import User from "@/models/User";
+import { getUserById, getUserByIdSafe } from "@/lib/services/users";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import { DomainVerificationService } from "@/lib/domain-verification";
 import { EmailService } from "@/lib/email";
@@ -32,7 +32,7 @@ export async function POST(
         secret: AUTH_SECRET,
       });
       if (token?.id) {
-        user = await User.findById(token.id).select("-password");
+        user = await getUserByIdSafe(token.id);
       }
     }
 
@@ -132,7 +132,7 @@ export async function POST(
         // --- ZOHO BOOKS SYNC ---
         try {
           const syncOrder = await Order.findOne({ orderId: pendingDomain.orderId });
-          const syncUser = await User.findById(pendingDomain.userId);
+          const syncUser = await getUserById(pendingDomain.userId);
 
           if (syncUser && syncOrder && (!syncOrder.zohoInvoiceId || syncOrder.zohoInvoiceId === 'pending_creation')) {
             const zohoService = ZohoBooksService.getInstance();

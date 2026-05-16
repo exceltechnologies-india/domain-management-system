@@ -4,7 +4,7 @@ import { serverLogger } from "@/lib/server-logger";
 import { ZohoBooksService } from "@/lib/zohobooks";
 import connectDB from "@/lib/mongodb";
 import Order from "@/models/Order";
-import User from "@/models/User";
+import { getUserById } from "@/lib/services/users";
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
@@ -39,7 +39,7 @@ export async function POST(
     serverLogger.info(`📂 [ADMIN] Manual re-sync triggered for order ${order.orderId} by admin ${adminUser.email}`);
 
     // Find the associated user
-    const user = await User.findById(order.userId);
+    const user = await getUserById(order.userId);
     if (!user) {
         return NextResponse.json({ error: "Associated user not found" }, { status: 404 });
     }

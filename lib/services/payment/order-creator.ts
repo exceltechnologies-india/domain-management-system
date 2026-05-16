@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import Order from "@/models/Order";
 import Payment from "@/models/Payment";
 import { serverLogger } from "@/lib/server-logger";
-import { provisionCartItems } from "@/lib/payment-services/provisioner";
+import { provisionCartItems } from "@/lib/services/payment/provisioner";
 import {
   isDomainSupported,
   requiresAdditionalDetails,

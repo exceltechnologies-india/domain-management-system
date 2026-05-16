@@ -4,7 +4,7 @@ import { AuthService } from "@/lib/auth";
 import { getToken } from "next-auth/jwt";
 import connectDB from "@/lib/mongodb";
 import Order from "@/models/Order";
-import User from "@/models/User";
+import { getUserByIdSafe } from "@/lib/services/users";
 import { ZohoBooksService } from "@/lib/zohobooks";
 import { formatIndianDate } from "@/lib/dateUtils";
 import jsPDF from "jspdf";
@@ -35,7 +35,7 @@ export async function GET(
 
       if (token?.id) {
         // Get user by id from NextAuth token
-        user = await User.findById(token.id).select("-password");
+        user = await getUserByIdSafe(token.id);
 
         if (!user || (!user.isActive && user.role !== "admin")) {
           return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

@@ -6,6 +6,7 @@ import {
 import { serverLogger } from "@/lib/server-logger";
 import connectDB from "@/lib/mongodb";
 import Order from "@/models/Order";
+import { getUserById } from "@/lib/services/users";
 import User from "@/models/User";
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import { ZohoBooksService } from "@/lib/zohobooks";
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Load user
-    const user = await User.findById(userId);
+    const user = await getUserById(userId);
     if (!user) {
       // Cleanup claim and let Cloud Tasks retry
       await Order.updateOne(

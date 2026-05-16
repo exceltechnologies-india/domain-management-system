@@ -7,7 +7,7 @@ import { redis } from "@/lib/redis";
 import {
   handleSubscriptionCharged,
   handleSubscriptionFailed,
-} from "@/lib/payment-services/webhook-handlers";
+} from "@/lib/services/payment/webhook-handlers";
 
 // Maximum age of a webhook event we will process (24 h covers all Razorpay retry attempts)
 const WEBHOOK_MAX_AGE_MS = 24 * 60 * 60 * 1000;

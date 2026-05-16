@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import PendingDomain from "@/models/PendingDomain";
-import User from "@/models/User";
+import { getUserByIdSafe } from "@/lib/services/users";
 import { DomainVerificationService } from "@/lib/domain-verification";
 import { getToken } from "next-auth/jwt";
 import { serverLogger } from "@/lib/server-logger";
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       
       if (token?.id) {
         // Get user by id from NextAuth token
-        user = await User.findById(token.id).select("-password");
+        user = await getUserByIdSafe(token.id);
         
         if (!user || !user.isActive) {
           return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

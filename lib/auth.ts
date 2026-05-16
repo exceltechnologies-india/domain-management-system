@@ -1,3 +1,4 @@
+import { getUserById } from "@/lib/services/users";
 import { AUTH_SECRET } from "@/lib/auth-secret";
 import { serverLogger } from "@/lib/server-logger";
 import jwt from "jsonwebtoken";
@@ -158,7 +159,7 @@ export class AuthService {
         const payload = this.verifyToken(token);
         if (payload) {
           await connectDB();
-          const userFromJwt = await User.findById(payload.userId);
+          const userFromJwt = await getUserById(payload.userId);
           if (userFromJwt && userFromJwt.isActive) {
             // Check if session was invalidated (user was disabled)
             const tokenIssuedAt = payload.iat && typeof payload.iat === 'number' ? payload.iat * 1000 : Date.now(); // Convert to milliseconds
@@ -175,7 +176,7 @@ export class AuthService {
       const jwtToken = await getToken({ req: request, secret: AUTH_SECRET }).catch(() => null);
       if (jwtToken?.id) {
         await connectDB();
-        const userFromJwtToken = await User.findById(jwtToken.id as string);
+        const userFromJwtToken = await getUserById(jwtToken.id as string);
         if (userFromJwtToken && userFromJwtToken.isActive) {
           if (userFromJwtToken.sessionInvalidatedAt) {
             serverLogger.warn('[AuthService] Session invalidated for user:', userFromJwtToken.email);

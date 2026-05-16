@@ -246,7 +246,7 @@ Top hotspots: `app/admin/settings/page.tsx` (22), `app/admin/system-settings/pag
 
 ---
 
-### ~~[HIGH-4] No service / repository layer~~ — PARTIALLY RESOLVED 2026-05-14 (foundation + User + Order + Hosting + Zoho-invoice lease + HostingPlan + PendingDomain + Domain + SupportTicket + DomainWatch done)
+### ~~[HIGH-4] No service / repository layer~~ — PARTIALLY RESOLVED 2026-05-14 (foundation + 9 model services + User wider adoption + admin CRUD tightening + lib/payment-services folded into lib/services/payment)
 **Footprint measured:** 107 route files, ~269 distinct Mongoose-model operations across the codebase. Top models by op count: User (93), Order (67), Hosting (28), HostingPlan (25), PendingDomain (16), Domain (12), SupportTicket (11), PendingHosting (8), DomainWatch (7).
 
 **Foundation laid for the rest:** Added [lib/services/](lib/services/) (parallel to the existing [lib/payment-services/](lib/payment-services/)). The pattern mirrors the audit's referenced "half-formed" pattern — domain-specific use-case functions, not a generic repository abstraction.
@@ -305,6 +305,14 @@ The user-permanent-deletion "snapshot orders before deletion" logic — previous
 **Sites migrated:** [app/api/user/domains/watch/route.ts](app/api/user/domains/watch/route.ts) (full rewrite — every method's direct DomainWatch call replaced), [app/api/workers/check-domain-watch/route.ts](app/api/workers/check-domain-watch/route.ts) (3 of 3 sites). Zero remaining `DomainWatch.X(...)` calls outside the model file itself.
 
 **Verified on main 2026-05-16:** 340/340 tests, lint clean, tsc clean, production build succeeded.
+
+**User-model wider adoption 2026-05-17:** Migrated the dominant `User.findById(token.id).select("-password")` pattern across 24 sites (admin/user routes that resolve a NextAuth token to a user — admin/pending-domains, admin/tld-pricing/cache, admin/settings, admin/invoices, user/dashboard, user/domains, auth/me, etc.) to `getUserByIdSafe`. A second pass replaced plain `User.findById(X)` (no chained method) with `getUserById(X)` across ~12 sites in workers, webhooks, and lib/admin-auth. ~20 files lost their now-unused `import User from "@/models/User"`. Total `User.X(...)` calls outside the service dropped from 103 → 73. Remaining callers are auth-internal (`lib/auth*.ts`, `lib/session-activity.ts`, `lib/auth-config/*`) where the password hash is intentionally needed, and a handful of `User.findOne({ email })` / `User.updateOne(...)` sites that need bespoke service helpers — kept as raw access until the surrounding code is next touched.
+
+**HostingPlan admin CRUD tightening 2026-05-17:** Added `getPlanByPlanIdLean`, `setPlanActive(planId, isActive)`, and `upsertPlanByPlanId(planId, data)` to [lib/services/hosting-plans.ts](lib/services/hosting-plans.ts). The test-plan toggle route ([app/api/admin/hosting/test-plan/route.ts](app/api/admin/hosting/test-plan/route.ts)) — previously a mix of inline `findOne().lean()`, `updateOne`, and `findOneAndUpdate({ upsert: true })` calls — now reads as three service calls + Settings/Razorpay orchestration. Admin packages CRUD ([app/api/admin/hosting/packages/route.ts](app/api/admin/hosting/packages/route.ts)) stays direct: its DA-sync logic and partial-update orchestration is intentionally route-specific.
+
+**lib/payment-services/ → lib/services/payment/ 2026-05-17:** Folded the 10-file orchestration directory under `lib/services/` for consistency. Every import path updated via a single perl pass (`@/lib/payment-services/` → `@/lib/services/payment/`). No behavioural change — the move was purely structural.
+
+**Verified on main 2026-05-17:** 340/340 tests, tsc clean, production build succeeded.
 
 **Pending — incremental adoption:**
 1. **User model migration:** 12 done, ~81 sites remaining across `app/api/**` and `lib/**`. The service surface is in place; routes adopt as they're next touched.

@@ -76,3 +76,53 @@ export async function listActivePlans(
   }
   return query;
 }
+
+/**
+ * Lean variant of {@link getPlanByPlanId} — admin GET routes that only
+ * surface the document as JSON (e.g. the test-plan toggle screen) skip
+ * the Mongoose Document hydration cost.
+ */
+export async function getPlanByPlanIdLean(
+  planId: string
+): Promise<any | null> {
+  await connectDB();
+  return HostingPlan.findOne({ planId }).lean();
+}
+
+// ─── Writes (admin) ───────────────────────────────────────────────────────────
+
+/**
+ * Toggle `isActive` on a plan by external planId. Used by the test-plan
+ * enable/disable toggle and the admin packages screen. Returns the
+ * `updateOne` result so callers can detect "no such plan" (matchedCount 0).
+ */
+export async function setPlanActive(
+  planId: string,
+  isActive: boolean
+): Promise<{ matched: number; modified: number }> {
+  await connectDB();
+  const r = await HostingPlan.updateOne({ planId }, { $set: { isActive } });
+  return { matched: r.matchedCount ?? 0, modified: r.modifiedCount ?? 0 };
+}
+
+/**
+ * Create-or-update a plan keyed by external `planId`. Used by:
+ *  - the test-plan toggle (atomically wires up the Razorpay plan id + DA
+ *    package + pricing fields on enable),
+ *  - the admin DA-sync path when a DA-package-named plan needs to be
+ *    backfilled from the registrar side.
+ *
+ * Pass only the fields that should change; the upsert merges via `$set`.
+ * On insert, missing schema-required fields fall back to model defaults.
+ */
+export async function upsertPlanByPlanId(
+  planId: string,
+  data: Record<string, unknown>
+): Promise<IHostingPlan | null> {
+  await connectDB();
+  return HostingPlan.findOneAndUpdate(
+    { planId },
+    { $set: { planId, ...data } },
+    { upsert: true, new: true }
+  );
+}

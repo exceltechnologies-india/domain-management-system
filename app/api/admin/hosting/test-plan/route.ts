@@ -2,9 +2,13 @@ import { NextRequest } from "next/server";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
-import HostingPlan from "@/models/HostingPlan";
 import Settings from "@/models/Settings";
 import { RazorpayService } from "@/lib/razorpay";
+import {
+  getPlanByPlanIdLean,
+  setPlanActive,
+  upsertPlanByPlanId,
+} from "@/lib/services/hosting-plans";
 import { serverLogger } from "@/lib/server-logger";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +29,7 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
-    const plan = await HostingPlan.findOne({ planId: TEST_PLAN_ID }).lean() as any;
+    const plan = await getPlanByPlanIdLean(TEST_PLAN_ID);
     const enabledSetting = await Settings.findOne({ key: "hosting_test_plan_enabled" }).lean() as any;
 
     return secureJsonResponse({
@@ -52,13 +56,8 @@ export async function POST(request: NextRequest) {
       return secureErrorResponse("action must be 'enable' or 'disable'", 400, "VALIDATION_ERROR");
     }
 
-    await connectDB();
-
     if (action === "disable") {
-      await HostingPlan.updateOne(
-        { planId: TEST_PLAN_ID },
-        { $set: { isActive: false } }
-      );
+      await setPlanActive(TEST_PLAN_ID, false);
 
       await Settings.findOneAndUpdate(
         { key: "hosting_test_plan_enabled" },
@@ -83,7 +82,7 @@ export async function POST(request: NextRequest) {
 
     // If no Razorpay plan ID supplied, try to get from DB first, then auto-create
     if (!rzpPlanMonthlyId) {
-      const existing = await HostingPlan.findOne({ planId: TEST_PLAN_ID }).lean() as any;
+      const existing = await getPlanByPlanIdLean(TEST_PLAN_ID);
       rzpPlanMonthlyId = existing?.razorpayPlans?.monthly || "";
     }
 
@@ -108,27 +107,20 @@ export async function POST(request: NextRequest) {
     }
 
     // Upsert the HostingPlan record
-    const plan = await HostingPlan.findOneAndUpdate(
-      { planId: TEST_PLAN_ID },
-      {
-        $set: {
-          planId: TEST_PLAN_ID,
-          name: "₹1 Test Plan",
-          description: "Live payment test — ₹1/month",
-          price: 1,
-          renewalPrice: 1,
-          currency: "INR",
-          features: ["1 Website", "Test Only — Not for Production Use"],
-          directAdminPackage: TEST_PLAN_DA_PACKAGE,
-          quota: 10000,
-          bandwidth: 100000,
-          isActive: true,
-          isTestPlan: true,
-          "razorpayPlans.monthly": rzpPlanMonthlyId,
-        },
-      },
-      { upsert: true, new: true }
-    ).lean() as any;
+    const plan = await upsertPlanByPlanId(TEST_PLAN_ID, {
+      name: "₹1 Test Plan",
+      description: "Live payment test — ₹1/month",
+      price: 1,
+      renewalPrice: 1,
+      currency: "INR",
+      features: ["1 Website", "Test Only — Not for Production Use"],
+      directAdminPackage: TEST_PLAN_DA_PACKAGE,
+      quota: 10000,
+      bandwidth: 100000,
+      isActive: true,
+      isTestPlan: true,
+      "razorpayPlans.monthly": rzpPlanMonthlyId,
+    });
 
     await Settings.findOneAndUpdate(
       { key: "hosting_test_plan_enabled" },
