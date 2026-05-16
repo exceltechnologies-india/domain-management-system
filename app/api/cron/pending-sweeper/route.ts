@@ -5,7 +5,7 @@ import { EmailService } from "@/lib/email";
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import PendingDomain from "@/models/PendingDomain";
-import PendingHosting from "@/models/PendingHosting";
+import { listStuckPendingHostings } from "@/lib/services/pending-hostings";
 import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
@@ -83,12 +83,7 @@ export async function GET(request: NextRequest) {
       .lean();
 
     // PendingHosting: no isArchived flag. Status field is "pending" or "failed".
-    const stuckPendingHostings = await PendingHosting.find({
-      status: { $in: ["pending", "failed"] },
-      createdAt: { $lt: warnCutoff },
-    })
-      .select("domain status createdAt error userId")
-      .lean();
+    const stuckPendingHostings = await listStuckPendingHostings(warnCutoff);
 
     const summaries: StuckSummary[] = [];
 

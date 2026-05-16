@@ -140,8 +140,8 @@ export class RecaptchaServer {
    */
   static async isCaptchaEnabled(): Promise<boolean> {
     try {
-      const { SettingsService } = await import("@/lib/settings-service");
-      const value = await SettingsService.getSetting("captcha_enabled", true);
+      const { getSettingValue } = await import("@/lib/services/settings");
+      const value = await getSettingValue<unknown>("captcha_enabled", true);
       return value === true || value === "true";
     } catch {
       return true;

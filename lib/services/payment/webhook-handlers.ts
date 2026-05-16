@@ -3,7 +3,13 @@ import { getUserById } from "@/lib/services/users";
 import Hosting from "@/models/Hosting";
 import { getPlanByRazorpaySubscriptionPlanId } from "@/lib/services/hosting-plans";
 import { findUserHosting, getHostingById } from "@/lib/services/hostings";
-import RenewalPayment from "@/models/RenewalPayment";
+import {
+  attachOrderToRenewal,
+  claimRenewalPayment,
+  getRenewalByProviderPaymentId,
+  recordRenewalPayment,
+  releaseRenewalClaim,
+} from "@/lib/services/renewal-payments";
 import { serverLogger } from "@/lib/server-logger";
 import { EmailService } from "@/lib/email";
 import { createHttpTask } from "@/lib/cloud-tasks";
@@ -62,15 +68,13 @@ export async function handleSubscriptionCharged(payload: any) {
       return;
     }
 
-    await RenewalPayment.create({
+    await recordRenewalPayment({
       serviceId: hosting._id,
       serviceType: "hosting",
       providerPaymentId: razorpayPaymentId,
       subscriptionId: subscription.id,
       amount: payment.amount / 100, // Convert paise → INR
       currency: payment.currency,
-      status: "success",
-      processed: false,
       renewalDurationMonths,
     });
 
@@ -92,9 +96,7 @@ export async function handleSubscriptionCharged(payload: any) {
   }
 
   // ── Step 3: Idempotency check ──────────────────────────────────────────────
-  const renewal = await RenewalPayment.findOne({
-    providerPaymentId: razorpayPaymentId,
-  });
+  const renewal = await getRenewalByProviderPaymentId(razorpayPaymentId);
 
   if (!renewal) {
     serverLogger.error(`[Webhook] RenewalPayment not found after insert for ${razorpayPaymentId}`);
@@ -110,11 +112,7 @@ export async function handleSubscriptionCharged(payload: any) {
 
   // ── Step 4: Atomic claim ───────────────────────────────────────────────────
   // Only one worker (even across retries) will successfully set processed=true
-  const claimed = await RenewalPayment.findOneAndUpdate(
-    { providerPaymentId: razorpayPaymentId, processed: false },
-    { $set: { processed: true, processedAt: new Date() } },
-    { new: true }
-  );
+  const claimed = await claimRenewalPayment(razorpayPaymentId);
 
   if (!claimed) {
     serverLogger.info(
@@ -134,10 +132,7 @@ export async function handleSubscriptionCharged(payload: any) {
       `[Webhook] Hosting or user not found after claim — paymentId=${razorpayPaymentId}`
     );
     // Rollback claim so it can be retried
-    await RenewalPayment.updateOne(
-      { providerPaymentId: razorpayPaymentId },
-      { $set: { processed: false }, $unset: { processedAt: "" } }
-    );
+    await releaseRenewalClaim(razorpayPaymentId);
     return;
   }
 
@@ -263,10 +258,7 @@ export async function handleSubscriptionCharged(payload: any) {
     await newOrder.save();
 
     // Link orderId back to the RenewalPayment record for cross-referencing
-    await RenewalPayment.updateOne(
-      { providerPaymentId: razorpayPaymentId },
-      { $set: { orderId: newOrder._id.toString() } }
-    );
+    await attachOrderToRenewal(razorpayPaymentId, newOrder._id.toString());
   } catch (orderErr: any) {
     // Order creation failure is non-critical — service is already renewed
     serverLogger.error(`[Webhook] Failed to create Order record: ${orderErr.message}`);

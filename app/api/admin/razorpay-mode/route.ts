@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { getToken } from "next-auth/jwt";
 import { AUTH_SECRET } from "@/lib/auth-secret";
-import Settings from "@/models/Settings";
+import { getSettingsMap, upsertSetting } from "@/lib/services/settings";
 import { getUserByIdSafe } from "@/lib/services/users";
 import { connectToDatabase } from "@/lib/mongoose";
 import { serverLogger } from "@/lib/server-logger";
@@ -83,19 +83,21 @@ export async function GET(request: NextRequest) {
     const currentKeyId = env["RAZORPAY_KEY_ID"] || process.env.RAZORPAY_KEY_ID || "";
     const mode = currentKeyId.startsWith("rzp_live_") ? "live" : "test";
 
-    const [testKeyIdSetting, liveKeyIdSetting] = await Promise.all([
-      Settings.findOne({ key: "razorpay_test_key_id" }),
-      Settings.findOne({ key: "razorpay_live_key_id" }),
+    const keys = await getSettingsMap([
+      "razorpay_test_key_id",
+      "razorpay_test_key_secret",
+      "razorpay_live_key_id",
+      "razorpay_live_key_secret",
     ]);
 
     return NextResponse.json({
       success: true,
       mode,
       currentKeyId,
-      hasTestKeys: !!(testKeyIdSetting?.value && (await Settings.findOne({ key: "razorpay_test_key_secret" }))?.value),
-      hasLiveKeys: !!(liveKeyIdSetting?.value && (await Settings.findOne({ key: "razorpay_live_key_secret" }))?.value),
-      testKeyId: testKeyIdSetting?.value || "",
-      liveKeyId: liveKeyIdSetting?.value || "",
+      hasTestKeys: !!(keys.razorpay_test_key_id && keys.razorpay_test_key_secret),
+      hasLiveKeys: !!(keys.razorpay_live_key_id && keys.razorpay_live_key_secret),
+      testKeyId: keys.razorpay_test_key_id || "",
+      liveKeyId: keys.razorpay_live_key_id || "",
     });
   } catch (error) {
     serverLogger.error("razorpay-mode GET error", { error });
@@ -115,41 +117,22 @@ export async function POST(request: NextRequest) {
 
     if (action === "save_keys") {
       // Persist keys to Settings (secrets stored encrypted-at-rest via MongoDB)
-      const updates = [];
+      const updates: Promise<void>[] = [];
+      const opts = { category: "payment", updatedBy: String(user._id) };
       if (testKeyId !== undefined) {
-        updates.push(Settings.findOneAndUpdate(
-          { key: "razorpay_test_key_id" },
-          { key: "razorpay_test_key_id", value: testKeyId, category: "payment", description: "Razorpay test mode key ID" },
-          { upsert: true, new: true }
-        ));
+        updates.push(upsertSetting("razorpay_test_key_id", testKeyId, { ...opts, description: "Razorpay test mode key ID" }));
       }
       if (testKeySecret !== undefined) {
-        updates.push(Settings.findOneAndUpdate(
-          { key: "razorpay_test_key_secret" },
-          { key: "razorpay_test_key_secret", value: testKeySecret, category: "payment", description: "Razorpay test mode key secret" },
-          { upsert: true, new: true }
-        ));
+        updates.push(upsertSetting("razorpay_test_key_secret", testKeySecret, { ...opts, description: "Razorpay test mode key secret" }));
       }
       if (liveKeyId !== undefined) {
-        updates.push(Settings.findOneAndUpdate(
-          { key: "razorpay_live_key_id" },
-          { key: "razorpay_live_key_id", value: liveKeyId, category: "payment", description: "Razorpay live mode key ID" },
-          { upsert: true, new: true }
-        ));
+        updates.push(upsertSetting("razorpay_live_key_id", liveKeyId, { ...opts, description: "Razorpay live mode key ID" }));
       }
       if (liveKeySecret !== undefined) {
-        updates.push(Settings.findOneAndUpdate(
-          { key: "razorpay_live_key_secret" },
-          { key: "razorpay_live_key_secret", value: liveKeySecret, category: "payment", description: "Razorpay live mode key secret" },
-          { upsert: true, new: true }
-        ));
+        updates.push(upsertSetting("razorpay_live_key_secret", liveKeySecret, { ...opts, description: "Razorpay live mode key secret" }));
       }
       if (webhookSecret !== undefined) {
-        updates.push(Settings.findOneAndUpdate(
-          { key: "razorpay_webhook_secret" },
-          { key: "razorpay_webhook_secret", value: webhookSecret, category: "payment", description: "Razorpay webhook secret (shared between test and live)" },
-          { upsert: true, new: true }
-        ));
+        updates.push(upsertSetting("razorpay_webhook_secret", webhookSecret, { ...opts, description: "Razorpay webhook secret (shared between test and live)" }));
       }
       await Promise.all(updates);
       serverLogger.info("Razorpay keys saved", { adminId: user._id, savedFields: Object.keys(body).filter(k => k !== 'action') });
@@ -163,12 +146,13 @@ export async function POST(request: NextRequest) {
 
       const keyIdKey = mode === "live" ? "razorpay_live_key_id" : "razorpay_test_key_id";
       const keySecretKey = mode === "live" ? "razorpay_live_key_secret" : "razorpay_test_key_secret";
-      const webhookSecretSetting = await Settings.findOne({ key: "razorpay_webhook_secret" });
 
-      const keyIdSetting = await Settings.findOne({ key: keyIdKey });
-      const keySecretSetting = await Settings.findOne({ key: keySecretKey });
+      const keyMap = await getSettingsMap([keyIdKey, keySecretKey, "razorpay_webhook_secret"]);
+      const storedKeyId = keyMap[keyIdKey] as string | undefined;
+      const storedKeySecret = keyMap[keySecretKey] as string | undefined;
+      const storedWebhookSecret = keyMap.razorpay_webhook_secret as string | undefined;
 
-      if (!keyIdSetting?.value || !keySecretSetting?.value) {
+      if (!storedKeyId || !storedKeySecret) {
         return NextResponse.json(
           { error: `No ${mode} mode keys found. Please save ${mode} keys first.` },
           { status: 400 }
@@ -177,12 +161,12 @@ export async function POST(request: NextRequest) {
 
       // Update .env.local
       const envUpdates: Record<string, string> = {
-        RAZORPAY_KEY_ID: keyIdSetting.value,
-        RAZORPAY_KEY_SECRET: keySecretSetting.value,
-        NEXT_PUBLIC_RAZORPAY_KEY_ID: keyIdSetting.value,
+        RAZORPAY_KEY_ID: storedKeyId,
+        RAZORPAY_KEY_SECRET: storedKeySecret,
+        NEXT_PUBLIC_RAZORPAY_KEY_ID: storedKeyId,
       };
-      if (webhookSecretSetting?.value) {
-        envUpdates.RAZORPAY_WEBHOOK_SECRET = webhookSecretSetting.value;
+      if (storedWebhookSecret) {
+        envUpdates.RAZORPAY_WEBHOOK_SECRET = storedWebhookSecret;
       }
       writeEnvFile(envUpdates);
 

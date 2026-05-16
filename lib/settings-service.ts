@@ -1,90 +1,59 @@
-import Settings from "@/models/Settings";
-import { connectToDatabase } from "@/lib/mongoose";
-import { serverLogger } from "@/lib/server-logger";
+/**
+ * @deprecated Class-style shim that delegates to `lib/services/settings.ts`.
+ *
+ * Kept only so the few remaining `SettingsService.getSetting(...)` call sites
+ * keep compiling. New code should import the functional API directly:
+ *   import { getSettingValue, upsertSetting } from "@/lib/services/settings";
+ */
+
+import {
+  getSettingValue,
+  listSettings,
+  upsertSetting,
+} from "./services/settings";
+import { serverLogger } from "./server-logger";
 
 export class SettingsService {
-  // Caching removed - always fetch fresh data
-
-  /**
-   * Get a setting value
-   */
-  static async getSetting(key: string, defaultValue: any = null): Promise<any> {
-    try {
-      // Fetch from database directly (no caching)
-      await connectToDatabase();
-      const setting = await Settings.findOne({ key });
-      const value = setting ? setting.value : defaultValue;
-
-      return value;
-    } catch (error) {
-      serverLogger.error(`Error fetching setting ${key}:`, error);
-      return defaultValue;
-    }
+  static async getSetting<T = unknown>(
+    key: string,
+    defaultValue: T | null = null
+  ): Promise<T | null> {
+    return getSettingValue<T>(key, defaultValue);
   }
 
-  /**
-   * Set a setting value
-   */
   static async setSetting(
     key: string,
-    value: any,
+    value: unknown,
     description: string = "",
     category: string = "general",
     updatedBy: string = "system"
   ): Promise<void> {
-    try {
-      await connectToDatabase();
-
-      await Settings.findOneAndUpdate(
-        { key },
-        {
-          key,
-          value,
-          description,
-          category,
-          updatedAt: new Date(),
-          updatedBy,
-        },
-        { upsert: true }
-      );
-
-      // No cache to clear
-
-      serverLogger.info(
-        `✅ [SETTINGS] Updated setting ${key} = ${value} by ${updatedBy}`
-      );
-    } catch (error) {
-      serverLogger.error(`Error setting ${key}:`, error);
-      throw error;
-    }
+    return upsertSetting(key, value, { description, category, updatedBy });
   }
 
-  /**
-   * Clear all cached settings (no-op since caching is disabled)
-   */
+  /** No-op since settings reads are uncached. */
   static clearCache(): void {
-    // No caching - nothing to clear
     serverLogger.info(`💰 [SETTINGS] Cache clear requested (no caching enabled)`);
   }
 
-  /**
-   * Get all settings for admin panel
-   */
-  static async getAllSettings(): Promise<any[]> {
-    try {
-      await connectToDatabase();
-      const settings = await Settings.find({}).sort({ category: 1, key: 1 });
-      return settings.map((setting) => ({
-        key: setting.key,
-        value: setting.value,
-        description: setting.description,
-        category: setting.category,
-        updatedAt: setting.updatedAt,
-        updatedBy: setting.updatedBy,
-      }));
-    } catch (error) {
-      serverLogger.error("Error fetching all settings:", error);
-      return [];
-    }
+  static async getAllSettings(): Promise<
+    Array<{
+      key: string;
+      value: unknown;
+      description?: string;
+      category?: string;
+      updatedAt?: Date;
+      updatedBy?: string;
+    }>
+  > {
+    const docs = await listSettings();
+    return docs.map((d) => ({
+      key: d.key,
+      value: d.value,
+      description: d.description,
+      category: d.category,
+      updatedAt: d.updatedAt,
+      updatedBy: d.updatedBy,
+    }));
   }
 }

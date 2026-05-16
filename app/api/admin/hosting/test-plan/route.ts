@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
-import Settings from "@/models/Settings";
+import { getSettingValue, upsertSetting } from "@/lib/services/settings";
 import { RazorpayService } from "@/lib/razorpay";
 import {
   getPlanByPlanIdLean,
@@ -30,10 +30,10 @@ export async function GET(request: NextRequest) {
     await connectDB();
 
     const plan = await getPlanByPlanIdLean(TEST_PLAN_ID);
-    const enabledSetting = await Settings.findOne({ key: "hosting_test_plan_enabled" }).lean() as any;
+    const enabled = await getSettingValue<boolean>("hosting_test_plan_enabled", false);
 
     return secureJsonResponse({
-      enabled: enabledSetting?.value === true,
+      enabled: enabled === true,
       plan: plan ?? null,
     });
   } catch (error) {
@@ -59,19 +59,11 @@ export async function POST(request: NextRequest) {
     if (action === "disable") {
       await setPlanActive(TEST_PLAN_ID, false);
 
-      await Settings.findOneAndUpdate(
-        { key: "hosting_test_plan_enabled" },
-        {
-          $set: {
-            value: false,
-            description: "Show ₹1 test hosting plan on the public hosting page",
-            category: "promotions",
-            updatedAt: new Date(),
-            updatedBy: adminName,
-          },
-        },
-        { upsert: true }
-      );
+      await upsertSetting("hosting_test_plan_enabled", false, {
+        description: "Show ₹1 test hosting plan on the public hosting page",
+        category: "promotions",
+        updatedBy: adminName,
+      });
 
       serverLogger.info(`[TestPlan] Disabled by ${adminName}`);
       return secureJsonResponse({ success: true, enabled: false });
@@ -122,19 +114,11 @@ export async function POST(request: NextRequest) {
       "razorpayPlans.monthly": rzpPlanMonthlyId,
     });
 
-    await Settings.findOneAndUpdate(
-      { key: "hosting_test_plan_enabled" },
-      {
-        $set: {
-          value: true,
-          description: "Show ₹1 test hosting plan on the public hosting page",
-          category: "promotions",
-          updatedAt: new Date(),
-          updatedBy: adminName,
-        },
-      },
-      { upsert: true }
-    );
+    await upsertSetting("hosting_test_plan_enabled", true, {
+      description: "Show ₹1 test hosting plan on the public hosting page",
+      category: "promotions",
+      updatedBy: adminName,
+    });
 
     serverLogger.info(`[TestPlan] Enabled by ${adminName} — Razorpay: ${rzpPlanMonthlyId}`);
 

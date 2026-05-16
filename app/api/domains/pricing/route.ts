@@ -3,7 +3,7 @@ import { ResellerClubAPI } from "@/lib/resellerclub";
 import { rateLimiters } from "@/lib/rate-limit";
 import { serverLogger } from "@/lib/server-logger";
 import { tldPricingCache } from "@/lib/tld-pricing-cache";
-import Settings from "@/models/Settings";
+import { getSettingsMap } from "@/lib/services/settings";
 import { connectToDatabase } from "@/lib/mongoose";
 
 // Force dynamic rendering - required for API routes
@@ -56,10 +56,13 @@ export async function GET(request: NextRequest) {
     let cacheEnabled = true;
     try {
       await connectToDatabase();
-      const cacheSetting = await Settings.findOne({ key: "tld_pricing_cache_enabled" });
-      if (cacheSetting) cacheEnabled = cacheSetting.value !== false;
-      const ttlSetting = await Settings.findOne({ key: "tld_pricing_cache_ttl" });
-      if (ttlSetting?.value) tldPricingCache.setTTL(parseInt(ttlSetting.value));
+      const settings = await getSettingsMap(["tld_pricing_cache_enabled", "tld_pricing_cache_ttl"]);
+      if ("tld_pricing_cache_enabled" in settings) {
+        cacheEnabled = settings.tld_pricing_cache_enabled !== false;
+      }
+      if (settings.tld_pricing_cache_ttl) {
+        tldPricingCache.setTTL(parseInt(String(settings.tld_pricing_cache_ttl)));
+      }
     } catch {
       // DB hiccup — keep going with defaults.
     }

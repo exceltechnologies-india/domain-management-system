@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { connectToDatabase } from "@/lib/mongoose";
-import SystemLog from "@/models/SystemLog";
+import { recordSystemLog } from "@/lib/services/system-logs";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import crypto from "crypto";
@@ -32,13 +31,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized logger access" }, { status: 401 });
     }
 
-    await connectToDatabase();
-
     // Create a new cap-limited log entry
-    await SystemLog.create({
+    await recordSystemLog({
       level: "error",
       message,
-      source: source || "Unknown",
+      source,
       url,
       stack,
       metadata,
@@ -46,7 +43,7 @@ export async function POST(req: Request) {
       requestId,
       statusCode,
       ip,
-      user: session?.user ? (session.user as any).id : null
+      user: session?.user ? (session.user as { id?: string }).id : undefined,
     });
 
     return NextResponse.json({ success: true });

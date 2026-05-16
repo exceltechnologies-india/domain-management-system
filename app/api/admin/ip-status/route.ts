@@ -3,9 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { getToken } from "next-auth/jwt";
 import connectDB from "@/lib/mongodb";
-import IPCheck from "@/models/IPCheck";
+import { getLatestIPCheck } from "@/lib/services/ip-checks";
 import { getUserByIdSafe } from "@/lib/services/users";
-import User from "@/models/User";
 import { serverLogger } from "@/lib/server-logger";
 
 // Force dynamic rendering - required for API routes
@@ -41,9 +40,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get the latest IP check result
-    const latestIPCheck = await IPCheck.findOne()
-      .sort({ checkedAt: -1 })
-      .populate("checkedBy", "firstName lastName email", User);
+    const latestIPCheck = await getLatestIPCheck();
 
     if (!latestIPCheck) {
       return NextResponse.json({

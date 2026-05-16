@@ -1,24 +1,27 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongoose';
-import Settings from '@/models/Settings';
+import { getSettingValue, upsertSetting } from '@/lib/services/settings';
+
+interface MaintenanceValue {
+  enabled?: boolean;
+  message?: string;
+  scheduledEnd?: string | null;
+}
 
 export async function GET() {
   try {
     await connectToDatabase();
-    const setting = await Settings.findOne({ key: 'maintenance_mode' }).lean() as any;
+    const value = await getSettingValue<MaintenanceValue>('maintenance_mode');
 
-    if (!setting?.value) {
+    if (!value) {
       return NextResponse.json({ enabled: false, message: '', scheduledEnd: null });
     }
 
-    const { enabled, message, scheduledEnd } = setting.value;
+    const { enabled, message, scheduledEnd } = value;
 
     // Auto-expire if scheduled end has passed
     if (enabled && scheduledEnd && new Date(scheduledEnd) <= new Date()) {
-      await Settings.updateOne(
-        { key: 'maintenance_mode' },
-        { $set: { 'value.enabled': false, updatedAt: new Date() } }
-      );
+      await upsertSetting('maintenance_mode', { ...value, enabled: false });
       return NextResponse.json({ enabled: false, message: message || '', scheduledEnd });
     }
 

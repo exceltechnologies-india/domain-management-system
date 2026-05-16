@@ -11,7 +11,7 @@ import connectDB from "@/lib/mongodb";
 import { getUserByIdSafe } from "@/lib/services/users";
 import User from "@/models/User";
 import bcrypt from "bcryptjs";
-import Settings from "@/models/Settings";
+import { getSetting, getSettingValue } from "@/lib/services/settings";
 import { rateLimiters } from "@/lib/rate-limit";
 import { logAdminAction, queryAuditLogs } from "@/lib/audit-log";
 
@@ -144,8 +144,8 @@ export async function verifyAdminSecurity(
 async function checkIPWhitelistEnabled(): Promise<boolean> {
   try {
     await connectDB();
-    const setting = await Settings.findOne({ key: "admin_ip_whitelist_enabled" });
-    return setting?.value === true || setting?.value === "true";
+    const value = await getSettingValue("admin_ip_whitelist_enabled");
+    return value === true || value === "true";
   } catch (error) {
     serverLogger.error("Error checking IP whitelist setting:", error);
     return false; // Default to disabled if error
@@ -164,9 +164,7 @@ async function verifyIPWhitelist(
     const clientIP = getClientIP(request);
 
     // Get whitelisted IPs for this admin
-    const whitelistSetting = await Settings.findOne({
-      key: `admin_ip_whitelist_${userId}`,
-    });
+    const whitelistSetting = await getSetting(`admin_ip_whitelist_${userId}`);
 
     if (!whitelistSetting) {
       // If no whitelist configured, allow (for backward compatibility)

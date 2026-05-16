@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { getToken } from "next-auth/jwt";
 import connectDB from "@/lib/mongodb";
-import IPCheck from "@/models/IPCheck";
+import { recordIPCheck } from "@/lib/services/ip-checks";
 import { getUserByIdSafe } from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
 
@@ -128,16 +128,13 @@ export async function GET(request: NextRequest) {
     };
 
     // Save to database
-    const ipCheckRecord = new IPCheck({
+    await recordIPCheck({
       success: responseData.success,
       message: responseData.message,
       data: responseData.data,
       error: responseData.error,
       checkedBy: user._id,
-      checkedAt: new Date(),
     });
-
-    await ipCheckRecord.save();
 
     serverLogger.info(
       `✅ [ADMIN] IP check saved to database by ${user.email}: ${

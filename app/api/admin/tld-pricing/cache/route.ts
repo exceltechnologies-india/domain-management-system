@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { getToken } from "next-auth/jwt";
 import { tldPricingCache } from "@/lib/tld-pricing-cache";
-import Settings from "@/models/Settings";
+import { upsertSetting } from "@/lib/services/settings";
 import { connectToDatabase } from "@/lib/mongoose";
 import { getUserByIdSafe } from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
@@ -154,18 +154,11 @@ export async function PUT(request: NextRequest) {
 
     // Update cache enabled setting
     if (enabled !== undefined) {
-      await Settings.findOneAndUpdate(
-        { key: "tld_pricing_cache_enabled" },
-        {
-          key: "tld_pricing_cache_enabled",
-          value: enabled,
-          description: "Enable/disable TLD pricing cache",
-          category: "caching",
-          updatedAt: new Date(),
-          updatedBy: user.email,
-        },
-        { upsert: true, new: true }
-      );
+      await upsertSetting("tld_pricing_cache_enabled", enabled, {
+        description: "Enable/disable TLD pricing cache",
+        category: "caching",
+        updatedBy: user.email,
+      });
 
       serverLogger.info(
         `⚙️ [CACHE-API] Cache ${enabled ? "enabled" : "disabled"} by admin: ${
@@ -181,18 +174,11 @@ export async function PUT(request: NextRequest) {
 
     // Update TTL setting
     if (ttlMinutes !== undefined && ttlMinutes > 0) {
-      await Settings.findOneAndUpdate(
-        { key: "tld_pricing_cache_ttl" },
-        {
-          key: "tld_pricing_cache_ttl",
-          value: ttlMinutes,
-          description: "TLD pricing cache TTL in minutes",
-          category: "caching",
-          updatedAt: new Date(),
-          updatedBy: user.email,
-        },
-        { upsert: true, new: true }
-      );
+      await upsertSetting("tld_pricing_cache_ttl", ttlMinutes, {
+        description: "TLD pricing cache TTL in minutes",
+        category: "caching",
+        updatedBy: user.email,
+      });
 
       tldPricingCache.setTTL(ttlMinutes);
       serverLogger.info(

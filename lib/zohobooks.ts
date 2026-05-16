@@ -126,23 +126,15 @@ export class ZohoBooksService {
   }
 
   // Fire-and-forget: persist expiry to DB so it survives server restarts.
-  // Uses dynamic imports to avoid pulling mongoose into Edge runtime contexts.
+  // Uses a dynamic import to avoid pulling mongoose into Edge runtime contexts.
   private persistSubscriptionExpiredToDB(): void {
     (async () => {
       try {
-        const { connectToDatabase } = await import("./mongoose");
-        const Settings = (await import("../models/Settings")).default;
-        await connectToDatabase();
-        await Settings.findOneAndUpdate(
-          { key: "zoho.subscription_expired" },
-          {
-            key: "zoho.subscription_expired",
-            value: { expired: true, detectedAt: new Date() },
-            category: "zoho",
-            updatedBy: "system",
-            updatedAt: new Date(),
-          },
-          { upsert: true }
+        const { upsertSetting } = await import("./services/settings");
+        await upsertSetting(
+          "zoho.subscription_expired",
+          { expired: true, detectedAt: new Date() },
+          { category: "zoho", updatedBy: "system" }
         );
       } catch (e) {
         serverLogger.warn("[ZohoBooks] Could not persist subscription expiry to DB", (e as Error)?.message);
@@ -155,10 +147,8 @@ export class ZohoBooksService {
     this._subscriptionExpired = false;
     (async () => {
       try {
-        const { connectToDatabase } = await import("./mongoose");
-        const Settings = (await import("../models/Settings")).default;
-        await connectToDatabase();
-        await Settings.deleteOne({ key: "zoho.subscription_expired" });
+        const { deleteSetting } = await import("./services/settings");
+        await deleteSetting("zoho.subscription_expired");
       } catch (e) {
         serverLogger.warn("[ZohoBooks] Could not clear subscription expiry from DB", (e as Error)?.message);
       }

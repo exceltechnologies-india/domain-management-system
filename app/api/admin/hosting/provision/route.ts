@@ -7,7 +7,7 @@ import { EmailService } from "@/lib/email";
 import { ZohoBooksService } from "@/lib/zohobooks";
 import { getUserById } from "@/lib/services/users";
 import User from "@/models/User";
-import PendingHosting from "@/models/PendingHosting";
+import { createPendingHosting } from "@/lib/services/pending-hostings";
 import Hosting from "@/models/Hosting";
 import connectDB from "@/lib/mongodb";
 import { calculateHostingDates } from "@/lib/hosting-dates";
@@ -279,7 +279,7 @@ export async function POST(request: NextRequest) {
         const { userId, domain, packageName, daUsername } = body;
         
         if (userId && domain && packageName && daUsername) {
-            await PendingHosting.create({
+            await createPendingHosting({
                 userId,
                 domain,
                 package: packageName,

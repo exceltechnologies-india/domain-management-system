@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const value = await SettingsService.getSetting("captcha_enabled", true);
+    const value = await SettingsService.getSetting<unknown>("captcha_enabled", true);
     const enabled = value === true || value === "true";
     return NextResponse.json({ enabled });
   } catch {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import Order from "@/models/Order";
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
-import Settings from "@/models/Settings";
+import { getSettingValue } from "@/lib/services/settings";
 import { AuthService } from "@/lib/auth";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
@@ -40,8 +40,8 @@ async function runEligibility(
   await connectDB();
 
   // 1. Global trials kill-switch
-  const trialSetting = await Settings.findOne({ key: "hosting_trial_enabled" }).lean();
-  const trialsEnabled = trialSetting ? (trialSetting as any).value !== false : true;
+  const trialEnabled = await getSettingValue<boolean>("hosting_trial_enabled", true);
+  const trialsEnabled = trialEnabled !== false;
   if (!trialsEnabled) {
     return secureJsonResponse({ eligible: false, reason: "Trials are currently unavailable" });
   }
