@@ -10,11 +10,17 @@ import axios from 'axios';
 import { serverLogger } from '../server-logger';
 import type { ZohoBooksService } from '../zohobooks';
 import { ZohoError } from '../zohobooks';
+import type {
+  ZohoContact,
+  ZohoContactPerson,
+  ZohoUserInput,
+} from './types';
+import { unwrapZohoError } from './types';
 
 /**
  * Search for a contact by email
  */
-export async function getContactByEmail(self: ZohoBooksService, email: string): Promise<any | null> {
+export async function getContactByEmail(self: ZohoBooksService, email: string): Promise<ZohoContact | null> {
   if (!self._hasRefreshToken()) {
     throw new ZohoError('Config Error', 'MISSING_REFRESH_TOKEN', 'ZOHO_REFRESH_TOKEN is not set');
   }
@@ -30,15 +36,16 @@ export async function getContactByEmail(self: ZohoBooksService, email: string): 
       return response.data.contacts[0];
     }
     return null;
-  } catch (error: any) {
+  } catch (error) {
     // Auth/config errors must propagate so callers can distinguish "not found" from "broken auth"
     if (error instanceof ZohoError) throw error;
-    serverLogger.error('[ZohoBooks] Error fetching contact', error.response?.data || error.message);
+    const u = unwrapZohoError(error);
+    serverLogger.error('[ZohoBooks] Error fetching contact', u.data || u.message);
     return null;
   }
 }
 
-export async function getContactByName(self: ZohoBooksService, name: string): Promise<any | null> {
+export async function getContactByName(self: ZohoBooksService, name: string): Promise<ZohoContact | null> {
   if (!self._hasRefreshToken()) {
     throw new ZohoError('Config Error', 'MISSING_REFRESH_TOKEN', 'ZOHO_REFRESH_TOKEN is not set');
   }
@@ -54,10 +61,11 @@ export async function getContactByName(self: ZohoBooksService, name: string): Pr
       return response.data.contacts[0];
     }
     return null;
-  } catch (error: any) {
+  } catch (error) {
     // Auth/config errors must propagate so callers can distinguish "not found" from "broken auth"
     if (error instanceof ZohoError) throw error;
-    serverLogger.error('[ZohoBooks] Error fetching contact by name', error.response?.data || error.message);
+    const u = unwrapZohoError(error);
+    serverLogger.error('[ZohoBooks] Error fetching contact by name', u.data || u.message);
     return null;
   }
 }
@@ -65,12 +73,12 @@ export async function getContactByName(self: ZohoBooksService, name: string): Pr
 /**
  * Create a new contact in Zoho Books
  */
-export async function createContact(self: ZohoBooksService, user: any): Promise<any> {
+export async function createContact(self: ZohoBooksService, user: ZohoUserInput): Promise<ZohoContact | null> {
   if (!self._hasRefreshToken()) return null;
 
   try {
     const headers = await self._getHeaders();
-    const contactData: any = {
+    const contactData: Record<string, unknown> & { gst_no?: string; gst_treatment?: string; contact_name?: string } = {
       contact_name: `${user.firstName} ${user.lastName}`.trim(),
       company_name: user.companyName || '',
       contact_type: 'customer',
@@ -109,9 +117,10 @@ export async function createContact(self: ZohoBooksService, user: any): Promise<
         return response.data.contact;
       }
       throw new Error(response.data.message);
-    } catch (error: any) {
-      const errorData = error.response?.data;
-      const errorMessage = errorData?.message || error.message;
+    } catch (error) {
+      const unwrapped = unwrapZohoError(error);
+      const errorData = unwrapped.data;
+      const errorMessage = errorData?.message || unwrapped.message;
 
       // 🛡️ FALLBACK: If Zoho rejects any GST-related field (gst_no, gst_treatment, gstIN, etc.), retry as a Consumer
       if (errorData?.code === 2 && errorMessage.toLowerCase().includes('gst')) {
@@ -139,18 +148,21 @@ export async function createContact(self: ZohoBooksService, user: any): Promise<
       if (errorData?.code === 3062) {
         const contactName = contactData.contact_name;
         serverLogger.warn(`[ZohoBooks] Duplicate contact name "${contactName}" — searching for existing contact.`);
-        const existing = await self.getContactByName(contactName);
-        if (existing) {
-          serverLogger.info(`[ZohoBooks] Found existing contact by name: ${existing.contact_id}`);
-          return existing;
+        if (contactName) {
+          const existing = await self.getContactByName(contactName);
+          if (existing) {
+            serverLogger.info(`[ZohoBooks] Found existing contact by name: ${existing.contact_id}`);
+            return existing;
+          }
         }
       }
 
-      serverLogger.error('[ZohoBooks] Error creating contact', errorData || error.message);
+      serverLogger.error('[ZohoBooks] Error creating contact', errorData || unwrapped.message);
       throw error;
     }
-  } catch (error: any) {
-    serverLogger.error('[ZohoBooks] Outer Error creating contact', error.response?.data || error.message);
+  } catch (error) {
+    const u = unwrapZohoError(error);
+    serverLogger.error('[ZohoBooks] Outer Error creating contact', u.data || u.message);
     throw error;
   }
 }
@@ -158,17 +170,17 @@ export async function createContact(self: ZohoBooksService, user: any): Promise<
 /**
  * Update an existing contact's details to match user profile
  */
-export async function updateContactDetails(self: ZohoBooksService, contactId: string, user: any): Promise<boolean> {
+export async function updateContactDetails(self: ZohoBooksService, contactId: string, user: ZohoUserInput): Promise<boolean> {
   if (!self._hasRefreshToken()) return false;
 
   try {
     const headers = await self._getHeaders();
 
     // 1. Update the Main Contact (Organization/Display Name)
-    const isGstValid = user.gstNumber && self._isValidGst(user.gstNumber);
-    const cleanGst = isGstValid ? user.gstNumber.trim().replace(/\s/g, '').toUpperCase() : '';
+    const isGstValid = !!user.gstNumber && self._isValidGst(user.gstNumber);
+    const cleanGst = isGstValid && user.gstNumber ? user.gstNumber.trim().replace(/\s/g, '').toUpperCase() : '';
 
-    const updateData: any = {
+    const updateData: Record<string, unknown> = {
       contact_name: `${user.firstName} ${user.lastName}`.trim(),
       company_name: user.companyName || '',
       gst_no: cleanGst,
@@ -192,19 +204,20 @@ export async function updateContactDetails(self: ZohoBooksService, contactId: st
     // Zoho often uses the Contact Person's name for invoice "Bill To" sections.
     try {
       const contactPersons = await self.getContactPersons(contactId);
-      const primaryPerson = contactPersons.find((p: any) => p.is_primary_contact);
+      const primaryPerson = contactPersons.find((p) => p.is_primary_contact);
 
-      if (primaryPerson) {
+      if (primaryPerson?.contact_person_id) {
         serverLogger.info(`[ZohoBooks] Updating primary contact person ${primaryPerson.contact_person_id} for contact ${contactId}`);
         await self.updateContactPerson(primaryPerson.contact_person_id, user);
       }
-    } catch (personError: any) {
-      serverLogger.warn(`[ZohoBooks] Failed to update contact person for ${contactId}, but main contact updated.`, personError.message);
+    } catch (personError) {
+      serverLogger.warn(`[ZohoBooks] Failed to update contact person for ${contactId}, but main contact updated.`, (personError as Error)?.message);
     }
 
     return true;
-  } catch (error: any) {
-    serverLogger.error(`[ZohoBooks] Failed to update contact ${contactId}`, error.response?.data || error.message);
+  } catch (error) {
+    const u = unwrapZohoError(error);
+    serverLogger.error(`[ZohoBooks] Failed to update contact ${contactId}`, u.data || u.message);
     return false; // Proceed anyway
   }
 }
@@ -212,7 +225,7 @@ export async function updateContactDetails(self: ZohoBooksService, contactId: st
 /**
  * Get all contact persons for a contact
  */
-export async function getContactPersons(self: ZohoBooksService, contactId: string): Promise<any[]> {
+export async function getContactPersons(self: ZohoBooksService, contactId: string): Promise<ZohoContactPerson[]> {
   if (!self._hasRefreshToken()) return [];
 
   try {
@@ -223,8 +236,9 @@ export async function getContactPersons(self: ZohoBooksService, contactId: strin
       return response.data.contact_persons;
     }
     return [];
-  } catch (error: any) {
-    serverLogger.error(`[ZohoBooks] Error fetching contact persons for ${contactId}`, error.response?.data || error.message);
+  } catch (error) {
+    const u = unwrapZohoError(error);
+    serverLogger.error(`[ZohoBooks] Error fetching contact persons for ${contactId}`, u.data || u.message);
     return [];
   }
 }
@@ -232,7 +246,7 @@ export async function getContactPersons(self: ZohoBooksService, contactId: strin
 /**
  * Update a specific contact person
  */
-export async function updateContactPerson(self: ZohoBooksService, contactPersonId: string, user: any): Promise<boolean> {
+export async function updateContactPerson(self: ZohoBooksService, contactPersonId: string, user: ZohoUserInput): Promise<boolean> {
   if (!self._hasRefreshToken()) return false;
 
   try {
@@ -252,8 +266,9 @@ export async function updateContactPerson(self: ZohoBooksService, contactPersonI
     );
 
     return response.data.code === 0;
-  } catch (error: any) {
-    serverLogger.error(`[ZohoBooks] Error updating contact person ${contactPersonId}`, error.response?.data || error.message);
+  } catch (error) {
+    const u = unwrapZohoError(error);
+    serverLogger.error(`[ZohoBooks] Error updating contact person ${contactPersonId}`, u.data || u.message);
     return false;
   }
 }
@@ -279,8 +294,9 @@ export async function updateContactToConsumer(self: ZohoBooksService, contactId:
     );
 
     return response.data.code === 0;
-  } catch (error: any) {
-    serverLogger.error(`[ZohoBooks] Failed to update contact ${contactId} to consumer`, error.response?.data || error.message);
+  } catch (error) {
+    const u = unwrapZohoError(error);
+    serverLogger.error(`[ZohoBooks] Failed to update contact ${contactId} to consumer`, u.data || u.message);
     return false;
   }
 }

@@ -166,10 +166,12 @@ export async function GET(req: NextRequest) {
         zohoLatencyMs = ms() - zohoStart;
         if (!org) throw new Error("Could not fetch organization details from Zoho Books");
 
-        zohoPlanName = org.plan_name || "";
-        zohoPlanType = org.plan_type || "";
+        zohoPlanName = (org.plan_name as string | undefined) || "";
+        zohoPlanType = (org.plan_type as string | undefined) || "";
         const rawExpiry: string | undefined =
-          org.trial_expiry_date || org.plan_expiry_date || org.subscription_end_date;
+          (org.trial_expiry_date as string | undefined) ||
+          (org.plan_expiry_date as string | undefined) ||
+          (org.subscription_end_date as string | undefined);
 
         if (rawExpiry) {
           zohoPlanExpiryDate = rawExpiry;
