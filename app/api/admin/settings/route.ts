@@ -2,7 +2,7 @@ import { AUTH_SECRET } from "@/lib/auth-secret";
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { getToken } from "next-auth/jwt";
-import Settings from "@/models/Settings";
+import { listSettings, upsertSetting, getSetting } from "@/lib/services/settings";
 import { connectToDatabase } from "@/lib/mongoose";
 import { getUserByIdSafe } from "@/lib/services/users";
 import { requireReAuth } from "@/lib/admin-security";
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get all settings
-    const settings = await Settings.find({}).sort({ category: 1, key: 1 });
+    const settings = await listSettings();
 
     // Convert to key-value object for easier frontend usage
     const settingsObject = settings.reduce((acc, setting) => {
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
         updatedBy: setting.updatedBy,
       };
       return acc;
-    }, {} as any);
+    }, {} as Record<string, unknown>);
 
     return NextResponse.json({
       success: true,
@@ -121,29 +121,25 @@ export async function POST(request: NextRequest) {
     await connectToDatabase();
 
     // Update or create setting
-    const setting = await Settings.findOneAndUpdate(
-      { key },
-      {
-        key,
-        value,
-        description: description || "",
-        category: category || "general",
-        updatedAt: new Date(),
-        updatedBy: user.email,
-      },
-      { upsert: true, new: true }
-    );
+    await upsertSetting(key, value, {
+      description: description || "",
+      category: category || "general",
+      updatedBy: user.email,
+    });
+    const setting = await getSetting(key);
 
     return NextResponse.json({
       success: true,
-      setting: {
-        key: setting.key,
-        value: setting.value,
-        description: setting.description,
-        category: setting.category,
-        updatedAt: setting.updatedAt,
-        updatedBy: setting.updatedBy,
-      },
+      setting: setting
+        ? {
+            key: setting.key,
+            value: setting.value,
+            description: setting.description,
+            category: setting.category,
+            updatedAt: setting.updatedAt,
+            updatedBy: setting.updatedBy,
+          }
+        : null,
     });
   } catch (error) {
     serverLogger.error("Settings update error:", error);

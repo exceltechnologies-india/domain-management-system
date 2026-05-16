@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import HostingPlan from "@/models/HostingPlan";
-import Settings from "@/models/Settings";
+import { getSettingValue } from "@/lib/services/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +14,8 @@ export async function GET(_request: NextRequest) {
   try {
     await connectDB();
 
-    const enabledSetting = await Settings.findOne({ key: "hosting_test_plan_enabled" }).lean() as any;
-    if (!enabledSetting || enabledSetting.value !== true) {
+    const enabled = await getSettingValue<boolean>("hosting_test_plan_enabled", false);
+    if (enabled !== true) {
       return NextResponse.json({ enabled: false });
     }
 

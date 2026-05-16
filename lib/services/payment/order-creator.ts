@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import Order from "@/models/Order";
-import Payment from "@/models/Payment";
+import { createPaymentInTransaction } from "@/lib/services/payments";
 import { serverLogger } from "@/lib/server-logger";
 import { provisionCartItems } from "@/lib/services/payment/provisioner";
 import {
@@ -126,7 +126,7 @@ export async function createCompletedOrder(
         razorpayPaymentId: razorpay_payment_id,
         amount: registrationTotalAmount,
         currency: paymentDetails.currency || "INR",
-        status: "completed",
+        status: "completed" as const,
       }
     : null;
 
@@ -216,7 +216,7 @@ export async function createCompletedOrder(
     await dbSession.withTransaction(async () => {
       await order.save({ session: dbSession });
       if (pendingPaymentData) {
-        await Payment.create([pendingPaymentData], { session: dbSession });
+        await createPaymentInTransaction(pendingPaymentData, dbSession);
       }
     });
   } finally {

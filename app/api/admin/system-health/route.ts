@@ -5,8 +5,8 @@ import { AUTH_SECRET } from "@/lib/auth-secret";
 import { authOptions } from "@/lib/auth-config";
 import { connectToDatabase } from "@/lib/mongoose";
 import PendingDomain from "@/models/PendingDomain";
-import PendingHosting from "@/models/PendingHosting";
-import Settings from "@/models/Settings";
+import { countPendingHostingsByStatus } from "@/lib/services/pending-hostings";
+import { getSettingValue } from "@/lib/services/settings";
 import User from "@/models/User";
 import Order from "@/models/Order";
 import Domain from "@/models/Domain";
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
         Domain.countDocuments(),
         countOpenTickets(),
         PendingDomain.countDocuments({ status: "pending" }),
-        PendingHosting.countDocuments({ status: "pending" }),
+        countPendingHostingsByStatus("pending"),
       ]);
       dbStats = { users, orders, domains, openTickets, pendingDomains, pendingHosting };
     } catch (e) {
@@ -65,9 +65,9 @@ export async function GET(req: NextRequest) {
     try {
       [domainBacklog, hostingBacklog, domainFailed, hostingFailed] = await Promise.all([
         PendingDomain.countDocuments({ status: "pending" }),
-        PendingHosting.countDocuments({ status: "pending" }),
+        countPendingHostingsByStatus("pending"),
         PendingDomain.countDocuments({ status: "failed" }),
-        PendingHosting.countDocuments({ status: "failed" }),
+        countPendingHostingsByStatus("failed"),
       ]);
     } catch (e) {
       serverLogger.error("System Health: Failed to fetch queue stats", e);
@@ -145,8 +145,8 @@ export async function GET(req: NextRequest) {
     if (zohoConfigured) {
       try {
         await connectToDatabase();
-        const expirySetting = await Settings.findOne({ key: "zoho.subscription_expired" }).lean();
-        dbExpired = (expirySetting as any)?.value?.expired === true;
+        const expiryValue = await getSettingValue<{ expired?: boolean }>("zoho.subscription_expired");
+        dbExpired = expiryValue?.expired === true;
       } catch (e: any) {
         serverLogger.warn("[System Health] Could not read Zoho expiry from DB", e?.message);
       }

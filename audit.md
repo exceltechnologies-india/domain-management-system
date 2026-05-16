@@ -246,7 +246,7 @@ Top hotspots: `app/admin/settings/page.tsx` (22), `app/admin/system-settings/pag
 
 ---
 
-### ~~[HIGH-4] No service / repository layer~~ — PARTIALLY RESOLVED 2026-05-14 (foundation + 9 model services + User wider adoption + admin CRUD tightening + lib/payment-services folded into lib/services/payment)
+### ~~[HIGH-4] No service / repository layer~~ — PARTIALLY RESOLVED 2026-05-14 (foundation + 15 model services + User wider adoption + admin CRUD tightening + lib/payment-services folded into lib/services/payment)
 **Footprint measured:** 107 route files, ~269 distinct Mongoose-model operations across the codebase. Top models by op count: User (93), Order (67), Hosting (28), HostingPlan (25), PendingDomain (16), Domain (12), SupportTicket (11), PendingHosting (8), DomainWatch (7).
 
 **Foundation laid for the rest:** Added [lib/services/](lib/services/) (parallel to the existing [lib/payment-services/](lib/payment-services/)). The pattern mirrors the audit's referenced "half-formed" pattern — domain-specific use-case functions, not a generic repository abstraction.
@@ -313,6 +313,26 @@ The user-permanent-deletion "snapshot orders before deletion" logic — previous
 **lib/payment-services/ → lib/services/payment/ 2026-05-17:** Folded the 10-file orchestration directory under `lib/services/` for consistency. Every import path updated via a single perl pass (`@/lib/payment-services/` → `@/lib/services/payment/`). No behavioural change — the move was purely structural.
 
 **Verified on main 2026-05-17:** 340/340 tests, tsc clean, production build succeeded.
+
+**Smaller-model services added 2026-05-17 (closes the long tail):**
+
+- **Settings** → [lib/services/settings.ts](lib/services/settings.ts) — `getSettingValue<T>(key, default)` (the dominant pattern: read a single value with a fallback, DB errors swallowed back to the default), `getSetting(key)` (full doc when callers need `updatedAt`/`updatedBy`), `getSettingsMap([keys])` (batch read — one query instead of N), `listSettings()`, `upsertSetting(key, value, opts)`, `deleteSetting(key)`. Migrated 14 call sites: trial-eligibility, razorpay-mode (env-bound key rotation), test-plan toggle, tld-pricing + cache routes, maintenance-status, system-health, admin/settings, public/hosting-test-plan, [lib/admin-security.ts](lib/admin-security.ts), [lib/trial-abuse.ts](lib/trial-abuse.ts), Zoho subscription-expired persistence. The legacy class shim [lib/settings-service.ts](lib/settings-service.ts) now delegates to the new functional API so the two remaining `SettingsService.getSetting` callers (`captcha-status`, recaptcha) keep compiling without churn.
+
+- **PendingHosting** → [lib/services/pending-hostings.ts](lib/services/pending-hostings.ts) — `getPendingHostingById`, `listPendingHostingsForAdmin` (admin list with `userId` populated), `countPendingHostingsByStatus`, `listStuckPendingHostings(cutoff)` (lean projection for the cron sweeper), `createPendingHosting`, `deletePendingHostingById`, `deletePendingHostingsByUsername` (admin "remove hosting" bulk-clear; also dropped a dead `{ hostingId: hostingId }` fallback branch that matched no field on the schema). Migrated all 6 call sites: admin pending list, item DELETE, retry, hosting actions, manual provision, payment provisioner, system-health, cron sweeper.
+
+- **Payment** → [lib/services/payments.ts](lib/services/payments.ts) — `createPaymentInTransaction(data, session)` (the only call shape — both checkout flows write Payment inside the atomic Order transaction). Migrated 2 sites: post-payment order-creator + guest checkout.
+
+- **IPCheck** → [lib/services/ip-checks.ts](lib/services/ip-checks.ts) — `recordIPCheck` (stamps `checkedAt`), `getLatestIPCheck` (with `checkedBy` user populated). Migrated the admin debug endpoint pair.
+
+- **RenewalPayment** → [lib/services/renewal-payments.ts](lib/services/renewal-payments.ts) — the four-step idempotency protocol now lives in named helpers: `recordRenewalPayment` (insert, callers catch E11000 as "seen"), `getRenewalByProviderPaymentId`, `claimRenewalPayment` (atomic flip `processed: false → true`), `releaseRenewalClaim` (unwind a claim if downstream work fails), `attachOrderToRenewal` (crosslink). Migrated [lib/services/payment/webhook-handlers.ts](lib/services/payment/webhook-handlers.ts) — the webhook handler no longer has to know the lock protocol.
+
+- **SystemLog** → [lib/services/system-logs.ts](lib/services/system-logs.ts) — `recordSystemLog(input)` with defaults for `level` and `source`. Migrated the public `/api/admin/log-error` browser-error funnel.
+
+- **TrialClaim** — no separate service. The model is already fully encapsulated inside [lib/trial-abuse.ts](lib/trial-abuse.ts) (the trial-abuse policy is the only consumer); pulling it out would be churn without a second caller.
+
+**Models intentionally left as direct access:**
+- **DNSRecord, TLDPricingCache** — 0 production call sites (only the model self-registration test references them). No service to wrap.
+- **Counter / IncrementalCounter** — no such standalone model; the audit comment was a paraphrase.
 
 **Pending — incremental adoption:**
 1. **User model migration:** 12 done, ~81 sites remaining across `app/api/**` and `lib/**`. The service surface is in place; routes adopt as they're next touched.

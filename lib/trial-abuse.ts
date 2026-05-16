@@ -7,7 +7,7 @@
 import crypto from "crypto";
 import { NextRequest } from "next/server";
 import TrialClaim from "@/models/TrialClaim";
-import Settings from "@/models/Settings";
+import { getSettingValue } from "@/lib/services/settings";
 import { isDisposableEmail } from "@/lib/disposable-emails";
 import { RecaptchaServer } from "@/lib/recaptcha";
 import { serverLogger } from "@/lib/server-logger";
@@ -191,12 +191,6 @@ export async function recordTrialClaim(args: {
  * `hosting_trial_otp_required` to true when you're ready to enforce.
  */
 export async function isTrialOtpRequired(): Promise<boolean> {
-  try {
-    const doc = await Settings.findOne({ key: "hosting_trial_otp_required" }).lean();
-    if (!doc) return false;
-    const v = (doc as any).value;
-    return v === true || v === "true";
-  } catch {
-    return false;
-  }
+  const v = await getSettingValue("hosting_trial_otp_required");
+  return v === true || v === "true";
 }

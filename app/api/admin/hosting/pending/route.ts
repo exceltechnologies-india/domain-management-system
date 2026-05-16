@@ -3,8 +3,7 @@ import { NextRequest } from "next/server";
 
 import { AuthService } from "@/lib/auth";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
-import PendingHosting from "@/models/PendingHosting";
-import connectDB from "@/lib/mongodb";
+import { listPendingHostingsForAdmin } from "@/lib/services/pending-hostings";
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,11 +12,7 @@ export async function GET(request: NextRequest) {
       return secureErrorResponse("Unauthorized", 403, "FORBIDDEN");
     }
 
-    await connectDB();
-    
-    const pendingHostings = await PendingHosting.find({})
-      .populate('userId', 'name email')
-      .sort({ createdAt: -1 });
+    const pendingHostings = await listPendingHostingsForAdmin();
 
     return secureJsonResponse({
       success: true,

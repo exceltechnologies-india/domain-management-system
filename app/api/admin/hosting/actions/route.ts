@@ -72,11 +72,12 @@ export async function POST(request: NextRequest) {
         serverLogger.info(`Permanently deleted ${deleteHostingResult.deletedCount} Hosting record(s) for ${username || 'N/A'} (ID: ${hostingId || 'N/A'}) from local DB`);
 
         // 3. Clear any PendingHosting records
-        const PendingHosting = (await import("@/models/PendingHosting")).default;
-        const pendingQuery = username ? { $or: [{ username: username }, { daUsername: username }] } : { hostingId: hostingId };
-        const deletePendingResult = await PendingHosting.deleteMany(pendingQuery);
-        if (deletePendingResult.deletedCount > 0) {
-          serverLogger.info(`Cleared ${deletePendingResult.deletedCount} PendingHosting record(s)`);
+        if (username) {
+          const { deletePendingHostingsByUsername } = await import("@/lib/services/pending-hostings");
+          const cleared = await deletePendingHostingsByUsername(username);
+          if (cleared > 0) {
+            serverLogger.info(`Cleared ${cleared} PendingHosting record(s)`);
+          }
         }
 
         // 4. Delete from DirectAdmin (External) - Make this resilient

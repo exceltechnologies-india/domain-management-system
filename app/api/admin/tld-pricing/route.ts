@@ -3,7 +3,7 @@ import { AuthService } from "@/lib/auth";
 import { PricingService } from "@/lib/pricing-service";
 import { formatIndianCurrency, formatIndianNumber } from "@/lib/dateUtils";
 import { tldPricingCache } from "@/lib/tld-pricing-cache";
-import Settings from "@/models/Settings";
+import { getSettingsMap } from "@/lib/services/settings";
 import { connectToDatabase } from "@/lib/mongoose";
 import { serverLogger } from "@/lib/server-logger";
 
@@ -20,17 +20,14 @@ export async function GET(request: NextRequest) {
 
     // Check if caching is enabled
     await connectToDatabase();
-    const cacheEnabledSetting = await Settings.findOne({
-      key: "tld_pricing_cache_enabled",
-    });
-    const cacheEnabled = cacheEnabledSetting?.value !== false; // Default to true if not set
+    const cacheSettings = await getSettingsMap([
+      "tld_pricing_cache_enabled",
+      "tld_pricing_cache_ttl",
+    ]);
+    const cacheEnabled = cacheSettings.tld_pricing_cache_enabled !== false; // Default to true if not set
 
-    // Get TTL setting
-    const cacheTTLSetting = await Settings.findOne({
-      key: "tld_pricing_cache_ttl",
-    });
-    if (cacheTTLSetting?.value) {
-      tldPricingCache.setTTL(parseInt(cacheTTLSetting.value));
+    if (cacheSettings.tld_pricing_cache_ttl) {
+      tldPricingCache.setTTL(parseInt(String(cacheSettings.tld_pricing_cache_ttl)));
     }
 
     // Check cache first if enabled

@@ -6,7 +6,7 @@ import connectDB from "@/lib/mongodb";
 import mongoose from "mongoose";
 import User, { IUser } from "@/models/User";
 import Order from "@/models/Order";
-import Payment from "@/models/Payment";
+import { createPaymentInTransaction } from "@/lib/services/payments";
 import { provisionCartItems } from "@/lib/services/payment/provisioner";
 import { createZohoInvoice, runPostPaymentTasks } from "@/lib/services/payment/post-tasks";
 import { isDomainSupported, requiresAdditionalDetails } from "@/lib/domainRequirements";
@@ -246,18 +246,16 @@ export async function POST(request: NextRequest) {
     try {
       await dbSession.withTransaction(async () => {
         await order.save({ session: dbSession });
-        await Payment.create(
-          [
-            {
-              userId: guestUser!._id,
-              orderId,
-              razorpayPaymentId: razorpay_payment_id,
-              amount: registrationTotalAmount,
-              currency: paymentDetails.currency || "INR",
-              status: "completed",
-            },
-          ],
-          { session: dbSession }
+        await createPaymentInTransaction(
+          {
+            userId: guestUser!._id,
+            orderId: orderId!,
+            razorpayPaymentId: razorpay_payment_id,
+            amount: registrationTotalAmount,
+            currency: paymentDetails.currency || "INR",
+            status: "completed",
+          },
+          dbSession
         );
       });
     } finally {

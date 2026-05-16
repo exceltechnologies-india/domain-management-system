@@ -7,7 +7,10 @@ import { EmailService } from "@/lib/email";
 import { getUserById } from "@/lib/services/users";
 import User from "@/models/User";
 import Hosting from "@/models/Hosting";
-import PendingHosting from "@/models/PendingHosting";
+import {
+  deletePendingHostingById,
+  getPendingHostingById,
+} from "@/lib/services/pending-hostings";
 import connectDB from "@/lib/mongodb";
 
 export async function POST(
@@ -23,9 +26,8 @@ export async function POST(
     }
 
     await connectDB();
-    
 
-    const pendingEntry = await PendingHosting.findById(id);
+    const pendingEntry = await getPendingHostingById(id);
 
     if (!pendingEntry) {
         return secureErrorResponse("Pending entry not found", 404, "NOT_FOUND");
@@ -34,7 +36,7 @@ export async function POST(
     const { userId, domain, package: packageName, daUsername } = pendingEntry;
 
     // 3. Find user
-    const user = await getUserById(userId);
+    const user = await getUserById(String(userId));
     if (!user) {
       return secureErrorResponse("User associated with this entry not found.", 404, "USER_NOT_FOUND");
     }
@@ -114,7 +116,7 @@ export async function POST(
     }
 
     // 6. Delete pending entry
-    await PendingHosting.findByIdAndDelete(id);
+    await deletePendingHostingById(id);
 
     // 7. Send Notification Email
     try {

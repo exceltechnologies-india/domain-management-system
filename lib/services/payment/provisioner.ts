@@ -400,9 +400,10 @@ export async function provisionCartItems(
         );
 
         try {
-          const PendingHosting = (await import("@/models/PendingHosting"))
-            .default;
-          await PendingHosting.create({
+          const { createPendingHosting } = await import(
+            "@/lib/services/pending-hostings"
+          );
+          await createPendingHosting({
             userId: user._id,
             domain: targetDomain,
             package: packageName,
