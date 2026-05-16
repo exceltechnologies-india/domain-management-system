@@ -17,6 +17,16 @@
 
 import axios from 'axios';
 import { serverLogger } from './server-logger';
+import type {
+  ZohoContact,
+  ZohoContactPerson,
+  ZohoInvoice,
+  ZohoOrderInput,
+  ZohoOrderItemInput,
+  ZohoOrganization,
+  ZohoUserInput,
+} from './zohobooks/types';
+import { unwrapZohoError } from './zohobooks/types';
 
 interface ZohoConfig {
   clientId: string;
@@ -38,7 +48,7 @@ export class ZohoError extends Error {
     constructor(
         public title: string,
         public code: string,
-        public details: any
+        public details: unknown
     ) {
         super(`${title}: ${JSON.stringify(details)}`);
         this.name = 'ZohoError';
@@ -134,8 +144,8 @@ export class ZohoBooksService {
           },
           { upsert: true }
         );
-      } catch (e: any) {
-        serverLogger.warn("[ZohoBooks] Could not persist subscription expiry to DB", e?.message);
+      } catch (e) {
+        serverLogger.warn("[ZohoBooks] Could not persist subscription expiry to DB", (e as Error)?.message);
       }
     })();
   }
@@ -149,8 +159,8 @@ export class ZohoBooksService {
         const Settings = (await import("../models/Settings")).default;
         await connectToDatabase();
         await Settings.deleteOne({ key: "zoho.subscription_expired" });
-      } catch (e: any) {
-        serverLogger.warn("[ZohoBooks] Could not clear subscription expiry from DB", e?.message);
+      } catch (e) {
+        serverLogger.warn("[ZohoBooks] Could not clear subscription expiry from DB", (e as Error)?.message);
       }
     })();
   }
@@ -184,8 +194,9 @@ export class ZohoBooksService {
       this.tokenExpiry = Date.now() + (response.data.expires_in * 1000) - 60000;
 
       return this.accessToken!;
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.error || error.message;
+    } catch (error) {
+      const unwrapped = unwrapZohoError(error);
+      const errorMessage = (unwrapped.data as { error?: string } | undefined)?.error || unwrapped.message;
       serverLogger.error('[ZohoBooks] Failed to refresh token', errorMessage);
        // Throw a specific error so we can catch it specifically if needed
        throw new ZohoError('Auth Failed', 'AUTH_ERROR', errorMessage);
@@ -193,36 +204,37 @@ export class ZohoBooksService {
   }
 
   private async idempotentRetry<T>(operation: () => Promise<T>, retries = 3, delay = 1000): Promise<T> {
-      let lastError: any;
+      let lastError: unknown;
       for (let i = 0; i < retries; i++) {
           try {
               return await operation();
-          } catch (error: any) {
+          } catch (error) {
               lastError = error;
+              const unwrapped = unwrapZohoError(error);
               // Track subscription expiry so the health check can surface it
               // without needing a write-level probe call.
-              if (error.response?.data?.code === 103001 && !this._subscriptionExpired) {
+              if (unwrapped.data?.code === 103001 && !this._subscriptionExpired) {
                   this._subscriptionExpired = true;
                   this.persistSubscriptionExpiredToDB();
               }
               // Check if retryable: Network errors, 5xx, or 429
-              const status = error.response?.status;
+              const status = unwrapped.status;
               const isRetryable = !status || status >= 500 || status === 429;
 
               if (!isRetryable) {
                   throw error; // Don't retry validation or auth errors
               }
 
-              serverLogger.warn(`[ZohoBooks] Transient error (Attempt ${i + 1}/${retries}), retrying...`, error.message);
+              serverLogger.warn(`[ZohoBooks] Transient error (Attempt ${i + 1}/${retries}), retrying...`, unwrapped.message);
               await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i))); // Exponential backoff
           }
       }
       throw lastError;
   }
 
-  private async getHeaders() {
+  private async getHeaders(): Promise<Record<string, string>> {
     const token = await this.getAccessToken();
-    const headers: any = {
+    const headers: Record<string, string> = {
       Authorization: `Zoho-oauthtoken ${token}`,
       'Content-Type': 'application/json',
     };
@@ -278,12 +290,12 @@ export class ZohoBooksService {
   /**
    * Search for a contact by email
    */
-  async getContactByEmail(email: string): Promise<any | null> {
+  async getContactByEmail(email: string): Promise<ZohoContact | null> {
     const { getContactByEmail } = await import('./zohobooks/contacts');
     return getContactByEmail(this, email);
   }
 
-  async getContactByName(name: string): Promise<any | null> {
+  async getContactByName(name: string): Promise<ZohoContact | null> {
     const { getContactByName } = await import('./zohobooks/contacts');
     return getContactByName(this, name);
   }
@@ -291,7 +303,7 @@ export class ZohoBooksService {
   /**
    * Create a new contact in Zoho Books
    */
-  async createContact(user: any): Promise<any> {
+  async createContact(user: ZohoUserInput): Promise<ZohoContact | null> {
     const { createContact } = await import('./zohobooks/contacts');
     return createContact(this, user);
   }
@@ -299,7 +311,7 @@ export class ZohoBooksService {
   /**
    * Update an existing contact's details to match user profile
    */
-  async updateContactDetails(contactId: string, user: any): Promise<boolean> {
+  async updateContactDetails(contactId: string, user: ZohoUserInput): Promise<boolean> {
     const { updateContactDetails } = await import('./zohobooks/contacts');
     return updateContactDetails(this, contactId, user);
   }
@@ -307,7 +319,7 @@ export class ZohoBooksService {
   /**
    * Get all contact persons for a contact
    */
-  async getContactPersons(contactId: string): Promise<any[]> {
+  async getContactPersons(contactId: string): Promise<ZohoContactPerson[]> {
     const { getContactPersons } = await import('./zohobooks/contacts');
     return getContactPersons(this, contactId);
   }
@@ -315,7 +327,7 @@ export class ZohoBooksService {
   /**
    * Update a specific contact person
    */
-  async updateContactPerson(contactPersonId: string, user: any): Promise<boolean> {
+  async updateContactPerson(contactPersonId: string, user: ZohoUserInput): Promise<boolean> {
     const { updateContactPerson } = await import('./zohobooks/contacts');
     return updateContactPerson(this, contactPersonId, user);
   }
@@ -332,7 +344,13 @@ export class ZohoBooksService {
   /**
    * Create an invoice and optionally apply payment
    */
-  async createInvoice(order: any, user: any, items: any[], paymentMode: string = 'Razorpay', shouldApplyPayment: boolean = true): Promise<any> {
+  async createInvoice(
+    order: ZohoOrderInput,
+    user: ZohoUserInput,
+    items: ZohoOrderItemInput[],
+    paymentMode: string = 'Razorpay',
+    shouldApplyPayment: boolean = true,
+  ): Promise<ZohoInvoice | null> {
     const { createInvoice } = await import('./zohobooks/invoices');
     return createInvoice(this, order, user, items, paymentMode, shouldApplyPayment);
   }
@@ -340,7 +358,7 @@ export class ZohoBooksService {
   /**
    * Get invoices by Email
    */
-  async getInvoicesByEmail(email: string): Promise<any[]> {
+  async getInvoicesByEmail(email: string): Promise<ZohoInvoice[]> {
     const { getInvoicesByEmail } = await import('./zohobooks/invoices');
     return getInvoicesByEmail(this, email);
   }
@@ -356,7 +374,10 @@ export class ZohoBooksService {
   /**
    * Get All Invoices (Admin)
    */
-  async getAllInvoices(page = 1, perPage = 20): Promise<{ invoices: any[], page_context: any }> {
+  async getAllInvoices(
+    page = 1,
+    perPage = 20,
+  ): Promise<{ invoices: ZohoInvoice[]; page_context: Record<string, unknown> }> {
     const { getAllInvoices } = await import('./zohobooks/invoices');
     return getAllInvoices(this, page, perPage);
   }
@@ -364,7 +385,11 @@ export class ZohoBooksService {
   /**
    * Create a Recurring Invoice Profile
    */
-  async createRecurringInvoice(order: any, user: any, items: any[]): Promise<{ domainName: string, success: boolean, recurringInvoiceId?: string, error?: string }[]> {
+  async createRecurringInvoice(
+    order: ZohoOrderInput,
+    user: ZohoUserInput,
+    items: ZohoOrderItemInput[],
+  ): Promise<{ domainName: string, success: boolean, recurringInvoiceId?: string, error?: string }[]> {
     const { createRecurringInvoice } = await import('./zohobooks/recurring');
     return createRecurringInvoice(this, order, user, items);
   }
@@ -372,7 +397,7 @@ export class ZohoBooksService {
   /**
    * Get Invoice by ID
    */
-  async getInvoiceById(invoiceId: string): Promise<any | null> {
+  async getInvoiceById(invoiceId: string): Promise<ZohoInvoice | null> {
     const { getInvoiceById } = await import('./zohobooks/invoices');
     return getInvoiceById(this, invoiceId);
   }
@@ -388,7 +413,7 @@ export class ZohoBooksService {
   /**
    * Search for invoices by reference number (Order ID)
    */
-  async getInvoicesByReferenceNumber(referenceNumber: string): Promise<any[]> {
+  async getInvoicesByReferenceNumber(referenceNumber: string): Promise<ZohoInvoice[]> {
     const { getInvoicesByReferenceNumber } = await import('./zohobooks/invoices');
     return getInvoicesByReferenceNumber(this, referenceNumber);
   }
@@ -410,12 +435,12 @@ export class ZohoBooksService {
     refundId: string,
     refundAmountPaise: number,
     orderId: string
-  ): Promise<any> {
+  ): Promise<{ creditnote_id: string; [k: string]: unknown }> {
     const { createCreditNote } = await import('./zohobooks/credit-notes');
     return createCreditNote(this, zohoInvoiceId, zohoContactId, refundId, refundAmountPaise, orderId);
   }
 
-  async getOrganizationDetails(): Promise<any | null> {
+  async getOrganizationDetails(): Promise<ZohoOrganization | null> {
     const { getOrganizationDetails } = await import('./zohobooks/org');
     return getOrganizationDetails(this);
   }

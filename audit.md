@@ -381,7 +381,7 @@ Audit-recommended sub-files I did NOT create:
 
 ## 4. Code Quality
 
-### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (ResellerClub external-API wrappers fully typed; 845 → 797 sitewide)
+### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (ResellerClub + Zoho Books external-API wrappers fully typed; 845 → 725 sitewide)
 Across `lib/`, `app/`, `components/`. TypeScript was doing far less work than it could. Worst offenders were the external API wrappers (ResellerClub / DirectAdmin responses).
 
 **First pass — ResellerClub wrappers (audit-recommended starting point):**
@@ -395,12 +395,28 @@ Across `lib/`, `app/`, `components/`. TypeScript was doing far less work than it
 
 **Net:** 48 anys removed (≈6% of the 845 total). The `getDomainPricing` / `searchDomain` chain — the audit's named "highest-traffic" target — is now fully typed end-to-end.
 
+**Second pass — Zoho Books wrappers (2026-05-17):** Same approach, applied to the Zoho Books module:
+
+[lib/zohobooks/types.ts](lib/zohobooks/types.ts) — new shared types file: `ZohoApiEnvelope` (the `{ code, message }` wrapper every Zoho response shares), specific response wrappers for contacts/invoices/credit-notes/recurring/organization (`ZohoContactsListResponse`, `ZohoInvoiceResponse`, etc.), record types (`ZohoContact`, `ZohoContactPerson`, `ZohoLineItem`, `ZohoCreditNote`, `ZohoRecurringInvoice`, `ZohoOrganization`, `ZohoBillingAddress`), app-side input shapes (`ZohoUserInput`, `ZohoOrderInput`, `ZohoOrderItemInput`), and an `unwrapZohoError(err: unknown)` helper that replaces the `(error as any).response?.data` foot-gun. The existing `ZohoInvoice` from [lib/types.ts](lib/types.ts) is re-exported through the types module so a single canonical definition stays in place.
+
+**Migrated:**
+- [lib/zohobooks.ts](lib/zohobooks.ts) — 28 → 0 anys. Every public delegate method now has a concrete return type (`ZohoContact | null`, `ZohoInvoice[]`, etc.) instead of `any`. The internal `idempotentRetry` and `getHeaders` helpers — previously `lastError: any` + `headers: any` — now use `unknown` with narrowing via the new helper. `ZohoError.details` was widened from `any` to `unknown`.
+- [lib/zohobooks/invoices.ts](lib/zohobooks/invoices.ts) — 25 → 0 anys. `createInvoice` / `getInvoicesByEmail` / `getAllInvoices` / `getInvoiceById` / `getInvoicesByReferenceNumber` / `applyPaymentToInvoice` / `getInvoicePdf` all switched from `Promise<any>` to typed returns. Eight `catch (X: any)` blocks rewritten via `unwrapZohoError`.
+- [lib/zohobooks/contacts.ts](lib/zohobooks/contacts.ts) — 19 → 0 anys. Same pattern across `getContactByEmail` / `getContactByName` / `createContact` / `updateContactDetails` / `getContactPersons` / `updateContactPerson` / `updateContactToConsumer`.
+
+**Net:** 72 anys removed (≈8.5% of the original 845). Combined two-pass total: **120 anys removed, 845 → 725 sitewide**.
+
+**Downstream type ripples** caught + fixed during this pass:
+- [app/api/admin/system-health/route.ts](app/api/admin/system-health/route.ts): explicit casts on `org.plan_name` / `org.trial_expiry_date` since the org response now has an `unknown`-indexed signature.
+- [app/api/user/invoices/[id]/pay/route.ts](app/api/user/invoices/[id]/pay/route.ts): `invoice.balance ?? 0` since the typed `ZohoInvoice.balance` is now `number | undefined`.
+- [lib/services/payment/post-tasks.ts](lib/services/payment/post-tasks.ts): `let invoice: ZohoInvoice | null` since `createInvoice` may now return null on idempotency skip.
+
 **Verified on main 2026-05-17:** 340/340 tests, tsc clean, production build succeeded.
 
-**Pending:** 797 anys remaining. Largest residual clusters:
-- Zoho Books wrappers (`lib/zohobooks.ts`: 28, `lib/zohobooks/invoices.ts`: 25, `lib/zohobooks/contacts.ts`: 19) — same external-response pattern, would benefit from the same types-file approach.
+**Pending:** 725 anys remaining. Largest residual clusters:
 - Admin route handlers (`app/api/admin/hosting/stats/route.ts`: 21, `app/admin/user-management/page.tsx`: 20) — request/response shapes plus some `event: any` callback params on the UI side.
 - DirectAdmin client (`lib/directadmin/client.ts`: 10, `lib/directadmin/users.ts`: 8) — same opportunity as ResellerClub for a `lib/directadmin/types.ts`.
+- Remaining Zoho submodules (`lib/zohobooks/recurring.ts`: 5, `lib/zohobooks/org.ts`: 3, `lib/zohobooks/credit-notes.ts`: 1) — small follow-ups now that the types file exists.
 
 ---
 

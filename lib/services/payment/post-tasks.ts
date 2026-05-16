@@ -47,7 +47,7 @@ export async function createZohoInvoice(
   }
 
   const zohoService = ZohoBooksService.getInstance();
-  let invoice: ZohoInvoice;
+  let invoice: ZohoInvoice | null;
   try {
     invoice = await zohoService.createInvoice(
       {

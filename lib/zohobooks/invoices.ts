@@ -7,25 +7,32 @@ import { serverLogger } from '../server-logger';
 import { SAC_CODE, formatSubscriptionPeriod } from '../invoiceUtils';
 import type { ZohoBooksService } from '../zohobooks';
 import { ZohoError } from '../zohobooks';
+import type {
+  ZohoInvoice,
+  ZohoOrderInput,
+  ZohoOrderItemInput,
+  ZohoUserInput,
+} from './types';
+import { unwrapZohoError } from './types';
 
 /**
  * Create an invoice and optionally apply payment
  */
 export async function createInvoice(
   self: ZohoBooksService,
-  order: any,
-  user: any,
-  items: any[],
+  order: ZohoOrderInput,
+  user: ZohoUserInput,
+  items: ZohoOrderItemInput[],
   paymentMode: string = 'Razorpay',
   shouldApplyPayment: boolean = true
-): Promise<any> {
+): Promise<ZohoInvoice | null> {
   if (!self._hasRefreshToken()) {
     throw new ZohoError('Config Error', 'MISSING_REFRESH_TOKEN', 'ZOHO_REFRESH_TOKEN environment variable is not set — Zoho Books integration is disabled');
   }
 
   try {
     // 🛡️ IDEMPOTENCY: Check if an invoice with this OrderID already exists in Zoho
-    const orderId = order.orderId || (order as any).reference_number;
+    const orderId = order.orderId || order.reference_number;
     if (orderId) {
       const existingInvoices = await self.getInvoicesByReferenceNumber(orderId);
       if (existingInvoices.length > 0) {
@@ -72,10 +79,14 @@ export async function createInvoice(
 
       const isTestHosting = item.itemType === 'hosting' && item.periodUnit === 'days';
       const actualDuration = item.registrationPeriod || 1;
-      const rate = isTestHosting ? 1 : self._roundAmount(item.price);
+      const rate = isTestHosting ? 1 : self._roundAmount(item.price ?? 0);
       const quantity = isTestHosting ? 1 : actualDuration;
       const startDate = order.createdAt ? new Date(order.createdAt) : new Date();
-      const periodText = formatSubscriptionPeriod(startDate, actualDuration, item.periodUnit || (item.itemType === 'hosting' ? 'months' : 'years'));
+      const periodText = formatSubscriptionPeriod(
+        startDate,
+        actualDuration,
+        (item.periodUnit || (item.itemType === 'hosting' ? 'months' : 'years')) as 'minutes' | 'months' | 'years' | 'days',
+      );
 
       let description = '';
       if (item.itemType === 'domain') {
@@ -116,9 +127,10 @@ export async function createInvoice(
               params: { send: false, ...self._defaultParams }
           })
       );
-    } catch (invoiceError: any) {
-      const errorData = invoiceError.response?.data;
-      const errorMessage = errorData?.message || invoiceError.message;
+    } catch (invoiceError) {
+      const unwrapped = unwrapZohoError(invoiceError);
+      const errorData = unwrapped.data;
+      const errorMessage = errorData?.message || unwrapped.message;
 
       // 🛡️ FALLBACK: If invoice creation fails due to GST issues, try to fix contact and retry once
       if (errorData?.code === 2 && errorMessage.toLowerCase().includes('gst')) {
@@ -146,7 +158,7 @@ export async function createInvoice(
           serverLogger.warn(`[ZohoBooks] Tax mismatch for ${user.email} (tried ${isIntraState ? 'Local' : 'Inter-state'}). Retrying with ${taxTypeLabel}...`);
 
           // Re-prepare line items with the swapped tax ID
-          const swappedLineItems = invoiceData.line_items.map((li: any) => ({ ...li, tax_id: newTaxId }));
+          const swappedLineItems = invoiceData.line_items.map((li) => ({ ...li, tax_id: newTaxId }));
           const retryData = { ...invoiceData, line_items: swappedLineItems };
 
           response = await self._idempotentRetry(() =>
@@ -206,8 +218,9 @@ export async function createInvoice(
         } else {
            serverLogger.warn(`[ZohoBooks] Failed to record payment: ${paymentResponse.data.message}`);
         }
-      } catch (paymentError: any) {
-        serverLogger.warn(`[ZohoBooks] Payment recording failed, but invoice was created:`, paymentError.response?.data || paymentError.message);
+      } catch (paymentError) {
+        const u = unwrapZohoError(paymentError);
+        serverLogger.warn(`[ZohoBooks] Payment recording failed, but invoice was created:`, u.data || u.message);
         // Do not throw, return invoice since it was successfully created
       }
     } else {
@@ -217,13 +230,13 @@ export async function createInvoice(
 
     return invoice;
 
-  } catch (error: any) {
-    const errorData = error.response?.data;
-    if (errorData?.code === 103001) {
-      serverLogger.error('[ZohoBooks] Invoice creation failed — Zoho Books subscription expired. Upgrade required.', errorData.message);
+  } catch (error) {
+    const unwrapped = unwrapZohoError(error);
+    if (unwrapped.data?.code === 103001) {
+      serverLogger.error('[ZohoBooks] Invoice creation failed — Zoho Books subscription expired. Upgrade required.', unwrapped.data.message);
       throw new ZohoError('Subscription Expired', 'SUBSCRIPTION_EXPIRED', 'Zoho Books subscription has expired. Please renew to generate invoices.');
     }
-    serverLogger.error('[ZohoBooks] Invoice creation failed', errorData || error.message);
+    serverLogger.error('[ZohoBooks] Invoice creation failed', unwrapped.data || unwrapped.message);
     throw error;
   }
 }
@@ -231,7 +244,7 @@ export async function createInvoice(
 /**
  * Get invoices by Email
  */
-export async function getInvoicesByEmail(self: ZohoBooksService, email: string): Promise<any[]> {
+export async function getInvoicesByEmail(self: ZohoBooksService, email: string): Promise<ZohoInvoice[]> {
   if (!self._hasRefreshToken()) {
     serverLogger.warn('[ZohoBooks] Missing refresh token, cannot fetch invoices.');
     return [];
@@ -264,15 +277,16 @@ export async function getInvoicesByEmail(self: ZohoBooksService, email: string):
       serverLogger.info(`[ZohoBooks] Found ${response.data.invoices.length} invoices for ${email}`);
 
       // Sort by invoice_number DESC to ensure sequential order (e.g. INV-00014 before INV-00013)
-      return response.data.invoices.sort((a: any, b: any) =>
+      return (response.data.invoices as ZohoInvoice[]).sort((a, b) =>
           (b.invoice_number || "").localeCompare(a.invoice_number || "", undefined, { numeric: true, sensitivity: 'base' })
       );
     }
     serverLogger.warn(`[ZohoBooks] Failed to list invoices. Code: ${response.data.code}, Message: ${response.data.message}`);
     return [];
-  } catch (error: any) {
-    const errCode = error.response?.data?.code;
-    const errMsg = error.response?.data?.message || error.message;
+  } catch (error) {
+    const unwrapped = unwrapZohoError(error);
+    const errCode = unwrapped.data?.code;
+    const errMsg = unwrapped.data?.message || unwrapped.message;
 
     serverLogger.error(`[ZohoBooks] Failed to fetch invoices: Code ${errCode}, Msg: ${errMsg}`);
 
@@ -288,8 +302,9 @@ export async function getInvoicesByEmail(self: ZohoBooksService, email: string):
          };
          await axios.get(`${self._baseUrl}/invoices`, { headers, params: probeParams });
          serverLogger.warn('[ZohoBooks] PROBE SUCCESS: You HAVE access to invoices. The issue is likely with the specific Customer ID.');
-      } catch (probeError: any) {
-         serverLogger.error('[ZohoBooks] PROBE FAILED: You likely DO NOT have "ZohoBooks.invoices.READ" scope.', probeError.response?.data || probeError.message);
+      } catch (probeError) {
+         const u = unwrapZohoError(probeError);
+         serverLogger.error('[ZohoBooks] PROBE FAILED: You likely DO NOT have "ZohoBooks.invoices.READ" scope.', u.data || u.message);
       }
     }
 
@@ -321,8 +336,9 @@ export async function getInvoicePdf(self: ZohoBooksService, invoiceId: string): 
     );
 
     return response.data;
-  } catch (error: any) {
-    serverLogger.error('[ZohoBooks] Failed to fetch invoice PDF', error.response?.data || error.message);
+  } catch (error) {
+    const u = unwrapZohoError(error);
+    serverLogger.error('[ZohoBooks] Failed to fetch invoice PDF', u.data || u.message);
     return null;
   }
 }
@@ -330,7 +346,11 @@ export async function getInvoicePdf(self: ZohoBooksService, invoiceId: string): 
 /**
  * Get All Invoices (Admin)
  */
-export async function getAllInvoices(self: ZohoBooksService, page = 1, perPage = 20): Promise<{ invoices: any[], page_context: any }> {
+export async function getAllInvoices(
+  self: ZohoBooksService,
+  page = 1,
+  perPage = 20,
+): Promise<{ invoices: ZohoInvoice[]; page_context: Record<string, unknown> }> {
   if (!self._hasRefreshToken()) {
     serverLogger.warn('[ZohoBooks] Missing refresh token, cannot fetch all invoices.');
     return { invoices: [], page_context: {} };
@@ -353,7 +373,7 @@ export async function getAllInvoices(self: ZohoBooksService, page = 1, perPage =
 
     if (response.data.code === 0) {
       // Sort by invoice_number DESC to ensure sequential order
-      const sortedInvoices = response.data.invoices.sort((a: any, b: any) =>
+      const sortedInvoices = (response.data.invoices as ZohoInvoice[]).sort((a, b) =>
           (b.invoice_number || "").localeCompare(a.invoice_number || "", undefined, { numeric: true, sensitivity: 'base' })
       );
 
@@ -363,8 +383,9 @@ export async function getAllInvoices(self: ZohoBooksService, page = 1, perPage =
       };
     }
     return { invoices: [], page_context: {} };
-  } catch (error: any) {
-    serverLogger.error('[ZohoBooks] Failed to fetch all invoices', error.response?.data || error.message);
+  } catch (error) {
+    const u = unwrapZohoError(error);
+    serverLogger.error('[ZohoBooks] Failed to fetch all invoices', u.data || u.message);
     return { invoices: [], page_context: {} };
   }
 }
@@ -372,7 +393,7 @@ export async function getAllInvoices(self: ZohoBooksService, page = 1, perPage =
 /**
  * Get Invoice by ID
  */
-export async function getInvoiceById(self: ZohoBooksService, invoiceId: string): Promise<any | null> {
+export async function getInvoiceById(self: ZohoBooksService, invoiceId: string): Promise<ZohoInvoice | null> {
   if (!self._hasRefreshToken() || !invoiceId) return null;
 
   try {
@@ -385,8 +406,9 @@ export async function getInvoiceById(self: ZohoBooksService, invoiceId: string):
       return response.data.invoice;
     }
     return null;
-  } catch (error: any) {
-    serverLogger.error('[ZohoBooks] Error fetching invoice by ID', error.response?.data || error.message);
+  } catch (error) {
+    const u = unwrapZohoError(error);
+    serverLogger.error('[ZohoBooks] Error fetching invoice by ID', u.data || u.message);
     return null;
   }
 }
@@ -431,8 +453,9 @@ export async function applyPaymentToInvoice(
     );
 
     return response.data.code === 0;
-  } catch (error: any) {
-    serverLogger.error('[ZohoBooks] Error applying payment to invoice', error.response?.data || error.message);
+  } catch (error) {
+    const u = unwrapZohoError(error);
+    serverLogger.error('[ZohoBooks] Error applying payment to invoice', u.data || u.message);
     return false;
   }
 }
@@ -440,7 +463,7 @@ export async function applyPaymentToInvoice(
 /**
  * Search for invoices by reference number (Order ID)
  */
-export async function getInvoicesByReferenceNumber(self: ZohoBooksService, referenceNumber: string): Promise<any[]> {
+export async function getInvoicesByReferenceNumber(self: ZohoBooksService, referenceNumber: string): Promise<ZohoInvoice[]> {
   if (!self._hasRefreshToken() || !referenceNumber) return [];
 
   try {
@@ -459,8 +482,9 @@ export async function getInvoicesByReferenceNumber(self: ZohoBooksService, refer
       return response.data.invoices;
     }
     return [];
-  } catch (error: any) {
-    serverLogger.error('[ZohoBooks] Failed to fetch invoices by reference number', error.response?.data || error.message);
+  } catch (error) {
+    const u = unwrapZohoError(error);
+    serverLogger.error('[ZohoBooks] Failed to fetch invoices by reference number', u.data || u.message);
     return [];
   }
 }

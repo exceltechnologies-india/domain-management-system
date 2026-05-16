@@ -37,8 +37,8 @@ export async function POST(
 
     // Create Razorpay order
     const razorpayOrder = await RazorpayService.createOrder(
-      invoice.balance,
-      invoice.currency_code || "INR",
+      invoice.balance ?? 0,
+      ((invoice.currency_code as string | undefined) || "INR"),
       orderReceiptId,
       {
         type: 'invoice_payment',
