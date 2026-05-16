@@ -654,8 +654,12 @@ The audit's original recommendation built to `.next.new/` then swapped; this imp
 
 ---
 
-### [LOW-1] `npm audit` never gated
-Scripts (`npm run audit`, `audit:summary`) are wired up but no recent output captured. Run before each deploy.
+### ~~[LOW-1] `npm audit` never gated~~ — RESOLVED 2026-05-17
+`npm audit --audit-level=high` now runs as a gating job in [.github/workflows/ci.yml](.github/workflows/ci.yml). Any high-or-critical advisory fails the workflow — previously the same job ran with `continue-on-error: true` and was purely informational.
+
+To clear the existing backlog before flipping the gate, ran `npm audit fix` which bumped Next.js 15.5.15 → 15.5.18 (within the existing `^15.5.15` semver range), resolving 13 listed high-severity Next.js advisories (cache key confusion, image-optimization SSRF, middleware redirect SSRF, content injection, etc.). Post-bump: `npm audit` reports `found 0 vulnerabilities`, full unit suite (340/340) green, `tsc --noEmit` clean, `next build` succeeds.
+
+If a new advisory lands, either bump the affected package or add a per-vuln suppression — do not blanket-disable by reintroducing `continue-on-error`.
 
 ---
 

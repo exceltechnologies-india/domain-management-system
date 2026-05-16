@@ -37,12 +37,13 @@ jobs:
         run: npm test
 
   audit:
-    name: npm audit (informational)
+    name: npm audit
     runs-on: ubuntu-latest
-    # Informational only — does NOT block the merge while the open Next.js
-    # advisories are being assessed. Promote to required once npm audit
-    # returns clean (or once a per-vuln allowlist is configured).
-    continue-on-error: true
+    # Gating step — fails the workflow on any high-or-critical advisory.
+    # The previous Next.js advisories were cleared by the 2026-05-17 bump
+    # to next@15.5.18 and this job now runs clean. If a new advisory
+    # lands, either bump the affected package or add a per-vuln
+    # suppression — do not blanket-disable.
     steps:
       - uses: actions/checkout@v4
 
