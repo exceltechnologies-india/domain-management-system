@@ -6,6 +6,7 @@ import axios from 'axios';
 import { serverLogger } from '../server-logger';
 import type { ZohoBooksService } from '../zohobooks';
 import { ZohoError } from '../zohobooks';
+import type { ZohoCreditNote } from './types';
 
 /**
  * Create a credit note in Zoho Books for a Razorpay refund, then apply it to
@@ -25,7 +26,7 @@ export async function createCreditNote(
   refundId: string,
   refundAmountPaise: number,
   orderId: string
-): Promise<any> {
+): Promise<ZohoCreditNote> {
   if (!self._hasRefreshToken()) {
     throw new ZohoError('Config Error', 'MISSING_REFRESH_TOKEN', 'ZOHO_REFRESH_TOKEN is not set');
   }

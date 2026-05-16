@@ -5,15 +5,21 @@
 import axios from 'axios';
 import { serverLogger } from '../server-logger';
 import type { ZohoBooksService } from '../zohobooks';
+import type {
+  ZohoOrderInput,
+  ZohoOrderItemInput,
+  ZohoUserInput,
+} from './types';
+import { unwrapZohoError } from './types';
 
 /**
  * Create a Recurring Invoice Profile
  */
 export async function createRecurringInvoice(
   self: ZohoBooksService,
-  order: any,
-  user: any,
-  items: any[]
+  order: ZohoOrderInput,
+  user: ZohoUserInput,
+  items: ZohoOrderItemInput[]
 ): Promise<{ domainName: string, success: boolean, recurringInvoiceId?: string, error?: string }[]> {
   if (!self._hasRefreshToken()) return [];
 
@@ -94,7 +100,7 @@ export async function createRecurringInvoice(
                  {
                      name: name,
                      description: description,
-                     rate: self._roundAmount(item.price),
+                     rate: self._roundAmount(item.price ?? 0),
                      quantity: 1
                  }
              ],
@@ -112,7 +118,7 @@ export async function createRecurringInvoice(
              const errMsg = response.data.message || 'Unknown Zoho API Error';
              serverLogger.warn(`[ZohoBooks] Failed to create recurring invoice for ${displayDomain}: ${errMsg}`);
              results.push({
-                 domainName: item.domainName,
+                 domainName: item.domainName ?? '',
                  success: false,
                  error: errMsg
              });
@@ -120,17 +126,18 @@ export async function createRecurringInvoice(
              const recurringId = response.data.recurring_invoice.recurring_invoice_id;
              serverLogger.info(`[ZohoBooks] Recurring Invoice created for ${displayDomain} (ID: ${recurringId})`);
              results.push({
-                 domainName: item.domainName,
+                 domainName: item.domainName ?? '',
                  success: true,
                  recurringInvoiceId: recurringId
              });
          }
-       } catch (itemError: any) {
+       } catch (itemError) {
            // Catch individual item errors loop to continue processing others
-           const itemErrMsg = itemError.response?.data?.message || itemError.message;
+           const u = unwrapZohoError(itemError);
+           const itemErrMsg = u.data?.message || u.message;
            serverLogger.error(`[ZohoBooks] Exception processing item ${item.domainName}: ${itemErrMsg}`);
            results.push({
-               domainName: item.domainName,
+               domainName: item.domainName ?? '',
                success: false,
                error: itemErrMsg
            });
@@ -139,8 +146,9 @@ export async function createRecurringInvoice(
 
     return results;
 
-  } catch (error: any) {
-    serverLogger.error('[ZohoBooks] Recurring Invoice creation process failed', error.response?.data || error.message);
+  } catch (error) {
+    const u = unwrapZohoError(error);
+    serverLogger.error('[ZohoBooks] Recurring Invoice creation process failed', u.data || u.message);
     // If the entire process fails (e.g. Auth), we can't map to specific domains easily unless we passed them all.
     // But we can return an empty list or try to map all items as failed if needed.
     // For now, return empty which means "no results recorded".

@@ -19,7 +19,17 @@ import {
 /**
  * Fetch all DNS records for a domain
  */
-export async function getDNSRecords(username: string, domain: string): Promise<any[]> {
+interface DADnsRecord {
+  name?: string;
+  value?: string;
+  type?: string;
+  ttl?: string;
+  /** Present for records parsed from the URL-encoded API output. Absent
+   *  for records parsed from a raw BIND-format zone-file fallback. */
+  key?: string;
+}
+
+export async function getDNSRecords(username: string, domain: string): Promise<DADnsRecord[]> {
   validateUsername(username);
 
   return executeRequest(
@@ -39,7 +49,7 @@ export async function getDNSRecords(username: string, domain: string): Promise<a
       // Check if response is a raw BIND zone file (typical with action=view on some DA versions)
       if (typeof response.data === 'string' && (response.data.includes('$TTL') || response.data.includes('IN\tNS') || response.data.includes('IN NS'))) {
           const lines = response.data.split('\n');
-          const records: any[] = [];
+          const records: DADnsRecord[] = [];
 
           for (const line of lines) {
               const trimmed = line.trim();
@@ -60,8 +70,14 @@ export async function getDNSRecords(username: string, domain: string): Promise<a
           return records;
       }
 
-      const data = parseResponseData(response.data);
-      const records: any[] = [];
+      const data = parseResponseData(response.data) as Record<string, string | undefined>;
+      const records: Array<{
+        name?: string;
+        value?: string;
+        type?: string;
+        ttl?: string;
+        key: string;
+      }> = [];
 
       // Parse the numbered response fields (name0, value0, type0, etc.)
       // We scan keys until we find no more 'nameN'
@@ -87,7 +103,7 @@ export async function getDNSRecords(username: string, domain: string): Promise<a
 /**
  * Delete specific DNS records
  */
-export async function deleteDNSRecords(username: string, domain: string, records: any[]): Promise<any> {
+export async function deleteDNSRecords(username: string, domain: string, records: DADnsRecord[]): Promise<unknown> {
   if (!records || records.length === 0) return;
 
   return executeRequest(
@@ -129,7 +145,7 @@ export async function deleteDNSRecords(username: string, domain: string, records
 /**
  * Add a single DNS record
  */
-export async function addDNSRecord(username: string, domain: string, type: string, value: string, name: string = ''): Promise<any> {
+export async function addDNSRecord(username: string, domain: string, type: string, value: string, name: string = ''): Promise<unknown> {
   return executeRequest(
     async () => {
       const payload = new URLSearchParams({
@@ -171,7 +187,7 @@ export async function addDNSRecord(username: string, domain: string, type: strin
  * Update DNS nameservers for a domain
  * Completely replaces existing NS records with new ones
  */
-export async function updateDNSNameservers(username: string, domain: string, nameservers: string[]): Promise<any> {
+export async function updateDNSNameservers(username: string, domain: string, nameservers: string[]): Promise<never> {
   // DISABLED: DNS sync is now handled by purchase type separation
   throw new Error("Automatic DNS syncing is disabled. DNS authority is determined at purchase time.");
 }

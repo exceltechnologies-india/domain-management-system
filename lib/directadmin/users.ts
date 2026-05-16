@@ -18,6 +18,7 @@ import {
   validatePackageName,
   validateUsername,
 } from './client';
+import { unwrapDAError } from './types';
 
 /**
  * Generates a one-time login URL for a specific user.
@@ -83,12 +84,12 @@ export async function getOneTimeLoginUrl(username: string, redirectUrl: string =
       throw new Error(`Unexpected response from DirectAdmin: ${typeof response.data === 'object' ? JSON.stringify(response.data) : response.data}`);
     },
     `SSO-LoginURL-${username}`
-  ).catch((error: any) => {
+  ).catch((error: unknown) => {
+    const unwrapped = unwrapDAError(error);
     // Don't re-wrap if it's already our improved error
-    if (error.message && error.message.startsWith("DirectAdmin authentication failed")) throw error;
+    if (unwrapped.message.startsWith("DirectAdmin authentication failed")) throw error;
 
-    const responseData = error.response?.data;
-    const parsedError = parseDAError(responseData);
+    const parsedError = parseDAError(unwrapped.data);
 
     serverLogger.error(`DirectAdmin SSO Error for ${username}: ${parsedError}`);
     throw new Error(`Failed to generate DirectAdmin SSO link: ${parsedError}`);
@@ -144,10 +145,11 @@ export async function createUser(username: string, email: string, domain: string
       return response.data;
     },
     `CreateUser-${username}`
-  ).catch((error: any) => {
+  ).catch((error: unknown) => {
     if (error instanceof DirectAdminError) throw error;
 
-    const errorMessage = parseDAError(error.response?.data) || error.message;
+    const u = unwrapDAError(error);
+    const errorMessage = parseDAError(u.data) || u.message;
     serverLogger.error(`DirectAdmin User Creation Error (${username}):`, errorMessage);
 
     // Provide user-friendly errors for common scenarios
@@ -162,7 +164,7 @@ export async function createUser(username: string, email: string, domain: string
 /**
  * Fetches user configuration and usage statistics.
  */
-export async function getUserConfig(username: string): Promise<any> {
+export async function getUserConfig(username: string): Promise<Record<string, string | undefined>> {
   validateUsername(username);
 
   return executeRequest(
@@ -181,11 +183,12 @@ export async function getUserConfig(username: string): Promise<any> {
            throw new DirectAdminError(parseDAError(response.data), 'GetUserConfig', 200, response.data);
       }
 
-      return parseResponseData(response.data);
+      return parseResponseData(response.data) as Record<string, string | undefined>;
     },
     `GetUserConfig-${username}`
-  ).catch((error: any) => {
-     const errorMessage = parseDAError(error.response?.data) || error.message;
+  ).catch((error: unknown) => {
+     const u = unwrapDAError(error);
+    const errorMessage = parseDAError(u.data) || u.message;
      serverLogger.error(`DirectAdmin Get User Config Error (${username}):`, errorMessage);
      throw new Error(`Failed to fetch user config: ${errorMessage}`);
   });
@@ -194,7 +197,7 @@ export async function getUserConfig(username: string): Promise<any> {
 /**
  * Fetches real-time user usage statistics.
  */
-export async function getUserUsage(username: string): Promise<any> {
+export async function getUserUsage(username: string): Promise<Record<string, string | undefined>> {
   validateUsername(username);
 
   return executeRequest(
@@ -213,11 +216,12 @@ export async function getUserUsage(username: string): Promise<any> {
            throw new DirectAdminError(parseDAError(response.data), 'GetUserUsage', 200, response.data);
       }
 
-      return parseResponseData(response.data);
+      return parseResponseData(response.data) as Record<string, string | undefined>;
     },
     `GetUserUsage-${username}`
-  ).catch((error: any) => {
-     const errorMessage = parseDAError(error.response?.data) || error.message;
+  ).catch((error: unknown) => {
+     const u = unwrapDAError(error);
+    const errorMessage = parseDAError(u.data) || u.message;
      serverLogger.error(`DirectAdmin Get User Usage Error (${username}):`, errorMessage);
      throw new Error(`Failed to fetch user usage: ${errorMessage}`);
   });
@@ -247,7 +251,7 @@ export async function getUserDomains(username: string): Promise<string[]> {
 
       // Response is usually a URL-encoded list list[]=domain.com&list[]=domain2.com or similar
       // Or in newer JSON apis, an array
-      const data = parseResponseData(response.data);
+      const data = parseResponseData(response.data) as Record<string, string | string[] | undefined>;
 
       const rawList = data['list[]'] || data.list || [];
       let domains = Array.isArray(rawList) ? rawList : [rawList];
@@ -262,8 +266,9 @@ export async function getUserDomains(username: string): Promise<string[]> {
       return domains.filter(Boolean);
     },
     `GetUserDomains-${username}`
-  ).catch((error: any) => {
-      const errorMessage = parseDAError(error.response?.data) || error.message;
+  ).catch((error: unknown) => {
+      const u = unwrapDAError(error);
+    const errorMessage = parseDAError(u.data) || u.message;
       serverLogger.warn(`DirectAdmin Get User Domains Error (${username}): ${errorMessage}`);
       // Return empty array on failure to be safe, or throw if critical?
       // Throwing allows the caller to decide.
@@ -435,7 +440,7 @@ export async function domainExists(domain: string): Promise<boolean> {
           return false;
       }
 
-      const data = parseResponseData(response.data);
+      const data = parseResponseData(response.data) as Record<string, string | string[] | undefined>;
 
       // If the domain is in the response keys or values
       if (data[domain] || Object.values(data).includes(domain)) {
@@ -470,7 +475,7 @@ export async function listUsers(): Promise<string[]> {
            throw new DirectAdminError(parseDAError(response.data), 'ListUsers', 200, response.data);
       }
 
-      const data = parseResponseData(response.data);
+      const data = parseResponseData(response.data) as Record<string, string | string[] | undefined>;
       const rawList = data['list[]'] || data.list || [];
       const users = Array.isArray(rawList) ? rawList : [rawList];
 
@@ -483,7 +488,7 @@ export async function listUsers(): Promise<string[]> {
 /**
  * Fetches usage stats for ALL users on the server (Bulk)
  */
-export async function getAllUserUsage(): Promise<any> {
+export async function getAllUserUsage(): Promise<Record<string, string | undefined>> {
   return executeRequest(
     async () => {
       // CMD_API_SHOW_ALL_USER_USAGE dumps usage stats for everyone
@@ -495,7 +500,7 @@ export async function getAllUserUsage(): Promise<any> {
       if (response.data && (response.data.error === "1" || response.data.startsWith("error=1"))) {
            throw new DirectAdminError(parseDAError(response.data), 'GetAllUserUsage', 200, response.data);
       }
-      return parseResponseData(response.data);
+      return parseResponseData(response.data) as Record<string, string | undefined>;
     },
     'GetAllUserUsage'
   );

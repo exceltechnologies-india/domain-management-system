@@ -381,7 +381,7 @@ Audit-recommended sub-files I did NOT create:
 
 ## 4. Code Quality
 
-### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (ResellerClub + Zoho Books external-API wrappers fully typed; 845 → 725 sitewide)
+### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (ResellerClub + Zoho Books + DirectAdmin external-API wrappers fully typed; 845 → 682 sitewide)
 Across `lib/`, `app/`, `components/`. TypeScript was doing far less work than it could. Worst offenders were the external API wrappers (ResellerClub / DirectAdmin responses).
 
 **First pass — ResellerClub wrappers (audit-recommended starting point):**
@@ -413,10 +413,33 @@ Across `lib/`, `app/`, `components/`. TypeScript was doing far less work than it
 
 **Verified on main 2026-05-17:** 340/340 tests, tsc clean, production build succeeded.
 
-**Pending:** 725 anys remaining. Largest residual clusters:
-- Admin route handlers (`app/api/admin/hosting/stats/route.ts`: 21, `app/admin/user-management/page.tsx`: 20) — request/response shapes plus some `event: any` callback params on the UI side.
-- DirectAdmin client (`lib/directadmin/client.ts`: 10, `lib/directadmin/users.ts`: 8) — same opportunity as ResellerClub for a `lib/directadmin/types.ts`.
-- Remaining Zoho submodules (`lib/zohobooks/recurring.ts`: 5, `lib/zohobooks/org.ts`: 3, `lib/zohobooks/credit-notes.ts`: 1) — small follow-ups now that the types file exists.
+**Third pass — DirectAdmin + smaller Zoho submodules (2026-05-17):**
+
+[lib/directadmin/types.ts](lib/directadmin/types.ts) — new shared types file: `DAParsedRecord` / `DAParsedResponse` (the parsed key=value form vs. the raw-string fall-through from `parseResponseData`), `DAErrorPayload` (the `error=1&text=…` shape DA returns on failure), and `unwrapDAError(err: unknown)` to narrow Axios catches into `{ status, data, code, message }`.
+
+**Migrated (DirectAdmin):**
+- [lib/directadmin/client.ts](lib/directadmin/client.ts) — 10 → 0 anys. `DirectAdminError.response` widened from `any` to `unknown`. `requestQueue: Promise<unknown>`. `parseDAError` / `parseResponseData` signatures rewritten with `unknown` input + typed records (rather than `any → any`). Five `catch (error: any)` sites in the executeRequest retry loop rewritten via `unwrapDAError`, dropping every `error.response?.status` / `error.code` access through a named helper.
+- [lib/directadmin/users.ts](lib/directadmin/users.ts) — 8 → 0 anys. `getUserConfig` / `getUserUsage` / `getAllUserUsage` all switched from `Promise<any>` to `Promise<Record<string, string | undefined>>`. Six `catch ((error: any) => …)` patterns rewritten to `unknown` with `unwrapDAError` narrowing.
+- [lib/directadmin/dns.ts](lib/directadmin/dns.ts) — 7 → 0 anys. Added a local `DADnsRecord` interface so `getDNSRecords` returns a real type instead of `any[]`. The BIND-zone-file fallback and URL-encoded path now share the same record shape (`key` is optional — present for API-parsed records, absent for raw-zone fallback). `deleteDNSRecords` / `addDNSRecord` / `updateDNSNameservers` switched off `Promise<any>` returns.
+- [lib/directadmin/packages.ts](lib/directadmin/packages.ts) — 3 → 0 anys. `getPackageDetails` now returns `Record<string, string | undefined>`. `createPackage(options)` typed as `Record<string, string | undefined>`.
+- [lib/directadmin/server.ts](lib/directadmin/server.ts) — 2 → 0 anys. `getServerInfo` / `getLicenseInfo` typed.
+
+**Migrated (Zoho follow-ups now that `lib/zohobooks/types.ts` exists):**
+- [lib/zohobooks/recurring.ts](lib/zohobooks/recurring.ts) — 5 → 0 anys. `createRecurringInvoice` signature uses the existing `ZohoUserInput` / `ZohoOrderInput` / `ZohoOrderItemInput` types. Two `catch (X: any)` blocks rewritten via `unwrapZohoError`.
+- [lib/zohobooks/org.ts](lib/zohobooks/org.ts) — 3 → 0 anys. `getOrganizationDetails` returns `ZohoOrganization | null`; the `find((o: any) =>)` callback typed via the returned record type.
+- [lib/zohobooks/credit-notes.ts](lib/zohobooks/credit-notes.ts) — 1 → 0 anys. Return type tightened to `ZohoCreditNote`.
+
+**Downstream ripples** caught + fixed:
+- [app/api/admin/hosting/details/route.ts](app/api/admin/hosting/details/route.ts) + [app/api/user/hosting/stats/route.ts](app/api/user/hosting/stats/route.ts) — the typed `getDNSRecords` return surfaced two `(r: any) => r.value.replace(…)` sites where `r.value` is now correctly typed as `string | undefined`; tightened with `?? ''` guards.
+
+**Net this pass:** 43 anys removed (`725 → 682`). Combined three-pass total: **163 anys removed sitewide (845 → 682, 19% reduction)** — every external-API wrapper (ResellerClub, Zoho Books, DirectAdmin) now has a co-located types module and an `unwrap-*-Error` helper for catch-block narrowing.
+
+**Verified on main 2026-05-17:** 340/340 tests, tsc clean, production build succeeded.
+
+**Pending:** 682 anys remaining. Largest residual clusters:
+- Admin route handlers (`app/api/admin/hosting/stats/route.ts`: 21, `app/admin/user-management/page.tsx`: 20) — request/response shapes plus `event: any` callback params on the UI side.
+- Other ad-hoc admin/user-page anys throughout `app/admin/**` and `app/dashboard/**` (most files 5–10).
+- Generic library helpers (`lib/audit-log.ts`: 11, `lib/rate-limit.ts`: 14) — internal types worth a dedicated pass.
 
 ---
 

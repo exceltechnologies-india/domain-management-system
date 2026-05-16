@@ -96,10 +96,10 @@ export async function GET(request: NextRequest) {
              // Nameservers
             let nameservers = DirectAdminService.NAMESERVERS;
             try {
-                const dnsRecords = await DirectAdminService.getDNSRecords(daUsername, daConfig.domain);
+                const dnsRecords = await DirectAdminService.getDNSRecords(daUsername, daConfig.domain ?? '');
                 const actualNs = dnsRecords
-                    .filter((r: any) => r.type === 'NS')
-                    .map((r: any) => r.value.replace(/\.$/, ''))
+                    .filter((r) => r.type === 'NS')
+                    .map((r) => (r.value ?? '').replace(/\.$/, ''))
                     .filter((ns: string) => ns !== daConfig.domain && ns !== `${daConfig.domain}.`);
                 const uniqueNs = Array.from(new Set(actualNs));
                 if (uniqueNs.length > 0) nameservers = uniqueNs as string[];
