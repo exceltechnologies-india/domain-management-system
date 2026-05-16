@@ -43,16 +43,16 @@ export default function SearchInput({
         }}
         className={`relative transition-all duration-300 ${
           compact
-            ? 'rounded-xl sm:rounded-2xl p-0.5 sm:p-1 gap-1.5'
-            : 'rounded-2xl sm:rounded-[1.5rem] p-1 sm:p-1.5 gap-2'
-        } flex flex-col md:flex-row items-stretch ${
+            ? 'rounded-xl sm:rounded-2xl p-0.5 sm:p-1 gap-1 sm:gap-1.5'
+            : 'rounded-2xl sm:rounded-[1.5rem] p-1 sm:p-1.5 gap-1.5 sm:gap-2'
+        } flex flex-row items-stretch ${
           theme === 'dark'
             ? 'bg-white/10 backdrop-blur-2xl border border-white/20 shadow-[0_20px_50px_rgba(0,0,0,0.3)]'
             : 'bg-white border-2 border-blue-100 shadow-[0_20px_50px_rgba(0,0,0,0.08)]'
         }`}
       >
         <div
-          className={`flex-1 relative flex items-center rounded-2xl transition-all duration-300 ${
+          className={`flex-1 min-w-0 relative flex items-center rounded-2xl transition-all duration-300 ${
             isSearching ? 'opacity-50 pointer-events-none' : ''
           } ${
             theme === 'dark'
@@ -85,9 +85,9 @@ export default function SearchInput({
           type="button"
           onClick={() => onSearch()}
           disabled={isSearching || !searchTerm.trim()}
-          className={`${
-            compact ? 'px-5 py-2 sm:py-2.5 text-sm' : 'px-6 py-2.5 sm:py-3 text-base'
-          } bg-blue-500 hover:bg-blue-400 text-white font-bold rounded-xl transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-blue-500/30 disabled:opacity-50 active:scale-95`}
+          className={`flex-shrink-0 ${
+            compact ? 'px-3 sm:px-5 py-2 sm:py-2.5 text-sm' : 'px-4 sm:px-6 py-2.5 sm:py-3 text-base'
+          } bg-blue-500 hover:bg-blue-400 text-white font-bold rounded-xl transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 shadow-lg hover:shadow-blue-500/30 disabled:opacity-50 active:scale-95`}
         >
           <AnimatePresence mode="wait">
             {isSearching ? (
@@ -96,10 +96,12 @@ export default function SearchInput({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="flex items-center gap-2"
+                className="flex items-center gap-1.5 sm:gap-2"
               >
-                <Loader2 className="h-6 w-6 animate-spin" />
-                <span>Searching...</span>
+                <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" />
+                {/* "Searching..." copy hidden on phones to keep the button
+                    short enough to stay on the same row as the input. */}
+                <span className="hidden sm:inline">Searching...</span>
               </motion.div>
             ) : (
               <motion.div
@@ -107,10 +109,10 @@ export default function SearchInput({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="flex items-center gap-2"
+                className="flex items-center gap-1.5 sm:gap-2"
               >
-                <Search className="h-6 w-6" />
-                <span>Search</span>
+                <Search className="h-5 w-5 sm:h-6 sm:w-6" />
+                <span className="hidden sm:inline">Search</span>
               </motion.div>
             )}
           </AnimatePresence>
