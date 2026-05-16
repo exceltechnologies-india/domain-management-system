@@ -2,10 +2,19 @@
  * ResellerClub — DNS + nameservers.
  */
 
+import { AxiosError } from "axios";
 import { ResellerClubResponse } from "@/lib/types";
 import { serverLogger } from "@/lib/server-logger";
 import { api } from "./client";
 import { getDomainOrderId } from "./registration";
+import type { RcDnsRecord } from "./types";
+
+/** Narrowing helper for the axios catch sites — pulls the API status code
+ *  back out of an AxiosError without leaking `any` into the call site. */
+function axiosStatus(err: unknown): number | undefined {
+  if (err instanceof AxiosError) return err.response?.status;
+  return undefined;
+}
 
 /**
  * Activate DNS management for a domain
@@ -26,7 +35,7 @@ export async function activateDNSManagement(
       status: "success",
       data: response.data,
     };
-  } catch (error: any) {
+  } catch (error) {
     serverLogger.error("ResellerClub DNS activation error:", error);
     return {
       status: "error",
@@ -68,18 +77,18 @@ export async function getDNSRecords(
           const records = Object.keys(response.data)
             .filter((key) => key !== "recsonpage" && key !== "recsindb")
             .map((key) => {
-              const record = response.data[key];
+              const record = response.data[key] as RcDnsRecord;
               if (record && record.type) {
                 return {
                   ...record,
                   id:
-                    (record as any).recordid ||
-                    (record as any).recordId ||
-                    (record as any)["record-id"] ||
+                    record.recordid ||
+                    record.recordId ||
+                    record["record-id"] ||
                     key,
-                  ttl: (record as any).timetolive || (record as any).ttl,
-                  name: (record as any).host || (record as any).name,
-                  priority: (record as any).priority || undefined,
+                  ttl: record.timetolive || record.ttl,
+                  name: record.host || record.name,
+                  priority: record.priority || undefined,
                 };
               }
               return null;
@@ -103,12 +112,12 @@ export async function getDNSRecords(
         total: allRecords.length,
       },
     };
-  } catch (error: any) {
+  } catch (error) {
     serverLogger.error("ResellerClub DNS records error:", error);
     return {
       status: "error",
       message:
-        error.response?.status === 404
+        axiosStatus(error) === 404
           ? "Request failed with status code 404"
           : "Failed to get DNS records",
     };
@@ -137,7 +146,7 @@ export async function addDNSRecord(
     const host = recordData.name === "@" ? domainName : recordData.name;
 
     let endpoint = "";
-    let params: any = {
+    const params: Record<string, string | number> = {
       "domain-name": domainName,
       "customer-id": customerId,
       host: host,
@@ -185,11 +194,15 @@ export async function addDNSRecord(
       status: "success",
       data: response.data,
     };
-  } catch (error: any) {
+  } catch (error) {
     serverLogger.error("ResellerClub add DNS record error:", error);
+    const msg =
+      error instanceof AxiosError
+        ? (error.response?.data as { msg?: string } | undefined)?.msg
+        : undefined;
     return {
       status: "error",
-      message: error.response?.data?.msg || "Failed to add DNS record",
+      message: msg || "Failed to add DNS record",
     };
   }
 }
@@ -298,8 +311,14 @@ export async function setDefaultNameservers(
 
     return await setCustomNameservers(orderId, defaultNameservers);
   } catch (error) {
-    const err: any = error;
-    const apiMsg = err?.response?.data?.msg || err?.response?.data?.message || err?.message;
+    const apiMsg =
+      error instanceof AxiosError
+        ? (error.response?.data as { msg?: string; message?: string } | undefined)?.msg ||
+          (error.response?.data as { msg?: string; message?: string } | undefined)?.message ||
+          error.message
+        : error instanceof Error
+        ? error.message
+        : undefined;
     serverLogger.error("ResellerClub set default nameservers error:", apiMsg || error);
     return {
       status: "error",
@@ -340,8 +359,14 @@ export async function setCustomNameservers(
       data: response.data,
     };
   } catch (error) {
-    const err: any = error;
-    const apiMsg = err?.response?.data?.msg || err?.response?.data?.message || err?.message;
+    const apiMsg =
+      error instanceof AxiosError
+        ? (error.response?.data as { msg?: string; message?: string } | undefined)?.msg ||
+          (error.response?.data as { msg?: string; message?: string } | undefined)?.message ||
+          error.message
+        : error instanceof Error
+        ? error.message
+        : undefined;
     serverLogger.error("ResellerClub set custom nameservers error:", apiMsg || error);
     return {
       status: "error",

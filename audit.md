@@ -381,10 +381,26 @@ Audit-recommended sub-files I did NOT create:
 
 ## 4. Code Quality
 
-### [MEDIUM-1] 540 `any` types
-Across `lib/`, `app/`, `components/`. TypeScript is doing far less work than it could. Worst offenders are the external API wrappers (ResellerClub / DirectAdmin responses).
+### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (ResellerClub external-API wrappers fully typed; 845 → 797 sitewide)
+Across `lib/`, `app/`, `components/`. TypeScript was doing far less work than it could. Worst offenders were the external API wrappers (ResellerClub / DirectAdmin responses).
 
-**Fix:** Model the external API response shapes. Start with the highest-traffic endpoints (domain search response, registration response, hosting provisioning).
+**First pass — ResellerClub wrappers (audit-recommended starting point):**
+
+[lib/resellerclub/types.ts](lib/resellerclub/types.ts) — new shared type file: `RcTldPricing`, `RcPricingResponse`, `RcDomainPricing`, `RcTldPricingPair` (the `getTLDPricing` shape — `customer` + `reseller` blocks + tld), `RcTldPricingDetail` (the extended shape `PricingService.getTLDPricing` returns with pre-extracted `price` / `resellerPrice` / `currency` / `registrationPeriod`), `RcAvailabilityEntry`, `RcAvailabilityResponse`, `RcAvailabilitySearchParams`, `RcDnsRecord`. The records keep open index signatures (`[k: string]: unknown`) so future upstream fields don't surface as type errors.
+
+**Migrated:**
+- [lib/resellerclub/search.ts](lib/resellerclub/search.ts) — 11 → 0 anys. Strict types on `getDomainPricing`, `getTLDPricing`, `searchDomain`'s Object.entries iteration (no more `data as any` casts), `getResellerDetails` (added the actually-used fields `billingmode`, `resellerstatus`, `totalreceipts` and tightened the index signature to `string | undefined` so callers that read `.billingmode` as a string still compile cleanly). The `catch (error: any)` was rewritten using `AxiosError` instanceof narrowing.
+- [lib/resellerclub/dns.ts](lib/resellerclub/dns.ts) — 14 → 0 anys. Added a tiny `axiosStatus(err: unknown)` helper to narrow catch errors, typed the DNS-record iteration via `RcDnsRecord`, dropped the 5 `(record as any)` casts on the dynamically-keyed record reads.
+- [lib/resellerclub-dns-specific.ts](lib/resellerclub-dns-specific.ts) — 23 → 0 anys. Same `axiosStatus` helper + bulk perl pass over the 23 identical `catch (error: any)` / `error.response?.status === 404` patterns.
+
+**Net:** 48 anys removed (≈6% of the 845 total). The `getDomainPricing` / `searchDomain` chain — the audit's named "highest-traffic" target — is now fully typed end-to-end.
+
+**Verified on main 2026-05-17:** 340/340 tests, tsc clean, production build succeeded.
+
+**Pending:** 797 anys remaining. Largest residual clusters:
+- Zoho Books wrappers (`lib/zohobooks.ts`: 28, `lib/zohobooks/invoices.ts`: 25, `lib/zohobooks/contacts.ts`: 19) — same external-response pattern, would benefit from the same types-file approach.
+- Admin route handlers (`app/api/admin/hosting/stats/route.ts`: 21, `app/admin/user-management/page.tsx`: 20) — request/response shapes plus some `event: any` callback params on the UI side.
+- DirectAdmin client (`lib/directadmin/client.ts`: 10, `lib/directadmin/users.ts`: 8) — same opportunity as ResellerClub for a `lib/directadmin/types.ts`.
 
 ---
 

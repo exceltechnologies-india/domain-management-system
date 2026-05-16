@@ -8,6 +8,15 @@ import { PricingService } from "@/lib/pricing-service";
 import { tldMappings } from "@/lib/tld-mappings";
 import { serverLogger } from "@/lib/server-logger";
 import { api } from "./client";
+import type {
+  RcAvailabilityEntry,
+  RcAvailabilityResponse,
+  RcAvailabilitySearchParams,
+  RcDomainPricing,
+  RcTldPricing,
+  RcTldPricingDetail,
+  RcTldPricingPair,
+} from "./types";
 
 /**
  * Fetch live domain pricing from ResellerClub API
@@ -23,7 +32,7 @@ import { api } from "./client";
  * console.log(pricing.customerPricing); // Customer pricing data
  * console.log(pricing.resellerPricing); // Reseller pricing data
  */
-export async function getDomainPricing(): Promise<any> {
+export async function getDomainPricing(): Promise<RcDomainPricing> {
   const startTime = Date.now();
   serverLogger.info(
     `[RC-PRICING] Fetching live domain pricing from ResellerClub API`
@@ -59,12 +68,12 @@ export async function getDomainPricing(): Promise<any> {
 /**
  * Get pricing for specific TLDs
  */
-export async function getTLDPricing(tlds: string[]): Promise<{ [tld: string]: any }> {
+export async function getTLDPricing(tlds: string[]): Promise<{ [tld: string]: RcTldPricingPair }> {
   const startTime = Date.now();
 
   try {
     const pricingData = await getDomainPricing();
-    const tldPricing: { [tld: string]: any } = {};
+    const tldPricing: { [tld: string]: RcTldPricingPair } = {};
 
     // Extract pricing for requested TLDs
     tlds.forEach((tld) => {
@@ -137,7 +146,7 @@ export async function searchDomain(domainName: string): Promise<DomainSearchResu
 
   // Check if domain already has a TLD
   const hasTLD = domainName.includes(".");
-  const searchParams: any = {
+  const searchParams: RcAvailabilitySearchParams = {
     "domain-name": domainName,
   };
 
@@ -176,8 +185,8 @@ export async function searchDomain(domainName: string): Promise<DomainSearchResu
 
     if (response.data && typeof response.data === "object") {
       // Check for API errors first
-      const hasError = Object.values(response.data).some(
-        (data: any) =>
+      const hasError = Object.values(response.data as RcAvailabilityResponse).some(
+        (data) =>
           data && typeof data === "object" && data.status === "error"
       );
 
@@ -193,7 +202,7 @@ export async function searchDomain(domainName: string): Promise<DomainSearchResu
 
       for (const [domain, data] of Object.entries(response.data)) {
         if (typeof data === "object" && data !== null) {
-          const domainData = data as any;
+          const domainData = data as RcAvailabilityEntry;
           // Determine domain availability based on status
           let isAvailable = domainData.status === "available";
           let domainStatus = domainData.status;
@@ -390,8 +399,8 @@ export async function searchDomainWithTlds(
 
     if (response.data && typeof response.data === "object") {
       // Check for API errors first
-      const hasError = Object.values(response.data).some(
-        (data: any) =>
+      const hasError = Object.values(response.data as RcAvailabilityResponse).some(
+        (data) =>
           data && typeof data === "object" && data.status === "error"
       );
 
@@ -549,7 +558,7 @@ export async function searchDomainWithTlds(
         }
 
         if (typeof data === "object" && data !== null) {
-          const domainData = data as any;
+          const domainData = data as RcAvailabilityEntry;
           // Determine domain availability based on status
           let isAvailable = domainData.status === "available";
           let domainStatus = domainData.status;
@@ -566,16 +575,16 @@ export async function searchDomainWithTlds(
           // Get TLD and live pricing for all domains
           const domainParts = domain.split(".");
           const tld = domainParts.slice(1).join(".").toLowerCase(); // Get full TLD for multi-level TLDs
-          let livePricing: any = null;
+          let livePricing: { [tld: string]: RcTldPricingDetail } | null = null;
 
           if (isAvailable && tld) {
             try {
               livePricing = await PricingService.getTLDPricing([tld]);
 
               if (livePricing && livePricing[tld]) {
-                const customerPrice = parseFloat(livePricing[tld].price) || 0;
+                const customerPrice = livePricing[tld].price || 0;
                 const resellerPrice =
-                  parseFloat(livePricing[tld].resellerPrice) || 0;
+                  livePricing[tld].resellerPrice || 0;
                 const margin =
                   customerPrice > 0 && resellerPrice > 0
                     ? ((customerPrice - resellerPrice) / customerPrice) * 100
@@ -753,7 +762,11 @@ export async function getResellerDetails(): Promise<{
     availablebalance?: string;
     unutilisedsellingbalance?: string;
     lockedbalance?: string;
-    [key: string]: any;
+    billingmode?: string;
+    resellerstatus?: string;
+    totalreceipts?: string;
+    /** Open for fields the upstream API has added since this type was written. */
+    [key: string]: string | undefined;
   };
   error?: string;
 }> {
@@ -801,35 +814,34 @@ export async function getResellerDetails(): Promise<{
         error: "No data received from API",
       };
     }
-  } catch (error: any) {
+  } catch (error) {
     const responseTime = Date.now() - startTime;
     serverLogger.error(
       `❌ [RESELLER] Failed to fetch reseller details in ${responseTime}ms:`,
       error
     );
 
-    // Handle different error scenarios
-    if (error.response) {
-      // API returned an error response
-      return {
-        status: "error",
-        error:
-          error.response.data?.message ||
-          error.response.data?.error ||
-          `API Error: ${error.response.status} ${error.response.statusText}`,
-      };
-    } else if (error.request) {
-      // Request was made but no response received
-      return {
-        status: "error",
-        error: "No response from ResellerClub API",
-      };
-    } else {
-      // Error setting up the request
-      return {
-        status: "error",
-        error: error.message || "Unknown error occurred",
-      };
+    // Handle different error scenarios. AxiosError carries `response` /
+    // `request`; the type guard keeps the catch typed as `unknown`.
+    if (error instanceof AxiosError) {
+      if (error.response) {
+        return {
+          status: "error",
+          error:
+            (error.response.data as { message?: string; error?: string })?.message ||
+            (error.response.data as { message?: string; error?: string })?.error ||
+            `API Error: ${error.response.status} ${error.response.statusText}`,
+        };
+      } else if (error.request) {
+        return {
+          status: "error",
+          error: "No response from ResellerClub API",
+        };
+      }
     }
+    return {
+      status: "error",
+      error: error instanceof Error ? error.message : "Unknown error occurred",
+    };
   }
 }
