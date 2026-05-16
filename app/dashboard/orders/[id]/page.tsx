@@ -231,7 +231,7 @@ export default function OrderStatusPage() {
     mutate,
     isValidating,
   } = useSWR<{ order: Order }>(
-    user && orderId ? `/api/user/orders/${orderId}` : null,
+    user && orderId ? `/api/v1/user/orders/${orderId}` : null,
     fetcher,
     {
       refreshInterval: (data) => {

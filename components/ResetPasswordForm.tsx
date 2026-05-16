@@ -56,7 +56,7 @@ export default function ResetPasswordForm({ token, className = '', isSetup = fal
         return;
       }
 
-      const response = await fetch('/api/auth/reset-password', {
+      const response = await fetch('/api/v1/auth/reset-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -111,7 +111,7 @@ export default function DomainSearch({
 
   const handleWatch = async (domainName: string) => {
     try {
-      const res = await fetch("/api/user/domains/watch", {
+      const res = await fetch("/api/v1/user/domains/watch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ domainName }),

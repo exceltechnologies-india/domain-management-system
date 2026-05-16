@@ -10,7 +10,7 @@ const sendLog = async (level: LogLevel, message: string, details?: any) => {
     // Only log in production or if explicitly enabled
     // We always send to server to persist logs
     
-    await fetch('/api/log', {
+    await fetch('/api/v1/log', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

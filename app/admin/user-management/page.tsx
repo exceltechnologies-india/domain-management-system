@@ -176,9 +176,9 @@ export default function AdminUsers() {
 
       // Fetch all data in parallel
       const [activeResult, deactivatedResult, servicesResult] = await Promise.allSettled([
-        fetch('/api/admin/users', { method: 'GET', headers, credentials: 'include' }),
-        fetch('/api/admin/users/deactivated', { method: 'GET', headers, credentials: 'include' }),
-        fetch('/api/admin/users/services', { method: 'GET', headers, credentials: 'include' })
+        fetch('/api/v1/admin/users', { method: 'GET', headers, credentials: 'include' }),
+        fetch('/api/v1/admin/users/deactivated', { method: 'GET', headers, credentials: 'include' }),
+        fetch('/api/v1/admin/users/services', { method: 'GET', headers, credentials: 'include' })
       ]);
 
       // Handle Active Users
@@ -279,7 +279,7 @@ export default function AdminUsers() {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch('/api/admin/users/reset-password', {
+      const response = await fetch('/api/v1/admin/users/reset-password', {
         method: 'POST',
         headers,
         credentials: 'include',
@@ -341,7 +341,7 @@ export default function AdminUsers() {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch('/api/admin/users', {
+      const response = await fetch('/api/v1/admin/users', {
         method: 'DELETE',
         headers,
         credentials: 'include',
@@ -408,7 +408,7 @@ export default function AdminUsers() {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch('/api/admin/users/reactivate', {
+      const response = await fetch('/api/v1/admin/users/reactivate', {
         method: 'POST',
         headers,
         credentials: 'include',
@@ -474,7 +474,7 @@ export default function AdminUsers() {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch(`/api/admin/users?permanent=true`, {
+      const response = await fetch(`/api/v1/admin/users?permanent=true`, {
         method: 'DELETE',
         headers,
         credentials: 'include',
@@ -524,7 +524,7 @@ export default function AdminUsers() {
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const response = await fetch('/api/admin/users/reset-2fa', {
+      const response = await fetch('/api/v1/admin/users/reset-2fa', {
         method: 'POST',
         headers,
         credentials: 'include',

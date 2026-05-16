@@ -90,7 +90,7 @@ function BulkSearchContent() {
     setResults([]);
     setSelected(new Set());
     try {
-      const res = await fetch('/api/domains/bulk-search', {
+      const res = await fetch('/api/v1/domains/bulk-search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ domains: validDomains.slice(0, MAX_DOMAINS) }),

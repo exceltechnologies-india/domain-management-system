@@ -32,7 +32,7 @@ const sendToServer = async (level: string, args: any[]) => {
     // Use sendBeacon if available for better reliability on unload
     // otherwise fallback to fetch
     const payload = JSON.stringify({ level, messages });
-    const url = '/api/log';
+    const url = '/api/v1/log';
 
     if (navigator.sendBeacon) {
       const blob = new Blob([payload], { type: 'application/json' });

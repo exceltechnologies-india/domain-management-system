@@ -158,7 +158,7 @@ export default function AdminTLDPricing() {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch('/api/admin/tld-pricing', {
+      const response = await fetch('/api/v1/admin/tld-pricing', {
         headers,
         credentials: 'include'
       });
@@ -186,7 +186,7 @@ export default function AdminTLDPricing() {
     setIsPurgingCache(true);
     try {
       const token = safeLocalStorage.getItem('token');
-      const response = await fetch('/api/admin/tld-pricing/cache', {
+      const response = await fetch('/api/v1/admin/tld-pricing/cache', {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,

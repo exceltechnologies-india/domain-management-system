@@ -189,7 +189,7 @@ export default function AdminHostingPage() {
       const headers: HeadersInit = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch(`/api/admin/hosting/stats?t=${Date.now()}`, { headers });
+      const res = await fetch(`/api/v1/admin/hosting/stats?t=${Date.now()}`, { headers });
       // Check for non-JSON response (e.g., 502/503 HTML from Nginx/Next.js)
       const contentType = res.headers.get("content-type");
       if (!contentType || !contentType.includes("application/json")) {
@@ -239,8 +239,8 @@ export default function AdminHostingPage() {
       const headers: HeadersInit = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const pkgRes = await fetch('/api/admin/hosting/packages', { headers });
-      const userRes = await fetch('/api/admin/users/no-hosting', { headers });
+      const pkgRes = await fetch('/api/v1/admin/hosting/packages', { headers });
+      const userRes = await fetch('/api/v1/admin/users/no-hosting', { headers });
 
       // Check for non-JSON response
       const pkgContentType = pkgRes.headers.get("content-type");
@@ -294,7 +294,7 @@ export default function AdminHostingPage() {
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch('/api/admin/hosting/provision', {
+      const res = await fetch('/api/v1/admin/hosting/provision', {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -368,7 +368,7 @@ export default function AdminHostingPage() {
       if (action === 'delete') setIsDeleting(true);
 
       const token = safeLocalStorage.getItem('token');
-      const res = await fetch('/api/admin/hosting/actions', {
+      const res = await fetch('/api/v1/admin/hosting/actions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -405,7 +405,7 @@ export default function AdminHostingPage() {
       setActiveMenuId(null);
 
       const token = safeLocalStorage.getItem('token');
-      const res = await fetch(`/api/admin/hosting/details?username=${username}`, {
+      const res = await fetch(`/api/v1/admin/hosting/details?username=${username}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
@@ -443,7 +443,7 @@ export default function AdminHostingPage() {
     setIsChangingPackage(true);
     try {
       const token = safeLocalStorage.getItem('token');
-      const res = await fetch('/api/admin/hosting/change-package', {
+      const res = await fetch('/api/v1/admin/hosting/change-package', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

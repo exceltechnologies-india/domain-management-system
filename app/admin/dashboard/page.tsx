@@ -262,7 +262,7 @@ export default function AdminDashboard() {
   const fetchHealth = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`/api/admin/system-health?_t=${Date.now()}`);
+      const res = await axios.get(`/api/v1/admin/system-health?_t=${Date.now()}`);
       setData(res.data);
     } catch (error) {
       toast.error("Failed to fetch system health data.");

@@ -27,7 +27,7 @@ export default function OutboundIPBadge() {
         setLoading(true);
         setError(null);
 
-        const response = await fetch('/api/check-ip');
+        const response = await fetch('/api/v1/check-ip');
         const data = await response.json();
 
         if (data.success) {

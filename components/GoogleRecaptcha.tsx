@@ -45,7 +45,7 @@ export default function GoogleRecaptcha({
 
         // Check if captcha has been administratively disabled
         try {
-          const res = await fetch('/api/settings/captcha-status');
+          const res = await fetch('/api/v1/settings/captcha-status');
           if (res.ok) {
             const data = await res.json();
             if (!data.enabled) {

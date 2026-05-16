@@ -58,7 +58,7 @@ export default function UserDashboard() {
     isLoading: isLoadingDashboard,
     mutate: mutateDashboard,
   } = useSWR<{ stats: DashboardStats; serviceStatus: ServiceStatus }>(
-    user ? '/api/user/dashboard' : null,
+    user ? '/api/v1/user/dashboard' : null,
     fetcher,
     { revalidateOnFocus: false }
   );
@@ -151,7 +151,7 @@ export default function UserDashboard() {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch('/api/domains/sync', {
+      const response = await fetch('/api/v1/domains/sync', {
         method: 'POST',
         headers,
         credentials: 'include'

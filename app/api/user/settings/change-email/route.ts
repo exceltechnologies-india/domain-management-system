@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     await userWithPassword.save();
 
     const appUrl = process.env.NEXTAUTH_URL ?? "https://app.anutech.in";
-    const verifyUrl = `${appUrl}/api/user/settings/verify-email-change?token=${rawToken}`;
+    const verifyUrl = `${appUrl}/api/v1/user/settings/verify-email-change?token=${rawToken}`;
     const userName = `${userWithPassword.firstName || ""} ${userWithPassword.lastName || ""}`.trim() || userWithPassword.email;
 
     // 1. Verification link → new address

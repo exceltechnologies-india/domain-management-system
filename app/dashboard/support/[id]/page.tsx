@@ -93,7 +93,7 @@ export default function SupportTicketDetailPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading, error, mutate } = useSWR<{ ticket: Ticket }>(
-    user && params.id ? `/api/user/support/${params.id}` : null,
+    user && params.id ? `/api/v1/user/support/${params.id}` : null,
     fetcher
   );
 
@@ -113,7 +113,7 @@ export default function SupportTicketDetailPage() {
     if (!ok) return;
     setClosing(true);
     try {
-      const res = await fetch(`/api/user/support/${params.id}`, {
+      const res = await fetch(`/api/v1/user/support/${params.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'closed' }),
@@ -131,7 +131,7 @@ export default function SupportTicketDetailPage() {
     if (!reply.trim()) return;
     setSending(true);
     try {
-      const res = await fetch(`/api/user/support/${params.id}`, {
+      const res = await fetch(`/api/v1/user/support/${params.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: reply.trim(), attachments }),

@@ -50,7 +50,7 @@ export default function DomainBookingProgress({
   const fetchBookingStatus = async () => {
     try {
       const response = await fetch(
-        `/api/domains/booking-status?orderId=${orderId}&domainName=${domainName}`
+        `/api/v1/domains/booking-status?orderId=${orderId}&domainName=${domainName}`
       );
 
       if (response.ok) {

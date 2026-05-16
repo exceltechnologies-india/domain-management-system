@@ -108,7 +108,7 @@ export default function AdminPackagesPage() {
       const headers: HeadersInit = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch('/api/admin/hosting/packages', { headers });
+      const res = await fetch('/api/v1/admin/hosting/packages', { headers });
       const data = await res.json();
 
       if (res.status === 503 || data?.code === 'DA_SERVER_DOWN') {
@@ -140,7 +140,7 @@ export default function AdminPackagesPage() {
     try {
       setIsUpdating(true);
       const token = safeLocalStorage.getItem('token');
-      const res = await fetch('/api/admin/hosting/packages', {
+      const res = await fetch('/api/v1/admin/hosting/packages', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

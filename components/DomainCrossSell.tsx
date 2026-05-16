@@ -34,7 +34,7 @@ export default function DomainCrossSell() {
     }
 
     try {
-      const response = await fetch('/api/domains/search', {
+      const response = await fetch('/api/v1/domains/search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

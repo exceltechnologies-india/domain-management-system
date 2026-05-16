@@ -66,7 +66,7 @@ export default function TrialOtpModal({
     }
     setSending(true);
     try {
-      const res = await fetch('/api/user/hosting/trial-otp/send', {
+      const res = await fetch('/api/v1/user/hosting/trial-otp/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone }),
@@ -90,7 +90,7 @@ export default function TrialOtpModal({
     }
     setVerifying(true);
     try {
-      const res = await fetch('/api/user/hosting/trial-otp/verify', {
+      const res = await fetch('/api/v1/user/hosting/trial-otp/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, code }),

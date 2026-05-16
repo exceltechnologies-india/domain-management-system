@@ -193,7 +193,7 @@ export function useDomainSearch({
 
     // ── Phase 1: quick domain availability (no suggestions) ──────────────────
     try {
-      const res = await fetch('/api/domains/search', {
+      const res = await fetch('/api/v1/domains/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(quickBody),
@@ -233,7 +233,7 @@ export function useDomainSearch({
     setIsLoadingSuggestions(true);
 
     // ── Phase 2: suggestions + hosting check in background ───────────────────
-    fetch('/api/domains/search', {
+    fetch('/api/v1/domains/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(fullBody),
@@ -271,7 +271,7 @@ export function useDomainSearch({
         return;
       }
 
-      const response = await fetch('/api/domains/search', {
+      const response = await fetch('/api/v1/domains/search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

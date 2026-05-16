@@ -110,7 +110,7 @@ export default function AdminSettings() {
   const loadRazorpayMode = async () => {
     try {
       const token = safeLocalStorage.getItem('token');
-      const res = await fetch('/api/admin/razorpay-mode', {
+      const res = await fetch('/api/v1/admin/razorpay-mode', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         credentials: 'include',
       });
@@ -139,7 +139,7 @@ export default function AdminSettings() {
       if (razorpayLiveKeySecret) body.liveKeySecret = razorpayLiveKeySecret;
       if (razorpayWebhookSecret) body.webhookSecret = razorpayWebhookSecret;
 
-      const res = await fetch('/api/admin/razorpay-mode', {
+      const res = await fetch('/api/v1/admin/razorpay-mode', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -170,7 +170,7 @@ export default function AdminSettings() {
     setRazorpaySwitchMessage('');
     try {
       const token = safeLocalStorage.getItem('token');
-      const res = await fetch('/api/admin/razorpay-mode', {
+      const res = await fetch('/api/v1/admin/razorpay-mode', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -202,7 +202,7 @@ export default function AdminSettings() {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch('/api/admin/settings', {
+      const response = await fetch('/api/v1/admin/settings', {
         headers,
         credentials: 'include',
       });
@@ -258,7 +258,7 @@ export default function AdminSettings() {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch('/api/admin/check-ip', {
+      const response = await fetch('/api/v1/admin/check-ip', {
         headers,
         credentials: 'include',
       });
@@ -291,7 +291,7 @@ export default function AdminSettings() {
       }
 
       // Save enabled setting
-      await fetch('/api/admin/settings', {
+      await fetch('/api/v1/admin/settings', {
         method: 'POST',
         headers,
         credentials: 'include',
@@ -305,7 +305,7 @@ export default function AdminSettings() {
 
       // Save whitelisted IPs
       const whitelistKey = `admin_ip_whitelist_${user._id || user.id}`;
-      await fetch('/api/admin/settings', {
+      await fetch('/api/v1/admin/settings', {
         method: 'POST',
         headers,
         credentials: 'include',
@@ -359,7 +359,7 @@ export default function AdminSettings() {
       const headers: HeadersInit = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const response = await fetch('/api/admin/settings', {
+      const response = await fetch('/api/v1/admin/settings', {
         headers,
         credentials: 'include',
       });
@@ -385,7 +385,7 @@ export default function AdminSettings() {
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      await fetch('/api/admin/settings', {
+      await fetch('/api/v1/admin/settings', {
         method: 'POST',
         headers,
         credentials: 'include',
@@ -415,7 +415,7 @@ export default function AdminSettings() {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch('/api/admin/settings', {
+      const response = await fetch('/api/v1/admin/settings', {
         headers,
         credentials: 'include',
       });
@@ -464,7 +464,7 @@ export default function AdminSettings() {
       }
 
       // Save enabled setting
-      await fetch('/api/admin/settings', {
+      await fetch('/api/v1/admin/settings', {
         method: 'POST',
         headers,
         credentials: 'include',
@@ -477,7 +477,7 @@ export default function AdminSettings() {
       });
 
       // Save allowed origins
-      await fetch('/api/admin/settings', {
+      await fetch('/api/v1/admin/settings', {
         method: 'POST',
         headers,
         credentials: 'include',
@@ -533,7 +533,7 @@ export default function AdminSettings() {
 
     setIsGeneratingBackup(true);
     try {
-      const response = await fetch('/api/admin/backup', {
+      const response = await fetch('/api/v1/admin/backup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

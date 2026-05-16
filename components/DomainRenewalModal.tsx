@@ -44,7 +44,7 @@ export default function DomainRenewalModal({
     setIsLoading(true);
     try {
       const token = safeLocalStorage.getItem('token');
-      const response = await fetch(`/api/domains/renew?domainName=${encodeURIComponent(domainName)}&years=${selectedYears}`, {
+      const response = await fetch(`/api/v1/domains/renew?domainName=${encodeURIComponent(domainName)}&years=${selectedYears}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -81,7 +81,7 @@ export default function DomainRenewalModal({
       const paymentId = `renew_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
       const token = safeLocalStorage.getItem('token');
-      const response = await fetch('/api/domains/renew', {
+      const response = await fetch('/api/v1/domains/renew', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

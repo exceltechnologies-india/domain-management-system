@@ -58,7 +58,7 @@ export default function CartPage() {
   // ── Fetch latest user profile from the server ─────────────────────────────
   const refreshUserFromServer = async (token?: string): Promise<User | null> => {
     try {
-      const response = await fetch('/api/auth/me', {
+      const response = await fetch('/api/v1/auth/me', {
         headers: token
           ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
           : { 'Content-Type': 'application/json' },

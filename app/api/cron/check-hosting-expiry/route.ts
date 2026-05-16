@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
 
     // 3. Queue Tasks
     const queueName = process.env.GCP_QUEUE_NAME || 'hosting-expiry-queue';
-    const workerUrl = `${process.env.NEXTAUTH_URL}/api/workers/process-hosting-expiry`;
+    const workerUrl = `${process.env.NEXTAUTH_URL}/api/v1/workers/process-hosting-expiry`;
 
     for (const hosting of expiredHostings) {
         try {

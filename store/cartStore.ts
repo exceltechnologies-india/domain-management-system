@@ -295,7 +295,7 @@ export const useCartStore = create<CartStore>()(
           const token = safeLocalStorage.getItem("token");
           if (!token) return;
 
-          const response = await fetch("/api/cart", {
+          const response = await fetch("/api/v1/cart", {
             method: "GET",
             headers: {
               Authorization: `Bearer ${token}`,
@@ -328,7 +328,7 @@ export const useCartStore = create<CartStore>()(
 
           const { items } = get();
 
-          const response = await fetch("/api/cart", {
+          const response = await fetch("/api/v1/cart", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -357,7 +357,7 @@ export const useCartStore = create<CartStore>()(
           if (localItems.length === 0) return;
 
           // Load server cart
-          const response = await fetch("/api/cart", {
+          const response = await fetch("/api/v1/cart", {
             method: "GET",
             headers: {
               Authorization: `Bearer ${token}`,

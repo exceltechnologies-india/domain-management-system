@@ -51,7 +51,7 @@ export default function UserDomains() {
     isValidating,
     mutate,
   } = useSWR<{ domains: Domain[] }>(
-    user ? '/api/user/domains' : null,
+    user ? '/api/v1/user/domains' : null,
     fetcher,
     { revalidateOnFocus: false }
   );

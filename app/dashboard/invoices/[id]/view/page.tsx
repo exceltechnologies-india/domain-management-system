@@ -74,7 +74,7 @@ export default function ViewInvoicePage({ params }: { params: Promise<{ id: stri
       setIsLoadingPdf(true);
       setPdfError(null);
       try {
-        const res = await fetch(`/api/user/invoices/${invoiceId}/pdf`);
+        const res = await fetch(`/api/v1/user/invoices/${invoiceId}/pdf`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const blob = await res.blob();
         if (cancelled) return;
@@ -114,7 +114,7 @@ export default function ViewInvoicePage({ params }: { params: Promise<{ id: stri
         return;
       }
       // Fallback: fetch fresh
-      const response = await fetch(`/api/user/invoices/${invoiceId}/pdf`);
+      const response = await fetch(`/api/v1/user/invoices/${invoiceId}/pdf`);
       if (!response.ok) { showErrorToast('Failed to download invoice'); return; }
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -147,7 +147,7 @@ export default function ViewInvoicePage({ params }: { params: Promise<{ id: stri
     // Re-trigger effect by bumping a counter would be cleaner, but simply
     // re-fetching here is fine since user is already set.
     setIsLoadingPdf(true);
-    fetch(`/api/user/invoices/${invoiceId}/pdf`)
+    fetch(`/api/v1/user/invoices/${invoiceId}/pdf`)
       .then(r => { if (!r.ok) throw new Error(); return r.blob(); })
       .then(blob => {
         const url = URL.createObjectURL(blob);

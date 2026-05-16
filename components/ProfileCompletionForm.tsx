@@ -53,7 +53,7 @@ export default function ProfileCompletionForm({ user, onComplete }: ProfileCompl
         }
       };
 
-      const response = await fetch('/api/user/complete-profile', {
+      const response = await fetch('/api/v1/user/complete-profile', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

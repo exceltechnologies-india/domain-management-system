@@ -183,7 +183,7 @@ export default function DNSManagementPage() {
   useEffect(() => {
     const checkServices = async () => {
       try {
-        const response = await fetch('/api/user/services/status');
+        const response = await fetch('/api/v1/user/services/status');
         if (response.ok) {
           const data = await response.json();
           setHasDomains(data.hasDomains);
@@ -221,7 +221,7 @@ export default function DNSManagementPage() {
       const dnsHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) dnsHeaders['Authorization'] = `Bearer ${token}`;
 
-      const response = await fetch('/api/user/domains/dns', {
+      const response = await fetch('/api/v1/user/domains/dns', {
         headers: dnsHeaders
       });
       if (response.ok) {
@@ -260,7 +260,7 @@ export default function DNSManagementPage() {
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const response = await fetch(`/api/domains/dns?domainName=${encodeURIComponent(domain.name)}`, {
+      const response = await fetch(`/api/v1/domains/dns?domainName=${encodeURIComponent(domain.name)}`, {
         headers,
       });
 
@@ -322,7 +322,7 @@ export default function DNSManagementPage() {
 
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const response = await fetch(`/api/domains/nameservers?domainName=${encodeURIComponent(domain.name)}`, {
+      const response = await fetch(`/api/v1/domains/nameservers?domainName=${encodeURIComponent(domain.name)}`, {
         headers,
       });
 
@@ -390,7 +390,7 @@ export default function DNSManagementPage() {
     setIsUpdatingNameservers(true);
     try {
       const token = getCookieValue('token') || safeLocalStorage.getItem('token');
-      const response = await fetch('/api/domains/nameservers', {
+      const response = await fetch('/api/v1/domains/nameservers', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -447,7 +447,7 @@ export default function DNSManagementPage() {
     setIsUpdatingNameservers(true);
     try {
       const token = getCookieValue('token') || safeLocalStorage.getItem('token');
-      const response = await fetch('/api/domains/nameservers', {
+      const response = await fetch('/api/v1/domains/nameservers', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -507,7 +507,7 @@ export default function DNSManagementPage() {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const response = await fetch('/api/domains/dns', {
+      const response = await fetch('/api/v1/domains/dns', {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -546,7 +546,7 @@ export default function DNSManagementPage() {
       const domain = domains.find(d => d.id === selectedDomain);
       if (!domain) return;
 
-      const response = await fetch(`/api/domains/dns?domainName=${encodeURIComponent(domain.name)}&recordId=${encodeURIComponent(recordId)}`, {
+      const response = await fetch(`/api/v1/domains/dns?domainName=${encodeURIComponent(domain.name)}&recordId=${encodeURIComponent(recordId)}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -613,7 +613,7 @@ export default function DNSManagementPage() {
       // First delete the original record
       const headersDelete: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headersDelete['Authorization'] = `Bearer ${token}`;
-      const deleteResponse = await fetch(`/api/domains/dns?domainName=${encodeURIComponent(domain.name)}&recordId=${encodeURIComponent(recordId)}`, {
+      const deleteResponse = await fetch(`/api/v1/domains/dns?domainName=${encodeURIComponent(domain.name)}&recordId=${encodeURIComponent(recordId)}`, {
         method: 'DELETE',
         headers: headersDelete,
         body: JSON.stringify({
@@ -630,7 +630,7 @@ export default function DNSManagementPage() {
       // Then add the updated record
       const headersAdd: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headersAdd['Authorization'] = `Bearer ${token}`;
-      const addResponse = await fetch('/api/domains/dns', {
+      const addResponse = await fetch('/api/v1/domains/dns', {
         method: 'POST',
         headers: headersAdd,
         body: JSON.stringify({
@@ -647,7 +647,7 @@ export default function DNSManagementPage() {
         const error = await addResponse.json();
         toast.error(error.error || 'Failed to add updated record');
         // Try to restore the original record
-        await fetch('/api/domains/dns', {
+        await fetch('/api/v1/domains/dns', {
           method: 'POST',
           headers: headersAdd,
           body: JSON.stringify({
@@ -684,7 +684,7 @@ export default function DNSManagementPage() {
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const response = await fetch('/api/domains/activate-dns', {
+      const response = await fetch('/api/v1/domains/activate-dns', {
         method: 'POST',
         headers,
         body: JSON.stringify({

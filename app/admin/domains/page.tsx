@@ -128,7 +128,7 @@ export default function AdminDomainsPage() {
       const headers: HeadersInit = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch('/api/admin/domains', { headers });
+      const res = await fetch('/api/v1/admin/domains', { headers });
       const data = await res.json();
 
       if (data.success) {
@@ -186,7 +186,7 @@ export default function AdminDomainsPage() {
       };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch('/api/admin/domains/sync', {
+      const res = await fetch('/api/v1/admin/domains/sync', {
         method: 'POST',
         headers,
         body: JSON.stringify({ domainName: domain.name })

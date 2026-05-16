@@ -124,7 +124,7 @@ export default function AdminInvoicesPage() {
       if (!isBackground) setIsDataLoading(true);
       fetchingPages.current.add(targetPage);
 
-      const response = await fetch(`/api/admin/invoices?page=${targetPage}&per_page=10`);
+      const response = await fetch(`/api/v1/admin/invoices?page=${targetPage}&per_page=10`);
 
       if (response.ok) {
         const data = await response.json();
@@ -161,7 +161,7 @@ export default function AdminInvoicesPage() {
   const handleDownload = async (invoiceId: string, invoiceNumber: string) => {
     try {
       setDownloadingId(invoiceId);
-      const response = await fetch(`/api/admin/invoices/${invoiceId}/pdf`);
+      const response = await fetch(`/api/v1/admin/invoices/${invoiceId}/pdf`);
 
       if (response.ok) {
         const blob = await response.blob();

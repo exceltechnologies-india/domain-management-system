@@ -77,7 +77,7 @@ function NewTicketForm({ onCreated, onCancel }: { onCreated: () => void; onCance
     if (!subject.trim() || !message.trim()) { toast.error('Subject and message are required'); return; }
     setSaving(true);
     try {
-      const res = await fetch('/api/user/support', {
+      const res = await fetch('/api/v1/user/support', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -200,7 +200,7 @@ export default function SupportPage() {
   const [showForm, setShowForm] = useState(false);
 
   const { data, isLoading, mutate } = useSWR<{ tickets: Ticket[] }>(
-    user ? '/api/user/support' : null,
+    user ? '/api/v1/user/support' : null,
     fetcher
   );
 

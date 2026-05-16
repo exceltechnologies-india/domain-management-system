@@ -112,7 +112,7 @@ export default function AdminPendingHostingPage() {
       const headers: HeadersInit = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch('/api/admin/hosting/pending', { headers });
+      const res = await fetch('/api/v1/admin/hosting/pending', { headers });
       const data = await res.json();
 
       if (data.success) {
@@ -139,7 +139,7 @@ export default function AdminPendingHostingPage() {
       setIsRetrying(id);
       const token = safeLocalStorage.getItem('token');
 
-      const res = await fetch(`/api/admin/hosting/pending/${id}/retry`, {
+      const res = await fetch(`/api/v1/admin/hosting/pending/${id}/retry`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -169,7 +169,7 @@ export default function AdminPendingHostingPage() {
       setIsDeleting(id);
       const token = safeLocalStorage.getItem('token');
 
-      const res = await fetch(`/api/admin/hosting/pending/${id}`, {
+      const res = await fetch(`/api/v1/admin/hosting/pending/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });

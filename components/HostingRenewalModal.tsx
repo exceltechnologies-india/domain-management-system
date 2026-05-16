@@ -53,7 +53,7 @@ export default function HostingRenewalModal({
     setIsLoading(true);
     try {
       const token = safeLocalStorage.getItem('token');
-      const response = await fetch(`/api/user/hosting/renew-info?domainName=${encodeURIComponent(domainName)}`, {
+      const response = await fetch(`/api/v1/user/hosting/renew-info?domainName=${encodeURIComponent(domainName)}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -83,7 +83,7 @@ export default function HostingRenewalModal({
       const token = safeLocalStorage.getItem('token');
       
       // 1. Initiate renewal in backend to get Razorpay Order ID
-      const response = await fetch('/api/user/hosting/renew', {
+      const response = await fetch('/api/v1/user/hosting/renew', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -130,7 +130,7 @@ export default function HostingRenewalModal({
       // 3. Verify Payment
       setIsVerifying(true);
       try {
-        const verifyRes = await fetch('/api/payments/verify', {
+        const verifyRes = await fetch('/api/v1/payments/verify', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

@@ -234,7 +234,7 @@ function AdminDNSManagementContent() {
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const response = await fetch('/api/admin/domains', {
+      const response = await fetch('/api/v1/admin/domains', {
         headers,
         credentials: 'include'
       });
@@ -269,7 +269,7 @@ function AdminDNSManagementContent() {
         return;
       }
 
-      const response = await fetch(`/api/admin/domains/dns?domainName=${encodeURIComponent(domain.name)}`, {
+      const response = await fetch(`/api/v1/admin/domains/dns?domainName=${encodeURIComponent(domain.name)}`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
 
@@ -316,7 +316,7 @@ function AdminDNSManagementContent() {
       const domain = domains.find(d => d.id === domainId);
       if (!domain) return;
 
-      const response = await fetch(`/api/domains/nameservers?domainName=${encodeURIComponent(domain.name)}`, {
+      const response = await fetch(`/api/v1/domains/nameservers?domainName=${encodeURIComponent(domain.name)}`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
 
@@ -363,7 +363,7 @@ function AdminDNSManagementContent() {
     setIsUpdatingNameservers(true);
     try {
       const token = safeLocalStorage.getItem('token');
-      const response = await fetch('/api/admin/domains/nameservers', {
+      const response = await fetch('/api/v1/admin/domains/nameservers', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -410,7 +410,7 @@ function AdminDNSManagementContent() {
     setIsUpdatingNameservers(true);
     try {
       const token = safeLocalStorage.getItem('token');
-      const response = await fetch('/api/admin/domains/nameservers', {
+      const response = await fetch('/api/v1/admin/domains/nameservers', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -440,7 +440,7 @@ function AdminDNSManagementContent() {
     setIsActivating(true);
     try {
       const token = safeLocalStorage.getItem('token');
-      const response = await fetch('/api/admin/domains/activate-dns', {
+      const response = await fetch('/api/v1/admin/domains/activate-dns', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -482,7 +482,7 @@ function AdminDNSManagementContent() {
       const domain = domains.find(d => d.id === selectedDomain);
       if (!domain) return;
 
-      const response = await fetch('/api/admin/domains/dns', {
+      const response = await fetch('/api/v1/admin/domains/dns', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -515,7 +515,7 @@ function AdminDNSManagementContent() {
       const record = dnsRecords.find(r => r.id === recordId);
       if (!record) return;
 
-      const response = await fetch(`/api/admin/domains/dns?domainName=${encodeURIComponent(domain.name)}&recordId=${encodeURIComponent(recordId)}`, {
+      const response = await fetch(`/api/v1/admin/domains/dns?domainName=${encodeURIComponent(domain.name)}&recordId=${encodeURIComponent(recordId)}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -567,7 +567,7 @@ function AdminDNSManagementContent() {
       if (!originalRecord) return;
 
       // Delete old
-      const deleteResponse = await fetch(`/api/admin/domains/dns?domainName=${encodeURIComponent(domain.name)}&recordId=${encodeURIComponent(originalRecord.id)}`, {
+      const deleteResponse = await fetch(`/api/v1/admin/domains/dns?domainName=${encodeURIComponent(domain.name)}&recordId=${encodeURIComponent(originalRecord.id)}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -582,7 +582,7 @@ function AdminDNSManagementContent() {
       }
 
       // Add new
-      const addResponse = await fetch('/api/admin/domains/dns', {
+      const addResponse = await fetch('/api/v1/admin/domains/dns', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
