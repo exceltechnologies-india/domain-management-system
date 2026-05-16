@@ -6,7 +6,7 @@ import { DomainVerificationService } from "@/lib/domain-verification";
 import { serverLogger } from "@/lib/server-logger";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
-import HostingPlan from "@/models/HostingPlan";
+import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import Hosting from "@/models/Hosting";
 import Domain from "@/models/Domain";
 import PendingDomain from "@/models/PendingDomain";
@@ -246,9 +246,7 @@ export async function provisionCartItems(
 
         let planName = packageName;
         try {
-          const plan = await HostingPlan.findOne({ planId: packageName }).select(
-            "name"
-          );
+          const plan = await getPlanByPlanId(packageName);
           if (plan && plan.name) planName = plan.name;
         } catch (e) {
           serverLogger.warn("Failed to fetch hosting plan name for email", e);

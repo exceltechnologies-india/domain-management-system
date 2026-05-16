@@ -6,7 +6,7 @@ import {
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import Hosting from "@/models/Hosting";
-import Domain from "@/models/Domain";
+import { getDomainById } from "@/lib/services/domains";
 import { TimeService } from "@/lib/time-service";
 
 /**
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     if (serviceType === "hosting") {
       service = await Hosting.findById(serviceId).lean();
     } else {
-      service = await Domain.findById(serviceId).lean();
+      service = await getDomainById(serviceId);
     }
 
     if (!service) {

@@ -1,11 +1,15 @@
 import { EmailService } from "@/lib/email";
 import { ZohoBooksService } from "@/lib/zohobooks";
 import { serverLogger } from "@/lib/server-logger";
-import Order from "@/models/Order";
 import type { IOrder } from "@/models/Order";
 import type { IUser } from "@/models/User";
 import type { CartItem, RazorpayPaymentDetails, ZohoInvoice } from "@/lib/types";
 import type { OrderDomain } from "@/lib/payment-services/provisioner";
+import {
+  claimOrderForZohoInvoice,
+  recordZohoInvoiceForOrder,
+  releaseZohoInvoiceClaim,
+} from "@/lib/services/orders";
 
 export interface PostTasksContext {
   order: IOrder;
@@ -34,15 +38,8 @@ export async function createZohoInvoice(
 ): Promise<{ invoiceId: string; invoiceNumber: string | null }> {
   const { order, orderId, razorpay_payment_id, paymentDetails, user, cartItems } = ctx;
 
-  // Atomic claim: prevents duplicate creation if called concurrently
-  const claimedOrder = await Order.findOneAndUpdate(
-    { _id: order._id, zohoInvoiceId: { $exists: false } },
-    { $set: { zohoInvoiceId: "pending_creation" } },
-    { new: true }
-  );
-
+  const claimedOrder = await claimOrderForZohoInvoice(order._id);
   if (!claimedOrder) {
-    // Another call already claimed or completed the invoice
     serverLogger.info(
       `⏭️ [PAYMENT-VERIFY] Zoho invoice already claimed or exists for Order ${orderId}. Skipping.`
     );
@@ -71,51 +68,21 @@ export async function createZohoInvoice(
       }))
     );
   } catch (err) {
-    // Release the claim so a retry or the idempotency recovery can try again
-    await Order.updateOne(
-      { _id: order._id, zohoInvoiceId: "pending_creation" },
-      { $unset: { zohoInvoiceId: "" } }
-    );
+    await releaseZohoInvoiceClaim(order._id);
     throw err;
   }
 
   if (!invoice?.invoice_id) {
-    await Order.updateOne(
-      { _id: order._id, zohoInvoiceId: "pending_creation" },
-      { $unset: { zohoInvoiceId: "" } }
-    );
+    await releaseZohoInvoiceClaim(order._id);
     throw new Error(
       `Zoho invoice creation returned no invoice_id for Order ${orderId} — possible validation error (GST number, contact data, etc.)`
     );
   }
 
-  try {
-    await Order.updateOne(
-      { _id: order._id },
-      {
-        $set: {
-          zohoInvoiceId: invoice.invoice_id,
-          invoiceNumber: invoice.invoice_number || undefined,
-        },
-      }
-    );
-  } catch (e: any) {
-    // E11000 = unique-index conflict on invoiceNumber. Happens when Zoho's
-    // idempotency search returned an existing invoice whose number is already
-    // attributed to another local Order. Keep the local placeholder number
-    // and attach the real zohoInvoiceId — View/Download still work.
-    if (e?.code === 11000) {
-      serverLogger.warn(
-        `⚠️ [PAYMENT-VERIFY] Duplicate invoiceNumber ${invoice.invoice_number} for Order ${orderId}; storing zohoInvoiceId only.`
-      );
-      await Order.updateOne(
-        { _id: order._id },
-        { $set: { zohoInvoiceId: invoice.invoice_id } }
-      );
-    } else {
-      throw e;
-    }
-  }
+  await recordZohoInvoiceForOrder(order._id, {
+    invoiceId: invoice.invoice_id,
+    invoiceNumber: invoice.invoice_number || undefined,
+  });
 
   serverLogger.info(
     `✅ [PAYMENT-VERIFY] Zoho Invoice created: ${invoice.invoice_id} (${invoice.invoice_number}) for Order ${orderId}`

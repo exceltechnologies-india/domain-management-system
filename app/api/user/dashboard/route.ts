@@ -5,8 +5,8 @@ import { serverLogger } from "@/lib/server-logger";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
 import Order from "@/models/Order";
-import Domain from "@/models/Domain";
-import PendingDomain from "@/models/PendingDomain";
+import { listDomainsForUser } from "@/lib/services/domains";
+import { listActivePendingDomainsForUser } from "@/lib/services/pending-domains";
 import Hosting from "@/models/Hosting";
 import { AuthService } from "@/lib/auth";
 import { DirectAdminService } from "@/lib/directadmin";
@@ -63,8 +63,8 @@ export async function GET(request: NextRequest) {
     // Get user's orders, domains, and hosting
     const [orders, domains, pendingDomainsRaw, hostings] = await Promise.all([
       Order.find({ userId: user._id, isDeleted: { $ne: true } }).sort({ createdAt: -1 }),
-      Domain.find({ userId: user._id }).sort({ createdAt: -1 }),
-      PendingDomain.find({ userId: user._id, isArchived: { $ne: true } }).sort({ createdAt: -1 }),
+      listDomainsForUser(String(user._id)),
+      listActivePendingDomainsForUser(String(user._id)),
       Hosting.find({ userId: user._id }).sort({ createdAt: -1 })
     ]);
     
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
       try {
         const { createHttpTask } = await import("@/lib/cloud-tasks");
         const queueName = process.env.GCP_QUEUE_NAME || 'default';
-        const workerUrl = `${process.env.NEXTAUTH_URL}/api/workers/sync-hosting-status`;
+        const workerUrl = `${process.env.NEXTAUTH_URL}/api/v1/workers/sync-hosting-status`;
 
         await createHttpTask(queueName, workerUrl, { userId: user._id });
 

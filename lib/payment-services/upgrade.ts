@@ -4,7 +4,7 @@ import { RazorpayService } from "@/lib/razorpay";
 import connectDB from "@/lib/mongodb";
 import Order from "@/models/Order";
 import Hosting from "@/models/Hosting";
-import HostingPlan from "@/models/HostingPlan";
+import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import { serverLogger } from "@/lib/server-logger";
 
 /**
@@ -59,7 +59,7 @@ export async function handleUpgradePayment(
     );
   }
 
-  const newPlan = await HostingPlan.findOne({ planId: toPlanId });
+  const newPlan = await getPlanByPlanId(toPlanId);
   if (!newPlan) {
     serverLogger.error(`[UPGRADE] Target hosting plan not found: ${toPlanId}`);
     order.status = "failed";

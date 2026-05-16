@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import connectDB from "@/lib/mongodb";
 import Hosting from "@/models/Hosting";
-import HostingPlan from "@/models/HostingPlan";
+import { getPlanByPlanId, listActivePlans } from "@/lib/services/hosting-plans";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { AuthService } from "@/lib/auth";
 import { serverLogger } from "@/lib/server-logger";
@@ -59,12 +59,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const currentPlan = await HostingPlan.findOne({ planId: hosting.planId });
+    const currentPlan = await getPlanByPlanId(hosting.planId);
     if (!currentPlan) {
       return secureErrorResponse("Current plan details not found", 404, "PLAN_NOT_FOUND");
     }
 
-    const allPlans = await HostingPlan.find({ isActive: true }).sort({ price: 1 });
+    const allPlans = await listActivePlans();
 
     const eligiblePlans = allPlans
       .filter((plan) => plan.price > currentPlan.price)

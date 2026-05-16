@@ -3,8 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
-import Domain from "@/models/Domain";
-import PendingDomain from "@/models/PendingDomain";
+import { listDomainsForUser } from "@/lib/services/domains";
+import { listActivePendingDomainsForUser } from "@/lib/services/pending-domains";
 import Order from "@/models/Order";
 import User from "@/models/User";
 import { getToken } from "next-auth/jwt";
@@ -83,10 +83,7 @@ export async function GET(request: NextRequest) {
     });
 
     // 2. Fetch from PendingDomain collection (domains that hit technical issues)
-    const pendingDomains = await PendingDomain.find({
-      userId: user._id,
-      isArchived: { $ne: true }
-    });
+    const pendingDomains = await listActivePendingDomainsForUser(String(user._id));
 
     pendingDomains.forEach(pd => {
       const domainName = (pd.domainName || "").toLowerCase().trim();
@@ -107,7 +104,7 @@ export async function GET(request: NextRequest) {
     });
 
     // 3. Fetch from Domain collection (active/fully registered domains)
-    const activeDomains = await Domain.find({ userId: user._id });
+    const activeDomains = await listDomainsForUser(String(user._id));
 
     activeDomains.forEach(domain => {
       const domainName = (domain.domainName || "").toLowerCase().trim();

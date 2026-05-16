@@ -6,7 +6,7 @@ import {
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import Hosting from "@/models/Hosting";
-import Domain from "@/models/Domain";
+import { getDomainById } from "@/lib/services/domains";
 import { AUTOMATION_CONFIG } from "@/config/automation";
 
 /**
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       if (serviceType === "hosting") {
         service = await Hosting.findById(serviceId);
       } else {
-        service = await Domain.findById(serviceId);
+        service = await getDomainById(serviceId);
       }
       
       if (!service) return secureErrorResponse("Service not found", 404, "NOT_FOUND");

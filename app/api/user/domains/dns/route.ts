@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import Order from "@/models/Order";
-import Domain from "@/models/Domain";
+import { listDomainsForUser } from "@/lib/services/domains";
 import { serverLogger } from "@/lib/server-logger";
 
 // Force dynamic rendering - required for API routes
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     const domainMap = new Map();
 
     // Fetch existing Domain documents to get the correct _id for linking
-    const domainDocs = await Domain.find({ userId: user._id });
+    const domainDocs = await listDomainsForUser(String(user._id));
     const domainIdMap = new Map(domainDocs.map(d => [d.domainName, d._id.toString()]));
 
     orders.forEach((order) => {

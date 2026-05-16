@@ -6,7 +6,7 @@ import crypto from "crypto";
 import Hosting from "@/models/Hosting";
 import User from "@/models/User";
 import Order from "@/models/Order";
-import HostingPlan from "@/models/HostingPlan";
+import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import { DirectAdminService } from "@/lib/directadmin";
 import { HOSTING_PLANS } from "@/config/hosting-plans";
 // ZohoBooksService is intentionally NOT imported here.
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
             }
 
             if (!renewalPrice && hosting.planId) {
-                const plan = await HostingPlan.findOne({ planId: hosting.planId });
+                const plan = await getPlanByPlanId(hosting.planId);
                 if (plan) renewalPrice = plan.price || 0;
             }
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import Order from "@/models/Order";
-import HostingPlan from "@/models/HostingPlan";
+import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import Settings from "@/models/Settings";
 import { AuthService } from "@/lib/auth";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
@@ -78,8 +78,8 @@ async function runEligibility(
 
   // 4. Confirm requested plan has a yearly Razorpay plan
   if (body.planId) {
-    const plan = await HostingPlan.findOne({ planId: body.planId }).lean();
-    if (!plan || !(plan as any).razorpayPlans?.yearly) {
+    const plan = await getPlanByPlanId(body.planId);
+    if (!plan || !plan.razorpayPlans?.yearly) {
       return secureJsonResponse({ eligible: false, reason: "This plan is not available for a free trial" });
     }
   }
