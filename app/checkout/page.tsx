@@ -16,6 +16,7 @@ import OrderTimeline from '@/components/checkout/OrderTimeline';
 import { getMinRegistrationPeriod } from '@/lib/tld-min-periods';
 import { getDeviceFingerprint } from '@/lib/device-fingerprint';
 import { logger } from '@/lib/logger';
+import { useRazorpayCheckout } from '@/components/RazorpayCheckoutFrame';
 
 const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@anutech.in';
 
@@ -25,12 +26,6 @@ interface User {
   firstName: string;
   lastName: string;
   role: string;
-}
-
-declare global {
-  interface Window {
-    Razorpay: any;
-  }
 }
 
 export default function CheckoutPage() {
@@ -43,6 +38,7 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
   const { items: cartItems, getTotalPrice, getSubtotalPrice, getItemCount, clearCart, syncWithServer, isLoading, hasDomainItems, hasHostingItems } = useCartStore();
+  const razorpay = useRazorpayCheckout();
   const hasTrial = cartItems.some((i: any) => i.isTrial === true);
   const trialItem = cartItems.find((i: any) => i.isTrial === true) as any;
   const trialYearlyPrice = trialItem ? (trialItem.hostingPlan?.price ?? 0) : 0;
@@ -62,7 +58,7 @@ export default function CheckoutPage() {
         // Check if user is logged in via NextAuth (social login)
         if (session?.user) {
           // Social login - use NextAuth cookies
-          response = await fetch('/api/auth/me', {
+          response = await fetch('/api/v1/auth/me', {
             headers: {
               'Content-Type': 'application/json',
             },
@@ -79,7 +75,7 @@ export default function CheckoutPage() {
           }
 
           userObj = JSON.parse(userData);
-          response = await fetch('/api/auth/me', {
+          response = await fetch('/api/v1/auth/me', {
             headers: {
               'Authorization': `Bearer ${token}`,
               'Content-Type': 'application/json',
@@ -171,19 +167,6 @@ export default function CheckoutPage() {
     };
 
     refreshUserData();
-
-    // SRI not applied: Razorpay does not publish stable hashes for checkout.js;
-    // updates happen without versioning the URL. CSP restricts to checkout.razorpay.com.
-    const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.async = true;
-    document.body.appendChild(script);
-
-    return () => {
-      if (document.body.contains(script)) {
-        document.body.removeChild(script);
-      }
-    };
   }, [router, syncWithServer, session, status]);
 
   // Navigation prevention removed - users can freely navigate during payment
@@ -215,29 +198,6 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (typeof window === 'undefined' || !window.Razorpay) {
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const existing = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
-          if (existing) {
-            existing.addEventListener('load', () => resolve());
-            if ((existing as any).readyState === 'complete') resolve();
-          } else {
-            // SRI not applied — see comment on initial script load above.
-            const script = document.createElement('script');
-            script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-            script.async = true;
-            script.onload = () => resolve();
-            script.onerror = () => reject(new Error('Failed to load payment script'));
-            document.body.appendChild(script);
-          }
-        });
-      } catch (e) {
-        toast.error('Failed to load payment script. Please retry.');
-        return;
-      }
-    }
-
     setIsProcessing(true);
     setIsPaymentInProgress(true);
     try {
@@ -249,7 +209,7 @@ export default function CheckoutPage() {
       const trialOtpToken = safeSessionStorage.getItem('trial-otp-token') || undefined;
 
       // Create payment order
-      const response = await fetch('/api/payments/create-order', {
+      const response = await fetch('/api/v1/payments/create-order', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -283,7 +243,7 @@ export default function CheckoutPage() {
       const verifyPayment = async (orderId: string, paymentId: string, signature: string, subscriptionId?: string) => {
         setIsVerifying(true);
         try {
-          const verifyResponse = await fetch('/api/payments/verify', {
+          const verifyResponse = await fetch('/api/v1/payments/verify', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -325,81 +285,64 @@ export default function CheckoutPage() {
         }
       };
 
-      // Define Subscription Flow
-      const startSubscriptionFlow = (subId: string, skipOrderVerify: boolean = false, orderPaymentData?: any) => {
-        const subOptions = {
-          key: keyId,
-          name: 'AnuTech Digital',
-          description: 'Hosting Subscription',
-          subscription_id: subId,
-          handler: async function (subResponse: any) {
-             // If we have both order and subscription, we verify once with both
-             if (orderPaymentData) {
-               await verifyPayment(
-                 orderPaymentData.razorpay_order_id,
-                 orderPaymentData.razorpay_payment_id,
-                 orderPaymentData.razorpay_signature,
-                 subResponse.razorpay_subscription_id
-               );
-             } else {
-               // Subscription ONLY
-               await verifyPayment(
-                 '', 
-                 subResponse.razorpay_payment_id,
-                 subResponse.razorpay_signature,
-                 subResponse.razorpay_subscription_id
-               );
-             }
-          },
-          prefill: {
-            name: (user ? `${user.firstName} ${user.lastName}` : '').trim(),
-            email: (user?.email || '').trim(),
-          },
-          theme: { color: '#3b82f6' },
-          modal: { ondismiss: () => { setIsProcessing(false); setIsPaymentInProgress(false); } }
-        };
-        const rzpSub = new window.Razorpay(subOptions);
-        rzpSub.open();
+      const prefill = {
+        name: (user ? `${user.firstName} ${user.lastName}` : '').trim(),
+        email: (user?.email || '').trim(),
       };
 
-      // Execution Logic
-      if (razorpayOrderId) {
-        // Step 1: Process Order
-        const orderOptions = {
-          key: keyId,
-          name: 'AnuTech Digital',
-          description: `Payment for ${cartItems.length} items`,
-          order_id: razorpayOrderId,
-          handler: async function (orderResponse: any) {
-            if (razorpaySubscriptionId) {
-              // Proceed to Step 2: Subscription
-              toast.success('Domain payment authorized! Setting up subscription...');
-              startSubscriptionFlow(razorpaySubscriptionId, false, orderResponse);
-            } else {
-              // Order ONLY
-              await verifyPayment(
-                orderResponse.razorpay_order_id,
-                orderResponse.razorpay_payment_id,
-                orderResponse.razorpay_signature
-              );
-            }
-          },
-          prefill: {
-            name: (user ? `${user.firstName} ${user.lastName}` : '').trim(),
-            email: (user?.email || '').trim(),
-          },
-          theme: { color: '#3b82f6' },
-          modal: { ondismiss: () => { setIsProcessing(false); setIsPaymentInProgress(false); } }
-        };
-        const rzpOrder = new window.Razorpay(orderOptions);
-        rzpOrder.open();
-      } else if (razorpaySubscriptionId) {
-        // Subscription ONLY (No order)
-        startSubscriptionFlow(razorpaySubscriptionId);
-      } else {
-        throw new Error("No payment target created");
-      }
+      // Linear flow: order first (if any), then subscription (if any), then verify once.
+      let orderPaymentData: any = null;
 
+      try {
+        if (razorpayOrderId) {
+          orderPaymentData = await razorpay.open({
+            key: keyId,
+            name: 'AnuTech Digital',
+            description: `Payment for ${cartItems.length} items`,
+            order_id: razorpayOrderId,
+            prefill,
+            theme: { color: '#3b82f6' },
+          });
+
+          if (razorpaySubscriptionId) {
+            toast.success('Domain payment authorized! Setting up subscription...');
+          }
+        }
+
+        if (razorpaySubscriptionId) {
+          const subResponse = await razorpay.open({
+            key: keyId,
+            name: 'AnuTech Digital',
+            description: 'Hosting Subscription',
+            subscription_id: razorpaySubscriptionId,
+            prefill,
+            theme: { color: '#3b82f6' },
+          });
+
+          await verifyPayment(
+            orderPaymentData?.razorpay_order_id || '',
+            orderPaymentData?.razorpay_payment_id || subResponse.razorpay_payment_id,
+            orderPaymentData?.razorpay_signature || subResponse.razorpay_signature,
+            subResponse.razorpay_subscription_id
+          );
+        } else if (orderPaymentData) {
+          await verifyPayment(
+            orderPaymentData.razorpay_order_id,
+            orderPaymentData.razorpay_payment_id,
+            orderPaymentData.razorpay_signature
+          );
+        } else {
+          throw new Error("No payment target created");
+        }
+      } catch (err: any) {
+        // Iframe rejected: user dismissed, or upstream error
+        if (err?.kind === 'dismissed') {
+          setIsProcessing(false);
+          setIsPaymentInProgress(false);
+          return;
+        }
+        throw err;
+      }
     } catch (error: any) {
       setIsProcessing(false);
       setIsPaymentInProgress(false);
@@ -464,6 +407,8 @@ export default function CheckoutPage() {
   }
 
   return (
+    <>
+    <razorpay.Frame />
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <Navigation user={user} onLogout={user ? handleLogout : undefined} />
 
@@ -783,5 +728,6 @@ export default function CheckoutPage() {
 
       <Footer />
     </div>
+    </>
   );
 }
