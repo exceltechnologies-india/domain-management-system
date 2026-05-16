@@ -1,10 +1,14 @@
 import { NextRequest } from "next/server";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { AuthService } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
+import { findUserOrder } from "@/lib/services/orders";
 
 export const dynamic = "force-dynamic";
+
+const USER_ORDER_FIELDS =
+  "orderId purchaseOrderNumber amount currency status orderType " +
+  "domains successfulDomains invoiceNumber zohoInvoiceId " +
+  "createdAt updatedAt paymentVerification";
 
 export async function GET(
   request: NextRequest,
@@ -17,20 +21,7 @@ export async function GET(
     const { id } = await params;
     if (!id) return secureErrorResponse("Order ID required", 400, "MISSING_ID");
 
-    await connectDB();
-
-    const order = await Order.findOne({
-      orderId: id,
-      userId: user._id,
-      isDeleted: { $ne: true },
-    })
-      .select(
-        "orderId purchaseOrderNumber amount currency status orderType " +
-        "domains successfulDomains invoiceNumber zohoInvoiceId " +
-        "createdAt updatedAt paymentVerification"
-      )
-      .lean();
-
+    const order = await findUserOrder(id, String(user._id), { select: USER_ORDER_FIELDS });
     if (!order) {
       return secureErrorResponse("Order not found", 404, "NOT_FOUND");
     }

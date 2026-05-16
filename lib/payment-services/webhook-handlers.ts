@@ -1,7 +1,8 @@
 import Order from "@/models/Order";
 import User from "@/models/User";
 import Hosting from "@/models/Hosting";
-import HostingPlan from "@/models/HostingPlan";
+import { getPlanByRazorpaySubscriptionPlanId } from "@/lib/services/hosting-plans";
+import { findUserHosting, getHostingById } from "@/lib/services/hostings";
 import RenewalPayment from "@/models/RenewalPayment";
 import { serverLogger } from "@/lib/server-logger";
 import { EmailService } from "@/lib/email";
@@ -35,12 +36,7 @@ export async function handleSubscriptionCharged(payload: any) {
   );
 
   // ── Step 1: Determine plan & duration ─────────────────────────────────────
-  const hostingPlan = await HostingPlan.findOne({
-    $or: [
-      { "razorpayPlans.monthly": subscription.plan_id },
-      { "razorpayPlans.yearly": subscription.plan_id },
-    ],
-  });
+  const hostingPlan = await getPlanByRazorpaySubscriptionPlanId(subscription.plan_id);
 
   const isMonthly = hostingPlan?.razorpayPlans?.monthly === subscription.plan_id;
   const renewalDurationMonths = isMonthly ? 1 : 12;
@@ -48,7 +44,7 @@ export async function handleSubscriptionCharged(payload: any) {
   // ── Step 2: Store RenewalPayment (idempotency anchor) ─────────────────────
   // The unique index on providerPaymentId silently ignores duplicate inserts.
   try {
-    const hosting = await Hosting.findOne({ userId, domainName });
+    const hosting = await findUserHosting(userId, { domainName });
     if (!hosting) {
       serverLogger.error(
         `[Webhook] Hosting not found for user=${userId} domain=${domainName} paymentId=${razorpayPaymentId}`
@@ -129,7 +125,7 @@ export async function handleSubscriptionCharged(payload: any) {
 
   // ── Step 5: Load service and user ─────────────────────────────────────────
   const [hosting, user] = await Promise.all([
-    Hosting.findById(renewal.serviceId),
+    getHostingById(String(renewal.serviceId)),
     User.findById(userId),
   ]);
 
@@ -284,7 +280,7 @@ export async function handleSubscriptionCharged(payload: any) {
    */
   if (newOrder) {
     const zohoQueueName = process.env.GCP_ZOHO_QUEUE_NAME || process.env.GCP_QUEUE_NAME || "service-expiry-queue";
-    const zohoWorkerUrl = `${process.env.NEXTAUTH_URL}/api/workers/sync-zoho-invoice`;
+    const zohoWorkerUrl = `${process.env.NEXTAUTH_URL}/api/v1/workers/sync-zoho-invoice`;
 
     createHttpTask(zohoQueueName, zohoWorkerUrl, {
       orderId: newOrder._id.toString(),
@@ -316,13 +312,13 @@ export async function handleSubscriptionFailed(payload: any) {
   );
 
   try {
-    const hosting = await Hosting.findOne({ userId, domainName });
+    const hosting = await findUserHosting(userId, { domainName });
     if (!hosting) return;
 
     // Immediately expire the service
     hosting.status = "expired";
     hosting.billingType = "manual"; // Auto-renew failed, must be recovered manually
-    hosting.next_action_at = null; // Prevent scheduler from re-queuing the already-expired service
+    hosting.next_action_at = undefined; // Prevent scheduler from re-queuing the already-expired service
     await hosting.save();
 
     // Instantly suspend on DirectAdmin

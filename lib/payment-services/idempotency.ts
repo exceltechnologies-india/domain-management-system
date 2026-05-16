@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
-import HostingPlan from "@/models/HostingPlan";
+import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import { ZohoBooksService } from "@/lib/zohobooks";
 import { serverLogger } from "@/lib/server-logger";
 import { isHostingItem } from "@/lib/billing";
+import {
+  claimOrderForZohoInvoice,
+  getOrderByRazorpayPaymentId,
+  recordZohoInvoiceForOrder,
+  releaseZohoInvoiceClaim,
+} from "@/lib/services/orders";
 
 export interface IdempotencyContext {
   razorpay_order_id: string;
@@ -33,12 +37,8 @@ export async function handleAlreadyProcessedPayment(
   } = ctx;
   let { existingOrder } = ctx;
 
-  await connectDB();
-
   if (!existingOrder) {
-    existingOrder = await Order.findOne({
-      razorpayPaymentId: razorpay_payment_id,
-    });
+    existingOrder = await getOrderByRazorpayPaymentId(razorpay_payment_id);
   }
 
   // F13: Replace client-supplied cart items with the trusted DB order domains.
@@ -72,32 +72,16 @@ export async function handleAlreadyProcessedPayment(
             item.hostingPlan.planId || item.hostingPlan.serverPackage;
           if (planId) {
             try {
-              const plan = await HostingPlan.findOne({ planId }).select(
-                "name"
-              );
+              const plan = await getPlanByPlanId(planId);
               if (plan?.name) item.hostingPlan.name = plan.name;
             } catch (_e) {}
           }
         }
       }
 
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-
-      const updatedOrder = await Order.findOneAndUpdate(
-        {
-          _id: existingOrder._id,
-          $or: [
-            { zohoInvoiceId: { $exists: false } },
-            { zohoInvoiceId: "" },
-            {
-              zohoInvoiceId: "pending_creation",
-              updatedAt: { $lt: fiveMinutesAgo },
-            },
-          ],
-        },
-        { $set: { zohoInvoiceId: "pending_creation" } },
-        { new: true }
-      );
+      const updatedOrder = await claimOrderForZohoInvoice(existingOrder._id, {
+        staleClaimAfterMs: 5 * 60 * 1000,
+      });
 
       if (!updatedOrder) {
         serverLogger.info(
@@ -125,36 +109,19 @@ export async function handleAlreadyProcessedPayment(
           );
 
           if (invoice?.invoice_id) {
-            await Order.updateOne(
-              { _id: existingOrder._id },
-              {
-                $set: {
-                  zohoInvoiceId: invoice.invoice_id,
-                  invoiceNumber:
-                    invoice.invoice_number || existingOrder.invoiceNumber,
-                },
-              }
-            );
+            await recordZohoInvoiceForOrder(existingOrder._id, {
+              invoiceId: invoice.invoice_id,
+              invoiceNumber:
+                invoice.invoice_number || existingOrder.invoiceNumber,
+            });
             serverLogger.info(
               `✅ [PAYMENT-VERIFY] Saved Zoho Invoice ID (Recovery): ${invoice.invoice_id}`
             );
           } else {
-            await Order.updateOne(
-              {
-                _id: existingOrder._id,
-                zohoInvoiceId: "pending_creation",
-              },
-              { $unset: { zohoInvoiceId: "" } }
-            );
+            await releaseZohoInvoiceClaim(existingOrder._id);
           }
         } catch (innerError) {
-          await Order.updateOne(
-            {
-              _id: existingOrder._id,
-              zohoInvoiceId: "pending_creation",
-            },
-            { $unset: { zohoInvoiceId: "" } }
-          );
+          await releaseZohoInvoiceClaim(existingOrder._id);
           throw innerError;
         }
       }

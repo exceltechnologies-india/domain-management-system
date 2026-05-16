@@ -5,6 +5,7 @@ import { serverLogger } from "@/lib/server-logger";
 import mongoose from "mongoose";
 import connectDB from "@/lib/mongodb";
 import PendingDomain from "@/models/PendingDomain";
+import { getPendingDomainById } from "@/lib/services/pending-domains";
 import Order from "@/models/Order";
 import User from "@/models/User";
 import Domain from "@/models/Domain";
@@ -47,15 +48,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    let query: any = { _id: id };
-    if (mongoose.Types.ObjectId.isValid(id)) {
-      query = { $or: [{ _id: id }, { _id: new mongoose.Types.ObjectId(id) }] };
-    }
-
-    const pendingDomain = await PendingDomain.findOne(query).populate(
-      "userId",
-      "firstName lastName email phone companyName"
-    );
+    const pendingDomain = await getPendingDomainById(id, { populateUser: true });
 
     if (!pendingDomain) {
       return NextResponse.json(
@@ -113,12 +106,7 @@ export async function PUT(
     const body = await request.json();
     const { status, adminNotes, reason } = body;
 
-    let query: any = { _id: id };
-    if (mongoose.Types.ObjectId.isValid(id)) {
-      query = { $or: [{ _id: id }, { _id: new mongoose.Types.ObjectId(id) }] };
-    }
-
-    const pendingDomain = await PendingDomain.findOne(query);
+    const pendingDomain = await getPendingDomainById(id);
 
     if (!pendingDomain) {
       return NextResponse.json(
@@ -250,7 +238,7 @@ export async function DELETE(
       query = { $or: [{ _id: pendingDomainId }, { _id: new mongoose.Types.ObjectId(pendingDomainId) }] };
     }
 
-    const pendingDomain = await PendingDomain.findOne(query).populate('userId');
+    const pendingDomain = await getPendingDomainById(pendingDomainId, { populateUser: true });
 
     if (!pendingDomain) {
       serverLogger.warn(`[${reqId}] Pending domain not found: ${pendingDomainId}`);

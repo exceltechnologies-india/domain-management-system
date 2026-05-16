@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import PendingDomain from "@/models/PendingDomain";
+import { getPendingDomainByName } from "@/lib/services/pending-domains";
 import Order from "@/models/Order";
 import User from "@/models/User";
 import { getToken } from "next-auth/jwt";
@@ -272,7 +273,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if domain already exists in pending domains
-    const existingPending = await PendingDomain.findOne({ domainName });
+    const existingPending = await getPendingDomainByName(domainName);
     if (existingPending) {
       return NextResponse.json(
         { error: "Domain already exists in pending domains" },

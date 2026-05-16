@@ -4,28 +4,23 @@
  * blocks the caller, never throws.
  *
  * Throttle: 5 minutes between attempts per order (Redis-backed).
- * The atomic claim on Order.zohoInvoiceId ensures concurrent callers
- * don't double-create.
+ * The Order service's `claimOrderForZohoInvoice` lease ensures concurrent
+ * callers don't double-create.
  */
 
-import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
 import User from "@/models/User";
 import { ZohoBooksService } from "@/lib/zohobooks";
 import { serverLogger } from "@/lib/server-logger";
 import { redisCache } from "@/lib/redis";
+import {
+  claimOrderForZohoInvoice,
+  listStuckZohoInvoiceOrders,
+  markZohoInvoiceCreationFailed,
+  recordZohoInvoiceForOrder,
+  type StuckZohoInvoiceOrder,
+} from "@/lib/services/orders";
 
 const THROTTLE_SECONDS = 5 * 60;
-
-interface OrderDocLite {
-  _id: any;
-  orderId: string;
-  userId: any;
-  amount: number;
-  razorpayPaymentId?: string;
-  paymentId?: string;
-  domains: any[];
-}
 
 export interface RetryResult {
   ok: boolean;
@@ -37,7 +32,7 @@ export interface RetryResult {
 }
 
 async function retryOne(
-  order: OrderDocLite,
+  order: StuckZohoInvoiceOrder,
   options: { skipThrottle?: boolean } = {}
 ): Promise<RetryResult> {
   const throttleKey = `zoho-retry:${order._id.toString()}`;
@@ -52,20 +47,12 @@ async function retryOne(
     await redisCache.set(throttleKey, Date.now(), THROTTLE_SECONDS);
   }
 
-  // Atomic claim: only retry if still in a recoverable state.
-  const claimed = await Order.findOneAndUpdate(
-    {
-      _id: order._id,
-      $or: [
-        { zohoInvoiceId: { $exists: false } },
-        { zohoInvoiceId: null },
-        { zohoInvoiceId: "" },
-        { zohoInvoiceId: "creation_failed" },
-      ],
-    },
-    { $set: { zohoInvoiceId: "pending_creation" } },
-    { new: true }
-  );
+  // Atomic claim: accepts unset/null/empty/creation_failed states, so terminal
+  // failures still get a fresh attempt when the cron picks them up later.
+  const claimed = await claimOrderForZohoInvoice(order._id, {
+    allowNull: true,
+    allowFailed: true,
+  });
 
   if (!claimed) {
     return { ok: false, orderId: order.orderId, skipped: "already_done" };
@@ -74,11 +61,13 @@ async function retryOne(
   const user = await User.findById(order.userId);
   if (!user) {
     serverLogger.warn(`[ZohoRetry] User not found for order ${order.orderId}`);
-    await Order.updateOne(
-      { _id: order._id, zohoInvoiceId: "pending_creation" },
-      { $set: { zohoInvoiceId: "creation_failed" } }
-    );
-    return { ok: false, orderId: order.orderId, skipped: "no_user", error: "User not found" };
+    await markZohoInvoiceCreationFailed(order._id);
+    return {
+      ok: false,
+      orderId: order.orderId,
+      skipped: "no_user",
+      error: "User not found",
+    };
   }
 
   const items = (order.domains || []).map((d: any) => ({
@@ -105,35 +94,10 @@ async function retryOne(
     );
 
     if (invoice && invoice.invoice_id) {
-      try {
-        await Order.updateOne(
-          { _id: order._id },
-          {
-            $set: {
-              zohoInvoiceId: invoice.invoice_id,
-              invoiceNumber: invoice.invoice_number,
-            },
-          }
-        );
-      } catch (e: any) {
-        // E11000 = duplicate-key on the unique invoiceNumber index. Another
-        // Order doc already holds this Zoho invoice number (the existing-Zoho-
-        // invoice idempotency search returned an invoice whose number is
-        // already attributed to a different local order). Keep the local
-        // placeholder invoiceNumber, but still attach zohoInvoiceId so View
-        // and Download work.
-        if (e?.code === 11000) {
-          serverLogger.warn(
-            `[ZohoRetry] Duplicate invoiceNumber ${invoice.invoice_number} on order ${order.orderId}; storing zohoInvoiceId only.`
-          );
-          await Order.updateOne(
-            { _id: order._id },
-            { $set: { zohoInvoiceId: invoice.invoice_id } }
-          );
-        } else {
-          throw e;
-        }
-      }
+      await recordZohoInvoiceForOrder(order._id, {
+        invoiceId: invoice.invoice_id,
+        invoiceNumber: invoice.invoice_number,
+      });
       serverLogger.info(
         `[ZohoRetry] Recovered invoice for order ${order.orderId}: ${invoice.invoice_id}`
       );
@@ -146,39 +110,15 @@ async function retryOne(
     }
 
     serverLogger.warn(`[ZohoRetry] Zoho returned no invoice_id for ${order.orderId}`);
-    await Order.updateOne(
-      { _id: order._id, zohoInvoiceId: "pending_creation" },
-      { $set: { zohoInvoiceId: "creation_failed" } }
-    );
+    await markZohoInvoiceCreationFailed(order._id);
     return { ok: false, orderId: order.orderId, error: "Zoho returned no invoice_id" };
   } catch (err: any) {
     const message =
       err?.response?.data?.message || err?.message || String(err);
     serverLogger.error(`[ZohoRetry] Failed for order ${order.orderId}: ${message}`);
-    await Order.updateOne(
-      { _id: order._id, zohoInvoiceId: "pending_creation" },
-      { $set: { zohoInvoiceId: "creation_failed" } }
-    ).catch(() => {});
+    await markZohoInvoiceCreationFailed(order._id).catch(() => {});
     return { ok: false, orderId: order.orderId, error: message };
   }
-}
-
-async function findStuckOrders(userId: string): Promise<OrderDocLite[]> {
-  await connectDB();
-  const rows = await Order.find({
-    userId,
-    status: { $in: ["completed", "paid"] },
-    isDeleted: { $ne: true },
-    $or: [
-      { zohoInvoiceId: { $exists: false } },
-      { zohoInvoiceId: null },
-      { zohoInvoiceId: "" },
-      { zohoInvoiceId: "creation_failed" },
-    ],
-  })
-    .select("_id orderId userId amount razorpayPaymentId paymentId domains")
-    .lean();
-  return rows as unknown as OrderDocLite[];
 }
 
 /**
@@ -188,7 +128,7 @@ async function findStuckOrders(userId: string): Promise<OrderDocLite[]> {
 export function selfHealUserInvoices(userId: string): void {
   void (async () => {
     try {
-      const stuckOrders = await findStuckOrders(userId);
+      const stuckOrders = await listStuckZohoInvoiceOrders(userId);
       if (stuckOrders.length === 0) return;
 
       serverLogger.info(
@@ -211,7 +151,7 @@ export function selfHealUserInvoices(userId: string): void {
  * Bypasses the throttle so user-initiated "Sync now" works immediately.
  */
 export async function syncUserInvoicesNow(userId: string): Promise<RetryResult[]> {
-  const stuckOrders = await findStuckOrders(userId);
+  const stuckOrders = await listStuckZohoInvoiceOrders(userId);
   if (stuckOrders.length === 0) return [];
 
   serverLogger.info(

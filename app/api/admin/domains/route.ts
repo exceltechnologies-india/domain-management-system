@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import Order from "@/models/Order";
-import PendingDomain from "@/models/PendingDomain";
+import { listAllPendingDomainNames } from "@/lib/services/pending-domains";
 import { serverLogger } from "@/lib/server-logger";
 
 // Force dynamic rendering - required for API routes
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     await connectDB();
 
     // 1. Fetch all pending domain names to filter them out of the registered list
-    const pendingDomainsList = await PendingDomain.find({}, { domainName: 1 }).lean();
+    const pendingDomainsList = await listAllPendingDomainNames();
     const pendingNormalizedNames = new Set(
       pendingDomainsList.map((pd: any) => pd.domainName.toLowerCase().trim())
     );

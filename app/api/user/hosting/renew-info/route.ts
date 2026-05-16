@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import Hosting from "@/models/Hosting";
-import HostingPlan from "@/models/HostingPlan";
+import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { AuthService } from "@/lib/auth";
 import { serverLogger } from "@/lib/server-logger";
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
       return secureErrorResponse("Hosting account not found", 404, "NOT_FOUND");
     }
 
-    const plan = await HostingPlan.findOne({ planId: hosting.planId });
+    const plan = await getPlanByPlanId(hosting.planId);
     if (!plan) {
       return secureErrorResponse("Hosting plan details not found", 404, "PLAN_NOT_FOUND");
     }

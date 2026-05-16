@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import connectDB from "@/lib/mongodb";
 import Hosting from "@/models/Hosting";
-import HostingPlan from "@/models/HostingPlan";
+import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import Order from "@/models/Order";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { AuthService } from "@/lib/auth";
@@ -61,12 +61,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const currentPlan = await HostingPlan.findOne({ planId: hosting.planId });
+    const currentPlan = await getPlanByPlanId(hosting.planId);
     if (!currentPlan) {
       return secureErrorResponse("Current plan details not found", 404, "PLAN_NOT_FOUND");
     }
 
-    const targetPlan = await HostingPlan.findOne({ planId: targetPlanId, isActive: true });
+    const targetPlan = await getPlanByPlanId(targetPlanId, { activeOnly: true });
     if (!targetPlan) {
       return secureErrorResponse("Target plan not found", 404, "TARGET_PLAN_NOT_FOUND");
     }

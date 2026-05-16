@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
-import Hosting from "@/models/Hosting";
 import Order from "@/models/Order";
+import { findUserHosting, userHasAnyHosting } from "@/lib/services/hostings";
 import { AuthService } from "@/lib/auth";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
@@ -21,8 +21,7 @@ async function performEligibilityCheck(
   await connectDB();
 
   // 1. Check if this user already has any hosting
-  const existingHosting = await Hosting.findOne({ userId });
-  if (existingHosting) {
+  if (await userHasAnyHosting(userId)) {
     return {
       eligible: false,
       reason: "You already have an active or previous hosting account.",
@@ -45,8 +44,7 @@ async function performEligibilityCheck(
   // 2. Check if this domain is already used for hosting — scoped to this user
   // (cross-user domain conflicts are enforced at creation time)
   if (domainName) {
-    const domainHosting = await Hosting.findOne({ domainName, userId });
-    if (domainHosting) {
+    if (await findUserHosting(userId, { domainName })) {
       return {
         eligible: false,
         reason: "This domain already has hosting under your account.",

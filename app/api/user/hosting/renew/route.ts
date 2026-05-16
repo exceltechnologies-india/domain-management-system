@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import Hosting from "@/models/Hosting";
-import HostingPlan from "@/models/HostingPlan";
+import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import Order from "@/models/Order";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { AuthService } from "@/lib/auth";
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const plan = await HostingPlan.findOne({ planId: hosting.planId });
+    const plan = await getPlanByPlanId(hosting.planId);
     if (!plan) {
       return secureErrorResponse("Hosting plan not found", 404, "PLAN_NOT_FOUND");
     }

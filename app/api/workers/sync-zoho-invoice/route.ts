@@ -7,7 +7,7 @@ import { serverLogger } from "@/lib/server-logger";
 import connectDB from "@/lib/mongodb";
 import Order from "@/models/Order";
 import User from "@/models/User";
-import HostingPlan from "@/models/HostingPlan";
+import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import { ZohoBooksService } from "@/lib/zohobooks";
 
 export const dynamic = "force-dynamic";
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
     // 4. Build line items
     let hostingPlan: any = null;
     if (serviceType === "hosting" && hostingPlanId) {
-      hostingPlan = await HostingPlan.findOne({ planId: hostingPlanId });
+      hostingPlan = await getPlanByPlanId(hostingPlanId);
     }
 
     const periodUnit = durationMonths === 12 ? "years" : "months";

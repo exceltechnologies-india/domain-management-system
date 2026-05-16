@@ -68,7 +68,7 @@ The Docker path was already safe in practice (`.env.local` is excluded by [.dock
 
 ---
 
-### ~~[CRITICAL-4] `unsafe-eval` and `unsafe-inline` in CSP~~ — PARTIALLY RESOLVED 2026-05-14 (iframe-isolation infrastructure + 2 of 5 flows migrated by 2026-05-15)
+### ~~[CRITICAL-4] `unsafe-eval` and `unsafe-inline` in CSP~~ — RESOLVED 2026-05-16 (all Razorpay flows iframe-isolated; CSP allowlist inverted to deny-list)
 CSP is now per-route. [lib/security-headers.ts](lib/security-headers.ts) accepts a `strictCSP` option that strips `'unsafe-inline'` and `'unsafe-eval'` from `script-src`, leaving the nonce as the only allowed inline-script execution path. [middleware.ts](middleware.ts) sets the flag based on the request path.
 
 **Strict CSP applied to:**
@@ -90,24 +90,14 @@ CSP is now per-route. [lib/security-headers.ts](lib/security-headers.ts) accepts
 
 **Migrated additionally 2026-05-15:** [components/HostingUpgradeModal.tsx](components/HostingUpgradeModal.tsx) — happened as part of the MEDIUM-3 decomposition pass. Now uses `useRazorpayCheckout()`.
 
-**Still using direct checkout.js (need the same migration):**
-- [app/checkout/page.tsx](app/checkout/page.tsx) — main checkout (order + subscription paths)
-- [app/checkout/guest/page.tsx](app/checkout/guest/page.tsx) — guest checkout
-- [app/dashboard/invoices/page.tsx](app/dashboard/invoices/page.tsx) — invoice repayment
+**Migrated 2026-05-16 (the remaining three direct-checkout.js consumers):**
+- [app/checkout/page.tsx](app/checkout/page.tsx) — main checkout (order + subscription paths). The sequential order→subscription handler chain became a linear `await razorpay.open(orderOptions); await razorpay.open(subOptions); verifyPayment(...)`.
+- [app/checkout/guest/page.tsx](app/checkout/guest/page.tsx) — guest checkout (single order path).
+- [app/dashboard/invoices/page.tsx](app/dashboard/invoices/page.tsx) — invoice repayment. Dropped `next/script` Razorpay tag.
 
-**Migration playbook for each** (mirrors the HostingRenewalModal diff):
-1. Drop the `declare global { interface Window { Razorpay: any } }` block.
-2. Drop the `loadRazorpayScript()` function and the `useEffect` that calls it; the iframe loads its own copy of checkout.js.
-3. `import { useRazorpayCheckout } from '@/components/RazorpayCheckoutFrame'` and call the hook inside the component.
-4. Replace the `new window.Razorpay(options); rzp.open();` pair with `const payload = await razorpay.open(options);` inside a try/catch. Catch the `{ kind: 'dismissed' }` rejection to mirror the old `ondismiss` callback; treat any other rejection as the "Payment was not completed" branch.
-5. Hoist what was the `handler:` callback body to right after `await razorpay.open(...)` — it's now a linear continuation, not a closure.
-6. Add `<razorpay.Frame />` to the JSX return (anywhere — it's a portal-style overlay, position-fixed).
-7. Smoke-test in dev with Razorpay test mode before deploying.
+**CSP allowlist inverted 2026-05-16 ([middleware.ts](middleware.ts)):** strict CSP is now the default. The list is now `RELAXED_CSP_PAGE_PATHS` (6 entries): `/razorpay-checkout` (the iframe) plus `/login`, `/register`, `/forgot-password`, `/reset-password`, `/contact` (Google reCAPTCHA v2, which also requires unsafe-eval). Every other page — dashboard, admin, cart, /checkout (now safe because it delegates to the iframe), payment-success, domains/*, home, legal pages — and every API route runs with nonce-only `script-src`. Migrating reCAPTCHA behind a similar iframe shim would be the next step to make those 5 strict too; out of scope for CRITICAL-4.
 
-**Final CSP cleanup (blocked on all 4 migrations completing):**
-Once the four remaining consumers no longer reference `checkout.razorpay.com` directly:
-- Add `/razorpay-checkout` to the **relaxed-CSP** route list as the only entry; **invert** the strict-CSP allowlist into a deny-list with that single exception. Net effect: `unsafe-eval` and `unsafe-inline` live on exactly one same-origin page that doesn't render any user content — the rest of the app runs nonce-only.
-- This change is one line in [middleware.ts](middleware.ts) once it's safe.
+**Suite green:** 340/340 tests, lint clean (0 errors), tsc clean, production build succeeded.
 
 **Unchanged in this pass:**
 - `style-src 'unsafe-inline'` still required by Tailwind's utility classes and Next.js's style injection. Switching to nonce-only style-src would require either a Next.js style hash plan or a CSS-modules migration; out of scope.
@@ -212,7 +202,7 @@ lib/zohobooks/      (1,192 → 422 barrel)
 
 ---
 
-### ~~[HIGH-3] No API versioning~~ — PARTIALLY RESOLVED 2026-05-14
+### ~~[HIGH-3] No API versioning~~ — RESOLVED 2026-05-16 (v1 routing infra + every internal caller migrated)
 Foundational `/api/v1/` alias is now in place. Every existing `/api/<path>` endpoint is also reachable at `/api/v1/<path>` and produces identical behaviour (same auth gates, same handler).
 
 **Implementation:**
@@ -227,14 +217,36 @@ Foundational `/api/v1/` alias is now in place. Every existing `/api/<path>` endp
 
 **Suite still green:** 298/298 tests pass; lint clean; production build succeeded.
 
-**Pending future work (the part of HIGH-3 that's *not* resolved):**
-- No `/api/v2/` exists yet, and won't until a breaking change is needed. The infrastructure is now in place so introducing v2 is just adding a sibling route handler — `lib/resellerclub.ts`-style namespace work, not a routing project.
+**Server-side callers migrated 2026-05-16:** 9 internal `${NEXTAUTH_URL}/api/<path>` and `fetch('/api/<path>')` call-sites in server-only modules were switched to `/api/v1/<path>`:
+- [lib/client-logger.ts](lib/client-logger.ts), [lib/logger.ts](lib/logger.ts), [lib/server-logger.ts](lib/server-logger.ts) — log shippers (`/api/v1/log`, `/api/v1/admin/log-error`)
+- [lib/payment-services/webhook-handlers.ts](lib/payment-services/webhook-handlers.ts) — Cloud Tasks dispatch to `/api/v1/workers/sync-zoho-invoice`
+- [app/api/user/dashboard/route.ts](app/api/user/dashboard/route.ts) — `/api/v1/workers/sync-hosting-status`
+- [app/api/cron/daily-scheduler/route.ts](app/api/cron/daily-scheduler/route.ts) (×2) — `/api/v1/workers/process-service-expiry`, `/api/v1/workers/check-domain-watch`
+- [app/api/cron/check-hosting-expiry/route.ts](app/api/cron/check-hosting-expiry/route.ts) — `/api/v1/workers/process-hosting-expiry`
+- [app/api/user/settings/change-email/route.ts](app/api/user/settings/change-email/route.ts) — user-facing email-verification link
+
+340/340 tests still green; 0 lint errors. The rewrite layer makes both paths functionally identical, so the migration is no-op behaviourally — but server-issued URLs (Cloud Tasks targets, email links, log endpoints) now carry the versioned prefix that v2 cutover work will be able to opt out of cleanly.
+
+**Client-side callers migrated 2026-05-16:** 205 references across 63 files in `app/` (excl. `app/api/`), `components/`, `hooks/`, `store/` — `fetch('/api/<path>')`, `axios.X('/api/<path>')`, `useSWR('/api/<path>', …)`, and bare URL-string literals — were rewritten to `/api/v1/<path>` with a single perl pass:
+```
+perl -i -pe 's|([\x27\x22\x60])/api/(?!v1/)|$1/api/v1/|g' <client-tree-files>
+```
+Top hotspots: `app/admin/settings/page.tsx` (22), `app/admin/system-settings/page.tsx` (13), `app/dashboard/dns-management/page.tsx` (12), `app/admin/pending-domains/page.tsx` (10), `app/admin/dns-management/page.tsx` (10).
+
+340/340 tests still pass; 0 lint errors; production build succeeded.
+
+**Excluded from migration on purpose:**
+- `app/api/**` — audit-log metadata strings (`resource: "/api/admin/backup"`) live alongside the canonical handler and document the unversioned source-of-truth path; migrating would just rename log fields without behavioural change.
+- [lib/session-activity.ts](lib/session-activity.ts):`requiresSessionRotation` — pattern matcher, currently dead code. If ever wired up, it must accept both prefixes (or strip `/v1/` before matching).
+- [lib/security/headers.ts](lib/security/headers.ts):`startsWith("/api/webhooks/")` — pattern matcher for CORS-skip; only hit by third-party callers using the configured `/api/webhooks/<vendor>` URL.
+
+**Pending future work:**
+- No `/api/v2/` exists yet, and won't until a breaking change is needed. The infrastructure is in place so introducing v2 is just adding a sibling route handler.
 - Treat `/api/v1/` semantics as stable from this point forward. Any future change that would break a v1 caller (response shape change, removed fields, changed status codes) must instead live under `/api/v2/`.
-- 13 internal `import { ResellerClubAPI } …` and equivalent server-side fetches still use the unversioned `/api/<path>` URLs. Migrate them to `/api/v1/<path>` opportunistically — both paths work, so this is cleanup, not a deadline.
 
 ---
 
-### ~~[HIGH-4] No service / repository layer~~ — PARTIALLY RESOLVED 2026-05-14 (foundation + User done)
+### ~~[HIGH-4] No service / repository layer~~ — PARTIALLY RESOLVED 2026-05-14 (foundation + User + Order + Hosting + Zoho-invoice lease + HostingPlan + PendingDomain + Domain done)
 **Footprint measured:** 107 route files, ~269 distinct Mongoose-model operations across the codebase. Top models by op count: User (93), Order (67), Hosting (28), HostingPlan (25), PendingDomain (16), Domain (12), SupportTicket (11), PendingHosting (8), DomainWatch (7).
 
 **Foundation laid for the rest:** Added [lib/services/](lib/services/) (parallel to the existing [lib/payment-services/](lib/payment-services/)). The pattern mirrors the audit's referenced "half-formed" pattern — domain-specific use-case functions, not a generic repository abstraction.
@@ -253,10 +265,43 @@ The user-permanent-deletion "snapshot orders before deletion" logic — previous
 
 **Verified on main:** 340/340 tests, lint clean, tsc clean, production build succeeded.
 
+**Order service added 2026-05-16:** [lib/services/orders.ts](lib/services/orders.ts) — exports:
+- Reads: `getOrderById`, `getOrderByOrderId`, `findUserOrder` (handles both `_id` and `orderId`, filters soft-deleted, ownership-gated in one query), `listOrdersForAdmin` (paginated + auto-applies the `userId`-snapshot fallback when the user has been hard-deleted), `listOrdersForUser`
+- Writes: `softDeleteOrder`, `permanentlyDeleteOrder`, `unarchiveOrder` (each returns the affected document so callers can log the order ID)
+
+**Routes migrated:** [app/api/admin/orders/route.ts](app/api/admin/orders/route.ts), [app/api/admin/orders/[id]/route.ts](app/api/admin/orders/[id]/route.ts), [app/api/user/orders/[id]/route.ts](app/api/user/orders/[id]/route.ts), [app/api/orders/route.ts](app/api/orders/route.ts). The 25-line populate-and-snapshot-fallback block in admin/orders is now centralised; the route shrank from ~99 lines to ~46.
+
+**Hosting service added 2026-05-16:** [lib/services/hostings.ts](lib/services/hostings.ts) — exports:
+- Reads: `getHostingById`, `findUserHosting` (the recurring `{ userId, domainName }` pattern with `domainName` optional), `userHasAnyHosting` (eligibility shortcut that avoids hauling the whole doc), `listHostingsForUser`
+
+**Sites migrated:** [lib/payment-services/webhook-handlers.ts](lib/payment-services/webhook-handlers.ts) (3 of 3 Hosting accesses), [app/api/user/hosting/check-eligibility/route.ts](app/api/user/hosting/check-eligibility/route.ts) (2 of 2). Also fixed a latent type-error caught during migration: `hosting.next_action_at = null` → `undefined` (the field is typed `Date | undefined`; the null was hidden behind the looser Mongoose Document type).
+
+**Zoho-invoice idempotency lease extracted 2026-05-16:** added to [lib/services/orders.ts](lib/services/orders.ts) — `claimOrderForZohoInvoice`, `recordZohoInvoiceForOrder` (handles the E11000 invoice-number collision internally), `releaseZohoInvoiceClaim`, `markZohoInvoiceCreationFailed`, `getOrderByRazorpayPaymentId`, `listStuckZohoInvoiceOrders`. The claim accepts opts `staleClaimAfterMs` (idempotency recovery), `allowNull` (zoho-retry tolerates legacy nulls), and `allowFailed` (zoho-retry picks up `creation_failed` rows).
+
+**Sites migrated:** [lib/payment-services/post-tasks.ts](lib/payment-services/post-tasks.ts) (full Zoho-invoice creation path now a 3-call sequence), [lib/payment-services/idempotency.ts](lib/payment-services/idempotency.ts) (drop direct Order import; lease + record + release helpers handle all transitions), [lib/zoho-invoice-retry.ts](lib/zoho-invoice-retry.ts) (entire file now zero direct Order references — `findStuckOrders` became `listStuckZohoInvoiceOrders`). The three files used to repeat the same `findOneAndUpdate` lease pattern with subtly-different `$or` arms — diverged by accident as the codebase grew. The service-level helper guarantees the same invariants everywhere, and adding a new state (e.g. `"creation_failed_permanent"`) is now a single-file change.
+
+**HostingPlan service added 2026-05-16:** [lib/services/hosting-plans.ts](lib/services/hosting-plans.ts) — exports `getPlanByPlanId(planId, { activeOnly? })`, `getPlanById(id)`, `listActivePlans({ sort? })`, `getPlanByRazorpaySubscriptionPlanId(razorpayPlanId)` (used by the `subscription.charged` webhook to map a Razorpay plan back to its local catalogue entry).
+
+**Sites migrated:** [app/api/user/hosting/upgrade/route.ts](app/api/user/hosting/upgrade/route.ts) + [/upgrade-info](app/api/user/hosting/upgrade-info/route.ts), [/renew](app/api/user/hosting/renew/route.ts) + [/renew-info](app/api/user/hosting/renew-info/route.ts), [/trial-eligibility](app/api/user/hosting/trial-eligibility/route.ts); [lib/payment-services/webhook-handlers.ts](lib/payment-services/webhook-handlers.ts), [/upgrade.ts](lib/payment-services/upgrade.ts), [/provisioner.ts](lib/payment-services/provisioner.ts), [/idempotency.ts](lib/payment-services/idempotency.ts); [app/api/workers/process-hosting-expiry/route.ts](app/api/workers/process-hosting-expiry/route.ts), [/sync-zoho-invoice/route.ts](app/api/workers/sync-zoho-invoice/route.ts). 12 of the 14 read sites migrated; the two admin CRUD routes (`/admin/hosting/packages`, `/admin/hosting/test-plan`) retain direct model access because their create/update/upsert logic is route-specific and doesn't generalise cleanly.
+
+**Verified on main 2026-05-16:** 340/340 tests, lint clean, tsc clean, production build succeeded.
+
+**Verified on main 2026-05-16:** 340/340 tests, lint clean, tsc clean, production build succeeded.
+
+**PendingDomain service added 2026-05-16:** [lib/services/pending-domains.ts](lib/services/pending-domains.ts) — exports `getPendingDomainById(id, { populateUser? })` (handles the legacy raw-string-`_id` / `ObjectId` dual-lookup in a single helper), `getPendingDomainByName`, `listActivePendingDomainsForUser` (filters `isArchived`), `listAllPendingDomainNames` (lean projection used by admin domain-index pages).
+
+**Sites migrated:** [app/api/user/domains/route.ts](app/api/user/domains/route.ts) and [app/api/user/dashboard/route.ts](app/api/user/dashboard/route.ts) (both use the `listActivePendingDomainsForUser` helper); [app/api/admin/pending-domains/[id]/route.ts](app/api/admin/pending-domains/[id]/route.ts) (3 of 3 findOne sites — the GET/PUT/DELETE handlers now share the dual-id helper; deleteOne + findOneAndUpdate inside the DELETE handler retain direct model access since the surrounding orchestration is route-specific); [app/api/admin/pending-domains/route.ts](app/api/admin/pending-domains/route.ts) (uniqueness check); [app/api/admin/domains/route.ts](app/api/admin/domains/route.ts) (admin domain index uses the lean-names helper).
+
+**Domain service added 2026-05-16:** [lib/services/domains.ts](lib/services/domains.ts) — slim by design: only the two patterns that actually repeat (`listDomainsForUser` for dashboard/index/DNS-manager views, `getDomainById` for test-automation routes). The rest of Domain access — provisioner inserts, cron lease updates, verification claims, admin cleanup deletes — is bespoke business logic that doesn't share shape across callers and stays as direct model access.
+
+**Sites migrated:** [app/api/user/domains/route.ts](app/api/user/domains/route.ts), [app/api/user/dashboard/route.ts](app/api/user/dashboard/route.ts), [app/api/user/domains/dns/route.ts](app/api/user/domains/dns/route.ts) (the three `Domain.find({ userId })` callers), [app/api/test/automation/status/route.ts](app/api/test/automation/status/route.ts), [app/api/test/automation/trigger/route.ts](app/api/test/automation/trigger/route.ts) (the two `findById` callers).
+
+**Verified on main 2026-05-16:** 340/340 tests, lint clean, tsc clean, production build succeeded.
+
 **Pending — incremental adoption:**
 1. **User model migration:** 12 done, ~81 sites remaining across `app/api/**` and `lib/**`. The service surface is in place; routes adopt as they're next touched.
-2. **Order service** (67 ops) — next priority since it's tightly coupled with payment-services.
-3. **Hosting service** (28 ops) — many admin + worker callers.
+2. **Order service migration:** 4 routes migrated; the heavier work lives in `lib/payment-services/` (idempotency, post-tasks, zoho-invoice-retry — 5–7 ops each, with atomic `findOneAndUpdate` lease patterns that warrant their own use-case-named service helpers).
+3. **Hosting service migration:** 5 of 28 ops migrated. Bigger uses (`Hosting.find` + `deleteMany` in admin actions, `findOneAndUpdate` lease in daily-scheduler) need their own use-case wrappers — out of scope for this pass.
 4. **HostingPlan, PendingDomain, Domain, SupportTicket, etc.** — smaller but worth their own modules.
 5. The existing [lib/payment-services/](lib/payment-services/) should probably move under [lib/services/](lib/services/) for consistency — left in place this pass to avoid touching all the verification/order-creator/webhook-handlers files yet again.
 
