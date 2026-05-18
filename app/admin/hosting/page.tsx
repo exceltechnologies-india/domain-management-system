@@ -54,6 +54,7 @@ interface HostingUsage {
 
 interface HostingData {
   id: string;
+  dbId?: string;
   user: { name: string; email: string };
   domain: string;
   status: string;
@@ -67,6 +68,7 @@ interface HostingData {
   daUsername: string;
   isUnlinked?: boolean;
   linkedByEmail?: boolean;
+  error?: string;
 }
 
 export default function AdminHostingPage() {
@@ -80,9 +82,52 @@ export default function AdminHostingPage() {
   const [daError, setDaError] = useState<string | null>(null);
 
   // Provisioning Modal State
+  interface HostingPackage {
+    _id?: string;
+    planId?: string;
+    name: string;
+    price?: number;
+    serverPackage?: string;
+    directAdminPackage?: string;
+    description?: string;
+  }
+  interface PickerUser {
+    id: string;
+    name: string;
+    email: string;
+  }
+  interface HostingDetails {
+    daUsername?: string;
+    username?: string;
+    domain?: string;
+    package?: string;
+    status?: string;
+    phpVersion?: string;
+    php?: string;
+    ip?: string;
+    usage?: {
+      bandwidth?: string;
+      disk?: string;
+      bandwidthLimit?: string;
+      diskLimit?: string;
+      subdomains?: { used: string; limit: string };
+      ftp?: { used: string; limit: string };
+      emails?: { used: string; limit: string };
+      databases?: { used: string; limit: string };
+    };
+    user?: { name?: string; email?: string };
+    expiryDate?: string;
+    createdDate?: string;
+    serverIp?: string;
+    nameservers?: string[];
+    features?: Record<string, boolean>;
+    type?: string;
+    created?: string;
+    [k: string]: unknown;
+  }
   const [showProvisionModal, setShowProvisionModal] = useState(false);
-  const [availablePackages, setAvailablePackages] = useState<any[]>([]);
-  const [usersNoHosting, setUsersNoHosting] = useState<any[]>([]);
+  const [availablePackages, setAvailablePackages] = useState<HostingPackage[]>([]);
+  const [usersNoHosting, setUsersNoHosting] = useState<PickerUser[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [provisionDomain, setProvisionDomain] = useState('');
   const [selectedPackage, setSelectedPackage] = useState('');
@@ -94,7 +139,7 @@ export default function AdminHostingPage() {
   const [isLoadingProvisionDeps, setIsLoadingProvisionDeps] = useState(false);
 
   // Details Modal State
-  const [selectedDetails, setSelectedDetails] = useState<any>(null);
+  const [selectedDetails, setSelectedDetails] = useState<HostingDetails | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
 
@@ -125,11 +170,12 @@ export default function AdminHostingPage() {
     if (status === 'loading') return;
 
     if (session?.user) {
+      const sessionUser = session.user as { name?: string; email?: string; role?: string };
       const userObj = {
-        firstName: session.user.name?.split(' ')[0] || '',
-        lastName: session.user.name?.split(' ').slice(1).join(' ') || '',
-        email: session.user.email || '',
-        role: (session.user as any).role || 'user',
+        firstName: sessionUser.name?.split(' ')[0] || '',
+        lastName: sessionUser.name?.split(' ').slice(1).join(' ') || '',
+        email: sessionUser.email || '',
+        role: sessionUser.role || 'user',
       };
 
       if (userObj.role !== 'admin') {
@@ -169,7 +215,7 @@ export default function AdminHostingPage() {
     if (selectedPackage) {
       const pkg = availablePackages.find(p => (p.directAdminPackage || p.name) === selectedPackage);
       if (pkg) {
-        const totalPrice = Number((pkg.price * validityPeriod).toFixed(2));
+        const totalPrice = Number(((pkg.price ?? 0) * validityPeriod).toFixed(2));
         setProvisionPrice(totalPrice);
       }
     }
@@ -210,8 +256,9 @@ export default function AdminHostingPage() {
 
       if (data.success) {
         // Deduplicate data by ID to prevent key warnings
-        const uniqueData = Array.from(new Map(data.data.map((item: any) => [item.id, item])).values());
-        setHostingData(uniqueData as HostingData[]);
+        const incoming = data.data as HostingData[];
+        const uniqueData = Array.from(new Map(incoming.map((item) => [item.id, item])).values());
+        setHostingData(uniqueData);
         if (data.daMode) setDaMode(data.daMode); // Update mode from API
         
         // Update connection status
@@ -346,11 +393,11 @@ export default function AdminHostingPage() {
 
     // For delete, show confirmation first
     if (action === 'delete') {
-      const item = hostingData.find(i => (hostingId && (i as any).dbId === hostingId) || i.daUsername === username);
+      const item = hostingData.find(i => (hostingId && i.dbId === hostingId) || i.daUsername === username);
       setDeleteModal({
         show: true,
         username: username,
-        hostingId: hostingId || (item as any)?.dbId || '',
+        hostingId: hostingId || item?.dbId || '',
         domain: item?.domain || 'Unknown Domain'
       });
       setActiveMenuId(null);
@@ -695,8 +742,8 @@ export default function AdminHostingPage() {
                             </div>
                             <div className="text-sm text-gray-500">{item.user.email}</div>
                             {item.status === 'error' ? (
-                              <div className="text-xs text-red-500 font-mono mt-1 max-w-[200px] truncate" title={(item as any).error}>
-                                Err: {(item as any).error}
+                              <div className="text-xs text-red-500 font-mono mt-1 max-w-[200px] truncate" title={item.error}>
+                                Err: {item.error}
                               </div>
                             ) : (
                               <div className="text-xs text-gray-400">DA: {item.daUsername}</div>
@@ -902,7 +949,7 @@ export default function AdminHostingPage() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                     >
                       <option value="">-- Choose Package --</option>
-                      {availablePackages.map((pkg: any) => (
+                      {availablePackages.map((pkg: HostingPackage) => (
                         <option key={pkg._id || pkg.planId} value={pkg.directAdminPackage || pkg.name}>
                           {pkg.name || pkg.directAdminPackage}
                         </option>
@@ -1046,7 +1093,7 @@ export default function AdminHostingPage() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                     >
                       <option value="">-- Choose Package --</option>
-                      {availablePackages.map((pkg: any) => (
+                      {availablePackages.map((pkg: HostingPackage) => (
                         <option key={pkg._id || pkg.planId} value={pkg.directAdminPackage || pkg.name}>
                           {pkg.name || pkg.directAdminPackage}
                         </option>
@@ -1141,40 +1188,40 @@ export default function AdminHostingPage() {
                       <div>
                         <div className="flex justify-between text-sm mb-2">
                           <span className="text-gray-600 font-medium">Databases</span>
-                          <span className="text-gray-900 font-bold">{selectedDetails.usage.databases.used} / {selectedDetails.usage.databases.limit}</span>
+                          <span className="text-gray-900 font-bold">{selectedDetails.usage?.databases?.used ?? '0'} / {selectedDetails.usage?.databases?.limit ?? '0'}</span>
                         </div>
                         <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-                          <div className="bg-blue-600 h-full" style={{ width: `${Math.min(100, (parseFloat(selectedDetails.usage.databases.used) / parseFloat(selectedDetails.usage.databases.limit || '1')) * 100)}%` }}></div>
+                          <div className="bg-blue-600 h-full" style={{ width: `${Math.min(100, (parseFloat(selectedDetails.usage?.databases?.used ?? '0') / parseFloat(selectedDetails.usage?.databases?.limit || '1')) * 100)}%` }}></div>
                         </div>
                       </div>
                       {/* Emails */}
                       <div>
                         <div className="flex justify-between text-sm mb-2">
                           <span className="text-gray-600 font-medium">Email Accounts</span>
-                          <span className="text-gray-900 font-bold">{selectedDetails.usage.emails.used} / {selectedDetails.usage.emails.limit}</span>
+                          <span className="text-gray-900 font-bold">{selectedDetails.usage?.emails?.used ?? '0'} / {selectedDetails.usage?.emails?.limit ?? '0'}</span>
                         </div>
                         <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-                          <div className="bg-green-500 h-full" style={{ width: `${selectedDetails.usage.emails.limit === 'Unlimited' ? 0 : Math.min(100, (parseFloat(selectedDetails.usage.emails.used) / parseFloat(selectedDetails.usage.emails.limit || '1')) * 100)}%` }}></div>
+                          <div className="bg-green-500 h-full" style={{ width: `${selectedDetails.usage?.emails?.limit === 'Unlimited' ? 0 : Math.min(100, (parseFloat(selectedDetails.usage?.emails?.used ?? '0') / parseFloat(selectedDetails.usage?.emails?.limit || '1')) * 100)}%` }}></div>
                         </div>
                       </div>
                       {/* FTP */}
                       <div>
                         <div className="flex justify-between text-sm mb-2">
                           <span className="text-gray-600 font-medium">FTP Accounts</span>
-                          <span className="text-gray-900 font-bold">{selectedDetails.usage.ftp.used} / {selectedDetails.usage.ftp.limit}</span>
+                          <span className="text-gray-900 font-bold">{selectedDetails.usage?.ftp?.used ?? '0'} / {selectedDetails.usage?.ftp?.limit ?? '0'}</span>
                         </div>
                         <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-                          <div className="bg-yellow-500 h-full" style={{ width: `${Math.min(100, (parseFloat(selectedDetails.usage.ftp.used) / parseFloat(selectedDetails.usage.ftp.limit || '1')) * 100)}%` }}></div>
+                          <div className="bg-yellow-500 h-full" style={{ width: `${Math.min(100, (parseFloat(selectedDetails.usage?.ftp?.used ?? '0') / parseFloat(selectedDetails.usage?.ftp?.limit || '1')) * 100)}%` }}></div>
                         </div>
                       </div>
                       {/* Subdomains */}
                       <div>
                         <div className="flex justify-between text-sm mb-2">
                           <span className="text-gray-600 font-medium">Subdomains</span>
-                          <span className="text-gray-900 font-bold">{selectedDetails.usage.subdomains.used} / {selectedDetails.usage.subdomains.limit}</span>
+                          <span className="text-gray-900 font-bold">{selectedDetails.usage?.subdomains?.used ?? '0'} / {selectedDetails.usage?.subdomains?.limit ?? '0'}</span>
                         </div>
                         <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-                          <div className="bg-purple-500 h-full" style={{ width: `${Math.min(100, (parseFloat(selectedDetails.usage.subdomains.used) / parseFloat(selectedDetails.usage.subdomains.limit || '1')) * 100)}%` }}></div>
+                          <div className="bg-purple-500 h-full" style={{ width: `${Math.min(100, (parseFloat(selectedDetails.usage?.subdomains?.used ?? '0') / parseFloat(selectedDetails.usage?.subdomains?.limit || '1')) * 100)}%` }}></div>
                         </div>
                       </div>
                     </div>
@@ -1187,7 +1234,7 @@ export default function AdminHostingPage() {
                           <Wifi className="h-4 w-4" /> Nameservers
                         </h4>
                         <div className="space-y-2">
-                          {selectedDetails.nameservers.length > 0 ? selectedDetails.nameservers.map((ns: string, i: number) => (
+                          {(selectedDetails.nameservers?.length ?? 0) > 0 ? selectedDetails.nameservers!.map((ns: string, i: number) => (
                             <div key={i} className="bg-white px-3 py-2 rounded-lg border border-blue-200 font-mono text-sm text-gray-700 flex justify-between items-center">
                               {ns}
                               <button onClick={() => { navigator.clipboard.writeText(ns); toast.success('Copied!'); }} className="text-blue-500 hover:text-blue-700 p-1">
@@ -1204,7 +1251,7 @@ export default function AdminHostingPage() {
                           <Settings className="h-4 w-4" /> Features & Access
                         </h4>
                         <div className="grid grid-cols-2 gap-4">
-                          {Object.entries(selectedDetails.features)
+                          {Object.entries(selectedDetails.features ?? {})
                             .filter(([key]) => key !== 'cgi')
                             .map(([key, value]) => (
                               <div key={key} className="flex items-center justify-between text-sm">
@@ -1316,7 +1363,7 @@ export default function AdminHostingPage() {
               {
                 label: 'Terminate Account',
                 icon: X,
-                onClick: () => handleAction('delete', menuData.daUsername, (menuData as any).dbId),
+                onClick: () => handleAction('delete', menuData.daUsername, menuData.dbId),
                 variant: 'danger' as const
               }
             ]}
