@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
-import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
+import { findUserRoleById, getUserById, resetUser2FA } from "@/lib/services/users";
 import { AuthService } from "@/lib/auth";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { z } from "zod";
@@ -28,32 +27,20 @@ export async function POST(request: NextRequest) {
 
     const { userId } = result.data;
 
-    await connectDB();
-
-    const target = await User.findById(userId).select("role totpEnabled firstName lastName email");
-    if (!target) {
+    const role = await findUserRoleById(userId);
+    if (!role) {
       return secureErrorResponse("User not found", 404, "NOT_FOUND");
     }
-
-    if (target.role === "admin") {
+    if (role.role === "admin") {
       return secureErrorResponse("Cannot modify admin accounts via this endpoint", 403, "FORBIDDEN");
     }
 
-    if (!target.totpEnabled) {
+    const target = await getUserById(userId);
+    if (!target?.totpEnabled) {
       return secureErrorResponse("This user does not have 2FA enabled", 400, "BAD_REQUEST");
     }
 
-    await User.findByIdAndUpdate(userId, {
-      $set: {
-        totpEnabled: false,
-        sessionInvalidatedAt: new Date(),
-      },
-      $unset: {
-        totpSecret: "",
-        totpSecretPending: "",
-        totpBackupCodes: "",
-      },
-    });
+    await resetUser2FA(userId);
 
     serverLogger.info(
       `[2FA-RESET] Admin ${admin.email} reset 2FA for user ${target.email} (${userId})`

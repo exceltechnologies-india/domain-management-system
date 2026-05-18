@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
+import { getUserByEmail } from "@/lib/services/users";
 import { EmailService } from "@/lib/email";
 import { rateLimiters } from "@/lib/rate-limit";
 import { Schemas } from "@/lib/validation";
@@ -86,7 +87,7 @@ export async function POST(request: NextRequest) {
      * 🛡️ DEFENSE-IN-DEPTH: Security Layer 5 - Business Logic Guard
      * Prevent registration of existing accounts.
      */
-    const existingUser = await User.findOne({ email });
+    const existingUser = await getUserByEmail(email);
     if (existingUser) {
       return secureErrorResponse(
         "An account with this email already exists", 

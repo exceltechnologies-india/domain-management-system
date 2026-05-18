@@ -3,7 +3,7 @@ import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import Order from "@/models/Order";
-import User from "@/models/User";
+import { appendUserDomain } from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
 
 // Force dynamic rendering - required for API routes
@@ -128,18 +128,14 @@ export async function POST(request: NextRequest) {
     await order.save();
 
     // Update user's domain list
-    await User.findByIdAndUpdate(user._id, {
-      $push: {
-        domains: {
-          domainName,
-          price: result.data?.price || 0,
-          currency: "INR",
-          registrationPeriod: years,
-          status: "registered",
-          orderId: result.data?.orderid,
-          expiresAt: new Date(Date.now() + years * 365 * 24 * 60 * 60 * 1000),
-        },
-      },
+    await appendUserDomain(String(user._id), {
+      domainName,
+      price: result.data?.price || 0,
+      currency: "INR",
+      registrationPeriod: years,
+      status: "registered",
+      orderId: result.data?.orderid,
+      expiresAt: new Date(Date.now() + years * 365 * 24 * 60 * 60 * 1000),
     });
 
     return NextResponse.json({

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
+import { getUserByEmail } from "@/lib/services/users";
 import { EmailService } from "@/lib/email";
 import { RecaptchaServer } from "@/lib/recaptcha";
 import { rateLimiters } from "@/lib/rate-limit";
@@ -65,14 +64,12 @@ export async function POST(request: NextRequest) {
       return secureErrorResponse("Security verification failed. Please try again.", 403, "SECURITY_CHECK_FAILED");
     }
 
-    await connectDB();
-
     /**
      * 🛡️ DEFENSE-IN-DEPTH: Security Layer 5 - Email Enumeration Defense
      * In production, we return the same success-like message whether the account exists or not.
      * This prevents attackers from learning which emails are registered in our system.
      */
-    const user = await User.findOne({ email });
+    const user = await getUserByEmail(email);
     if (!user) {
       return secureJsonResponse({
         message: "If an account with that email exists, we've sent a password reset link.",

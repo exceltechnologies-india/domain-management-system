@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
-import User from "@/models/User";
-import connectDB from "@/lib/mongodb";
+import { listEligibleUsersForAdminPicker } from "@/lib/services/users";
 
 export const dynamic = 'force-dynamic';
 
@@ -20,14 +19,9 @@ export async function GET(request: NextRequest) {
       return secureErrorResponse("Unauthorized. Admin access required.", 403, "FORBIDDEN");
     }
 
-    await connectDB();
-    
-    // 2. Find all standard users (role: 'user')
-    // We fetch ALL users so admins can provision multiple accounts for the same user.
-    // The "no-hosting" route name is legacy but now serves "eligible-for-hosting".
-    const users = await User.find({ 
-      role: 'user' 
-    }).select('firstName lastName email _id role').sort({ createdAt: -1 });
+    // The "no-hosting" route name is legacy — it now serves "eligible-for-hosting".
+    // Admins pick from this list to provision additional accounts for any user.
+    const users = await listEligibleUsersForAdminPicker();
 
     const formattedUsers = users.map(u => ({
         id: u._id,

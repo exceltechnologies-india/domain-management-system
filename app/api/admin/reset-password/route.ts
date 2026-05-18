@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
+import { findAnyAdmin } from "@/lib/services/users";
 import bcrypt from "bcryptjs";
 import { verifyAdminAuth } from "@/lib/admin-auth";
 import { requireReAuth } from "@/lib/admin-security";
@@ -49,10 +48,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await connectDB();
-
     // Find admin user
-    const adminUser = await User.findOne({ role: "admin" });
+    const adminUser = await findAnyAdmin();
     if (!adminUser) {
       return NextResponse.json(
         { error: "Admin user not found" },

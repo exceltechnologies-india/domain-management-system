@@ -4,7 +4,7 @@ import { DirectAdminService } from "@/lib/directadmin";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
+import { clearDirectAdminUsernameForAll } from "@/lib/services/users";
 import Hosting from "@/models/Hosting";
 import { RazorpayService } from "@/lib/razorpay";
 
@@ -92,10 +92,7 @@ export async function POST(request: NextRequest) {
         
         // 5. Remove mapping from User(s)
         if (username && username !== 'N/A') {
-          await User.updateMany(
-            { directAdminUsername: username },
-            { $unset: { directAdminUsername: "" } }
-          );
+          await clearDirectAdminUsernameForAll(username);
           serverLogger.info(`Removed DA mapping for user ${username} from all local User records`);
         }
         break;

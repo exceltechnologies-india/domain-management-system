@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
+import { clearUserCart, getUserCart, setUserCart } from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
 import { getMinYears, getMaxYears, isRestricted } from "@/lib/tld-policies";
 
@@ -49,20 +48,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await connectDB();
-
-    // Get user with cart data
-    const userData = await User.findById(user._id).select("cart");
-    if (!userData) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
+    // Get user's cart (empty array if missing)
+    const rawCart = await getUserCart(String(user._id));
 
     // Validate and correct cart items
-    const { cart: validatedCart, dropped } = validateAndCorrectCartItems(userData.cart || []);
+    const { cart: validatedCart, dropped } = validateAndCorrectCartItems(rawCart as any[]);
 
     // If cart was corrected, save it back to the database
-    if (JSON.stringify(validatedCart) !== JSON.stringify(userData.cart)) {
-      await User.findByIdAndUpdate(user._id, { cart: validatedCart });
+    if (JSON.stringify(validatedCart) !== JSON.stringify(rawCart)) {
+      await setUserCart(String(user._id), validatedCart);
     }
 
     return NextResponse.json({
@@ -93,13 +87,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid cart data" }, { status: 400 });
     }
 
-    await connectDB();
-
     // Validate and correct cart items before saving
     const { cart: validatedCart, dropped } = validateAndCorrectCartItems(cart);
 
     // Update user's cart with validated data
-    await User.findByIdAndUpdate(user._id, { cart: validatedCart });
+    await setUserCart(String(user._id), validatedCart);
 
     return NextResponse.json({
       success: true,
@@ -125,10 +117,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await connectDB();
-
     // Clear user's cart
-    await User.findByIdAndUpdate(user._id, { cart: [] });
+    await clearUserCart(String(user._id));
 
     return NextResponse.json({
       success: true,

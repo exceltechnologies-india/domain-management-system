@@ -7,7 +7,7 @@ import { formatIndianDate } from "@/lib/dateUtils";
 import jsPDF from "jspdf";
 
 import { SAC_CODE, formatSubscriptionPeriod, formatQuantityText } from "@/lib/invoiceUtils";
-import User from "@/models/User";
+import { getUserById } from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
 
 // Force dynamic rendering - required for API routes
@@ -33,7 +33,7 @@ export async function GET(
     }
 
     // Fetch the customer for this order
-    const customer = await User.findById((order as any).userId);
+    const customer = await getUserById(String((order as any).userId));
     if (!customer) {
         return NextResponse.json({ error: "Customer not found" }, { status: 404 });
     }

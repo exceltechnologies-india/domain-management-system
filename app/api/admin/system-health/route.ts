@@ -7,7 +7,7 @@ import { connectToDatabase } from "@/lib/mongoose";
 import PendingDomain from "@/models/PendingDomain";
 import { countPendingHostingsByStatus } from "@/lib/services/pending-hostings";
 import { getSettingValue } from "@/lib/services/settings";
-import User from "@/models/User";
+import { countUsers } from "@/lib/services/users";
 import Order from "@/models/Order";
 import Domain from "@/models/Domain";
 import { countOpenTickets } from "@/lib/services/support-tickets";
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
       await connectToDatabase();
       dbLatencyMs = ms() - dbStart;
       const [users, orders, domains, openTickets, pendingDomains, pendingHosting] = await Promise.all([
-        User.countDocuments(),
+        countUsers(),
         Order.countDocuments(),
         Domain.countDocuments(),
         countOpenTickets(),

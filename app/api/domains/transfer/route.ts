@@ -5,8 +5,7 @@ import { AuthService } from "@/lib/auth";
 import { rateLimiters } from "@/lib/rate-limit";
 import connectDB from "@/lib/mongodb";
 import Domain from "@/models/Domain";
-import { getUserById } from "@/lib/services/users";
-import User from "@/models/User";
+import { appendUserDomain, getUserById } from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
 
 export const dynamic = 'force-dynamic';
@@ -109,17 +108,13 @@ export async function POST(request: NextRequest) {
     await domainRecord.save();
 
     // Update user's domain list
-    await User.findByIdAndUpdate(user._id, {
-      $push: {
-        domains: {
-          domainName: domainName.toLowerCase(),
-          price: 0,
-          currency: "INR",
-          registrationPeriod: 1,
-          status: "pending",
-          orderId: result.data?.entityid?.toString() || undefined,
-        },
-      },
+    await appendUserDomain(String(user._id), {
+      domainName: domainName.toLowerCase(),
+      price: 0,
+      currency: "INR",
+      registrationPeriod: 1,
+      status: "pending",
+      orderId: result.data?.entityid?.toString() || undefined,
     });
 
     return NextResponse.json({

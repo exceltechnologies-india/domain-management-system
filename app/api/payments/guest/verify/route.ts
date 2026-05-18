@@ -4,7 +4,8 @@ import { RazorpayService } from "@/lib/razorpay";
 import { verifyGuestToken } from "@/lib/guest-token";
 import connectDB from "@/lib/mongodb";
 import mongoose from "mongoose";
-import User, { IUser } from "@/models/User";
+import type { IUser } from "@/models/User";
+import { createUser, getUserByEmail } from "@/lib/services/users";
 import Order from "@/models/Order";
 import { createPaymentInTransaction } from "@/lib/services/payments";
 import { provisionCartItems } from "@/lib/services/payment/provisioner";
@@ -146,9 +147,9 @@ export async function POST(request: NextRequest) {
     // Registrant details come from the signed guest token (collected up-front
     // in /checkout/guest before payment) — these are what ResellerClub will
     // see on the WHOIS contact, so they must be real, not dummy values.
-    guestUser = await User.findOne({ email: guestEmail });
+    guestUser = await getUserByEmail(guestEmail);
     if (!guestUser) {
-      guestUser = await User.create({
+      guestUser = await createUser({
         email: guestEmail,
         password: randomBytes(32).toString("hex"), // unusable random password
         firstName: tokenPayload.firstName,

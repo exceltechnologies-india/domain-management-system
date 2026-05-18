@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
+import { getUserByEmail } from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
 
 // Force dynamic rendering
@@ -17,9 +16,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await connectDB();
-
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    const user = await getUserByEmail(email.toLowerCase().trim());
 
     if (!user) {
       return NextResponse.json(

@@ -46,6 +46,159 @@ export async function getUserByEmail(email: string): Promise<IUser | null> {
 }
 
 /**
+ * Lean lookup for the first row matching `{ role: "admin" }`. Used by the
+ * single-tenant admin password-reset endpoint to find the bootstrap admin.
+ * Returns the hydrated doc so the caller can `.save()` after mutating.
+ */
+export async function findAnyAdmin(): Promise<IUser | null> {
+  await connectDB();
+  return User.findOne({ role: "admin" });
+}
+
+/**
+ * Bulk-fetch users by `_id`. Used by admin reporting routes that join Order
+ * `userId` rows back to user metadata. Default projection is the minimum
+ * needed to display a customer line — caller can widen via `extraFields`.
+ */
+export async function findUsersByIds(
+  ids: string[],
+  extraFields: string = ""
+): Promise<Array<{ _id: unknown; email: string; firstName: string; lastName: string } & Record<string, unknown>>> {
+  if (ids.length === 0) return [];
+  await connectDB();
+  const projection = ["_id email firstName lastName", extraFields].filter(Boolean).join(" ");
+  return User.find({ _id: { $in: ids } })
+    .select(projection)
+    .lean<Array<{ _id: unknown; email: string; firstName: string; lastName: string }>>();
+}
+
+/**
+ * Bulk-fetch users by email. Used by admin reporting routes that pivot off
+ * an external system's email field (e.g. DA accounts, Razorpay payments).
+ */
+export async function findUsersByEmails(
+  emails: string[],
+  extraFields: string = ""
+): Promise<Array<{ _id: unknown; email: string; firstName: string; lastName: string } & Record<string, unknown>>> {
+  if (emails.length === 0) return [];
+  await connectDB();
+  const projection = ["_id email firstName lastName", extraFields].filter(Boolean).join(" ");
+  return User.find({ email: { $in: emails } })
+    .select(projection)
+    .lean<Array<{ _id: unknown; email: string; firstName: string; lastName: string }>>();
+}
+
+/**
+ * List users that have a linked DirectAdmin account — i.e. ones that should
+ * appear in the admin hosting-stats panel.
+ */
+export async function listUsersWithDirectAdmin(): Promise<
+  Array<{
+    _id: unknown;
+    firstName: string;
+    lastName: string;
+    email: string;
+    directAdminUsername?: string;
+    hostingCreatedAt?: Date;
+    hostingExpiresAt?: Date;
+  }>
+> {
+  await connectDB();
+  return User.find({
+    directAdminUsername: { $exists: true, $ne: null },
+  })
+    .select("_id firstName lastName email directAdminUsername hostingCreatedAt hostingExpiresAt")
+    .lean();
+}
+
+/**
+ * List soft-deleted (non-admin) users. Drives the admin "deactivated users"
+ * page. Returns a lean projection matching that page's column set.
+ */
+export async function listDeactivatedUsers(): Promise<
+  Array<{
+    _id: unknown;
+    firstName: string;
+    lastName: string;
+    email: string;
+    role: IUser["role"];
+    isActive: boolean;
+    isDeleted: boolean;
+    deletedAt?: Date;
+    createdAt: Date;
+  }>
+> {
+  await connectDB();
+  return User.find(
+    { role: { $ne: "admin" }, isDeleted: true },
+    {
+      firstName: 1,
+      lastName: 1,
+      email: 1,
+      role: 1,
+      isActive: 1,
+      isDeleted: 1,
+      deletedAt: 1,
+      createdAt: 1,
+    }
+  )
+    .sort({ deletedAt: -1 })
+    .lean<
+    Array<{
+      _id: unknown;
+      firstName: string;
+      lastName: string;
+      email: string;
+      role: IUser["role"];
+      isActive: boolean;
+      isDeleted: boolean;
+      deletedAt?: Date;
+      createdAt: Date;
+    }>
+  >();
+}
+
+/**
+ * List end-users (role=user) sorted newest first, with the minimal projection
+ * used by admin pickers (e.g. "assign a hosting account").
+ */
+export async function listEligibleUsersForAdminPicker(): Promise<
+  Array<{ _id: unknown; firstName: string; lastName: string; email: string; role: IUser["role"] }>
+> {
+  await connectDB();
+  return User.find({ role: "user" })
+    .select("firstName lastName email _id role")
+    .sort({ createdAt: -1 })
+    .lean<Array<{ _id: unknown; firstName: string; lastName: string; email: string; role: IUser["role"] }>>();
+}
+
+/**
+ * Return the user's `cart` field (an array of opaque CartItem-shaped
+ * objects). Returns `[]` for missing users so callers don't have to null-
+ * check the array.
+ */
+export async function getUserCart(userId: string): Promise<unknown[]> {
+  await connectDB();
+  const doc = await User.findById(userId).select("cart").lean<{ cart?: unknown[] }>();
+  return doc?.cart ?? [];
+}
+
+/**
+ * Overwrite the user's `cart` field. Callers validate before passing in.
+ */
+export async function setUserCart(userId: string, cart: unknown[]): Promise<void> {
+  await connectDB();
+  await User.findByIdAndUpdate(userId, { cart });
+}
+
+/**
+ * Convenience wrapper around {@link setUserCart} — empty the cart entirely.
+ */
+export async function clearUserCart(userId: string): Promise<void> {
+  return setUserCart(userId, []);
+}
+
+/**
  * Lightweight role lookup. Used by admin-guard paths that only care whether
  * the target is or isn't an admin — avoids pulling the rest of the document.
  */
@@ -262,4 +415,76 @@ export async function applyUserPatch(
 
   await user.save();
   return user;
+}
+
+/**
+ * Reactivate a soft-deleted user: flip `isActive`/`isDeleted`, null out the
+ * deletion timestamp and any sessionInvalidatedAt block. Returns the saved
+ * document or null when the user wasn't found.
+ */
+export async function reactivateUser(id: string): Promise<IUser | null> {
+  await connectDB();
+  return User.findByIdAndUpdate(
+    id,
+    {
+      isActive: true,
+      isDeleted: false,
+      deletedAt: null,
+      sessionInvalidatedAt: null,
+    },
+    { new: true }
+  );
+}
+
+/**
+ * Strip TOTP enrolment from a user — clears the secret + backup codes, flips
+ * `totpEnabled=false`, and stamps `sessionInvalidatedAt` so existing sessions
+ * are revoked. Admin recovery path when a user has lost their authenticator.
+ */
+export async function resetUser2FA(id: string): Promise<void> {
+  await connectDB();
+  await User.findByIdAndUpdate(id, {
+    $set: { totpEnabled: false, sessionInvalidatedAt: new Date() },
+    $unset: { totpSecret: "", totpSecretPending: "", totpBackupCodes: "" },
+  });
+}
+
+/**
+ * Clear `directAdminUsername` from every user that currently has it set to
+ * `username`. Used by admin "fully remove hosting" paths so the next attempt
+ * to provision against that DA account isn't blocked by stale local state.
+ * Returns the number of users updated.
+ */
+export async function clearDirectAdminUsernameForAll(
+  username: string
+): Promise<number> {
+  await connectDB();
+  const result = await User.updateMany(
+    { directAdminUsername: username },
+    { $unset: { directAdminUsername: "" } }
+  );
+  return result.modifiedCount ?? 0;
+}
+
+/**
+ * Push a legacy embedded-domain subdoc onto the user's `domains` array.
+ * The domain-registration / domain-transfer routes write here so a user's
+ * "my domains" view stays self-contained even without a separate Domain row.
+ */
+export async function appendUserDomain(
+  userId: string,
+  domain: Record<string, unknown>
+): Promise<void> {
+  await connectDB();
+  await User.findByIdAndUpdate(userId, { $push: { domains: domain } });
+}
+
+/**
+ * Create a fresh user document. Used by both registration and the guest-
+ * checkout fallback (which passes a random throwaway password). Returns the
+ * hydrated doc so the caller can `.save()` further mutations if needed.
+ */
+export async function createUser(data: Record<string, unknown>): Promise<IUser> {
+  await connectDB();
+  return User.create(data);
 }

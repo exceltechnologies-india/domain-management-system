@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import Order from "@/models/Order";
-import User from "@/models/User";
+import { findUsersByIds } from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
 
 export const dynamic = "force-dynamic";
@@ -89,12 +89,8 @@ export async function GET(request: NextRequest) {
     const userIds = [
       ...new Set(dupeOrders.map((o: any) => String(o.userId))),
     ];
-    const users = userIds.length
-      ? await User.find({ _id: { $in: userIds } })
-          .select("_id email firstName lastName")
-          .lean()
-      : [];
-    const userById = new Map(users.map((u: any) => [String(u._id), u]));
+    const users = await findUsersByIds(userIds);
+    const userById = new Map(users.map((u) => [String(u._id), u]));
 
     const ordersBy_Id = new Map(
       dupeOrders.map((o: any) => [String(o._id), o])
@@ -131,14 +127,10 @@ export async function GET(request: NextRequest) {
     const stuckUserIds = [
       ...new Set(stuckDocs.map((o: any) => String(o.userId))),
     ];
-    const stuckUsersExtra = stuckUserIds.length
-      ? await User.find({
-          _id: { $in: stuckUserIds.filter((id) => !userById.has(id)) },
-        })
-          .select("_id email firstName lastName")
-          .lean()
-      : [];
-    for (const u of stuckUsersExtra as any[]) {
+    const stuckUsersExtra = await findUsersByIds(
+      stuckUserIds.filter((id) => !userById.has(id))
+    );
+    for (const u of stuckUsersExtra) {
       userById.set(String(u._id), u);
     }
 
