@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
+import {
+  disableTOTPForUser,
+  getUserWithTOTPSecrets,
+} from "@/lib/services/users";
 import { verifyTotpCode, verifyBackupCode } from "@/lib/totp";
 
 export const dynamic = "force-dynamic";
@@ -25,10 +27,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  await connectDB();
-  const dbUser = await User.findById(user._id).select(
-    "+totpSecret +totpBackupCodes totpEnabled"
-  );
+  const dbUser = await getUserWithTOTPSecrets(String(user._id));
   if (!dbUser) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
@@ -71,13 +70,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  await User.updateOne(
-    { _id: dbUser._id },
-    {
-      $set: { totpEnabled: false },
-      $unset: { totpSecret: "", totpSecretPending: "", totpBackupCodes: "" },
-    }
-  );
+  await disableTOTPForUser(String(dbUser._id));
 
   return NextResponse.json({ success: true });
 }

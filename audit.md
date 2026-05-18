@@ -310,6 +310,31 @@ The user-permanent-deletion "snapshot orders before deletion" logic — previous
 
 **Payment-service direct-model cleanup 2026-05-18:** Added `setUserResellerClubIds(userId, { customerId, contactId })` and `setUserDirectAdminUsername(userId, username)` to [lib/services/users.ts](lib/services/users.ts), and `getOrderByRazorpayOrderId(razorpayOrderId, { orderType? })` to [lib/services/orders.ts](lib/services/orders.ts). Migrated [lib/services/payment/provisioner.ts](lib/services/payment/provisioner.ts) (3 `User.updateOne` sites for RC IDs and DA username), [lib/services/payment/upgrade.ts](lib/services/payment/upgrade.ts) (`Order.findOne` by razorpayOrderId + `Hosting.findById`), and [lib/services/payment/renewal.ts](lib/services/payment/renewal.ts) (`Hosting.findOne({userId, domainName})` → `findUserHosting`, `Hosting.find({userId})` → `listHostingsForUser`). Type-check exposed two pre-existing typing slips that the looser-typed direct model access had hidden — the `Hosting.renewalInvoiceId`/`renewalStatus` fields written here aren't declared on `IHosting`, and the `"suspended"` status used by the fallback reactivation path isn't in the enum (the daily-scheduler writes it, but it's never been added to the schema). Both surfaced as warnings narrowed to that single call site rather than a model-wide change.
 
+**Token-based + TOTP helpers 2026-05-18:** Final pass — added named helpers for the auth-flow patterns that previously needed bespoke `User.findOne({ <tokenField> })` / `User.findById().select("+totpSecret …")` calls.
+
+Token lookups:
+- `findUserByActivationToken(token, { onlyExpired? })` — single helper covers the activate route's "find by token" and "find expired token" branches.
+- `findUserByResetToken(token)` — password-reset flow; returns hydrated so the caller can `.save()` and let the schema's pre-save hook re-hash.
+- `findUserByPendingEmailToken(tokenHash)` — opts in to the `select: false` pendingEmail* fields needed by the email-change verification flow.
+- `findUserByEmailExcluding(email, excludeUserId)` — pairs with the above for the uniqueness re-check during the TTL window.
+
+TOTP (auth-internal — each helper names the secret access on purpose so future routes can't accidentally widen the surface):
+- `getUserWithPendingTOTP(userId)` — `+totpSecretPending` opted-in; used by `/auth/totp/confirm` to verify the first code against the pending secret.
+- `getUserWithTOTPSecrets(userId)` — `+totpSecret +totpBackupCodes +password` opted-in; used by `/auth/totp/disable` which needs both the password check and the secret verification.
+- `setPendingTOTPSecret(userId, secret)` — stash a secret pending confirmation.
+- `activateTOTPForUser(userId, { secret, hashedBackupCodes })` — promote pending → active and store hashed backup codes.
+- `disableTOTPForUser(userId)` — clear all four totp* fields.
+
+Migrated [app/api/auth/activate/route.ts](app/api/auth/activate/route.ts), [/reset-password/route.ts](app/api/auth/reset-password/route.ts), [app/api/user/settings/verify-email-change/route.ts](app/api/user/settings/verify-email-change/route.ts), and the three TOTP routes (`setup`, `confirm`, `disable`). Total direct `User.X(...)` calls outside the service: 33 → 20.
+
+**Final remaining ~20 direct User accesses are intentional and shared narrowly:**
+- `lib/auth.ts`, `lib/session-activity.ts`, `lib/auth-config/{callbacks,providers}.ts`, `lib/admin-security.ts` — the auth/session/credential cluster where the password hash and bespoke session-state projections are required.
+- `app/api/user/settings/change-email/route.ts` — `findById().select("+password")` for the password-confirmation step before the email change.
+- `app/api/admin/users/services/route.ts` — admin reporting aggregation pipeline (one-off, doesn't share shape with anything else).
+- `app/api/admin/hosting/stats/route.ts` — admin DA-reconciliation fallback (`User.find({})` recovery path), one-off.
+
+These don't repeat across the codebase, so wrapping each in a service helper would buy zero abstraction and lose the projection clarity at the call site.
+
 **User-model long-tail 2026-05-18:** Added a final pass of helpers to [lib/services/users.ts](lib/services/users.ts): `findAnyAdmin`, `findUsersByIds`, `findUsersByEmails`, `listUsersWithDirectAdmin`, `listDeactivatedUsers`, `listEligibleUsersForAdminPicker`, `getUserCart` / `setUserCart` / `clearUserCart`, `reactivateUser`, `resetUser2FA`, `clearDirectAdminUsernameForAll`, `appendUserDomain`, `createUser`. Migrated ~22 call sites: cart route (3 sites), auth flows (`forgot-password`, `register` existence-check, `resend-activation`, `check-account-status`, `change-email` conflict-check), admin routes (`reactivate`, `reset-2fa`, `no-hosting`, `deactivated`, `hosting/actions`, `hosting/stats`, `payments`, `orders/invoice-conflicts`, `orders/[id]/invoice`, `reset-password`, `system-health`), and registration/checkout flows (`domains/renew`, `domains/transfer`, `payments/guest/verify`). Total direct `User.X(...)` calls outside the service dropped from 73 → ~52. The remaining 52 are intentional: `lib/services/users.ts` itself, the auth-internal cluster (`lib/auth.ts`, `lib/session-activity.ts`, `lib/auth-config/{providers,callbacks}.ts`, `lib/admin-security.ts` for the password-reauth check) where the password hash is needed, TOTP routes with bespoke `.select("totpSecret …")` projections, a handful of admin reporting aggregations (`admin/users/services`), and the `register` route's `new User() + .save()` mutate-then-save pattern.
 
 **HostingPlan admin CRUD tightening 2026-05-17:** Added `getPlanByPlanIdLean`, `setPlanActive(planId, isActive)`, and `upsertPlanByPlanId(planId, data)` to [lib/services/hosting-plans.ts](lib/services/hosting-plans.ts). The test-plan toggle route ([app/api/admin/hosting/test-plan/route.ts](app/api/admin/hosting/test-plan/route.ts)) — previously a mix of inline `findOne().lean()`, `updateOne`, and `findOneAndUpdate({ upsert: true })` calls — now reads as three service calls + Settings/Razorpay orchestration. Admin packages CRUD ([app/api/admin/hosting/packages/route.ts](app/api/admin/hosting/packages/route.ts)) stays direct: its DA-sync logic and partial-update orchestration is intentionally route-specific.

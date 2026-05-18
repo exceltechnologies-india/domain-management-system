@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
+import { findUserByActivationToken } from "@/lib/services/users";
 import { AuthService } from "@/lib/auth";
 import { rateLimiters } from "@/lib/rate-limit";
 import { serverLogger } from "@/lib/server-logger";
@@ -27,20 +26,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await connectDB();
-
     // Find user with the activation token
-    const user = await User.findOne({
-      activationToken: token,
-      activationTokenExpiry: { $gt: new Date() }, // Token not expired
-    });
+    const user = await findUserByActivationToken(token);
 
     if (!user) {
       // Check if token exists but is expired
-      const expiredUser = await User.findOne({
-        activationToken: token,
-        activationTokenExpiry: { $lte: new Date() },
-      });
+      const expiredUser = await findUserByActivationToken(token, { onlyExpired: true });
 
       if (expiredUser) {
         return NextResponse.json({ error: "Token expired" }, { status: 400 });

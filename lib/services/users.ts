@@ -519,3 +519,145 @@ export async function setUserDirectAdminUsername(
   await connectDB();
   await User.updateOne({ _id: userId }, { $set: { directAdminUsername: username } });
 }
+
+// ─── Token-based lookups ─────────────────────────────────────────────────────
+// Each token type has its own bespoke find — collecting them here keeps the
+// "find by activation/reset/pending-email token" pattern in one place rather
+// than scattered across auth-flow routes.
+
+/**
+ * Find a user by activation token. By default only returns rows whose
+ * `activationTokenExpiry` is in the future; pass `onlyExpired: true` to
+ * fetch rows whose token exists but has already expired (used to give
+ * the "token expired" error instead of "invalid token").
+ */
+export async function findUserByActivationToken(
+  token: string,
+  opts?: { onlyExpired?: boolean }
+): Promise<IUser | null> {
+  await connectDB();
+  const now = new Date();
+  const filter = opts?.onlyExpired
+    ? { activationToken: token, activationTokenExpiry: { $lte: now } }
+    : { activationToken: token, activationTokenExpiry: { $gt: now } };
+  return User.findOne(filter);
+}
+
+/**
+ * Find a user by password-reset token. Only returns rows whose token is
+ * still within the expiry window. Returns the hydrated doc so the caller
+ * can mutate the password field — the User schema's pre-save hook
+ * re-hashes on `.save()`.
+ */
+export async function findUserByResetToken(token: string): Promise<IUser | null> {
+  await connectDB();
+  return User.findOne({
+    resetToken: token,
+    resetTokenExpiry: { $gt: new Date() },
+  });
+}
+
+/**
+ * Find a user by pending-email change token. Opts in to the otherwise
+ * `select: false` pendingEmail* fields since they're load-bearing for the
+ * verification flow.
+ */
+export async function findUserByPendingEmailToken(
+  tokenHash: string
+): Promise<IUser | null> {
+  await connectDB();
+  return User.findOne({
+    pendingEmailToken: tokenHash,
+    pendingEmailExpiry: { $gt: new Date() },
+  }).select("+pendingEmailToken +pendingEmail +pendingEmailExpiry");
+}
+
+/**
+ * Find a user by email *excluding* a specific user — the email-uniqueness
+ * conflict check used during pending-email verification.
+ */
+export async function findUserByEmailExcluding(
+  email: string,
+  excludeUserId: unknown
+): Promise<IUser | null> {
+  await connectDB();
+  return User.findOne({ email, _id: { $ne: excludeUserId } });
+}
+
+// ─── TOTP 2FA (auth-internal — exposes select:false secret fields) ───────────
+// These helpers are intentionally explicit so each call site has to *name* the
+// secret access. Use them only inside auth flows that need the secret/backup
+// codes — everything else can use getUserById and read `totpEnabled`.
+
+/**
+ * Hydrated user doc with `totpSecretPending` opted-in. Used by the
+ * `/auth/totp/confirm` endpoint to verify the first code against the pending
+ * secret before activating 2FA.
+ */
+export async function getUserWithPendingTOTP(userId: string): Promise<IUser | null> {
+  await connectDB();
+  return User.findById(userId).select("+totpSecretPending totpEnabled");
+}
+
+/**
+ * Hydrated user doc with the active TOTP secret + backup-code hashes +
+ * password opted-in. Used by the `/auth/totp/disable` endpoint to verify
+ * both the current code and current password before stripping 2FA.
+ */
+export async function getUserWithTOTPSecrets(userId: string): Promise<IUser | null> {
+  await connectDB();
+  return User.findById(userId).select(
+    "+totpSecret +totpBackupCodes +password totpEnabled"
+  );
+}
+
+/**
+ * Stash a pending TOTP secret on the user — the user hasn't confirmed it
+ * yet, so it lives in `totpSecretPending` rather than `totpSecret`.
+ */
+export async function setPendingTOTPSecret(
+  userId: string,
+  secret: string
+): Promise<void> {
+  await connectDB();
+  await User.updateOne({ _id: userId }, { $set: { totpSecretPending: secret } });
+}
+
+/**
+ * Promote the pending TOTP secret to active. Stores the secret, the hashed
+ * backup-code list, flips `totpEnabled` true, and clears `totpSecretPending`.
+ */
+export async function activateTOTPForUser(
+  userId: string,
+  args: { secret: string; hashedBackupCodes: string[] }
+): Promise<void> {
+  await connectDB();
+  await User.updateOne(
+    { _id: userId },
+    {
+      $set: {
+        totpEnabled: true,
+        totpSecret: args.secret,
+        totpBackupCodes: args.hashedBackupCodes,
+      },
+      $unset: { totpSecretPending: "" },
+    }
+  );
+}
+
+/**
+ * Clear everything 2FA-related from the user. Used after the disable flow's
+ * step-up checks pass. Doesn't touch `sessionInvalidatedAt` — the disable
+ * endpoint is invoked by the user themselves, so existing sessions stay
+ * valid; only the admin-initiated `resetUser2FA` revokes sessions.
+ */
+export async function disableTOTPForUser(userId: string): Promise<void> {
+  await connectDB();
+  await User.updateOne(
+    { _id: userId },
+    {
+      $set: { totpEnabled: false },
+      $unset: { totpSecret: "", totpSecretPending: "", totpBackupCodes: "" },
+    }
+  );
+}

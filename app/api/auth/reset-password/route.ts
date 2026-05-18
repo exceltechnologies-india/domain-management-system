@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
+import { findUserByResetToken } from "@/lib/services/users";
 import { RecaptchaServer } from "@/lib/recaptcha";
 import { Schemas } from "@/lib/validation";
 import { SecurityValidator } from "@/lib/security";
@@ -50,16 +49,11 @@ export async function POST(request: NextRequest) {
       return secureErrorResponse("Security verification failed. Please try again.", 403, "SECURITY_CHECK_FAILED");
     }
 
-    await connectDB();
-
     /**
      * 🛡️ DEFENSE-IN-DEPTH: Security Layer 4 - Token Verification
      * Checks for a matching token that hasn't expired.
      */
-    const user = await User.findOne({
-      resetToken: token,
-      resetTokenExpiry: { $gt: new Date() },
-    });
+    const user = await findUserByResetToken(token);
 
     if (!user) {
       return secureErrorResponse("Invalid or expired reset token", 400, "INVALID_TOKEN");

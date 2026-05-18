@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
+import {
+  findUserByEmailExcluding,
+  findUserByPendingEmailToken,
+} from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
 import { sendEmail } from "@/lib/email/transporter";
 
@@ -34,12 +36,7 @@ export async function GET(request: NextRequest) {
 
     const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
 
-    await connectDB();
-
-    const user = await User.findOne({
-      pendingEmailToken: tokenHash,
-      pendingEmailExpiry: { $gt: new Date() },
-    }).select("+pendingEmailToken +pendingEmail +pendingEmailExpiry");
+    const user = await findUserByPendingEmailToken(tokenHash);
 
     if (!user) {
       return NextResponse.redirect(
@@ -51,7 +48,7 @@ export async function GET(request: NextRequest) {
 
     // Re-check availability — another account may have registered this address
     // during the TTL window
-    const conflict = await User.findOne({ email: newEmail, _id: { $ne: user._id } });
+    const conflict = await findUserByEmailExcluding(newEmail, user._id);
     if (conflict) {
       user.pendingEmail = undefined;
       user.pendingEmailToken = undefined;
