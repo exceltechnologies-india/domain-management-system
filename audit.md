@@ -430,7 +430,7 @@ Audit-recommended sub-files I did NOT create:
 
 ## 4. Code Quality
 
-### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (ResellerClub + Zoho Books + DirectAdmin external-API wrappers fully typed; 845 → 682 sitewide)
+### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (ResellerClub + Zoho Books + DirectAdmin external-API wrappers fully typed; lib helpers + payment services typed 2026-05-18; 845 → 526 sitewide)
 Across `lib/`, `app/`, `components/`. TypeScript was doing far less work than it could. Worst offenders were the external API wrappers (ResellerClub / DirectAdmin responses).
 
 **First pass — ResellerClub wrappers (audit-recommended starting point):**
@@ -489,6 +489,25 @@ Across `lib/`, `app/`, `components/`. TypeScript was doing far less work than it
 - Admin route handlers (`app/api/admin/hosting/stats/route.ts`: 21, `app/admin/user-management/page.tsx`: 20) — request/response shapes plus `event: any` callback params on the UI side.
 - Other ad-hoc admin/user-page anys throughout `app/admin/**` and `app/dashboard/**` (most files 5–10).
 - Generic library helpers (`lib/audit-log.ts`: 11, `lib/rate-limit.ts`: 14) — internal types worth a dedicated pass.
+
+**Fourth pass — lib helpers + payment services + the largest admin route (2026-05-18):**
+
+- [lib/rate-limit.ts](lib/rate-limit.ts) — 14 → 0. Extracted `getClientIP` + `ipKey` / `userOrIpKey` factories so the 14 inline `(request as any).ip || x-forwarded-for || …` chains collapse to one typed helper. The bulk of the rateLimiters block became one-liner `keyGenerator: ipKey("login")` entries.
+- [lib/audit-log.ts](lib/audit-log.ts) — 10 → 0. `requestBody` / `metadata` / `query` / `details` widened from `any` to `Record<string, unknown>`; the loop iterator gets the actual `AuditLogEntry & { createdAt }` shape; `getClientIP` structural cast on NextRequest.
+- [lib/server-logger.ts](lib/server-logger.ts) — 9 → 0. Single `LogArg = unknown` type for the variadic logger; `LogOptionsObj` for the meta-object branch in `remoteLog`; structural cast on `globalThis.__requestContextStorage`.
+- [lib/admin-security.ts](lib/admin-security.ts) — 7 → 0. `AdminSecurityResult.user` typed precisely; the 3 `(user._id as any)?.toString()` casts dropped via a single named cast; `details` widened to `Record<string, unknown>`. Caught + fixed a latent bug surfaced by the typing: [middleware/admin-api-security.ts](middleware/admin-api-security.ts) was calling `user._id.toString()` on a `verifyAdminSecurity` result that never had `._id` (only `.id`). Switched to `user.id` directly.
+- [lib/pricing-service.ts](lib/pricing-service.ts) — 7 → 0. `DomainPricingPayload` interface; `getTLDPricing` returns `Record<string, RcTldPricingDetail>` instead of `{ [tld: string]: any }`; transfer-pricing block narrow-cast for the dynamic field walk. Downstream: [lib/resellerclub/search.ts](lib/resellerclub/search.ts) drops 3 `parseFloat(livePricing[tld].price)` casts (price is now `number` per the new return type).
+- [lib/provisioning.ts](lib/provisioning.ts) — 7 → 0. `provisionOrder(order, user)` switched from `(order: any, user: any)` to `(HydratedDocument<IOrder>, IUser)`, with the failedDomains list typed as `FailedDomain[]`. Cleaned up the unused `connectDB` / `Order` / `PendingDomain` / `DomainVerificationService` imports (dead carryover). The legacy flat-field address reads on user (`user.city || user.address?.city || …`) narrowed via a structural intersection cast at the top of the function.
+- [lib/services/payment/webhook-handlers.ts](lib/services/payment/webhook-handlers.ts) — 10 → 0. `RazorpayWebhookPayload` interface narrowed to the fields the handlers actually read; `MongoLikeError` + `asErr(unknown)` helper replaces the 5 `catch (X: any)` blocks; `newOrder` typed as `HydratedDocument<IOrder> | null`.
+- [lib/services/payment/order-creator.ts](lib/services/payment/order-creator.ts) — 7 → 0. `CreateCompletedOrderResult` swapped `order: any` → `HydratedDocument<IOrder>` and each `any[]` field to the exact `RegistrationResult[]` / `OrderDomain[]` type from the provisioner.
+- [app/api/admin/orders/invoice-conflicts/route.ts](app/api/admin/orders/invoice-conflicts/route.ts) — 8 → 0. Added local `LeanOrder` / `LeanUser` shapes so the `.lean()` projections and the `dupes.map(...)` aggregation entries type-check without `any` casts in the inner pipeline.
+- [app/api/admin/tld-pricing/route.ts](app/api/admin/tld-pricing/route.ts) — kept the dynamic field walk explicitly opt-out: the ResellerClub response is exposed in three sibling shapes (top-level `price`, nested `pricing` block, numeric-keyed bundles), so this admin reporting block reads off `any`-cast locals with a comment explaining why.
+
+**Net this pass:** 69 anys removed (`603 → 534`, then 8 more from invoice-conflicts → `526`). Combined four-pass total: **319 anys removed sitewide (845 → 526, 38% reduction)**.
+
+Two long-standing slips surfaced and were fixed: (1) the admin-security middleware was reading `user._id` on a shape that only has `user.id` (would have thrown if a sensitive admin path ever ran), (2) `lib/services/payment/webhook-handlers.ts` writes `isTrial` to Hosting documents but the field isn't declared on `IHosting` — narrowed via a structural cast at the single call site rather than widening the model.
+
+**Verified on main 2026-05-18:** 340/340 tests, tsc clean, production build succeeded.
 
 ---
 

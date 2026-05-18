@@ -95,12 +95,23 @@ export interface AuditLogEntry {
   path: string;
   ip: string;
   userAgent?: string;
-  requestBody?: any;
+  requestBody?: Record<string, unknown> | null;
   responseStatus?: number;
   executionTime?: number;
   success?: boolean;
   error?: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Minimal shape needed for audit logging — just `_id`/`id` and `email`.
+ * Accepts hydrated Mongoose docs, lean projections, or NextAuth session
+ * users without forcing a single concrete type at every call site.
+ */
+interface AuditableUser {
+  id?: string;
+  _id?: unknown;
+  email?: string;
 }
 
 /**
@@ -121,7 +132,7 @@ export async function logAdminAction(entry: AuditLogEntry): Promise<void> {
  */
 export async function logAPIRequest(
   request: NextRequest,
-  user: any,
+  user: AuditableUser,
   responseStatus: number,
   executionTime: number,
   error?: string
@@ -131,19 +142,19 @@ export async function logAPIRequest(
     const userAgent = request.headers.get("user-agent") || "";
 
     // Sanitize request body (remove sensitive data)
-    let requestBody: any = null;
+    let requestBody: Record<string, unknown> | null = null;
     try {
       const clonedRequest = request.clone();
       const body = await clonedRequest.json().catch(() => null);
-      if (body) {
-        requestBody = sanitizeRequestBody(body);
+      if (body && typeof body === "object") {
+        requestBody = sanitizeRequestBody(body as Record<string, unknown>);
       }
     } catch (e) {
       // Request body already consumed or not available
     }
 
     await logAdminAction({
-      userId: user.id || user._id?.toString() || "unknown",
+      userId: user.id || (user._id as { toString(): string })?.toString?.() || "unknown",
       userEmail: user.email || "unknown",
       action: getActionFromPath(request.nextUrl.pathname, request.method),
       resource: request.nextUrl.pathname,
@@ -186,11 +197,9 @@ function getActionFromPath(path: string, method: string): string {
 /**
  * Sanitize request body to remove sensitive information
  */
-function sanitizeRequestBody(body: any): any {
-  if (!body || typeof body !== "object") {
-    return body;
-  }
-
+function sanitizeRequestBody(
+  body: Record<string, unknown>
+): Record<string, unknown> {
   const sensitiveFields = [
     "password",
     "token",
@@ -203,7 +212,7 @@ function sanitizeRequestBody(body: any): any {
     "ssn",
   ];
 
-  const sanitized = { ...body };
+  const sanitized: Record<string, unknown> = { ...body };
 
   for (const field of sensitiveFields) {
     if (sanitized[field]) {
@@ -215,18 +224,19 @@ function sanitizeRequestBody(body: any): any {
 }
 
 /**
- * Get client IP from request
+ * Get client IP from request. NextRequest's `.ip` was dropped in newer
+ * Next versions; read structurally so both shapes type-check.
  */
 function getClientIP(request: NextRequest): string {
   const forwarded = request.headers.get("x-forwarded-for");
   const realIP = request.headers.get("x-real-ip");
-  const ip = (request as any).ip;
+  const direct = (request as unknown as { ip?: string }).ip;
 
   if (forwarded) {
     return forwarded.split(",")[0].trim();
   }
 
-  return realIP || ip || "unknown";
+  return realIP || direct || "unknown";
 }
 
 /**
@@ -240,11 +250,11 @@ export async function queryAuditLogs(filters: {
   endDate?: Date;
   limit?: number;
   skip?: number;
-}): Promise<any[]> {
+}): Promise<AuditLogEntry[]> {
   try {
     await connectDB();
 
-    const query: any = {};
+    const query: Record<string, unknown> = {};
 
     if (filters.userId) {
       query.userId = new mongoose.Types.ObjectId(filters.userId);
@@ -259,20 +269,17 @@ export async function queryAuditLogs(filters: {
     }
 
     if (filters.startDate || filters.endDate) {
-      query.createdAt = {};
-      if (filters.startDate) {
-        query.createdAt.$gte = filters.startDate;
-      }
-      if (filters.endDate) {
-        query.createdAt.$lte = filters.endDate;
-      }
+      const createdAt: Record<string, Date> = {};
+      if (filters.startDate) createdAt.$gte = filters.startDate;
+      if (filters.endDate) createdAt.$lte = filters.endDate;
+      query.createdAt = createdAt;
     }
 
-    const logs = await AuditLog.find(query)
+    const logs = (await AuditLog.find(query)
       .sort({ createdAt: -1 })
       .limit(filters.limit || 100)
       .skip(filters.skip || 0)
-      .lean();
+      .lean()) as unknown as AuditLogEntry[];
 
     return logs;
   } catch (error) {
@@ -300,7 +307,7 @@ export async function getAuditStats(
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    const query: any = {
+    const query: Record<string, unknown> = {
       createdAt: { $gte: startDate },
     };
 
@@ -308,7 +315,9 @@ export async function getAuditStats(
       query.userId = new mongoose.Types.ObjectId(userId);
     }
 
-    const logs = await AuditLog.find(query).lean();
+    const logs = (await AuditLog.find(query).lean()) as unknown as Array<
+      AuditLogEntry & { createdAt: Date }
+    >;
 
     const stats = {
       totalActions: logs.length,
@@ -322,7 +331,7 @@ export async function getAuditStats(
     const dayCounts: Record<string, number> = {};
     let errorCount = 0;
 
-    logs.forEach((log: any) => {
+    logs.forEach((log) => {
       // Count by action type
       stats.actionsByType[log.action] =
         (stats.actionsByType[log.action] || 0) + 1;

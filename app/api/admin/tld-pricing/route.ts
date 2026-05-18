@@ -166,9 +166,15 @@ export async function GET(request: NextRequest) {
             continue;
           }
 
-          // Use the already-fetched pricing data
-          const customerTldData = customerPricing[tld];
-          const resellerTldData = resellerPricing[tld];
+          // ResellerClub returns several shapes here (top-level price, nested
+          // pricing block, numeric-keyed bundles). The block below walks them
+          // defensively, so we read fields off a Record<string, any> rather
+          // than spell each variant.
+          //
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const customerTldData = customerPricing[tld] as any;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const resellerTldData = resellerPricing[tld] as any;
 
           if (customerTldData || resellerTldData) {
             // Try multiple possible price field locations

@@ -1,6 +1,8 @@
 import Order from "@/models/Order";
+import type { IOrder } from "@/models/Order";
 import { getUserById } from "@/lib/services/users";
 import Hosting from "@/models/Hosting";
+import type { HydratedDocument } from "mongoose";
 import { getPlanByRazorpaySubscriptionPlanId } from "@/lib/services/hosting-plans";
 import { findUserHosting, getHostingById } from "@/lib/services/hostings";
 import {
@@ -23,12 +25,44 @@ import { DirectAdminService as DA } from "@/lib/directadmin";
  * response so internal structure never leaks.
  */
 
-export async function handleSubscriptionCharged(payload: any) {
+/** Razorpay webhook payload — only the fields these handlers read. */
+interface RazorpayWebhookPayload {
+  payload: {
+    payment: {
+      entity: {
+        id: string;
+        amount: number;
+        currency: string;
+        order_id?: string;
+      };
+    };
+    subscription: {
+      entity: {
+        id: string;
+        plan_id: string;
+        notes?: { user_id?: string; domain_name?: string };
+      };
+    };
+  };
+}
+
+/** Mongoose duplicate-key error code, plus generic Error.message. */
+interface MongoLikeError {
+  code?: number;
+  message?: string;
+}
+
+function asErr(err: unknown): MongoLikeError {
+  if (err && typeof err === "object") return err as MongoLikeError;
+  return { message: String(err) };
+}
+
+export async function handleSubscriptionCharged(payload: RazorpayWebhookPayload) {
   const payment = payload.payload.payment.entity;
   const subscription = payload.payload.subscription.entity;
 
-  const userId: string = subscription.notes?.user_id;
-  const domainName: string = subscription.notes?.domain_name;
+  const userId = subscription.notes?.user_id;
+  const domainName = subscription.notes?.domain_name;
 
   if (!userId || !domainName) {
     serverLogger.error("[Webhook] Missing userId or domainName in subscription notes");
@@ -62,8 +96,8 @@ export async function handleSubscriptionCharged(payload: any) {
         "Subscription charge received but Hosting not found",
         "Razorpay fired <strong>subscription.charged</strong> but no Hosting record exists for this user/domain. Manual action required: create the Hosting record or issue a refund.",
         { userId, domainName, paymentId: razorpayPaymentId, subscriptionId: subscription.id, amount: `₹${payment.amount / 100}` }
-      ).catch((alertErr: any) =>
-        serverLogger.error(`[Webhook] Failed to send admin alert: ${alertErr.message}`)
+      ).catch((alertErr: unknown) =>
+        serverLogger.error(`[Webhook] Failed to send admin alert: ${asErr(alertErr).message}`)
       );
       return;
     }
@@ -81,16 +115,15 @@ export async function handleSubscriptionCharged(payload: any) {
     serverLogger.info(
       `[Webhook] RenewalPayment stored for ${razorpayPaymentId} (processed=false)`
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const e = asErr(err);
     // E11000 duplicate key = already exists; this is expected on retries
-    if (err.code === 11000) {
+    if (e.code === 11000) {
       serverLogger.info(
         `[Webhook] RenewalPayment already exists for ${razorpayPaymentId} — checking if processed`
       );
     } else {
-      serverLogger.error(
-        `[Webhook] Failed to store RenewalPayment: ${err.message}`
-      );
+      serverLogger.error(`[Webhook] Failed to store RenewalPayment: ${e.message}`);
       return;
     }
   }
@@ -161,9 +194,9 @@ export async function handleSubscriptionCharged(payload: any) {
       try {
         await DA.unsuspendUser(hosting.directAdminUsername);
         serverLogger.info(`[Webhook] Unsuspended DA user: ${hosting.directAdminUsername}`);
-      } catch (daErr: any) {
+      } catch (daErr: unknown) {
         serverLogger.error(
-          `[Webhook] Failed to unsuspend DA user ${hosting.directAdminUsername}: ${daErr.message}`
+          `[Webhook] Failed to unsuspend DA user ${hosting.directAdminUsername}: ${asErr(daErr).message}`
         );
         // Don't abort — DB update is the source of truth
       }
@@ -187,8 +220,11 @@ export async function handleSubscriptionCharged(payload: any) {
   // Trial → paid transition: on the first real charge, reset expiry to now+1 year
   // and clear the trial flag. The trial expiry (15 days) must not be used as the
   // base for renewal extension — hard reset to now instead.
-  if ((hosting as any).isTrial) {
-    (hosting as any).isTrial = false;
+  // `isTrial` is a runtime field that the hosting flow toggles but isn't
+  // declared on IHosting. Narrow cast at this call site only.
+  const hostingWithTrial = hosting as unknown as { isTrial?: boolean };
+  if (hostingWithTrial.isTrial) {
+    hostingWithTrial.isTrial = false;
     const newExpiry = new Date();
     newExpiry.setFullYear(newExpiry.getFullYear() + 1);
     hosting.expiryDate = newExpiry;
@@ -211,10 +247,10 @@ export async function handleSubscriptionCharged(payload: any) {
 
   // ── Step 8: Create Order record (audit trail) ─────────────────────────────
   const orderId = `ORD-RNW-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-  let newOrder: any = null;
+  let newOrder: HydratedDocument<IOrder> | null = null;
 
   try {
-    newOrder = new Order({
+    const order = new Order({
       orderId,
       userId: user._id,
       userName: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
@@ -255,13 +291,14 @@ export async function handleSubscriptionCharged(payload: any) {
       },
     });
 
-    await newOrder.save();
+    await order.save();
+    newOrder = order;
 
     // Link orderId back to the RenewalPayment record for cross-referencing
-    await attachOrderToRenewal(razorpayPaymentId, newOrder._id.toString());
-  } catch (orderErr: any) {
+    await attachOrderToRenewal(razorpayPaymentId, String(order._id));
+  } catch (orderErr: unknown) {
     // Order creation failure is non-critical — service is already renewed
-    serverLogger.error(`[Webhook] Failed to create Order record: ${orderErr.message}`);
+    serverLogger.error(`[Webhook] Failed to create Order record: ${asErr(orderErr).message}`);
   }
 
   // ── Step 9: Async Zoho accounting sync ───────────────────────────────────
@@ -292,7 +329,7 @@ export async function handleSubscriptionCharged(payload: any) {
   }
 }
 
-export async function handleSubscriptionFailed(payload: any) {
+export async function handleSubscriptionFailed(payload: RazorpayWebhookPayload) {
   const subscription = payload.payload.subscription.entity;
   const userId = subscription.notes?.user_id;
   const domainName = subscription.notes?.domain_name;
@@ -318,7 +355,7 @@ export async function handleSubscriptionFailed(payload: any) {
       await DA.suspendUser(hosting.directAdminUsername);
       serverLogger.info(`[Webhook] Suspended DA user immediately: ${hosting.directAdminUsername}`);
     }
-  } catch (err: any) {
-    serverLogger.error(`[Webhook] Failed to process immediate expiration: ${err.message}`);
+  } catch (err: unknown) {
+    serverLogger.error(`[Webhook] Failed to process immediate expiration: ${asErr(err).message}`);
   }
 }

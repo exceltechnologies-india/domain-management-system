@@ -1,21 +1,33 @@
-import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
 import { ResellerClubAPI } from "@/lib/resellerclub";
 import { DirectAdminService } from "@/lib/directadmin";
 import { EmailService } from "@/lib/email";
-import { DomainVerificationService } from "@/lib/domain-verification";
-import PendingDomain from "@/models/PendingDomain";
 import { serverLogger } from "@/lib/server-logger";
+import type { HydratedDocument } from "mongoose";
+import type { IOrder } from "@/models/Order";
+import type { IUser } from "@/models/User";
+
+interface FailedDomain {
+  domainName: string;
+  error: string;
+}
 
 export class ProvisioningService {
-  
-  static async provisionOrder(order: any, user: any) {
-    
-    const cartItems = order.domains; // Assuming structure matches
+  static async provisionOrder(
+    order: HydratedDocument<IOrder>,
+    user: IUser
+  ): Promise<{ successfulDomains: string[]; failedDomains: FailedDomain[] }> {
+    // The function reads address fields defensively — older user docs put
+    // city/state/country/zip at the top level rather than under `address`.
+    // Narrow once via a structural type so the reads below are typed.
+    const u = user as IUser & {
+      city?: string;
+      state?: string;
+      country?: string;
+      zip?: string;
+    };
+    const cartItems = order.domains;
     const successfulDomains: string[] = [];
-    const failedDomains: any[] = [];
-    const pendingDomains: any[] = [];
-    const registrationResults: any[] = [];
+    const failedDomains: FailedDomain[] = [];
 
     // Initialize services
     // ResellerClubAPI is static
@@ -54,18 +66,18 @@ export class ProvisioningService {
                 // Domain Registration Logic
                 // Use ResellerClub
                 const customerResult = await ResellerClubAPI.getOrCreateCustomerAndContact({
-                    email: user.email,
-                    firstName: user.firstName,
-                    lastName: user.lastName,
-                    phone: user.phone,
-                    phoneCc: user.phoneCc || '91',
-                    companyName: user.companyName,
+                    email: u.email,
+                    firstName: u.firstName,
+                    lastName: u.lastName,
+                    phone: u.phone,
+                    phoneCc: u.phoneCc || '91',
+                    companyName: u.companyName,
                     address: {
-                        line1: user.address?.line1 || user.address || '',
-                        city: user.city || user.address?.city || '',
-                        state: user.state || user.address?.state || '',
-                        country: user.country || user.address?.country || 'IN',
-                        zipcode: user.zip || user.address?.zipcode || ''
+                        line1: u.address?.line1 || '',
+                        city: u.city || u.address?.city || '',
+                        state: u.state || u.address?.state || '',
+                        country: u.country || u.address?.country || 'IN',
+                        zipcode: u.zip || u.address?.zipcode || '',
                     }
                 });
 
@@ -90,7 +102,7 @@ export class ProvisioningService {
                         tech: customerResult.contactId,
                         billing: customerResult.contactId
                     },
-                    (item as any).tldAttributes
+                    (item as unknown as { tldAttributes?: Record<string, string> }).tldAttributes
                 );
                 
                 if (result.status === 'success' || result.status === 'Active') {
@@ -100,11 +112,12 @@ export class ProvisioningService {
                      throw new Error(result.message || "Registration Failed");
                 }
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const errMessage = error instanceof Error ? error.message : String(error);
             serverLogger.error(`❌ [Provisioning] Failed for ${item.domainName}:`, error);
             item.status = 'failed';
-            item.error = error.message;
-            failedDomains.push({ domainName: item.domainName, error: error.message });
+            item.error = errMessage;
+            failedDomains.push({ domainName: item.domainName, error: errMessage });
         }
     }
     
@@ -113,14 +126,16 @@ export class ProvisioningService {
     
     // Send Confirmation Email if new successes
     if (successfulDomains.length > 0) {
+        // Email helper expects a richer Order projection; we pass a minimal
+        // synthetic shape so the success notification still fires. Narrow cast
+        // because the historic email signature isn't worth restructuring here.
         await EmailService.sendOrderConfirmationEmail(
-            user.email, 
+            user.email,
             `${user.firstName} ${user.lastName}`,
             {
                 orderId: order.orderId,
-                successfulDomains: successfulDomains.map(d => ({ domainName: d, price: 0, registrationPeriod: 1 })), // simplified
-                // ... populate other fields
-            } as any
+                successfulDomains: successfulDomains.map(d => ({ domainName: d, price: 0, registrationPeriod: 1 })),
+            } as unknown as Parameters<typeof EmailService.sendOrderConfirmationEmail>[2]
         );
     }
     

@@ -22,7 +22,27 @@ interface OrderSlim {
   isDeleted?: boolean;
 }
 
-function slim(order: any, user: any): OrderSlim {
+interface LeanOrder {
+  _id: unknown;
+  orderId: string;
+  userId: unknown;
+  status: string;
+  amount: number;
+  invoiceNumber?: string;
+  zohoInvoiceId?: string;
+  razorpayPaymentId?: string;
+  createdAt?: Date;
+  isDeleted?: boolean;
+}
+
+interface LeanUser {
+  _id: unknown;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+}
+
+function slim(order: LeanOrder, user: LeanUser | undefined): OrderSlim {
   return {
     _id: String(order._id),
     orderId: order.orderId,
@@ -36,7 +56,7 @@ function slim(order: any, user: any): OrderSlim {
     invoiceNumber: order.invoiceNumber,
     zohoInvoiceId: order.zohoInvoiceId,
     razorpayPaymentId: order.razorpayPaymentId,
-    createdAt: (order.createdAt as Date)?.toISOString?.() || "",
+    createdAt: order.createdAt?.toISOString?.() || "",
     isDeleted: order.isDeleted,
   };
 }
@@ -87,22 +107,22 @@ export async function GET(request: NextRequest) {
       : [];
 
     const userIds = [
-      ...new Set(dupeOrders.map((o: any) => String(o.userId))),
+      ...new Set((dupeOrders as unknown as LeanOrder[]).map((o) => String(o.userId))),
     ];
-    const users = await findUsersByIds(userIds);
+    const users = (await findUsersByIds(userIds)) as unknown as LeanUser[];
     const userById = new Map(users.map((u) => [String(u._id), u]));
 
     const ordersBy_Id = new Map(
-      dupeOrders.map((o: any) => [String(o._id), o])
+      (dupeOrders as unknown as LeanOrder[]).map((o) => [String(o._id), o])
     );
 
     const conflicts = dupes.map((d) => ({
       invoiceNumber: d._id as string,
       count: d.count as number,
-      orders: (d.orderIds as any[])
+      orders: (d.orderIds as unknown[])
         .map((id) => ordersBy_Id.get(String(id)))
-        .filter(Boolean)
-        .map((o: any) => slim(o, userById.get(String(o.userId)))),
+        .filter((o): o is LeanOrder => Boolean(o))
+        .map((o) => slim(o, userById.get(String(o.userId)))),
     }));
 
     // --- 2. Find paid orders whose Zoho invoice never resolved ---
@@ -125,16 +145,16 @@ export async function GET(request: NextRequest) {
       .lean();
 
     const stuckUserIds = [
-      ...new Set(stuckDocs.map((o: any) => String(o.userId))),
+      ...new Set((stuckDocs as unknown as LeanOrder[]).map((o) => String(o.userId))),
     ];
-    const stuckUsersExtra = await findUsersByIds(
+    const stuckUsersExtra = (await findUsersByIds(
       stuckUserIds.filter((id) => !userById.has(id))
-    );
+    )) as unknown as LeanUser[];
     for (const u of stuckUsersExtra) {
       userById.set(String(u._id), u);
     }
 
-    const stuckOrders = stuckDocs.map((o: any) =>
+    const stuckOrders = (stuckDocs as unknown as LeanOrder[]).map((o) =>
       slim(o, userById.get(String(o.userId)))
     );
 
@@ -148,11 +168,9 @@ export async function GET(request: NextRequest) {
         stuckOrders: stuckOrders.length,
       },
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     serverLogger.error("[InvoiceConflicts] Failed:", err);
-    return NextResponse.json(
-      { error: err?.message || "Diagnostics failed" },
-      { status: 500 }
-    );
+    const message = err instanceof Error ? err.message : "Diagnostics failed";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

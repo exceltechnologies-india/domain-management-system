@@ -227,9 +227,8 @@ export async function searchDomain(domainName: string): Promise<DomainSearchResu
                 const livePricing = await PricingService.getTLDPricing([tld]);
 
                 if (livePricing && livePricing[tld]) {
-                  const finalPrice = parseFloat(livePricing[tld].price) || 0;
-                  const resellerPrice =
-                    parseFloat(livePricing[tld].resellerPrice) || 0;
+                  const finalPrice = livePricing[tld].price || 0;
+                  const resellerPrice = livePricing[tld].resellerPrice || 0;
                   const margin =
                     finalPrice > 0 && resellerPrice > 0
                       ? ((finalPrice - resellerPrice) / finalPrice) * 100
@@ -500,7 +499,7 @@ export async function searchDomainWithTlds(
                   const livePricing = await PricingService.getTLDPricing([tld]);
 
                   if (livePricing && livePricing[tld]) {
-                    price = parseFloat(livePricing[tld].price) || 0;
+                    price = livePricing[tld].price || 0;
                     currency = livePricing[tld].currency || "INR";
                     registrationPeriod =
                       livePricing[tld].registrationPeriod || 1;
