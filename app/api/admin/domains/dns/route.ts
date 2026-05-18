@@ -4,7 +4,8 @@ import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import { AuthService } from "@/lib/auth";
 import { getToken } from "next-auth/jwt";
 import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
+import Order, { type IOrder } from "@/models/Order";
+import type { IUser } from "@/models/User";
 import { serverLogger } from "@/lib/server-logger";
 
 // Force dynamic rendering - required for API routes
@@ -18,7 +19,11 @@ export async function GET(request: NextRequest) {
       const token = await getToken({ req: request, secret: AUTH_SECRET });
       if (token?.id) {
         // Minimal user object for role check
-        user = { _id: token.id, role: (token as any).role || "user" } as any;
+        // Minimal user object for the role check — the route only reads
+        // `_id` and `role` from this. Cast through unknown because the
+        // NextAuth token shape differs from IUser.
+        const t = token as unknown as { id: string; role?: string };
+        user = { _id: t.id, role: t.role || "user" } as unknown as IUser;
       }
     }
     if (!user) {
@@ -55,7 +60,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Domain not found" }, { status: 404 });
     }
 
-    const domain = order.domains.find((d: any) => d.domainName === domainName);
+    const domain = order.domains.find((d: IOrder['domains'][number]) => d.domainName === domainName);
 
     if (!domain || !domain.resellerClubCustomerId) {
       return NextResponse.json(
@@ -86,7 +91,7 @@ export async function GET(request: NextRequest) {
       domainName,
       records: result.data?.records || [],
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     serverLogger.error("Error in admin DNS GET:", error);
     return NextResponse.json(
       { error: "Internal server error" },
@@ -102,7 +107,11 @@ export async function POST(request: NextRequest) {
     if (!user) {
       const token = await getToken({ req: request, secret: AUTH_SECRET });
       if (token?.id) {
-        user = { _id: token.id, role: (token as any).role || "user" } as any;
+        // Minimal user object for the role check — the route only reads
+        // `_id` and `role` from this. Cast through unknown because the
+        // NextAuth token shape differs from IUser.
+        const t = token as unknown as { id: string; role?: string };
+        user = { _id: t.id, role: t.role || "user" } as unknown as IUser;
       }
     }
     if (!user) {
@@ -138,7 +147,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Domain not found" }, { status: 404 });
     }
 
-    const domain = order.domains.find((d: any) => d.domainName === domainName);
+    const domain = order.domains.find((d: IOrder['domains'][number]) => d.domainName === domainName);
 
     if (!domain || !domain.resellerClubCustomerId) {
       return NextResponse.json(
@@ -158,14 +167,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         message: "DNS record added successfully",
-        recordId: (result.data as any)?.recordid || (result.data as any)?.recordId,
+        recordId:
+          (result.data as { recordid?: string; recordId?: string } | undefined)?.recordid ||
+          (result.data as { recordid?: string; recordId?: string } | undefined)?.recordId,
       });
     }
     return NextResponse.json(
       { error: result.message || "Failed to add DNS record" },
       { status: 500 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     serverLogger.error("Error in admin DNS POST:", error);
     return NextResponse.json(
       { error: "Internal server error" },
@@ -181,7 +192,11 @@ export async function DELETE(request: NextRequest) {
     if (!user) {
       const token = await getToken({ req: request, secret: AUTH_SECRET });
       if (token?.id) {
-        user = { _id: token.id, role: (token as any).role || "user" } as any;
+        // Minimal user object for the role check — the route only reads
+        // `_id` and `role` from this. Cast through unknown because the
+        // NextAuth token shape differs from IUser.
+        const t = token as unknown as { id: string; role?: string };
+        user = { _id: t.id, role: t.role || "user" } as unknown as IUser;
       }
     }
     if (!user) {
@@ -229,7 +244,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Domain not found" }, { status: 404 });
     }
 
-    const domain = order.domains.find((d: any) => d.domainName === domainName);
+    const domain = order.domains.find((d: IOrder['domains'][number]) => d.domainName === domainName);
 
     if (!domain || !domain.resellerClubCustomerId) {
       return NextResponse.json(
@@ -255,7 +270,7 @@ export async function DELETE(request: NextRequest) {
       { error: result.message || "Failed to delete DNS record" },
       { status: 500 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     serverLogger.error("Error in admin DNS DELETE:", error);
     return NextResponse.json(
       { error: "Internal server error" },

@@ -3,7 +3,7 @@ import { AuthService } from "@/lib/auth";
 import { promisify } from "util";
 import dns from "dns";
 import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
+import Order, { type IOrder } from "@/models/Order";
 import Domain from "@/models/Domain";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import { serverLogger } from "@/lib/server-logger";
@@ -46,8 +46,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    interface WhoisData {
+      registrar?: string;
+      status?: string;
+      creationDate?: string | null;
+      expirationDate?: string | null;
+      lastUpdated?: string | null;
+    }
     let nameservers: string[] = [];
-    let whoisData: any = {};
+    let whoisData: WhoisData = {};
     let method = "unknown";
 
     // Method 1: Try ResellerClub API first (Most accurate for account data)
@@ -96,7 +103,9 @@ export async function GET(request: NextRequest) {
             const bootstrapData = await bootstrapResponse.json();
 
             // Find RDAP server for this TLD
-            const tldEntry = bootstrapData.services?.find((service: any) =>
+            type IanaService = [string[], string[]];
+            const services = bootstrapData.services as IanaService[] | undefined;
+            const tldEntry = services?.find((service) =>
               service[0]?.some(
                 (pattern: string) =>
                   pattern === tld ||
@@ -163,30 +172,30 @@ export async function GET(request: NextRequest) {
           method = "rdap";
 
           // Extract nameservers from RDAP data
+          interface RdapNameserver { ldhName?: string; name?: string }
+          interface RdapEvent { eventAction?: string; eventDate?: string }
           if (rdapData.nameservers && Array.isArray(rdapData.nameservers)) {
-            nameservers = rdapData.nameservers
-              .map((ns: any) => {
+            nameservers = (rdapData.nameservers as Array<string | RdapNameserver>)
+              .map((ns) => {
                 if (typeof ns === "string") return ns;
                 if (ns.ldhName) return ns.ldhName;
                 if (ns.name) return ns.name;
-                return ns;
+                return "";
               })
               .filter((ns: string) => ns && ns.includes(".") && ns.length > 3);
           }
 
           // Extract additional domain information from RDAP
+          const events = (rdapData.events ?? []) as RdapEvent[];
           whoisData = {
             registrar:
               rdapData.registrar?.name || rdapData.registrar?.value || "Unknown",
             creationDate:
-              rdapData.events?.find((e: any) => e.eventAction === "registration")
-                ?.eventDate || null,
+              events.find((e) => e.eventAction === "registration")?.eventDate || null,
             expirationDate:
-              rdapData.events?.find((e: any) => e.eventAction === "expiration")
-                ?.eventDate || null,
+              events.find((e) => e.eventAction === "expiration")?.eventDate || null,
             lastUpdated:
-              rdapData.events?.find((e: any) => e.eventAction === "last changed")
-                ?.eventDate || null,
+              events.find((e) => e.eventAction === "last changed")?.eventDate || null,
             status: rdapData.status?.join(", ") || "Unknown",
           };
 
@@ -213,8 +222,9 @@ export async function GET(request: NextRequest) {
             lastUpdated: null,
             status: "Unknown",
           };
-        } catch (dnsError) {
-          serverLogger.error(`❌ [DNS] Also failed: ${(dnsError as any).message}`);
+        } catch (dnsError: unknown) {
+          const dnsMessage = dnsError instanceof Error ? dnsError.message : String(dnsError);
+          serverLogger.error(`❌ [DNS] Also failed: ${dnsMessage}`);
 
           // All lookup methods failed - throw error
           throw new Error(
@@ -266,19 +276,17 @@ export async function GET(request: NextRequest) {
       whoisData,
       lastChecked: new Date().toISOString(),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     serverLogger.error("Nameserver lookup error:", error);
+    const message = error instanceof Error ? error.message : String(error);
 
     // Check if it's a nameserver lookup failure
-    if (
-      error.message &&
-      error.message.includes("Unable to retrieve nameserver information")
-    ) {
+    if (message.includes("Unable to retrieve nameserver information")) {
       return NextResponse.json(
         {
           success: false,
           error: "Nameserver lookup failed",
-          message: error.message,
+          message,
           domainName: domainName,
           nameservers: [],
           count: 0,
@@ -293,7 +301,7 @@ export async function GET(request: NextRequest) {
       {
         success: false,
         error: "Internal server error",
-        message: error.message || "An unexpected error occurred",
+        message: message || "An unexpected error occurred",
         domainName: domainName,
         nameservers: [],
         count: 0,
@@ -329,7 +337,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Domain not found for this user" }, { status: 404 });
     }
 
-    const domain = order.domains.find((d: any) => d.domainName === domainName);
+    const domain = order.domains.find((d: IOrder['domains'][number]) => d.domainName === domainName);
     if (!domain) {
       return NextResponse.json({ error: "Domain not found in order" }, { status: 404 });
     }

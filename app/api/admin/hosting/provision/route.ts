@@ -19,7 +19,16 @@ import { calculateHostingDates } from "@/lib/hosting-dates";
  */
 export async function POST(request: NextRequest) {
   // Parse body once at the top so the error handler can reference it too.
-  let body: any = {};
+  interface ProvisionBody {
+    userId?: string;
+    domain?: string;
+    packageName?: string;
+    daUsername?: string;
+    validityPeriod?: number;
+    price?: number;
+    periodUnit?: 'months' | 'days' | 'minutes';
+  }
+  let body: ProvisionBody = {};
   try { body = await request.json(); } catch {}
 
   try {
@@ -75,9 +84,10 @@ export async function POST(request: NextRequest) {
       await DirectAdminService.updateDNSNameservers(daUsername, domain, DirectAdminService.NAMESERVERS);
 
       serverLogger.info(`DNS nameservers updated successfully for ${domain}`);
-    } catch (dnsError: any) {
+    } catch (dnsError: unknown) {
       // Log but don't fail the entire provisioning if DNS update fails
-      serverLogger.warn(`Failed to update DNS nameservers for ${domain}: ${dnsError.message}`);
+      const message = dnsError instanceof Error ? dnsError.message : String(dnsError);
+      serverLogger.warn(`Failed to update DNS nameservers for ${domain}: ${message}`);
     }
 
     // 5. Update user in DB using centralized date utility with selected validity
@@ -179,13 +189,22 @@ export async function POST(request: NextRequest) {
             // 5d. Generate Zoho Recurring Invoice for future renewals
             try {
                 // Recurring invoice creation disabled to avoid "due invoices"
-                const recurringResults: any[] = []; // await zohoService.createRecurringInvoice(
+                interface RecurringResult {
+                    success: boolean;
+                    recurringInvoiceId?: string;
+                    error?: string;
+                }
+                const recurringResults: RecurringResult[] = []; // await zohoService.createRecurringInvoice(
 
                 if (recurringResults && recurringResults.length > 0) {
                      let orderModified = false;
                      // We only have one domain/item here
                      if (recurringResults[0].success && recurringResults[0].recurringInvoiceId) {
-                         const domainItem = newOrder.domains.find((d: any) => d.domainName === domain);
+                         type OrderDomainSub = (typeof newOrder.domains)[number] & {
+                             zohoRecurringInvoiceId?: string;
+                             zohoRecurringProfileStatus?: string;
+                         };
+                         const domainItem = newOrder.domains.find((d: OrderDomainSub) => d.domainName === domain) as OrderDomainSub | undefined;
                          if (domainItem) {
                              domainItem.zohoRecurringInvoiceId = recurringResults[0].recurringInvoiceId;
                              domainItem.zohoRecurringProfileStatus = 'created';
@@ -200,12 +219,14 @@ export async function POST(request: NextRequest) {
                          await newOrder.save();
                      }
                 }
-            } catch (recurringError: any) {
-                serverLogger.warn(`Failed to trigger recurring invoice generation: ${recurringError.message}`);
+            } catch (recurringError: unknown) {
+                const message = recurringError instanceof Error ? recurringError.message : String(recurringError);
+                serverLogger.warn(`Failed to trigger recurring invoice generation: ${message}`);
             }
 
-        } catch (zohoError: any) {
-             serverLogger.warn(`Failed to generate Zoho Invoice for admin provision: ${zohoError.message}`);
+        } catch (zohoError: unknown) {
+             const message = zohoError instanceof Error ? zohoError.message : String(zohoError);
+             serverLogger.warn(`Failed to generate Zoho Invoice for admin provision: ${message}`);
         }
         // 5e. Create Hosting Record for visibility in Services Modal
         try {
@@ -223,11 +244,11 @@ export async function POST(request: NextRequest) {
                 paymentId: paymentId,
             });
             serverLogger.info(`Created Hosting record for ${domain}`);
-        } catch (hostingError: any) {
+        } catch (hostingError: unknown) {
             serverLogger.error(`Failed to create Hosting record for ${domain}:`, hostingError);
         }
 
-    } catch (orderError: any) {
+    } catch (orderError: unknown) {
         serverLogger.warn(`Failed to create Order record for ${domain}:`, orderError);
         // Don't fail the entire provisioning if Order creation fails
     }
@@ -245,8 +266,9 @@ export async function POST(request: NextRequest) {
             }
         );
         serverLogger.info(`Hosting provision email sent to ${user.email}`);
-    } catch (emailError: any) {
-        serverLogger.warn(`Failed to send hosting provision email to ${user.email}: ${emailError.message}`);
+    } catch (emailError: unknown) {
+        const message = emailError instanceof Error ? emailError.message : String(emailError);
+        serverLogger.warn(`Failed to send hosting provision email to ${user.email}: ${message}`);
     }
 
     return secureJsonResponse({ 
@@ -259,20 +281,22 @@ export async function POST(request: NextRequest) {
       }
     });
 
-  } catch (error: any) {
-    serverLogger.error(`Admin Hosting Provision Error:`, error.message);
+  } catch (error: unknown) {
+    interface DaError { status?: number; code?: string; message?: string }
+    const e = (error && typeof error === 'object' ? error : {}) as DaError;
+    serverLogger.error(`Admin Hosting Provision Error:`, e.message);
 
     // Explicitly handle DirectAdmin Connection Errors (Admin Only)
-    if (error.status === 503 || error.code === 'DA_SERVER_DOWN') {
+    if (e.status === 503 || e.code === 'DA_SERVER_DOWN') {
        return secureErrorResponse(
          "DirectAdmin Server is unreachable. Provisioning failed.",
          503,
          "DA_SERVER_DOWN"
        );
     }
-    
+
     // Check for specific DA errors that we might want to pass through
-    const message = error.message || "Failed to provision hosting";
+    const message = e.message || "Failed to provision hosting";
 
     // Save to PendingHosting
     try {

@@ -430,7 +430,7 @@ Audit-recommended sub-files I did NOT create:
 
 ## 4. Code Quality
 
-### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (ResellerClub + Zoho Books + DirectAdmin external-API wrappers fully typed; lib helpers + payment services typed 2026-05-18; 845 → 526 sitewide)
+### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (ResellerClub + Zoho Books + DirectAdmin external-API wrappers fully typed; lib helpers + payment services typed 2026-05-18; admin routes typed 2026-05-18; 845 → 459 sitewide)
 Across `lib/`, `app/`, `components/`. TypeScript was doing far less work than it could. Worst offenders were the external API wrappers (ResellerClub / DirectAdmin responses).
 
 **First pass — ResellerClub wrappers (audit-recommended starting point):**
@@ -506,6 +506,19 @@ Across `lib/`, `app/`, `components/`. TypeScript was doing far less work than it
 **Net this pass:** 69 anys removed (`603 → 534`, then 8 more from invoice-conflicts → `526`). Combined four-pass total: **319 anys removed sitewide (845 → 526, 38% reduction)**.
 
 Two long-standing slips surfaced and were fixed: (1) the admin-security middleware was reading `user._id` on a shape that only has `user.id` (would have thrown if a sensitive admin path ever ran), (2) `lib/services/payment/webhook-handlers.ts` writes `isTrial` to Hosting documents but the field isn't declared on `IHosting` — narrowed via a structural cast at the single call site rather than widening the model.
+
+**Verified on main 2026-05-18:** 340/340 tests, tsc clean, production build succeeded.
+
+**Fifth pass — admin route handlers (2026-05-18):**
+
+- [app/api/admin/hosting/stats/route.ts](app/api/admin/hosting/stats/route.ts) — 19 → 0. Added local `HostingStatRow` / `LocalUser` / `HostingRecord` shapes; the DA bulk-sync tuple typed via `DaUserConfig = Record<string, string | undefined>` matching the DirectAdminService return types. Dropped the 7 `(h: any) => …` and `(localUser as any)._id.toString()` casts that the dynamic DA response had previously required.
+- [app/api/admin/pending-domains/[id]/register/route.ts](app/api/admin/pending-domains/[id]/register/route.ts) — 11 → 0. Five `(d: any) => …` callbacks on the `order.domains` array typed via `IOrder['domains'][number]`; the populated `order.userId` narrowed via a structural cast to the populated shape; `as any` on the email-template payload swapped for a `Parameters<typeof EmailService.sendOrderConfirmationEmail>[2]` extraction.
+- [app/api/admin/hosting/provision/route.ts](app/api/admin/hosting/provision/route.ts) — 10 → 0. `ProvisionBody` interface for the request body; `RecurringResult` shape for the (currently disabled) recurring-invoice path; the order-domain mutation narrowed via a `(typeof newOrder.domains)[number] & { zohoRecurringInvoiceId? … }` intersection so the dynamic field writes type-check.
+- [app/api/admin/domains/dns/route.ts](app/api/admin/domains/dns/route.ts) — 10 → 0. NextAuth-token-to-user minimal shape typed via `unknown` intermediary (NextAuth's token shape doesn't overlap `IUser` enough for a direct cast). The 3 `order.domains.find((d: any) => …)` callbacks typed via `IOrder['domains'][number]`.
+- [app/api/domains/nameservers/route.ts](app/api/domains/nameservers/route.ts) — 9 → 0. `IanaService` / `RdapNameserver` / `RdapEvent` interfaces for the RDAP response walking; `WhoisData` interface for the assembled return shape.
+- [app/api/payments/create-order/route.ts](app/api/payments/create-order/route.ts) — 8 → 0. Body destructure typed via `CartItem[]`; `(item: any) => …` filter/reduce callbacks typed via `CartItem`; the trial-toggle Settings read swapped from a direct model lookup to `getSettingValue<boolean>("hosting_trial_enabled")`. Legacy `item.planId` reads (cart shape predates the `hostingPlan` nesting) cast at the access site rather than widening `CartItem` for one backward-compatibility path.
+
+**Net this pass:** 67 anys removed (`526 → 459`). Combined five-pass total: **386 anys removed sitewide (845 → 459, 46% reduction)**.
 
 **Verified on main 2026-05-18:** 340/340 tests, tsc clean, production build succeeded.
 
