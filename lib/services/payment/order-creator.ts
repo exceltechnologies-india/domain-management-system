@@ -3,7 +3,13 @@ import mongoose from "mongoose";
 import Order from "@/models/Order";
 import { createPaymentInTransaction } from "@/lib/services/payments";
 import { serverLogger } from "@/lib/server-logger";
-import { provisionCartItems } from "@/lib/services/payment/provisioner";
+import {
+  provisionCartItems,
+  type OrderDomain,
+  type RegistrationResult,
+} from "@/lib/services/payment/provisioner";
+import type { HydratedDocument } from "mongoose";
+import type { IOrder } from "@/models/Order";
 import {
   isDomainSupported,
   requiresAdditionalDetails,
@@ -70,15 +76,15 @@ export interface CreateCompletedOrderInput {
 }
 
 export interface CreateCompletedOrderResult {
-  order: any;
+  order: HydratedDocument<IOrder>;
   orderId: string;
   paymentId: string;
   registrationTotalAmount: number;
-  registrationResults: any;
-  orderDomains: any;
-  finalSuccessfulDomains: any;
-  pendingDomains: any[];
-  failedDomains: any[];
+  registrationResults: RegistrationResult[];
+  orderDomains: OrderDomain[];
+  finalSuccessfulDomains: string[];
+  pendingDomains: OrderDomain[];
+  failedDomains: OrderDomain[];
   orderStatus: "completed";
 }
 
@@ -155,7 +161,9 @@ export async function createCompletedOrder(
   );
   const _hasHosting = cartItems.some((i: CartItem) => i.itemType === "hosting");
   const _hasTrial = cartItems.some(
-    (i: CartItem) => i.itemType === "hosting" && (i as any).isTrial === true
+    (i: CartItem) =>
+      i.itemType === "hosting" &&
+      (i as CartItem & { isTrial?: boolean }).isTrial === true
   );
   const derivedOrderType:
     | "domain"

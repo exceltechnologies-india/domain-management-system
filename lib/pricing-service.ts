@@ -23,6 +23,11 @@ import { SettingsService } from "./settings-service";
 import { redisCache } from "@/lib/redis";
 import { tldMappings } from "./tld-mappings";
 import { serverLogger } from "@/lib/server-logger";
+import type {
+  RcPricingResponse,
+  RcTldPricing,
+  RcTldPricingDetail,
+} from "./resellerclub/types";
 
 // Environment configuration for ResellerClub API
 const RESELLERCLUB_API_URL = process.env.RESELLERCLUB_API_URL;
@@ -74,6 +79,18 @@ const PRICING_CACHE_TTL_S = 30 * 60; // 30 minutes
  * Caches full pricing data in Redis (30-min TTL). Falls back to stale cache
  * when ResellerClub is unreachable.
  */
+/**
+ * Loosely-typed pricing payload returned by the ResellerClub price endpoints.
+ * The actual structure is deeply variable — TLD-keyed objects with provider-
+ * specific shape — so callers narrow the inner branches as they read.
+ */
+export interface DomainPricingPayload {
+  customerPricing: RcPricingResponse;
+  resellerPricing: RcPricingResponse;
+  timestamp: string;
+  stale?: boolean;
+}
+
 export class PricingService {
   /**
    * Get domain pricing data
@@ -81,7 +98,6 @@ export class PricingService {
    * Returns cached pricing when available. Fetches live data on cache miss.
    * Falls back to stale cache if ResellerClub API is down.
    *
-   * @returns {Promise<any>} Object containing customerPricing and resellerPricing data
    * @throws {Error} If API request fails or data is invalid
    *
    * @example
@@ -89,9 +105,9 @@ export class PricingService {
    * console.log(pricing.customerPricing); // Customer pricing data
    * console.log(pricing.resellerPricing); // Reseller pricing data
    */
-  static async getDomainPricing(): Promise<any> {
+  static async getDomainPricing(): Promise<DomainPricingPayload> {
     // 1. Cache read
-    const cached = await redisCache.get<any>(PRICING_CACHE_KEY);
+    const cached = await redisCache.get<DomainPricingPayload>(PRICING_CACHE_KEY);
     if (cached) {
       return cached;
     }
@@ -119,7 +135,7 @@ export class PricingService {
       return pricingData;
     } catch (error) {
       // 3. API down — try stale fallback
-      const stale = await redisCache.get<any>(`${PRICING_CACHE_KEY}:stale`);
+      const stale = await redisCache.get<DomainPricingPayload>(`${PRICING_CACHE_KEY}:stale`);
       if (stale) {
         serverLogger.warn(`⚠️ [PRICING] ResellerClub unreachable — returning stale cache from ${stale.timestamp}`);
         return { ...stale, stale: true };
@@ -136,19 +152,18 @@ export class PricingService {
    * This method is used by the domain search functionality to get live pricing.
    *
    * @param {string[]} tlds - Array of TLDs to get pricing for (e.g., ['com', 'net', 'org'])
-   * @returns {Promise<{ [tld: string]: any }>} Object containing pricing data for each TLD
    *
    * @example
    * const pricing = await PricingService.getTLDPricing(['com', 'net', 'org']);
    * console.log(pricing.com.price); // Customer price for .com
    * console.log(pricing.com.resellerPrice); // Reseller price for .com
    */
-  static async getTLDPricing(tlds: string[]): Promise<{ [tld: string]: any }> {
+  static async getTLDPricing(tlds: string[]): Promise<Record<string, RcTldPricingDetail>> {
     const startTime = Date.now();
 
     try {
       const pricingData = await this.getDomainPricing();
-      const tldPricing: { [tld: string]: any } = {};
+      const tldPricing: Record<string, RcTldPricingDetail> = {};
 
       // Check if pricing data is available
       if (!pricingData || !pricingData.customerPricing) {
@@ -374,15 +389,13 @@ export class PricingService {
 
       if (tldPricing[cleanTld] && tldPricing[cleanTld].customer) {
         const customerPricing = tldPricing[cleanTld].customer;
+        const transferBlock = customerPricing.addtransferdomain as
+          | { [period: string]: string }
+          | undefined;
 
         // Get transfer price (addtransferdomain) for specified years
-        if (
-          customerPricing.addtransferdomain &&
-          customerPricing.addtransferdomain[years.toString()]
-        ) {
-          const price = parseFloat(
-            customerPricing.addtransferdomain[years.toString()]
-          );
+        if (transferBlock && transferBlock[years.toString()]) {
+          const price = parseFloat(transferBlock[years.toString()]);
           return {
             price: price,
             currency: "INR",

@@ -8,6 +8,34 @@ interface RateLimitConfig {
   keyGenerator?: (request: NextRequest) => string;
 }
 
+/**
+ * NextRequest carried `.ip` in older Next versions and dropped it in newer
+ * ones. We read it via a structural type so both shapes type-check, and
+ * fall through to the forwarded-for / real-ip headers if it's missing.
+ */
+function getClientIP(request: NextRequest): string {
+  const direct = (request as unknown as { ip?: string }).ip;
+  return (
+    direct ||
+    request.headers.get("x-forwarded-for") ||
+    request.headers.get("x-real-ip") ||
+    "unknown"
+  );
+}
+
+function ipKey(prefix: string): (request: NextRequest) => string {
+  return (request) => `${prefix}:${getClientIP(request)}`;
+}
+
+function userOrIpKey(prefix: string): (request: NextRequest) => string {
+  return (request) => {
+    const userId =
+      request.headers.get("x-user-id") ||
+      getClientIP(request);
+    return `${prefix}:${userId}`;
+  };
+}
+
 export class RateLimiter {
   private config: RateLimitConfig;
 
@@ -57,12 +85,7 @@ export class RateLimiter {
   }
 
   private getDefaultKey(request: NextRequest): string {
-    const ip =
-      (request as any).ip ||
-      request.headers.get("x-forwarded-for") ||
-      request.headers.get("x-real-ip") ||
-      "unknown";
-    return `rate_limit:${ip}`;
+    return `rate_limit:${getClientIP(request)}`;
   }
 }
 
@@ -76,53 +99,25 @@ export const rateLimiters = {
   login: new RateLimiter({
     windowMs: 15 * 60 * 1000, // 15 minutes
     maxRequests: 5,
-    keyGenerator: (request) => {
-      const ip =
-        (request as any).ip ||
-        request.headers.get("x-forwarded-for") ||
-        request.headers.get("x-real-ip") ||
-        "unknown";
-      return `login:${ip}`;
-    },
+    keyGenerator: ipKey("login"),
   }),
 
   passwordReset: new RateLimiter({
     windowMs: 60 * 60 * 1000, // 1 hour
     maxRequests: 3,
-    keyGenerator: (request) => {
-      const ip =
-        (request as any).ip ||
-        request.headers.get("x-forwarded-for") ||
-        request.headers.get("x-real-ip") ||
-        "unknown";
-      return `password_reset:${ip}`;
-    },
+    keyGenerator: ipKey("password_reset"),
   }),
 
   trialOtpSend: new RateLimiter({
     windowMs: 10 * 60 * 1000, // 10 minutes
     maxRequests: 3,
-    keyGenerator: (request) => {
-      const ip =
-        (request as any).ip ||
-        request.headers.get("x-forwarded-for") ||
-        request.headers.get("x-real-ip") ||
-        "unknown";
-      return `trial_otp_send:${ip}`;
-    },
+    keyGenerator: ipKey("trial_otp_send"),
   }),
 
   trialOtpVerify: new RateLimiter({
     windowMs: 10 * 60 * 1000, // 10 minutes
     maxRequests: 10,
-    keyGenerator: (request) => {
-      const ip =
-        (request as any).ip ||
-        request.headers.get("x-forwarded-for") ||
-        request.headers.get("x-real-ip") ||
-        "unknown";
-      return `trial_otp_verify:${ip}`;
-    },
+    keyGenerator: ipKey("trial_otp_verify"),
   }),
 
   admin: new RateLimiter({
@@ -133,121 +128,58 @@ export const rateLimiters = {
   register: new RateLimiter({
     windowMs: 60 * 60 * 1000, // 1 hour
     maxRequests: 5,
-    keyGenerator: (request) => {
-      const ip =
-        (request as any).ip ||
-        request.headers.get("x-forwarded-for") ||
-        request.headers.get("x-real-ip") ||
-        "unknown";
-      return `register:${ip}`;
-    },
+    keyGenerator: ipKey("register"),
   }),
 
   activation: new RateLimiter({
     windowMs: 15 * 60 * 1000, // 15 minutes
     maxRequests: 10,
-    keyGenerator: (request) => {
-      const ip =
-        (request as any).ip ||
-        request.headers.get("x-forwarded-for") ||
-        request.headers.get("x-real-ip") ||
-        "unknown";
-      return `activation:${ip}`;
-    },
+    keyGenerator: ipKey("activation"),
   }),
 
   resendActivation: new RateLimiter({
     windowMs: 60 * 60 * 1000, // 1 hour
     maxRequests: 3,
-    keyGenerator: (request) => {
-      const ip =
-        (request as any).ip ||
-        request.headers.get("x-forwarded-for") ||
-        request.headers.get("x-real-ip") ||
-        "unknown";
-      return `resend_activation:${ip}`;
-    },
+    keyGenerator: ipKey("resend_activation"),
   }),
 
   domainSearch: new RateLimiter({
     windowMs: 60 * 1000, // 1 minute
     maxRequests: 20,
-    keyGenerator: (request) => {
-      const ip =
-        (request as any).ip ||
-        request.headers.get("x-forwarded-for") ||
-        request.headers.get("x-real-ip") ||
-        "unknown";
-      return `domain_search:${ip}`;
-    },
+    keyGenerator: ipKey("domain_search"),
   }),
 
   domainPricing: new RateLimiter({
     windowMs: 60 * 1000, // 1 minute
     maxRequests: 30,
-    keyGenerator: (request) => {
-      const ip =
-        (request as any).ip ||
-        request.headers.get("x-forwarded-for") ||
-        request.headers.get("x-real-ip") ||
-        "unknown";
-      return `domain_pricing:${ip}`;
-    },
+    keyGenerator: ipKey("domain_pricing"),
   }),
 
   bulkDomainSearch: new RateLimiter({
     windowMs: 60 * 1000, // 1 minute
     maxRequests: 5,
-    keyGenerator: (request) => {
-      const ip =
-        (request as any).ip ||
-        request.headers.get("x-forwarded-for") ||
-        request.headers.get("x-real-ip") ||
-        "unknown";
-      return `bulk_domain_search:${ip}`;
-    },
+    keyGenerator: ipKey("bulk_domain_search"),
   }),
 
   // Support ticket creation — limit per-user to discourage spam ticket creation
   supportCreate: new RateLimiter({
     windowMs: 60 * 60 * 1000, // 1 hour
     maxRequests: 5,
-    keyGenerator: (request) => {
-      const userId =
-        request.headers.get("x-user-id") ||
-        (request as any).ip ||
-        request.headers.get("x-forwarded-for") ||
-        "unknown";
-      return `support_create:${userId}`;
-    },
+    keyGenerator: userOrIpKey("support_create"),
   }),
 
   // Support ticket replies — more permissive (legitimate back-and-forth)
   supportReply: new RateLimiter({
     windowMs: 60 * 60 * 1000, // 1 hour
     maxRequests: 30,
-    keyGenerator: (request) => {
-      const userId =
-        request.headers.get("x-user-id") ||
-        (request as any).ip ||
-        request.headers.get("x-forwarded-for") ||
-        "unknown";
-      return `support_reply:${userId}`;
-    },
+    keyGenerator: userOrIpKey("support_reply"),
   }),
 
   // PDF invoice downloads: 10 per minute per user (Zoho Books API is expensive)
   pdfInvoice: new RateLimiter({
     windowMs: 60 * 1000, // 1 minute
     maxRequests: 10,
-    keyGenerator: (request) => {
-      // Key by x-user-id header set by the auth layer, fall back to IP
-      const userId =
-        request.headers.get("x-user-id") ||
-        (request as any).ip ||
-        request.headers.get("x-forwarded-for") ||
-        "unknown";
-      return `pdf_invoice:${userId}`;
-    },
+    // Key by x-user-id header set by the auth layer, fall back to IP
+    keyGenerator: userOrIpKey("pdf_invoice"),
   }),
 };

@@ -21,9 +21,18 @@ import {
  * Enhanced admin API security middleware
  * Use this in admin API routes for maximum security
  */
+/** The narrowed admin user surface that verifyAdminSecurity produces. */
+interface AdminUser {
+  id: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  role?: string;
+}
+
 export async function withAdminSecurity(
   request: NextRequest,
-  handler: (request: NextRequest, user: any) => Promise<NextResponse>
+  handler: (request: NextRequest, user: AdminUser) => Promise<NextResponse>
 ): Promise<NextResponse> {
   const startTime = Date.now();
 
@@ -60,10 +69,10 @@ export async function withAdminSecurity(
     );
     if (needsRotation) {
       // Rotate session for sensitive operations
-      await rotateSession(user._id.toString() || user.id);
+      await rotateSession(user.id);
     } else {
       // Update last activity for regular operations
-      await updateLastActivity(user._id.toString() || user.id);
+      await updateLastActivity(user.id);
     }
 
     // 5. Execute handler
@@ -84,8 +93,9 @@ export async function withAdminSecurity(
 
     // 8. Add security headers
     return addSecurityHeaders(response);
-  } catch (error: any) {
+  } catch (error: unknown) {
     const executionTime = Date.now() - startTime;
+    const errMessage = error instanceof Error ? error.message : String(error);
 
     // Log error
     try {
@@ -96,7 +106,7 @@ export async function withAdminSecurity(
           securityCheck.user,
           500,
           executionTime,
-          error.message
+          errMessage
         );
       }
     } catch (logError) {

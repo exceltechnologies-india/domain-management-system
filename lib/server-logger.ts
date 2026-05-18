@@ -50,15 +50,28 @@ function sanitizePaths(message: string): string {
   }
 }
 
-function remoteLog(args: any[]) {
+// Logger arguments are intentionally heterogeneous — strings, Errors, plain
+// objects, primitives — so `unknown` is the honest type. Each branch in
+// compose()/remoteLog narrows from there.
+type LogArg = unknown;
+
+interface LogOptionsObj {
+  service?: string;
+  requestId?: string;
+  statusCode?: number;
+  ip?: string;
+  [k: string]: unknown;
+}
+
+function remoteLog(args: LogArg[]) {
   const appUrl = process.env.NEXTAUTH_URL || process.env.APP_URL;
   if (!appUrl) return;
 
   try {
-    const stack = args.find((a) => a instanceof Error)?.stack;
+    const stack = (args.find((a) => a instanceof Error) as Error | undefined)?.stack;
     const optionsObj = args.find(
       (a) => typeof a === "object" && a !== null && !(a instanceof Error)
-    );
+    ) as LogOptionsObj | undefined;
     const formattedArgs = args.map((a) =>
       typeof a === "object" && !(a instanceof Error) ? JSON.stringify(a) : String(a)
     );
@@ -90,7 +103,7 @@ function remoteLog(args: any[]) {
  * Reduce mixed (string | Error | object | primitive) arguments into a single
  * { message, meta } pair so production output is one JSON line per log entry.
  */
-function compose(args: any[]): { message: string; meta: Record<string, unknown> | null } {
+function compose(args: LogArg[]): { message: string; meta: Record<string, unknown> | null } {
   const parts: string[] = [];
   let meta: Record<string, unknown> | null = null;
 
@@ -102,7 +115,7 @@ function compose(args: any[]): { message: string; meta: Record<string, unknown> 
       // Merge plain object args into meta rather than spelling them in the message.
       try {
         JSON.stringify(a); // ensure it's serializable
-        meta = { ...(meta ?? {}), ...a };
+        meta = { ...(meta ?? {}), ...(a as Record<string, unknown>) };
       } catch {
         parts.push("[unserializable object]");
       }
@@ -117,7 +130,7 @@ function compose(args: any[]): { message: string; meta: Record<string, unknown> 
 // console.* is the only IO API available in both Node.js and Edge runtimes
 // (process.stdout.write doesn't exist in middleware). Next.js routes both to
 // Cloud Logging on Cloud Run, and Cloud Logging auto-parses single-line JSON.
-function emit(severity: Severity, args: any[]) {
+function emit(severity: Severity, args: LogArg[]) {
   const isProd = process.env.NODE_ENV === "production";
   const { message, meta } = compose(args);
 
@@ -131,7 +144,11 @@ function emit(severity: Severity, args: any[]) {
   // clean while still letting Node route handlers benefit from auto-flow.
   let ambientRequestId: string | undefined;
   try {
-    const storage = (globalThis as any).__requestContextStorage;
+    const storage = (
+      globalThis as unknown as {
+        __requestContextStorage?: { getStore?: () => { requestId?: string } | undefined };
+      }
+    ).__requestContextStorage;
     ambientRequestId = storage?.getStore?.()?.requestId;
   } catch {
     /* defensive: never let logging crash a request */
@@ -184,11 +201,11 @@ function emit(severity: Severity, args: any[]) {
 }
 
 export const serverLogger = {
-  log: (...args: any[]) => emit("INFO", args),
-  info: (...args: any[]) => emit("INFO", args),
-  debug: (...args: any[]) => emit("DEBUG", args),
-  warn: (...args: any[]) => emit("WARNING", args),
-  error: (...args: any[]) => {
+  log: (...args: LogArg[]) => emit("INFO", args),
+  info: (...args: LogArg[]) => emit("INFO", args),
+  debug: (...args: LogArg[]) => emit("DEBUG", args),
+  warn: (...args: LogArg[]) => emit("WARNING", args),
+  error: (...args: LogArg[]) => {
     emit("ERROR", args);
     remoteLog(args);
   },

@@ -13,13 +13,19 @@ import User from "@/models/User";
 import bcrypt from "bcryptjs";
 import { getSetting, getSettingValue } from "@/lib/services/settings";
 import { rateLimiters } from "@/lib/rate-limit";
-import { logAdminAction, queryAuditLogs } from "@/lib/audit-log";
+import { logAdminAction, queryAuditLogs, type AuditLogEntry } from "@/lib/audit-log";
 
 export interface AdminSecurityResult {
   allowed: boolean;
   error?: string;
   code?: string;
-  user?: any;
+  user?: {
+    id: string;
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    role?: string;
+  };
 }
 
 /**
@@ -86,7 +92,7 @@ export async function verifyAdminSecurity(
     // 5. IP whitelisting check (if enabled)
     const ipWhitelistEnabled = await checkIPWhitelistEnabled();
     if (ipWhitelistEnabled) {
-      const userId = (user._id as any)?.toString() || user.id || "";
+      const userId = (user._id as { toString(): string } | undefined)?.toString() || user.id || "";
       const ipCheck = await verifyIPWhitelist(request, userId);
       if (!ipCheck.allowed) {
         // Log unauthorized access attempt
@@ -108,7 +114,7 @@ export async function verifyAdminSecurity(
     }
 
     // 6. Check for suspicious patterns
-    const userId = (user._id as any)?.toString() || user.id || "";
+    const userId = (user._id as { toString(): string } | undefined)?.toString() || user.id || "";
     const suspiciousCheck = await checkSuspiciousActivity(request, userId);
     if (!suspiciousCheck.allowed) {
       return {
@@ -121,7 +127,7 @@ export async function verifyAdminSecurity(
     return {
       allowed: true,
       user: {
-        id: (user._id as any)?.toString() || user.id || "",
+        id: (user._id as { toString(): string } | undefined)?.toString() || user.id || "",
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
@@ -235,14 +241,14 @@ async function checkSuspiciousActivity(
 export function getClientIP(request: NextRequest): string {
   const forwarded = request.headers.get("x-forwarded-for");
   const realIP = request.headers.get("x-real-ip");
-  const ip = (request as any).ip;
+  const direct = (request as unknown as { ip?: string }).ip;
 
   if (forwarded) {
     // x-forwarded-for can contain multiple IPs, take the first one
     return forwarded.split(",")[0].trim();
   }
 
-  return realIP || ip || "unknown";
+  return realIP || direct || "unknown";
 }
 
 /**
@@ -282,7 +288,7 @@ function isIPInCIDR(ip: string, cidr: string): boolean {
 async function getRecentAdminRequests(
   userId: string,
   timeWindowMs: number
-): Promise<any[]> {
+): Promise<AuditLogEntry[]> {
   const startDate = new Date(Date.now() - timeWindowMs);
   return queryAuditLogs({ userId, startDate, limit: 200 });
 }
@@ -297,7 +303,7 @@ async function logSecurityEvent(event: {
   ip: string;
   path: string;
   method: string;
-  details?: any;
+  details?: Record<string, unknown>;
 }): Promise<void> {
   await logAdminAction({
     userId: event.userId,
