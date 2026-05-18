@@ -104,12 +104,13 @@ export default function AdminUsers() {
 
     // Prefer NextAuth session (works for credentials login)
     if (session?.user) {
+      const sessionUser = session.user as { id?: string; name?: string; email?: string; role?: string };
       const userObj = {
-        _id: (session.user as any).id,
-        firstName: session.user.name?.split(' ')[0] || '',
-        lastName: session.user.name?.split(' ').slice(1).join(' ') || '',
-        email: session.user.email || '',
-        role: (session.user as any).role || 'user',
+        _id: sessionUser.id || '',
+        firstName: sessionUser.name?.split(' ')[0] || '',
+        lastName: sessionUser.name?.split(' ').slice(1).join(' ') || '',
+        email: sessionUser.email || '',
+        role: sessionUser.role || 'user',
         createdAt: new Date().toISOString(),
         isActive: true,
       };
@@ -561,7 +562,7 @@ export default function AdminUsers() {
       key: 'name',
       label: 'Name',
       sortable: true,
-      render: (value: any, row: User) => (
+      render: (_value: unknown, row: User) => (
         <div>
           <div className="text-xs sm:text-sm font-medium text-gray-900">
             {row.firstName} {row.lastName}
@@ -584,7 +585,7 @@ export default function AdminUsers() {
       key: 'status',
       label: 'Status',
       sortable: true,
-      render: (value: any, row: User) => (
+      render: (_value: unknown, row: User) => (
         <div className="flex flex-col gap-1">
           <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium rounded-full w-fit ${row.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
             {row.isActive ? 'active' : 'inactive'}
@@ -622,7 +623,7 @@ export default function AdminUsers() {
     {
       key: 'actions',
       label: 'Actions',
-      render: (value: any, row: User) => (
+      render: (_value: unknown, row: User) => (
         <button
           onClick={(e) => handleTripleDotClick(e, row)}
           aria-label={`Actions for ${row.firstName ? `${row.firstName} ${row.lastName || ''}`.trim() : row.email}`}
@@ -639,7 +640,7 @@ export default function AdminUsers() {
       key: 'name',
       label: 'Name',
       sortable: true,
-      render: (value: any, row: User) => (
+      render: (_value: unknown, row: User) => (
         <div>
           <div className="text-xs sm:text-sm font-medium text-gray-900">
             {row.firstName} {row.lastName}
@@ -662,7 +663,7 @@ export default function AdminUsers() {
       key: 'status',
       label: 'Status',
       sortable: true,
-      render: (value: any, row: User) => (
+      render: (_value: unknown, row: User) => (
         <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium rounded-full bg-red-100 text-red-800">
           deactivated
         </span>
@@ -692,7 +693,7 @@ export default function AdminUsers() {
     {
       key: 'actions',
       label: 'Actions',
-      render: (value: any, row: User) => (
+      render: (_value: unknown, row: User) => (
         <button
           onClick={(e) => handleTripleDotClick(e, row)}
           aria-label={`Actions for ${row.firstName ? `${row.firstName} ${row.lastName || ''}`.trim() : row.email}`}
@@ -705,10 +706,15 @@ export default function AdminUsers() {
   ];
 
   /* State for Service Details Modal */
+  interface ServiceUser extends User {
+    directAdminUsername?: string;
+    domains?: Array<{ domainName: string; status?: string; expiresAt?: string; expiryDate?: string }>;
+    hosting?: Array<{ domainName?: string; name?: string; status?: string; expiryDate?: string }>;
+  }
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
-  const [selectedServiceUser, setSelectedServiceUser] = useState<any>(null);
+  const [selectedServiceUser, setSelectedServiceUser] = useState<ServiceUser | null>(null);
 
-  const handleViewServiceDetails = (user: any) => {
+  const handleViewServiceDetails = (user: ServiceUser) => {
     setSelectedServiceUser(user);
     setIsServiceModalOpen(true);
   };
@@ -718,7 +724,7 @@ export default function AdminUsers() {
       key: 'name',
       label: 'Client Name',
       sortable: true,
-      render: (value: any, row: any) => (
+      render: (_value: unknown, row: ServiceUser) => (
         <div>
           <div className="text-xs sm:text-sm font-medium text-gray-900">
             {row.firstName} {row.lastName}
@@ -730,7 +736,7 @@ export default function AdminUsers() {
     {
       key: 'services',
       label: 'Services',
-      render: (value: any, row: any) => (
+      render: (_value: unknown, row: ServiceUser) => (
         <div className="flex flex-col gap-1">
           {row.domains && row.domains.length > 0 && (
             <div className="flex items-center gap-1.5">
@@ -757,7 +763,7 @@ export default function AdminUsers() {
       key: 'status',
       label: 'Status',
       sortable: true,
-      render: (value: any, row: User) => (
+      render: (_value: unknown, row: User) => (
         <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium rounded-full ${row.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
           }`}>
           {row.isActive ? 'active' : 'inactive'}
@@ -768,7 +774,7 @@ export default function AdminUsers() {
       key: 'joined',
       label: 'Joined',
       sortable: true,
-      render: (value: any, row: User) => (
+      render: (_value: unknown, row: User) => (
         <span className="text-xs sm:text-sm text-gray-600">
           {formatIndianDate(new Date(row.createdAt))}
         </span>
@@ -777,7 +783,7 @@ export default function AdminUsers() {
     {
       key: 'actions',
       label: 'Actions',
-      render: (value: any, row: User) => (
+      render: (_value: unknown, row: User) => (
         <button
           onClick={(e) => handleTripleDotClick(e, row)}
           aria-label={`Actions for ${row.firstName ? `${row.firstName} ${row.lastName || ''}`.trim() : row.email}`}
@@ -893,7 +899,7 @@ export default function AdminUsers() {
               ].map(t => (
                 <button
                   key={t.id}
-                  onClick={() => setActiveTab(t.id as any)}
+                  onClick={() => setActiveTab(t.id as 'active' | 'deactivated' | 'services')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                     activeTab === t.id
                       ? 'bg-white text-gray-900 shadow-sm'
@@ -1400,7 +1406,7 @@ export default function AdminUsers() {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {selectedServiceUser.hosting.map((host: any, i: number) => (
+                      {selectedServiceUser.hosting.map((host: NonNullable<ServiceUser['hosting']>[number], i: number) => (
                         <tr key={i}>
                           <td className="px-4 py-3 text-sm font-medium text-gray-900">{host.name || 'Standard Hosting'}</td>
                           <td className="px-4 py-3 text-sm text-gray-500">{host.domainName}</td>
@@ -1444,7 +1450,7 @@ export default function AdminUsers() {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {selectedServiceUser.domains.map((domain: any, i: number) => (
+                      {selectedServiceUser.domains.map((domain: NonNullable<ServiceUser['domains']>[number], i: number) => (
                         <tr key={i}>
                           <td className="px-4 py-3 text-sm font-medium text-gray-900">{domain.domainName}</td>
                           <td className="px-4 py-3">

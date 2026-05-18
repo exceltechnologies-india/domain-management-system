@@ -430,7 +430,7 @@ Audit-recommended sub-files I did NOT create:
 
 ## 4. Code Quality
 
-### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (ResellerClub + Zoho Books + DirectAdmin external-API wrappers fully typed; lib helpers + payment services typed 2026-05-18; admin routes typed 2026-05-18; 845 → 459 sitewide)
+### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (ResellerClub + Zoho Books + DirectAdmin external-API wrappers fully typed; lib helpers + payment services typed 2026-05-18; admin routes typed 2026-05-18; React client pages typed 2026-05-18; 845 → 421 sitewide)
 Across `lib/`, `app/`, `components/`. TypeScript was doing far less work than it could. Worst offenders were the external API wrappers (ResellerClub / DirectAdmin responses).
 
 **First pass — ResellerClub wrappers (audit-recommended starting point):**
@@ -519,6 +519,16 @@ Two long-standing slips surfaced and were fixed: (1) the admin-security middlewa
 - [app/api/payments/create-order/route.ts](app/api/payments/create-order/route.ts) — 8 → 0. Body destructure typed via `CartItem[]`; `(item: any) => …` filter/reduce callbacks typed via `CartItem`; the trial-toggle Settings read swapped from a direct model lookup to `getSettingValue<boolean>("hosting_trial_enabled")`. Legacy `item.planId` reads (cart shape predates the `hostingPlan` nesting) cast at the access site rather than widening `CartItem` for one backward-compatibility path.
 
 **Net this pass:** 67 anys removed (`526 → 459`). Combined five-pass total: **386 anys removed sitewide (845 → 459, 46% reduction)**.
+
+**Verified on main 2026-05-18:** 340/340 tests, tsc clean, production build succeeded.
+
+**Sixth pass — React client pages (2026-05-18):**
+
+- [app/admin/user-management/page.tsx](app/admin/user-management/page.tsx) — 18 → 0. Session-user shape narrowed via a structural cast (NextAuth's `session.user.id` / `.role` aren't on the default `Session` type); 10 `(value: any, row: User) =>` column-renderer callbacks rewritten as `(_value: unknown, row: User)`; `selectedServiceUser` state narrowed via a new `ServiceUser` interface that carries the optional `domains` / `hosting` / `directAdminUsername` arrays the admin modal reads; tab-id cast tightened to the literal-union type the state actually allows.
+- [app/admin/hosting/page.tsx](app/admin/hosting/page.tsx) — 12 → 0. Added `HostingPackage` / `PickerUser` / `HostingDetails` interfaces for the provisioning + details modal state; widened the existing `HostingData` row type with the `dbId` / `error` fields the row renderer accesses; defensive `?.` guards on the resource-usage block (`emails`, `ftp`, `databases`, `subdomains`) since DA configs vary; `(item as any).error` and `(menuData as any).dbId` reads now typed off `HostingData` / the menu-data interface.
+- [app/checkout/page.tsx](app/checkout/page.tsx) — 8 → 0. `cartItems` callbacks typed via `CartItem` so the `isTrial` field is reachable without `(item as any).isTrial` casts; `userObj` state typed as `User | null`; `orderPaymentData` typed via a new local `RazorpayPaymentResult` interface; `(err: any).kind` narrow-cast at the dismissed-iframe branch; the trial-yearly-price calc guarded against `trialItem?.price` being undefined (TS-strict required after dropping `as any`).
+
+**Net this pass:** 38 anys removed (`459 → 421`). Combined six-pass total: **424 anys removed sitewide (845 → 421, 50% reduction)**.
 
 **Verified on main 2026-05-18:** 340/340 tests, tsc clean, production build succeeded.
 

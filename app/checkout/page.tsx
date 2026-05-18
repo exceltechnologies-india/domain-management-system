@@ -15,6 +15,7 @@ import { CheckoutPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import OrderTimeline from '@/components/checkout/OrderTimeline';
 import { getMinRegistrationPeriod } from '@/lib/tld-min-periods';
 import { getDeviceFingerprint } from '@/lib/device-fingerprint';
+import type { CartItem } from '@/lib/types';
 import { logger } from '@/lib/logger';
 import { useRazorpayCheckout } from '@/components/RazorpayCheckoutFrame';
 
@@ -26,6 +27,7 @@ interface User {
   firstName: string;
   lastName: string;
   role: string;
+  profileCompleted?: boolean;
 }
 
 export default function CheckoutPage() {
@@ -39,8 +41,8 @@ export default function CheckoutPage() {
   const { data: session, status } = useSession();
   const { items: cartItems, getTotalPrice, getSubtotalPrice, getItemCount, clearCart, syncWithServer, isLoading, hasDomainItems, hasHostingItems } = useCartStore();
   const razorpay = useRazorpayCheckout();
-  const hasTrial = cartItems.some((i: any) => i.isTrial === true);
-  const trialItem = cartItems.find((i: any) => i.isTrial === true) as any;
+  const hasTrial = cartItems.some((i: CartItem) => i.isTrial === true);
+  const trialItem = cartItems.find((i: CartItem) => i.isTrial === true);
   const trialYearlyPrice = trialItem ? (trialItem.hostingPlan?.price ?? 0) : 0;
 
   useEffect(() => {
@@ -53,7 +55,7 @@ export default function CheckoutPage() {
     const refreshUserData = async () => {
       try {
         let response;
-        let userObj: any = null;
+        let userObj: User | null = null;
 
         // Check if user is logged in via NextAuth (social login)
         if (session?.user) {
@@ -291,7 +293,13 @@ export default function CheckoutPage() {
       };
 
       // Linear flow: order first (if any), then subscription (if any), then verify once.
-      let orderPaymentData: any = null;
+      interface RazorpayPaymentResult {
+        razorpay_order_id?: string;
+        razorpay_payment_id: string;
+        razorpay_signature?: string;
+        razorpay_subscription_id?: string;
+      }
+      let orderPaymentData: RazorpayPaymentResult | null = null;
 
       try {
         if (razorpayOrderId) {
@@ -327,26 +335,27 @@ export default function CheckoutPage() {
           );
         } else if (orderPaymentData) {
           await verifyPayment(
-            orderPaymentData.razorpay_order_id,
+            orderPaymentData.razorpay_order_id || '',
             orderPaymentData.razorpay_payment_id,
-            orderPaymentData.razorpay_signature
+            orderPaymentData.razorpay_signature || ''
           );
         } else {
           throw new Error("No payment target created");
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         // Iframe rejected: user dismissed, or upstream error
-        if (err?.kind === 'dismissed') {
+        if ((err as { kind?: string })?.kind === 'dismissed') {
           setIsProcessing(false);
           setIsPaymentInProgress(false);
           return;
         }
         throw err;
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       setIsProcessing(false);
       setIsPaymentInProgress(false);
-      toast.error(error?.message || 'Payment initialization failed.');
+      const message = error instanceof Error ? error.message : 'Payment initialization failed.';
+      toast.error(message);
     }
   };
 
@@ -470,7 +479,7 @@ export default function CheckoutPage() {
                                 </p>
                               )}
                               <p className="text-sm text-gray-600">
-                                        {(item as any).isTrial
+                                        {item.isTrial
                                   ? '15-Day Free Trial → Yearly subscription'
                                   : item.itemType === 'hosting' && item.periodUnit === 'days'
                                   ? `${item.registrationPeriod} day subscription`
@@ -499,7 +508,7 @@ export default function CheckoutPage() {
                         <div className="flex flex-row sm:flex-col justify-between items-end sm:text-right border-t sm:border-t-0 border-gray-100 pt-3 sm:pt-0">
                           <div className="sm:hidden text-xs font-bold text-gray-400 uppercase tracking-wider">Price</div>
                           <div>
-                            {(item as any).isTrial ? (
+                            {item.isTrial ? (
                               <>
                                 <p className="text-xl font-bold text-green-600">₹0.00</p>
                                 <p className="text-xs text-gray-500">Free for 15 days</p>
@@ -610,7 +619,7 @@ export default function CheckoutPage() {
                           </div>
                           <div className="flex justify-between text-xs">
                             <span className="text-purple-700 font-medium">After trial (day 15+)</span>
-                            <span className="font-bold text-purple-900">₹{trialItem?.price * 12 || '—'}/year</span>
+                            <span className="font-bold text-purple-900">₹{trialItem?.price ? trialItem.price * 12 : '—'}/year</span>
                           </div>
                         </div>
                       </div>
