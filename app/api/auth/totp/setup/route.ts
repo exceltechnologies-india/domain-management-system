@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
+import { getUserById, setPendingTOTPSecret } from "@/lib/services/users";
 import {
   generateTotpSecret,
   getTotpUri,
@@ -17,8 +16,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  await connectDB();
-  const dbUser = await User.findById(user._id).select("totpEnabled");
+  const dbUser = await getUserById(String(user._id));
   if (!dbUser) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
@@ -36,8 +34,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  await connectDB();
-  const dbUser = await User.findById(user._id).select("totpEnabled email");
+  const dbUser = await getUserById(String(user._id));
   if (!dbUser) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
@@ -53,10 +50,7 @@ export async function POST(request: NextRequest) {
   const uri = getTotpUri(secret, dbUser.email);
   const qrCodeDataUrl = await generateQrCodeDataUrl(uri);
 
-  await User.updateOne(
-    { _id: dbUser._id },
-    { $set: { totpSecretPending: secret } }
-  );
+  await setPendingTOTPSecret(String(dbUser._id), secret);
 
   return NextResponse.json({
     qrCodeDataUrl,

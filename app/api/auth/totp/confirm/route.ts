@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
+import {
+  activateTOTPForUser,
+  getUserWithPendingTOTP,
+} from "@/lib/services/users";
 import {
   verifyTotpCode,
   generateBackupCodes,
@@ -30,10 +32,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  await connectDB();
-  const dbUser = await User.findById(user._id).select(
-    "+totpSecretPending totpEnabled"
-  );
+  const dbUser = await getUserWithPendingTOTP(String(user._id));
   if (!dbUser) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
@@ -63,17 +62,10 @@ export async function POST(request: NextRequest) {
   const plaintextCodes = generateBackupCodes(8);
   const hashedCodes = await Promise.all(plaintextCodes.map(hashBackupCode));
 
-  await User.updateOne(
-    { _id: dbUser._id },
-    {
-      $set: {
-        totpEnabled: true,
-        totpSecret: dbUser.totpSecretPending,
-        totpBackupCodes: hashedCodes,
-      },
-      $unset: { totpSecretPending: "" },
-    }
-  );
+  await activateTOTPForUser(String(dbUser._id), {
+    secret: dbUser.totpSecretPending,
+    hashedBackupCodes: hashedCodes,
+  });
 
   return NextResponse.json({
     success: true,
