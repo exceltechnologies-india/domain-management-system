@@ -42,75 +42,120 @@ export async function GET(request: NextRequest) {
     const [localUsers, hostingRecords] = await Promise.all([localUsersPromise, hostingRecordPromise]);
 
     // Live DA Fetch (May fail)
+    type DaUserConfig = Record<string, string | undefined>;
     let isDaAvailable = true;
     let daUserList: string[] = [];
-    let daUsageMap: any = {};
-    let serverInfo: any = { php: 'Unknown' };
+    let daUsageMap: DaUserConfig = {};
+    let serverInfo: DaUserConfig = { php: 'Unknown' };
     let daError: string | null = null;
 
     try {
-        const daPromise = Promise.all([
+        type DaSyncTuple = [string[], DaUserConfig, DaUserConfig];
+        const daPromise: Promise<DaSyncTuple> = Promise.all([
             DirectAdminService.listUsers(),
             DirectAdminService.getAllUserUsage(),
-            DirectAdminService.getServerInfo().catch(e => ({ php: 'Default' }))
+            DirectAdminService.getServerInfo().catch(() => ({ php: 'Default' } as DaUserConfig))
         ]);
-        
+
         // 5 second timeout for live data
-        const timeoutPromise = new Promise<any>((_, reject) => 
+        const timeoutPromise = new Promise<DaSyncTuple>((_, reject) =>
             setTimeout(() => reject(new Error('DA_TIMEOUT')), 5000)
         );
 
         const [users, usage, info] = await Promise.race([daPromise, timeoutPromise]);
-        
+
         daUserList = users;
         daUsageMap = usage;
         serverInfo = info;
-    } catch (e: any) {
+    } catch (e: unknown) {
         serverLogger.warn("DA Sync failed or timed out, using DB fallback:", e);
         isDaAvailable = false;
-        daError = e.message || 'DirectAdmin server is unreachable or timed out';
-        
-        if (e.message === 'DA_TIMEOUT') {
+        const message = e instanceof Error ? e.message : String(e);
+        daError = message || 'DirectAdmin server is unreachable or timed out';
+
+        if (message === 'DA_TIMEOUT') {
             daError = 'Connection attempt to DirectAdmin timed out (5s limit)';
         }
     }
 
     // 3. Process Data
-    let hostingStats: any[] = [];
+    type HostingStatRow = {
+      id: string;
+      dbId?: string | null;
+      userId?: string | null;
+      user: { name: string; email: string };
+      domain: string;
+      daUsername: string;
+      status: string;
+      serverIp?: string;
+      usage: {
+        bandwidth: string;
+        disk: string;
+        bandwidthLimit: string;
+        diskLimit: string;
+      };
+      package: string;
+      phpVersion: string;
+      expiryDate?: Date | string | null;
+      createdDate?: Date | string | null;
+      isUnlinked?: boolean;
+      linkedByEmail?: boolean;
+      error?: string;
+    };
+    type LocalUser = (typeof localUsers)[number] & { _id: { toString(): string } };
+    type HostingRecord = {
+      _id: { toString(): string };
+      domainName: string;
+      directAdminUsername?: string;
+      status: string;
+      startDate?: Date;
+      createdAt?: Date;
+      expiryDate?: Date;
+      userId: { toString(): string };
+      username?: string;
+      name?: string;
+      serverIp?: string;
+    };
+    let hostingStats: HostingStatRow[] = [];
 
     if (isDaAvailable) {
         // LIVE MODE: Iterate over DA Users and map to local
-        hostingStats = await Promise.all(daUserList.map(async (daUsername) => {
+        hostingStats = await Promise.all(daUserList.map(async (daUsername): Promise<HostingStatRow> => {
             // [Keep existing mapping logic, just using pre-fetched hostingRecords]
-            let localUser = localUsers.find((u: any) => u.directAdminUsername === daUsername);
+            let localUser: LocalUser | undefined = (localUsers as LocalUser[]).find(
+              (u) => u.directAdminUsername === daUsername
+            );
             let linkedByEmail = false;
-            let daConfig: any = {};
+            let daConfig: DaUserConfig = {};
 
             try {
                 // We fetch individual config here - this might still be slow if we have 100s of users.
                 // TODO: optimization - rely on bulk usage map + DB for most things.
                 // For now, we wrap this in try/catch so one user failing doesn't break all.
                 daConfig = await DirectAdminService.getUserConfig(daUsername);
-                
+
                 if (!localUser && daConfig.email) {
                     // Try simple email match from our pre-fetched list? No, simpler to just skip or rely on what we have.
                     // Doing a DB call here is okay as it's not external.
                     const userByEmail = await User.findOne({ email: daConfig.email }).select('firstName lastName email text hostingCreatedAt hostingExpiresAt').lean();
                     if (userByEmail) {
-                        localUser = userByEmail as any;
+                        localUser = userByEmail as unknown as LocalUser;
                         linkedByEmail = true;
                     }
                 }
-            } catch (e: any) {
+            } catch (e: unknown) {
                 // If specific user fetch fails.
-                 return {
+                const errMessage = e instanceof Error ? e.message : String(e);
+                return {
                     id: daUsername,
                     daUsername,
                     status: 'error',
-                    error: e.message,
+                    error: errMessage,
                     domain: 'Error fetching',
                     user: { name: 'Unknown', email: 'N/A' },
-                    usage: { bandwidth: '0', disk: '0', bandwidthLimit: '0', diskLimit: '0' }
+                    usage: { bandwidth: '0', disk: '0', bandwidthLimit: '0', diskLimit: '0' },
+                    package: 'Unknown',
+                    phpVersion: 'Unknown'
                 };
             }
 
@@ -135,14 +180,15 @@ export async function GET(request: NextRequest) {
             let createdAt = null;
 
             // Strategy: Pick the best matching local record for THIS domain
-            const domainRecords = hostingRecords.filter((h: any) => h.domainName === daConfig.domain);
-            
+            const allHosting = hostingRecords as unknown as HostingRecord[];
+            const domainRecords = allHosting.filter((h) => h.domainName === daConfig.domain);
+
             // 1. Exact Username match
             // 2. Or 'active' status
             // 3. Or just the latest (as list is sorted by createdAt: -1)
-            let hostingRecord = domainRecords.find((h: any) => h.directAdminUsername === daUsername);
+            let hostingRecord = domainRecords.find((h) => h.directAdminUsername === daUsername);
             if (!hostingRecord) {
-                hostingRecord = domainRecords.find((h: any) => h.status === 'active');
+                hostingRecord = domainRecords.find((h) => h.status === 'active');
             }
             if (!hostingRecord && domainRecords.length > 0) {
                 hostingRecord = domainRecords[0];
@@ -167,14 +213,14 @@ export async function GET(request: NextRequest) {
 
             return {
               id: daUsername,
-              dbId: hostingRecord ? (hostingRecord as any)._id.toString() : (localUser ? (localUser as any)._id.toString() : null),
-              userId: localUser ? (localUser as any)._id.toString() : null,
+              dbId: hostingRecord ? hostingRecord._id.toString() : (localUser ? localUser._id.toString() : null),
+              userId: localUser ? localUser._id.toString() : null,
               user: localUser ? {
                 name: `${localUser.firstName} ${localUser.lastName}`,
                 email: localUser.email,
-              } : { 
-                name: 'Unlinked Account', 
-                email: daConfig.email || 'No local account found' 
+              } : {
+                name: 'Unlinked Account',
+                email: daConfig.email || 'No local account found'
               },
               domain: daConfig.domain || 'N/A',
               daUsername: daUsername,
@@ -195,12 +241,12 @@ export async function GET(request: NextRequest) {
         // but it shows what we know about.
         
         // 1. Map from Hosting Collection (primary source of truth for "active" services we know about)
-        const dbStats = hostingRecords.map((h: any) => {
-             const localUser = localUsers.find((u: any) => u._id.toString() === h.userId.toString());
+        const dbStats: HostingStatRow[] = (hostingRecords as unknown as HostingRecord[]).map((h) => {
+             const localUser = (localUsers as LocalUser[]).find((u) => u._id.toString() === h.userId.toString());
              return {
                  id: h._id.toString(),
                  dbId: h._id.toString(),
-                 userId: h.userId,
+                 userId: String(h.userId),
                  user: localUser ? {
                      name: `${localUser.firstName} ${localUser.lastName}`,
                      email: localUser.email,
@@ -210,8 +256,8 @@ export async function GET(request: NextRequest) {
                  status: h.status, // active/suspended/terminated from DB
                  serverIp: h.serverIp || 'Shared',
                  usage: { // We don't have real-time usage in DB usually, unless we sync it periodically.
-                     bandwidth: '0', disk: '0', 
-                     bandwidthLimit: 'Unknown', diskLimit: 'Unknown' 
+                     bandwidth: '0', disk: '0',
+                     bandwidthLimit: 'Unknown', diskLimit: 'Unknown'
                  },
                  package: h.name || 'Unknown',
                  phpVersion: 'Unknown',
@@ -221,7 +267,7 @@ export async function GET(request: NextRequest) {
                  linkedByEmail: false
              };
         });
-        
+
         hostingStats = dbStats;
     }
 
@@ -249,16 +295,19 @@ export async function GET(request: NextRequest) {
     
     return addSecurityHeaders(response);
 
-  } catch (error: any) {
-    serverLogger.error(`Admin Hosting Stats Error:`, error.message);
-    
+  } catch (error: unknown) {
+    const errMessage = error instanceof Error ? error.message : String(error);
+    serverLogger.error(`Admin Hosting Stats Error:`, errMessage);
+
     // In strict error case, try to return DB data one last time if we haven't already
     try {
-        const fallbackHosting = await (await import("@/models/Hosting")).default.find({}).lean();
-        const fallbackUsers = await User.find({}).select('firstName lastName email').lean();
-        
-        const fallbackStats = fallbackHosting.map((h: any) => {
-            const u: any = fallbackUsers.find((u: any) => u._id.toString() === h.userId.toString());
+        type FallbackHosting = { _id: { toString(): string }; userId: { toString(): string }; domainName: string; status: string; name?: string; expiryDate?: Date; createdAt?: Date };
+        type FallbackUser = { _id: { toString(): string }; firstName: string; lastName: string; email: string };
+        const fallbackHosting = (await (await import("@/models/Hosting")).default.find({}).lean()) as unknown as FallbackHosting[];
+        const fallbackUsers = (await User.find({}).select('firstName lastName email').lean()) as unknown as FallbackUser[];
+
+        const fallbackStats = fallbackHosting.map((h) => {
+            const u = fallbackUsers.find((u) => u._id.toString() === h.userId.toString());
             return {
                 id: h._id.toString(),
                 user: u ? { name: `${u.firstName} ${u.lastName}`, email: u.email } : { name: 'N/A', email: 'N/A'},

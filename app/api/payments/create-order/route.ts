@@ -4,6 +4,7 @@ import { RazorpayService } from "@/lib/razorpay";
 import { serverLogger } from "@/lib/server-logger";
 import { validateDomainPeriod } from "@/lib/tld-policies";
 import { verifyDomainPrices } from "@/lib/services/payment/price-verifier";
+import type { CartItem } from "@/lib/types";
 import {
   evaluateTrialAbuse,
   getClientIp,
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { cartItems, deviceFingerprint, recaptchaToken, otpToken } = body as {
-      cartItems: any[];
+      cartItems: CartItem[];
       deviceFingerprint?: string;
       recaptchaToken?: string;
       otpToken?: string;
@@ -82,18 +83,18 @@ export async function POST(request: NextRequest) {
     }
 
     const totalAmount = cartItems.reduce(
-      (sum: number, item: any) => sum + item.price * (item.registrationPeriod || 1),
+      (sum: number, item: CartItem) => sum + item.price * (item.registrationPeriod || 1),
       0
     );
 
     // ── Create Razorpay order/subscription ─────────────────────────────
     try {
       // ── Separate Items by Type ───────────────────────────────────────────
-      const domainItems = cartItems.filter((item: any) => !item.itemType || item.itemType === 'domain');
-      const hostingItems = cartItems.filter((item: any) => item.itemType === 'hosting');
+      const domainItems = cartItems.filter((item: CartItem) => !item.itemType || item.itemType === 'domain');
+      const hostingItems = cartItems.filter((item: CartItem) => item.itemType === 'hosting');
       const recurringHostingItems = hostingItems;
 
-      let domainAmount = domainItems.reduce((sum: number, item: any) => sum + item.price * (item.registrationPeriod || 1), 0);
+      let domainAmount = domainItems.reduce((sum: number, item: CartItem) => sum + item.price * (item.registrationPeriod || 1), 0);
 
       const hasDomains = domainAmount > 0;
       const hasRecurringHosting = recurringHostingItems.length > 0;
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest) {
       serverLogger.info(`🏷️  [CREATE-ORDER] Domains Total: ₹${domainAmount} | Recurring Hosting Items: ${recurringHostingItems.length}`);
 
       // 1. Calculate Base One-Time Amount (Domains)
-      let oneTimeAmount = domainItems.reduce((sum: number, item: any) => sum + item.price * (item.registrationPeriod || 1), 0);
+      let oneTimeAmount = domainItems.reduce((sum: number, item: CartItem) => sum + item.price * (item.registrationPeriod || 1), 0);
 
       let razorpayOrderId = null;
       let subscriptionData = null;
@@ -124,9 +125,9 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Trial is only available for yearly hosting plans" }, { status: 400 });
           }
           // One trial per user lifetime
-          const Settings = (await import("@/models/Settings")).default;
-          const trialSetting = await Settings.findOne({ key: "hosting_trial_enabled" }).lean();
-          const trialsEnabled = trialSetting ? (trialSetting as any).value !== false : true;
+          const { getSettingValue } = await import("@/lib/services/settings");
+          const trialFlag = await getSettingValue<boolean>("hosting_trial_enabled");
+          const trialsEnabled = trialFlag !== false;
           if (!trialsEnabled) {
             return NextResponse.json({ error: "Free trials are currently unavailable" }, { status: 400 });
           }
@@ -170,11 +171,11 @@ export async function POST(request: NextRequest) {
             userEmail: user.email,
             ipHash: hashIp(clientIp),
             deviceFingerprint,
-            planId: item.hostingPlan?.id || item.planId,
+            planId: item.hostingPlan?.id || (item as CartItem & { planId?: string }).planId,
           });
         }
 
-        const plan = await HostingPlan.findOne({ planId: item.hostingPlan?.id || item.planId });
+        const plan = await HostingPlan.findOne({ planId: item.hostingPlan?.id || (item as CartItem & { planId?: string }).planId });
 
         let subscriptionCreated = false;
 
@@ -207,7 +208,7 @@ export async function POST(request: NextRequest) {
             serverLogger.warn(`⚠️ [CREATE-ORDER] No Razorpay Plan ID found for ${plan.name} (${period})`);
           }
         } else {
-          serverLogger.warn(`⚠️ [CREATE-ORDER] HostingPlan not found in DB for planId: ${item.hostingPlan?.planId || item.planId}`);
+          serverLogger.warn(`⚠️ [CREATE-ORDER] HostingPlan not found in DB for planId: ${(item.hostingPlan as { planId?: string } | undefined)?.planId || (item as CartItem & { planId?: string }).planId}`);
         }
 
         // For trials, price=0 so adding it to oneTimeAmount is a no-op either way
@@ -248,31 +249,32 @@ export async function POST(request: NextRequest) {
         hasSubscription: !!subscriptionData,
         isTrial: isTrial && !!subscriptionData,
       });
-    } catch (razorpayError: any) {
+    } catch (razorpayError: unknown) {
       serverLogger.error(
         "❌ [CREATE-ORDER] Razorpay order creation failed:",
         razorpayError
       );
+      const rzpMessage = razorpayError instanceof Error ? razorpayError.message : String(razorpayError);
 
       // Handle specific Razorpay errors
-      if (razorpayError.message?.includes("Invalid amount")) {
+      if (rzpMessage.includes("Invalid amount")) {
         return NextResponse.json(
           { error: "Invalid payment amount. Please refresh and try again." },
           { status: 400 }
         );
-      } else if (razorpayError.message?.includes("Amount too small")) {
+      } else if (rzpMessage.includes("Amount too small")) {
         return NextResponse.json(
           { error: "Payment amount is too small. Minimum amount is ₹1." },
           { status: 400 }
         );
-      } else if (razorpayError.message?.includes("Amount too large")) {
+      } else if (rzpMessage.includes("Amount too large")) {
         return NextResponse.json(
           {
             error: "Payment amount is too large. Maximum amount is ₹10,00,000.",
           },
           { status: 400 }
         );
-      } else if (razorpayError.message?.includes("Network error")) {
+      } else if (rzpMessage.includes("Network error")) {
         return NextResponse.json(
           {
             error:
@@ -280,7 +282,7 @@ export async function POST(request: NextRequest) {
           },
           { status: 503 }
         );
-      } else if (razorpayError.message?.includes("Gateway error")) {
+      } else if (rzpMessage.includes("Gateway error")) {
         return NextResponse.json(
           {
             error:

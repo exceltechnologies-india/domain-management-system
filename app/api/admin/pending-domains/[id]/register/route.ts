@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import PendingDomain from "@/models/PendingDomain";
-import Order from "@/models/Order";
+import Order, { type IOrder } from "@/models/Order";
 import { getUserById, getUserByIdSafe } from "@/lib/services/users";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import { DomainVerificationService } from "@/lib/domain-verification";
@@ -78,7 +78,7 @@ export async function POST(
 
         const order = await Order.findOne({ orderId: pendingDomain.orderId }).populate('userId', 'email firstName lastName');
         if (order) {
-          const domainIndex = order.domains.findIndex((d: any) => d.domainName === pendingDomain.domainName);
+          const domainIndex = order.domains.findIndex((d: IOrder['domains'][number]) => d.domainName === pendingDomain.domainName);
           if (domainIndex !== -1) {
             order.domains[domainIndex].status = "registered";
             order.domains[domainIndex].resellerClubOrderId = result.data?.orderid;
@@ -86,12 +86,17 @@ export async function POST(
             order.domains[domainIndex].registeredAt = new Date();
             await order.save();
 
-            const allDomainsRegistered = order.domains.every((d: any) => d.status === "registered");
+            const allDomainsRegistered = order.domains.every((d: IOrder['domains'][number]) => d.status === "registered");
             if (allDomainsRegistered && order.userId) {
-              const orderUser = order.userId as any;
+              // Populated via .populate('userId', 'email firstName lastName')
+              const orderUser = order.userId as unknown as {
+                email: string;
+                firstName: string;
+                lastName: string;
+              };
               const successfulDomains = order.domains
-                .filter((d: any) => d.status === "registered")
-                .map((d: any) => ({
+                .filter((d: IOrder['domains'][number]) => d.status === "registered")
+                .map((d: IOrder['domains'][number]) => ({
                   domainName: d.domainName,
                   price: d.price,
                   registrationPeriod: d.registrationPeriod,
@@ -111,7 +116,7 @@ export async function POST(
                     subtotal: subtotal,
                     currency: order.currency || "INR",
                     successfulDomains,
-                    allDomains: order.domains.map((d: any) => ({
+                    allDomains: order.domains.map((d: IOrder['domains'][number]) => ({
                       domainName: d.domainName,
                       price: d.price,
                       registrationPeriod: d.registrationPeriod,
@@ -120,7 +125,7 @@ export async function POST(
                     })),
                     paymentId: order.paymentId || "",
                     createdAt: order.createdAt,
-                  } as any
+                  } as unknown as Parameters<typeof EmailService.sendOrderConfirmationEmail>[2]
                 );
               } catch (e) {
                 serverLogger.error("Order confirmation email failed:", e);
@@ -136,7 +141,7 @@ export async function POST(
 
           if (syncUser && syncOrder && (!syncOrder.zohoInvoiceId || syncOrder.zohoInvoiceId === 'pending_creation')) {
             const zohoService = ZohoBooksService.getInstance();
-            const invoiceItems = syncOrder.domains.map((d: any) => ({
+            const invoiceItems = syncOrder.domains.map((d: IOrder['domains'][number]) => ({
                 itemType: d.itemType || 'domain',
                 domainName: d.domainName,
                 price: d.price,
@@ -176,7 +181,7 @@ export async function POST(
 
         const order = await Order.findOne({ orderId: pendingDomain.orderId });
         if (order) {
-          const idx = order.domains.findIndex((d: any) => d.domainName === pendingDomain.domainName);
+          const idx = order.domains.findIndex((d: IOrder['domains'][number]) => d.domainName === pendingDomain.domainName);
           if (idx !== -1) {
             order.domains[idx].status = "failed";
             order.domains[idx].error = `Admin manual registration failed: ${result.message}`;
@@ -187,13 +192,14 @@ export async function POST(
 
         return NextResponse.json({ success: false, message: "Domain registration failed", error: result.message, pendingDomain }, { status: 400 });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errMessage = error instanceof Error ? error.message : String(error);
       pendingDomain.status = "failed";
-      pendingDomain.reason = `Registration error: ${error.message}`;
+      pendingDomain.reason = `Registration error: ${errMessage}`;
       await pendingDomain.save();
-      return NextResponse.json({ success: false, message: "Domain registration error", error: error.message, pendingDomain }, { status: 500 });
+      return NextResponse.json({ success: false, message: "Domain registration error", error: errMessage, pendingDomain }, { status: 500 });
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     serverLogger.error("Critical error in admin register:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
