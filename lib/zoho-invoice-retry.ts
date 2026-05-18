@@ -59,7 +59,7 @@ async function retryOne(
     return { ok: false, orderId: order.orderId, skipped: "already_done" };
   }
 
-  const user = await getUserById(order.userId);
+  const user = await getUserById(String(order.userId));
   if (!user) {
     serverLogger.warn(`[ZohoRetry] User not found for order ${order.orderId}`);
     await markZohoInvoiceCreationFailed(order._id);
@@ -71,7 +71,8 @@ async function retryOne(
     };
   }
 
-  const items = (order.domains || []).map((d: any) => ({
+  type OrderDomain = StuckZohoInvoiceOrder["domains"][number];
+  const items = (order.domains || []).map((d: OrderDomain) => ({
     itemType: d.itemType || "domain",
     domainName: d.domainName,
     price: d.price,
@@ -113,9 +114,10 @@ async function retryOne(
     serverLogger.warn(`[ZohoRetry] Zoho returned no invoice_id for ${order.orderId}`);
     await markZohoInvoiceCreationFailed(order._id);
     return { ok: false, orderId: order.orderId, error: "Zoho returned no invoice_id" };
-  } catch (err: any) {
-    const message =
-      err?.response?.data?.message || err?.message || String(err);
+  } catch (err: unknown) {
+    interface AxiosErrLike { response?: { data?: { message?: string } }; message?: string }
+    const ae = (err && typeof err === "object" ? err : {}) as AxiosErrLike;
+    const message = ae.response?.data?.message || ae.message || String(err);
     serverLogger.error(`[ZohoRetry] Failed for order ${order.orderId}: ${message}`);
     await markZohoInvoiceCreationFailed(order._id).catch(() => {});
     return { ok: false, orderId: order.orderId, error: message };

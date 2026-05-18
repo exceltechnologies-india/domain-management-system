@@ -430,7 +430,7 @@ Audit-recommended sub-files I did NOT create:
 
 ## 4. Code Quality
 
-### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (ResellerClub + Zoho Books + DirectAdmin external-API wrappers fully typed; lib helpers + payment services typed 2026-05-18; admin routes typed 2026-05-18; React client pages typed 2026-05-18; 845 → 421 sitewide)
+### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (ResellerClub + Zoho Books + DirectAdmin external-API wrappers fully typed; lib helpers + payment services typed 2026-05-18; admin routes typed 2026-05-18; React client pages typed 2026-05-18; service layer + auth/recaptcha/logger typed 2026-05-18; 845 → 373 sitewide)
 Across `lib/`, `app/`, `components/`. TypeScript was doing far less work than it could. Worst offenders were the external API wrappers (ResellerClub / DirectAdmin responses).
 
 **First pass — ResellerClub wrappers (audit-recommended starting point):**
@@ -529,6 +529,21 @@ Two long-standing slips surfaced and were fixed: (1) the admin-security middlewa
 - [app/checkout/page.tsx](app/checkout/page.tsx) — 8 → 0. `cartItems` callbacks typed via `CartItem` so the `isTrial` field is reachable without `(item as any).isTrial` casts; `userObj` state typed as `User | null`; `orderPaymentData` typed via a new local `RazorpayPaymentResult` interface; `(err: any).kind` narrow-cast at the dismissed-iframe branch; the trial-yearly-price calc guarded against `trialItem?.price` being undefined (TS-strict required after dropping `as any`).
 
 **Net this pass:** 38 anys removed (`459 → 421`). Combined six-pass total: **424 anys removed sitewide (845 → 421, 50% reduction)**.
+
+**Verified on main 2026-05-18:** 340/340 tests, tsc clean, production build succeeded.
+
+**Seventh pass — service layer + remaining lib helpers (2026-05-18):**
+
+- [lib/services/orders.ts](lib/services/orders.ts) — 6 → 0. `AdminListResult.orders` typed via a new `AdminOrderRow` interface (Omit-pattern on `IOrder` since the post-mapped userId is either the populated User-like shape OR a synthesised stub when the user is hard-deleted); `StuckZohoInvoiceOrder` widened from open `any`/`any[]` slots to `ObjectId`/`IOrder["domains"]` so downstream callers in `lib/zoho-invoice-retry.ts` can pass the IDs without `String()` workarounds; E11000 catch narrowed via `{ code?: number }`.
+- [lib/services/support-tickets.ts](lib/services/support-tickets.ts) — 6 → 0. `UserTicketSummary` / `AdminTicketListEntry` interfaces tightened (open `any` slots became `unknown`/`IMessage`); the row-mapper functions inside `listTicketsForUserSummary`/`listTicketsForAdmin` now narrow the lean rows via a structural cast through `unknown` (Mongoose's FlattenMaps shape doesn't overlap with ISupportTicket directly, and the schema adds `createdAt` via `timestamps: { createdAt: true }` without declaring it on the interface).
+- [lib/services/users.ts](lib/services/users.ts) — 5 → 0. `ListUsersResult.users` typed via `Array<Partial<IUser> & { _id: unknown }>` matching the actual lean+projected shape; the 3 `_id: any` slots on the lean-cast generics tightened to `unknown`; the 2 `(user as any).sessionInvalidatedAt = …` assignments narrowed via a structural intersection cast.
+- [lib/services/payment/idempotency.ts](lib/services/payment/idempotency.ts) — 6 → 0. `IdempotencyContext` widened from `paymentDetails: any; user: any; existingOrder: any` to `RazorpayPaymentDetails` / `IUser` / `IOrder | null`; the resolved-cart-items shape narrow-cast through `unknown` because order.domains carries extra registrar metadata not in `CartItem`.
+- [lib/services/payment/renewal.ts](lib/services/payment/renewal.ts) — 6 → 0. Six `catch (X: any)` blocks rewritten using `err instanceof Error ? err.message : String(err)`; the renewal-email `as any` payload swapped for the typed signature (the `status: "Reactivated"` extra field — not on the email helper's input — was dropped as it was unused on the recipient side anyway).
+- [lib/recaptcha.ts](lib/recaptcha.ts) — 6 → 0. Hoisted a `Grecaptcha` interface and `grecaptcha()` accessor so the 6 `(window as any).grecaptcha` casts collapsed to one typed indirection.
+- [lib/logger.ts](lib/logger.ts) — 6 → 0. The 6 `args: any[]` parameter declarations on the client logger now use `unknown[]`. The function bodies already narrow before reading fields.
+- [lib/admin-auth.ts](lib/admin-auth.ts) — 5 → 0. `AuthResult.user` widened from `any` to a named object shape (`id: string`, `email`, etc.) plus optional `message`/`supportEmail`/`isDeactivated` for the deactivated-account branch that was previously hidden behind an outer `as any` cast; JWT-verify result narrowed via `DecodedJwt`; request-IP read structural-cast like the rest. Caller follow-up: `app/api/admin/backup/route.ts` added an explicit `if (!authResult.valid || !authResult.user)` guard so subsequent `authResult.user.id` reads pass through optional-chaining-free.
+
+**Net this pass:** 48 anys removed (`421 → 373`). Combined seven-pass total: **472 anys removed sitewide (845 → 373, 56% reduction)**.
 
 **Verified on main 2026-05-18:** 340/340 tests, tsc clean, production build succeeded.
 

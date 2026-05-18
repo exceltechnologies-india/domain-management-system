@@ -13,7 +13,7 @@
  */
 import connectDB from "@/lib/mongodb";
 import SupportTicket from "@/models/SupportTicket";
-import type { ISupportTicket } from "@/models/SupportTicket";
+import type { ISupportTicket, IMessage } from "@/models/SupportTicket";
 
 const OPEN_STATUSES = ["open", "in_progress"] as const;
 
@@ -57,7 +57,7 @@ export async function listTicketsForUser(
 }
 
 export interface UserTicketSummary {
-  _id: any;
+  _id: unknown;
   ticketNumber: string;
   subject: string;
   category: string;
@@ -66,7 +66,7 @@ export interface UserTicketSummary {
   createdAt: Date;
   updatedAt: Date;
   messageCount: number;
-  lastMessage: any | null;
+  lastMessage: IMessage | null;
 }
 
 /**
@@ -83,12 +83,24 @@ export async function listTicketsForUserSummary(
     .select("ticketNumber subject category status priority createdAt updatedAt messages")
     .sort({ updatedAt: -1 })
     .lean();
-  return rows.map((t: any) => ({
-    ...t,
-    messageCount: t.messages.length,
-    lastMessage: t.messages.at(-1) ?? null,
-    messages: undefined,
-  })) as UserTicketSummary[];
+  return rows.map((t) => {
+    // Mongoose adds createdAt via the schema's timestamps option but the
+    // ISupportTicket interface doesn't declare it — narrow per-row.
+    const ticket = t as unknown as ISupportTicket & { createdAt: Date; updatedAt?: Date };
+    const messages = (ticket.messages ?? []) as IMessage[];
+    return {
+      _id: ticket._id,
+      ticketNumber: ticket.ticketNumber,
+      subject: ticket.subject,
+      category: ticket.category,
+      status: ticket.status,
+      priority: ticket.priority,
+      createdAt: ticket.createdAt,
+      updatedAt: ticket.updatedAt ?? ticket.createdAt,
+      messageCount: messages.length,
+      lastMessage: messages.at(-1) ?? null,
+    };
+  });
 }
 
 /**
@@ -107,13 +119,13 @@ export async function getTicketById(
  * Lean variant of {@link getTicketById} — admin GET routes that only echo
  * fields back as JSON skip the full Mongoose Document hydration cost.
  */
-export async function getTicketByIdLean(id: string): Promise<any | null> {
+export async function getTicketByIdLean(id: string): Promise<ISupportTicket | null> {
   await connectDB();
-  return SupportTicket.findById(id).lean();
+  return SupportTicket.findById(id).lean<ISupportTicket>();
 }
 
 export interface AdminTicketListEntry {
-  _id: any;
+  _id: unknown;
   ticketNumber: string;
   subject: string;
   category: string;
@@ -124,7 +136,7 @@ export interface AdminTicketListEntry {
   createdAt: Date;
   updatedAt: Date;
   messageCount: number;
-  lastMessage: any | null;
+  lastMessage: IMessage | null;
 }
 
 export interface AdminTicketListResult {
@@ -168,12 +180,24 @@ export async function listTicketsForAdmin(opts: {
     SupportTicket.countDocuments(filter),
   ]);
 
-  const tickets = rows.map((t: any) => ({
-    ...t,
-    messageCount: t.messages.length,
-    lastMessage: t.messages.at(-1) ?? null,
-    messages: undefined,
-  })) as AdminTicketListEntry[];
+  const tickets: AdminTicketListEntry[] = rows.map((t) => {
+    const ticket = t as unknown as ISupportTicket & { createdAt: Date; updatedAt?: Date };
+    const messages = (ticket.messages ?? []) as IMessage[];
+    return {
+      _id: ticket._id,
+      ticketNumber: ticket.ticketNumber,
+      subject: ticket.subject,
+      category: ticket.category,
+      status: ticket.status,
+      priority: ticket.priority,
+      userEmail: ticket.userEmail,
+      userName: ticket.userName,
+      createdAt: ticket.createdAt,
+      updatedAt: ticket.updatedAt ?? ticket.createdAt,
+      messageCount: messages.length,
+      lastMessage: messages.at(-1) ?? null,
+    };
+  });
 
   return { tickets, total, page, perPage, pages: Math.ceil(total / perPage) };
 }

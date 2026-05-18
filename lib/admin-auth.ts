@@ -3,14 +3,29 @@ import { serverLogger } from "@/lib/server-logger";
 import { NextRequest } from "next/server";
 import connectDB from "@/lib/mongodb";
 import { getUserById } from "@/lib/services/users";
-import User from "@/models/User";
 import jwt from "jsonwebtoken";
 import { logAdminAction } from "@/lib/audit-log";
 
 export interface AuthResult {
   valid: boolean;
   error?: string;
-  user?: any;
+  user?: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+  };
+  // Set by verifyUserAuth when the account is deactivated — drives the
+  // client-side "contact support" banner.
+  message?: string;
+  supportEmail?: string;
+  isDeactivated?: boolean;
+}
+
+interface DecodedJwt {
+  userId?: string;
+  [k: string]: unknown;
 }
 
 /**
@@ -31,10 +46,7 @@ export async function verifyAdminAuth(
     }
 
     // Verify JWT token
-    const decoded = jwt.verify(
-      token,
-      AUTH_SECRET
-    ) as any;
+    const decoded = jwt.verify(token, AUTH_SECRET) as DecodedJwt;
 
     if (!decoded.userId) {
       return {
@@ -71,7 +83,7 @@ export async function verifyAdminAuth(
     const ip =
       request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
       request.headers.get("x-real-ip") ||
-      (request as any).ip ||
+      (request as unknown as { ip?: string }).ip ||
       "unknown";
 
     void logAdminAction({
@@ -90,7 +102,7 @@ export async function verifyAdminAuth(
     return {
       valid: true,
       user: {
-        id: user._id,
+        id: String(user._id),
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
@@ -122,10 +134,7 @@ export async function verifyUserAuth(
       };
     }
 
-    const decoded = jwt.verify(
-      token,
-      AUTH_SECRET
-    ) as any;
+    const decoded = jwt.verify(token, AUTH_SECRET) as DecodedJwt;
 
     if (!decoded.userId) {
       return {
@@ -152,13 +161,13 @@ export async function verifyUserAuth(
           `Your account has been deactivated. Please contact our support team at ${process.env.SUPPORT_EMAIL || "support@anutech.in"} for assistance.`,
         supportEmail: process.env.SUPPORT_EMAIL || "support@anutech.in",
         isDeactivated: true,
-      } as any;
+      };
     }
 
     return {
       valid: true,
       user: {
-        id: user._id,
+        id: String(user._id),
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,

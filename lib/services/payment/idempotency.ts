@@ -9,15 +9,18 @@ import {
   recordZohoInvoiceForOrder,
   releaseZohoInvoiceClaim,
 } from "@/lib/services/orders";
+import type { CartItem, RazorpayPaymentDetails } from "@/lib/types";
+import type { IUser } from "@/models/User";
+import type { IOrder } from "@/models/Order";
 
 export interface IdempotencyContext {
   razorpay_order_id: string;
   razorpay_payment_id: string;
-  paymentDetails: any;
-  user: any;
+  paymentDetails: RazorpayPaymentDetails;
+  user: IUser;
   /** Result of the initial Order.findOne({ razorpayOrderId }) lookup, may be null. */
-  existingOrder: any | null;
-  cartItems: any[];
+  existingOrder: IOrder | null;
+  cartItems: CartItem[];
 }
 
 /**
@@ -42,9 +45,13 @@ export async function handleAlreadyProcessedPayment(
   }
 
   // F13: Replace client-supplied cart items with the trusted DB order domains.
-  let resolvedCartItems = cartItems;
-  if (existingOrder?.domains?.length > 0) {
-    resolvedCartItems = existingOrder.domains;
+  // The order's domain rows aren't strictly typed as CartItem (extra registrar
+  // metadata, no min-period field) but the downstream Zoho-invoice path reads
+  // a compatible projection — narrow via `unknown` so the same code handles
+  // both shapes without a runtime change.
+  let resolvedCartItems: CartItem[] = cartItems;
+  if (existingOrder?.domains && existingOrder.domains.length > 0) {
+    resolvedCartItems = existingOrder.domains as unknown as CartItem[];
   }
 
   if (!existingOrder) return null;
@@ -68,8 +75,8 @@ export async function handleAlreadyProcessedPayment(
       // Enrich cart items with friendly plan names
       for (const item of resolvedCartItems) {
         if (isHostingItem(item) && item.hostingPlan) {
-          const planId =
-            item.hostingPlan.planId || item.hostingPlan.serverPackage;
+          const plan = item.hostingPlan as CartItem["hostingPlan"] & { planId?: string };
+          const planId = plan?.planId || plan?.serverPackage;
           if (planId) {
             try {
               const plan = await getPlanByPlanId(planId);
@@ -100,7 +107,7 @@ export async function handleAlreadyProcessedPayment(
               total: paymentDetails.amount,
             },
             user,
-            resolvedCartItems.map((item: any) => ({
+            resolvedCartItems.map((item) => ({
               ...item,
               periodUnit:
                 item.periodUnit ||
@@ -138,7 +145,7 @@ export async function handleAlreadyProcessedPayment(
     message: "Payment already processed",
     orderId: existingOrder.orderId,
     invoiceNumber: existingOrder.invoiceNumber,
-    registrationResults: existingOrder.domains.map((d: any) => ({
+    registrationResults: existingOrder.domains.map((d: IOrder["domains"][number]) => ({
       domainName: d.domainName,
       status: d.status,
       orderId: d.orderId,

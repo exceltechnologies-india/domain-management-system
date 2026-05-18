@@ -5,6 +5,19 @@
 import { logger } from "@/lib/logger";
 import { serverLogger } from "@/lib/server-logger";
 
+interface Grecaptcha {
+  render: (
+    container: string | HTMLElement,
+    options: Record<string, unknown>
+  ) => number;
+  reset: (widgetId?: number) => void;
+  getResponse: (widgetId?: number) => string;
+}
+
+function grecaptcha(): Grecaptcha | undefined {
+  return (window as unknown as { grecaptcha?: Grecaptcha }).grecaptcha;
+}
+
 // Client-side: Load reCAPTCHA script and handle widget
 export class RecaptchaClient {
   private static siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || "";
@@ -40,7 +53,8 @@ export class RecaptchaClient {
       script.onload = () => {
         // Wait for grecaptcha to be ready
         const checkReady = () => {
-          if ((window as any).grecaptcha && (window as any).grecaptcha.render) {
+          const g = grecaptcha();
+          if (g) {
             resolve();
           } else {
             setTimeout(checkReady, 100);
@@ -87,7 +101,12 @@ export class RecaptchaClient {
     await this.loadScript();
 
     try {
-      const widgetId = (window as any).grecaptcha.render(container, {
+      const g = grecaptcha();
+      if (!g) {
+        logger.warn("reCAPTCHA grecaptcha global missing after script load");
+        return null;
+      }
+      const widgetId = g.render(container, {
         sitekey: currentSiteKey,
         callback: options?.callback,
         "expired-callback": options?.["expired-callback"],
@@ -107,12 +126,12 @@ export class RecaptchaClient {
    * Reset reCAPTCHA widget
    */
   static reset(widgetId?: number): void {
-    if (typeof window === "undefined" || !(window as any).grecaptcha) {
-      return;
-    }
+    if (typeof window === "undefined") return;
+    const g = grecaptcha();
+    if (!g) return;
 
     try {
-      (window as any).grecaptcha.reset(widgetId);
+      g.reset(widgetId);
     } catch (error) {
       logger.error("Error resetting reCAPTCHA:", error);
     }
@@ -122,10 +141,10 @@ export class RecaptchaClient {
    * Get response token from reCAPTCHA
    */
   static getResponse(widgetId?: number): string {
-    if (typeof window === "undefined" || !(window as any).grecaptcha) {
-      return "";
-    }
-    return (window as any).grecaptcha.getResponse(widgetId);
+    if (typeof window === "undefined") return "";
+    const g = grecaptcha();
+    if (!g) return "";
+    return g.getResponse(widgetId);
   }
 }
 

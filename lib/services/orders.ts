@@ -94,8 +94,27 @@ export async function findUserOrder(
   return query.lean<IOrder>().exec() as Promise<IOrder | null>;
 }
 
+/**
+ * Order rows are post-processed for the admin list: when the owning user has
+ * been hard-deleted, the populated `userId` is null and we synthesise a stub
+ * from the on-order `userName`/`userEmail` snapshot. The result therefore
+ * doesn't quite match `IOrder` — the userId is either a populated User-like
+ * object or the snapshot stub.
+ */
+interface AdminOrderRow extends Omit<IOrder, "userId"> {
+  userId:
+    | {
+        _id: unknown;
+        firstName: string;
+        lastName: string;
+        email: string;
+        isDeleted?: boolean;
+      }
+    | null;
+}
+
 interface AdminListResult {
-  orders: any[];
+  orders: AdminOrderRow[];
   total: number;
   hasMore: boolean;
   page: number;
@@ -129,8 +148,8 @@ export async function listOrdersForAdmin(opts: {
     Order.countDocuments(query),
   ]);
 
-  const orders = rawOrders.map((order: any) => {
-    const o = order.toObject();
+  const orders: AdminOrderRow[] = rawOrders.map((order) => {
+    const o = order.toObject() as unknown as AdminOrderRow;
     // Hard-deleted user: synthesise userId from on-order snapshot fields.
     if (!o.userId && (o.userName || o.userEmail)) {
       o.userId = {
@@ -300,8 +319,8 @@ export async function recordZohoInvoiceForOrder(
         },
       }
     );
-  } catch (e: any) {
-    if (e?.code === 11000) {
+  } catch (e: unknown) {
+    if ((e as { code?: number })?.code === 11000) {
       await Order.updateOne(
         { _id: orderId },
         { $set: { zohoInvoiceId: invoice.invoiceId } }
@@ -350,13 +369,13 @@ export async function markZohoInvoiceCreationFailed(
  * list per-user; the projection matches what the retry path actually reads.
  */
 export interface StuckZohoInvoiceOrder {
-  _id: any;
+  _id: mongoose.Types.ObjectId;
   orderId: string;
-  userId: any;
+  userId: mongoose.Types.ObjectId | string;
   amount: number;
   razorpayPaymentId?: string;
   paymentId?: string;
-  domains: any[];
+  domains: IOrder["domains"];
 }
 
 export async function listStuckZohoInvoiceOrders(

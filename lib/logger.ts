@@ -8,7 +8,7 @@
 const isDevelopment = process.env.NODE_ENV === "development";
 
 // Helper to safely send logs to server
-const sendToServer = async (level: string, args: any[]) => {
+const sendToServer = async (level: string, args: unknown[]) => {
   if (typeof window === 'undefined') return; // Only run on client
 
   try {
@@ -51,35 +51,35 @@ const sendToServer = async (level: string, args: any[]) => {
 };
 
 export const logger = {
-  log: (...args: any[]) => {
+  log: (...args: unknown[]) => {
     if (isDevelopment) {
       console.log(...args);
     }
     // sendToServer('info', args); // Optional: uncomment if you want all logs on server
   },
 
-  error: (...args: any[]) => {
+  error: (...args: unknown[]) => {
     if (isDevelopment) {
       console.error(...args);
     }
     sendToServer('error', args);
   },
 
-  warn: (...args: any[]) => {
+  warn: (...args: unknown[]) => {
     if (isDevelopment) {
       console.warn(...args);
     }
     sendToServer('warn', args);
   },
 
-  info: (...args: any[]) => {
+  info: (...args: unknown[]) => {
     if (isDevelopment) {
       console.info(...args);
     }
     // sendToServer('info', args);
   },
 
-  debug: (...args: any[]) => {
+  debug: (...args: unknown[]) => {
     if (isDevelopment) {
       console.debug(...args);
     }
