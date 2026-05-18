@@ -488,3 +488,34 @@ export async function createUser(data: Record<string, unknown>): Promise<IUser> 
   await connectDB();
   return User.create(data);
 }
+
+/**
+ * Persist ResellerClub customer/contact IDs onto the user document. Called
+ * by the post-payment provisioner after `getOrCreateCustomerAndContact` so
+ * future profile-sync calls can re-target the same RC contact. Only writes
+ * the fields that are supplied — partial updates are intentional.
+ */
+export async function setUserResellerClubIds(
+  userId: string,
+  ids: { customerId?: number; contactId?: number }
+): Promise<void> {
+  const update: Record<string, number> = {};
+  if (ids.customerId !== undefined) update.resellerClubCustomerId = ids.customerId;
+  if (ids.contactId !== undefined) update.resellerClubContactId = ids.contactId;
+  if (Object.keys(update).length === 0) return;
+  await connectDB();
+  await User.updateOne({ _id: userId }, { $set: update });
+}
+
+/**
+ * Persist the DirectAdmin username onto the user document. Called after
+ * a hosting account is successfully provisioned so subsequent renewals /
+ * admin actions can resolve the user back to their DA account.
+ */
+export async function setUserDirectAdminUsername(
+  userId: string,
+  username: string
+): Promise<void> {
+  await connectDB();
+  await User.updateOne({ _id: userId }, { $set: { directAdminUsername: username } });
+}

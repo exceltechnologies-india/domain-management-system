@@ -5,7 +5,10 @@ import { EmailService } from "@/lib/email";
 import { DomainVerificationService } from "@/lib/domain-verification";
 import { serverLogger } from "@/lib/server-logger";
 import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
+import {
+  setUserDirectAdminUsername,
+  setUserResellerClubIds,
+} from "@/lib/services/users";
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import Hosting from "@/models/Hosting";
 import Domain from "@/models/Domain";
@@ -140,13 +143,10 @@ export async function provisionCartItems(
   // record via modifyContact(). getOrCreateCustomerAndContact() is a no-op DB
   // writer; we own persistence here.
   try {
-    const UserModel = (await import("@/models/User")).default;
-    const updates: Record<string, number> = {};
-    if (!user.resellerClubCustomerId) updates.resellerClubCustomerId = customerResult.customerId;
-    if (!user.resellerClubContactId) updates.resellerClubContactId = customerResult.contactId;
-    if (Object.keys(updates).length > 0) {
-      await UserModel.updateOne({ _id: user._id }, { $set: updates });
-    }
+    await setUserResellerClubIds(String(user._id), {
+      customerId: user.resellerClubCustomerId ? undefined : customerResult.customerId,
+      contactId: user.resellerClubContactId ? undefined : customerResult.contactId,
+    });
   } catch (persistErr) {
     // Non-fatal — provisioning continues. We just lose the ability to auto-sync later.
     serverLogger.error("[PAYMENT-VERIFY] Failed to persist RC IDs on user:", persistErr);
@@ -158,10 +158,9 @@ export async function provisionCartItems(
 
   if (!user.resellerClubCustomerId) {
     try {
-      await User.updateOne(
-        { _id: user._id },
-        { $set: { resellerClubCustomerId: customerResult.customerId } }
-      );
+      await setUserResellerClubIds(String(user._id), {
+        customerId: customerResult.customerId,
+      });
       user.resellerClubCustomerId = customerResult.customerId;
       serverLogger.info(
         `✅ [PAYMENT-VERIFY] Saved ResellerClub customer ID to database: ${user.email}`
@@ -252,10 +251,7 @@ export async function provisionCartItems(
           serverLogger.warn("Failed to fetch hosting plan name for email", e);
         }
 
-        await User.updateOne(
-          { _id: user._id },
-          { $set: { directAdminUsername: daUsername } }
-        );
+        await setUserDirectAdminUsername(String(user._id), daUsername);
         user.directAdminUsername = daUsername;
 
         serverLogger.info(
