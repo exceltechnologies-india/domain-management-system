@@ -5,7 +5,7 @@ import { EmailService } from "@/lib/email";
 import connectDB from "@/lib/mongodb";
 import Order from "@/models/Order";
 import type { IOrder } from "@/models/Order";
-import Hosting from "@/models/Hosting";
+import { findUserHosting, listHostingsForUser } from "@/lib/services/hostings";
 import { getCurrentDate } from "@/lib/dateUtils";
 import { serverLogger } from "@/lib/server-logger";
 import type { IUser } from "@/models/User";
@@ -124,8 +124,7 @@ export async function handleRenewalPayment(
       for (const item of renewalOrder.domains) {
         if (item.itemType === "hosting") {
           const domainName = item.domainName;
-          const hosting = await Hosting.findOne({
-            userId: user.id || user._id,
+          const hosting = await findUserHosting(String(user.id || user._id), {
             domainName,
           });
 
@@ -179,8 +178,11 @@ export async function handleRenewalPayment(
             hosting.status = "active";
             hosting.expiryDate = newExpiry;
             hosting.paymentId = razorpay_payment_id;
-            hosting.renewalInvoiceId = invoiceId;
-            hosting.renewalStatus = "paid";
+            // renewalInvoiceId / renewalStatus are stored on Hosting but not
+            // in IHosting's typed shape — they're written by the Zoho-driven
+            // renewal flow and inspected by ops dashboards.
+            (hosting as unknown as { renewalInvoiceId?: string; renewalStatus?: string }).renewalInvoiceId = invoiceId;
+            (hosting as unknown as { renewalInvoiceId?: string; renewalStatus?: string }).renewalStatus = "paid";
             hosting.last_reminder_sent = null;
             hosting.next_action_at = new Date(
               newExpiry.getTime() - 15 * 24 * 60 * 60 * 1000
@@ -213,12 +215,13 @@ export async function handleRenewalPayment(
       serverLogger.info(
         "⚠️ [PAYMENT-VERIFY] No specific renewal order found, applying fallback reactivation"
       );
-      const userHostings = await Hosting.find({ userId: user.id || user._id });
+      const userHostings = await listHostingsForUser(String(user.id || user._id));
       for (const hosting of userHostings) {
-        if (
-          hosting.status === "suspended" ||
-          hosting.status === "expired"
-        ) {
+        // "suspended" isn't in IHosting's typed enum but production data has
+        // it (written by the daily-scheduler when accounts lapse). Widen the
+        // comparison rather than narrow the model's enum.
+        const status = hosting.status as string;
+        if (status === "suspended" || status === "expired") {
           if (hosting.directAdminUsername) {
             await DirectAdminService.unsuspendUser(
               hosting.directAdminUsername

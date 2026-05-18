@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { DirectAdminService } from "@/lib/directadmin";
 import { RazorpayService } from "@/lib/razorpay";
-import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
-import Hosting from "@/models/Hosting";
+import { getOrderByRazorpayOrderId } from "@/lib/services/orders";
+import { getHostingById } from "@/lib/services/hostings";
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import { serverLogger } from "@/lib/server-logger";
 
@@ -17,10 +16,7 @@ export async function handleUpgradePayment(
   razorpay_payment_id: string,
   razorpay_signature: string
 ): Promise<NextResponse> {
-  await connectDB();
-
-  const order = await Order.findOne({
-    razorpayOrderId: razorpay_order_id,
+  const order = await getOrderByRazorpayOrderId(razorpay_order_id, {
     orderType: "hosting_upgrade",
   });
 
@@ -48,7 +44,7 @@ export async function handleUpgradePayment(
     remainingDays: number;
   };
 
-  const hosting = await Hosting.findById(hostingId);
+  const hosting = await getHostingById(hostingId);
   if (!hosting) {
     serverLogger.error(`[UPGRADE] Hosting not found: ${hostingId}`);
     order.status = "failed";

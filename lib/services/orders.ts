@@ -53,6 +53,21 @@ export async function getOrderByRazorpayPaymentId(
 }
 
 /**
+ * Look up an order by its `razorpayOrderId`, optionally narrowed by
+ * `orderType`. Used by the upgrade-payment handler (which expects a
+ * `"hosting_upgrade"` order) and other razorpay-keyed flows.
+ */
+export async function getOrderByRazorpayOrderId(
+  razorpayOrderId: string,
+  opts?: { orderType?: string }
+): Promise<IOrder | null> {
+  await connectDB();
+  const filter: Record<string, unknown> = { razorpayOrderId };
+  if (opts?.orderType) filter.orderType = opts.orderType;
+  return Order.findOne(filter);
+}
+
+/**
  * User-scoped fetch by either `_id` or user-facing `orderId`. Filters out
  * soft-deleted orders and confirms ownership in a single query.
  *
