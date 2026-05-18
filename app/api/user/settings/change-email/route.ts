@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import crypto from "crypto";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
+import { getUserByEmail } from "@/lib/services/users";
 import { AuthService } from "@/lib/auth";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check new email is not already registered
-    const existing = await User.findOne({ email: normalizedEmail });
+    const existing = await getUserByEmail(normalizedEmail);
     if (existing) {
       // Return the same message as success to avoid email enumeration
       return secureJsonResponse({

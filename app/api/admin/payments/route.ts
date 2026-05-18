@@ -3,7 +3,7 @@ import { AuthService } from "@/lib/auth";
 import { RazorpayPaymentsService } from "@/lib/razorpay-payments";
 import connectDB from "@/lib/mongodb";
 import Order from "@/models/Order";
-import User from "@/models/User";
+import { findUsersByEmails } from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
 
 // Force dynamic rendering - required for API routes
@@ -71,9 +71,7 @@ export async function GET(request: NextRequest) {
     const uniqueEmails = Array.from(
       new Set(allDomainPayments.map((p) => p.email))
     );
-    const usersByEmail = await User.find({
-      email: { $in: uniqueEmails },
-    }).select("email firstName lastName");
+    const usersByEmail = await findUsersByEmails(uniqueEmails);
 
     // Create a map of email to user data
     const userMap = new Map();

@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
-import { getUserById } from "@/lib/services/users";
-import User from "@/models/User";
+import { getUserById, reactivateUser } from "@/lib/services/users";
 import { AuthService } from "@/lib/auth";
 import { serverLogger } from "@/lib/server-logger";
 
@@ -26,8 +24,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await connectDB();
-
     // Find the user
     const targetUser = await getUserById(userId);
     if (!targetUser) {
@@ -42,18 +38,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Reactivate the user
-    // Clear session invalidation when user is re-enabled
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      {
-        isActive: true,
-        isDeleted: false,
-        deletedAt: null,
-        sessionInvalidatedAt: null, // Clear session invalidation
-      },
-      { new: true }
-    );
+    // Reactivate the user — clear session invalidation when re-enabled
+    const updatedUser = await reactivateUser(userId);
 
     if (!updatedUser) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });

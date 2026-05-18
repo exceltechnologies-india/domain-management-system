@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
+import { getUserByEmail } from "@/lib/services/users";
 import { EmailService } from "@/lib/email";
 import { rateLimiters } from "@/lib/rate-limit";
 import crypto from "crypto";
@@ -25,9 +24,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
 
-    await connectDB();
-
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await getUserByEmail(email.toLowerCase());
 
     // Return the same response whether the user exists or not (prevents enumeration)
     if (!user || user.isActivated) {

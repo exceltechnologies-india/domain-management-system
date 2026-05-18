@@ -5,6 +5,7 @@ import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrap
 import { addSecurityHeaders } from "@/lib/security-headers";
 import { serverLogger } from "@/lib/server-logger";
 import User from "@/models/User";
+import { findUsersByEmails, listUsersWithDirectAdmin } from "@/lib/services/users";
 import Order from "@/models/Order";
 import HostingPlan from "@/models/HostingPlan";
 import connectDB from "@/lib/mongodb";
@@ -30,9 +31,7 @@ export async function GET(request: NextRequest) {
     // Always attempt live fetch as the default and only mode
     
     // Local DB Fetch (Should always succeed)
-    const localUsersPromise = User.find({ directAdminUsername: { $exists: true, $ne: null } })
-        .select('firstName lastName email directAdminUsername text hostingCreatedAt hostingExpiresAt')
-        .lean();
+    const localUsersPromise = listUsersWithDirectAdmin();
 
     const hostingRecordPromise = (async () => {
         try {
