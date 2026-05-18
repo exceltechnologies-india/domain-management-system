@@ -91,10 +91,11 @@ export async function handleRenewalPayment(
           `✅ [PAYMENT-VERIFY] Zoho Invoice created and paid for renewal: ${invoiceId}`
         );
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : String(err);
       serverLogger.error(
         `❌ [PAYMENT-VERIFY] Failed to create Zoho Invoice for renewal:`,
-        err.message
+        errMessage
       );
     }
   } else if (invoiceId) {
@@ -110,10 +111,11 @@ export async function handleRenewalPayment(
           `✅ [PAYMENT-VERIFY] Existing Zoho Invoice ${invoiceId} marked as paid`
         );
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : String(err);
       serverLogger.error(
         `❌ [PAYMENT-VERIFY] Failed to apply payment to existing Zoho Invoice ${invoiceId}:`,
-        err.message
+        errMessage
       );
     }
   }
@@ -141,10 +143,11 @@ export async function handleRenewalPayment(
                 await DirectAdminService.unsuspendUser(
                   hosting.directAdminUsername
                 );
-              } catch (daErr: any) {
+              } catch (daErr: unknown) {
+                const daMessage = daErr instanceof Error ? daErr.message : String(daErr);
                 serverLogger.error(
                   `⚠️ [PAYMENT-VERIFY] DirectAdmin unsuspend failed for ${domainName}, proceeding with DB update:`,
-                  daErr.message
+                  daMessage
                 );
               }
             }
@@ -199,12 +202,12 @@ export async function handleRenewalPayment(
                 user.firstName || "User",
                 {
                   domainName: hosting.domainName,
+                  packageName: hosting.name || "Hosting Plan",
                   planName: hosting.name || "Hosting Plan",
                   serverIp:
                     process.env.DIRECTADMIN_IP || "136.115.64.54",
                   nameservers: DirectAdminService.NAMESERVERS,
-                  status: "Reactivated",
-                } as any
+                }
               );
             } catch (_e) {}
           }
@@ -238,10 +241,11 @@ export async function handleRenewalPayment(
         }
       }
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const errMessage = err instanceof Error ? err.message : String(err);
     serverLogger.error(
       "❌ [PAYMENT-VERIFY] Reactivation logic failed:",
-      err.message
+      errMessage
     );
   }
 
@@ -259,10 +263,11 @@ export async function handleRenewalPayment(
       serverLogger.info(
         `✅ [PAYMENT-VERIFY] Renewal Order ${razorpay_order_id} marked as COMPLETED.`
       );
-    } catch (orderErr: any) {
+    } catch (orderErr: unknown) {
+      const orderErrMessage = orderErr instanceof Error ? orderErr.message : String(orderErr);
       serverLogger.error(
         "❌ [PAYMENT-VERIFY] Failed to update renewal order status:",
-        orderErr.message
+        orderErrMessage
       );
     }
   }

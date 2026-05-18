@@ -230,7 +230,7 @@ export interface ListUsersOptions {
 }
 
 export interface ListUsersResult {
-  users: any[];
+  users: Array<Partial<IUser> & { _id: unknown }>;
   total: number;
   page: number;
   limit: number;
@@ -268,7 +268,9 @@ export async function listUsers(
 
   const skip = (page - 1) * limit;
   const [users, total] = await Promise.all([
-    User.find(filter, projection).sort(sort).skip(skip).limit(limit).lean(),
+    User.find(filter, projection).sort(sort).skip(skip).limit(limit).lean<
+      Array<Partial<IUser> & { _id: unknown }>
+    >(),
     User.countDocuments(filter),
   ]);
 
@@ -293,7 +295,7 @@ export async function updateUserRole(
   id: string,
   role: IUser["role"]
 ): Promise<{
-  _id: any;
+  _id: unknown;
   firstName: string;
   lastName: string;
   email: string;
@@ -305,7 +307,7 @@ export async function updateUserRole(
     { role },
     { new: true, select: "firstName lastName email role" }
   ).lean<{
-    _id: any;
+    _id: unknown;
     firstName: string;
     lastName: string;
     email: string;
@@ -406,10 +408,10 @@ export async function applyUserPatch(
     user.isActive = patch.isActive;
     if (!patch.isActive && wasActive) {
       // Disabling → invalidate sessions immediately.
-      (user as any).sessionInvalidatedAt = new Date();
+      (user as IUser & { sessionInvalidatedAt: Date | null }).sessionInvalidatedAt = new Date();
     } else if (patch.isActive && !wasActive) {
       // Re-enabling → clear the invalidation stamp.
-      (user as any).sessionInvalidatedAt = null;
+      (user as IUser & { sessionInvalidatedAt: Date | null }).sessionInvalidatedAt = null;
     }
   }
 

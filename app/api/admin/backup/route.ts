@@ -36,15 +36,15 @@ export async function POST(request: NextRequest) {
   try {
     // 1. Verify Admin Auth
     const authResult = await verifyAdminAuth(request);
-    if (!authResult.valid) {
+    if (!authResult.valid || !authResult.user) {
       serverLogger.warn(`[Backup] Auth failed. RequestId: ${requestId}. Error: ${authResult.error}`);
       return NextResponse.json(
         { error: authResult.error },
         { status: 401 }
       );
     }
-    
-    serverLogger.info(`[Backup] Admin authenticated. User: ${authResult.user.id}, RequestId: ${requestId}`);
+    const adminAuthUser = authResult.user;
+    serverLogger.info(`[Backup] Admin authenticated. User: ${adminAuthUser.id}, RequestId: ${requestId}`);
 
     // 2. Parse Body for Password
     let body;
@@ -69,16 +69,16 @@ export async function POST(request: NextRequest) {
 
     // 3. Verify Password
     await connectDB();
-    const adminUser = await getUserById(authResult.user.id);
+    const adminUser = await getUserById(adminAuthUser.id);
 
     if (!adminUser) {
-      serverLogger.error(`[Backup] User not found during re-verification. ID: ${authResult.user.id}`);
+      serverLogger.error(`[Backup] User not found during re-verification. ID: ${adminAuthUser.id}`);
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     const isPasswordValid = await adminUser.comparePassword(password);
     if (!isPasswordValid) {
-      serverLogger.warn(`[Backup] Invalid password provided. User: ${authResult.user.email}`);
+      serverLogger.warn(`[Backup] Invalid password provided. User: ${adminAuthUser.email}`);
       return NextResponse.json(
         { error: "Invalid password. Access denied." },
         { status: 403 }
@@ -93,8 +93,8 @@ export async function POST(request: NextRequest) {
       request.headers.get("x-real-ip") ||
       "unknown";
     await logAdminAction({
-      userId: authResult.user.id,
-      userEmail: authResult.user.email,
+      userId: adminAuthUser.id,
+      userEmail: adminAuthUser.email,
       action: "DATABASE_BACKUP_DOWNLOAD",
       resource: "/api/admin/backup",
       method: "POST",
