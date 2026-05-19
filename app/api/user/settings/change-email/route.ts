@@ -1,8 +1,6 @@
 import { NextRequest } from "next/server";
 import crypto from "crypto";
-import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
-import { getUserByEmail } from "@/lib/services/users";
+import { getUserByEmail, getUserWithPassword } from "@/lib/services/users";
 import { AuthService } from "@/lib/auth";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
@@ -63,10 +61,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await connectDB();
-
     // Re-fetch with password field (select: false by default)
-    const userWithPassword = await User.findById(user._id).select("+password");
+    const userWithPassword = await getUserWithPassword(user._id);
     if (!userWithPassword?.password) {
       return secureErrorResponse("Cannot verify identity", 400, "NO_PASSWORD");
     }

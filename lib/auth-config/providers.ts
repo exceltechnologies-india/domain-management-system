@@ -7,7 +7,11 @@ import FacebookProvider from "next-auth/providers/facebook";
 import GithubProvider from "next-auth/providers/github";
 import CredentialsProvider from "next-auth/providers/credentials";
 import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
+import {
+  consumeUserBackupCode,
+  getUserByEmailForLogin,
+  getUserWithTOTPSecretsForLogin,
+} from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
 import { updateLastActivity } from "@/lib/session-activity";
 import { verifyTotpCode, verifyBackupCode } from "@/lib/totp";
@@ -137,7 +141,7 @@ export const providers = [
 
         await Promise.race([connectDB(), timeoutPromise]);
 
-        const user = await User.findOne({ email: credentials.email }).maxTimeMS(5000);
+        const user = await getUserByEmailForLogin(credentials.email, { maxTimeMS: 5000 });
         if (!user) {
           throw new Error("Invalid email or password");
         }
@@ -178,9 +182,7 @@ export const providers = [
             throw new Error("TotpRequired");
           }
 
-          const userWithSecrets = await User.findById(user._id).select(
-            "+totpSecret +totpBackupCodes"
-          );
+          const userWithSecrets = await getUserWithTOTPSecretsForLogin(user._id);
 
           const isValidTotp =
             userWithSecrets?.totpSecret &&
@@ -201,10 +203,7 @@ export const providers = [
               throw new Error("InvalidTotpCode");
             }
             // Consume the backup code so it cannot be reused
-            await User.updateOne(
-              { _id: user._id },
-              { $pull: { totpBackupCodes: matchedBackupHash } }
-            );
+            await consumeUserBackupCode(user._id, matchedBackupHash);
             serverLogger.warn(
               `[AUTH] ${user.email} signed in using a 2FA backup code`
             );

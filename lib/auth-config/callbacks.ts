@@ -5,7 +5,13 @@
 import { Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
+import {
+  createUser,
+  getUserByEmail,
+  getUserForSessionCheck,
+  getUserForTokenRefresh,
+  getUserProfileCompleted,
+} from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
 import { updateLastActivity, checkSessionTimeout } from "@/lib/session-activity";
 import { PASSWORD_ROTATION_DAYS } from "@/config/constants";
@@ -39,12 +45,8 @@ export const callbacks = {
       }
 
       try {
-        await connectDB();
-
         // Check if this email belongs to an existing user
-        const existingUser = await User.findOne({
-          email: user.email,
-        });
+        const existingUser = await getUserByEmail(user.email);
 
         if (existingUser) {
           // Block admin users from social login
@@ -98,8 +100,7 @@ export const callbacks = {
     // On token refresh (no user/account), check if user is still active and session not invalidated
     if (!user && !account && token?.id) {
       try {
-        await connectDB();
-        const dbUser = await User.findById(token.id).select("isActive role sessionInvalidatedAt passwordChangedAt profileCompleted");
+        const dbUser = await getUserForTokenRefresh(token.id);
 
         if (!dbUser || !dbUser.isActive) {
           serverLogger.warn(
@@ -169,7 +170,7 @@ export const callbacks = {
           "via",
           account.provider
         );
-        let dbUser = await User.findOne({ email: user.email });
+        let dbUser = await getUserByEmail(user.email);
 
         // Fetch additional user data from Google/Facebook if access token available
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -286,26 +287,24 @@ export const callbacks = {
             additionalData.address.city;
           const isProfileComplete = hasPhone && hasAddress;
 
-          dbUser = new User({
-            email: user.email,
-            firstName,
-            lastName,
-            // Auto-populate phone if available from Google
-            phone: additionalData.phone || undefined,
-            phoneCc: additionalData.phoneCc || undefined,
-            // Auto-populate address if available from Google
-            address: additionalData.address || undefined,
-            provider: account.provider,
-            providerId: account.providerAccountId,
-            role: "user",
-            isActive: true,
-            isActivated: true,
-            // Mark as complete if we have all required fields
-            profileCompleted: isProfileComplete,
-          });
-
           try {
-            await dbUser.save();
+            dbUser = await createUser({
+              email: user.email,
+              firstName,
+              lastName,
+              // Auto-populate phone if available from Google
+              phone: additionalData.phone || undefined,
+              phoneCc: additionalData.phoneCc || undefined,
+              // Auto-populate address if available from Google
+              address: additionalData.address || undefined,
+              provider: account.provider,
+              providerId: account.providerAccountId,
+              role: "user",
+              isActive: true,
+              isActivated: true,
+              // Mark as complete if we have all required fields
+              profileCompleted: isProfileComplete,
+            });
           } catch (error) {
             serverLogger.error("[JWT CALLBACK] Error creating user:", error);
             throw error;
@@ -439,7 +438,7 @@ export const callbacks = {
         // don't see the "complete your profile" banner. The credentials
         // authorize callback returns a minimal user — fetch the rest here.
         try {
-          const dbUser = await User.findById(user.id).select("profileCompleted");
+          const dbUser = await getUserProfileCompleted(user.id);
           if (dbUser) {
             token.profileCompleted = dbUser.profileCompleted === true;
           }
@@ -478,8 +477,7 @@ export const callbacks = {
       // Check if user is still active and session not invalidated before creating session
       if (token.id) {
         try {
-          await connectDB();
-          const dbUser = await User.findById(token.id).select("isActive sessionInvalidatedAt");
+          const dbUser = await getUserForSessionCheck(token.id);
 
           if (!dbUser || !dbUser.isActive) {
             serverLogger.warn(

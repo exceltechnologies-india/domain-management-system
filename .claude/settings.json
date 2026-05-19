@@ -34,7 +34,8 @@
       "Bash(node /tmp/test_user_creation.js)",
       "Bash(sed -i \"s/env\\\\.JWT_SECRET/env.NEXTAUTH_SECRET/\" /tmp/test_settings_sync.js)",
       "Bash(node /tmp/test_settings_sync.js)",
-      "Bash(node /tmp/test_settings_v2.js)"
+      "Bash(node /tmp/test_settings_v2.js)",
+      "Bash(git push origin main)"
     ]
   }
 }

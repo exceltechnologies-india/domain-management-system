@@ -12,10 +12,13 @@
  * return null, which causes automatic fallback to DB.
  */
 
-import connectDB from "@/lib/mongodb";
 import { serverLogger } from "@/lib/server-logger";
 import { redisCache } from "@/lib/redis";
-import User from "@/models/User";
+import {
+  getUserSessionTimeoutFields,
+  invalidateUserSessionNow,
+  updateUserLastActivity,
+} from "@/lib/services/users";
 import {
   ACTIVITY_UPDATE_DEBOUNCE_MS,
   DEFAULT_ADMIN_SESSION_TIMEOUT_MINUTES,
@@ -53,20 +56,15 @@ export async function updateLastActivity(userId: string): Promise<void> {
       await redisCache.set(key, updated, cached.timeoutMinutes * 60);
 
       // Background DB sync — non-blocking so it never delays the response
-      connectDB()
-        .then(() =>
-          User.updateOne({ _id: userId }, { lastActivityAt: new Date(now) })
-        )
-        .catch((e) => serverLogger.error("[session-activity] DB sync error:", e));
+      updateUserLastActivity(userId, new Date(now)).catch((e) =>
+        serverLogger.error("[session-activity] DB sync error:", e)
+      );
 
       return;
     }
 
     // Cache miss: read from DB to discover the user's timeout, then seed cache
-    await connectDB();
-    const user = await User.findById(userId).select(
-      "lastActivityAt sessionTimeoutMinutes role"
-    );
+    const user = await getUserSessionTimeoutFields(userId);
     if (!user) return;
 
     const timeoutMinutes =
@@ -81,7 +79,7 @@ export async function updateLastActivity(userId: string): Promise<void> {
         { lastActivityAt: now, timeoutMinutes } satisfies CachedActivity,
         timeoutMinutes * 60
       ),
-      User.updateOne({ _id: userId }, { lastActivityAt: new Date(now) }),
+      updateUserLastActivity(userId, new Date(now)),
     ]);
   } catch (error) {
     serverLogger.error("[session-activity] updateLastActivity error:", error);
@@ -124,10 +122,7 @@ export async function checkSessionTimeout(
     }
 
     // ── Cold path: DB fallback ───────────────────────────────────────────────
-    await connectDB();
-    const user = await User.findById(userId).select(
-      "lastActivityAt sessionTimeoutMinutes role"
-    );
+    const user = await getUserSessionTimeoutFields(userId);
 
     if (!user) return { isExpired: true };
 
@@ -190,12 +185,7 @@ export async function rotateSession(userId: string): Promise<void> {
   try {
     await Promise.all([
       redisCache.del(activityKey(userId)),
-      connectDB().then(() =>
-        User.findByIdAndUpdate(userId, {
-          sessionInvalidatedAt: new Date(),
-          lastActivityAt: new Date(),
-        })
-      ),
+      invalidateUserSessionNow(userId),
     ]);
   } catch (error) {
     serverLogger.error("[session-activity] rotateSession error:", error);

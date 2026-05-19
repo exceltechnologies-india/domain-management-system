@@ -663,3 +663,354 @@ export async function disableTOTPForUser(userId: string): Promise<void> {
     }
   );
 }
+
+/**
+ * Hydrated user doc with the active TOTP secret + backup-code hashes opted-in
+ * — *no* password. Used by the credentials-login flow, which has already
+ * verified the password and only needs to read TOTP fields. Distinct from
+ * {@link getUserWithTOTPSecrets} which also opts password in (for the
+ * disable-2FA step-up path).
+ */
+export async function getUserWithTOTPSecretsForLogin(
+  userId: unknown
+): Promise<IUser | null> {
+  await connectDB();
+  return User.findById(userId).select("+totpSecret +totpBackupCodes");
+}
+
+/**
+ * Consume a single backup code from the user's `totpBackupCodes` list. Backup
+ * codes are one-time use — once a successful match is found in
+ * {@link getUserWithTOTPSecretsForLogin}, the caller invokes this helper to
+ * `$pull` the matched hash so it cannot be reused.
+ */
+export async function consumeUserBackupCode(
+  userId: unknown,
+  hash: string
+): Promise<void> {
+  await connectDB();
+  await User.updateOne({ _id: userId }, { $pull: { totpBackupCodes: hash } });
+}
+
+// ─── Auth-internal: password verification + session lifecycle ────────────────
+// These helpers are auth-internal — every call site has to read fields that
+// are normally `select: false` (the password hash) or that drive the session
+// state machine. Keep each helper narrow so the secret-field exposure is
+// obvious from the function name.
+
+/**
+ * Hydrated user doc with `+password` opted-in. Used by step-up auth flows
+ * (admin sensitive-action re-auth, user email-change) that need to bcrypt-
+ * compare a freshly-supplied password against the stored hash.
+ */
+export async function getUserWithPassword(
+  userId: unknown
+): Promise<IUser | null> {
+  await connectDB();
+  return User.findById(userId).select("+password");
+}
+
+/**
+ * Projection used by NextAuth's JWT-refresh callback to re-check the user
+ * on every token rotation: `isActive`, `role`, `sessionInvalidatedAt`,
+ * `passwordChangedAt`, `profileCompleted`. Returns null when the user no
+ * longer exists.
+ */
+export async function getUserForTokenRefresh(userId: string): Promise<
+  | (Pick<
+      IUser,
+      "isActive" | "role" | "sessionInvalidatedAt" | "passwordChangedAt" | "profileCompleted"
+    >)
+  | null
+> {
+  await connectDB();
+  return User.findById(userId).select(
+    "isActive role sessionInvalidatedAt passwordChangedAt profileCompleted"
+  );
+}
+
+/**
+ * Minimal projection used by NextAuth's session callback to verify the user
+ * is still active and the session wasn't invalidated server-side. Same hot-
+ * path constraints as {@link getUserForTokenRefresh} — fewer fields, runs
+ * on every authenticated request.
+ */
+export async function getUserForSessionCheck(userId: string): Promise<
+  Pick<IUser, "isActive" | "sessionInvalidatedAt"> | null
+> {
+  await connectDB();
+  return User.findById(userId).select("isActive sessionInvalidatedAt");
+}
+
+/**
+ * `profileCompleted` lookup. Used by the credentials-login JWT path to
+ * decide whether to surface the "complete your profile" banner.
+ */
+export async function getUserProfileCompleted(
+  userId: unknown
+): Promise<{ profileCompleted?: boolean } | null> {
+  await connectDB();
+  return User.findById(userId).select("profileCompleted");
+}
+
+/**
+ * Find a user by email with the auth-flow read-timeout cap. The credentials-
+ * login path runs inside the NextAuth `authorize` callback which has tight
+ * latency budget — cap the Mongo read so a slow primary doesn't stall login.
+ */
+export async function getUserByEmailForLogin(
+  email: string,
+  opts?: { maxTimeMS?: number }
+): Promise<IUser | null> {
+  await connectDB();
+  return User.findOne({ email }).maxTimeMS(opts?.maxTimeMS ?? 5000);
+}
+
+/**
+ * Update the user's `lastActivityAt` field. The hot-path session-activity
+ * tracker writes through Redis first and uses this as the background DB
+ * sync — never on the request-blocking critical path.
+ */
+export async function updateUserLastActivity(
+  userId: string,
+  at: Date = new Date()
+): Promise<void> {
+  await connectDB();
+  await User.updateOne({ _id: userId }, { lastActivityAt: at });
+}
+
+/**
+ * Read the fields needed to derive the session-timeout window:
+ * `lastActivityAt`, `sessionTimeoutMinutes`, `role` (so the helper can pick
+ * the correct default timeout based on role).
+ */
+export async function getUserSessionTimeoutFields(userId: string): Promise<
+  Pick<IUser, "lastActivityAt" | "sessionTimeoutMinutes" | "role"> | null
+> {
+  await connectDB();
+  return User.findById(userId).select(
+    "lastActivityAt sessionTimeoutMinutes role"
+  );
+}
+
+/**
+ * Server-side session rotation: stamp `sessionInvalidatedAt = now` so every
+ * existing token is rejected by the session/JWT callbacks, and bump
+ * `lastActivityAt` so the next legitimate sign-in starts a fresh window.
+ */
+export async function invalidateUserSessionNow(userId: string): Promise<void> {
+  await connectDB();
+  await User.findByIdAndUpdate(userId, {
+    sessionInvalidatedAt: new Date(),
+    lastActivityAt: new Date(),
+  });
+}
+
+// ─── Admin reporting (lean projections) ──────────────────────────────────────
+
+/**
+ * Lean `firstName/lastName/email` projection for *every* user. Used by the
+ * admin hosting-stats fallback path that maps Hosting rows back to users
+ * when the live DA-side lookup is unavailable.
+ */
+export async function listAllUserBriefs(): Promise<
+  Array<{
+    _id: unknown;
+    firstName: string;
+    lastName: string;
+    email: string;
+  }>
+> {
+  await connectDB();
+  return User.find({})
+    .select("firstName lastName email")
+    .lean<
+      Array<{
+        _id: unknown;
+        firstName: string;
+        lastName: string;
+        email: string;
+      }>
+    >();
+}
+
+/**
+ * Single-row lookup variant for the admin hosting-stats path: pivot a DA
+ * account's email back to its local user, projecting the columns the stats
+ * row needs.
+ */
+export async function getUserBriefByEmail(
+  email: string
+): Promise<
+  | {
+      _id: unknown;
+      firstName: string;
+      lastName: string;
+      email: string;
+      hostingCreatedAt?: Date;
+      hostingExpiresAt?: Date;
+    }
+  | null
+> {
+  await connectDB();
+  return User.findOne({ email })
+    .select("firstName lastName email hostingCreatedAt hostingExpiresAt")
+    .lean<{
+      _id: unknown;
+      firstName: string;
+      lastName: string;
+      email: string;
+      hostingCreatedAt?: Date;
+      hostingExpiresAt?: Date;
+    }>();
+}
+
+/**
+ * Lean list of users that have a DA account linked and *aren't* soft-
+ * deleted, with the full column set the admin "users with services" page
+ * needs (role/isActive/createdAt in addition to the hosting fields). Used
+ * by the admin services-list fallback that picks up rows the aggregation
+ * misses because they have no Hosting record yet.
+ */
+export async function listServiceUserCandidates(): Promise<
+  Array<{
+    _id: unknown;
+    firstName: string;
+    lastName: string;
+    email: string;
+    role: IUser["role"];
+    isActive: boolean;
+    createdAt: Date;
+    directAdminUsername?: string;
+    hostingCreatedAt?: Date;
+    hostingExpiresAt?: Date;
+  }>
+> {
+  await connectDB();
+  return User.find({
+    directAdminUsername: { $exists: true, $ne: null },
+    isDeleted: { $ne: true },
+  })
+    .select(
+      "_id firstName lastName email role isActive createdAt directAdminUsername hostingCreatedAt hostingExpiresAt"
+    )
+    .lean<
+      Array<{
+        _id: unknown;
+        firstName: string;
+        lastName: string;
+        email: string;
+        role: IUser["role"];
+        isActive: boolean;
+        createdAt: Date;
+        directAdminUsername?: string;
+        hostingCreatedAt?: Date;
+        hostingExpiresAt?: Date;
+      }>
+    >();
+}
+
+export interface UserWithServices {
+  _id: { toString(): string };
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: IUser["role"];
+  isActive: boolean;
+  createdAt: Date;
+  directAdminUsername?: string;
+  domains: Array<{
+    domainName: string;
+    status: string;
+    expiryDate?: Date;
+    createdAt?: Date;
+  }>;
+  hosting: Array<{
+    domainName: string;
+    status: string;
+    expiryDate?: Date;
+    createdAt?: Date;
+    name?: string;
+  }>;
+}
+
+/**
+ * Aggregation: every non-deleted user that owns at least one Domain or
+ * Hosting row, with those services joined into compact embedded arrays.
+ *
+ * Drives the admin /users/services page. Keeping the pipeline in the
+ * service module rather than the route puts the join shape near the User
+ * model where future schema changes can be reasoned about consistently
+ * (the route receives a stable, typed array regardless of any later
+ * pipeline tweak).
+ */
+export async function listUsersWithServicesAggregation(): Promise<
+  UserWithServices[]
+> {
+  await connectDB();
+  return User.aggregate<UserWithServices>([
+    { $match: { isDeleted: { $ne: true } } },
+    {
+      $lookup: {
+        from: "domains",
+        localField: "_id",
+        foreignField: "userId",
+        as: "domains",
+      },
+    },
+    {
+      $lookup: {
+        from: "hostings",
+        localField: "_id",
+        foreignField: "userId",
+        as: "hosting",
+      },
+    },
+    {
+      $match: {
+        $or: [
+          { "domains.0": { $exists: true } },
+          { "hosting.0": { $exists: true } },
+        ],
+      },
+    },
+    {
+      $project: {
+        _id: 1,
+        firstName: 1,
+        lastName: 1,
+        email: 1,
+        role: 1,
+        isActive: 1,
+        createdAt: 1,
+        directAdminUsername: 1,
+        domains: {
+          $map: {
+            input: "$domains",
+            as: "d",
+            in: {
+              domainName: "$$d.domainName",
+              status: "$$d.status",
+              expiryDate: "$$d.expiresAt",
+              createdAt: "$$d.createdAt",
+            },
+          },
+        },
+        hosting: {
+          $map: {
+            input: "$hosting",
+            as: "h",
+            in: {
+              domainName: "$$h.domainName",
+              status: "$$h.status",
+              expiryDate: "$$h.expiryDate",
+              createdAt: "$$h.createdAt",
+              name: "$$h.name",
+            },
+          },
+        },
+      },
+    },
+    { $sort: { createdAt: -1 } },
+  ]);
+}

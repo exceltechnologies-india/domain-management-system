@@ -8,8 +8,7 @@ import { NextRequest } from "next/server";
 import { serverLogger } from "@/lib/server-logger";
 import { getToken } from "next-auth/jwt";
 import connectDB from "@/lib/mongodb";
-import { getUserByIdSafe } from "@/lib/services/users";
-import User from "@/models/User";
+import { getUserByIdSafe, getUserWithPassword } from "@/lib/services/users";
 import bcrypt from "bcryptjs";
 import { getSetting, getSettingValue } from "@/lib/services/settings";
 import { rateLimiters } from "@/lib/rate-limit";
@@ -335,9 +334,8 @@ export async function requireReAuth(
       return { required: true, passed: false };
     }
 
-    await connectDB();
     // Select password explicitly; most callers strip it with select("-password")
-    const user = await User.findById(userId).select("+password");
+    const user = await getUserWithPassword(userId);
     if (!user || !user.password) {
       return { required: true, passed: false };
     }
