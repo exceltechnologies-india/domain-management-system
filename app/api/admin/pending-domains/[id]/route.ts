@@ -6,7 +6,7 @@ import mongoose from "mongoose";
 import connectDB from "@/lib/mongodb";
 import PendingDomain from "@/models/PendingDomain";
 import { getPendingDomainById } from "@/lib/services/pending-domains";
-import Order from "@/models/Order";
+import Order, { type IOrder } from "@/models/Order";
 import { getUserByIdSafe } from "@/lib/services/users";
 import Domain from "@/models/Domain";
 import { getToken } from "next-auth/jwt";
@@ -137,7 +137,7 @@ export async function PUT(
         if (order) {
           // Find and update the matching domain in the order
           const domainIndex = order.domains.findIndex(
-            (d: any) => d.domainName === pendingDomain.domainName
+            (d: IOrder["domains"][number]) => d.domainName === pendingDomain.domainName
           );
 
           if (domainIndex !== -1) {
@@ -233,7 +233,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    let query: any = { _id: pendingDomainId };
+    let query: Record<string, unknown> = { _id: pendingDomainId };
     if (mongoose.Types.ObjectId.isValid(pendingDomainId)) {
       query = { $or: [{ _id: pendingDomainId }, { _id: new mongoose.Types.ObjectId(pendingDomainId) }] };
     }
@@ -288,8 +288,8 @@ export async function DELETE(
             registrarMessage = rcResult.message || "Failed to cancel at registrar";
             serverLogger.warn(`[${reqId}] ⚠️ ResellerClub cancellation returned error: ${registrarMessage}`);
           }
-        } catch (rcError: any) {
-          registrarMessage = rcError.message || "Registrar API error";
+        } catch (rcError: unknown) {
+          registrarMessage = rcError instanceof Error ? rcError.message : "Registrar API error";
           serverLogger.error(`[${reqId}] ❌ Failed to call ResellerClub delete API:`, rcError);
         }
       } else {
@@ -302,7 +302,7 @@ export async function DELETE(
           const order = await Order.findOne({ orderId: pendingDomain.orderId });
           if (order) {
             const domainIndex = order.domains.findIndex(
-              (d: any) => d.domainName === pendingDomain.domainName
+              (d: IOrder["domains"][number]) => d.domainName === pendingDomain.domainName
             );
             if (domainIndex !== -1) {
               order.domains[domainIndex].status = 'cancelled';
@@ -367,7 +367,7 @@ export async function DELETE(
         if (order) {
           // Find and update the matching domain in the order
           const domainIndex = order.domains.findIndex(
-            (d: any) => d.domainName === pendingDomain.domainName
+            (d: IOrder["domains"][number]) => d.domainName === pendingDomain.domainName
           );
 
           if (domainIndex !== -1) {
@@ -410,7 +410,12 @@ export async function DELETE(
 
             // Send failure email to user
             try {
-              const customer = pendingDomain.userId as any;
+              // Populated via getPendingDomainById with the populateUser option
+              const customer = pendingDomain.userId as unknown as {
+                email?: string;
+                firstName?: string;
+                lastName?: string;
+              };
               // Check if customer object is populated and has email (it might be just an ID if populate failed)
               if (customer && typeof customer === 'object' && customer.email) {
                 serverLogger.info(`[${reqId}] Sending failure email to: ${customer.email}`);
@@ -477,10 +482,11 @@ export async function DELETE(
       success: true,
       message: "Pending domain archived successfully",
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     serverLogger.error(`[${reqId ?? 'unknown'}] Admin pending domain archive/delete error:`, error);
+    const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { error: `Failed to process pending domain: ${error.message}` }, // Expose specific error to UI
+      { error: `Failed to process pending domain: ${message}` }, // Expose specific error to UI
       { status: 500 }
     );
   }

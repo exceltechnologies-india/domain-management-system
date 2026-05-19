@@ -46,20 +46,20 @@ export async function GET(request: NextRequest) {
         syncedPackages = await Promise.all(
           daPackages.map(async (pkgName) => {
             // Fetch details from DA
-            let details: any = {};
+            let details: Record<string, string | undefined> = {};
             try {
                 details = await DirectAdminService.getPackageDetails(pkgName);
             } catch (e) {
                 serverLogger.warn(`Failed to fetch details for package ${pkgName}:`, e);
             }
-    
+
             // Try to find existing plan
             let plan = await HostingPlan.findOne({ planId: pkgName });
-    
+
             // Helper to parse unlimited
-            const parseDAValue = (val: any) => {
+            const parseDAValue = (val: string | undefined): number => {
                 if (typeof val === 'string' && val.toLowerCase() === 'unlimited') return -1;
-                return parseInt(val) || 0;
+                return parseInt(val ?? '') || 0;
             };
     
             const parsedQuota = parseDAValue(details.quota);
@@ -110,8 +110,9 @@ export async function GET(request: NextRequest) {
       source: isDaAvailable ? 'live' : 'db',
       warning: isDaAvailable ? null : 'DirectAdmin unreachable. Showing cached packages.'
     });
-  } catch (error: any) {
-    serverLogger.error('Admin List Packages Error:', error.message || 'Unknown error');
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    serverLogger.error('Admin List Packages Error:', message);
     
     // Even global error, try to return DB if possible
     try {
@@ -191,10 +192,11 @@ export async function POST(request: NextRequest) {
       message: `Package '${packageName}' created successfully.`,
       data: newPlan 
     });
-  } catch (error: any) {
-    serverLogger.error(`Admin Package Creation Route Error (${request.headers.get('x-user-email')}):`, error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    serverLogger.error(`Admin Package Creation Route Error (${request.headers.get('x-user-email')}):`, message);
     return secureErrorResponse(
-      error.message || "Failed to create package",
+      message || "Failed to create package",
       500,
       "PACKAGE_CREATION_FAILED",
       error // Pass original error object for internal logging
@@ -267,8 +269,9 @@ export async function PATCH(request: NextRequest) {
         };
         
         serverLogger.info(`[ADMIN-PRICE-UPDATE] Razorpay plans rotated: M=${monthlyPlan.id}, Y=${yearlyPlan.id}`);
-      } catch (rzpErr: any) {
-        serverLogger.error(`[ADMIN-PRICE-UPDATE] Failed to sync with Razorpay: ${rzpErr.message}`);
+      } catch (rzpErr: unknown) {
+        const rzpMessage = rzpErr instanceof Error ? rzpErr.message : String(rzpErr);
+        serverLogger.error(`[ADMIN-PRICE-UPDATE] Failed to sync with Razorpay: ${rzpMessage}`);
         // We still save the price update locally even if Razorpay fails, 
         // but it's a warning state.
       }
@@ -282,10 +285,11 @@ export async function PATCH(request: NextRequest) {
       data: plan
     });
 
-  } catch (error: any) {
-    serverLogger.error(`Admin Package Update Error:`, error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    serverLogger.error(`Admin Package Update Error:`, message);
     return secureErrorResponse(
-      error.message || "Failed to update package",
+      message || "Failed to update package",
       500,
       "UPDATE_FAILED"
     );

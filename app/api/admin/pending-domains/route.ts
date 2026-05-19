@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
     const archived = searchParams.get("archived") === "true"; // Show archived domains if true
 
     // STEP 1: Get domains from PendingDomain collection
-    const pendingDomainQuery: any = {};
+    const pendingDomainQuery: Record<string, unknown> = {};
     
     // Filter by archived status
     if (archived) {
@@ -79,10 +79,28 @@ export async function GET(request: NextRequest) {
 
     // STEP 2: Get domains from Orders with pending/processing status
     // Only fetch from orders if NOT showing archived domains (archived domains are only in PendingDomain collection)
-    const pendingDomainsFromOrders: any[] = [];
-    
+    type SyntheticPendingDomain = {
+      _id: string;
+      domainName: string;
+      price: number;
+      currency: string;
+      registrationPeriod: number;
+      userId: unknown;
+      orderId: string;
+      customerId: number;
+      contactId: number;
+      status: string;
+      reason: string;
+      verificationAttempts: number;
+      resellerClubOrderId?: string;
+      createdAt: Date;
+      updatedAt: Date;
+      source: "order" | "pending_domain";
+    };
+    const pendingDomainsFromOrders: SyntheticPendingDomain[] = [];
+
     if (!archived) {
-      const orderQuery: any = {
+      const orderQuery: Record<string, unknown> = {
         isDeleted: { $ne: true },
         "domains.status": { $in: ["pending", "processing"] },
       };
@@ -101,7 +119,7 @@ export async function GET(request: NextRequest) {
           }
           // Check if this domain is already in PendingDomain collection
           const existsInCollection = pendingDomainsFromCollection.some(
-            (pd: any) =>
+            (pd) =>
               pd.domainName.toLowerCase() === domain.domainName.toLowerCase()
           );
 
@@ -147,13 +165,26 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // STEP 3: Merge both sources
-    const allPendingDomains = [
-      ...pendingDomainsFromCollection.map((pd: any) => ({
+    // STEP 3: Merge both sources. The two arrays carry different shapes —
+    // pending-domain rows are the (lean-stripped) IPendingDomain doc, while
+    // synthetic rows are the order-derived projection. Both expose at least
+    // `createdAt`, `status`, `domainName` etc., so we narrow to that intersect.
+    interface MergedRow {
+      status: string;
+      domainName: string;
+      createdAt: Date;
+      source: "pending_domain" | "order";
+      [k: string]: unknown;
+    }
+    const allPendingDomains: MergedRow[] = [
+      ...pendingDomainsFromCollection.map((pd) => ({
+        ...(pd as unknown as Record<string, unknown>),
+        source: "pending_domain" as const,
+      })) as MergedRow[],
+      ...pendingDomainsFromOrders.map((pd) => ({
         ...pd,
-        source: "pending_domain",
-      })),
-      ...pendingDomainsFromOrders,
+        source: "order" as const,
+      })) as MergedRow[],
     ].sort(
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -173,7 +204,7 @@ export async function GET(request: NextRequest) {
       failed: 0,
     };
 
-    allPendingDomains.forEach((domain: any) => {
+    allPendingDomains.forEach((domain) => {
       const domainStatus = domain.status;
       if (domainStatus in statusSummary) {
         statusSummary[domainStatus as keyof typeof statusSummary]++;

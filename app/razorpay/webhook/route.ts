@@ -2,7 +2,8 @@ import { getUserById } from "@/lib/services/users";
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
+import Order, { type IOrder } from "@/models/Order";
+import type { HydratedDocument } from "mongoose";
 import { ZohoBooksService } from "@/lib/zohobooks";
 import { serverLogger } from "@/lib/server-logger";
 
@@ -47,14 +48,31 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ status: "ok" });
-  } catch (error: any) {
+  } catch (error: unknown) {
     serverLogger.error("❌ Webhook Error", error);
     // Return 500 to trigger retry from Razorpay
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
 
-async function handlePaymentCaptured(payload: any) {
+interface RazorpayPaymentEntity {
+  id: string;
+  amount: number;
+  currency: string;
+  order_id?: string;
+  description?: string;
+  notes?: { receipt?: string };
+}
+
+interface PaymentCapturedPayload {
+  payload: { payment: { entity: RazorpayPaymentEntity } };
+}
+
+interface RefundProcessedPayload {
+  payload?: { refund?: { entity?: { id: string; payment_id: string; amount: number } } };
+}
+
+async function handlePaymentCaptured(payload: PaymentCapturedPayload) {
     await connectDB();
     const payment = payload.payload.payment.entity;
     // receipt holds the Internal Order ID (ORD...) as per Phase 2.1
@@ -103,12 +121,12 @@ async function handlePaymentCaptured(payload: any) {
             // We need User details and Items to create invoice
             // Fetch User
            const User = (await import("@/models/User")).default; // Dynamic import to avoid cycles/init issues
-           const user = await getUserById(order.userId);
+           const user = await getUserById(String(order.userId));
            if (!user) throw new Error("User not found for order");
 
            // Reconstruct items from Order (since we need to pass them to Zoho)
            // Order.domains contains item details including price
-           const items = order.domains.map((d: any) => ({
+           const items = order.domains.map((d: IOrder["domains"][number]) => ({
                domainName: d.domainName,
                price: d.price,
                itemType: d.itemType,
@@ -163,7 +181,7 @@ async function handlePaymentCaptured(payload: any) {
     }
 }
 
-async function handleRefundProcessed(payload: any) {
+async function handleRefundProcessed(payload: RefundProcessedPayload) {
   await connectDB();
 
   const refund = payload.payload?.refund?.entity;
@@ -190,7 +208,7 @@ async function handleRefundProcessed(payload: any) {
   try {
     const zohoService = ZohoBooksService.getInstance();
     const User = (await import("@/models/User")).default;
-    const user = await getUserById(order.userId);
+    const user = await getUserById(String(order.userId));
     if (!user) throw new Error("User not found for refunded order");
 
     // Look up the Zoho contact for this user
@@ -206,16 +224,17 @@ async function handleRefundProcessed(payload: any) {
     );
 
     serverLogger.info(`[Webhook] Credit note created for refund ${refundId} on order ${order.orderId}`);
-  } catch (error: any) {
-    serverLogger.error(`[Webhook] Failed to create credit note for refund ${refundId}`, error.message || error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    serverLogger.error(`[Webhook] Failed to create credit note for refund ${refundId}`, message);
     // Don't throw — Razorpay doesn't need to retry refund webhooks for accounting failures.
     // Admin should be alerted via Cloud Logging / monitoring alert.
   }
 }
 
-async function provisionServices(order: any) {
+async function provisionServices(order: HydratedDocument<IOrder>) {
     const User = (await import("@/models/User")).default;
-    const user = await getUserById(order.userId);
+    const user = await getUserById(String(order.userId));
     if (!user) throw new Error("User not found for provisioning");
     
     // Import dynamically to avoid circle if any (though lib should be fine)
