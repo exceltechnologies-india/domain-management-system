@@ -246,7 +246,24 @@ Top hotspots: `app/admin/settings/page.tsx` (22), `app/admin/system-settings/pag
 
 ---
 
-### ~~[HIGH-4] No service / repository layer~~ — PARTIALLY RESOLVED 2026-05-14 (foundation + 15 model services + User wider adoption + admin CRUD tightening + lib/payment-services folded into lib/services/payment)
+### ~~[HIGH-4] No service / repository layer~~ — PARTIALLY RESOLVED 2026-05-14 (foundation + 15 model services + User wider adoption + admin CRUD tightening + lib/payment-services folded into lib/services/payment + auth-internal + session + admin-aggregation migrations 2026-05-19, zero `User.X(...)` callsites remain outside the User service)
+
+**Final User-service pass 2026-05-19:** the last 20 direct `User.X(...)` callsites flagged as the "auth-internal cluster, TOTP secret projections, admin-reporting aggregations, register's mutate-then-save" — previously deferred as intentional — were migrated. Twelve new helpers added to [lib/services/users.ts](lib/services/users.ts):
+
+- **Auth-internal password reads:** `getUserWithPassword` (replaces inline `findById(id).select("+password")` in [lib/admin-security.ts](lib/admin-security.ts) re-auth + [app/api/user/settings/change-email/route.ts](app/api/user/settings/change-email/route.ts) email-change re-auth).
+- **NextAuth-callback projections:** `getUserForTokenRefresh`, `getUserForSessionCheck`, `getUserProfileCompleted`, `getUserByEmailForLogin(email, { maxTimeMS })` — co-locate the JWT-refresh / session-create / credentials-authorize select strings so the hot-path projection contracts are obvious in one file. Migrated callsites in [lib/auth-config/callbacks.ts](lib/auth-config/callbacks.ts) (5) and [lib/auth-config/providers.ts](lib/auth-config/providers.ts) (1).
+- **TOTP login path:** `getUserWithTOTPSecretsForLogin` (variant of `getUserWithTOTPSecrets` that opts in to TOTP fields *without* the password — the credentials flow has already verified the password before this point) + `consumeUserBackupCode(userId, hash)` (the `$pull` of a single matched backup-code hash). Migrated 2 callsites in [lib/auth-config/providers.ts](lib/auth-config/providers.ts).
+- **Session-activity tracker:** `updateUserLastActivity`, `getUserSessionTimeoutFields`, `invalidateUserSessionNow` — drop the inline `connectDB().then(User.updateOne(...))` and `User.findById(id).select("lastActivityAt sessionTimeoutMinutes role")` from [lib/session-activity.ts](lib/session-activity.ts) (5 sites). The cold-path projection contract is now explicit in the service.
+- **Admin reporting:** `listAllUserBriefs` + `getUserBriefByEmail` for the [admin/hosting/stats](app/api/admin/hosting/stats/route.ts) DA-side join + fallback path; `listServiceUserCandidates` and `listUsersWithServicesAggregation` for [admin/users/services](app/api/admin/users/services/route.ts) — the 5-stage `$lookup` aggregation pipeline (Users→Domains→Hostings) is now defined in one place near the User model and the route is a 7-line orchestration over typed `UserWithServices[]`.
+- **NextAuth user creation:** the inline `new User({...}); await user.save();` in [lib/auth-config/callbacks.ts](lib/auth-config/callbacks.ts:290) on first social-login is now `await createUser({...})` via the existing service helper.
+
+**Latent issue surfaced during this pass:** [lib/auth.ts](lib/auth.ts) session-derived user lookup was calling `User.findById(sessionUser.id)` even when `sessionUser.id` was undefined (the session shape allows `id?: string`). Now guarded — if no `id` on the session, we skip the DB read entirely. Previously the implicit `undefined → null` Mongoose cast was silently making a wasted DB round-trip per cache miss.
+
+**Verified on main 2026-05-19:** 340/340 tests, lint clean (`✔ No ESLint warnings or errors`), tsc clean. Direct `User.X(...)` callsite count outside [lib/services/users.ts](lib/services/users.ts) and [tests/](tests/): **0** (down from 20 at the start of the pass). The User service is now the *only* place in the codebase that calls Mongoose methods on the User model.
+
+---
+
+
 **Footprint measured:** 107 route files, ~269 distinct Mongoose-model operations across the codebase. Top models by op count: User (93), Order (67), Hosting (28), HostingPlan (25), PendingDomain (16), Domain (12), SupportTicket (11), PendingHosting (8), DomainWatch (7).
 
 **Foundation laid for the rest:** Added [lib/services/](lib/services/) (parallel to the existing [lib/payment-services/](lib/payment-services/)). The pattern mirrors the audit's referenced "half-formed" pattern — domain-specific use-case functions, not a generic repository abstraction.

@@ -5,7 +5,7 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { NextRequest } from "next/server";
 import connectDB from "./mongodb";
-import User, { type IUser } from "@/models/User";
+import type { IUser } from "@/models/User";
 import { getServerSession } from "next-auth/next";
 import { getToken } from "next-auth/jwt";
 import { authOptions } from "@/lib/auth-config";
@@ -190,8 +190,7 @@ export class AuthService {
       const session = await getServerSession(authOptions);
       if (session?.user) {
         const sessionUser = session.user as { id?: string; email?: string };
-        await connectDB();
-        const userFromSession = await User.findById(sessionUser.id);
+        const userFromSession = sessionUser.id ? await getUserById(sessionUser.id) : null;
         if (userFromSession && userFromSession.isActive) {
           if (userFromSession.sessionInvalidatedAt) {
             serverLogger.warn('[AuthService] Session invalidated for user:', userFromSession.email);

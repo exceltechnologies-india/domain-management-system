@@ -4,8 +4,12 @@ import { DirectAdminService } from "@/lib/directadmin";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { addSecurityHeaders } from "@/lib/security-headers";
 import { serverLogger } from "@/lib/server-logger";
-import User from "@/models/User";
-import { findUsersByEmails, listUsersWithDirectAdmin } from "@/lib/services/users";
+import {
+  findUsersByEmails,
+  getUserBriefByEmail,
+  listAllUserBriefs,
+  listUsersWithDirectAdmin,
+} from "@/lib/services/users";
 import Order from "@/models/Order";
 import HostingPlan from "@/models/HostingPlan";
 import connectDB from "@/lib/mongodb";
@@ -137,7 +141,7 @@ export async function GET(request: NextRequest) {
                 if (!localUser && daConfig.email) {
                     // Try simple email match from our pre-fetched list? No, simpler to just skip or rely on what we have.
                     // Doing a DB call here is okay as it's not external.
-                    const userByEmail = await User.findOne({ email: daConfig.email }).select('firstName lastName email text hostingCreatedAt hostingExpiresAt').lean();
+                    const userByEmail = await getUserBriefByEmail(daConfig.email);
                     if (userByEmail) {
                         localUser = userByEmail as unknown as LocalUser;
                         linkedByEmail = true;
@@ -304,7 +308,7 @@ export async function GET(request: NextRequest) {
         type FallbackHosting = { _id: { toString(): string }; userId: { toString(): string }; domainName: string; status: string; name?: string; expiryDate?: Date; createdAt?: Date };
         type FallbackUser = { _id: { toString(): string }; firstName: string; lastName: string; email: string };
         const fallbackHosting = (await (await import("@/models/Hosting")).default.find({}).lean()) as unknown as FallbackHosting[];
-        const fallbackUsers = (await User.find({}).select('firstName lastName email').lean()) as unknown as FallbackUser[];
+        const fallbackUsers = (await listAllUserBriefs()) as unknown as FallbackUser[];
 
         const fallbackStats = fallbackHosting.map((h) => {
             const u = fallbackUsers.find((u) => u._id.toString() === h.userId.toString());
