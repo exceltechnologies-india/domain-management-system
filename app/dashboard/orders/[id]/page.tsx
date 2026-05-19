@@ -108,6 +108,7 @@ const STEP_LABELS: Record<string, string> = {
   domain_registered: 'Domain registered',
   domain_failed: 'Registration failed',
   dns_activated: 'DNS management activated',
+  hosting_deferred: 'Provisioning queued — waiting for server availability',
 };
 
 // ── Domain Card ───────────────────────────────────────────────────────────────
@@ -274,7 +275,18 @@ export default function OrderStatusPage() {
   const terminal = isOrderTerminal(order);
   const orderCfg = orderStatusConfig(order.status);
   const allRegistered = order.domains.every((d) => d.status === 'registered');
-  const anyFailed = order.domains.some((d) => d.status === 'failed');
+  const failedItems = order.domains.filter((d) => d.status === 'failed');
+  const pendingItems = order.domains.filter((d) => d.status === 'pending' || d.status === 'processing');
+  const anyFailed = failedItems.length > 0;
+
+  const itemLabel = (d: OrderDomain) =>
+    d.itemType === 'hosting' && d.hostingPlan ? d.hostingPlan.name : d.domainName;
+  const listLabels = (items: OrderDomain[]) => {
+    const names = items.map(itemLabel);
+    if (names.length === 1) return names[0];
+    if (names.length === 2) return `${names[0]} and ${names[1]}`;
+    return `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`;
+  };
 
   return (
     <ClientOnly>
@@ -372,12 +384,16 @@ export default function OrderStatusPage() {
             </div>
           )}
 
-          {/* Any-failure banner */}
+          {/* Any-failure banner — scoped to the actually-failed items, with explicit reassurance for anything still pending */}
           {anyFailed && (
-            <div className="flex items-center gap-3 px-5 py-4 bg-red-50 border border-red-200 rounded-xl text-red-800">
-              <AlertCircle className="h-5 w-5 flex-shrink-0 text-red-600" />
+            <div className="flex items-start gap-3 px-5 py-4 bg-red-50 border border-red-200 rounded-xl text-red-800">
+              <AlertCircle className="h-5 w-5 flex-shrink-0 text-red-600 mt-0.5" />
               <div className="text-sm">
-                <p className="font-medium">One or more items failed.</p>
+                <p className="font-medium">
+                  {failedItems.length === 1
+                    ? `${listLabels(failedItems)} failed to register.`
+                    : `${failedItems.length} services failed to register: ${listLabels(failedItems)}.`}
+                </p>
                 <p className="text-xs text-red-600 mt-0.5">
                   Our team has been notified. Contact{' '}
                   <a href={`mailto:${process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@anutech.in'}`} className="underline">
@@ -385,6 +401,13 @@ export default function OrderStatusPage() {
                   </a>{' '}
                   if not resolved within 24 hours.
                 </p>
+                {pendingItems.length > 0 && (
+                  <p className="text-xs text-gray-600 mt-2">
+                    {pendingItems.length === 1
+                      ? `${listLabels(pendingItems)} is still registering — that's normal and unaffected by the failure above.`
+                      : `${pendingItems.length} other services (${listLabels(pendingItems)}) are still registering — that's normal and unaffected.`}
+                  </p>
+                )}
               </div>
             </div>
           )}

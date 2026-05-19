@@ -316,10 +316,15 @@ export default function PaymentResultPage() {
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 border-l-4 border-l-red-400 p-5">
               <div className="flex items-center gap-2 mb-1">
                 <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0" />
-                <h2 className="text-sm font-semibold text-red-800">Registration Failed</h2>
+                <h2 className="text-sm font-semibold text-red-800">
+                  {result.failedDomains!.length === 1
+                    ? 'This item failed to register'
+                    : `${result.failedDomains!.length} items failed to register`}
+                </h2>
               </div>
               <p className="text-xs text-gray-500 mb-3">
                 Our support team has been notified. Contact us to resolve this at no extra charge.
+                {hasPending && ' Other items on this order are still registering normally.'}
               </p>
               <div className="space-y-2 mb-4">
                 {result.failedDomains!.map((d, i) => (
