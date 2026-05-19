@@ -9,6 +9,17 @@ import type {
   RazorpayPlan,
 } from "@/lib/types";
 
+interface RazorpaySdkError {
+  code?: string;
+  message?: string;
+  error?: { code?: string; description?: string };
+}
+
+function asRzpErr(error: unknown): RazorpaySdkError {
+  if (error && typeof error === "object") return error as RazorpaySdkError;
+  return { message: String(error) };
+}
+
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
 
@@ -110,12 +121,13 @@ export class RazorpayService {
 
       const order = await razorpay.orders.create(options);
       return order as PaymentOrder;
-    } catch (error: any) {
+    } catch (error: unknown) {
       serverLogger.error("❌ [RAZORPAY] Order creation error:", error);
+      const err = asRzpErr(error);
 
       // Handle specific Razorpay errors
-      if (error.error) {
-        const razorpayError = error.error;
+      if (err.error) {
+        const razorpayError = err.error;
         if (razorpayError.code === "BAD_REQUEST_ERROR") {
           if (razorpayError.description?.includes("amount")) {
             throw new Error(
@@ -137,7 +149,7 @@ export class RazorpayService {
       }
 
       // Handle network/timeout errors
-      if (error.code === "ECONNREFUSED" || error.code === "ETIMEDOUT") {
+      if (err.code === "ECONNREFUSED" || err.code === "ETIMEDOUT") {
         throw new Error(
           "Network error: Unable to connect to payment gateway. Please try again."
         );
@@ -145,7 +157,7 @@ export class RazorpayService {
 
       // Generic error fallback
       throw new Error(
-        `Failed to create payment order: ${error.message || "Unknown error"}`
+        `Failed to create payment order: ${err.message || "Unknown error"}`
       );
     }
   }
@@ -277,10 +289,11 @@ export class RazorpayService {
 
       const subscription = await razorpay.subscriptions.create(options);
       return subscription as unknown as RazorpaySubscription;
-    } catch (error: any) {
+    } catch (error: unknown) {
       serverLogger.error("❌ [RAZORPAY] Subscription creation error:", error);
+      const err = asRzpErr(error);
       throw new Error(
-        `Failed to create subscription: ${error.error?.description || error.message}`
+        `Failed to create subscription: ${err.error?.description || err.message}`
       );
     }
   }
@@ -311,10 +324,11 @@ export class RazorpayService {
 
       serverLogger.info(`✅ [RAZORPAY] Plan created: ${plan.id} for ${amount} ${period}`);
       return plan as unknown as RazorpayPlan;
-    } catch (error: any) {
+    } catch (error: unknown) {
       serverLogger.error("❌ [RAZORPAY] Plan creation error:", error);
+      const err = asRzpErr(error);
       throw new Error(
-        `Failed to create Razorpay plan: ${error.error?.description || error.message}`
+        `Failed to create Razorpay plan: ${err.error?.description || err.message}`
       );
     }
   }
@@ -326,10 +340,11 @@ export class RazorpayService {
     try {
       const subscription = await razorpay.subscriptions.cancel(subscriptionId);
       return subscription as unknown as RazorpaySubscription;
-    } catch (error: any) {
+    } catch (error: unknown) {
       serverLogger.error("❌ [RAZORPAY] Subscription cancellation error:", error);
+      const err = asRzpErr(error);
       throw new Error(
-        `Failed to cancel subscription: ${error.error?.description || error.message}`
+        `Failed to cancel subscription: ${err.error?.description || err.message}`
       );
     }
   }

@@ -1,11 +1,19 @@
 import { serverLogger } from "@/lib/server-logger";
+// CloudTasksClient is dynamically imported to avoid pulling
+// @google-cloud/tasks into the bundle at module-load time. The runtime
+// values are typed via the SDK's own types where possible.
+type LazyCloudTasksClient = Awaited<ReturnType<typeof importCloudTasks>>;
 
-let client: any = null;
+async function importCloudTasks() {
+    const m = await import("@google-cloud/tasks");
+    return new m.CloudTasksClient();
+}
 
-async function getClient() {
+let client: LazyCloudTasksClient | null = null;
+
+async function getClient(): Promise<LazyCloudTasksClient> {
     if (!client) {
-        const { CloudTasksClient } = await import("@google-cloud/tasks");
-        client = new CloudTasksClient();
+        client = await importCloudTasks();
     }
     return client;
 }
@@ -13,7 +21,7 @@ async function getClient() {
 export async function createHttpTask(
   queueName: string,
   url: string,
-  payload: any,
+  payload: unknown,
   scheduledTime?: number // Epoch seconds
 ) {
 
@@ -28,7 +36,16 @@ export async function createHttpTask(
   const cloudClient = await getClient();
   const parent = cloudClient.queuePath(project, location, queueName);
 
-  const task: any = {
+  interface CloudTask {
+    httpRequest: {
+      httpMethod: string;
+      url: string;
+      headers: Record<string, string>;
+      body: string;
+    };
+    scheduleTime?: { seconds: number };
+  }
+  const task: CloudTask = {
     httpRequest: {
       httpMethod: "POST",
       url,
@@ -49,11 +66,19 @@ export async function createHttpTask(
 
   try {
     const cloudClient = await getClient();
-    const [response] = await cloudClient.createTask({ parent, task });
+    // The SDK's ITask type narrows httpMethod to a union and other fields
+    // to discriminated unions; our locally-typed CloudTask is structurally
+    // compatible at runtime. Cast through unknown rather than fight the
+    // SDK's strict generated types.
+    const [response] = await cloudClient.createTask({
+      parent,
+      task: task as unknown as Parameters<typeof cloudClient.createTask>[0]["task"],
+    });
     serverLogger.info(`[CloudTasks] Created task ${response.name} in queue ${queueName}`);
     return response;
-  } catch (error: any) {
-    serverLogger.error(`[CloudTasks] Failed to create task: ${error.message}`);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    serverLogger.error(`[CloudTasks] Failed to create task: ${message}`);
     throw error;
   }
 }

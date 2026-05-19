@@ -67,12 +67,12 @@ export async function GET(request: NextRequest) {
     const domainName = searchParams.get("domainName")?.toLowerCase() || null;
 
     const result = await performEligibilityCheck(
-      (user._id as any).toString(),
+      String(user._id),
       user.email,
       domainName
     );
     return secureJsonResponse(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     serverLogger.error("Eligibility check error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
@@ -90,12 +90,12 @@ export async function POST(request: NextRequest) {
     const domainName = body.domainName?.toLowerCase() || null;
 
     const result = await performEligibilityCheck(
-      (user._id as any).toString(),
+      String(user._id),
       user.email,
       domainName
     );
     return secureJsonResponse(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     serverLogger.error("Eligibility check error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

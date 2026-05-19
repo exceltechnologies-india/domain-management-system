@@ -430,7 +430,7 @@ Audit-recommended sub-files I did NOT create:
 
 ## 4. Code Quality
 
-### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (ResellerClub + Zoho Books + DirectAdmin external-API wrappers fully typed; lib helpers + payment services typed 2026-05-18; admin routes typed 2026-05-18; React client pages typed 2026-05-18; service layer + auth/recaptcha/logger typed 2026-05-18; pending-domains + diag-da + packages + workers typed 2026-05-18; guest verify + dashboard pages + RC customers + retry route typed 2026-05-18; 845 → 286 sitewide)
+### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (ResellerClub + Zoho Books + DirectAdmin external-API wrappers fully typed; lib helpers + payment services typed 2026-05-18; admin routes typed 2026-05-18; React client pages typed 2026-05-18; service layer + auth/recaptcha/logger typed 2026-05-18; pending-domains + diag-da + packages + workers typed 2026-05-18; guest verify + dashboard pages + RC customers + retry route typed 2026-05-18; 5 routes + razorpay/cloud-tasks/client-logger/auth typed 2026-05-18; 845 → 247 sitewide)
 Across `lib/`, `app/`, `components/`. TypeScript was doing far less work than it could. Worst offenders were the external API wrappers (ResellerClub / DirectAdmin responses).
 
 **First pass — ResellerClub wrappers (audit-recommended starting point):**
@@ -573,6 +573,24 @@ Two long-standing slips surfaced and were fixed: (1) the admin-security middlewa
 - [app/api/admin/domains/route.ts](app/api/admin/domains/route.ts) — 5 → 0. The 4 `(order.userId as any).field` reads collapsed into one `populatedUser` structural cast; `(domain as any)._id` narrowed via intersection cast; `(order as any).resellerClubOrderId` typed via local `orderLoose` alias.
 
 **Net this pass:** 44 anys removed (`330 → 286`). Combined nine-pass total: **559 anys removed sitewide (845 → 286, 66% reduction)**.
+
+**Verified on main 2026-05-18:** 340/340 tests, tsc clean, production build succeeded.
+
+**Tenth pass — 5 routes + small lib helpers (2026-05-18):**
+
+- [app/api/user/hosting/check-eligibility/route.ts](app/api/user/hosting/check-eligibility/route.ts) — 5 → 0. `(user._id as any).toString()` → `String(user._id)`; 2 `catch (error: any)` blocks narrowed.
+- [app/api/payments/guest/create-order/route.ts](app/api/payments/guest/create-order/route.ts) — 5 → 0. 4 `(item: any) => …` cartItems callbacks typed via `CartItem`; outer catch narrowed via `instanceof Error`.
+- [app/api/domains/search/route.ts](app/api/domains/search/route.ts) — 5 → 0. 3 `redisCache.get<any[]>` slots typed via `DomainSearchResult[]`; the `quickResults: any[]` local typed via the same; suggestion-error fallback typed via `[] as DomainSearchResult[]`.
+- [app/api/cron/daily-scheduler/route.ts](app/api/cron/daily-scheduler/route.ts) — 5 → 0. 5 `catch (X: any)` blocks rewritten via `instanceof Error` narrowing for the hosting-queue / domain-queue / balance-check / domain-watch / outer-catch failures.
+- [app/api/admin/users/services/route.ts](app/api/admin/users/services/route.ts) — 5 → 0. `(session.user as any).role` narrowed via `sessionUser` structural cast; the 2 `(u as any).hostingExpiresAt`/`hostingCreatedAt` reads via a local `ServiceUserLean` shape; outer catch narrowed.
+- [lib/razorpay.ts](lib/razorpay.ts) — 4 → 0. Hoisted a `RazorpaySdkError` interface and `asRzpErr(unknown)` helper; the 4 `catch (error: any)` blocks each narrow via `asRzpErr` and read `.error.description` / `.message` / `.code` through the typed shape.
+- [lib/cloud-tasks.ts](lib/cloud-tasks.ts) — 4 → 0. `client: any` → `LazyCloudTasksClient` (derived from the SDK's actual return type); `payload: any` widened to `unknown` (the function serialises it via `JSON.stringify`); the local `task: any` typed via a `CloudTask` interface and the SDK signature cast through `Parameters<…>` at the createTask call site.
+- [lib/client-logger.ts](lib/client-logger.ts) — 4 → 0. 4 `details?: any` parameter declarations on the logger now `unknown`.
+- [lib/auth.ts](lib/auth.ts) — 3 → 0. `jwt.verify(...) as any` → `JWTPayload & { iat?: number }`; the 2 `(session.user as any).id`/`.email` reads via a local `sessionUser` structural cast.
+
+**lib/auth-config/callbacks.ts intentionally retained `any` (4 occurrences) with eslint-disable comments** — NextAuth's callback parameter shapes vary by provider (Google vs. credentials vs. GitHub) and the callbacks read fields defensively across those shapes; forcing a single narrower type would lie about the runtime data.
+
+**Net this pass:** 39 anys removed (`286 → 247`). Combined ten-pass total: **598 anys removed sitewide (845 → 247, 71% reduction)**.
 
 **Verified on main 2026-05-18:** 340/340 tests, tsc clean, production build succeeded.
 

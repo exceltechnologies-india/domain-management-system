@@ -5,7 +5,7 @@
 
 type LogLevel = 'info' | 'warn' | 'error';
 
-const sendLog = async (level: LogLevel, message: string, details?: any) => {
+const sendLog = async (level: LogLevel, message: string, details?: unknown) => {
   try {
     // Only log in production or if explicitly enabled
     // We always send to server to persist logs
@@ -30,7 +30,7 @@ const sendLog = async (level: LogLevel, message: string, details?: any) => {
 };
 
 export const clientLogger = {
-  info: (message: string, details?: any) => sendLog('info', message, details),
-  warn: (message: string, details?: any) => sendLog('warn', message, details),
-  error: (message: string, details?: any) => sendLog('error', message, details),
+  info: (message: string, details?: unknown) => sendLog('info', message, details),
+  warn: (message: string, details?: unknown) => sendLog('warn', message, details),
+  error: (message: string, details?: unknown) => sendLog('error', message, details),
 };

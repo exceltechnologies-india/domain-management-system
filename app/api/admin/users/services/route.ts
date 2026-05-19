@@ -15,7 +15,8 @@ export async function GET(request: Request) {
     // 1. Check Authentication & Admin Role
     const session = await getServerSession(authOptions);
 
-    if (!session || !session.user || (session.user as any).role !== 'admin') {
+    const sessionUser = session?.user as { role?: string } | undefined;
+    if (!session || !session.user || sessionUser?.role !== 'admin') {
       return NextResponse.json(
         { error: 'Unauthorized access' },
         { status: 401 }
@@ -151,8 +152,14 @@ export async function GET(request: Request) {
       isDeleted: { $ne: true }
     }).select('_id firstName lastName email role isActive createdAt directAdminUsername hostingCreatedAt hostingExpiresAt').lean();
 
-    for (const u of allServiceUsers) {
-      const alreadyInList = verifiedUsers.some((vu: any) => vu._id.toString() === u._id.toString());
+    type ServiceUserLean = {
+      _id: { toString(): string };
+      hostingExpiresAt?: Date;
+      hostingCreatedAt?: Date;
+      [k: string]: unknown;
+    };
+    for (const u of allServiceUsers as unknown as ServiceUserLean[]) {
+      const alreadyInList = verifiedUsers.some((vu: { _id: { toString(): string } }) => vu._id.toString() === u._id.toString());
       if (!alreadyInList) {
         // Construct a virtual hosting entry based on User fields
         verifiedUsers.push({
@@ -161,8 +168,8 @@ export async function GET(request: Request) {
           hosting: [{
             domainName: "Pending Sync", // We don't store domain on User usually
             status: "active",
-            expiryDate: (u as any).hostingExpiresAt,
-            createdAt: (u as any).hostingCreatedAt,
+            expiryDate: u.hostingExpiresAt,
+            createdAt: u.hostingCreatedAt,
             name: "Standard Hosting"
           }]
         });
@@ -174,11 +181,9 @@ export async function GET(request: Request) {
       users: verifiedUsers,
       count: verifiedUsers.length
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     serverLogger.error('Error fetching service users:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to fetch service users' },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : 'Failed to fetch service users';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

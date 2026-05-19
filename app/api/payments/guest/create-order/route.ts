@@ -11,6 +11,7 @@ import { validateDomainPeriod } from "@/lib/tld-policies";
 import { verifyDomainPrices } from "@/lib/services/payment/price-verifier";
 import { isDisposableEmail } from "@/lib/disposable-emails";
 import { getClientIp, hashIp } from "@/lib/trial-abuse";
+import type { CartItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -125,7 +126,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Free trials require login (1-per-user-lifetime check needs an account).
-    if (cartItems.some((item: any) => item.isTrial === true)) {
+    if (cartItems.some((item: CartItem) => item.isTrial === true)) {
       return NextResponse.json(
         {
           error:
@@ -208,15 +209,15 @@ export async function POST(request: NextRequest) {
     // from our HostingPlan DB (not RC), so they're trusted as-is — add their
     // sum back in for a mixed cart.
     const hostingTotal = cartItems
-      .filter((i: any) => i.itemType === "hosting")
+      .filter((i: CartItem) => i.itemType === "hosting")
       .reduce(
-        (sum: number, item: any) =>
+        (sum: number, item: CartItem) =>
           sum + item.price * (item.registrationPeriod || 1),
         0
       );
     const totalAmount = priceCheck.fellBackToClient
       ? cartItems.reduce(
-          (sum: number, item: any) =>
+          (sum: number, item: CartItem) =>
             sum + item.price * (item.registrationPeriod || 1),
           0
         )
@@ -256,8 +257,9 @@ export async function POST(request: NextRequest) {
       guestToken,
       email: resolvedEmail,
     });
-  } catch (error: any) {
-    serverLogger.error("[GuestCheckout] create-order error:", error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    serverLogger.error("[GuestCheckout] create-order error:", message);
     return NextResponse.json(
       { error: "Failed to create payment order" },
       { status: 500 }

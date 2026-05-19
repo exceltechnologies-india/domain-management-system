@@ -12,6 +12,11 @@ import { PASSWORD_ROTATION_DAYS } from "@/config/constants";
 import { SOCIAL_PROVIDERS, extractSocialName } from "./helpers";
 
 export const callbacks = {
+  // NextAuth callback parameters carry provider-specific shapes that vary
+  // by provider (Google vs. credentials vs. GitHub). The callbacks read
+  // fields defensively across those shapes — keep `any` here rather than
+  // forcing a narrowing that would lie about the runtime shape.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async signIn({ user, account, profile }: any) {
     serverLogger.log("========================================");
     serverLogger.log("[SIGNIN CALLBACK] 🔐 SignIn attempt started");
@@ -79,6 +84,7 @@ export const callbacks = {
     serverLogger.log("[SIGNIN CALLBACK] ✅ Returning TRUE - login approved");
     return true;
   },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async jwt({ token, user, account, profile }: any) {
     serverLogger.log(
       "[JWT CALLBACK] Called with user:",
@@ -166,6 +172,7 @@ export const callbacks = {
         let dbUser = await User.findOne({ email: user.email });
 
         // Fetch additional user data from Google/Facebook if access token available
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let additionalData: any = {};
 
         // DISABLED: These scopes require Google verification for production apps
@@ -456,6 +463,7 @@ export const callbacks = {
 
     return token;
   },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async session({ session, token }: any) {
     serverLogger.log("========================================");
     serverLogger.log("[SESSION CALLBACK] 📋 Creating session");

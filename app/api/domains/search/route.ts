@@ -8,6 +8,7 @@ import { redisCache } from "@/lib/redis";
 import { SuggestionGenerator } from "@/lib/suggestion-generator";
 import { rateLimiters } from "@/lib/rate-limit";
 import { serverLogger } from "@/lib/server-logger";
+import type { DomainSearchResult } from "@/lib/types";
 
 // Force dynamic rendering - required for API routes
 export const dynamic = "force-dynamic";
@@ -181,8 +182,8 @@ export async function POST(request: NextRequest) {
     // Quick mode: return only domain availability — skip slow suggestion generation
     // and hosting check. Used by the frontend for fast first-paint of exact results.
     if (quick) {
-      const cached = await redisCache.get<any[]>(domainCacheKey);
-      let quickResults: any[];
+      const cached = await redisCache.get<DomainSearchResult[]>(domainCacheKey);
+      let quickResults: DomainSearchResult[];
       let isResultsCached: boolean;
       if (cached) {
         quickResults = cached;
@@ -223,7 +224,7 @@ export async function POST(request: NextRequest) {
     ] = await Promise.all([
       // 1. Domain availability (ResellerClub, cached 10 min)
       (async () => {
-        const cached = await redisCache.get<any[]>(domainCacheKey);
+        const cached = await redisCache.get<DomainSearchResult[]>(domainCacheKey);
         if (cached) {
           serverLogger.info(`🚀 [API-${requestId}] Cache hit for domain results.`);
           return { results: cached, isResultsCached: true };
@@ -241,7 +242,7 @@ export async function POST(request: NextRequest) {
 
       // 2. Suggestions (ResellerClub, cached 10 min)
       (async () => {
-        const cached = await redisCache.get<any[]>(suggestionCacheKey);
+        const cached = await redisCache.get<DomainSearchResult[]>(suggestionCacheKey);
         if (cached) {
           serverLogger.info(`🚀 [API-${requestId}] Cache hit for suggestions.`);
           return { suggestions: cached, isSuggestionsCached: true };
@@ -255,7 +256,7 @@ export async function POST(request: NextRequest) {
           return { suggestions: fresh, isSuggestionsCached: false };
         } catch (suggErr) {
           serverLogger.error(`❌ [API-${requestId}] Error generating suggestions:`, suggErr);
-          return { suggestions: [] as any[], isSuggestionsCached: false };
+          return { suggestions: [] as DomainSearchResult[], isSuggestionsCached: false };
         }
       })(),
 
