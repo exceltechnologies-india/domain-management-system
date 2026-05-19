@@ -34,11 +34,19 @@ interface Payment {
   tax: number;
   errorCode?: string;
   errorDescription?: string;
-  notes: Record<string, any>;
+  notes: Record<string, unknown>;
+}
+
+interface AdminUser {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: string;
 }
 
 export default function AdminPayments() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AdminUser | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
   // Split loading states
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -63,12 +71,13 @@ export default function AdminPayments() {
 
     // Prefer NextAuth session (works for credentials login)
     if (session?.user) {
-      const userObj = {
-        _id: (session.user as any).id,
-        firstName: session.user.name?.split(' ')[0] || '',
-        lastName: session.user.name?.split(' ').slice(1).join(' ') || '',
-        email: session.user.email || '',
-        role: (session.user as any).role || 'user',
+      const sessionUser = session.user as { id?: string; name?: string; email?: string; role?: string };
+      const userObj: AdminUser = {
+        _id: sessionUser.id || '',
+        firstName: sessionUser.name?.split(' ')[0] || '',
+        lastName: sessionUser.name?.split(' ').slice(1).join(' ') || '',
+        email: sessionUser.email || '',
+        role: sessionUser.role || 'user',
       };
 
       // Check if admin
@@ -296,7 +305,7 @@ export default function AdminPayments() {
     {
       key: 'actions',
       label: 'Actions',
-      render: (value: any, row: Payment) => (
+      render: (_value: unknown, row: Payment) => (
         <div className="flex items-center space-x-1 sm:space-x-2">
           <button
             onClick={() => handleViewPayment(row.id)}

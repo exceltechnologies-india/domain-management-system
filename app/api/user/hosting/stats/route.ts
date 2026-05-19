@@ -3,7 +3,7 @@ import { AuthService } from "@/lib/auth";
 import { DirectAdminService } from "@/lib/directadmin";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
-import Hosting from "@/models/Hosting";
+import Hosting, { type IHosting } from "@/models/Hosting";
 import connectDB from "@/lib/mongodb";
 
 export const dynamic = 'force-dynamic';
@@ -129,9 +129,9 @@ export async function GET(request: NextRequest) {
             // 1. Match by DA Username (Exact link)
             // 2. Match by Active status (If re-purchased after termination)
             // 3. Fallback to latest
-            let hostingRecord = hostingRecords.find((h: any) => h.directAdminUsername === daUsername);
+            let hostingRecord = hostingRecords.find((h: IHosting) => h.directAdminUsername === daUsername);
             if (!hostingRecord) {
-                hostingRecord = hostingRecords.find((h: any) => h.status === 'active');
+                hostingRecord = hostingRecords.find((h: IHosting) => h.status === 'active');
             }
             if (!hostingRecord && hostingRecords.length > 0) {
                 hostingRecord = hostingRecords[0];
@@ -268,7 +268,7 @@ export async function GET(request: NextRequest) {
               isTrial: hostingRecord?.isTrial ?? false,
             };
 
-        } catch (error: any) {
+        } catch (error: unknown) {
              serverLogger.error(`Error fetching stats for ${daUsername}`, error);
              return null; // Skip failed
         }
@@ -282,17 +282,19 @@ export async function GET(request: NextRequest) {
       data: validResults // Returns Array
     });
 
-  } catch (error: any) {
-    serverLogger.error(`User Hosting Stats Error:`, error.message);
-    
-    // Check for common connection errors
-    const isConnectionError = 
-      error.code === 'ECONNREFUSED' || 
-      error.code === 'ETIMEDOUT' || 
-      error.message?.includes('status code 503') ||
-      error.message?.includes('status code 502');
+  } catch (error: unknown) {
+    interface NetErr { code?: string; status?: number; message?: string }
+    const e = (error && typeof error === 'object' ? error : {}) as NetErr;
+    serverLogger.error(`User Hosting Stats Error:`, e.message);
 
-    if (error.status === 503 || error.code === 'DA_SERVER_DOWN' || isConnectionError) {
+    // Check for common connection errors
+    const isConnectionError =
+      e.code === 'ECONNREFUSED' ||
+      e.code === 'ETIMEDOUT' ||
+      e.message?.includes('status code 503') ||
+      e.message?.includes('status code 502');
+
+    if (e.status === 503 || e.code === 'DA_SERVER_DOWN' || isConnectionError) {
          return secureErrorResponse("Service Unavailable", 503, "DA_SERVER_DOWN");
     }
 

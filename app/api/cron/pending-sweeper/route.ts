@@ -87,7 +87,15 @@ export async function GET(request: NextRequest) {
 
     const summaries: StuckSummary[] = [];
 
-    for (const d of stuckPendingDomains as any[]) {
+    interface StuckPendingDomainRow {
+      _id: unknown;
+      domainName: string;
+      status: string;
+      createdAt: Date;
+      verificationAttempts?: number;
+      reason?: string;
+    }
+    for (const d of stuckPendingDomains as unknown as StuckPendingDomainRow[]) {
       const attempts = d.verificationAttempts ?? 0;
       const tooOld = new Date(d.createdAt).getTime() < criticalCutoff.getTime();
       const tooManyAttempts = attempts > CRITICAL_ATTEMPT_THRESHOLD;
@@ -109,7 +117,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    for (const h of stuckPendingHostings as any[]) {
+    for (const h of stuckPendingHostings) {
       const tooOld = new Date(h.createdAt).getTime() < criticalCutoff.getTime();
       const severity: Severity = tooOld ? "CRITICAL" : "WARN";
       summaries.push({
@@ -158,9 +166,10 @@ export async function GET(request: NextRequest) {
         criticalCount,
         warnCount,
         records: sortedSummaries,
-      }).catch((err: any) =>
-        serverLogger.error(`[PendingSweeper] Failed to send admin alert: ${err.message}`)
-      );
+      }).catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        serverLogger.error(`[PendingSweeper] Failed to send admin alert: ${message}`);
+      });
     }
 
     return secureJsonResponse({
@@ -168,8 +177,9 @@ export async function GET(request: NextRequest) {
       critical: criticalCount,
       warn: warnCount,
     });
-  } catch (error: any) {
-    serverLogger.error("[PendingSweeper] Error:", error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    serverLogger.error("[PendingSweeper] Error:", message);
     return secureErrorResponse("Internal error", 500, "INTERNAL_ERROR");
   }
 }

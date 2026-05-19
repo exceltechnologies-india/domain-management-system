@@ -87,8 +87,8 @@ export default function InvoicesPage() {
           },
           theme: { color: "#2563eb" }
         });
-      } catch (err: any) {
-        if (err?.kind === 'dismissed') {
+      } catch (err: unknown) {
+        if ((err as { kind?: string })?.kind === 'dismissed') {
           setIsProcessingPayment(false);
           return;
         }
@@ -121,8 +121,9 @@ export default function InvoicesPage() {
       } catch (err) {
         showErrorToast('Failed to verify payment');
       }
-    } catch (error: any) {
-      showErrorToast(error.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      showErrorToast(message);
     } finally {
       setIsProcessingPayment(false);
     }
@@ -138,7 +139,7 @@ export default function InvoicesPage() {
       if (data.recovered > 0) {
         showSuccessToast(`Invoice${data.recovered > 1 ? 's' : ''} ready — refreshing.`);
       } else if (data.failed > 0) {
-        const firstError = data.results?.find((r: any) => r.error)?.error;
+        const firstError = (data.results as Array<{ error?: string }> | undefined)?.find((r) => r.error)?.error;
         showErrorToast(firstError || 'Could not generate invoice — please contact support.');
       } else if (data.total === 0) {
         showSuccessToast('Nothing to sync.');
@@ -146,8 +147,9 @@ export default function InvoicesPage() {
         showSuccessToast('Sync requested — refreshing.');
       }
       await mutate();
-    } catch (err: any) {
-      showErrorToast(err?.message || 'Sync failed');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Sync failed';
+      showErrorToast(message);
     } finally {
       setIsSyncing(false);
     }
