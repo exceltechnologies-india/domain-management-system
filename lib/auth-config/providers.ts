@@ -75,11 +75,20 @@ export const providers = [
         }
 
         // Rate limiting — keyed by email + IP so both per-user and per-IP attacks are caught
-        const reqHeaders = (req as any)?.headers ?? {};
+        // NextAuth passes the raw incoming request differently across runtimes
+        // (Headers-like object on Node, plain object on Edge in some configs).
+        // Narrow once at the access site.
+        const rawHeaders = (req as { headers?: unknown } | undefined)?.headers;
+        const readHeader = (name: string): string | undefined => {
+          if (!rawHeaders) return undefined;
+          if (typeof (rawHeaders as Headers).get === "function") {
+            return (rawHeaders as Headers).get(name) ?? undefined;
+          }
+          return (rawHeaders as Record<string, string | undefined>)[name];
+        };
         const ip =
-          (typeof reqHeaders.get === "function"
-            ? reqHeaders.get("x-forwarded-for") || reqHeaders.get("x-real-ip")
-            : reqHeaders["x-forwarded-for"] || reqHeaders["x-real-ip"]) ||
+          readHeader("x-forwarded-for") ||
+          readHeader("x-real-ip") ||
           "unknown";
         const rateLimitKey = `login:${credentials.email.toLowerCase()}:${ip}`;
         const rateLimit = await rateLimiters.login.checkKey(rateLimitKey);
@@ -111,11 +120,12 @@ export const providers = [
               serverLogger.warn("[AUTH] ❌ reCAPTCHA verification failed for " + credentials.email);
               throw new Error("reCAPTCHA verification failed. Please try again.");
             }
-          } catch (error: any) {
-            if (error.message === "reCAPTCHA verification failed. Please try again.") {
+          } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            if (message === "reCAPTCHA verification failed. Please try again.") {
               throw error;
             }
-            serverLogger.error("[AUTH] ❌ reCAPTCHA error:", error.message);
+            serverLogger.error("[AUTH] ❌ reCAPTCHA error:", message);
             // Don't block login if reCAPTCHA service is down or there's a network error
           }
         }
@@ -212,8 +222,9 @@ export const providers = [
         };
 
         return returnData;
-      } catch (error: any) {
-        serverLogger.error("[AUTH] Authorize Error:", error.message);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        serverLogger.error("[AUTH] Authorize Error:", message);
         throw error;
       }
     },

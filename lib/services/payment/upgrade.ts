@@ -5,6 +5,7 @@ import { getOrderByRazorpayOrderId } from "@/lib/services/orders";
 import { getHostingById } from "@/lib/services/hostings";
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import { serverLogger } from "@/lib/server-logger";
+import type { IOrder } from "@/models/Order";
 
 /**
  * Handles post-payment logic for hosting plan upgrades.
@@ -79,8 +80,9 @@ export async function handleUpgradePayment(
     try {
       await RazorpayService.cancelSubscription(hosting.subscriptionId);
       serverLogger.info(`[UPGRADE] Cancelled subscription: ...${hosting.subscriptionId.slice(-6)}`);
-    } catch (subErr: any) {
-      serverLogger.error(`[UPGRADE] Failed to cancel subscription ${hosting.subscriptionId}: ${subErr.message}`);
+    } catch (subErr: unknown) {
+      const message = subErr instanceof Error ? subErr.message : String(subErr);
+      serverLogger.error(`[UPGRADE] Failed to cancel subscription ${hosting.subscriptionId}: ${message}`);
       // Non-fatal — proceed with DA change regardless
     }
     hosting.subscriptionId = undefined;
@@ -92,13 +94,17 @@ export async function handleUpgradePayment(
   try {
     await DirectAdminService.changePackage(hosting.directAdminUsername, newPlan.directAdminPackage);
     serverLogger.info(`[UPGRADE] DA package changed to ${newPlan.directAdminPackage} for ${hosting.directAdminUsername}`);
-  } catch (daErr: any) {
-    serverLogger.error(`[UPGRADE] DirectAdmin changePackage failed for ${hosting.directAdminUsername}: ${daErr.message}`);
-    // Mark the order for admin review and return an error
-    order.status = "paid" as any; // payment captured; flag via domains status
+  } catch (daErr: unknown) {
+    const message = daErr instanceof Error ? daErr.message : String(daErr);
+    serverLogger.error(`[UPGRADE] DirectAdmin changePackage failed for ${hosting.directAdminUsername}: ${message}`);
+    // Mark the order for admin review and return an error.
+    // `paid` isn't in IOrder['status']'s enum (the schema accepts it but the
+    // type doesn't surface it); narrow at the assignment to avoid widening
+    // the model just for this rare path.
+    order.status = "paid" as IOrder["status"];
     if (order.domains?.[0]) {
       order.domains[0].status = "failed";
-      order.domains[0].error = `DA package change failed: ${daErr.message}`;
+      order.domains[0].error = `DA package change failed: ${message}`;
     }
     await order.save();
     return NextResponse.json(

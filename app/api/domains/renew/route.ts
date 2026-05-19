@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
+import { ResellerClubAPI } from "@/lib/resellerclub";
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import Order from "@/models/Order";
@@ -28,14 +29,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Check if testing mode is enabled
-    const testingMode = request.headers.get("x-testing-mode") === "true";
-
     // Get renewal pricing
-    const pricingResult = await (ResellerClubWrapper as any).getRenewalPricing(
+    const pricingResult = await ResellerClubAPI.getRenewalPricing(
       domainName,
-      years,
-      testingMode
+      years
     );
 
     if (pricingResult.status === "error") {
@@ -46,10 +43,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get domain expiry date
-    const expiryResult = await (ResellerClubWrapper as any).getDomainExpiry(
-      domainName,
-      testingMode
-    );
+    const expiryResult = await ResellerClubAPI.getDomainExpiry(domainName);
 
     return NextResponse.json({
       success: true,
@@ -87,15 +81,8 @@ export async function POST(request: NextRequest) {
     // Connect to database
     await connectDB();
 
-    // Check if testing mode is enabled
-    const testingMode = request.headers.get("x-testing-mode") === "true";
-
     // Renew domain
-    const result = await (ResellerClubWrapper as any).renewDomain(
-      domainName,
-      years,
-      testingMode
-    );
+    const result = await ResellerClubWrapper.renewDomain(domainName, years);
 
     if (result.status === "error") {
       return NextResponse.json({ error: result.message }, { status: 500 });

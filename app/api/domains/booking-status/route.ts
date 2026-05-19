@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
+import Order, { type IOrder } from "@/models/Order";
 import { serverLogger } from "@/lib/server-logger";
 
 // Force dynamic rendering - required for API routes
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    let query: any = {};
+    const query: Record<string, unknown> = {};
     if (orderId) {
       query.orderId = orderId;
     }
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     // Find the specific domain if domainName was provided
     let domainData = null;
     if (domainName) {
-      domainData = order.domains.find((d: any) => d.domainName === domainName);
+      domainData = order.domains.find((d: IOrder['domains'][number]) => d.domainName === domainName);
     } else {
       // Return all domains if only orderId was provided
       domainData = order.domains;
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     }
 
     const domainIndex = order.domains.findIndex(
-      (d: any) => d.domainName === domainName
+      (d: IOrder['domains'][number]) => d.domainName === domainName
     );
     if (domainIndex === -1) {
       return NextResponse.json(

@@ -19,9 +19,24 @@ import type {
   RazorpayCheckoutOptions,
 } from '@/lib/razorpay-checkout-protocol';
 
+interface RazorpayPaymentResponse {
+  razorpay_order_id?: string;
+  razorpay_subscription_id?: string;
+  razorpay_payment_id: string;
+  razorpay_signature?: string;
+}
+interface RazorpayInstance {
+  open: () => void;
+}
+interface RazorpayConstructor {
+  new (options: RazorpayCheckoutOptions & {
+    handler: (response: RazorpayPaymentResponse) => void;
+    modal?: { ondismiss?: () => void; [k: string]: unknown };
+  }): RazorpayInstance;
+}
 declare global {
   interface Window {
-    Razorpay: any;
+    Razorpay: RazorpayConstructor;
   }
 }
 
@@ -86,7 +101,7 @@ export default function RazorpayCheckoutFramePage() {
 
       const wired = {
         ...options,
-        handler: (response: any) => {
+        handler: (response: RazorpayPaymentResponse) => {
           // Razorpay calls this when payment succeeds.
           send({
             type: 'success',
@@ -94,7 +109,7 @@ export default function RazorpayCheckoutFramePage() {
               razorpay_order_id: response.razorpay_order_id,
               razorpay_subscription_id: response.razorpay_subscription_id,
               razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
+              razorpay_signature: response.razorpay_signature ?? '',
             },
           });
           setPhase('done');
@@ -111,8 +126,9 @@ export default function RazorpayCheckoutFramePage() {
       try {
         const rzp = new window.Razorpay(wired);
         rzp.open();
-      } catch (e: any) {
-        send({ type: 'error', message: e?.message ?? 'Razorpay open failed' });
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : 'Razorpay open failed';
+        send({ type: 'error', message });
         setPhase('done');
       }
     }
