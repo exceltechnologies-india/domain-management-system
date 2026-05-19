@@ -214,9 +214,9 @@ export default function UserSettings() {
             } : null);
           }
         } else {
-          setSettings({} as any);
+          setSettings({ security: {} });
         }
-      } catch { setSettings({} as any); }
+      } catch { setSettings({ security: {} }); }
 
       const meH: Record<string, string> = {};
       if (token) meH['Authorization'] = `Bearer ${token}`;
@@ -242,7 +242,8 @@ export default function UserSettings() {
   useEffect(() => {
     if (status === 'loading' || hasLoadedOnce.current) return;
     if (session?.user) {
-      setUser({ id: (session.user as any).id, email: session.user.email || '', firstName: session.user.name?.split(' ')[0] || '', lastName: session.user.name?.split(' ').slice(1).join(' ') || '', role: (session.user as any).role || 'user' });
+      const sessionUser = session.user as { id?: string; name?: string; email?: string; role?: string };
+      setUser({ id: sessionUser.id || '', email: sessionUser.email || '', firstName: sessionUser.name?.split(' ')[0] || '', lastName: sessionUser.name?.split(' ').slice(1).join(' ') || '', role: sessionUser.role || 'user' });
       loadSettings(); return;
     }
     const token = safeLocalStorage.getItem('token');
@@ -292,7 +293,7 @@ export default function UserSettings() {
       setTotpQrUrl(data.qrCodeDataUrl);
       setTotpManualKey(data.manualKey);
       setTotpStep('scan');
-    } catch (e: any) { toast.error(e.message); }
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : String(e)); }
     finally { setTotpIsLoading(false); }
   };
 
@@ -309,7 +310,7 @@ export default function UserSettings() {
       setTotpBackupCodes(data.backupCodes);
       setTotpEnabled(true);
       setTotpStep('backup');
-    } catch (e: any) { toast.error(e.message); setTotpVerifyCode(''); }
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : String(e)); setTotpVerifyCode(''); }
     finally { setTotpIsLoading(false); }
   };
 
@@ -325,7 +326,7 @@ export default function UserSettings() {
       if (!res.ok) throw new Error(data.error || 'Could not disable 2FA');
       setTotpEnabled(false); setTotpStep('status'); setTotpDisableCode(''); setTotpDisablePassword('');
       toast.success('Two-factor authentication disabled');
-    } catch (e: any) { toast.error(e.message); }
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : String(e)); }
     finally { setTotpIsLoading(false); }
   };
 

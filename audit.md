@@ -430,7 +430,7 @@ Audit-recommended sub-files I did NOT create:
 
 ## 4. Code Quality
 
-### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (ResellerClub + Zoho Books + DirectAdmin external-API wrappers fully typed; lib helpers + payment services typed 2026-05-18; admin routes typed 2026-05-18; React client pages typed 2026-05-18; service layer + auth/recaptcha/logger typed 2026-05-18; pending-domains + diag-da + packages + workers typed 2026-05-18; 845 → 330 sitewide)
+### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (ResellerClub + Zoho Books + DirectAdmin external-API wrappers fully typed; lib helpers + payment services typed 2026-05-18; admin routes typed 2026-05-18; React client pages typed 2026-05-18; service layer + auth/recaptcha/logger typed 2026-05-18; pending-domains + diag-da + packages + workers typed 2026-05-18; guest verify + dashboard pages + RC customers + retry route typed 2026-05-18; 845 → 286 sitewide)
 Across `lib/`, `app/`, `components/`. TypeScript was doing far less work than it could. Worst offenders were the external API wrappers (ResellerClub / DirectAdmin responses).
 
 **First pass — ResellerClub wrappers (audit-recommended starting point):**
@@ -558,6 +558,21 @@ Two long-standing slips surfaced and were fixed: (1) the admin-security middlewa
 - [app/razorpay/webhook/route.ts](app/razorpay/webhook/route.ts) — 6 → 0. `RazorpayPaymentEntity` / `PaymentCapturedPayload` / `RefundProcessedPayload` interfaces for the webhook payload narrowing; `handlePaymentCaptured` / `handleRefundProcessed` / `provisionServices` got their `payload: any` / `order: any` parameters typed; ObjectId → string conversion added at the 3 `getUserById(order.userId)` call sites that the typed signature requires.
 
 **Net this pass:** 43 anys removed (`373 → 330`). Combined eight-pass total: **515 anys removed sitewide (845 → 330, 61% reduction)**.
+
+**Verified on main 2026-05-18:** 340/340 tests, tsc clean, production build succeeded.
+
+**Ninth pass — guest verify + dashboard pages + RC customers + retry route (2026-05-18):**
+
+- [app/api/payments/guest/verify/route.ts](app/api/payments/guest/verify/route.ts) — 7 → 0. 4 `(i: any) => …` cartItems callbacks typed via `CartItem`; 3 `catch (X: any)` blocks rewritten via `instanceof Error` narrowing.
+- [app/dashboard/page.tsx](app/dashboard/page.tsx) — 5 → 0. `DashboardStats` widened from `recentOrders: any[]` etc. to per-list interfaces (`RecentOrderSummary`, `RecentDomainSummary`, `UpcomingRenewal`, `ActiveHosting`); each carries an open index signature because the server-side reductions assemble display strings (`registeredDate`, `name`) not in any single model.
+- [app/dashboard/settings/page.tsx](app/dashboard/settings/page.tsx) — 6 → 0. `setSettings({} as any)` swapped for `setSettings({ security: {} })` (the type's only required field); session-user narrowed via structural cast; 3 toast-error `catch (e: any)` blocks rewritten via `instanceof Error`.
+- [app/admin/order-management/page.tsx](app/admin/order-management/page.tsx) — 6 → 0. Session-user shape narrowed (same NextAuth pattern as user-management); 5 column-renderer callbacks rewritten as `(_value: unknown, row: Order)`.
+- [lib/resellerclub/customers.ts](lib/resellerclub/customers.ts) — 5 → 0. The 3 `data?: any` return-type slots tightened to `unknown` so callers `parseInt(String(…))` at the boundary; 2 `params: any` objects typed via `Record<string, string | number | undefined>`. Caller follow-up: `app/api/auth/register/route.ts` + `app/api/user/settings/route.ts` cast `customerResult.data` to `number` at the assignment site.
+- [app/api/workers/process-hosting-expiry/route.ts](app/api/workers/process-hosting-expiry/route.ts) — 5 → 0. The 2 `(d: any) => …` callbacks typed via an `IOrder['domains'][number] & { hostingPlan? }` intersection; `periodUnit as any` swapped for a literal-union guard; 2 outer `catch (X: any)` blocks narrowed.
+- [app/api/admin/hosting/pending/[id]/retry/route.ts](app/api/admin/hosting/pending/[id]/retry/route.ts) — 5 → 0. The 5 `catch (X: any)` blocks each rewritten via `instanceof Error` narrowing — uniform pattern across DA / DNS / Hosting / Email / outer-catch failures.
+- [app/api/admin/domains/route.ts](app/api/admin/domains/route.ts) — 5 → 0. The 4 `(order.userId as any).field` reads collapsed into one `populatedUser` structural cast; `(domain as any)._id` narrowed via intersection cast; `(order as any).resellerClubOrderId` typed via local `orderLoose` alias.
+
+**Net this pass:** 44 anys removed (`330 → 286`). Combined nine-pass total: **559 anys removed sitewide (845 → 286, 66% reduction)**.
 
 **Verified on main 2026-05-18:** 340/340 tests, tsc clean, production build succeeded.
 

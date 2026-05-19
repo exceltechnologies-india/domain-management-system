@@ -6,7 +6,7 @@ import crypto from "crypto";
 import Hosting from "@/models/Hosting";
 import { getUserById } from "@/lib/services/users";
 import User from "@/models/User";
-import Order from "@/models/Order";
+import Order, { type IOrder } from "@/models/Order";
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import { DirectAdminService } from "@/lib/directadmin";
 import { HOSTING_PLANS } from "@/config/hosting-plans";
@@ -84,21 +84,24 @@ export async function POST(request: NextRequest) {
             if (hosting.orderId) {
                 const originalOrder = await Order.findOne({ orderId: hosting.orderId });
                 if (originalOrder && originalOrder.domains) {
-                    let domainItem = originalOrder.domains.find((d: any) => d.domainName === hosting.domainName);
-                    
+                    type OrderDomainSub = IOrder['domains'][number] & { hostingPlan?: { planId?: string; serverPackage?: string } };
+                    let domainItem = originalOrder.domains.find((d: OrderDomainSub) => d.domainName === hosting.domainName) as OrderDomainSub | undefined;
+
                     if (!domainItem) {
-                        domainItem = originalOrder.domains.find((d: any) => 
+                        domainItem = originalOrder.domains.find((d: OrderDomainSub) =>
                             d.itemType === 'hosting' && (
-                                d.hostingPlan?.planId === hosting.planId || 
+                                d.hostingPlan?.planId === hosting.planId ||
                                 d.hostingPlan?.serverPackage === hosting.planId ||
                                 d.hostingPlan?.serverPackage === hosting.serverPackage
                             )
-                        );
+                        ) as OrderDomainSub | undefined;
                     }
 
                     if (domainItem && domainItem.price) {
                         renewalPrice = domainItem.price;
-                        if (domainItem.periodUnit) periodUnit = domainItem.periodUnit as any;
+                        if (domainItem.periodUnit && (domainItem.periodUnit === 'minutes' || domainItem.periodUnit === 'months' || domainItem.periodUnit === 'years')) {
+                            periodUnit = domainItem.periodUnit;
+                        }
                         if (domainItem.registrationPeriod) period = domainItem.registrationPeriod;
                     }
                 }
@@ -179,17 +182,16 @@ export async function POST(request: NextRequest) {
         serverLogger.info(`[Worker] Successfully suspended and invoiced ${hosting.domainName}`);
         return secureJsonResponse({ success: true, hostingId });
 
-    } catch (error: any) {
-        serverLogger.error(`[Worker] Error processing ${hosting.domainName}: ${error.message}`);
-        // Return 200 so Cloud Tasks doesn't retry indefinitely for logic errors ? 
-        // Or return 500 to retry?
-        // Let's return 500 for transient errors, but maybe we should catch specific ones.
-        // For now, let's allow retry.
-        return secureErrorResponse(error.message, 500, "PROCESSING_FAILED");
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        serverLogger.error(`[Worker] Error processing ${hosting.domainName}: ${message}`);
+        // Return 500 so Cloud Tasks retries for transient errors.
+        return secureErrorResponse(message, 500, "PROCESSING_FAILED");
     }
 
-  } catch (error: any) {
-    serverLogger.error("[Worker] Critical Error:", error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    serverLogger.error("[Worker] Critical Error:", message);
     return secureErrorResponse("Internal Server Error", 500, "INTERNAL_ERROR");
   }
 }

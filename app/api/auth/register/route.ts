@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
               langPref: 'en'
             });
             if (customerResult.status === "success" && customerResult.data) {
-              user.resellerClubCustomerId = customerResult.data;
+              user.resellerClubCustomerId = customerResult.data as number;
               await user.save();
             }
           } catch (e) {

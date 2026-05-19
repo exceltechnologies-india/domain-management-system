@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
 
     // Trials still require a login (1-per-user-lifetime eligibility); paid
     // hosting + domains are fine for guest checkout.
-    if (cartItems.some((i: any) => i.isTrial === true)) {
+    if (cartItems.some((i: CartItem) => i.isTrial === true)) {
       return NextResponse.json(
         { error: "Free trials require an account. Please sign in." },
         { status: 400 }
@@ -273,8 +273,9 @@ export async function POST(request: NextRequest) {
         user: guestUser,
         cartItems,
       });
-    } catch (zohoErr: any) {
-      serverLogger.error(`[GuestCheckout] Zoho invoice failed: ${zohoErr.message}`);
+    } catch (zohoErr: unknown) {
+      const message = zohoErr instanceof Error ? zohoErr.message : String(zohoErr);
+      serverLogger.error(`[GuestCheckout] Zoho invoice failed: ${message}`);
       await Order.updateOne(
         { _id: order._id },
         { $set: { zohoInvoiceId: "creation_failed" } }
@@ -337,8 +338,10 @@ export async function POST(request: NextRequest) {
       isGuest: guestUser.isGuest ?? false,
       successfulDomains: finalSuccessfulDomains,
     });
-  } catch (error: any) {
-    serverLogger.error("[GuestCheckout] verify error:", error?.message ?? String(error), error?.stack);
+  } catch (error: unknown) {
+    const errMessage = error instanceof Error ? error.message : String(error);
+    const errStack = error instanceof Error ? error.stack : undefined;
+    serverLogger.error("[GuestCheckout] verify error:", errMessage, errStack);
 
     // If payment was verified but provisioning failed, create a fallback pending
     // order so admin can see it and retry manually (mirrors regular verify fallback)
@@ -368,10 +371,10 @@ export async function POST(request: NextRequest) {
           currency: "INR",
           status: "completed",
           orderType:
-            cartItems.some((i: any) => !i.itemType || i.itemType === "domain") &&
-            cartItems.some((i: any) => i.itemType === "hosting")
+            cartItems.some((i: CartItem) => !i.itemType || i.itemType === "domain") &&
+            cartItems.some((i: CartItem) => i.itemType === "hosting")
               ? "bundle"
-              : cartItems.some((i: any) => i.itemType === "hosting")
+              : cartItems.some((i: CartItem) => i.itemType === "hosting")
               ? "hosting"
               : "domain",
           domains: cartItems.map((item: CartItem) => ({
@@ -405,8 +408,9 @@ export async function POST(request: NextRequest) {
         });
         await fallbackOrder.save();
         serverLogger.warn(`[GuestCheckout] Fallback order created: ${orderId} for ${guestEmail}`);
-      } catch (fallbackErr: any) {
-        serverLogger.error("[GuestCheckout] Fallback order creation also failed:", fallbackErr.message);
+      } catch (fallbackErr: unknown) {
+        const fbMessage = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+        serverLogger.error("[GuestCheckout] Fallback order creation also failed:", fbMessage);
       }
     }
 

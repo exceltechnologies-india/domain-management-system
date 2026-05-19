@@ -77,7 +77,7 @@ export async function createCustomer(customerData: {
   phoneCc: string;
   phone: string;
   langPref?: string;
-}): Promise<{ status: string; data?: any; error?: string }> {
+}): Promise<{ status: string; data?: unknown; error?: string }> {
   const startTime = Date.now();
   serverLogger.info(
     `🚀 [PRODUCTION] Creating ResellerClub customer: ${customerData.username}`
@@ -170,7 +170,7 @@ export async function modifyCustomer(customerData: {
   zipcode?: string;
   phoneCc?: string;
   phone?: string;
-}): Promise<{ status: string; data?: any; error?: string }> {
+}): Promise<{ status: string; data?: unknown; error?: string }> {
   const startTime = Date.now();
   serverLogger.info(
     `🔄 [PRODUCTION] Modifying ResellerClub customer: ${customerData.username} (ID: ${customerData.customerId})`
@@ -180,7 +180,7 @@ export async function modifyCustomer(customerData: {
   try {
     // Build params object with only provided fields
     // ResellerClub requires BOTH username and customer-id, plus lang-pref
-    const params: any = {
+    const params: Record<string, string | number | undefined> = {
       username: customerData.username,
       "customer-id": customerData.customerId,
       "lang-pref": "en", // Required by ResellerClub
@@ -276,7 +276,7 @@ export async function modifyContact(contactData: {
   );
 
   try {
-    const params: any = {
+    const params: Record<string, string | number | undefined> = {
       "contact-id": contactData.contactId,
     };
 
@@ -352,7 +352,7 @@ export async function createContact(contactData: {
   phoneCc: string;
   phone: string;
   type: "Contact" | "CaDomain" | "IrtContact";
-}): Promise<{ status: string; data?: any; error?: string }> {
+}): Promise<{ status: string; data?: unknown; error?: string }> {
   const startTime = Date.now();
   serverLogger.info(
     `🚀 [PRODUCTION] Creating ResellerClub contact: ${contactData.name} (${contactData.email})`
@@ -521,7 +521,7 @@ export async function getOrCreateCustomerAndContact(userData: {
       }
 
       // ResellerClub returns customer ID directly as a number
-      customerId = parseInt(customerResult.data);
+      customerId = parseInt(String(customerResult.data));
       serverLogger.info(
         `✅ [PRODUCTION] Created ResellerClub customer ${customerId} for user: ${userData.email}`
       );
@@ -559,7 +559,7 @@ export async function getOrCreateCustomerAndContact(userData: {
     }
 
     // ResellerClub returns contact ID directly as a number
-    const contactId = parseInt(contactResult.data);
+    const contactId = parseInt(String(contactResult.data));
     serverLogger.info(
       `✅ [PRODUCTION] Created ResellerClub contact ${contactId} for user: ${userData.email}`
     );

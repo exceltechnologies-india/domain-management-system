@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     // 1. Fetch all pending domain names to filter them out of the registered list
     const pendingDomainsList = await listAllPendingDomainNames();
     const pendingNormalizedNames = new Set(
-      pendingDomainsList.map((pd: any) => pd.domainName.toLowerCase().trim())
+      pendingDomainsList.map((pd) => pd.domainName.toLowerCase().trim())
     );
 
     // 2. Get all orders with domains - use lean() for performance and raw data access
@@ -72,10 +72,23 @@ export async function GET(request: NextRequest) {
         }
 
         // Robust fallback for ResellerClub Order ID
-        const rcOrderId = domain.resellerClubOrderId || domain.orderId || (order as any).resellerClubOrderId;
+        const orderLoose = order as typeof order & { resellerClubOrderId?: string };
+        const rcOrderId = domain.resellerClubOrderId || domain.orderId || orderLoose.resellerClubOrderId;
+
+        // Populated via .populate("userId", ...) so user is the resolved object,
+        // not the bare ObjectId.
+        const populatedUser = order.userId as unknown as {
+          firstName?: string;
+          lastName?: string;
+          email?: string;
+        } | null | undefined;
+
+        // Mongoose subdocuments carry _id; the Order shape's `domains` array
+        // element type doesn't declare it, so narrow at the read site.
+        const domainWithId = domain as typeof domain & { _id?: { toString(): string } };
 
         const domainEntry = {
-          id: (domain as any)._id?.toString() || `${order._id}_${domainName}`,
+          id: domainWithId._id?.toString() || `${order._id}_${domainName}`,
           name: domainName,
           price: domain.price,
           currency: domain.currency,
@@ -87,10 +100,10 @@ export async function GET(request: NextRequest) {
           resellerClubContactId: domain.resellerClubContactId,
           dnsActivated: domain.dnsActivated,
           dnsActivatedAt: domain.dnsActivatedAt,
-          customerName: order.userId
-            ? `${(order.userId as any).firstName} ${(order.userId as any).lastName}`
+          customerName: populatedUser
+            ? `${populatedUser.firstName} ${populatedUser.lastName}`
             : "Unknown",
-          customerEmail: (order.userId as any)?.email || "Unknown",
+          customerEmail: populatedUser?.email || "Unknown",
           orderId: order.orderId,
           createdAt: order.createdAt,
         };
