@@ -30,8 +30,9 @@ export default function InvoiceDiagnostics() {
       if ((json.summary?.conflictGroups || 0) > 0 || (json.summary?.stuckOrders || 0) > 0) {
         setIsOpen(true);
       }
-    } catch (err: any) {
-      showErrorToast(err?.message || 'Failed to load invoice diagnostics');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to load invoice diagnostics';
+      showErrorToast(message);
     } finally {
       setIsLoading(false);
     }
@@ -60,8 +61,9 @@ export default function InvoiceDiagnostics() {
       if (!res.ok) throw new Error(json.error || 'Failed');
       showSuccessToast(json.message || 'Invoice number cleared');
       await fetchDiagnostics();
-    } catch (err: any) {
-      showErrorToast(err?.message || 'Action failed');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Action failed';
+      showErrorToast(message);
     } finally {
       setPendingId(null);
     }
@@ -77,8 +79,9 @@ export default function InvoiceDiagnostics() {
       if (!res.ok) throw new Error(json.message || json.error || 'Re-sync failed');
       showSuccessToast(json.message || 'Invoice re-synced');
       await fetchDiagnostics();
-    } catch (err: any) {
-      showErrorToast(err?.message || 'Re-sync failed');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Re-sync failed';
+      showErrorToast(message);
     } finally {
       setPendingId(null);
     }

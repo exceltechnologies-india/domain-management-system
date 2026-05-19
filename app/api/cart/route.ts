@@ -7,14 +7,27 @@ import { getMinYears, getMaxYears, isRestricted } from "@/lib/tld-policies";
 // Force dynamic rendering - required for API routes
 export const dynamic = 'force-dynamic';
 
+// Raw shape we trust the validator with. Mongoose stores the cart as an opaque
+// `unknown[]` (see lib/services/users.ts:getUserCart) — narrow at the validator
+// boundary to the only fields this function touches. Foreign fields pass
+// through untouched.
+interface RawCartItem {
+  domainName?: string;
+  itemType?: 'domain' | 'hosting';
+  registrationPeriod?: number;
+  [key: string]: unknown;
+}
+
 /**
  * Sanitise a cart against the central TLD policy registry:
  *  - drop restricted TLDs (we can't fulfil them, so don't let them sit in cart)
  *  - clamp registrationPeriod into [min, max] for the TLD
  */
-const validateAndCorrectCartItems = (items: any[]): { cart: any[]; dropped: string[] } => {
+const validateAndCorrectCartItems = (
+  items: RawCartItem[]
+): { cart: RawCartItem[]; dropped: string[] } => {
   const dropped: string[] = [];
-  const cart: any[] = [];
+  const cart: RawCartItem[] = [];
   for (const item of items) {
     // Pass through non-domain items unchanged
     if (item?.itemType === 'hosting') {
@@ -52,7 +65,7 @@ export async function GET(request: NextRequest) {
     const rawCart = await getUserCart(String(user._id));
 
     // Validate and correct cart items
-    const { cart: validatedCart, dropped } = validateAndCorrectCartItems(rawCart as any[]);
+    const { cart: validatedCart, dropped } = validateAndCorrectCartItems(rawCart as RawCartItem[]);
 
     // If cart was corrected, save it back to the database
     if (JSON.stringify(validatedCart) !== JSON.stringify(rawCart)) {

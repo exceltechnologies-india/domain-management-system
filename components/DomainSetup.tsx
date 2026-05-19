@@ -3,11 +3,12 @@
 import { useState } from 'react';
 import { Globe, Search, Loader2, Check, X, AlertTriangle, Link as LinkIcon, ArrowRight, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
+import type { CartItem } from '@/lib/types';
 
 interface DomainSetupProps {
-  hostingItem: any;
+  hostingItem: CartItem;
   onUpdateDomain: (oldDomain: string, newDomain: string) => void;
-  onAddDomainToCart: (domain: any) => void;
+  onAddDomainToCart: (domain: CartItem) => void;
 }
 
 interface SearchResult {
@@ -75,7 +76,7 @@ export default function DomainSetup({ hostingItem, onUpdateDomain, onAddDomainTo
       const data = await response.json();
 
       if (response.ok && data.success && data.results && data.results.length > 0) {
-        const exactMatch = data.results.find((r: any) => r.domainName === searchTerm) || data.results[0];
+        const exactMatch = data.results.find((r: SearchResult) => r.domainName === searchTerm) || data.results[0];
         setSearchResult(exactMatch);
       } else {
         setSearchResult({
@@ -93,12 +94,12 @@ export default function DomainSetup({ hostingItem, onUpdateDomain, onAddDomainTo
 
   const handleBuyAndLink = () => {
     if (searchResult && searchResult.available && searchResult.price) {
-      const domainItem = {
+      const domainItem: CartItem = {
         domainName: searchResult.domainName,
         price: searchResult.price,
         currency: searchResult.currency || 'INR',
         registrationPeriod: 1, // Default 1 year
-        itemType: 'domain'
+        itemType: 'domain',
       };
 
       onAddDomainToCart(domainItem);

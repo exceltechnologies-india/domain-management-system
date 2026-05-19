@@ -154,7 +154,11 @@ export default function AdminSettings() {
   // Cache
   const [cacheEnabled, setCacheEnabled] = useState(true);
   const [cacheTTL, setCacheTTL] = useState(60);
-  const [cacheStatus, setCacheStatus] = useState<any>(null);
+  const [cacheStatus, setCacheStatus] = useState<{
+    hasData?: boolean;
+    itemCount?: number;
+    lastUpdated?: string | Date | null;
+  } | null>(null);
   const [cacheLoading, setCacheLoading] = useState(false);
 
   // IP Whitelist
@@ -204,7 +208,7 @@ export default function AdminSettings() {
   useEffect(() => {
     if (status === "loading") return;
     if (session?.user) {
-      const u = { firstName: session.user.name?.split(" ")[0] || "", lastName: session.user.name?.split(" ").slice(1).join(" ") || "", role: (session.user as any).role || "user" };
+      const u = { firstName: session.user.name?.split(" ")[0] || "", lastName: session.user.name?.split(" ").slice(1).join(" ") || "", role: (session.user as { role?: string }).role || "user" };
       if (u.role !== "admin") { router.push("/dashboard"); return; }
       setUser(u); setIsAuthLoading(false); loadAllSettings(); return;
     }
@@ -440,7 +444,7 @@ export default function AdminSettings() {
       setTestPlanEnabled(d.enabled);
       if (d.razorpayPlanMonthly) { setTestPlanRazorpayId(d.razorpayPlanMonthly); setTestPlanRazorpayInput(d.razorpayPlanMonthly); }
       showSuccessToast(action === "enable" ? "₹1 test plan enabled" : "₹1 test plan disabled");
-    } catch (e: any) { showErrorToast(e.message || "Failed"); } finally { setIsSavingTestPlan(false); }
+    } catch (e: unknown) { showErrorToast(e instanceof Error ? e.message : "Failed"); } finally { setIsSavingTestPlan(false); }
   };
 
   const saveMaintenanceSettings = async () => {

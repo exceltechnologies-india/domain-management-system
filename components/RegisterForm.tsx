@@ -251,7 +251,28 @@ export default function RegisterForm({ className = '' }: RegisterFormProps) {
 
       // Use reverse geocoding to get address details
       // Try multiple geocoding services for better reliability
-      let data: any;
+      interface GeocodeAdminEntry {
+        name?: string;
+        description?: string;
+        adminLevel?: number;
+      }
+      interface GeocodeInformativeEntry {
+        name?: string;
+        description?: string;
+      }
+      interface GeocodeData {
+        city?: string;
+        locality?: string;
+        principalSubdivision?: string;
+        administrativeAreaLevel1?: string;
+        countryCode?: string;
+        postcode?: string;
+        localityInfo?: {
+          administrative?: GeocodeAdminEntry[];
+          informative?: GeocodeInformativeEntry[];
+        };
+      }
+      let data: GeocodeData;
       try {
         // Primary service: BigDataCloud (free, no API key required)
         const response = await fetch(
@@ -307,26 +328,26 @@ export default function RegisterForm({ className = '' }: RegisterFormProps) {
       // Extract a better Address Line 1
       // BigDataCloud administrative array is sorted most-significant-first (Country -> State -> District -> City -> Neighborhood)
       const adminList = data.localityInfo?.administrative || [];
-      const countryIndex = adminList.findIndex((item: any) => item.adminLevel === 2 || item.description?.toLowerCase().includes('country') || item.name?.toLowerCase() === 'india');
-      const stateIndex = adminList.findIndex((item: any) => item.adminLevel === 4 || item.description?.toLowerCase().includes('state') || item.name?.toLowerCase().includes('delhi'));
+      const countryIndex = adminList.findIndex((item) => item.adminLevel === 2 || item.description?.toLowerCase().includes('country') || item.name?.toLowerCase() === 'india');
+      const stateIndex = adminList.findIndex((item) => item.adminLevel === 4 || item.description?.toLowerCase().includes('state') || item.name?.toLowerCase().includes('delhi'));
 
       // Filter out country and state from line1 candidates if possible
-      const moreSpecificEntries = adminList.filter((_: any, index: number) => index > Math.max(countryIndex, stateIndex));
+      const moreSpecificEntries = adminList.filter((_, index) => index > Math.max(countryIndex, stateIndex));
 
       let line1 = '';
       if (moreSpecificEntries.length > 0) {
         // Use the most specific locality for line1
-        line1 = moreSpecificEntries[moreSpecificEntries.length - 1].name;
+        line1 = moreSpecificEntries[moreSpecificEntries.length - 1].name ?? '';
       } else {
         // Fallback to locality or whatever is after country if it exists
-        line1 = data.locality || (adminList.length > 1 ? adminList[adminList.length - 1].name : data.principalSubdivision || '');
+        line1 = data.locality || (adminList.length > 1 ? (adminList[adminList.length - 1].name ?? '') : data.principalSubdivision || '');
       }
 
       // Try to find postcode in informative array if missing at top level
       let zipcode = data.postcode || '';
       if (!zipcode && data.localityInfo?.informative) {
-        const postcodeEntry = data.localityInfo.informative.find((item: any) => item.name?.match(/^\d{6}$/) || item.description?.toLowerCase().includes('postcode') || item.description?.toLowerCase().includes('zip'));
-        if (postcodeEntry) {
+        const postcodeEntry = data.localityInfo.informative.find((item) => item.name?.match(/^\d{6}$/) || item.description?.toLowerCase().includes('postcode') || item.description?.toLowerCase().includes('zip'));
+        if (postcodeEntry?.name) {
           zipcode = postcodeEntry.name;
         }
       }
@@ -365,17 +386,20 @@ export default function RegisterForm({ className = '' }: RegisterFormProps) {
       }));
 
       toast.success('Location detected and address filled automatically!');
-    } catch (error: any) {
-      // Location detection failed
-      if (error.code === 1) {
-        if (error.message.includes('secure origins')) {
+    } catch (error: unknown) {
+      // Location detection failed. GeolocationPositionError uses numeric `code`
+      // (1=PERMISSION_DENIED, 2=POSITION_UNAVAILABLE, 3=TIMEOUT). Other errors
+      // (fetch failures, etc.) won't have `code` set — handled by the else.
+      const geoErr = error as { code?: number; message?: string };
+      if (geoErr.code === 1) {
+        if (geoErr.message?.includes('secure origins')) {
           toast.error('Location detection requires HTTPS. Please use a secure connection or fill the address manually.');
         } else {
           toast.error('Location access denied. Please enable location permissions.');
         }
-      } else if (error.code === 2) {
+      } else if (geoErr.code === 2) {
         toast.error('Location unavailable. Please check your internet connection.');
-      } else if (error.code === 3) {
+      } else if (geoErr.code === 3) {
         toast.error('Location request timed out. Please try again.');
       } else {
         toast.error('Failed to detect location. Please fill the address manually.');
@@ -415,7 +439,7 @@ export default function RegisterForm({ className = '' }: RegisterFormProps) {
             className="space-y-6"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
-                handleSubmit(e as any);
+                handleSubmit(e as unknown as React.FormEvent);
               }
             }}
           >

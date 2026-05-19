@@ -22,16 +22,22 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
-    const results: any[] = [];
+    const results: Array<{
+      username: string;
+      success: boolean;
+      daResult?: unknown;
+      error?: string;
+    }> = [];
 
     for (const username of usernames) {
       try {
         serverLogger.info(`Cleanup: Attempting to delete ${username}`);
         const daResult = await DirectAdminService.deleteUser(username);
         results.push({ username, success: true, daResult });
-      } catch (err: any) {
-        serverLogger.error(`Cleanup: Failed to delete ${username}: ${err.message}`);
-        results.push({ username, success: false, error: err.message });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        serverLogger.error(`Cleanup: Failed to delete ${username}: ${message}`);
+        results.push({ username, success: false, error: message });
       }
     }
 
@@ -39,7 +45,8 @@ export async function POST(request: NextRequest) {
       success: true,
       data: results
     });
-  } catch (error: any) {
-    return secureErrorResponse(error.message, 500, "CLEANUP_FAILED");
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Cleanup failed";
+    return secureErrorResponse(message, 500, "CLEANUP_FAILED");
   }
 }

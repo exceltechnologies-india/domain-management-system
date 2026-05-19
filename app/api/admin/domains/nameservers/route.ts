@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { getToken } from "next-auth/jwt";
 import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
+import Order, { type IOrder } from "@/models/Order";
+import type { IUser } from "@/models/User";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 
@@ -16,7 +17,8 @@ export async function POST(request: NextRequest) {
     if (!user) {
       const token = await getToken({ req: request, secret: AUTH_SECRET });
       if (token?.id) {
-        user = { _id: token.id, role: (token as any).role || "user" } as any;
+        const t = token as unknown as { id: string; role?: string };
+        user = { _id: t.id, role: t.role || "user" } as unknown as IUser;
       }
     }
     if (!user) {
@@ -47,7 +49,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Domain not found" }, { status: 404 });
     }
 
-    const domain = order.domains.find((d: any) => d.domainName === domainName);
+    const domain = order.domains.find((d: IOrder['domains'][number]) => d.domainName === domainName);
     if (!domain) {
       return NextResponse.json({ error: "Domain not found in order" }, { status: 404 });
     }
@@ -63,8 +65,8 @@ export async function POST(request: NextRequest) {
       if (!Array.isArray(nameservers) || nameservers.length < 2) {
         return NextResponse.json({ error: "At least two nameservers are required" }, { status: 400 });
       }
-      const normalized = nameservers
-        .map((ns: any) => String(ns).toLowerCase().trim())
+      const normalized = (nameservers as unknown[])
+        .map((ns) => String(ns).toLowerCase().trim())
         .filter((ns: string) => ns.length > 0);
       if (normalized.length < 2) {
         return NextResponse.json({ error: "At least two nameservers are required" }, { status: 400 });

@@ -58,9 +58,10 @@ export async function POST(request: NextRequest) {
                 // but for defaults we follow the plan config.
                 // We can extend this with more options like domainptr etc from config if available.
             });
-        } catch (daError: any) {
+        } catch (daError: unknown) {
+            const daMessage = daError instanceof Error ? daError.message : String(daError);
             // If error says "already exists", we can proceed to create/sync in DB
-            if (daError.message && daError.message.includes("already exists")) {
+            if (daMessage.includes("already exists")) {
                 serverLogger.info(`Package ${pkgName} already exists in DirectAdmin, syncing to DB.`);
             } else {
                 throw daError; // Rethrow other errors
@@ -88,9 +89,10 @@ export async function POST(request: NextRequest) {
 
         results.push({ name: pkgName, status: "created", data: newPlan });
 
-      } catch (err: any) {
-        serverLogger.error(`Failed to create default package ${pkgName}:`, err);
-        errors.push({ name: pkgName, error: err.message });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        serverLogger.error(`Failed to create default package ${pkgName}:`, message);
+        errors.push({ name: pkgName, error: message });
       }
     }
 
@@ -114,7 +116,7 @@ export async function POST(request: NextRequest) {
       data: { results, errors }
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     serverLogger.error("Default Packages Creation Error:", error);
     return secureErrorResponse(
       "Failed to create default packages",
