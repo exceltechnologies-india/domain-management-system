@@ -132,11 +132,12 @@ export default function AdminOrders() {
 
     // Prefer NextAuth session (works for credentials login)
     if (session?.user) {
+      const sessionUser = session.user as { name?: string; email?: string; role?: string };
       const userObj = {
-        firstName: session.user.name?.split(' ')[0] || '',
-        lastName: session.user.name?.split(' ').slice(1).join(' ') || '',
-        email: session.user.email || '',
-        role: (session.user as any).role || 'user',
+        firstName: sessionUser.name?.split(' ')[0] || '',
+        lastName: sessionUser.name?.split(' ').slice(1).join(' ') || '',
+        email: sessionUser.email || '',
+        role: sessionUser.role || 'user',
       };
 
       // Check if admin
@@ -419,7 +420,7 @@ export default function AdminOrders() {
       key: 'customer',
       label: 'Customer',
       sortable: true,
-      render: (value: any, row: Order) => (
+      render: (_value: unknown, row: Order) => (
         <div>
           <div className="text-xs sm:text-sm font-medium text-gray-900">
             {row.userId ? `${row.userId.firstName} ${row.userId.lastName}` : 'Unknown'}
@@ -434,7 +435,7 @@ export default function AdminOrders() {
       key: 'amount',
       label: 'Amount',
       sortable: true,
-      render: (value: any, row: Order) => (
+      render: (_value: unknown, row: Order) => (
         <span className="text-xs sm:text-sm font-medium text-gray-900">
           ₹{row.amount.toFixed(2)}
         </span>
@@ -444,7 +445,7 @@ export default function AdminOrders() {
       key: 'status',
       label: 'Status',
       sortable: true,
-      render: (value: any, row: Order) => (
+      render: (_value: unknown, row: Order) => (
         <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium rounded-full ${row.status === 'completed'
           ? 'bg-green-100 text-green-800'
           : row.status === 'pending'
@@ -459,7 +460,7 @@ export default function AdminOrders() {
       key: 'date',
       label: 'Date',
       sortable: true,
-      render: (value: any, row: Order) => (
+      render: (_value: unknown, row: Order) => (
         <span className="text-xs sm:text-sm text-gray-600">
           {formatIndianDate(new Date(row.createdAt))}
         </span>
@@ -468,7 +469,7 @@ export default function AdminOrders() {
     {
       key: 'actions',
       label: 'Actions',
-      render: (value: any, row: Order) => (
+      render: (_value: unknown, row: Order) => (
         <button
           onClick={(e) => handleTripleDotClick(e, row)}
           className={`p-2 rounded-lg transition-all duration-200 ${menuData?.id === row._id ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}

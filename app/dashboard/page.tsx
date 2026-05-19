@@ -29,15 +29,58 @@ interface User {
   role: string;
 }
 
+// Dashboard payloads are loosely shaped server-side reductions of Order /
+// Domain / Hosting docs. Each list carries fields specific to its UI
+// presentation — `name`, `registeredDate`, `expiryDate` are display strings
+// computed server-side rather than raw model fields.
+interface RecentOrderSummary {
+  _id?: string;
+  orderId: string;
+  status: string;
+  amount?: number;
+  createdAt: string;
+  [k: string]: unknown;
+}
+
+interface RecentDomainSummary {
+  _id?: string;
+  domainName: string;
+  status: string;
+  name?: string;
+  itemType?: 'domain' | 'hosting';
+  expiryDate?: string;
+  registeredDate?: string;
+  [k: string]: unknown;
+}
+
+interface UpcomingRenewal {
+  _id?: string;
+  domain?: string;
+  domainName?: string;
+  type: 'Domain' | 'Hosting';
+  expiryDate?: string;
+  daysUntilExpiry?: number;
+  [k: string]: unknown;
+}
+
+interface ActiveHosting {
+  _id?: string;
+  domainName?: string;
+  name?: string;
+  status: string;
+  expiryDate?: string;
+  [k: string]: unknown;
+}
+
 interface DashboardStats {
   totalDomains: number;
   activeDomains: number;
   pendingDomains?: number;
   totalOrders: number;
-  recentOrders: any[];
-  recentDomains: any[];
-  upcomingRenewals: any[];
-  activeHostings?: any[];
+  recentOrders: RecentOrderSummary[];
+  recentDomains: RecentDomainSummary[];
+  upcomingRenewals: UpcomingRenewal[];
+  activeHostings?: ActiveHosting[];
 }
 
 interface ServiceStatus {
@@ -351,7 +394,7 @@ export default function UserDashboard() {
 
                 {stats?.upcomingRenewals && stats.upcomingRenewals.length > 0 && (
                   <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
-                    {stats.upcomingRenewals.slice(0, 2).map((renewal: any, idx: number) => (
+                    {stats.upcomingRenewals.slice(0, 2).map((renewal: UpcomingRenewal, idx: number) => (
                       <div key={idx} className="flex items-center gap-2 min-w-0">
                         {renewal.type === 'Hosting'
                           ? <HardDrive className="h-3.5 w-3.5 text-orange-500 flex-shrink-0" />

@@ -58,9 +58,10 @@ export async function POST(
             domain,
             packageName
         );
-    } catch (daError: any) {
+    } catch (daError: unknown) {
          // Update error message in pending entry
-         pendingEntry.error = daError.message || "Retry failed at DA creation";
+         const daMessage = daError instanceof Error ? daError.message : "Retry failed at DA creation";
+         pendingEntry.error = daMessage;
          await pendingEntry.save();
          throw daError; // rethrow to go to outer catch
     }
@@ -76,9 +77,10 @@ export async function POST(
       );
 
       serverLogger.info(`DNS nameservers updated successfully for ${domain}`);
-    } catch (dnsError: any) {
+    } catch (dnsError: unknown) {
       // Log but don't fail the entire provisioning if DNS update fails
-      serverLogger.warn(`Failed to update DNS nameservers for ${domain}: ${dnsError.message}`);
+      const dnsMessage = dnsError instanceof Error ? dnsError.message : String(dnsError);
+      serverLogger.warn(`Failed to update DNS nameservers for ${domain}: ${dnsMessage}`);
     }
 
     // 5. Update user in DB
@@ -110,8 +112,9 @@ export async function POST(
         nameservers: DirectAdminService.NAMESERVERS,
       });
       serverLogger.info(`[AdminRetry] Hosting record created for ${domain} (user: ${user.email})`);
-    } catch (hostingErr: any) {
-      serverLogger.error(`[AdminRetry] Failed to create Hosting record for ${domain}: ${hostingErr.message}`);
+    } catch (hostingErr: unknown) {
+      const hostingMessage = hostingErr instanceof Error ? hostingErr.message : String(hostingErr);
+      serverLogger.error(`[AdminRetry] Failed to create Hosting record for ${domain}: ${hostingMessage}`);
       // Don't fail the request — DA account exists and user fields are set
     }
 
@@ -131,8 +134,9 @@ export async function POST(
             }
         );
         serverLogger.info(`Hosting provision email sent to ${user.email}`);
-    } catch (emailError: any) {
-        serverLogger.warn(`Failed to send hosting provision email to ${user.email}: ${emailError.message}`);
+    } catch (emailError: unknown) {
+        const emailMessage = emailError instanceof Error ? emailError.message : String(emailError);
+        serverLogger.warn(`Failed to send hosting provision email to ${user.email}: ${emailMessage}`);
     }
 
     return secureJsonResponse({ 
@@ -140,11 +144,9 @@ export async function POST(
       message: `Hosting provisioned successfully for ${user.email}. Pending entry removed.`,
     });
 
-  } catch (error: any) {
-    serverLogger.error(`Admin Hosting Retry Error:`, error.message);
-    
-    const message = error.message || "Failed to retry provision";
-    
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to retry provision";
+    serverLogger.error(`Admin Hosting Retry Error:`, message);
     return secureErrorResponse(
       message,
       500,
