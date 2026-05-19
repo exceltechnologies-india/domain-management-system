@@ -67,8 +67,16 @@ interface TLDPricingResponse {
  * Main component for managing and displaying TLD pricing information.
  * Provides administrators with tools to analyze pricing, margins, and TLD performance.
  */
+interface AdminUser {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: string;
+}
+
 export default function AdminTLDPricing() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AdminUser | null>(null);
   const [tldPricing, setTldPricing] = useState<TLDPricing[]>([]);
 
   // Split loading states for non-blocking UI
@@ -97,12 +105,13 @@ export default function AdminTLDPricing() {
 
     // Prefer NextAuth session (works for credentials login)
     if (session?.user) {
-      const userObj = {
-        _id: (session.user as any).id,
-        firstName: session.user.name?.split(' ')[0] || '',
-        lastName: session.user.name?.split(' ').slice(1).join(' ') || '',
-        email: session.user.email || '',
-        role: (session.user as any).role || 'user',
+      const sessionUser = session.user as { id?: string; name?: string; email?: string; role?: string };
+      const userObj: AdminUser = {
+        _id: sessionUser.id || '',
+        firstName: sessionUser.name?.split(' ')[0] || '',
+        lastName: sessionUser.name?.split(' ').slice(1).join(' ') || '',
+        email: sessionUser.email || '',
+        role: sessionUser.role || 'user',
       };
 
       // Check if admin
@@ -227,7 +236,7 @@ export default function AdminTLDPricing() {
 
   // Sort filtered TLD pricing
   const sortedTLDPricing = [...filteredTLDPricing].sort((a, b) => {
-    let aValue: any, bValue: any;
+    let aValue: string | number, bValue: string | number;
 
     switch (sortBy) {
       case 'tld':

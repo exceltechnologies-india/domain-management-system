@@ -14,6 +14,7 @@ import FAQItem from '@/components/FAQItem';
 import Footer from '@/components/Footer';
 import { safeLocalStorage } from '@/lib/storage';
 import { useCartStore } from '@/store/cartStore';
+import type { CartItem } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -116,7 +117,7 @@ export default function HostingPage() {
 
   const addTrialToCart = (plan: typeof HOSTING_PLANS[string]) => {
     const uniqueHostingId = `hosting-trial-${plan.id}-${Date.now()}`;
-    const trialItem: any = {
+    const trialItem: CartItem = {
       domainName: uniqueHostingId,
       price: 0,
       currency: plan.currency,
@@ -156,9 +157,9 @@ export default function HostingPage() {
     const isMonthly = billingCycle === 'monthly';
     let finalPrice = isMonthly ? plan.price * 2 : plan.price;
     let finalPeriod = isMonthly ? 1 : 12;
-    let periodUnit = 'months';
+    let periodUnit: 'months' = 'months';
 
-    const hostingItem: any = {
+    const hostingItem: CartItem & { linkedDomain?: string } = {
       domainName: uniqueHostingId,
       price: finalPrice,
       currency: plan.currency,
@@ -207,7 +208,7 @@ export default function HostingPage() {
         features: testPlan.features,
         serverPackage: testPlan.serverPackage,
       },
-    } as any);
+    } as CartItem);
     toast.success('₹1 test plan added to cart!');
     router.push('/cart');
   };
@@ -644,7 +645,7 @@ export default function HostingPage() {
 
       <TrialOtpModal
         isOpen={isOtpModalOpen}
-        defaultPhone={user ? (user as any).phone : undefined}
+        defaultPhone={user ? (user as { phone?: string }).phone : undefined}
         onClose={() => {
           setIsOtpModalOpen(false);
           setPendingTrialPlan(null);

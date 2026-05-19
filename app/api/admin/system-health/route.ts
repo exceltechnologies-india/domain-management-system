@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
 
     if (!isAdminViaJwt) {
       const session = await getServerSession(authOptions);
-      if (!session || !session.user || (session.user as any).role !== "admin") {
+      if (!session || !session.user || (session.user as { role?: string }).role !== "admin") {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
     }
@@ -147,8 +147,9 @@ export async function GET(req: NextRequest) {
         await connectToDatabase();
         const expiryValue = await getSettingValue<{ expired?: boolean }>("zoho.subscription_expired");
         dbExpired = expiryValue?.expired === true;
-      } catch (e: any) {
-        serverLogger.warn("[System Health] Could not read Zoho expiry from DB", e?.message);
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : String(e);
+        serverLogger.warn("[System Health] Could not read Zoho expiry from DB", message);
       }
     }
 
@@ -196,13 +197,15 @@ export async function GET(req: NextRequest) {
         } else {
           zohoPlanStatus = "active";
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
+        interface ZohoErrLike { code?: string; message?: string }
+        const err = (e && typeof e === 'object' ? e : {}) as ZohoErrLike;
         zohoLatencyMs = ms() - zohoStart;
-        serverLogger.error("System Health: Zoho Books ping failed", e.message || e);
-        if (e.code === "SUBSCRIPTION_EXPIRED" || e.message?.includes("103001")) {
+        serverLogger.error("System Health: Zoho Books ping failed", err.message || e);
+        if (err.code === "SUBSCRIPTION_EXPIRED" || err.message?.includes("103001")) {
           zohoPlanStatus = "expired";
           zohoBooksStatus = "down";
-        } else if (e.code === "AUTH_ERROR" || e.code === "MISSING_REFRESH_TOKEN") {
+        } else if (err.code === "AUTH_ERROR" || err.code === "MISSING_REFRESH_TOKEN") {
           zohoBooksStatus = "down";
           zohoPlanStatus = "misconfigured";
         } else {
@@ -275,7 +278,7 @@ export async function GET(req: NextRequest) {
     });
     response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
     return response;
-  } catch (error: any) {
+  } catch (error: unknown) {
     serverLogger.error("System Health Error", error);
     return NextResponse.json({ error: "Failed to fetch system health" }, { status: 500 });
   }

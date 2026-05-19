@@ -430,7 +430,7 @@ Audit-recommended sub-files I did NOT create:
 
 ## 4. Code Quality
 
-### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (ResellerClub + Zoho Books + DirectAdmin external-API wrappers fully typed; lib helpers + payment services typed 2026-05-18; admin routes typed 2026-05-18; React client pages typed 2026-05-18; service layer + auth/recaptcha/logger typed 2026-05-18; pending-domains + diag-da + packages + workers typed 2026-05-18; guest verify + dashboard pages + RC customers + retry route typed 2026-05-18; 5 routes + razorpay/cloud-tasks/client-logger/auth typed 2026-05-18; 845 → 247 sitewide)
+### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (ResellerClub + Zoho Books + DirectAdmin external-API wrappers fully typed; lib helpers + payment services typed 2026-05-18; admin routes typed 2026-05-18; React client pages typed 2026-05-18; service layer + auth/recaptcha/logger typed 2026-05-18; pending-domains + diag-da + packages + workers typed 2026-05-18; guest verify + dashboard pages + RC customers + retry route typed 2026-05-18; 5 routes + razorpay/cloud-tasks/client-logger/auth typed 2026-05-18; 12 small files (4-any each) typed 2026-05-18; 845 → 199 sitewide)
 Across `lib/`, `app/`, `components/`. TypeScript was doing far less work than it could. Worst offenders were the external API wrappers (ResellerClub / DirectAdmin responses).
 
 **First pass — ResellerClub wrappers (audit-recommended starting point):**
@@ -591,6 +591,27 @@ Two long-standing slips surfaced and were fixed: (1) the admin-security middlewa
 **lib/auth-config/callbacks.ts intentionally retained `any` (4 occurrences) with eslint-disable comments** — NextAuth's callback parameter shapes vary by provider (Google vs. credentials vs. GitHub) and the callbacks read fields defensively across those shapes; forcing a single narrower type would lie about the runtime data.
 
 **Net this pass:** 39 anys removed (`286 → 247`). Combined ten-pass total: **598 anys removed sitewide (845 → 247, 71% reduction)**.
+
+**Verified on main 2026-05-18:** 340/340 tests, tsc clean, production build succeeded.
+
+**Eleventh pass — 12 small files (4-any each) (2026-05-18):**
+
+Uniform pattern across the long tail — each file had ≤4 anys, mostly `catch (X: any)` blocks (rewritten via `instanceof Error` narrowing) and `(session.user as any).id|role` reads (narrowed via per-call structural casts). The 12 files:
+
+- [app/dashboard/invoices/page.tsx](app/dashboard/invoices/page.tsx) — 4 → 0
+- [app/api/user/hosting/stats/route.ts](app/api/user/hosting/stats/route.ts) — 4 → 0 (DA error narrowed via a local `NetErr` shape; the 2 `hostingRecords.find((h: any) => …)` callbacks now `IHosting`)
+- [app/api/cron/pending-sweeper/route.ts](app/api/cron/pending-sweeper/route.ts) — 4 → 0 (the 2 `as any[]` array casts replaced with a `StuckPendingDomainRow` interface for the lean projection)
+- [app/api/workers/check-domain-watch/route.ts](app/api/workers/check-domain-watch/route.ts) — 4 → 0 (populated `watch.userId` narrowed structurally)
+- [app/api/user/hosting/cancel-trial/route.ts](app/api/user/hosting/cancel-trial/route.ts) — 4 → 0 (the `next_action_at = null as any` swapped for `undefined` matching the typed field)
+- [app/hosting/page.tsx](app/hosting/page.tsx) — 4 → 0 (cart-item literals typed via `CartItem`; `periodUnit` literal-narrowed)
+- [app/api/admin/system-health/route.ts](app/api/admin/system-health/route.ts) — 4 → 0 (Zoho error narrowed via local `ZohoErrLike`)
+- [app/admin/settings/security/page.tsx](app/admin/settings/security/page.tsx) — 4 → 0
+- [app/admin/pricing-management/page.tsx](app/admin/pricing-management/page.tsx) — 4 → 0 (added `AdminUser` interface for the user-state; `aValue: any, bValue: any` sort comparator typed via `string | number`)
+- [app/admin/payment-management/page.tsx](app/admin/payment-management/page.tsx) — 4 → 0
+- [app/admin/invoices/page.tsx](app/admin/invoices/page.tsx) — 4 → 0 (the `AdminLayout user={session?.user as any}` cast unwound into an explicit object construction)
+- [app/admin/invoices/[id]/view/page.tsx](app/admin/invoices/[id]/view/page.tsx) — 4 → 0
+
+**Net this pass:** 48 anys removed (`247 → 199`). Combined eleven-pass total: **646 anys removed sitewide (845 → 199, 76% reduction)**.
 
 **Verified on main 2026-05-18:** 340/340 tests, tsc clean, production build succeeded.
 

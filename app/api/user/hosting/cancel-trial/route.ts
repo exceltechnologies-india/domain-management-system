@@ -52,8 +52,9 @@ export async function POST(request: NextRequest) {
       try {
         await RazorpayService.cancelSubscription(hosting.subscriptionId);
         serverLogger.info(`[cancel-trial] Cancelled Razorpay subscription ${hosting.subscriptionId}`);
-      } catch (err: any) {
-        serverLogger.error(`[cancel-trial] Failed to cancel Razorpay subscription: ${err.message}`);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        serverLogger.error(`[cancel-trial] Failed to cancel Razorpay subscription: ${message}`);
         // Continue — we still terminate the hosting
       }
     }
@@ -63,8 +64,9 @@ export async function POST(request: NextRequest) {
       try {
         await DirectAdminService.suspendUser(hosting.directAdminUsername, "Trial cancelled by user");
         serverLogger.info(`[cancel-trial] Suspended DA user ${hosting.directAdminUsername}`);
-      } catch (err: any) {
-        serverLogger.error(`[cancel-trial] Failed to suspend DA user: ${err.message}`);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        serverLogger.error(`[cancel-trial] Failed to suspend DA user: ${message}`);
       }
     }
 
@@ -74,13 +76,13 @@ export async function POST(request: NextRequest) {
     hosting.autoRenew = false;
     hosting.billingType = "manual";
     hosting.subscriptionId = undefined;
-    hosting.next_action_at = null as any;
+    hosting.next_action_at = undefined;
     await hosting.save();
 
     serverLogger.info(`[cancel-trial] Trial terminated for hosting ${hostingId} (user ${user.email})`);
 
     return secureJsonResponse({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     serverLogger.error("Cancel trial error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

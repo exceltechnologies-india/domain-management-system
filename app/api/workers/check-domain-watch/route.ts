@@ -55,7 +55,10 @@ export async function POST(request: NextRequest) {
 
         results.checked++;
 
-        const user = watch.userId as any;
+        // userId is populated (.populate('userId', …)) so it's the object form.
+        const user = watch.userId as unknown as
+          | { email?: string; firstName?: string; lastName?: string }
+          | undefined;
         if (!isAvailable || !user?.email) continue;
 
         // Domain just became available — notify once then remove the watch
@@ -67,11 +70,12 @@ export async function POST(request: NextRequest) {
           user.email,
           watch.domainName,
           userName
-        ).catch((err: any) =>
+        ).catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err);
           serverLogger.error(
-            `[DomainWatch] Email failed for ${watch.domainName}: ${err.message}`
-          )
-        );
+            `[DomainWatch] Email failed for ${watch.domainName}: ${message}`
+          );
+        });
 
         // Remove watch so the user only gets one notification
         await removeWatchById(String(watch._id));
@@ -80,9 +84,10 @@ export async function POST(request: NextRequest) {
         serverLogger.info(
           `[DomainWatch] Notified ${user.email} — ${watch.domainName} is available`
         );
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
         serverLogger.error(
-          `[DomainWatch] Error checking ${watch.domainName}: ${err.message}`
+          `[DomainWatch] Error checking ${watch.domainName}: ${message}`
         );
         results.errors++;
       }
@@ -93,8 +98,9 @@ export async function POST(request: NextRequest) {
     );
 
     return secureJsonResponse({ success: true, ...results });
-  } catch (error: any) {
-    serverLogger.error("[DomainWatch] Worker error:", error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    serverLogger.error("[DomainWatch] Worker error:", message);
     return secureErrorResponse("Internal error", 500, "INTERNAL_ERROR");
   }
 }

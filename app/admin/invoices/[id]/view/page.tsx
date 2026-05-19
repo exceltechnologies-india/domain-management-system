@@ -35,16 +35,17 @@ export default function AdminViewInvoicePage({ params }: { params: Promise<{ id:
     if (status === 'loading') return;
 
     if (session?.user) {
-      if ((session.user as any).role !== 'admin') {
+      const sessionUser = session.user as { id?: string; email?: string | null; name?: string | null; role?: string };
+      if (sessionUser.role !== 'admin') {
         router.push('/dashboard');
         return;
       }
       const userObj = {
-        id: (session.user as any).id,
-        email: session.user.email || '',
-        firstName: session.user.name?.split(' ')[0] || '',
-        lastName: session.user.name?.split(' ').slice(1).join(' ') || '',
-        role: (session.user as any).role || 'user',
+        id: sessionUser.id || '',
+        email: sessionUser.email || '',
+        firstName: sessionUser.name?.split(' ')[0] || '',
+        lastName: sessionUser.name?.split(' ').slice(1).join(' ') || '',
+        role: sessionUser.role || 'user',
       };
       setUser(userObj);
       setIsAuthLoading(false);
@@ -168,7 +169,10 @@ export default function AdminViewInvoicePage({ params }: { params: Promise<{ id:
   }
 
   return (
-    <AdminLayout user={user as any} onLogout={performLogout}>
+    <AdminLayout
+      user={{ firstName: user.firstName, lastName: user.lastName, role: user.role }}
+      onLogout={performLogout}
+    >
       <div className="p-4 sm:p-6 flex flex-col h-full sm:h-[calc(100vh-64px)] gap-4">
 
         {/* Header */}

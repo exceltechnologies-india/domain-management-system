@@ -67,7 +67,7 @@ export default function AdminInvoicesPage() {
 
     // Prefer NextAuth session (works for credentials login)
     if (session?.user) {
-      const userRole = (session.user as any).role;
+      const userRole = (session.user as { role?: string }).role;
       // Check if admin
       if (userRole !== 'admin') {
         router.push('/dashboard');
@@ -190,7 +190,7 @@ export default function AdminInvoicesPage() {
       key: 'serial_number',
       label: 'S.No.',
       sortable: false,
-      render: (_: any, __: any, index: number) => (
+      render: (_value: unknown, _row: unknown, index: number) => (
         <span className="text-gray-500 font-medium">
           {index + 1}
         </span>
@@ -256,7 +256,7 @@ export default function AdminInvoicesPage() {
       key: 'actions',
       label: 'Actions',
       sortable: false,
-      render: (value: any, row: Invoice) => (
+      render: (_value: unknown, row: Invoice) => (
         <div className="flex items-center space-x-3">
           <button
             onClick={() => router.push(`/admin/invoices/${row.invoice_id}/view`)}
@@ -302,7 +302,18 @@ export default function AdminInvoicesPage() {
   }
 
   return (
-    <AdminLayout user={session?.user as any} onLogout={performLogout}>
+    <AdminLayout
+      user={
+        session?.user
+          ? {
+              firstName: session.user.name?.split(' ')[0] || '',
+              lastName: session.user.name?.split(' ').slice(1).join(' ') || '',
+              role: (session.user as { role?: string }).role || 'admin',
+            }
+          : null
+      }
+      onLogout={performLogout}
+    >
       <div className="space-y-6">
 
         {/* ── Page header ── */}

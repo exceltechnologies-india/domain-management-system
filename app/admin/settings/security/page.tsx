@@ -26,7 +26,7 @@ export default function AdminSecurityPage() {
         ? {
             firstName: session.user.name?.split(" ")[0] || "",
             lastName: session.user.name?.split(" ").slice(1).join(" ") || "",
-            role: (session.user as any).role || "admin",
+            role: (session.user as { role?: string }).role || "admin",
           }
         : null,
     [session]
@@ -63,8 +63,8 @@ export default function AdminSecurityPage() {
       setQrCodeDataUrl(data.qrCodeDataUrl);
       setManualKey(data.manualKey);
       setStep("scan");
-    } catch (e: any) {
-      showErrorToast(e.message);
+    } catch (e: unknown) {
+      showErrorToast(e instanceof Error ? e.message : String(e));
     } finally {
       setIsLoading(false);
     }
@@ -87,8 +87,8 @@ export default function AdminSecurityPage() {
       setBackupCodes(data.backupCodes);
       setTotpEnabled(true);
       setStep("backup");
-    } catch (e: any) {
-      showErrorToast(e.message);
+    } catch (e: unknown) {
+      showErrorToast(e instanceof Error ? e.message : String(e));
       setVerifyCode("");
     } finally {
       setIsLoading(false);
@@ -114,8 +114,8 @@ export default function AdminSecurityPage() {
       setDisableCode("");
       setDisablePassword("");
       showSuccessToast("Two-factor authentication disabled");
-    } catch (e: any) {
-      showErrorToast(e.message);
+    } catch (e: unknown) {
+      showErrorToast(e instanceof Error ? e.message : String(e));
     } finally {
       setIsLoading(false);
     }
