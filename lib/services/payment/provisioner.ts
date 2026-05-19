@@ -381,6 +381,14 @@ export async function provisionCartItems(
         const errMessage = error instanceof Error ? error.message : String(error);
         let details = errMessage;
 
+        // Distinguish "DA unreachable / temporarily down" (status 503 from
+        // client.ts — emitted for ECONNREFUSED/ETIMEDOUT/ENOTFOUND/502/503/504)
+        // from genuine provisioning failures. Unreachable is auto-recoverable:
+        // we queue a PendingHosting row and surface the item as pending so the
+        // user sees "in progress" instead of a red failure alarm.
+        const isDaUnreachable =
+          error instanceof DirectAdminError && error.status === 503;
+
         if (error instanceof DirectAdminError) {
           context = `DA-FAIL: ${error.context || "Unknown Operation"}`;
           details = `${error.message} (Status: ${error.status})`;
@@ -394,8 +402,14 @@ export async function provisionCartItems(
           );
         }
 
+        const userFacingError = isDaUnreachable
+          ? "Hosting setup is queued. Our provisioning system is temporarily unavailable — we'll complete this automatically once it's back."
+          : details;
+
         serverLogger.error(
-          `❌ [PAYMENT-VERIFY] Hosting provisioning failed: ${details}`
+          isDaUnreachable
+            ? `⏳ [PAYMENT-VERIFY] Hosting provisioning deferred (DA unreachable): ${details}`
+            : `❌ [PAYMENT-VERIFY] Hosting provisioning failed: ${details}`
         );
 
         try {
@@ -408,10 +422,12 @@ export async function provisionCartItems(
             package: packageName,
             daUsername: daUsername,
             error: details,
-            status: "failed",
+            status: isDaUnreachable ? "pending" : "failed",
           });
           serverLogger.info(
-            `📝 [PAYMENT-VERIFY] Created PendingHosting record for failed provision: ${targetDomain}`
+            `📝 [PAYMENT-VERIFY] Created PendingHosting record (${
+              isDaUnreachable ? "pending/deferred" : "failed"
+            }) for ${targetDomain}`
           );
         } catch (phError) {
           serverLogger.error(
@@ -422,8 +438,8 @@ export async function provisionCartItems(
 
         registrationResults.push({
           domainName: targetDomain,
-          status: "failed",
-          error: details,
+          status: isDaUnreachable ? "pending" : "failed",
+          error: userFacingError,
           itemType: "hosting",
         });
 
@@ -433,19 +449,21 @@ export async function provisionCartItems(
           currency: item.currency || "INR",
           registrationPeriod: item.registrationPeriod || 1,
           periodUnit: item.periodUnit || "months",
-          status: "failed",
+          status: isDaUnreachable ? "pending" : "failed",
           itemType: "hosting",
           dnsProvider: "directadmin",
           hostingPlan: item.hostingPlan,
           bookingStatus: [
             {
-              step: "domain_failed",
-              message: `Provisioning failed: ${details}`,
+              step: isDaUnreachable ? "hosting_deferred" : "domain_failed",
+              message: isDaUnreachable
+                ? "Provisioning queued — waiting for server availability"
+                : `Provisioning failed: ${details}`,
               timestamp: new Date(),
-              progress: 100,
+              progress: isDaUnreachable ? 50 : 100,
             },
           ],
-          error: details,
+          error: userFacingError,
         });
       }
 
