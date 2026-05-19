@@ -33,7 +33,7 @@ const storage = new AsyncLocalStorage<RequestContext>();
 // importing this module — that import would pull `node:async_hooks` into the
 // Edge runtime bundle (middleware) and webpack rejects the `node:` scheme
 // there. The decoupling keeps middleware's serverLogger import safe.
-(globalThis as any).__requestContextStorage = storage;
+(globalThis as unknown as { __requestContextStorage: typeof storage }).__requestContextStorage = storage;
 
 export function getRequestContext(): RequestContext | undefined {
   return storage.getStore();
@@ -62,9 +62,9 @@ export function withRequestContext<T>(ctx: RequestContext, fn: () => T): T {
  *   });
  */
 export function withRequestLogContext<R extends Request, T>(
-  handler: (request: R, ...rest: any[]) => Promise<T> | T
+  handler: (request: R, ...rest: unknown[]) => Promise<T> | T
 ) {
-  return async (request: R, ...rest: any[]): Promise<T> => {
+  return async (request: R, ...rest: unknown[]): Promise<T> => {
     const requestId =
       request.headers.get("x-request-id") ?? crypto.randomUUID();
     return storage.run({ requestId }, () => handler(request, ...rest));

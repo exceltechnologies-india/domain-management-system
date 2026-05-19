@@ -1,6 +1,5 @@
 import {
   generateSecret as otpGenerateSecret,
-  generateSync,
   verifySync,
   generateURI,
 } from "otplib";
@@ -10,8 +9,9 @@ import bcrypt from "bcryptjs";
 
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "Anutech";
 
-// Accept one time-step before/after to tolerate minor clock skew
-const TOTP_OPTIONS = { window: 1 } as const;
+// Accept one TOTP step (30s) of skew on both sides to tolerate minor
+// clock drift between server and client authenticator app.
+const SKEW_TOLERANCE_S = 30;
 
 export function generateTotpSecret(): string {
   return otpGenerateSecret();
@@ -22,16 +22,16 @@ export function verifyTotpCode(secret: string, token: string): boolean {
     const result = verifySync({
       secret,
       token: token.replace(/\s/g, ""),
-      options: TOTP_OPTIONS,
-    } as any);
-    return (result as any)?.valid === true;
+      epochTolerance: SKEW_TOLERANCE_S,
+    });
+    return result?.valid === true;
   } catch {
     return false;
   }
 }
 
 export function getTotpUri(secret: string, email: string): string {
-  return generateURI({ secret, label: email, issuer: APP_NAME } as any);
+  return generateURI({ secret, label: email, issuer: APP_NAME });
 }
 
 export async function generateQrCodeDataUrl(uri: string): Promise<string> {

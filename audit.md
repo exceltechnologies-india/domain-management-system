@@ -430,7 +430,7 @@ Audit-recommended sub-files I did NOT create:
 
 ## 4. Code Quality
 
-### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (ResellerClub + Zoho Books + DirectAdmin external-API wrappers fully typed; lib helpers + payment services typed 2026-05-18; admin routes typed 2026-05-18; React client pages typed 2026-05-18; service layer + auth/recaptcha/logger typed 2026-05-18; pending-domains + diag-da + packages + workers typed 2026-05-18; guest verify + dashboard pages + RC customers + retry route typed 2026-05-18; 5 routes + razorpay/cloud-tasks/client-logger/auth typed 2026-05-18; 12 small files (4-any each) typed 2026-05-18; 845 → 199 sitewide)
+### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (12 typing passes 2026-05-17 → 2026-05-18; 845 → 163 sitewide, 81% reduction; every external-API wrapper / lib helper / service layer / admin route / worker / dashboard page covered)
 Across `lib/`, `app/`, `components/`. TypeScript was doing far less work than it could. Worst offenders were the external API wrappers (ResellerClub / DirectAdmin responses).
 
 **First pass — ResellerClub wrappers (audit-recommended starting point):**
@@ -612,6 +612,26 @@ Uniform pattern across the long tail — each file had ≤4 anys, mostly `catch 
 - [app/admin/invoices/[id]/view/page.tsx](app/admin/invoices/[id]/view/page.tsx) — 4 → 0
 
 **Net this pass:** 48 anys removed (`247 → 199`). Combined eleven-pass total: **646 anys removed sitewide (845 → 199, 76% reduction)**.
+
+**Verified on main 2026-05-18:** 340/340 tests, tsc clean, production build succeeded.
+
+**Twelfth pass — small lib + payment services + 3-any routes (2026-05-18):**
+
+Per-file summary across the 3-any cluster:
+- [lib/totp.ts](lib/totp.ts) — 3 → 0. Dropped 2 `as any` casts on `verifySync`/`generateURI` and the `result as any` narrowing. otplib's API had changed: replaced the deprecated `options.window: 1` with `epochTolerance: 30` (1 step = 30s for TOTP). Dropped the unused `generateSync` import.
+- [lib/api-security-middleware.ts](lib/api-security-middleware.ts) — 3 → 0. `error: any` → `unknown` on `sanitizeErrorMessage` / `createErrorResponse`; `(request as any).ip` → structural cast.
+- [lib/request-context.ts](lib/request-context.ts) — 3 → 0. `(globalThis as any).__requestContextStorage` → structural cast; 2 `...rest: any[]` widened to `unknown[]`.
+- [lib/auth-config/providers.ts](lib/auth-config/providers.ts) — 3 → 0. NextAuth `req` typed via `{ headers?: unknown }`; a `readHeader(name)` helper resolves both Headers-like and plain-object header shapes; 2 catches narrowed via `instanceof Error`.
+- [lib/services/payment/provisioner.ts](lib/services/payment/provisioner.ts) — 3 → 0. 3 `catch (X: any)` blocks rewritten via `instanceof Error`; the `error instanceof DirectAdminError` branch still gets typed access to `.context`/`.status`/`.response`.
+- [lib/services/payment/upgrade.ts](lib/services/payment/upgrade.ts) — 3 → 0. 2 catches narrowed; the `order.status = "paid" as any` swapped for `as IOrder["status"]` — the schema accepts "paid" but the interface enum doesn't include it; narrow at the assignment so future order-status changes are visible.
+- [app/razorpay-checkout/page.tsx](app/razorpay-checkout/page.tsx) — 3 → 0. Hoisted `RazorpayConstructor` / `RazorpayInstance` / `RazorpayPaymentResponse` interfaces so the `Window.Razorpay: any` global declaration becomes a typed constructor; handler signature + catch narrowed.
+- [app/checkout/guest/page.tsx](app/checkout/guest/page.tsx) — 3 → 0. `(i: any) => i.isTrial` typed via `CartItem`; dismissed-iframe + outer catch narrowed.
+- [app/api/user/hosting/trial-eligibility/route.ts](app/api/user/hosting/trial-eligibility/route.ts) — 3 → 0. `(user._id as any).toString()` → `String(user._id)`; 2 catches narrowed.
+- [app/api/user/domains/nameservers/route.ts](app/api/user/domains/nameservers/route.ts) — 3 → 0. NextAuth-token-to-user via structural cast; the find-callback + the `(ns: any) => …` mapper typed via `IOrder['domains'][number]` / `unknown`.
+- [app/api/domains/renew/route.ts](app/api/domains/renew/route.ts) — 3 → 0. Surfaced a latent bug: 3 `(ResellerClubWrapper as any).getRenewalPricing|getDomainExpiry|renewDomain(...)` calls — only `renewDomain` exists on the wrapper. `getRenewalPricing` and `getDomainExpiry` live on `ResellerClubAPI`. The `as any` casts were silencing the wrong-namespace call. Fixed by importing `ResellerClubAPI` for the two reads + dropping the unused `testingMode` parameter that the wrapper never accepted.
+- [app/api/domains/booking-status/route.ts](app/api/domains/booking-status/route.ts) — 3 → 0. Mongo query typed via `Record<string, unknown>`; domain-find callbacks via `IOrder['domains'][number]`.
+
+**Net this pass:** 36 anys removed (`199 → 163`). Combined twelve-pass total: **682 anys removed sitewide (845 → 163, 81% reduction)**.
 
 **Verified on main 2026-05-18:** 340/340 tests, tsc clean, production build succeeded.
 

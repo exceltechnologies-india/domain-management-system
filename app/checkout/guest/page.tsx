@@ -14,6 +14,7 @@ import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import Link from 'next/link';
 import { getMinRegistrationPeriod } from '@/lib/tld-min-periods';
+import type { CartItem } from '@/lib/types';
 import { INDIAN_STATES } from '@/lib/constants';
 import { getDeviceFingerprint } from '@/lib/device-fingerprint';
 import { useRazorpayCheckout } from '@/components/RazorpayCheckoutFrame';
@@ -85,7 +86,7 @@ function GuestCheckoutInner() {
   // Guard: trials require login (1-per-user lifetime eligibility), but
   // paid hosting + domains are fine for guest checkout.
   useEffect(() => {
-    if (!isLoading && cartItems.some((i: any) => i.isTrial === true)) {
+    if (!isLoading && cartItems.some((i: CartItem) => i.isTrial === true)) {
       toast.error('Free trials require an account. Please sign in.');
       router.replace('/cart');
     }
@@ -319,16 +320,17 @@ function GuestCheckoutInner() {
           response.razorpay_payment_id,
           response.razorpay_signature
         );
-      } catch (err: any) {
-        if (err?.kind === 'dismissed') {
+      } catch (err: unknown) {
+        if ((err as { kind?: string })?.kind === 'dismissed') {
           setIsProcessing(false);
           setIsPaymentInProgress(false);
           return;
         }
         throw err;
       }
-    } catch (error: any) {
-      toast.error(error?.message || 'Payment initialization failed');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Payment initialization failed';
+      toast.error(message);
       setIsProcessing(false);
       setIsPaymentInProgress(false);
     }

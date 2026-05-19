@@ -32,7 +32,7 @@ export function validateRequestSize(
 /**
  * Sanitize error message for client
  */
-export function sanitizeErrorMessage(error: any): string {
+export function sanitizeErrorMessage(error: unknown): string {
   // Don't expose internal errors to clients
   if (error instanceof Error) {
     // In production, return generic message
@@ -58,7 +58,7 @@ export function sanitizeErrorMessage(error: any): string {
  * Create secure error response
  */
 export function createErrorResponse(
-  error: any,
+  error: unknown,
   status: number = 500,
   code?: string
 ): NextResponse {
@@ -105,7 +105,7 @@ export function getRequestMetadata(request: NextRequest): {
 } {
   const forwarded = request.headers.get("x-forwarded-for");
   const realIP = request.headers.get("x-real-ip");
-  const ip = (request as any).ip || forwarded?.split(",")[0]?.trim() || realIP || "unknown";
+  const ip = (request as unknown as { ip?: string }).ip || forwarded?.split(",")[0]?.trim() || realIP || "unknown";
 
   return {
     ip,

@@ -233,8 +233,9 @@ export async function provisionCartItems(
               daIp
             );
             break; // success — exit retry loop
-          } catch (usernameErr: any) {
-            const msg = (usernameErr.message || "").toLowerCase();
+          } catch (usernameErr: unknown) {
+            const errMessage = usernameErr instanceof Error ? usernameErr.message : String(usernameErr);
+            const msg = errMessage.toLowerCase();
             if (attempt < MAX_USERNAME_ATTEMPTS && msg.includes("already exists")) {
               serverLogger.warn(`⚠️ [PAYMENT-VERIFY] Username collision on "${daUsername}", retrying (${attempt}/${MAX_USERNAME_ATTEMPTS})`);
               continue;
@@ -275,9 +276,10 @@ export async function provisionCartItems(
           serverLogger.info(
             `✉️ [PAYMENT-VERIFY] Hosting provision email sent to ${user.email}`
           );
-        } catch (emailError: any) {
+        } catch (emailError: unknown) {
+          const message = emailError instanceof Error ? emailError.message : String(emailError);
           serverLogger.error(
-            `⚠️ [PAYMENT-VERIFY] Failed to send hosting provision email: ${emailError.message}`
+            `⚠️ [PAYMENT-VERIFY] Failed to send hosting provision email: ${message}`
           );
         }
 
@@ -374,9 +376,10 @@ export async function provisionCartItems(
           registeredAt: registeredAt,
           expiresAt: expiresAt,
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         let context = "Hosting Provisioning";
-        let details = error.message;
+        const errMessage = error instanceof Error ? error.message : String(error);
+        let details = errMessage;
 
         if (error instanceof DirectAdminError) {
           context = `DA-FAIL: ${error.context || "Unknown Operation"}`;
@@ -386,7 +389,7 @@ export async function provisionCartItems(
           });
         } else {
           serverLogger.error(
-            `[PAYMENT-VERIFY-HOSTING] Unexpected error: ${error.message}`,
+            `[PAYMENT-VERIFY-HOSTING] Unexpected error: ${errMessage}`,
             error
           );
         }

@@ -47,7 +47,7 @@ async function runEligibility(
   }
 
   // 2. One trial per user lifetime
-  const userId = (user._id as any).toString();
+  const userId = String(user._id);
   const priorTrial = await Order.exists({ userId, orderType: "hosting_trial" });
   if (priorTrial) {
     return secureJsonResponse({ eligible: false, reason: "You have already used your free trial" });
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
     return await runEligibility(request, {
       planId: searchParams.get("planId") || undefined,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     serverLogger.error("Trial eligibility check error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as EligibilityBody;
     return await runEligibility(request, body || {});
-  } catch (error: any) {
+  } catch (error: unknown) {
     serverLogger.error("Trial eligibility check error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
