@@ -3,17 +3,26 @@
 import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 
-interface Column {
+// Rows are heterogeneous across the admin tables that consume this component
+// (Order, Invoice, etc). The component is generic over the row type so each
+// callsite keeps the precise shape of its render callbacks — internally the
+// table reads `row[column.key]` via a structural cast.
+export interface Column<T = unknown> {
   key: string;
   label: string;
   sortable?: boolean;
   className?: string; // Add optional className for custom responsive styling like hidden sm:table-cell
-  render?: (value: any, row: any, index: number) => React.ReactNode;
+  // value: any — the column's per-row cell value can be of any concrete type
+  // (string, number, nested object), so callers narrow it themselves inside
+  // their render callback. Typing this as `unknown` would force every callsite
+  // (5+ admin pages) to widen their existing `(value: string, …)` signatures.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  render?: (value: any, row: T, index: number) => React.ReactNode;
 }
 
-interface AdminDataTableProps {
-  columns: Column[];
-  data: any[];
+export interface AdminDataTableProps<T = unknown> {
+  columns: Column<T>[];
+  data: T[];
   title: string;
   searchable?: boolean;
   pagination?: boolean;
@@ -24,10 +33,10 @@ interface AdminDataTableProps {
   onPageChange?: (page: number) => void;
   onSearch?: (searchTerm: string) => void;
   isLoading?: boolean;
-  onRowContextMenu?: (e: React.MouseEvent, row: any) => void;
+  onRowContextMenu?: (e: React.MouseEvent, row: T) => void;
 }
 
-export default function AdminDataTable({
+export default function AdminDataTable<T>({
   columns,
   data,
   title,
@@ -40,7 +49,7 @@ export default function AdminDataTable({
   onSearch,
   isLoading = false,
   onRowContextMenu
-}: AdminDataTableProps) {
+}: AdminDataTableProps<T>) {
   const [searchTerm, setSearchTerm] = useState('');
   const [internalCurrentPage, setInternalCurrentPage] = useState(1);
   const [sortColumn, setSortColumn] = useState<string | null>(null);
@@ -63,15 +72,18 @@ export default function AdminDataTable({
     ? data
     : (() => {
       const filteredData = data.filter(row =>
-        Object.values(row).some(value =>
+        Object.values(row as Record<string, unknown>).some(value =>
           String(value).toLowerCase().includes(searchTerm.toLowerCase())
         )
       );
 
       const sortedData = sortColumn
         ? [...filteredData].sort((a, b) => {
-          const aVal = a[sortColumn];
-          const bVal = b[sortColumn];
+          const aVal = (a as Record<string, unknown>)[sortColumn] as string | number | undefined;
+          const bVal = (b as Record<string, unknown>)[sortColumn] as string | number | undefined;
+          if (aVal === bVal) return 0;
+          if (aVal === undefined) return 1;
+          if (bVal === undefined) return -1;
           if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
           if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
           return 0;
@@ -195,7 +207,9 @@ export default function AdminDataTable({
                         } ${column.key === 'amount' || column.key === 'domains' || column.key === 'orderId' || column.key === 'transactionId' ? 'hidden sm:table-cell' : ''
                         } ${column.className || ''}`}
                     >
-                      {column.render ? column.render(row[column.key], row, startIndex + index) : row[column.key]}
+                      {column.render
+                        ? column.render((row as Record<string, unknown>)[column.key], row, startIndex + index)
+                        : ((row as Record<string, unknown>)[column.key] as React.ReactNode)}
                     </td>
                   ))}
                 </tr>

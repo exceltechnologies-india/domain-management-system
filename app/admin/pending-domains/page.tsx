@@ -73,8 +73,15 @@ interface Pagination {
   pages: number;
 }
 
+interface ModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+}
+
 // Modal Component (Inline to avoid import issues if any, or just strictly typed)
-const Modal = ({ isOpen, onClose, title, children }: any) => {
+const Modal = ({ isOpen, onClose, title, children }: ModalProps) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
@@ -94,7 +101,16 @@ const Modal = ({ isOpen, onClose, title, children }: any) => {
 export default function AdminPendingDomainsPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
-  const [user, setUser] = useState<any>(null);
+  // Loosely-typed user blob — comes from either the JWT auth-check payload
+  // (id/email/role/firstName/lastName/...) or the NextAuth session shape.
+  // AdminLayoutNew reads firstName/lastName/role; the gate above checks role.
+  const [user, setUser] = useState<{
+    firstName: string;
+    lastName: string;
+    role: string;
+    id?: string;
+    email?: string;
+  } | null>(null);
 
   // Loading States
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -196,8 +212,16 @@ export default function AdminPendingDomainsPage() {
           }
         } else {
           // Fallback to NextAuth session if API fails or returns 401 but we have session
-          if (session?.user && (session.user as any).role === 'admin') {
-            setUser(session.user);
+          if (session?.user && (session.user as { role?: string }).role === 'admin') {
+            const sUser = session.user as { id?: string; email?: string; role?: string; name?: string };
+            const [firstName = "", ...rest] = (sUser.name ?? "").split(" ");
+            setUser({
+              id: sUser.id,
+              email: sUser.email,
+              role: sUser.role ?? "admin",
+              firstName,
+              lastName: rest.join(" "),
+            });
             setIsAuthLoading(false);
           } else {
             toast.error("Session expired. Please login again.");

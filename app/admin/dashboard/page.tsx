@@ -252,7 +252,13 @@ function ServiceCard({ name, description, icon: Icon, iconBg, status, statusLabe
 // ── Main Component ─────────────────────────────────────────────────────────────
 
 export default function AdminDashboard() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{
+    _id?: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    role: string;
+  } | null>(null);
   const [data, setData] = useState<SystemHealthData | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -276,12 +282,13 @@ export default function AdminDashboard() {
     if (status === "loading") return;
 
     if (session?.user) {
+      const sUser = session.user as { id?: string; role?: string };
       const userObj = {
-        _id: (session.user as any).id,
+        _id: sUser.id,
         firstName: session.user.name?.split(" ")[0] || "",
         lastName: session.user.name?.split(" ").slice(1).join(" ") || "",
         email: session.user.email || "",
-        role: (session.user as any).role || "user",
+        role: sUser.role || "user",
       };
       if (userObj.role !== "admin") { router.push("/dashboard"); return; }
       setUser(userObj);

@@ -447,7 +447,29 @@ Audit-recommended sub-files I did NOT create:
 
 ## 4. Code Quality
 
-### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (12 typing passes 2026-05-17 → 2026-05-18; 845 → 163 sitewide, 81% reduction; every external-API wrapper / lib helper / service layer / admin route / worker / dashboard page covered)
+### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (13 typing passes 2026-05-17 → 2026-05-19; 845 → 159 sitewide, 81% reduction; every external-API wrapper / lib helper / service layer / admin route / worker / dashboard page covered)
+
+**Thirteenth pass — long-tail batch 2026-05-19:** 13 files touched, 42 anys removed (201 → 159 sitewide):
+
+- [components/RegisterForm.tsx](components/RegisterForm.tsx) (7 → 0). Added a local `GeocodeData` / `GeocodeAdminEntry` / `GeocodeInformativeEntry` interface set so the BigDataCloud reverse-geocode response (the primary geocoder, with Nominatim fallback shaped to match) is properly typed. Five `(item: any)` array-callback params dropped to inference. The `catch (error: any)` for `GeolocationPositionError` narrowed to `unknown` + `geoErr.code` structural read. The form-submit `as any` on the Enter-key forwarder rewritten to `as unknown as React.FormEvent`.
+- [store/cartStore.ts](store/cartStore.ts) (4 → 0). All four `catch (error: any)` blocks rewritten via `unknown` + a `{ code?, name? }` structural cast (the code paths look only at `error.code !== "ECONNRESET"` and `error.name !== "AbortError"`).
+- [components/admin/InvoiceDiagnostics.tsx](components/admin/InvoiceDiagnostics.tsx) (3 → 0). Three identical `catch (err: any)` → `err instanceof Error ? err.message : <fallback>` rewrites.
+- [components/admin/AdminDataTable.tsx](components/admin/AdminDataTable.tsx) (3 → 1). Converted to a **generic component** `AdminDataTable<T>` so consumers (`Invoice`, `Order`, `Payment`, etc.) keep their precise row types end-to-end. `data: any[]` → `data: T[]`; `onRowContextMenu: (e, row: any)` → `(e, row: T)`. The one remaining `any` is on `Column.render`'s value parameter — five callsites already type their render callbacks against concrete value types (`string` / `number`), and narrowing the column generic to `unknown` would force a cascade of widening across all of them. Kept as `any` with an inline eslint-disable + reasoning comment.
+- [components/DomainSetup.tsx](components/DomainSetup.tsx) (3 → 0). Replaced `hostingItem: any` / `(domain: any)` with the existing `CartItem` from [lib/types.ts](lib/types.ts); replaced the `find((r: any) =>)` callback with `(r: SearchResult)` using the locally-declared `SearchResult` interface.
+- [app/api/cart/route.ts](app/api/cart/route.ts) (3 → 0). Added local `RawCartItem` interface (`{ domainName?, itemType?, registrationPeriod?, [k]: unknown }`) for the validator's input — non-narrowable fields pass through the open index signature. Single `as RawCartItem[]` boundary cast where `getUserCart()` returns `unknown[]`.
+- [app/api/admin/hosting/actions/route.ts](app/api/admin/hosting/actions/route.ts) (3 → 0). Three `catch (X: any) → X.message` rewrites via `instanceof Error` narrowing.
+- [app/api/admin/diag-da/cleanup/route.ts](app/api/admin/diag-da/cleanup/route.ts) (3 → 0). `results: any[]` → typed `Array<{ username, success, daResult?, error? }>`. Two catch blocks narrowed.
+- [app/api/admin/hosting/packages/defaults/route.ts](app/api/admin/hosting/packages/defaults/route.ts) (3 → 0). Three catch blocks narrowed; the "already exists" detection runs against the narrowed message string.
+- [app/api/admin/domains/nameservers/route.ts](app/api/admin/domains/nameservers/route.ts) (3 → 0). Same JWT-token-narrowing helper pattern used in the user-side nameservers route applied; the `find((d: any) =>)` typed via `IOrder['domains'][number]`; the `nameservers.map((ns: any) =>)` typed via an `(unknown[]).map((ns) => …)` cast at the array boundary.
+- [app/admin/settings/page.tsx](app/admin/settings/page.tsx) (3 → 0). `cacheStatus: any` → typed `{ hasData?, itemCount?, lastUpdated? }`; the `(session.user as any).role` lookups narrowed to `as { role?: string }`; the catch block narrowed.
+- [app/admin/pending-domains/page.tsx](app/admin/pending-domains/page.tsx) (3 → 0). The inline `Modal: any` props rewrite as a named `ModalProps` interface; `user: any` widened to the union of fields used downstream (`firstName/lastName/role` for `AdminLayoutNew` + optional `id/email`); the NextAuth session fallback now derives `firstName`/`lastName` by splitting `session.user.name` so the `AdminLayoutNew` prop contract is preserved.
+- [app/admin/dashboard/page.tsx](app/admin/dashboard/page.tsx) (3 → 0). `user: any` → typed object; the two `(session.user as any).id/.role` casts narrowed via a single `as { id?, role? }` lift.
+
+**Verified on main 2026-05-19:** 340/340 tests, lint clean, tsc clean.
+
+---
+
+
 Across `lib/`, `app/`, `components/`. TypeScript was doing far less work than it could. Worst offenders were the external API wrappers (ResellerClub / DirectAdmin responses).
 
 **First pass — ResellerClub wrappers (audit-recommended starting point):**

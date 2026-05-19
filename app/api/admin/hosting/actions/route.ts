@@ -61,8 +61,9 @@ export async function POST(request: NextRequest) {
             try {
                serverLogger.info(`Cancelling Razorpay subscription ${record.subscriptionId} for user ${username || record.directAdminUsername}`);
                await RazorpayService.cancelSubscription(record.subscriptionId);
-            } catch (err: any) {
-               serverLogger.error(`Failed to cancel subscription for ${username || record.directAdminUsername}:`, err.message);
+            } catch (err: unknown) {
+               const message = err instanceof Error ? err.message : String(err);
+               serverLogger.error(`Failed to cancel subscription for ${username || record.directAdminUsername}:`, message);
             }
           }
         }
@@ -84,9 +85,10 @@ export async function POST(request: NextRequest) {
         if (username && username !== 'N/A') {
           try {
             result = await DirectAdminService.deleteUser(username);
-          } catch (daError: any) {
-            serverLogger.warn(`DirectAdmin deletion failed for ${username}, but proceeding with local cleanup: ${daError.message}`);
-            result = { warning: `DA deletion failed: ${daError.message}. Local records were cleared.` };
+          } catch (daError: unknown) {
+            const message = daError instanceof Error ? daError.message : String(daError);
+            serverLogger.warn(`DirectAdmin deletion failed for ${username}, but proceeding with local cleanup: ${message}`);
+            result = { warning: `DA deletion failed: ${message}. Local records were cleared.` };
           }
         }
         
@@ -107,10 +109,11 @@ export async function POST(request: NextRequest) {
       data: result
     });
 
-  } catch (error: any) {
-    serverLogger.error(`Admin Hosting Action Error (${request.url}):`, error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to perform hosting action";
+    serverLogger.error(`Admin Hosting Action Error (${request.url}):`, message);
     return secureErrorResponse(
-      error.message || "Failed to perform hosting action",
+      message,
       500,
       "ACTION_FAILED"
     );

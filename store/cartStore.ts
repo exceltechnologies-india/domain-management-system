@@ -280,9 +280,10 @@ export const useCartStore = create<CartStore>()(
           const finalItems = get().items;
           const validatedFinalItems = validateAndCorrectCartItems(finalItems);
           set({ items: validatedFinalItems, isInitialized: true });
-        } catch (error: any) {
+        } catch (error: unknown) {
           // Only log non-abort errors to reduce noise in development
-          if (error.code !== "ECONNRESET" && error.name !== "AbortError") {
+          const err = error as { code?: string; name?: string };
+          if (err.code !== "ECONNRESET" && err.name !== "AbortError") {
             clientLogger.error("Failed to sync cart with server", error);
           }
         } finally {
@@ -313,9 +314,10 @@ export const useCartStore = create<CartStore>()(
               );
             }
           }
-        } catch (error: any) {
+        } catch (error: unknown) {
           // Only log non-abort errors to reduce noise in development
-          if (error.code !== "ECONNRESET" && error.name !== "AbortError") {
+          const err = error as { code?: string; name?: string };
+          if (err.code !== "ECONNRESET" && err.name !== "AbortError") {
             clientLogger.error("Failed to load cart from server", error);
           }
         }
@@ -340,9 +342,10 @@ export const useCartStore = create<CartStore>()(
           if (response.ok) {
             // Cart saved successfully
           }
-        } catch (error: any) {
+        } catch (error: unknown) {
           // Only log non-abort errors to reduce noise in development
-          if (error.code !== "ECONNRESET" && error.name !== "AbortError") {
+          const err = error as { code?: string; name?: string };
+          if (err.code !== "ECONNRESET" && err.name !== "AbortError") {
             clientLogger.error("Failed to save cart to server", error);
           }
         }
@@ -387,9 +390,10 @@ export const useCartStore = create<CartStore>()(
             // Save merged cart to server
             await get().saveToServer();
           }
-        } catch (error: any) {
+        } catch (error: unknown) {
           // Only log non-abort errors to reduce noise in development
-          if (error.code !== "ECONNRESET" && error.name !== "AbortError") {
+          const err = error as { code?: string; name?: string };
+          if (err.code !== "ECONNRESET" && err.name !== "AbortError") {
             clientLogger.error("Failed to merge cart with server", error);
           }
         }
