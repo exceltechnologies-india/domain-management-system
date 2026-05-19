@@ -34,8 +34,9 @@ export async function GET(request: NextRequest) {
         try {
           await DirectAdminService.deleteUser(username);
           cleanupResults.push({ username, status: "deleted" });
-        } catch (e: any) {
-          cleanupResults.push({ username, status: "failed/not found", error: e.message });
+        } catch (e: unknown) {
+          const message = e instanceof Error ? e.message : String(e);
+          cleanupResults.push({ username, status: "failed/not found", error: message });
         }
       }
     }
@@ -51,11 +52,20 @@ export async function GET(request: NextRequest) {
     // 2. Fetch Hosting records from DB for cross-reference
     const dbHostings = await Hosting.find({}, "directAdminUsername domainName status");
 
+    const settledError = (r: PromiseSettledResult<unknown>): { error: string } => ({
+      error:
+        r.status === "rejected"
+          ? r.reason instanceof Error
+            ? r.reason.message
+            : String(r.reason)
+          : "",
+    });
+
     const result = {
-      users: users.status === "fulfilled" ? users.value : { error: (users as any).reason.message },
-      resellers: resellers.status === "fulfilled" ? resellers.value : { error: (resellers as any).reason.message },
-      license: license.status === "fulfilled" ? license.value : { error: (license as any).reason.message },
-      system: sysInfo.status === "fulfilled" ? sysInfo.value : { error: (sysInfo as any).reason.message },
+      users: users.status === "fulfilled" ? users.value : settledError(users),
+      resellers: resellers.status === "fulfilled" ? resellers.value : settledError(resellers),
+      license: license.status === "fulfilled" ? license.value : settledError(license),
+      system: sysInfo.status === "fulfilled" ? sysInfo.value : settledError(sysInfo),
       database: dbHostings,
       cleanupResults: doCleanup ? cleanupResults : undefined
     };
@@ -66,8 +76,9 @@ export async function GET(request: NextRequest) {
       success: true,
       data: result
     });
-  } catch (error: any) {
-    serverLogger.error("DA Diagnostics Route Error:", error.message);
-    return secureErrorResponse(error.message, 500, "DIAG_FAILED");
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    serverLogger.error("DA Diagnostics Route Error:", message);
+    return secureErrorResponse(message, 500, "DIAG_FAILED");
   }
 }

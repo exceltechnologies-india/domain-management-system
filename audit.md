@@ -430,7 +430,7 @@ Audit-recommended sub-files I did NOT create:
 
 ## 4. Code Quality
 
-### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (ResellerClub + Zoho Books + DirectAdmin external-API wrappers fully typed; lib helpers + payment services typed 2026-05-18; admin routes typed 2026-05-18; React client pages typed 2026-05-18; service layer + auth/recaptcha/logger typed 2026-05-18; 845 → 373 sitewide)
+### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (ResellerClub + Zoho Books + DirectAdmin external-API wrappers fully typed; lib helpers + payment services typed 2026-05-18; admin routes typed 2026-05-18; React client pages typed 2026-05-18; service layer + auth/recaptcha/logger typed 2026-05-18; pending-domains + diag-da + packages + workers typed 2026-05-18; 845 → 330 sitewide)
 Across `lib/`, `app/`, `components/`. TypeScript was doing far less work than it could. Worst offenders were the external API wrappers (ResellerClub / DirectAdmin responses).
 
 **First pass — ResellerClub wrappers (audit-recommended starting point):**
@@ -544,6 +544,20 @@ Two long-standing slips surfaced and were fixed: (1) the admin-security middlewa
 - [lib/admin-auth.ts](lib/admin-auth.ts) — 5 → 0. `AuthResult.user` widened from `any` to a named object shape (`id: string`, `email`, etc.) plus optional `message`/`supportEmail`/`isDeactivated` for the deactivated-account branch that was previously hidden behind an outer `as any` cast; JWT-verify result narrowed via `DecodedJwt`; request-IP read structural-cast like the rest. Caller follow-up: `app/api/admin/backup/route.ts` added an explicit `if (!authResult.valid || !authResult.user)` guard so subsequent `authResult.user.id` reads pass through optional-chaining-free.
 
 **Net this pass:** 48 anys removed (`421 → 373`). Combined seven-pass total: **472 anys removed sitewide (845 → 373, 56% reduction)**.
+
+**Verified on main 2026-05-18:** 340/340 tests, tsc clean, production build succeeded.
+
+**Eighth pass — admin + worker/cron + webhook routes (2026-05-18):**
+
+- [app/api/admin/pending-domains/route.ts](app/api/admin/pending-domains/route.ts) — 6 → 0. `pendingDomainQuery` / `orderQuery` typed via `Record<string, unknown>`; the merged-list array typed via a `MergedRow` intersection that captures the fields the two sources share (`status` / `domainName` / `createdAt` / `source`); the synthetic order-derived rows typed via a local `SyntheticPendingDomain` interface.
+- [app/api/admin/pending-domains/[id]/route.ts](app/api/admin/pending-domains/[id]/route.ts) — 7 → 0. The 3 `(d: any) => d.domainName === …` callbacks typed via `IOrder["domains"][number]`; populated `pendingDomain.userId` narrowed via structural cast for the customer-email read; 3 `catch (X: any)` blocks rewritten via `instanceof Error` narrowing.
+- [app/api/admin/hosting/packages/route.ts](app/api/admin/hosting/packages/route.ts) — 6 → 0. DA `getPackageDetails` return typed via `Record<string, string | undefined>` matching the lib service signature; `parseDAValue` parameter widened to `string | undefined`; 4 `catch (X: any)` blocks rewritten with `instanceof Error` narrowing.
+- [app/api/admin/diag-da/route.ts](app/api/admin/diag-da/route.ts) — 6 → 0. The 4 `(X as any).reason.message` casts on the Promise.allSettled results collapsed into one `settledError(r: PromiseSettledResult<unknown>)` helper; cleanup-loop catch + outer catch narrowed via `instanceof Error`.
+- [app/api/workers/process-service-expiry/route.ts](app/api/workers/process-service-expiry/route.ts) — 6 → 0. Added a local `ServiceLike` interface — wider than `IHosting` or `IDomain` alone because the handler mutates fields like `processing_until` / `last_reminder_sent` on both shapes plus an optional populated `userId`. Caught a latent shape mismatch surfaced by strict typing — `userId` is the populated User object after `.populate("userId")`, but the model type still says `ObjectId | string`; narrowed at the read site rather than widening the model.
+- [app/api/cron/check-unprovisioned/route.ts](app/api/cron/check-unprovisioned/route.ts) — 6 → 0. Lean Order projection typed via `Pick<IOrder, …>` so the 4 `(o: any) => …` and `(d: any) => …` callbacks now read off the IOrder shape; the alert-failure catch narrowed via `instanceof Error`.
+- [app/razorpay/webhook/route.ts](app/razorpay/webhook/route.ts) — 6 → 0. `RazorpayPaymentEntity` / `PaymentCapturedPayload` / `RefundProcessedPayload` interfaces for the webhook payload narrowing; `handlePaymentCaptured` / `handleRefundProcessed` / `provisionServices` got their `payload: any` / `order: any` parameters typed; ObjectId → string conversion added at the 3 `getUserById(order.userId)` call sites that the typed signature requires.
+
+**Net this pass:** 43 anys removed (`373 → 330`). Combined eight-pass total: **515 anys removed sitewide (845 → 330, 61% reduction)**.
 
 **Verified on main 2026-05-18:** 340/340 tests, tsc clean, production build succeeded.
 

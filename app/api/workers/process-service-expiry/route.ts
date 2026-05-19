@@ -17,8 +17,37 @@ export const dynamic = "force-dynamic";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+// Loose service-shape carries fields from either Hosting or Domain plus the
+// (optionally populated) user. The handler mutates fields like
+// `processing_until` / `last_reminder_sent` that aren't on the strict
+// IHosting/IDomain types — narrow once at the read sites rather than
+// re-wrap every Mongoose mutation.
+interface ServiceLike {
+  _id: unknown;
+  status: string;
+  domainName: string;
+  directAdminUsername?: string;
+  expiryDate?: Date;
+  next_action_at?: Date | null;
+  processing_until?: Date | null;
+  last_reminder_sent?: Date | null;
+  price?: number;
+  currency?: string;
+  userId?:
+    | string
+    | {
+        _id?: unknown;
+        email?: string;
+        firstName?: string;
+        lastName?: string;
+        whatsappNumber?: string;
+      };
+  save: () => Promise<unknown>;
+  [k: string]: unknown;
+}
+
 async function suspendService(
-  service: any,
+  service: ServiceLike,
   serviceType: "hosting" | "domain"
 ): Promise<void> {
   if (serviceType === "hosting" && service.directAdminUsername) {
@@ -27,9 +56,10 @@ async function suspendService(
       serverLogger.info(
         `[Worker] DirectAdmin user suspended: ${service.directAdminUsername}`
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
       serverLogger.error(
-        `[Worker] Failed to suspend DA user ${service.directAdminUsername}: ${err.message}`
+        `[Worker] Failed to suspend DA user ${service.directAdminUsername}: ${message}`
       );
       throw err;
     }
@@ -43,7 +73,7 @@ async function suspendService(
 // ─── Route Handler ────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
-  let service: any = null;
+  let service: ServiceLike | null = null;
   let serviceType: "hosting" | "domain" = "hosting";
 
   try {
@@ -62,8 +92,11 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
-    const Model = serviceType === "hosting" ? Hosting : Domain;
-    service = await (Model as any).findById(serviceId).populate("userId");
+    if (serviceType === "hosting") {
+      service = (await Hosting.findById(serviceId).populate("userId")) as unknown as ServiceLike | null;
+    } else {
+      service = (await Domain.findById(serviceId).populate("userId")) as unknown as ServiceLike | null;
+    }
 
     if (!service) {
       serverLogger.warn(`[Worker] Service ${serviceType}:${serviceId} not found`);
@@ -78,7 +111,7 @@ export async function POST(request: NextRequest) {
     }
 
     const expiryDate: Date | undefined =
-      serviceType === "hosting" ? service.expiryDate : service.expiresAt;
+      serviceType === "hosting" ? service.expiryDate : (service.expiresAt as Date | undefined);
 
     if (!expiryDate) {
       return secureJsonResponse({ success: true, message: "No expiry date — skipped" });
@@ -86,10 +119,15 @@ export async function POST(request: NextRequest) {
 
     const now = TimeService.now(null, simulatedTime);
     const daysLeft = TimeService.daysUntil(expiryDate, now);
-    const userEmail: string = service.userId?.email;
-    const userWhatsApp: string | undefined = service.userId?.whatsappNumber;
-    const userName: string | undefined = service.userId?.firstName
-      ? `${service.userId.firstName} ${service.userId.lastName}`.trim()
+    // userId is populated (.populate("userId")) so it's the object form, not the ObjectId
+    const populatedUser =
+      typeof service.userId === "object" && service.userId !== null
+        ? service.userId
+        : undefined;
+    const userEmail: string = populatedUser?.email || "";
+    const userWhatsApp: string | undefined = populatedUser?.whatsappNumber;
+    const userName: string | undefined = populatedUser?.firstName
+      ? `${populatedUser.firstName} ${populatedUser.lastName ?? ""}`.trim()
       : undefined;
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -239,16 +277,18 @@ export async function POST(request: NextRequest) {
       message: "No action needed — next checkpoint scheduled",
       next_action_at: service.next_action_at,
     });
-  } catch (error: any) {
-    serverLogger.error("[Worker] Process Service Expiry Error:", error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    serverLogger.error("[Worker] Process Service Expiry Error:", message);
     return secureErrorResponse("Internal error", 500, "INTERNAL_ERROR");
   } finally {
     if (service) {
       try {
         service.processing_until = null;
         await service.save();
-      } catch (saveErr: any) {
-        serverLogger.error(`[Worker] Failed to unlock service ${service._id}: ${saveErr.message}`);
+      } catch (saveErr: unknown) {
+        const saveMessage = saveErr instanceof Error ? saveErr.message : String(saveErr);
+        serverLogger.error(`[Worker] Failed to unlock service ${service._id}: ${saveMessage}`);
       }
     }
   }
