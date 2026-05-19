@@ -61,9 +61,10 @@ async function checkResellerClubBalance(): Promise<
     }
 
     return { checked: true, balance, alerted: false };
-  } catch (err: any) {
-    serverLogger.error(`[DailyCron] Balance check failed: ${err.message}`);
-    return { checked: false, reason: err.message };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    serverLogger.error(`[DailyCron] Balance check failed: ${message}`);
+    return { checked: false, reason: message };
   }
 }
 
@@ -178,9 +179,10 @@ export async function GET(request: NextRequest) {
         });
 
         results.queuedHostings++;
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
         serverLogger.error(
-          `[DailyCron] Failed to lock/queue hosting ${candidate._id}: ${error.message}`
+          `[DailyCron] Failed to lock/queue hosting ${candidate._id}: ${message}`
         );
         results.failed++;
 
@@ -220,9 +222,10 @@ export async function GET(request: NextRequest) {
         });
 
         results.queuedDomains++;
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
         serverLogger.error(
-          `[DailyCron] Failed to lock/queue domain ${candidate._id}: ${error.message}`
+          `[DailyCron] Failed to lock/queue domain ${candidate._id}: ${message}`
         );
         results.failed++;
 
@@ -254,9 +257,10 @@ export async function GET(request: NextRequest) {
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return await res.json();
-      } catch (err: any) {
-        serverLogger.error(`[DailyCron] Domain watch check failed: ${err.message}`);
-        return { error: err.message };
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        serverLogger.error(`[DailyCron] Domain watch check failed: ${message}`);
+        return { error: message };
       }
     })();
 
@@ -265,8 +269,9 @@ export async function GET(request: NextRequest) {
     const balanceResult = await checkResellerClubBalance();
 
     return secureJsonResponse({ success: true, data: { ...results, domainWatch: domainWatchResult, balanceAlert: balanceResult } });
-  } catch (error: any) {
-    serverLogger.error("[DailyCron] Critical Error:", error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    serverLogger.error("[DailyCron] Critical Error:", message);
     return secureErrorResponse(
       "Internal Server Error during daily scheduler",
       500,

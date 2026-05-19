@@ -75,7 +75,7 @@ export class AuthService {
           issuer: "excel-technologies",
           audience: "domain-management-system",
           algorithms: ["HS256"],
-        }) as any;
+        }) as JWTPayload & { iat?: number };
 
         // Additional security checks
         if (!decoded.userId || !decoded.email || !decoded.role) {
@@ -83,7 +83,7 @@ export class AuthService {
         }
 
         // Check if token is not too old (additional security)
-        const tokenAge = Date.now() / 1000 - decoded.iat;
+        const tokenAge = Date.now() / 1000 - (decoded.iat ?? 0);
         const maxAge = 30 * 24 * 60 * 60; // 30 days in seconds
         if (tokenAge > maxAge) {
           return null;
@@ -189,8 +189,9 @@ export class AuthService {
       // 3) Fallback to NextAuth session (social login or credentials session)
       const session = await getServerSession(authOptions);
       if (session?.user) {
+        const sessionUser = session.user as { id?: string; email?: string };
         await connectDB();
-        const userFromSession = await User.findById((session.user as any).id);
+        const userFromSession = await User.findById(sessionUser.id);
         if (userFromSession && userFromSession.isActive) {
           if (userFromSession.sessionInvalidatedAt) {
             serverLogger.warn('[AuthService] Session invalidated for user:', userFromSession.email);
@@ -198,7 +199,7 @@ export class AuthService {
           }
           return userFromSession;
         } else {
-            serverLogger.warn('[AuthService] User not found or inactive via session:', (session.user as any).email);
+            serverLogger.warn('[AuthService] User not found or inactive via session:', sessionUser.email);
         }
       } else {
         serverLogger.warn('[AuthService] No session found via getServerSession');
