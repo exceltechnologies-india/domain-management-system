@@ -423,7 +423,7 @@ export default function CheckoutPage() {
 
       {/* Header */}
       <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10">
           <div className="flex items-center py-4 pt-20 sm:pt-24">
             <button
               onClick={() => router.back()}
@@ -441,7 +441,7 @@ export default function CheckoutPage() {
         </div>
       </header>
 
-      <div className="flex-1 max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-8">
+      <div className="flex-1 w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-8">
         <div className="grid lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 gap-8 min-h-[50vh]">
           {/* Order Summary */}
           <div className="lg:col-span-4 xl:col-span-5 2xl:col-span-5">
