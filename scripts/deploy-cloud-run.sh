@@ -5,9 +5,20 @@
 # via Cloud Build, then deploys a new revision of the `dms` service.
 #
 # Usage:
-#   ./scripts/deploy-cloud-run.sh                # build + deploy
-#   ./scripts/deploy-cloud-run.sh --skip-build   # deploy current :latest image
-#                                                # without rebuilding
+#   ./scripts/deploy-cloud-run.sh                  # build + deploy
+#   ./scripts/deploy-cloud-run.sh --skip-build     # deploy current :latest image
+#                                                  # without rebuilding
+#   ./scripts/deploy-cloud-run.sh --skip-ci-check  # bypass the CI-green gate
+#                                                  # (emergency hotfixes)
+#
+# Pre-deploy CI gate (added 2026-05-20):
+#   The script refuses to deploy when the latest GitHub Actions CI run for
+#   the current HEAD commit is `failure`, `cancelled`, or still
+#   `in_progress`. This catches "I forgot to push tests are red" and
+#   "tests haven't finished yet, deploy will land before signal" cases.
+#   Requires `gh` CLI authenticated against this repo. If `gh` is missing,
+#   the gate prints a warning and proceeds (so first-time users / local
+#   dev aren't blocked by tooling). Pass --skip-ci-check to bypass.
 #
 # Required state (one-time setup; already done):
 #   - gcloud auth login + project speedy-unison-453807-e9 set
@@ -20,15 +31,103 @@
 set -uo pipefail
 
 SKIP_BUILD=false
+SKIP_CI_CHECK=false
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-build) SKIP_BUILD=true; shift ;;
+    --skip-ci-check) SKIP_CI_CHECK=true; shift ;;
     -h|--help)
       sed -n '2,/^set -uo/p' "$0" | sed 's/^# \{0,1\}//'
       exit 0 ;;
     *) echo "Unknown arg: $1 (try --help)"; exit 2 ;;
   esac
 done
+
+# ── Pre-flight: CI-green gate ────────────────────────────────────────────────
+# Reads the GitHub Actions CI conclusion for the current HEAD commit and
+# blocks deploy when it's not green. Requires `gh` CLI authenticated; without
+# gh, the gate prints a warning and proceeds (don't block local dev tooling).
+check_ci_green() {
+  if $SKIP_CI_CHECK; then
+    echo "⏭️  CI gate skipped via --skip-ci-check"
+    return 0
+  fi
+
+  if ! command -v gh >/dev/null 2>&1; then
+    echo "⚠️  gh CLI not installed — skipping CI gate. Install: brew install gh / apt install gh"
+    return 0
+  fi
+
+  if ! gh auth status >/dev/null 2>&1; then
+    echo "⚠️  gh CLI not authenticated — skipping CI gate. Run: gh auth login"
+    return 0
+  fi
+
+  local HEAD_SHA
+  HEAD_SHA=$(git rev-parse HEAD 2>/dev/null) || {
+    echo "⚠️  Not in a git repo — skipping CI gate"
+    return 0
+  }
+
+  echo "📍 CI gate: checking GitHub Actions for ${HEAD_SHA:0:8}..."
+  # Look up the latest CI workflow run for this exact commit. Filter to the
+  # "CI" workflow only so a separate audit job (informational/passes anyway)
+  # doesn't shadow the result.
+  local RUN_JSON
+  RUN_JSON=$(gh run list --commit "$HEAD_SHA" --workflow "CI" --limit 1 --json status,conclusion,url,databaseId 2>/dev/null) || {
+    echo "⚠️  gh run list failed — skipping CI gate"
+    return 0
+  }
+
+  # Empty array means GitHub hasn't picked up the push yet (race condition
+  # between `git push` and Actions queueing). Hold for a tick rather than
+  # silently deploying past CI — but cap the wait so the deploy doesn't
+  # hang forever.
+  local TRIES=0
+  while [ "$(echo "$RUN_JSON" | tr -d '[:space:]')" = "[]" ] && [ $TRIES -lt 6 ]; do
+    echo "⏳ No CI run for this commit yet (GitHub still queueing); waiting 10s..."
+    sleep 10
+    RUN_JSON=$(gh run list --commit "$HEAD_SHA" --workflow "CI" --limit 1 --json status,conclusion,url,databaseId 2>/dev/null) || break
+    TRIES=$((TRIES + 1))
+  done
+
+  if [ "$(echo "$RUN_JSON" | tr -d '[:space:]')" = "[]" ]; then
+    echo "❌ No CI run found for commit ${HEAD_SHA:0:8} after waiting 60s."
+    echo "   Did you push to origin? Run: git push origin main"
+    echo "   To bypass: ./scripts/deploy-cloud-run.sh --skip-ci-check"
+    exit 1
+  fi
+
+  # Parse status/conclusion via grep+sed (jq isn't always installed). Format
+  # is `[{"status":"completed","conclusion":"success","url":"…"}]`.
+  local STATUS CONCLUSION URL
+  STATUS=$(echo "$RUN_JSON" | grep -o '"status":"[^"]*"' | head -1 | sed 's/.*"status":"\([^"]*\)"/\1/')
+  CONCLUSION=$(echo "$RUN_JSON" | grep -o '"conclusion":"[^"]*"' | head -1 | sed 's/.*"conclusion":"\([^"]*\)"/\1/')
+  URL=$(echo "$RUN_JSON" | grep -o '"url":"[^"]*"' | head -1 | sed 's/.*"url":"\([^"]*\)"/\1/')
+
+  case "$STATUS" in
+    completed)
+      if [ "$CONCLUSION" = "success" ]; then
+        echo "✅ CI green for ${HEAD_SHA:0:8}"
+        return 0
+      fi
+      echo "❌ CI conclusion: $CONCLUSION (commit ${HEAD_SHA:0:8})"
+      echo "   $URL"
+      echo "   To bypass: ./scripts/deploy-cloud-run.sh --skip-ci-check"
+      exit 1
+      ;;
+    in_progress|queued|requested|waiting|pending)
+      echo "⏳ CI still running ($STATUS): $URL"
+      echo "   Wait for it to finish, or bypass: --skip-ci-check"
+      exit 1
+      ;;
+    *)
+      echo "⚠️  Unknown CI status: $STATUS — proceeding"
+      ;;
+  esac
+}
+
+check_ci_green
 
 PROJECT=speedy-unison-453807-e9
 REGION=europe-west1
