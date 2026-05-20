@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import { verifyAdminAuth } from "@/lib/admin-auth";
-import { getUserById } from "@/lib/services/users";
+import { getUserWithPassword } from "@/lib/services/users";
 import User from "@/models/User";
 import mongoose from "mongoose";
 import zlib from "node:zlib";
@@ -68,8 +68,9 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Verify Password
-    await connectDB();
-    const adminUser = await getUserById(adminAuthUser.id);
+    // Refetch with +password explicitly (the field is select:false on the
+    // model so the default reader doesn't carry it).
+    const adminUser = await getUserWithPassword(adminAuthUser.id);
 
     if (!adminUser) {
       serverLogger.error(`[Backup] User not found during re-verification. ID: ${adminAuthUser.id}`);

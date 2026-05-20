@@ -42,6 +42,12 @@ This document tracks **currently-open** findings. The full historical pass log (
 - ✅ **[M4] Raw upstream errors no longer echoed** — `app/api/user/hosting/renew`, `app/api/payments/create-subscription`, `app/api/payments/cancel-subscription`, `app/api/user/invoices/sync`: each now returns a generic message to the client (real error stays in `serverLogger`). Razorpay / Zoho / Mongo strings can carry credential / retry-token fragments that don't belong in a user-facing body.
 - ✅ **[M5] `findOrderDomain` helper** — new `lib/services/orders.ts` exports `findOrderDomain` / `mapOrderDomains` / `filterOrderDomainsByName` + a named `OrderDomain` type alias. 9 routes (admin/user nameservers, admin/user activate-dns, domains/dns + admin variant, booking-status, verify-status) switched from the inline `order.domains.find((d: IOrder['domains'][number]) => d.domainName === domainName)` pattern to `findOrderDomain(order, domainName)`.
 - ✅ **[M6] NextAuth session-user type-narrowing removed** — confirmed module augmentation in [types/next-auth.d.ts](types/next-auth.d.ts) already types `session.user.id` / `session.user.role` / `session.user.profileCompleted` / `session.user.provider` as first-class fields. Bulk-stripped 14 inline `(session.user as { id?, role?, … })` casts across `app/admin/**` + `app/cart/page.tsx` + 2 `app/api/admin/*` routes — every callsite now reads the fields directly. The cast pattern was leftover from before the augmentation landed; type-checking improves because reads against fields not in the augmentation are now compile errors instead of silently undefined.
+- ✅ **[H1] IDOR on invoice-pay** — [app/api/user/invoices/[id]/pay/route.ts](app/api/user/invoices/%5Bid%5D/pay/route.ts) now confirms there's a local Order owned by the requesting user that references the URL's `zohoInvoiceId` before fetching from Zoho. Mirrors the pattern used in `/invoices/[id]/pdf/route.ts`. Returns 404 (not 403) on the unauthorized case so the existence of an invoice can't be probed across tenants.
+- ✅ **[H2] Chat endpoint rate-limited** — new `rateLimiters.chat` bucket (10 req/min/IP via `ipKey("chat")`) added in [lib/rate-limit.ts](lib/rate-limit.ts) and wired into `app/api/chat/route.ts`. Cap = 14.7M tokens/day/IP upper bound a single abuser could spend. Returns 429 with `Retry-After` when the bucket is exhausted. Endpoint stays anonymous-friendly (pre-sales use case) — auth is not added since the rate-limit alone bounds the spend.
+- ✅ **[H3] Trial-abuse race fixed** — added partial unique index on `(ipHash, deviceFingerprint)` to [models/TrialClaim.ts](models/TrialClaim.ts) so two concurrent claim attempts from the same IP+device can't both pass the check-then-act. `recordTrialClaim` in [lib/trial-abuse.ts](lib/trial-abuse.ts) now catches `E11000` as "race won by prior attempt" and logs at warn (not error). The user who paid still gets their hosting; the claim row from the first attempt remains the authoritative one for future abuse checks.
+- ✅ **[M1] Cron auth helper** — new [lib/cron-auth.ts](lib/cron-auth.ts) exports `authorizeCronRequest(request: NextRequest): boolean` doing the length-check-then-`crypto.timingSafeEqual` compare in one place. 9 routes migrated: the four routes that previously used the timing-vulnerable `authHeader !== process.env.CRON_SECRET` plain compare (`process-service-expiry`, `process-hosting-expiry`, `sync-zoho-invoice`, `check-domain-watch`), plus the five that already used inline timing-safe checks (`check-unprovisioned`, `pending-sweeper`, `check-hosting-expiry`, `daily-scheduler`, `sync-hosting-status`) — consolidating to the helper means a future fix only needs to land once. Local `import crypto from "crypto"` dropped from 4 callsites.
+- ✅ **[M2] CSRF middleware coverage extended** — [middleware.ts](middleware.ts) now runs `SecurityValidator.validateCSRF` for every authenticated mutating `/api/*` request, not just `/api/admin/*`. Public APIs (auth/webhooks/cron/workers/`/api/public/*`, etc.) remain exempt — those authenticate via a non-cookie scheme (webhook signature, `x-cron-secret`) or are intentionally cookie-less, so SameSite + route-level auth is the right boundary there. `/api/user/*` and `/api/payments/*` mutating routes now blocked from CSRF attacks that the previous `sameSite:lax` cookie alone allowed (top-level navigation POSTs).
+- ✅ **[M3] User secrets `select:false`** — [models/User.ts](models/User.ts) `password`, `resetToken`, `resetTokenExpiry` now all opt-out of the default projection. `getUserWithPassword` + `findUserByResetToken` (already-existing service helpers) opt them back in for the routes that legitimately need them. Affected routes audited and fixed: `app/api/auth/me` now uses a new `userHasPassword(userId)` service helper that never surfaces the bcrypt hash to the route; `app/api/admin/backup` and `app/api/user/settings` refetch with `getUserWithPassword` before `comparePassword`; the credentials provider's `getUserByEmailForLogin` now opts in `+password` since the caller is about to bcrypt-compare. Closes the `JSON.stringify(user)` leak surface (e.g. accidental return of a full user doc in any future API response).
 
 ## Deliberately deferred (by user)
 
@@ -58,31 +64,13 @@ Issues are listed by severity. Each has a file pointer, one-line problem, one-li
 
 ### HIGH
 
-#### [H1] IDOR on invoice-pay
-**File:** [app/api/user/invoices/[id]/pay/route.ts:25-49](app/api/user/invoices/%5Bid%5D/pay/route.ts#L25-L49)
-**Problem:** Any logged-in user can enumerate Zoho invoice IDs from the URL and pay (or read metadata from the response on) any invoice. There's no ownership check — the route hits `zohoService.getInvoiceById(invoiceId)` directly from the URL param.
-**Fix:** Look up via local `Order.findOne({ userId, zohoInvoiceId })` first (the pattern used in `/invoices/[id]/pdf/route.ts:49`), then call Zoho.
-**Effort:** 30 min.
-
-#### [H2] Anthropic chat endpoint — unauthed, no rate-limit
-**File:** [app/api/chat/route.ts:19-59](app/api/chat/route.ts#L19-L59)
-**Problem:** Public POST streams Claude responses (1024 max_tokens, 20-turn history) with no auth, no rate-limit, no reCAPTCHA. A trivial loop drains the `ANTHROPIC_API_KEY` budget.
-**Fix:** Wrap with `rateLimiters` IP-keyed bucket (e.g. 10/min/IP) **and** require a session OR reCAPTCHA v3 token.
-**Effort:** 30 min.
-
-#### [H3] Trial-abuse check-then-act race
-**File:** [lib/trial-abuse.ts:111-140](lib/trial-abuse.ts#L111-L140) + `recordTrialClaim` at L168
-**Problem:** `evaluateTrialAbuse` queries `TrialClaim.exists(...)` and the claim row is only inserted after Razorpay verifies. Two concurrent requests from the same IP/device both pass the check.
-**Fix:** Sparse unique index on `(ipHash, deviceFingerprint)`; catch `E11000` as "already claimed."
-**Effort:** 15 min.
-
-#### [H4] Service-layer bypass — Order / Hosting / SupportTicket
+#### [H1] Service-layer bypass — Order / Hosting / SupportTicket
 **Files:** 54 route files across `app/api/**`. ~58 direct `Order.*` callsites, ~26 direct `Hosting.*` callsites. Examples: [app/api/admin/hosting/assign/route.ts:7,83](app/api/admin/hosting/assign/route.ts), [app/api/admin/domains/route.ts:40](app/api/admin/domains/route.ts), [app/api/workers/process-hosting-expiry/route.ts](app/api/workers/process-hosting-expiry/route.ts).
 **Problem:** HIGH-4 closed only `User`; Order, Hosting, SupportTicket still have routes that call `.save()` / `Model.find` directly, bypassing the service layer.
 **Fix:** Replicate the User-service migration pattern for the other three. Each landed in ~3-4 commits in HIGH-4.
 **Effort:** Multi-hour, can be split across sessions.
 
-#### [H5] `provisionCartItems` is 950 lines
+#### [H2] `provisionCartItems` is 950 lines
 **File:** [lib/services/payment/provisioner.ts:95-1054](lib/services/payment/provisioner.ts) (one exported function)
 **Problem:** Spans 95 → 1054 of a 1054-line file. Deeply nested DA + RC + email + dates + reminder logic in one body — effectively untestable as a whole.
 **Fix:** Decompose into per-item provisioner (domain vs hosting), reminder scheduler, DA-account allocator.
@@ -90,25 +78,7 @@ Issues are listed by severity. Each has a file pointer, one-line problem, one-li
 
 ### MEDIUM
 
-#### [M1] Inconsistent cron auth
-**Files:** [app/api/workers/check-domain-watch/route.ts:31-32](app/api/workers/check-domain-watch/route.ts#L31-L32), [process-service-expiry/route.ts:80-81](app/api/workers/process-service-expiry/route.ts#L80-L81), [sync-zoho-invoice/route.ts:43-44](app/api/workers/sync-zoho-invoice/route.ts#L43-L44), `process-hosting-expiry/route.ts:22-23` (needs verification).
-**Problem:** These four use plain `authHeader !== process.env.CRON_SECRET` (timing-vulnerable). Other crons + `/api/cron/*` use `crypto.timingSafeEqual`.
-**Fix:** Shared `authorizeCronRequest(request)` helper; replace all four.
-**Effort:** 30 min.
-
-#### [M2] CSRF middleware only covers `/api/admin/*`
-**File:** [middleware.ts:297-303](middleware.ts#L297-L303)
-**Problem:** `/api/user/*` and `/api/payments/*` mutating routes have no Origin/Referer check; defence reduces to NextAuth's `sameSite:lax` cookie, which still allows top-level navigation POSTs.
-**Fix:** Move `validateCSRF` above the admin branch so it runs for any authenticated mutating `/api/*`.
-**Effort:** 30 min.
-
-#### [M3] User model leaks `password` + `resetToken` by default
-**File:** [models/User.ts:97,242](models/User.ts#L97) (password) + L242 (resetToken)
-**Problem:** Neither field has `select: false`. Other secret fields (`totpSecret`, `pendingEmailToken`) do. Any naive `User.findById(...)` (including `getUserById` in the service) returns the bcrypt hash + live reset token; `JSON.stringify` of the doc leaks both.
-**Fix:** Add `select:false` to both. Explicitly `.select('+password')` in the login + reset flows (the service has helpers for this already).
-**Effort:** 30 min.
-
-#### [M4] Zero unit tests for `lib/services/*`
+#### [M1] Zero unit tests for `lib/services/*`
 **Directory:** `tests/unit/lib/services/` does not exist.
 **Problem:** The 15 service modules introduced in HIGH-4 (users, orders, hostings, domains, pending-hostings, etc.) have no direct unit tests. Integration tests cover only the two payment routes.
 **Fix:** Add unit tests per service against the existing `mongodb-memory-server` scaffolding from MEDIUM-5.
@@ -118,11 +88,8 @@ Issues are listed by severity. Each has a file pointer, one-line problem, one-li
 
 ## Recommended order
 
-### Batch 1 — security-heavy (~3 hrs, 6 items)
-[H1] IDOR invoice-pay + [H2] chat rate-limit + [H3] trial-abuse race + [M1] cron timing-safe + [M2] CSRF on user routes + [M3] User `select:false`.
-
-### Batch 2 — long-running (multi-session)
-[H4] Order/Hosting/SupportTicket service-layer migration + [H5] `provisionCartItems` decomposition + [M4] `lib/services/*` unit tests.
+### Batch 1 — long-running (multi-session)
+[H1] Order/Hosting/SupportTicket service-layer migration + [H2] `provisionCartItems` decomposition + [M1] `lib/services/*` unit tests.
 
 ### Strengths to preserve
 

@@ -181,7 +181,23 @@ export async function recordTrialClaim(args: {
       planId: args.planId,
     });
   } catch (err) {
-    // Recording is best-effort — failures shouldn't block the trial.
+    // E11000 = duplicate key on the partial unique (ipHash, deviceFingerprint)
+    // index. Race fence — a prior insert from the same IP+device won; this
+    // attempt is a coordinated double-claim. Log loudly so abuse patterns
+    // surface in metrics, but don't throw — the user's already paid the
+    // ₹1 trial fee and got the hosting, so a failed-to-record is harmless
+    // (the prior claim row already blocks future trials from this signal).
+    const isDuplicate =
+      err instanceof Error &&
+      ("code" in err ? (err as { code?: number }).code === 11000 : false);
+    if (isDuplicate) {
+      serverLogger.warn(
+        `[TrialAbuse] Duplicate trial claim blocked by unique index (race) — ` +
+        `userEmail=${args.userEmail.toLowerCase()} ipHash=${args.ipHash?.slice(0, 8) ?? "none"}`
+      );
+      return;
+    }
+    // Other errors are still best-effort.
     serverLogger.error("[TrialAbuse] Failed to record trial claim:", err);
   }
 }

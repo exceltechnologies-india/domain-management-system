@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
+import { authorizeCronRequest } from "@/lib/cron-auth";
 import connectDB from "@/lib/mongodb";
-import crypto from "crypto";
 import Hosting from "@/models/Hosting";
 import { getUserById } from "@/lib/services/users";
 import User from "@/models/User";
@@ -19,15 +19,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: NextRequest) {
   try {
     // 1. Authenticate the worker request
-    const cronSecret = process.env.CRON_SECRET;
-    const providedSecret = request.headers.get("x-cron-secret") ?? "";
-    const isAuthorized =
-      cronSecret !== undefined &&
-      cronSecret.length > 0 &&
-      providedSecret.length === cronSecret.length &&
-      crypto.timingSafeEqual(Buffer.from(providedSecret), Buffer.from(cronSecret));
-
-    if (!isAuthorized) {
+    if (!authorizeCronRequest(request)) {
         return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
     }
 

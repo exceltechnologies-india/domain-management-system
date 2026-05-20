@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { rateLimiters } from "@/lib/rate-limit";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -18,6 +19,23 @@ Do not handle payments or access account data directly.`;
 
 export async function POST(req: NextRequest) {
   try {
+    // SECURITY: cap per-IP usage so a single abuser can't drain the
+    // Anthropic budget. 10 req/min/IP keeps the endpoint usable for
+    // legitimate pre-sales visitors. Anonymous-friendly intentionally —
+    // no auth requirement.
+    const rl = await rateLimiters.chat.isAllowed(req);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please slow down and try again in a minute." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": Math.ceil((rl.resetTime - Date.now()) / 1000).toString(),
+          },
+        }
+      );
+    }
+
     const { messages } = await req.json();
 
     if (!Array.isArray(messages) || messages.length === 0) {

@@ -182,4 +182,14 @@ export const rateLimiters = {
     // Key by x-user-id header set by the auth layer, fall back to IP
     keyGenerator: userOrIpKey("pdf_invoice"),
   }),
+
+  // Chat / Claude streaming endpoint. The endpoint is intentionally
+  // available to anonymous visitors (pre-sales help), so we key by IP.
+  // Cap = 10 requests/min/IP × 1024 max_tokens/request × 60 × 24
+  //     = ~14.7M tokens/day/IP, the upper bound a single abuser could spend.
+  chat: new RateLimiter({
+    windowMs: 60 * 1000, // 1 minute
+    maxRequests: 10,
+    keyGenerator: ipKey("chat"),
+  }),
 };

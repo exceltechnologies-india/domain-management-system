@@ -293,16 +293,26 @@ async function handleMiddleware(request: NextRequest, nonce: string, requestId: 
 
   // --- 4. Authorization & Redirect Logic ---
 
-  // Admin API: Return 401/403 (No Redirects)
-  if (isAdminApi) {
-    // CSRF validation for all mutating admin requests (POST, PUT, PATCH, DELETE).
-    // GET/HEAD/OPTIONS are skipped inside validateCSRF automatically.
+  // CSRF gate for every authenticated mutating /api/* request, regardless
+  // of admin/user/payment classification. GET/HEAD/OPTIONS pass through
+  // validateCSRF unconditionally so safe-method reads aren't blocked. Public
+  // APIs (auth, webhooks, cron, workers, /api/public/*, etc.) are exempt
+  // — those either authenticate via a non-cookie scheme (webhook signature,
+  // x-cron-secret) or are intentionally cookie-less, so SameSite + the
+  // route-level auth check is the right boundary there.
+  // Previously this check only ran inside the `isAdminApi` branch, leaving
+  // /api/user/* and /api/payments/* defended only by NextAuth's `sameSite:
+  // lax` cookie — which still allows top-level navigation POSTs.
+  if (isApi && !isPublicApi) {
     const csrfCheck = SecurityValidator.validateCSRF(request);
     if (!csrfCheck.isValid) {
       serverLogger.warn(`[Middleware Security] CSRF validation failed on ${sanitizePathForLog(pathname)}: ${csrfCheck.error}`, { requestId });
       return addSecurityHeaders(NextResponse.json({ error: "CSRF validation failed" }, { status: 403 }), { nonce, strictCSP: isStrictCSPRoute });
     }
+  }
 
+  // Admin API: Return 401/403 (No Redirects)
+  if (isAdminApi) {
     if (!token) {
       logAuthAttempt(pathname, 401, requestId);
       return addSecurityHeaders(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), { nonce, strictCSP: isStrictCSPRoute });
