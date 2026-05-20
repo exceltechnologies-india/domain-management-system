@@ -6,10 +6,9 @@ import { serverLogger } from "@/lib/server-logger";
 import { EmailService } from "@/lib/email";
 import { ZohoBooksService } from "@/lib/zohobooks";
 import { getUserById } from "@/lib/services/users";
-import User from "@/models/User";
+import { createOrder } from "@/lib/services/orders";
 import { createPendingHosting } from "@/lib/services/pending-hostings";
 import Hosting from "@/models/Hosting";
-import connectDB from "@/lib/mongodb";
 import { calculateHostingDates } from "@/lib/hosting-dates";
 
 /**
@@ -48,8 +47,6 @@ export async function POST(request: NextRequest) {
     // Validate and default validity period (defaults to 12 months if not 1)
     const period = validityPeriod === 1 ? 1 : 12;
 
-    await connectDB();
-    
     // 3. Find user
     const user = await getUserById(userId);
     if (!user) {
@@ -106,7 +103,6 @@ export async function POST(request: NextRequest) {
 
     // 5b. Create Order record for tracking
     try {
-        const Order = (await import("@/models/Order")).default;
         const HostingPlan = (await import("@/models/HostingPlan")).default;
         
         // Find the hosting plan
@@ -167,7 +163,7 @@ export async function POST(request: NextRequest) {
 
         serverLogger.info(`Attempting to create Order for ${domain} with payload: ${JSON.stringify(orderPayload, null, 2)}`);
         
-        const newOrder = await Order.create(orderPayload);
+        const newOrder = await createOrder(orderPayload);
         serverLogger.info(`Created Order record for admin-provisioned hosting: ${domain} (Price: ${totalPrice})`);
 
         // 5c. Generate Zoho Invoice
@@ -183,7 +179,12 @@ export async function POST(request: NextRequest) {
                 } : undefined
             }];
             
-            await zohoService.createInvoice(newOrder, user, invoiceItems, 'Admin Provision');
+            await zohoService.createInvoice(
+                newOrder as unknown as Parameters<typeof zohoService.createInvoice>[0],
+                user,
+                invoiceItems,
+                'Admin Provision'
+            );
             serverLogger.info(`Generated Zoho Invoice for admin provision: ${domain}`);
 
             // 5d. Generate Zoho Recurring Invoice for future renewals

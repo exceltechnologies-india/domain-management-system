@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { getUserById } from "@/lib/services/users";
-import Order from "@/models/Order";
-import { findOrderByDomainForUser } from "@/lib/services/orders";
+import { createOrder, findOrderByDomainForUser } from "@/lib/services/orders";
 import { ResellerClubAPI } from "@/lib/resellerclub";
 import { serverLogger } from "@/lib/server-logger";
 
@@ -130,7 +129,7 @@ export async function POST(request: NextRequest) {
           rcCurrentStatus === 'active' ? 'registered' : 'pending';
 
         // Create order record for the imported domain
-        const newOrder = new Order({
+        await createOrder({
           orderId: `SYNC-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           purchaseOrderNumber: `PO-SYNC-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substring(2, 5).toUpperCase()}`,
           userId: user._id,
@@ -170,8 +169,6 @@ export async function POST(request: NextRequest) {
           }
         });
 
-        await newOrder.save();
-        
         imported++;
         results.push({
           domain: domainName,

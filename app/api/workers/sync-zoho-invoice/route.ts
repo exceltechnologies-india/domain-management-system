@@ -5,10 +5,13 @@ import {
 } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 import { authorizeCronRequest } from "@/lib/cron-auth";
-import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
+import {
+  claimOrderForZohoInvoice,
+  getOrderById,
+  recordZohoInvoiceForOrder,
+  releaseZohoInvoiceClaim,
+} from "@/lib/services/orders";
 import { getUserById } from "@/lib/services/users";
-import User from "@/models/User";
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import { ZohoBooksService } from "@/lib/zohobooks";
 
@@ -66,10 +69,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await connectDB();
-
     // 1. Check if Zoho invoice already exists (idempotency guard)
-    const order = await Order.findById(orderId);
+    const order = await getOrderById(orderId);
     if (!order) {
       serverLogger.warn(`[ZohoWorker] Order ${orderId} not found — skipping`);
       // Return 200 so Cloud Tasks does not retry for a missing order
@@ -93,19 +94,12 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 2. Atomic claim — mark as pending so parallel retries don't double-create
-    const claimed = await Order.findOneAndUpdate(
-      {
-        _id: order._id,
-        $or: [
-          { zohoInvoiceId: { $exists: false } },
-          { zohoInvoiceId: null },
-          { zohoInvoiceId: "pending_creation" },
-        ],
-      },
-      { $set: { zohoInvoiceId: "pending_creation" } },
-      { new: true }
-    );
+    // 2. Atomic claim — mark as pending so parallel retries don't double-create.
+    // `allowNull` covers legacy rows; the cron retry path passes `allowFailed`
+    // separately, but this worker should only see pending_creation/unset values.
+    const claimed = await claimOrderForZohoInvoice(String(order._id), {
+      allowNull: true,
+    });
 
     if (!claimed) {
       serverLogger.info(
@@ -119,10 +113,7 @@ export async function POST(request: NextRequest) {
     const user = await getUserById(userId);
     if (!user) {
       // Cleanup claim and let Cloud Tasks retry
-      await Order.updateOne(
-        { _id: order._id, zohoInvoiceId: "pending_creation" },
-        { $unset: { zohoInvoiceId: "" } }
-      );
+      await releaseZohoInvoiceClaim(String(order._id));
       serverLogger.error(`[ZohoWorker] User ${userId} not found`);
       return secureErrorResponse("User not found", 404, "USER_NOT_FOUND");
     }
@@ -148,10 +139,11 @@ export async function POST(request: NextRequest) {
       },
     ];
 
-    // 5. Create Zoho Invoice
+    // 5. Create Zoho Invoice — ZohoOrderInput is structurally compatible with
+    // IOrder; the index-signature widening is the only TS friction.
     const zohoService = ZohoBooksService.getInstance();
     const invoice = await zohoService.createInvoice(
-      order,
+      order as unknown as Parameters<typeof zohoService.createInvoice>[0],
       user,
       items,
       "Razorpay", // paymentMode
@@ -159,15 +151,10 @@ export async function POST(request: NextRequest) {
     );
 
     if (invoice && invoice.invoice_id) {
-      await Order.updateOne(
-        { _id: order._id },
-        {
-          $set: {
-            zohoInvoiceId: invoice.invoice_id,
-            invoiceNumber: invoice.invoice_number,
-          },
-        }
-      );
+      await recordZohoInvoiceForOrder(String(order._id), {
+        invoiceId: invoice.invoice_id,
+        invoiceNumber: invoice.invoice_number,
+      });
       serverLogger.info(
         `[ZohoWorker] Invoice ${invoice.invoice_number} created for order ${orderId}`
       );
@@ -179,10 +166,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Zoho returned null — release the claim and let Cloud Tasks retry
-    await Order.updateOne(
-      { _id: order._id, zohoInvoiceId: "pending_creation" },
-      { $unset: { zohoInvoiceId: "" } }
-    );
+    await releaseZohoInvoiceClaim(String(order._id));
     serverLogger.warn(`[ZohoWorker] Invoice creation returned null for order ${orderId}`);
     // Return 500 so Cloud Tasks retries this task
     return secureErrorResponse(

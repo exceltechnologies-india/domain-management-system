@@ -2,11 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 import { authorizeCronRequest } from "@/lib/cron-auth";
-import connectDB from "@/lib/mongodb";
 import Hosting from "@/models/Hosting";
 import { getUserById } from "@/lib/services/users";
-import User from "@/models/User";
-import Order, { type IOrder } from "@/models/Order";
+import { createOrder, getOrderByOrderId } from "@/lib/services/orders";
+import type { IOrder } from "@/models/Order";
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import { DirectAdminService } from "@/lib/directadmin";
 import { HOSTING_PLANS } from "@/config/hosting-plans";
@@ -29,8 +28,6 @@ export async function POST(request: NextRequest) {
     if (!hostingId) {
         return secureErrorResponse("Missing hostingId", 400, "BAD_REQUEST");
     }
-
-    await connectDB();
 
     // 2. Fetch Hosting and Verify Status (Idempotency Check)
     const hosting = await Hosting.findById(hostingId);
@@ -74,7 +71,7 @@ export async function POST(request: NextRequest) {
 
             // Logic to find renewal price from original order
             if (hosting.orderId) {
-                const originalOrder = await Order.findOne({ orderId: hosting.orderId });
+                const originalOrder = await getOrderByOrderId(hosting.orderId);
                 if (originalOrder && originalOrder.domains) {
                     type OrderDomainSub = IOrder['domains'][number] & { hostingPlan?: { planId?: string; serverPackage?: string } };
                     let domainItem = originalOrder.domains.find((d: OrderDomainSub) => d.domainName === hosting.domainName) as OrderDomainSub | undefined;
@@ -109,7 +106,7 @@ export async function POST(request: NextRequest) {
             // Create a pending Order so the payment-verify flow can find it
             const renewalOrderId = `ord_renew_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
             
-            const renewalOrder = await Order.create({
+            const renewalOrder = await createOrder({
                 orderId: renewalOrderId,
                 userId: user._id,
                 paymentId: `pay_pending_${Date.now()}`,

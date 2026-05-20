@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import PendingDomain from "@/models/PendingDomain";
-import Order, { type IOrder } from "@/models/Order";
+import type { IOrder } from "@/models/Order";
 import { getOrderByOrderId, recordZohoInvoiceForOrder } from "@/lib/services/orders";
 import { getUserById, getUserByIdSafe } from "@/lib/services/users";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
@@ -77,14 +77,16 @@ export async function POST(
         pendingDomain.reason = "Domain registered successfully by admin";
         await pendingDomain.save();
 
-        const order = await Order.findOne({ orderId: pendingDomain.orderId }).populate('userId', 'email firstName lastName');
+        const order = await getOrderByOrderId(pendingDomain.orderId, { populate: { path: "userId", select: "email firstName lastName" } });
         if (order) {
           const domainIndex = order.domains.findIndex((d: IOrder['domains'][number]) => d.domainName === pendingDomain.domainName);
           if (domainIndex !== -1) {
             order.domains[domainIndex].status = "registered";
             order.domains[domainIndex].resellerClubOrderId = result.data?.orderid;
             order.domains[domainIndex].expiresAt = expiresAt;
-            order.domains[domainIndex].registeredAt = new Date();
+            // `registeredAt` isn't on the typed subdoc but mongoose persists it
+            // anyway via strict:false-style assignment; cast to bypass narrow type.
+            (order.domains[domainIndex] as unknown as { registeredAt?: Date }).registeredAt = new Date();
             await order.save();
 
             const allDomainsRegistered = order.domains.every((d: IOrder['domains'][number]) => d.status === "registered");

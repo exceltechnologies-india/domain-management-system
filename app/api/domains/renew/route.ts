@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import { ResellerClubAPI } from "@/lib/resellerclub";
 import { AuthService } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
+import { createOrder } from "@/lib/services/orders";
 import { appendUserDomain } from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
 
@@ -78,9 +77,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Connect to database
-    await connectDB();
-
     // Renew domain
     const result = await ResellerClubWrapper.renewDomain(domainName, years);
 
@@ -89,7 +85,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create order record for renewal
-    const order = new Order({
+    const order = await createOrder({
       orderId: `RENEW_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       userId: user._id,
       userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
@@ -111,8 +107,6 @@ export async function POST(request: NextRequest) {
       ],
       successfulDomains: [domainName],
     });
-
-    await order.save();
 
     // Update user's domain list
     await appendUserDomain(String(user._id), {
