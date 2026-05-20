@@ -73,9 +73,10 @@ export async function POST(request: NextRequest) {
           );
           return secureJsonResponse({ status: "ok" });
         }
-      } catch (redisErr: any) {
+      } catch (redisErr: unknown) {
         // Redis unavailable — fall through to MongoDB idempotency as the backstop
-        serverLogger.warn(`[Webhook] Redis nonce check failed, proceeding: ${redisErr.message}`);
+        const message = redisErr instanceof Error ? redisErr.message : String(redisErr);
+        serverLogger.warn(`[Webhook] Redis nonce check failed, proceeding: ${message}`);
       }
     }
 
@@ -92,12 +93,13 @@ export async function POST(request: NextRequest) {
      * Prevents Razorpay from retrying on internal processing errors.
      */
     return secureJsonResponse({ status: "ok" });
-  } catch (error: any) {
+  } catch (error: unknown) {
     /**
      * 🛡️ Security Layer 5 — Generic error message.
      * Never leak internal DB/logic structure in webhook responses.
      */
-    serverLogger.error("[Webhook] Unhandled error:", error.message);
+    const message = error instanceof Error ? error.message : String(error);
+    serverLogger.error("[Webhook] Unhandled error:", message);
     return secureErrorResponse("Webhook processing failed", 500, "WEBHOOK_ERROR");
   }
 }

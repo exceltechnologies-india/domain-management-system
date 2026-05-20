@@ -6,7 +6,7 @@ export interface ApiError {
   message: string;
   code?: string;
   status?: number;
-  details?: any;
+  details?: unknown;
 }
 
 /**
@@ -53,25 +53,24 @@ export async function parseApiResponse<T>(response: Response): Promise<T> {
 /**
  * Maps technical error codes/statuses to user-friendly messages
  */
-export function getUserFriendlyErrorMessage(error: any): string {
+export function getUserFriendlyErrorMessage(error: unknown): string {
   if (!error) return "An unexpected error occurred.";
 
-  const code = error.code as string;
-  const status = error.status as number;
+  const err = error as { code?: string; status?: number; message?: string; name?: string };
 
   // Specific DirectAdmin Server Down scenarios
-  if (code === 'DA_SERVER_DOWN' || status === 503 || status === 504 || code === 'SERVICE_UNAVAILABLE') {
+  if (err.code === 'DA_SERVER_DOWN' || err.status === 503 || err.status === 504 || err.code === 'SERVICE_UNAVAILABLE') {
       return "Hosting Server is currently unreachable. Please try again later.";
   }
-  
-  if (code === 'NO_HOSTING') {
+
+  if (err.code === 'NO_HOSTING') {
       return ""; // Usually handled by UI empty state, but safe fallback
   }
 
   // Network errors often don't have a response object
-  if (error.message === 'Failed to fetch' || error.name === 'TypeError') {
+  if (err.message === 'Failed to fetch' || err.name === 'TypeError') {
       return "Connection failed. Please check your internet connection.";
   }
 
-  return error.message || "An unexpected error occurred.";
+  return err.message || "An unexpected error occurred.";
 }

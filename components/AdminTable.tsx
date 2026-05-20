@@ -1,24 +1,27 @@
-interface Column {
+// Generic over the row type — the heavier-weight `AdminDataTable` keeps a
+// `value: any` for variance compatibility; this simpler component can stay
+// `unknown` because its handful of callsites don't narrow on the value.
+interface Column<T = unknown> {
   key: string;
   label: string;
-  render?: (value: any, item: any) => React.ReactNode;
+  render?: (value: unknown, item: T) => React.ReactNode;
 }
 
-interface AdminTableProps {
-  columns: Column[];
-  data: any[];
+interface AdminTableProps<T = unknown> {
+  columns: Column<T>[];
+  data: T[];
   loading?: boolean;
   emptyMessage?: string;
   className?: string;
 }
 
-export default function AdminTable({
+export default function AdminTable<T>({
   columns,
   data,
   loading = false,
   emptyMessage = 'No data available',
   className = ''
-}: AdminTableProps) {
+}: AdminTableProps<T>) {
   if (loading) {
     return (
       <div className={`bg-white rounded-lg shadow-sm border border-gray-200 ${className}`}>
@@ -61,7 +64,9 @@ export default function AdminTable({
               <tr key={index} className="hover:bg-gray-50">
                 {columns.map((column) => (
                   <td key={column.key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {column.render ? column.render(item[column.key], item) : item[column.key]}
+                    {column.render
+                      ? column.render((item as Record<string, unknown>)[column.key], item)
+                      : ((item as Record<string, unknown>)[column.key] as React.ReactNode)}
                   </td>
                 ))}
               </tr>

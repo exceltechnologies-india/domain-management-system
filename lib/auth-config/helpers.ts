@@ -20,11 +20,13 @@ export interface GithubProfile {
   id?: number;
 }
 
-// Extract first/last name from any social provider's profile object
+// Extract first/last name from any social provider's profile object.
+// `profile` and `user` shapes vary per provider (Google, GitHub, Facebook);
+// we read the union of fields defensively, so a structural shape is enough.
 export function extractSocialName(
   provider: string,
-  profile: any,
-  user: any
+  profile: unknown,
+  user: { name?: string | null }
 ): { firstName: string; lastName: string } {
   if (provider === "google") {
     return {

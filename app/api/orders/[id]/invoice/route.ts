@@ -3,8 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { getToken } from "next-auth/jwt";
 import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
+import Order, { type IOrder } from "@/models/Order";
 import { getUserByIdSafe } from "@/lib/services/users";
+import type { IUser } from "@/models/User";
 import { ZohoBooksService } from "@/lib/zohobooks";
 import { formatIndianDate } from "@/lib/dateUtils";
 import jsPDF from "jspdf";
@@ -56,7 +57,7 @@ export async function GET(
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
-    const order = orderData as any;
+    const order = orderData as unknown as IOrder;
 
     // Even if Zoho ID exists, if the user wants THIS specific look for "Proforma", 
     // we use our local generator. But usually, Zoho is preferred once synced.
@@ -93,7 +94,7 @@ export async function GET(
 /**
  * Generate a high-quality "Proforma Invoice" matching the user's requested layout.
  */
-function generateCustomPdf(order: any, user: any, message?: string) {
+function generateCustomPdf(order: IOrder, user: IUser, message?: string) {
     const pdf = new jsPDF();
     const margin = 15;
     let y = 20;

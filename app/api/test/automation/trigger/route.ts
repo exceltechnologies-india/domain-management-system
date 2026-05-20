@@ -5,7 +5,9 @@ import {
 } from "@/lib/api-response-wrapper";
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
-import Hosting from "@/models/Hosting";
+import Hosting, { type IHosting } from "@/models/Hosting";
+import type { IDomain } from "@/models/Domain";
+import type { HydratedDocument } from "mongoose";
 import { getDomainById } from "@/lib/services/domains";
 import { AUTOMATION_CONFIG } from "@/config/automation";
 
@@ -38,13 +40,16 @@ export async function POST(request: NextRequest) {
     
     // Let's go with (a) because it tests the full scheduler + task queue flow
     if (serviceId && serviceType) {
-      let service: any;
+      // Union of the two Mongoose hydrated docs the test-trigger flow mutates
+      // via `.save()` (forcing scheduler eligibility). Both share the fields
+      // we touch (`next_action_at`, `processing_until`).
+      let service: HydratedDocument<IHosting> | HydratedDocument<IDomain> | null;
       if (serviceType === "hosting") {
         service = await Hosting.findById(serviceId);
       } else {
-        service = await getDomainById(serviceId);
+        service = (await getDomainById(serviceId)) as HydratedDocument<IDomain> | null;
       }
-      
+
       if (!service) return secureErrorResponse("Service not found", 404, "NOT_FOUND");
 
       // Force eligible for scheduler
@@ -75,7 +80,8 @@ export async function POST(request: NextRequest) {
       schedulerResult: result,
       simulatedTime: now || new Date().toISOString(),
     });
-  } catch (error: any) {
-    return secureErrorResponse(error.message, 500, "INTERNAL_ERROR");
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Internal error";
+    return secureErrorResponse(message, 500, "INTERNAL_ERROR");
   }
 }

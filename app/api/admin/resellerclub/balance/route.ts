@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   if (!authUser) {
     return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
   }
-  if ((authUser as any).role !== "admin") {
+  if ((authUser as { role?: string }).role !== "admin") {
     return secureErrorResponse("Forbidden", 403, "FORBIDDEN");
   }
 
@@ -47,8 +47,9 @@ export async function GET(request: NextRequest) {
         totalReceipts: parseFloat(d.totalreceipts || "0"),
       },
     });
-  } catch (error: any) {
-    serverLogger.error("[Admin] ResellerClub account error:", error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    serverLogger.error("[Admin] ResellerClub account error:", message);
     return secureErrorResponse("Internal error", 500, "INTERNAL_ERROR");
   }
 }

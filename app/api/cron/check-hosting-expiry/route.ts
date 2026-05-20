@@ -54,8 +54,9 @@ export async function GET(request: NextRequest) {
             await createHttpTask(queueName, workerUrl, { hostingId: hosting._id });
             results.queued++;
             results.details.push(`Queued: ${hosting.domainName}`);
-        } catch (error: any) {
-            serverLogger.error(`[AutoSuspend] Failed to queue task for ${hosting.domainName}:`, error.message);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            serverLogger.error(`[AutoSuspend] Failed to queue task for ${hosting.domainName}:`, message);
             results.failed++;
             results.details.push(`Failed to queue: ${hosting.domainName}`);
         }
@@ -66,8 +67,9 @@ export async function GET(request: NextRequest) {
         data: results
     });
 
-  } catch (error: any) {
-    serverLogger.error("[AutoSuspend] Critical Error:", error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    serverLogger.error("[AutoSuspend] Critical Error:", message);
     return secureErrorResponse(
       "Internal Server Error during auto-suspend queuing",
       500,

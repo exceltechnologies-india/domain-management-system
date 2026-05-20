@@ -5,7 +5,7 @@ import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import { listDomainsForUser } from "@/lib/services/domains";
 import { listActivePendingDomainsForUser } from "@/lib/services/pending-domains";
-import Order from "@/models/Order";
+import Order, { type IOrder } from "@/models/Order";
 import { getUserByIdSafe } from "@/lib/services/users";
 import { getToken } from "next-auth/jwt";
 import { isHostingItem } from "@/lib/billing";
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
       if (order.isDeleted) return; // Skip deleted orders
       
       if (order.domains && Array.isArray(order.domains)) {
-        order.domains.forEach((d: any) => {
+        order.domains.forEach((d: IOrder['domains'][number]) => {
           // Skip hosting items using robust identification
           if (d.itemType === 'hosting' || isHostingItem(d)) return;
           
@@ -160,7 +160,7 @@ export async function GET(request: NextRequest) {
         hasMore: pageParam * limitParam < total,
       }),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return secureErrorResponse(
       "Failed to fetch user domains",
       500,

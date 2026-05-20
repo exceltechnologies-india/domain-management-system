@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 4. Build line items
-    let hostingPlan: any = null;
+    let hostingPlan: Awaited<ReturnType<typeof getPlanByPlanId>> = null;
     if (serviceType === "hosting" && hostingPlanId) {
       hostingPlan = await getPlanByPlanId(hostingPlanId);
     }
@@ -190,8 +190,9 @@ export async function POST(request: NextRequest) {
       500,
       "ZOHO_NULL_RESPONSE"
     );
-  } catch (error: any) {
-    serverLogger.error("[ZohoWorker] Unhandled error:", error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    serverLogger.error("[ZohoWorker] Unhandled error:", message);
     // Return 500 so Cloud Tasks retries
     return secureErrorResponse(
       "Internal error during Zoho sync",

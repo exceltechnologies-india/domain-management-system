@@ -157,8 +157,8 @@ export default function HostingPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to cancel trial');
       toast.success('Free trial cancelled. Your hosting has been terminated.');
       mutate();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to cancel trial');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to cancel trial');
     } finally {
       setIsCancellingTrial(false);
     }
@@ -179,8 +179,8 @@ export default function HostingPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to update');
       toast.success(newValue ? 'Auto-renewal enabled' : 'Auto-renewal disabled');
       mutate();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to update auto-renewal');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update auto-renewal');
     } finally {
       setAutoRenewLoading(prev => ({ ...prev, [key]: false }));
     }

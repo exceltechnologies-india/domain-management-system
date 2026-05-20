@@ -4,7 +4,7 @@ import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrap
 import { serverLogger } from "@/lib/server-logger";
 import connectDB from "@/lib/mongodb";
 import { getUserByIdSafe } from "@/lib/services/users";
-import Order from "@/models/Order";
+import Order, { type IOrder } from "@/models/Order";
 import { AuthService } from "@/lib/auth";
 import { getToken } from "next-auth/jwt";
 
@@ -59,9 +59,9 @@ export async function GET(request: NextRequest) {
     
     // 1. Check for domains in orders
     const hasDomains = orders.some(order => 
-      order.domains.some((item: any) => 
+      order.domains.some((item: IOrder['domains'][number]) =>
         // Must be a domain item (not hosting) OR explicitly marked as domain
-        (item.itemType === 'domain' || !item.itemType) && 
+        (item.itemType === 'domain' || !item.itemType) &&
         // Must NOT be cancelled/failed
         !['cancelled', 'failed', 'terminated'].includes(item.status)
       )
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
     
     // Find all domains that have hosting associated with them
     orders.forEach(order => {
-      order.domains.forEach((item: any) => {
+      order.domains.forEach((item: IOrder['domains'][number]) => {
         if (item.itemType === 'hosting' && !['cancelled', 'failed', 'terminated'].includes(item.status)) {
           hasHosting = true;
           if (item.domainName) {

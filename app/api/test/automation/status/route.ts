@@ -32,11 +32,24 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
-    let service: any;
+    // Shared fields the test-automation status read needs across Hosting/Domain.
+    // Each model has its own expiry-field name (hosting uses expiryDate, domain
+    // uses expiresAt), so we project the structural union here.
+    interface ServiceSnapshot {
+      _id: unknown;
+      domainName?: string;
+      status?: string;
+      expiryDate?: Date;
+      expiresAt?: Date;
+      next_action_at?: Date;
+      last_reminder_sent?: Date | null;
+      processing_until?: Date | null;
+    }
+    let service: ServiceSnapshot | null;
     if (serviceType === "hosting") {
-      service = await Hosting.findById(serviceId).lean();
+      service = (await Hosting.findById(serviceId).lean()) as unknown as ServiceSnapshot | null;
     } else {
-      service = await getDomainById(serviceId);
+      service = (await getDomainById(serviceId)) as unknown as ServiceSnapshot | null;
     }
 
     if (!service) {
@@ -44,6 +57,9 @@ export async function GET(request: NextRequest) {
     }
 
     const expiryDate = serviceType === "hosting" ? service.expiryDate : service.expiresAt;
+    if (!expiryDate) {
+      return secureErrorResponse("Service has no expiry date", 400, "NO_EXPIRY");
+    }
     const now = TimeService.now(null, simulatedNow || undefined);
     const daysLeft = TimeService.daysUntil(expiryDate, now);
 
@@ -61,7 +77,8 @@ export async function GET(request: NextRequest) {
         processing_until: service.processing_until,
       },
     });
-  } catch (error: any) {
-    return secureErrorResponse(error.message, 500, "INTERNAL_ERROR");
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Internal error";
+    return secureErrorResponse(message, 500, "INTERNAL_ERROR");
   }
 }

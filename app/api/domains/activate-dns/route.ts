@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
+import Order, { type IOrder } from "@/models/Order";
 import { serverLogger } from "@/lib/server-logger";
 
 // Force dynamic rendering - required for API routes
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Find the specific domain in the order
-    const domain = order.domains.find((d: any) => d.domainName === domainName);
+    const domain = order.domains.find((d: IOrder['domains'][number]) => d.domainName === domainName);
 
     if (!domain) {
       return NextResponse.json(
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
           domainName,
           resellerOrderId.toString()
         );
-      } catch (apiError: any) {
+      } catch (apiError: unknown) {
         serverLogger.error("Failed to call ResellerClub DNS activation:", apiError);
         return NextResponse.json(
           { error: "DNS activation failed: could not reach registrar" },

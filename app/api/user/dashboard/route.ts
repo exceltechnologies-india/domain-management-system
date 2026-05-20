@@ -89,8 +89,9 @@ export async function GET(request: NextRequest) {
         await Hosting.updateMany({ userId: user._id }, { $set: { lastSyncedAt: new Date() } });
 
         serverLogger.info(`[DashboardAPI] Queued background sync for user ${user._id}`);
-      } catch (e: any) {
-        serverLogger.error(`[DashboardAPI] Failed to queue sync task: ${e.message}`);
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : String(e);
+        serverLogger.error(`[DashboardAPI] Failed to queue sync task: ${message}`);
       }
     }
     // --- Synchronization Logic End ---
@@ -211,7 +212,7 @@ export async function GET(request: NextRequest) {
 // ... existing code ...
 
     return NextResponse.json(dashboardData);
-  } catch (error: any) {
+  } catch (error: unknown) {
     return secureErrorResponse(
       "Failed to load dashboard data",
       500,

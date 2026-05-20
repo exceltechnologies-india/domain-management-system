@@ -73,7 +73,14 @@ export async function POST(request: NextRequest) {
     let imported = 0;
     let skipped = 0;
     let failed = 0;
-    const results: any[] = [];
+    const results: Array<{
+      domain: string;
+      status: string;
+      reason?: string;
+      orderId?: string;
+      expiryDate?: Date | null;
+      error?: string;
+    }> = [];
 
     // Process each domain
     for (const [key, domainData] of Object.entries(domains)) {
@@ -81,7 +88,11 @@ export async function POST(request: NextRequest) {
         // Skip metadata keys
         if (key === 'recsonpage' || key === 'recsindb') continue;
 
-        const domain = domainData as any;
+        // ResellerClub's customer-domain-list response is a flattened
+        // dotted-key shape (`entity.description`, `orders.endtime`, etc.).
+        // Narrow at the iteration boundary; downstream reads use the dotted
+        // keys directly via string indexing.
+        const domain = domainData as Record<string, string | undefined>;
         // The API returns flattened keys like 'entity.description' for the domain name
         // and 'orders.orderid' for the order ID
         const domainName = domain['entity.description'] || domain.domainname || domain.domain;
@@ -179,7 +190,7 @@ export async function POST(request: NextRequest) {
         serverLogger.error(`❌ [DOMAIN-SYNC] Failed to import domain:`, error);
         failed++;
         results.push({
-          domain: domainData,
+          domain: String(key),
           status: "failed",
           error: error instanceof Error ? error.message : "Unknown error"
         });

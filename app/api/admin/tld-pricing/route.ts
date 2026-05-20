@@ -166,15 +166,15 @@ export async function GET(request: NextRequest) {
             continue;
           }
 
-          // ResellerClub returns several shapes here (top-level price, nested
-          // pricing block, numeric-keyed bundles). The block below walks them
-          // defensively, so we read fields off a Record<string, any> rather
-          // than spell each variant.
-          //
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const customerTldData = customerPricing[tld] as any;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const resellerTldData = resellerPricing[tld] as any;
+          // ResellerClub returns several shapes here (top-level price string,
+          // nested pricing block, numeric-keyed bundles). RcPriceNode captures
+          // the recursive open structure so each `?.addnewdomain?.["1"]` read
+          // stays type-safe instead of casting to `any`.
+          type RcPriceNode =
+            | string
+            | { [k: string]: RcPriceNode | undefined };
+          const customerTldData = customerPricing[tld] as RcPriceNode | undefined;
+          const resellerTldData = resellerPricing[tld] as RcPriceNode | undefined;
 
           if (customerTldData || resellerTldData) {
             // Try multiple possible price field locations
@@ -184,12 +184,14 @@ export async function GET(request: NextRequest) {
             // Extract customer price - structure: data.addnewdomain["1"]
             if (customerTldData) {
               if (typeof customerTldData === "object") {
+                const addnew = customerTldData.addnewdomain;
                 customerPrice = parseFloat(
-                  customerTldData.addnewdomain?.["1"] ||
-                    customerTldData.addnewdomain ||
-                    customerTldData["1"] ||
-                    customerTldData.price ||
-                    "0"
+                  String(
+                    (typeof addnew === "object" ? addnew?.["1"] : addnew) ||
+                      customerTldData["1"] ||
+                      customerTldData.price ||
+                      "0"
+                  )
                 );
               } else {
                 customerPrice = parseFloat(String(customerTldData));
@@ -200,23 +202,30 @@ export async function GET(request: NextRequest) {
             if (resellerTldData) {
               if (typeof resellerTldData === "object") {
                 // Check for nested structure first
-                const nestedPricing = resellerTldData["0"]?.pricing;
+                const nestedPricing =
+                  typeof resellerTldData["0"] === "object"
+                    ? (resellerTldData["0"] as { pricing?: RcPriceNode }).pricing
+                    : undefined;
                 if (nestedPricing && typeof nestedPricing === "object") {
+                  const nestedAddnew = nestedPricing.addnewdomain;
                   resellerPrice = parseFloat(
-                    nestedPricing.addnewdomain?.["1"] ||
-                      nestedPricing.addnewdomain ||
-                      nestedPricing["1"] ||
-                      nestedPricing.price ||
-                      "0"
+                    String(
+                      (typeof nestedAddnew === "object" ? nestedAddnew?.["1"] : nestedAddnew) ||
+                        nestedPricing["1"] ||
+                        nestedPricing.price ||
+                        "0"
+                    )
                   );
                 } else {
                   // Fallback to direct structure
+                  const directAddnew = resellerTldData.addnewdomain;
                   resellerPrice = parseFloat(
-                    resellerTldData.addnewdomain?.["1"] ||
-                      resellerTldData.addnewdomain ||
-                      resellerTldData["1"] ||
-                      resellerTldData.price ||
-                      "0"
+                    String(
+                      (typeof directAddnew === "object" ? directAddnew?.["1"] : directAddnew) ||
+                        resellerTldData["1"] ||
+                        resellerTldData.price ||
+                        "0"
+                    )
                   );
                 }
               } else {

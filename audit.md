@@ -447,7 +447,52 @@ Audit-recommended sub-files I did NOT create:
 
 ## 4. Code Quality
 
-### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (13 typing passes 2026-05-17 → 2026-05-19; 845 → 159 sitewide, 81% reduction; every external-API wrapper / lib helper / service layer / admin route / worker / dashboard page covered)
+### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (14 typing passes 2026-05-17 → 2026-05-20; 845 → 84 sitewide, 90% reduction; every external-API wrapper / lib helper / service layer / admin route / worker / dashboard page covered)
+
+**Fourteenth pass — long-tail batch 2026-05-20:** 30+ files touched, 75 anys removed (159 → 84 sitewide):
+
+**lib/ helpers:**
+- [lib/tld-pricing-cache.ts](lib/tld-pricing-cache.ts) (2 → 0) — `customerPricing`/`resellerPricing` widened to `unknown` (the cache layer doesn't introspect the payload; consumers narrow).
+- [lib/validation.ts](lib/validation.ts) (2 → 0) — address-sanitizer `Record<string,string>`; `validateDomainIds(domainIds: unknown)`. Surfaced that `ValidationResult.sanitized` is heterogeneous (string for primitive validators, `Record<string,string>` for the address validator) — widened the interface accordingly + narrowed at the search-route callsite where the primitive form is expected.
+- [lib/services/payment/verification.ts](lib/services/payment/verification.ts) (2 → 0) — `existingOrder: { amount: number }` (the only field the validator reads); catch narrowed.
+- [lib/services/payment/price-verifier.ts](lib/services/payment/price-verifier.ts) (2 → 0) — `extractCustomerPrice(customerData: unknown, …)` with `Record<string,unknown>` narrowing at index reads; `livePricing` typed via `Awaited<ReturnType<typeof ResellerClubAPI.getDomainPricing>>`.
+- [lib/services/domain-watches.ts](lib/services/domain-watches.ts) (2 → 0) — `UserWatchSummary._id: unknown`; new `CronWatchRow` interface so `listWatchesForCron(): Promise<CronWatchRow[]>` exposes the `userId`-populated lean shape the cron worker reads.
+- [lib/resellerclub/renewal-transfer.ts](lib/resellerclub/renewal-transfer.ts) (2 → 0) — catch narrowed via `{ response?: { data?: … }, message? }` structural cast; transfer `params: Record<string, string | number>`.
+- [lib/mongodb.ts](lib/mongodb.ts) (2 → 0) — `global.mongoose` hot-reload cache typed via a `MongooseCache` interface + a typed `globalWithMongoose` lift, replacing the historical `(global as any).mongoose` pattern.
+- [lib/domain-verification.ts](lib/domain-verification.ts) (2 → 0) — order-find callback typed via `IOrder['domains'][number]`; catch narrowed.
+- [lib/client-error-handler.ts](lib/client-error-handler.ts) (2 → 0) — `ApiError.details: unknown`; `getUserFriendlyErrorMessage(error: unknown)` with structural narrowing for `code`/`status`/`message`/`name`.
+- [lib/auth-config/helpers.ts](lib/auth-config/helpers.ts) (2 → 0) — `extractSocialName(profile: unknown, user: { name?: string | null })`; the existing per-provider casts via `GoogleProfile` / `GithubProfile` continue to narrow.
+- [lib/api-response-wrapper.ts](lib/api-response-wrapper.ts) (2 → 0) — `data: unknown` on `secureJsonResponse`; `errorDetails: unknown` on `secureErrorResponse`.
+- [lib/resellerclub/search.ts](lib/resellerclub/search.ts) (2 → 0) — JSDoc `@returns` lines updated from `Promise<any>` to the concrete `Promise<RcDomainPricing>` / `Promise<{ status, data?: ResellerDetails, error? }>` that the actual signatures already declared.
+
+**API routes:**
+- [app/api/workers/sync-hosting-status/route.ts](app/api/workers/sync-hosting-status/route.ts) (2 → 0) — both catches narrowed via `instanceof Error`.
+- [app/api/workers/sync-zoho-invoice/route.ts](app/api/workers/sync-zoho-invoice/route.ts) (2 → 0) — `hostingPlan: Awaited<ReturnType<typeof getPlanByPlanId>>`; catch narrowed.
+- [app/api/webhooks/razorpay/route.ts](app/api/webhooks/razorpay/route.ts) (2 → 0) — Redis fallback + outer catch narrowed.
+- [app/api/user/services/status/route.ts](app/api/user/services/status/route.ts) (2 → 0) — both `order.domains.some/forEach` callbacks typed via `IOrder['domains'][number]`.
+- [app/api/user/domains/route.ts](app/api/user/domains/route.ts) (2 → 0) — forEach callback typed via `IOrder['domains'][number]`; outer catch narrowed.
+- [app/api/user/dashboard/route.ts](app/api/user/dashboard/route.ts) (2 → 0) — Cloud Tasks dispatch catch + outer catch narrowed.
+- [app/api/test/automation/status/route.ts](app/api/test/automation/status/route.ts) (2 → 0) — new `ServiceSnapshot` interface for the union of Hosting/Domain lean reads; expiry-date guard added (surfaced a latent crash where `service.expiryDate` could be undefined).
+- [app/api/test/automation/trigger/route.ts](app/api/test/automation/trigger/route.ts) (2 → 0) — Mongoose hydrated-doc union `HydratedDocument<IHosting> | HydratedDocument<IDomain>` so `.save()` typechecks across both branches.
+- [app/api/orders/[id]/invoice/route.ts](app/api/orders/%5Bid%5D/invoice/route.ts) (2 → 0) — `as unknown as IOrder` boundary cast; `generateCustomPdf(order: IOrder, user: IUser, …)`.
+- [app/api/domains/sync/route.ts](app/api/domains/sync/route.ts) (2 → 0) — typed `results` array; `domainData` narrowed to `Record<string, string | undefined>` (RC's flat dotted-key shape).
+- [app/api/domains/dns/route.ts](app/api/domains/dns/route.ts) (2 → 0), [app/api/domains/activate-dns/route.ts](app/api/domains/activate-dns/route.ts) (2 → 0) — order-domains find callbacks typed via `IOrder['domains'][number]`.
+- [app/api/cron/check-hosting-expiry/route.ts](app/api/cron/check-hosting-expiry/route.ts) (2 → 0) — per-task + outer catches narrowed.
+- [app/api/check-ip/route.ts](app/api/check-ip/route.ts) (2 → 0) — `results` object typed with named `ServiceProbe` row shape; `ipCounts.reduce<Record<string, number>>(…)` generic.
+- [app/api/admin/resellerclub/balance/route.ts](app/api/admin/resellerclub/balance/route.ts) (2 → 0) — `authUser as { role?: string }`; catch narrowed.
+- [app/api/admin/tld-pricing/route.ts](app/api/admin/tld-pricing/route.ts) (2 → 0) — recursive `RcPriceNode = string | { [k]: RcPriceNode | undefined }` for RC's polymorphic price tree; the inline `as any` casts dropped, every `.addnewdomain?.["1"]` chain now type-safe under structural narrowing.
+
+**Components + dashboard pages:**
+- [components/AdminTable.tsx](components/AdminTable.tsx) (2 → 0) — converted to a generic `AdminTable<T>` mirroring the earlier `AdminDataTable<T>` pattern; simpler shape (no fancy variance concerns), so the column-value parameter is fully `unknown`.
+- [components/hosting/TrialOtpModal.tsx](components/hosting/TrialOtpModal.tsx) (2 → 0), [components/HostingUpgradeModal.tsx](components/HostingUpgradeModal.tsx) (2 → 0), [components/HostingRenewalModal.tsx](components/HostingRenewalModal.tsx) (2 → 0), [components/LoginForm.tsx](components/LoginForm.tsx) (2 → 0) — catch blocks narrowed via `instanceof Error`. Both Razorpay-iframe-checkout consumers (`HostingUpgradeModal`/`HostingRenewalModal`) extract the `{ kind: 'dismissed' }` soft-cancel tag via a structural cast so the user-dismissed-modal flow stays separated from real errors.
+- [components/DomainCrossSell.tsx](components/DomainCrossSell.tsx) (2 → 0) — search-result callback typed via the local `SearchResult` interface; Enter-key form-forwarder `as unknown as React.FormEvent`.
+- [app/dashboard/invoices/[id]/view/page.tsx](app/dashboard/invoices/%5Bid%5D/view/page.tsx), [app/dashboard/domains/[id]/page.tsx](app/dashboard/domains/%5Bid%5D/page.tsx), [app/dashboard/dns-management/page.tsx](app/dashboard/dns-management/page.tsx), [app/dashboard/hosting/page.tsx](app/dashboard/hosting/page.tsx) (2 each → 0 each) — `(session.user as any).id/role` collapsed into a single `sUser = session.user as { id?, role? }` lift per file; catch blocks narrowed.
+
+**Verified on main 2026-05-20:** 340/340 tests, lint clean, tsc clean.
+
+---
+
+
 
 **Thirteenth pass — long-tail batch 2026-05-19:** 13 files touched, 42 anys removed (201 → 159 sitewide):
 

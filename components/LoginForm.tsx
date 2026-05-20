@@ -182,7 +182,7 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
           window.location.href = safeReturnUrl;
         }, 100);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // This catch block might not be hit if signIn doesn't throw on redirect: false
       // But keeping it for safety for other synchronous errors in the block
       logger.error("Login error:", error);
@@ -239,7 +239,7 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
             className="space-y-6"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
-                handleSubmit(e as any);
+                handleSubmit(e as unknown as React.FormEvent);
               }
             }}
           >

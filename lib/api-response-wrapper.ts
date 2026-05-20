@@ -28,7 +28,7 @@ export function withSecurityHeaders(response: NextResponse): NextResponse {
  * }
  */
 export function secureJsonResponse(
-  data: any,
+  data: unknown,
   status: number = 200
 ): NextResponse {
   const response = NextResponse.json(data, { status });
@@ -53,7 +53,7 @@ export function secureErrorResponse(
   error: string,
   status: number = 500,
   code?: string,
-  errorDetails?: any
+  errorDetails?: unknown
 ): NextResponse {
   // 1. Log the error internally with full details for troubleshooting
   if (status >= 500) {

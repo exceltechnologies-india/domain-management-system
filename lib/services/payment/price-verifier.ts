@@ -87,31 +87,33 @@ function domainToRcKey(domainName: string): string | null {
  * value. For min-period TLDs like .ai, only some buckets are populated —
  * we try the requested year first, fall back to any available year.
  */
-function extractCustomerPrice(customerData: any, years: number = 1): number {
+function extractCustomerPrice(customerData: unknown, years: number = 1): number {
   if (!customerData) return 0;
   if (typeof customerData !== "object") {
     const n = parseFloat(String(customerData));
     return isNaN(n) ? 0 : n;
   }
-  const addnew = customerData.addnewdomain;
+  const data = customerData as Record<string, unknown>;
+  const addnew = data.addnewdomain;
   if (addnew && typeof addnew === "object") {
+    const addnewMap = addnew as Record<string, unknown>;
     // Requested year takes precedence
-    const target = addnew[String(years)];
+    const target = addnewMap[String(years)];
     if (target !== undefined && target !== null) {
       const n = parseFloat(String(target));
       if (!isNaN(n) && n > 0) return n;
     }
     // Fall back to any available year bucket (per-year price is usually uniform)
-    for (const k of Object.keys(addnew)) {
-      const n = parseFloat(String(addnew[k]));
+    for (const k of Object.keys(addnewMap)) {
+      const n = parseFloat(String(addnewMap[k]));
       if (!isNaN(n) && n > 0) return n;
     }
   }
   // Legacy / alternative shapes
   const raw =
-    customerData[String(years)] ??
-    customerData["1"] ??
-    customerData.price ??
+    data[String(years)] ??
+    data["1"] ??
+    data.price ??
     "0";
   const n = parseFloat(String(raw));
   return isNaN(n) ? 0 : n;
@@ -155,7 +157,7 @@ export async function verifyDomainPrices(
     };
   }
 
-  let livePricing: any;
+  let livePricing: Awaited<ReturnType<typeof ResellerClubAPI.getDomainPricing>> | undefined;
   try {
     livePricing = await ResellerClubAPI.getDomainPricing();
   } catch (err) {
