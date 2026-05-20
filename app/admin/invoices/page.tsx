@@ -67,7 +67,7 @@ export default function AdminInvoicesPage() {
 
     // Prefer NextAuth session (works for credentials login)
     if (session?.user) {
-      const userRole = (session.user as { role?: string }).role;
+      const userRole = session.user.role;
       // Check if admin
       if (userRole !== 'admin') {
         router.push('/dashboard');
@@ -308,7 +308,7 @@ export default function AdminInvoicesPage() {
           ? {
               firstName: session.user.name?.split(' ')[0] || '',
               lastName: session.user.name?.split(' ').slice(1).join(' ') || '',
-              role: (session.user as { role?: string }).role || 'admin',
+              role: session.user.role || 'admin',
             }
           : null
       }

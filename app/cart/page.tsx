@@ -83,8 +83,8 @@ export default function CartPage() {
           firstName: session.user.name?.split(' ')[0] ?? '',
           lastName: session.user.name?.split(' ').slice(1).join(' ') ?? '',
           email: session.user.email ?? '',
-          role: (session.user as { role?: string }).role ?? 'user',
-          profileCompleted: (session.user as { profileCompleted?: boolean }).profileCompleted,
+          role: session.user.role ?? 'user',
+          profileCompleted: session.user.profileCompleted,
         };
         if (base.role === 'admin') { router.push('/admin/dashboard'); return; }
         setUser(base);

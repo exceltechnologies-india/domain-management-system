@@ -35,9 +35,11 @@ export async function POST(request: NextRequest) {
       results,
     });
   } catch (err: unknown) {
+    // Log full error server-side; return generic message to the client.
+    // Zoho API errors can include access-token fragments + retry tokens.
     serverLogger.error("[InvoiceSync] Unhandled error:", err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Sync failed" },
+      { error: "Invoice sync failed. Please try again or contact support." },
       { status: 500 }
     );
   }

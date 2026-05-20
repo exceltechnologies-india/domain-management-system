@@ -36,6 +36,12 @@ This document tracks **currently-open** findings. The full historical pass log (
 - ✅ **[L1] `/api/debug/check-expiry` removed** (commit `bb91b5d`) — dev-scaffolding route that leaked 5 active hosting rows (domainName + expiryDate) to any logged-in user. Not referenced anywhere; deleting was cleaner than gating.
 - ✅ **[L4] Stale TODOs resolved** (commit `bb91b5d`) — `lib/resellerclub/customers.ts:567` (resellerClub-id persistence shipped via `setUserResellerClubIds`) and `app/api/admin/hosting/stats/route.ts:137` (per-user DA fetch trade-off) — both converted to explanatory notes.
 - ✅ **Batch 1 verification 2026-05-20** (revision `dms-00029-4jj`) — 434 unit + 25 integration tests green, tsc clean, `next lint --quiet` clean, 0 `npm audit` findings, `/api/health` 200 OK, zero error-level Cloud Run logs in the post-deploy window.
+- ✅ **[L1] N+1 in admin users-services** — `verifiedUsers.some()` per row replaced with a pre-built `Set<_id>` lookup so the fallback loop is O(n+m) instead of O(n·m).
+- ✅ **[L2] Stale `User` import in hosting/assign** — unused `import User from "@/models/User"` removed (the route uses the user service helper for the lookup; the direct-model bypass is still tracked under [H4]).
+- ✅ **[L3] Chat model version pinned** — bumped from the floating `claude-haiku-4-5` alias to the dated `claude-haiku-4-5-20251001` release so a future alias re-point can't quietly change the chat persona or token-spend profile.
+- ✅ **[M4] Raw upstream errors no longer echoed** — `app/api/user/hosting/renew`, `app/api/payments/create-subscription`, `app/api/payments/cancel-subscription`, `app/api/user/invoices/sync`: each now returns a generic message to the client (real error stays in `serverLogger`). Razorpay / Zoho / Mongo strings can carry credential / retry-token fragments that don't belong in a user-facing body.
+- ✅ **[M5] `findOrderDomain` helper** — new `lib/services/orders.ts` exports `findOrderDomain` / `mapOrderDomains` / `filterOrderDomainsByName` + a named `OrderDomain` type alias. 9 routes (admin/user nameservers, admin/user activate-dns, domains/dns + admin variant, booking-status, verify-status) switched from the inline `order.domains.find((d: IOrder['domains'][number]) => d.domainName === domainName)` pattern to `findOrderDomain(order, domainName)`.
+- ✅ **[M6] NextAuth session-user type-narrowing removed** — confirmed module augmentation in [types/next-auth.d.ts](types/next-auth.d.ts) already types `session.user.id` / `session.user.role` / `session.user.profileCompleted` / `session.user.provider` as first-class fields. Bulk-stripped 14 inline `(session.user as { id?, role?, … })` casts across `app/admin/**` + `app/cart/page.tsx` + 2 `app/api/admin/*` routes — every callsite now reads the fields directly. The cast pattern was leftover from before the augmentation landed; type-checking improves because reads against fields not in the augmentation are now compile errors instead of silently undefined.
 
 ## Deliberately deferred (by user)
 
@@ -102,49 +108,11 @@ Issues are listed by severity. Each has a file pointer, one-line problem, one-li
 **Fix:** Add `select:false` to both. Explicitly `.select('+password')` in the login + reset flows (the service has helpers for this already).
 **Effort:** 30 min.
 
-#### [M4] Raw upstream errors echoed to client
-**File:** [app/api/user/hosting/renew/route.ts:156-157](app/api/user/hosting/renew/route.ts#L156-L157) (and likely other `/api/user/*` routes)
-**Problem:** `secureErrorResponse(error.message, …)` echoes Razorpay/Mongo error strings back to the client (e.g. credential / network detail in upstream errors).
-**Fix:** Return a generic message; keep the real one in `serverLogger`.
-**Effort:** 15 min per route.
-
-#### [M5] Repeated `order.domains.find()` pattern in 16+ files
-**Files:** [app/api/user/domains/nameservers/route.ts:52](app/api/user/domains/nameservers/route.ts#L52), [app/api/admin/domains/dns/route.ts:63,150,247](app/api/admin/domains/dns/route.ts), [app/api/admin/pending-domains/[id]/register/route.ts:81,89,98,184](app/api/admin/pending-domains/%5Bid%5D/register/route.ts), + ~12 more.
-**Problem:** Same `(d) => d.domainName === name` lookup repeated. Each callsite has its own type cast.
-**Fix:** Add `findDomainItem(order, name)` / `mapDomainItems(order)` helpers in `lib/services/orders.ts`.
-**Effort:** 1 hr.
-
-#### [M6] 30 inline `session.user as {…}` narrowings
-**Files:** Across `app/**` and `lib/**`. Examples: [app/api/admin/log-error/route.ts:46](app/api/admin/log-error/route.ts#L46), [app/api/admin/users/services/route.ts:18](app/api/admin/users/services/route.ts#L18).
-**Problem:** Each route re-narrows `(session.user as { id?, role?, … })` piecemeal.
-**Fix:** One `getAuthedUser(req): { id; role; email }` helper in `lib/auth.ts`, or `next-auth` module augmentation.
-**Effort:** 1 hr.
-
-#### [M7] Zero unit tests for `lib/services/*`
+#### [M4] Zero unit tests for `lib/services/*`
 **Directory:** `tests/unit/lib/services/` does not exist.
 **Problem:** The 15 service modules introduced in HIGH-4 (users, orders, hostings, domains, pending-hostings, etc.) have no direct unit tests. Integration tests cover only the two payment routes.
 **Fix:** Add unit tests per service against the existing `mongodb-memory-server` scaffolding from MEDIUM-5.
 **Effort:** Multi-hour.
-
-### LOW
-
-#### [L1] N+1 shape in admin users-services list
-**File:** [app/api/admin/users/services/route.ts:39](app/api/admin/users/services/route.ts#L39)
-**Problem:** Iterates `allServiceUsers` and does linear `.some()` over `verifiedUsers` per row (O(n·m)).
-**Fix:** Build a `Set<_id>` once before the loop.
-**Effort:** 15 min.
-
-#### [L2] Stale unused `User` import
-**File:** [app/api/admin/hosting/assign/route.ts:7](app/api/admin/hosting/assign/route.ts#L7)
-**Problem:** Imports `User` but never references it directly — also confirms [H4] bypass since the route mutates the doc inline.
-**Fix:** Remove import; move mutation into the user service.
-**Effort:** 5 min (combined with [H4]).
-
-#### [L3] Chat model version drift (needs verification)
-**File:** [app/api/chat/route.ts:48](app/api/chat/route.ts#L48)
-**Problem:** Uses `claude-haiku-4-5`; cutoff in env says 2026-01, current latest haiku tier may be newer.
-**Fix:** Verify against current Anthropic model list; bump if needed.
-**Effort:** 15 min.
 
 ---
 
@@ -153,11 +121,8 @@ Issues are listed by severity. Each has a file pointer, one-line problem, one-li
 ### Batch 1 — security-heavy (~3 hrs, 6 items)
 [H1] IDOR invoice-pay + [H2] chat rate-limit + [H3] trial-abuse race + [M1] cron timing-safe + [M2] CSRF on user routes + [M3] User `select:false`.
 
-### Batch 2 — quality / refactor (multi-hour, can be split)
-[M5] domain-find helper + [M6] `getAuthedUser` helper + [L1] N+1 fix + [L2] stale import + [L3] chat model bump + [M4] error-message scrubbing.
-
-### Batch 3 — long-running (multi-session)
-[H4] Order/Hosting/SupportTicket service-layer migration + [H5] `provisionCartItems` decomposition + [M7] `lib/services/*` unit tests.
+### Batch 2 — long-running (multi-session)
+[H4] Order/Hosting/SupportTicket service-layer migration + [H5] `provisionCartItems` decomposition + [M4] `lib/services/*` unit tests.
 
 ### Strengths to preserve
 

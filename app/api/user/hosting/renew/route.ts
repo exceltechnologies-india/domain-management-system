@@ -152,8 +152,15 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: unknown) {
+    // Log the real error server-side; return a generic message to the
+    // client. Razorpay / Mongoose / network errors can carry credential
+    // fragments or stack-trace info that doesn't belong in a user-facing
+    // response.
     serverLogger.error("Hosting renewal error:", error);
-    const message = error instanceof Error ? error.message : "Failed to initiate renewal";
-    return secureErrorResponse(message, 500, "INTERNAL_ERROR");
+    return secureErrorResponse(
+      "Failed to initiate renewal. Please try again or contact support.",
+      500,
+      "INTERNAL_ERROR"
+    );
   }
 }

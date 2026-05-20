@@ -33,13 +33,14 @@ export async function GET(request: Request) {
 
     // 4. Fallback: Include users who have a directAdminUsername but were missed
     //    by the aggregation (e.g., if they have no Hosting records but have a
-    //    DA account).
+    //    DA account). The aggregation results are scanned via a Set lookup
+    //    instead of a per-row `.some()` to keep this O(n+m) rather than
+    //    O(n·m) once the user-base gets larger.
     const allServiceUsers = await listServiceUserCandidates();
+    const knownUserIds = new Set(verifiedUsers.map((vu) => vu._id.toString()));
 
     for (const u of allServiceUsers) {
-      const alreadyInList = verifiedUsers.some(
-        (vu) => vu._id.toString() === String(u._id)
-      );
+      const alreadyInList = knownUserIds.has(String(u._id));
       if (!alreadyInList) {
         // Construct a virtual hosting entry based on User fields
         verifiedUsers.push({

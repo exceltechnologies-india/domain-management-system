@@ -35,7 +35,7 @@ export default function AdminViewInvoicePage({ params }: { params: Promise<{ id:
     if (status === 'loading') return;
 
     if (session?.user) {
-      const sessionUser = session.user as { id?: string; email?: string | null; name?: string | null; role?: string };
+      const sessionUser = session.user;
       if (sessionUser.role !== 'admin') {
         router.push('/dashboard');
         return;

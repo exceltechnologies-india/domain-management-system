@@ -397,3 +397,52 @@ export async function listStuckZohoInvoiceOrders(
     .lean();
   return rows as unknown as StuckZohoInvoiceOrder[];
 }
+
+// ─── Subdocument helpers ────────────────────────────────────────────────────
+//
+// The `order.domains[]` array holds both domain and hosting line-items. Route
+// handlers repeatedly walk it to find / project entries by `domainName`;
+// before these helpers landed, every callsite re-typed the predicate as
+// `(d: IOrder['domains'][number]) =>` and inlined the same find expression.
+
+export type OrderDomain = IOrder["domains"][number];
+
+/**
+ * Find a single `order.domains[]` subdocument by domain name. Returns
+ * `undefined` (not null) so callers can use the standard `if (!domain)`
+ * pattern without distinguishing the two falsies.
+ *
+ * The lookup is exact-match — caller is responsible for any normalisation
+ * (most callers pass an already-normalised `domainName` from the request body).
+ */
+export function findOrderDomain(
+  order: Pick<IOrder, "domains">,
+  domainName: string
+): OrderDomain | undefined {
+  return order.domains.find((d) => d.domainName === domainName);
+}
+
+/**
+ * Project every `order.domains[]` entry through a typed mapper. Thin wrapper
+ * around `Array.prototype.map` that pre-types the callback so callsites stop
+ * repeating the `(d: IOrder['domains'][number])` annotation.
+ */
+export function mapOrderDomains<T>(
+  order: Pick<IOrder, "domains">,
+  mapper: (d: OrderDomain) => T
+): T[] {
+  return order.domains.map(mapper);
+}
+
+/**
+ * Filter `order.domains[]` to entries whose `domainName` is in the supplied
+ * set. Used by partial-fulfilment pages that want to report on a subset of
+ * the cart (e.g. "these three got registered, these two are pending").
+ */
+export function filterOrderDomainsByName(
+  order: Pick<IOrder, "domains">,
+  domainNames: Iterable<string>
+): OrderDomain[] {
+  const wanted = new Set(domainNames);
+  return order.domains.filter((d) => wanted.has(d.domainName));
+}

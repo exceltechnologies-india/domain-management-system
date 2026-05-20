@@ -170,7 +170,7 @@ export default function AdminHostingPage() {
     if (status === 'loading') return;
 
     if (session?.user) {
-      const sessionUser = session.user as { name?: string; email?: string; role?: string };
+      const sessionUser = session.user;
       const userObj = {
         firstName: sessionUser.name?.split(' ')[0] || '',
         lastName: sessionUser.name?.split(' ').slice(1).join(' ') || '',

@@ -242,7 +242,7 @@ export default function UserSettings() {
   useEffect(() => {
     if (status === 'loading' || hasLoadedOnce.current) return;
     if (session?.user) {
-      const sessionUser = session.user as { id?: string; name?: string; email?: string; role?: string };
+      const sessionUser = session.user;
       setUser({ id: sessionUser.id || '', email: sessionUser.email || '', firstName: sessionUser.name?.split(' ')[0] || '', lastName: sessionUser.name?.split(' ').slice(1).join(' ') || '', role: sessionUser.role || 'user' });
       void loadSettings(); return;
     }

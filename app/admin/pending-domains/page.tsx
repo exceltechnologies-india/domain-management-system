@@ -212,12 +212,12 @@ export default function AdminPendingDomainsPage() {
           }
         } else {
           // Fallback to NextAuth session if API fails or returns 401 but we have session
-          if (session?.user && (session.user as { role?: string }).role === 'admin') {
-            const sUser = session.user as { id?: string; email?: string; role?: string; name?: string };
+          if (session?.user && session.user.role === 'admin') {
+            const sUser = session.user;
             const [firstName = "", ...rest] = (sUser.name ?? "").split(" ");
             setUser({
               id: sUser.id,
-              email: sUser.email,
+              email: sUser.email ?? undefined,
               role: sUser.role ?? "admin",
               firstName,
               lastName: rest.join(" "),

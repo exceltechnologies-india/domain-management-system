@@ -71,7 +71,7 @@ export default function AdminPayments() {
 
     // Prefer NextAuth session (works for credentials login)
     if (session?.user) {
-      const sessionUser = session.user as { id?: string; name?: string; email?: string; role?: string };
+      const sessionUser = session.user;
       const userObj: AdminUser = {
         _id: sessionUser.id || '',
         firstName: sessionUser.name?.split(' ')[0] || '',
