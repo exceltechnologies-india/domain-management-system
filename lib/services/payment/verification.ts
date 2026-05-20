@@ -142,7 +142,7 @@ export async function verifyRazorpayPayment(
  */
 export async function validateOrderAmountMatchesRazorpay(
   razorpay_order_id: string,
-  existingOrder: any
+  existingOrder: { amount: number }
 ): Promise<{ ok: true } | { ok: false; response: NextResponse }> {
   try {
     const rzpOrder = await RazorpayService.getOrderDetails(razorpay_order_id);
@@ -160,10 +160,11 @@ export async function validateOrderAmountMatchesRazorpay(
       };
     }
     return { ok: true };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
     serverLogger.error(
       `❌ [PAYMENT-VERIFY] Failed to fetch Razorpay order for amount check:`,
-      err.message
+      message
     );
     return {
       ok: false,

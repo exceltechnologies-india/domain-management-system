@@ -65,11 +65,11 @@ export async function renewDomain(
       status: "success",
       data: response.data,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } | string }; message?: string };
     const msg =
-      error?.response?.data?.message ||
-      error?.response?.data ||
-      error?.message ||
+      (typeof err.response?.data === "object" ? err.response?.data?.message : err.response?.data) ||
+      err.message ||
       "Failed to renew domain";
     serverLogger.error(`[RC-API] Domain renewal error for order ${orderId}:`, msg);
     return {
@@ -93,7 +93,7 @@ export async function transferDomain(
   }
 ): Promise<ResellerClubResponse> {
   try {
-    const params: any = {
+    const params: Record<string, string | number> = {
       "domain-name": domainName,
       "auth-code": authCode,
       "customer-id": customerId,

@@ -30,8 +30,8 @@ interface CachedPricingData {
  * customer "raw" view can share the same upstream fetch.
  */
 interface RawCachedPricing {
-  customerPricing: any;
-  resellerPricing: any;
+  customerPricing: unknown;
+  resellerPricing: unknown;
   timestamp: string;
   cachedAt: number;
 }

@@ -24,7 +24,7 @@ import type {
  * Retrieves both customer and reseller pricing data from ResellerClub API.
  * This method is used by the PricingService to get the latest pricing information.
  *
- * @returns {Promise<any>} Object containing customerPricing and resellerPricing data
+ * @returns {Promise<RcDomainPricing>} Object containing customerPricing and resellerPricing data
  * @throws {Error} If API request fails or credentials are invalid
  *
  * @example
@@ -744,7 +744,7 @@ export async function getResellerPricingForTLD(
  * Retrieves reseller account details including available balance,
  * unutilised selling balance, and locked balance.
  *
- * @returns {Promise<{status: string, data?: any, error?: string}>} Reseller details with balance information
+ * @returns {Promise<{status: string, data?: ResellerDetails, error?: string}>} Reseller details with balance information
  * @throws {Error} If API request fails or credentials are invalid
  *
  * @example

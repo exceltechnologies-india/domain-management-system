@@ -21,10 +21,14 @@ if (!MONGODB_URI) {
  * Global cache object to store the Mongoose connection and promise.
  * In a Node.js global scope, this persists across hot-reloads in development.
  */
-let cached = (global as any).mongoose;
-
-if (!cached) {
-  cached = (global as any).mongoose = { conn: null, promise: null };
+interface MongooseCache {
+  conn: typeof mongoose | null;
+  promise: Promise<typeof mongoose> | null;
+}
+const globalWithMongoose = global as typeof global & { mongoose?: MongooseCache };
+let cached: MongooseCache = globalWithMongoose.mongoose ?? { conn: null, promise: null };
+if (!globalWithMongoose.mongoose) {
+  globalWithMongoose.mongoose = cached;
 }
 
 /**

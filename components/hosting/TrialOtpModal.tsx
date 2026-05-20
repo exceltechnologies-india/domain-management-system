@@ -76,8 +76,8 @@ export default function TrialOtpModal({
       toast.success('OTP sent. Check your phone.');
       setStage('code');
       setCooldownEnd(Date.now() + 60_000);
-    } catch (err: any) {
-      toast.error(err?.message || 'Could not send OTP');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Could not send OTP');
     } finally {
       setSending(false);
     }
@@ -100,8 +100,8 @@ export default function TrialOtpModal({
       sessionStorage.setItem('trial-otp-token', data.token);
       toast.success('Phone verified!');
       onVerified();
-    } catch (err: any) {
-      toast.error(err?.message || 'Verification failed');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Verification failed');
     } finally {
       setVerifying(false);
     }

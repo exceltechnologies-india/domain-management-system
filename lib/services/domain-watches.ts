@@ -16,12 +16,28 @@ import type { IDomainWatch } from "@/models/DomainWatch";
 // ─── User-side reads + writes ────────────────────────────────────────────────
 
 export interface UserWatchSummary {
-  _id: any;
+  _id: unknown;
   domainName: string;
   lastCheckedAt?: Date;
   lastStatus?: string;
   notifiedAt?: Date;
   createdAt: Date;
+}
+
+/**
+ * Lean cron-row shape: same as the watch doc but with `userId` populated
+ * to the {email, firstName, lastName} contact projection the notifier
+ * needs. The worker only reads + deletes by `_id`, so no Mongoose Document.
+ */
+export interface CronWatchRow {
+  _id: unknown;
+  domainName: string;
+  userId:
+    | { email?: string; firstName?: string; lastName?: string }
+    | string
+    | null;
+  lastCheckedAt?: Date;
+  lastStatus?: string;
 }
 
 /**
@@ -90,12 +106,12 @@ export async function removeUserWatch(
  */
 export async function listWatchesForCron(
   batchSize: number
-): Promise<any[]> {
+): Promise<CronWatchRow[]> {
   await connectDB();
   return DomainWatch.find({})
     .populate("userId", "email firstName lastName")
     .limit(batchSize)
-    .lean();
+    .lean<CronWatchRow[]>();
 }
 
 /**

@@ -48,7 +48,7 @@ export default function DomainCrossSell() {
 
       if (response.ok && data.success && data.results && data.results.length > 0) {
         // Find the exact match or the first available result
-        const exactMatch = data.results.find((r: any) => r.domainName === searchTerm) || data.results[0];
+        const exactMatch = data.results.find((r: SearchResult) => r.domainName === searchTerm) || data.results[0];
         setResult(exactMatch);
       } else {
         setResult({
@@ -93,7 +93,7 @@ export default function DomainCrossSell() {
         <div 
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
-              handleSearch(e as any);
+              handleSearch(e as unknown as React.FormEvent);
             }
           }}
           className="relative"

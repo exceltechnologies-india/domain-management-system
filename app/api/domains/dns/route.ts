@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
+import Order, { type IOrder } from "@/models/Order";
 import { Schemas } from "@/lib/validation";
 import { SecurityValidator } from "@/lib/security";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
       return secureErrorResponse("Domain not found or unauthorized", 404, "NOT_FOUND");
     }
 
-    const domain = order.domains.find((d: any) => d.domainName === domainName);
+    const domain = order.domains.find((d: IOrder['domains'][number]) => d.domainName === domainName);
 
     if (!domain || !domain.resellerClubCustomerId) {
       return secureErrorResponse("Domain configuration missing", 404, "NOT_FOUND");
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
       return secureErrorResponse("Domain not found", 404, "NOT_FOUND");
     }
 
-    const domain = order.domains.find((d: any) => d.domainName === domainName);
+    const domain = order.domains.find((d: IOrder['domains'][number]) => d.domainName === domainName);
     if (!domain || !domain.resellerClubCustomerId) {
       return secureErrorResponse("DNS management not active", 404, "NOT_FOUND");
     }

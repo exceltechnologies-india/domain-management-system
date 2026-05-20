@@ -14,7 +14,24 @@ export async function GET(request: NextRequest) {
       "https://httpbin.org/ip",
     ];
 
-    const results: any = {
+    interface ServiceProbe {
+      status: "success" | "error";
+      ip?: string;
+      error?: string;
+      responseTime?: string;
+    }
+    const results: {
+      timestamp: string;
+      services: Record<string, ServiceProbe>;
+      primaryIP: string | null;
+      allIPs: string[];
+      serverInfo: {
+        userAgent: string | null;
+        host: string | null;
+        forwarded: string | null;
+        realIP: string | null;
+      };
+    } = {
       timestamp: new Date().toISOString(),
       services: {},
       primaryIP: null,
@@ -83,7 +100,7 @@ export async function GET(request: NextRequest) {
     // Determine the most likely outbound IP
     if (results.allIPs.length > 0) {
       // Use the most common IP if there are multiple
-      const ipCounts = results.allIPs.reduce((acc: any, ip: string) => {
+      const ipCounts = results.allIPs.reduce<Record<string, number>>((acc, ip) => {
         acc[ip] = (acc[ip] || 0) + 1;
         return acc;
       }, {});

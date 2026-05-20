@@ -75,9 +75,9 @@ export async function POST(request: NextRequest) {
                    await hosting.save();
                  }
               }
-            } catch (error: any) {
+            } catch (error: unknown) {
                // Handle "User does not exist" error
-               const errorMessage = error.message || '';
+               const errorMessage = error instanceof Error ? error.message : String(error);
                
                const isConnectionError = errorMessage.includes("getsockopt") || 
                                          errorMessage.includes("ETIMEDOUT") || 
@@ -108,8 +108,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, message: "Sync completed" });
 
-  } catch (error: any) {
-    serverLogger.error("[Worker:SyncHosting] Error:", error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Sync failed";
+    serverLogger.error("[Worker:SyncHosting] Error:", message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

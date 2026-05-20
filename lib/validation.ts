@@ -159,7 +159,10 @@ export const Schemas = {
 export interface ValidationResult {
   isValid: boolean;
   errors: string[];
-  sanitized?: string;
+  // `sanitized` is the cleaned/normalized form of whatever was validated;
+  // for primitive validators (email, domain) it's a string, for compound
+  // validators (address) it's a Record<string,string> of cleaned fields.
+  sanitized?: string | Record<string, string>;
 }
 
 /**
@@ -520,7 +523,7 @@ export class InputValidator {
       { key: "zipcode", name: "ZIP Code" },
     ];
 
-    const sanitized: any = {};
+    const sanitized: Record<string, string> = {};
 
     for (const field of requiredFields) {
       const value = address[field.key as keyof typeof address];
@@ -690,7 +693,7 @@ export class InputValidator {
   /**
    * Validate array of domain IDs
    */
-  static validateDomainIds(domainIds: any): ValidationResult {
+  static validateDomainIds(domainIds: unknown): ValidationResult {
     const errors: string[] = [];
 
     if (!Array.isArray(domainIds)) {

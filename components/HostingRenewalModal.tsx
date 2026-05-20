@@ -116,13 +116,14 @@ export default function HostingRenewalModal({
           },
           theme: { color: '#2563eb' }
         });
-      } catch (err: any) {
+      } catch (err: unknown) {
         // User dismissed the modal, or the iframe reported an error.
-        if (err?.kind === 'dismissed') {
+        const tagged = err as { kind?: string; message?: string };
+        if (tagged?.kind === 'dismissed') {
           setIsProcessing(false);
           return;
         }
-        toast.error(err?.message || 'Payment was not completed');
+        toast.error(tagged?.message || (err instanceof Error ? err.message : 'Payment was not completed'));
         setIsProcessing(false);
         return;
       }
@@ -173,8 +174,8 @@ export default function HostingRenewalModal({
       } finally {
         setIsVerifying(false);
       }
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to process renewal');
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Failed to process renewal');
       setIsProcessing(false);
     }
   };

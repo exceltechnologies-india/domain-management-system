@@ -13,7 +13,7 @@
 
 import { ResellerClubWrapper } from "./resellerclub-wrapper";
 import Domain from "@/models/Domain";
-import Order from "@/models/Order";
+import Order, { type IOrder } from "@/models/Order";
 import { serverLogger } from "@/lib/server-logger";
 
 export interface DomainVerificationResult {
@@ -123,7 +123,7 @@ export class DomainVerificationService {
       const orders = await Order.find({ "domains.domainName": domainName.toLowerCase().trim() });
       for (const order of orders) {
         const domainIndex = order.domains.findIndex(
-          (d: any) => d.domainName === domainName.toLowerCase().trim()
+          (d: IOrder['domains'][number]) => d.domainName === domainName.toLowerCase().trim()
         );
         if (domainIndex !== -1) {
           const currentOrderDomainStatus = order.domains[domainIndex].status;
@@ -150,11 +150,12 @@ export class DomainVerificationService {
         expiresAt,
         status: localStatus,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Unknown error occurred during registrar sync.";
       serverLogger.error(`❌ [DOMAIN-SYNC] Error syncing ${domainName}:`, error);
       return {
         success: false,
-        error: error.message || "Unknown error occurred during registrar sync.",
+        error: message,
       };
     }
   }

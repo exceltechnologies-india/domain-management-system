@@ -115,12 +115,13 @@ export default function DNSManagementPage() {
     }
 
     if (session?.user) {
+      const sUser = session.user as { id?: string; role?: string };
       const userObj = {
-        id: (session.user as any).id,
+        id: sUser.id ?? '',
         email: session.user.email || '',
         firstName: session.user.name?.split(' ')[0] || '',
         lastName: session.user.name?.split(' ').slice(1).join(' ') || '',
-        role: (session.user as any).role || 'user',
+        role: sUser.role || 'user',
       };
 
       setUser(prev => {

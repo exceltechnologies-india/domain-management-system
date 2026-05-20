@@ -115,13 +115,15 @@ export default function HostingUpgradeModal({
           prefill: { email: userEmail },
           theme: { color: '#2563eb' },
         });
-      } catch (err: any) {
-        // User dismissed the modal → go back to confirm so they can retry.
-        if (err?.kind === 'dismissed') {
+      } catch (err: unknown) {
+        // The iframe-checkout helper throws a tagged `{ kind: 'dismissed' }`
+        // when the user closes the modal — handle that as a soft cancel.
+        const tagged = err as { kind?: string; message?: string };
+        if (tagged?.kind === 'dismissed') {
           setStep('confirm');
           return;
         }
-        setErrorMessage(err?.message || 'Payment was not completed');
+        setErrorMessage(tagged?.message || (err instanceof Error ? err.message : 'Payment was not completed'));
         setStep('error');
         return;
       }
@@ -165,8 +167,8 @@ export default function HostingUpgradeModal({
       } else {
         throw new Error(verifyJson.error || 'Payment verification failed');
       }
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Failed to initiate payment');
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to initiate payment');
       setStep('error');
     }
   };

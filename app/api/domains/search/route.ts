@@ -153,8 +153,16 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Validate base domain name
-    const domainValidation = InputValidator.validateDomainName(baseDomain);
+    // Validate base domain name. validateDomainName's `sanitized` is always
+    // a string (the union with Record<string,string> is for the address
+    // validator); narrow it once for the rest of this handler.
+    const domainValidationRaw = InputValidator.validateDomainName(baseDomain);
+    const domainValidation = {
+      ...domainValidationRaw,
+      sanitized: typeof domainValidationRaw.sanitized === "string"
+        ? domainValidationRaw.sanitized
+        : undefined,
+    };
     if (!domainValidation.isValid) {
       serverLogger.error(`❌ [API-${requestId}] Domain validation failed:`, {
         domain: baseDomain,
