@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { serverLogger } from "@/lib/server-logger";
 import { AuthService } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
+import {
+  forceMarkZohoCreationFailed,
+  getOrderByRazorpayOrderId,
+} from "@/lib/services/orders";
 import { handleRenewalPayment } from "@/lib/services/payment/renewal";
 import { handleAlreadyProcessedPayment } from "@/lib/services/payment/idempotency";
 import {
@@ -76,12 +78,10 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
     if (!verifyResult.ok) return verifyResult.response;
     const { paymentDetails } = verifyResult;
 
-    await connectDB();
-
     // 2) Early-exit for already-completed / in-progress orders by razorpay_order_id
-    const existingOrder = await Order.findOne({
-      razorpayOrderId: razorpay_order_id,
-    });
+    const existingOrder = razorpay_order_id
+      ? await getOrderByRazorpayOrderId(razorpay_order_id)
+      : null;
 
     if (existingOrder) {
       if (existingOrder.status === "completed") {
@@ -192,10 +192,7 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
         `❌ [PAYMENT-VERIFY] Zoho invoice creation failed: ${invoiceCreationError}`
       );
       try {
-        await Order.updateOne(
-          { _id: order._id },
-          { $set: { zohoInvoiceId: "creation_failed" } }
-        );
+        await forceMarkZohoCreationFailed(String(order._id));
       } catch (_) {}
     }
 

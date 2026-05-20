@@ -7,6 +7,7 @@ import mongoose from "mongoose";
 import type { IUser } from "@/models/User";
 import { createUser, getUserByEmail } from "@/lib/services/users";
 import Order from "@/models/Order";
+import { forceMarkZohoCreationFailed, getOrderByRazorpayOrderId } from "@/lib/services/orders";
 import { createPaymentInTransaction } from "@/lib/services/payments";
 import { provisionCartItems } from "@/lib/services/payment/provisioner";
 import { createZohoInvoice, runPostPaymentTasks } from "@/lib/services/payment/post-tasks";
@@ -115,10 +116,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Order ID mismatch" }, { status: 400 });
     }
 
-    await connectDB();
-
     // ── Idempotency guard ────────────────────────────────────────────────────
-    const existingOrder = await Order.findOne({ razorpayOrderId: razorpay_order_id });
+    const existingOrder = await getOrderByRazorpayOrderId(razorpay_order_id);
     if (existingOrder?.status === "completed") {
       return NextResponse.json({
         success: true,
@@ -276,10 +275,7 @@ export async function POST(request: NextRequest) {
     } catch (zohoErr: unknown) {
       const message = zohoErr instanceof Error ? zohoErr.message : String(zohoErr);
       serverLogger.error(`[GuestCheckout] Zoho invoice failed: ${message}`);
-      await Order.updateOne(
-        { _id: order._id },
-        { $set: { zohoInvoiceId: "creation_failed" } }
-      ).catch(() => {});
+      await forceMarkZohoCreationFailed(String(order._id)).catch(() => {});
     }
 
     // ── Post-payment notifications ────────────────────────────────────────────

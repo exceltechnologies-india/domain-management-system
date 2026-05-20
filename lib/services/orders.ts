@@ -532,6 +532,38 @@ export async function markZohoInvoiceCreationFailed(
 }
 
 /**
+ * Insert a new Order document. Thin pass-through to the model constructor +
+ * save, exposed here so callers don't import the Mongoose model directly.
+ * Returns the persisted document so callers can read the generated `_id`.
+ *
+ * The payload type is intentionally loose (`Record<string, unknown>`) to
+ * mirror Mongoose's own permissive `Model.create()` — the model schema does
+ * the actual validation at write time. Callers that want compile-time
+ * checking should pass a typed object literal.
+ */
+export async function createOrder(payload: Record<string, unknown>): Promise<IOrder> {
+  await connectDB();
+  return Order.create(payload);
+}
+
+/**
+ * Unconditional variant of {@link markZohoInvoiceCreationFailed}: stamps
+ * `creation_failed` regardless of the prior value. Used from the payments/verify
+ * catch-block where the post-create Zoho call threw and the prior state is
+ * indeterminate (we don't want to depend on the `pending_creation` marker
+ * having been written first).
+ */
+export async function forceMarkZohoCreationFailed(
+  orderId: string | mongoose.Types.ObjectId
+): Promise<void> {
+  await connectDB();
+  await Order.updateOne(
+    { _id: orderId },
+    { $set: { zohoInvoiceId: "creation_failed" } }
+  );
+}
+
+/**
  * Find paid/completed orders that still don't have a Zoho invoice attached
  * (or carry a terminal `creation_failed` marker). The retry cron walks this
  * list per-user; the projection matches what the retry path actually reads.
