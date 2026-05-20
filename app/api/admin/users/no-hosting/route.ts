@@ -34,8 +34,9 @@ export async function GET(request: NextRequest) {
       data: formattedUsers
     });
 
-  } catch (error: any) {
-    serverLogger.error(`Admin Users No-Hosting Error:`, error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    serverLogger.error(`Admin Users No-Hosting Error:`, message);
     return secureErrorResponse(
       "Failed to fetch users",
       500,

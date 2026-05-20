@@ -49,8 +49,8 @@ export async function POST(request: NextRequest) {
 
     const watch = await upsertUserWatch(String(user._id), domainName);
     return secureJsonResponse({ watch }, 201);
-  } catch (error: any) {
-    if (error.code === 11000) {
+  } catch (error: unknown) {
+    if ((error as { code?: number }).code === 11000) {
       return secureErrorResponse("Domain already in watch list", 409, "ALREADY_WATCHING");
     }
     return secureErrorResponse("Internal server error", 500, "SERVER_ERROR", error);

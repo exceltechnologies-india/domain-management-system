@@ -51,11 +51,19 @@ export default function TransferDomainPage() {
     }
   };
 
-  const user = session?.user;
+  // NextAuth session.user has { name?, email? } — UserLayout wants
+  // { firstName, lastName, email }. Split `name` here to satisfy the contract.
+  const layoutUser = session?.user
+    ? {
+        firstName: session.user.name?.split(" ")[0] ?? "",
+        lastName: session.user.name?.split(" ").slice(1).join(" ") ?? "",
+        email: session.user.email ?? "",
+      }
+    : null;
 
   return (
     <ClientOnly>
-      <UserLayout user={user as any} onLogout={performLogout}>
+      <UserLayout user={layoutUser} onLogout={performLogout}>
         <div className="max-w-4xl mx-auto p-6">
           <button
             onClick={() => router.back()}

@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
 
     // Step-up auth: only required for security-critical settings
     if (category === "security") {
-      const adminId = (user._id as any)?.toString() || user.id || "";
+      const adminId = String(user._id ?? user.id ?? "");
       const reauth = await requireReAuth(request, adminId);
       if (!reauth.passed) {
         return NextResponse.json(

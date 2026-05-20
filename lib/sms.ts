@@ -83,11 +83,11 @@ const msg91Provider: SmsProvider = {
         provider: "msg91",
         messageId: data?.request_id || data?.message,
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
       return {
         success: false,
         provider: "msg91",
-        error: err?.message || "MSG91 request failed",
+        error: err instanceof Error ? err.message : "MSG91 request failed",
       };
     }
   },

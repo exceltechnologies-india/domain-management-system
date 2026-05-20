@@ -39,19 +39,24 @@ export async function GET(request: NextRequest) {
       limit,
     });
 
-    // Map to clean response objects
-    const cleanUsers = users.map((u: any) => ({
-      _id: u._id,
-      firstName: u.firstName,
-      lastName: u.lastName,
-      email: u.email,
-      role: u.role,
-      createdAt: u.createdAt,
-      isActive: u.isActive !== false,
-      hostingCreatedAt: u.hostingCreatedAt,
-      hostingExpiresAt: u.hostingExpiresAt,
-      totpEnabled: u.totpEnabled === true,
-    }));
+    // Map to clean response objects. IUser doesn't declare `createdAt` (the
+    // mongoose-timestamps plugin adds it at runtime) — read it via a tight
+    // structural cast.
+    const cleanUsers = users.map((u) => {
+      const withTs = u as typeof u & { createdAt?: Date };
+      return {
+        _id: u._id,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        email: u.email,
+        role: u.role,
+        createdAt: withTs.createdAt,
+        isActive: u.isActive !== false,
+        hostingCreatedAt: u.hostingCreatedAt,
+        hostingExpiresAt: u.hostingExpiresAt,
+        totpEnabled: u.totpEnabled === true,
+      };
+    });
 
     return secureJsonResponse({
       success: true,

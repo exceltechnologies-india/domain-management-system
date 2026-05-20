@@ -3,7 +3,7 @@ import { AuthService } from "@/lib/auth";
 import { serverLogger } from "@/lib/server-logger";
 import { ZohoBooksService } from "@/lib/zohobooks";
 import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
+import Order, { type IOrder } from "@/models/Order";
 import { getUserById } from "@/lib/services/users";
 
 // Force dynamic rendering
@@ -53,7 +53,7 @@ export async function POST(
     const zohoService = ZohoBooksService.getInstance();
     
     // Prepare items from the order
-    const invoiceItems = order.domains.map((d: any) => ({
+    const invoiceItems = order.domains.map((d: IOrder['domains'][number]) => ({
         itemType: d.itemType || 'domain',
         domainName: d.domainName,
         price: d.price,
@@ -96,8 +96,9 @@ export async function POST(
         }, { status: 500 });
     }
 
-  } catch (error: any) {
-    serverLogger.error(`❌ [ADMIN] Error in manual re-sync route:`, error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    serverLogger.error(`❌ [ADMIN] Error in manual re-sync route:`, message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

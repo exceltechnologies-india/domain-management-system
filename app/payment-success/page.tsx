@@ -50,7 +50,12 @@ interface PaymentResult {
 export default function PaymentResultPage() {
   const [result, setResult] = useState<PaymentResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{
+    firstName: string;
+    lastName: string;
+    role: string;
+    email?: string;
+  } | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
 

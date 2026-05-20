@@ -101,8 +101,8 @@ export async function GET(request: NextRequest) {
         expiryDate: hosting.expiryDate,
       },
     });
-  } catch (error: any) {
-    serverLogger.error("[UPGRADE-INFO] Error:", error.message || error);
+  } catch (error: unknown) {
+    serverLogger.error("[UPGRADE-INFO] Error:", error instanceof Error ? error.message : error);
     return secureErrorResponse("Failed to get upgrade info", 500, "INTERNAL_ERROR");
   }
 }

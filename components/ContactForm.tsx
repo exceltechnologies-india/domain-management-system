@@ -109,7 +109,7 @@ export default function ContactForm({ className = '' }: ContactFormProps) {
         className="space-y-5"
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.shiftKey) {
-            handleSubmit(e as any);
+            handleSubmit(e as unknown as React.FormEvent);
           }
         }}
       >

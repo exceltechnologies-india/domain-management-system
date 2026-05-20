@@ -75,8 +75,9 @@ export async function GET(request: NextRequest) {
 
     // 5. Redirect the user
     return NextResponse.redirect(ssoUrl);
-  } catch (error: any) {
-    serverLogger.error("SSO Route Error:", error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    serverLogger.error("SSO Route Error:", message);
     return handleError(request, "Failed to initiate DirectAdmin session", 500, "SSO_FAILED");
   }
 }

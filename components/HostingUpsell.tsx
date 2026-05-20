@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Server, CheckCircle, Sparkles, ArrowRight, Shield, Zap, Headphones } from 'lucide-react';
 import { useCartStore } from '@/store/cartStore';
+import type { CartItem } from '@/lib/types';
 import toast from 'react-hot-toast';
 
 import { HOSTING_PLANS } from '@/config/hosting-plans';
@@ -51,12 +52,12 @@ export default function HostingUpsell() {
       // Always generate a unique ID for hosting products to avoid collision with domain products
       const uniqueHostingId = `hosting-${planData.id}-${Date.now()}`;
 
-      const hostingItem: any = {
+      const hostingItem: CartItem = {
         domainName: uniqueHostingId,
         price: planData.price,
         currency: 'INR',
         registrationPeriod: 12, // Default to Yearly for best value
-        itemType: 'hosting' as const,
+        itemType: 'hosting',
         billingCycle: 'yearly',
         hostingPlan: {
           id: planData.id,

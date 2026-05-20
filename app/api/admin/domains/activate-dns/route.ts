@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
+import Order, { type IOrder } from "@/models/Order";
 import { serverLogger } from "@/lib/server-logger";
 
 // Force dynamic rendering - required for API routes
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Find the specific domain in the order
-    const domain = order.domains.find((d: any) => d.domainName === domainName);
+    const domain = order.domains.find((d: IOrder['domains'][number]) => d.domainName === domainName);
 
     if (!domain) {
       return NextResponse.json(
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
       success: true,
       message: "DNS management activated successfully",
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     serverLogger.error("Error in admin activate DNS:", error);
     return NextResponse.json(
       { error: "Internal server error" },

@@ -161,8 +161,9 @@ export async function POST(request: NextRequest) {
         },
       },
     });
-  } catch (error: any) {
-    serverLogger.error("[UPGRADE] Error creating upgrade order:", error.message || error);
-    return secureErrorResponse(error.message || "Failed to initiate upgrade", 500, "INTERNAL_ERROR");
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to initiate upgrade";
+    serverLogger.error("[UPGRADE] Error creating upgrade order:", message);
+    return secureErrorResponse(message, 500, "INTERNAL_ERROR");
   }
 }

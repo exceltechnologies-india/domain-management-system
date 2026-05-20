@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
       message: "OTP sent. Please check your phone.",
       provider: sms.provider,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     serverLogger.error("[TrialOtp:send] error:", err);
     return secureErrorResponse(
       "Internal server error",

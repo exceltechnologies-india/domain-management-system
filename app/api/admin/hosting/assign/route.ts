@@ -71,9 +71,10 @@ export async function POST(request: NextRequest) {
       );
 
       serverLogger.info(`DNS nameservers updated successfully for ${domain}`);
-    } catch (dnsError: any) {
+    } catch (dnsError: unknown) {
       // Log but don't fail the entire provisioning if DNS update fails
-      serverLogger.warn(`Failed to update DNS nameservers for ${domain}: ${dnsError.message}`);
+      const message = dnsError instanceof Error ? dnsError.message : String(dnsError);
+      serverLogger.warn(`Failed to update DNS nameservers for ${domain}: ${message}`);
     }
 
     // 5. Update User Record
@@ -93,16 +94,17 @@ export async function POST(request: NextRequest) {
       }
     });
 
-  } catch (error: any) {
-    serverLogger.error(`Admin Hosting Assignment Error:`, error.message);
-    
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    serverLogger.error(`Admin Hosting Assignment Error:`, message);
+
     // Handle specific DA errors nicely
-    if (error.message && error.message.includes("already exists")) {
+    if (message.includes("already exists")) {
         return secureErrorResponse("User or Domain already exists on the server.", 409, "ALREADY_EXISTS");
     }
 
     return secureErrorResponse(
-      `Failed to assign hosting: ${error.message}`,
+      `Failed to assign hosting: ${message}`,
       500,
       "ASSIGNMENT_FAILED"
     );

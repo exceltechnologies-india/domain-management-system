@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ error: "No domain name provided" }, { status: 400 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     serverLogger.error("Admin domain sync error:", error);
     return NextResponse.json(
       { error: "Failed to sync domain registrar information" },

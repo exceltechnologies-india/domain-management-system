@@ -90,7 +90,7 @@ export async function evaluateTrialAbuse(
         };
       }
       // v3 returns a score (0..1); v2 doesn't. When present, enforce min.
-      const score = (result as any).score as number | undefined;
+      const score = (result as { score?: number }).score;
       if (typeof score === "number" && score < RECAPTCHA_MIN_SCORE) {
         serverLogger.warn(
           `[TrialAbuse] reCAPTCHA score below threshold: ${score} for ip=${options.clientIp || "unknown"}`

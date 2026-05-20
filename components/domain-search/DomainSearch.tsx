@@ -126,7 +126,7 @@ export default function DomainSearch({
       }
       if (res.status === 400) {
         const data = await res.json().catch(() => ({}));
-        showErrorToast((data as any)?.message ?? "Could not add watch");
+        showErrorToast((data as { message?: string })?.message ?? "Could not add watch");
         return;
       }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

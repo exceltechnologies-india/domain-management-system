@@ -37,13 +37,13 @@ export async function POST(request: NextRequest) {
         planId: planId,
         interval: interval
       });
-    } catch (razorpayError: any) {
+    } catch (razorpayError: unknown) {
       serverLogger.error(
         "❌ [CREATE-SUBSCRIPTION] Razorpay subscription creation failed:",
         razorpayError
       );
       return NextResponse.json(
-        { error: razorpayError.message || "Failed to create subscription" },
+        { error: razorpayError instanceof Error ? razorpayError.message : "Failed to create subscription" },
         { status: 500 }
       );
     }

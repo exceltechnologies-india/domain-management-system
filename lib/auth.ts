@@ -146,7 +146,7 @@ export class AuthService {
    * 3. Fallback to extracting the NextAuth getServerSession context.
    * 
    * @param {NextRequest} request - The incoming API router execution request
-   * @returns {Promise<any>} Mongoose user document or null if unauthorized
+   * @returns {Promise<IUser | null>} Mongoose user document or null if unauthorized
    */
   static async getUserFromRequest(request: NextRequest): Promise<IUser | null> {
     try {

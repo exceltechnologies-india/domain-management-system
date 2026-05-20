@@ -74,7 +74,9 @@ export async function getDeviceFingerprint(): Promise<string> {
     tz,
     `${screen.width}x${screen.height}x${screen.colorDepth}`,
     String(navigator.hardwareConcurrency || ""),
-    String((navigator as any).deviceMemory || ""),
+    // `deviceMemory` is part of the Device Memory API draft spec — not in
+    // the standard Navigator type yet, so we read it via a structural cast.
+    String((navigator as Navigator & { deviceMemory?: number }).deviceMemory || ""),
     canvasHashSync(),
   ];
 

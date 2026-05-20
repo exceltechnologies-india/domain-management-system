@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       message: "Phone verified. You can now claim your free trial.",
       token,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     serverLogger.error("[TrialOtp:verify] error:", err);
     return secureErrorResponse(
       "Internal server error",

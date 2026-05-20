@@ -48,6 +48,7 @@ export interface IOrder extends Document {
     resellerClubContactId?: string;
     dnsActivated?: boolean;
     dnsActivatedAt?: Date;
+    dnsProvider?: "resellerclub" | "directadmin";
     itemType?: "domain" | "hosting"; // Defaults to "domain" if not present
     hostingPlan?: {
       planId: string;

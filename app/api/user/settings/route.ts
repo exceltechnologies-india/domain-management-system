@@ -9,7 +9,19 @@ import { serverLogger } from "@/lib/server-logger";
 // Force dynamic rendering - required for API routes
 export const dynamic = "force-dynamic";
 
-function checkProfileCompletion(user: any): boolean {
+interface ProfileCompletionShape {
+  phone?: string;
+  phoneCc?: string;
+  address?: {
+    line1?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+    zipcode?: string;
+  };
+}
+
+function checkProfileCompletion(user: ProfileCompletionShape): boolean {
   const hasPhone = user.phone && user.phone.trim() !== "";
   const hasPhoneCc = user.phoneCc && user.phoneCc.trim() !== "";
   const hasAddress = user.address?.line1 && user.address.line1.trim() !== "";

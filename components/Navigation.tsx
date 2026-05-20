@@ -48,7 +48,7 @@ export default function Navigation({
     ? {
       firstName: session.user.name?.split(' ')[0] || '',
       lastName: session.user.name?.split(' ').slice(1).join(' ') || '',
-      role: (session.user as any).role || 'user'
+      role: (session.user as { role?: string }).role || 'user'
     }
     : null;
 

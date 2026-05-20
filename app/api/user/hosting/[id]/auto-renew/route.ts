@@ -48,8 +48,9 @@ export async function PATCH(
       autoRenew: hosting.autoRenew,
       billingType: hosting.billingType,
     });
-  } catch (error: any) {
-    serverLogger.error("[AutoRenew] Error:", error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    serverLogger.error("[AutoRenew] Error:", message);
     return NextResponse.json({ error: "Failed to update auto-renewal" }, { status: 500 });
   }
 }

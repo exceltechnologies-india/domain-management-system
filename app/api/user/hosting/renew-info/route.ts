@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
       }
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     serverLogger.error("Hosting renewal info error:", error);
     return secureErrorResponse("Failed to get renewal info", 500, "INTERNAL_ERROR");
   }

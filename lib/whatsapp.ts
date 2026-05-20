@@ -83,10 +83,11 @@ export class WhatsAppService {
         return false;
       }
       return true;
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
       serverLogger.error(
         `[WhatsApp] Network error sending "${templateName}" → ${phone}:`,
-        err.message
+        message
       );
       return false;
     }

@@ -11,8 +11,9 @@ export {
 };
 
 // Convenience functions with common patterns
-export const showApiError = (error: any, defaultMessage: string = 'An error occurred') => {
-  const message = error?.message || error?.error || defaultMessage;
+export const showApiError = (error: unknown, defaultMessage: string = 'An error occurred') => {
+  const e = error as { message?: string; error?: string } | null | undefined;
+  const message = e?.message || e?.error || defaultMessage;
   showErrorToast(message);
 };
 
