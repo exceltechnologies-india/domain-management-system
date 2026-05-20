@@ -859,7 +859,7 @@ Rules exempt on `tests/**` and `scripts/**` so mock-heavy test code doesn't drow
 
 ## 5. Testing
 
-### ~~[MEDIUM-5] Thin test coverage~~ — PARTIALLY RESOLVED 2026-05-14
+### ~~[MEDIUM-5] Thin test coverage~~ — **RESOLVED** 2026-05-20 (route-level integration suite landed; in-memory MongoDB scaffolding via mongodb-memory-server)
 Added [tests/unit/lib/razorpay.test.ts](tests/unit/lib/razorpay.test.ts) — 17 tests covering the security-critical signature primitives that both [app/api/payments/verify/route.ts](app/api/payments/verify/route.ts) and [app/api/webhooks/razorpay/route.ts](app/api/webhooks/razorpay/route.ts) depend on as their first line of defense:
 
 - `verifyPayment` order flow: correct signature accepted, tampered order_id/payment_id/signature rejected
@@ -887,6 +887,27 @@ Test count: 340 → **380** (+40), all green. Lint clean, tsc clean.
 - [tests/unit/lib/pending-hosting-retry.test.ts](tests/unit/lib/pending-hosting-retry.test.ts) — **10 tests** for `provisionPendingHosting` — the function shared by the admin "Retry" button and the auto-retry cron. Mocks every injected dependency (User service / DirectAdmin / Email / Hosting model / PendingHosting model) so the real 6-step flow is exercised. Covers: happy-path full provision; user-resolution failure (no DA call, no side effects); already-provisioned-elsewhere drop (returns `{ ok: true, dropped: true }`, no DA call, no duplicate email); DA still-unreachable (re-stamp `pending.error`, do NOT touch user fields or write Hosting row); DA-then-DNS failure (DNS is best-effort); DA-then-Hosting-write failure (DA account exists, refusing to delete the PendingHosting row would lock the user in a perma-failed state — log + continue); email failure post-success; two property tests fencing the `directAdminUsername`-match invariant (mismatch would target the wrong DA account on renewal) + the 15-day-before-expiry `next_action_at` (renewal reminder window).
 
 Test count: 380 → **434** (+54). Lint clean, tsc clean.
+
+**Third pass landed 2026-05-20 — route-level integration tests + mongodb-memory-server scaffolding:**
+
+The MEDIUM-5 deliberately-deferred item #1 (route-level tests for `payments/verify` + `webhooks/razorpay`) was the only piece remaining. This pass stood up the integration-test infrastructure to make it possible:
+
+- [vitest.integration.config.ts](vitest.integration.config.ts) — separate vitest config so the in-memory MongoDB doesn't conflict with the unit suite's mongoose mock. Node env (not jsdom), serial file execution, longer hooks-timeout for the memory-server cold start.
+- [tests/integration/setup.ts](tests/integration/setup.ts) — boots `mongodb-memory-server`, connects mongoose, exports `clearAllCollections()` for per-test isolation. Pre-sets every env var the route handlers read at module-load (Razorpay/JWT/NextAuth secrets) + mocks `@/lib/mongodb` to a no-op since mongoose is already connected via the memory server (route handlers `connectDB()` is a no-op call).
+- Added `npm run test:int` script + a CI step under the existing `ci` job — both unit + integration must be green for the gate to be green.
+
+**Route-level suites (+25 tests, 434 → 459):**
+
+- [tests/integration/api/payments-verify.test.ts](tests/integration/api/payments-verify.test.ts) — **10 tests** exercising the early-exit decision tree before the full provisioning chain. Auth gate (no user → 401); body validation (missing payment-verification fields → 400 with the right error message, missing/empty cartItems → 400); signature gate (tampered signature → 400, even with otherwise-valid body); already-completed idempotency exit (status: "completed" → 200 with the existing orderId; status: "paid" or "processing" → 200 with `domainRegistrationStatus: "processing"`). Tests seed real Order documents into the in-memory Mongo and assert the route returns the right body + status without re-running provisioning.
+
+- [tests/integration/api/webhooks-razorpay.test.ts](tests/integration/api/webhooks-razorpay.test.ts) — **15 tests** locking in each of the five security layers in the webhook + the event dispatch table:
+  - **Layer 1 (signature):** rejects missing header, tampered signature, signature produced with the wrong secret, body-vs-signature mismatch (attacker re-uses a sig against a different body); accepts a correctly-signed body.
+  - **Layer 2 (timestamp):** 25-hour-old event acknowledged but NOT processed (200, no dispatch); 23-hour boundary still processed; missing `created_at` doesn't false-reject (legacy delivery).
+  - **Layer 3 (Redis nonce):** first delivery claims the key + dispatches; duplicate delivery (SET NX returns null) acked but not dispatched; Redis throw → fall through to handler (MongoDB idempotency is the backstop).
+  - **Event dispatch:** `subscription.charged` → `handleSubscriptionCharged`, `subscription.payment_failed` → `handleSubscriptionFailed`, unknown events acked silently.
+  - **Layer 5 (error masking):** handler exception → 500 with the generic `"Webhook processing failed"` message; the internal error message must NOT appear in the response body (verified by an absence-of-substring check) — important because Razorpay-replay attackers could otherwise harvest internal diagnostics.
+
+Final test count: 380 → **459** (+79 across the MEDIUM-5 session). All unit + integration tests green; lint clean, tsc clean.
 
 **Coverage threshold caveat unchanged:** [vitest.config.ts](vitest.config.ts) still excludes `lib/security.ts` and `lib/pricing-service.ts` from coverage. The 60% threshold is on whatever's measured, not the codebase. [CRITICAL-3](#critical-3) tracks the security.ts exclusion separately.
 
