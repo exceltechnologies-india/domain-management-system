@@ -233,14 +233,14 @@ export default function AdminPendingDomainsPage() {
         router.push('/login');
       }
     };
-    checkAuth();
+    void checkAuth();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, status, session?.user?.email]);
 
   // Fetch Balance on load
   useEffect(() => {
     if (!isAuthLoading && user) {
-      fetchBalance();
+      void fetchBalance();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthLoading, user]);
@@ -248,7 +248,7 @@ export default function AdminPendingDomainsPage() {
   // Fetch Data Effect
   useEffect(() => {
     if (!isAuthLoading && user) {
-      fetchPendingDomains();
+      void fetchPendingDomains();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthLoading, user, pagination.page, selectedStatus, searchTerm, activeTab]);
@@ -304,7 +304,7 @@ export default function AdminPendingDomainsPage() {
           // ... (omitted for brevity, can rely on main fetch for current tab count)
         } catch (e) { }
       };
-      fetchCounts();
+      void fetchCounts();
     }
   }, [isAuthLoading, user]);
 
@@ -332,7 +332,7 @@ export default function AdminPendingDomainsPage() {
 
       if (response.ok && data.success) {
         toast.success(`Domain ${domainToRegister.domainName} registered successfully`);
-        fetchPendingDomains();
+        void fetchPendingDomains();
       } else {
         toast.error(data.message || "Failed to register domain");
       }
@@ -361,7 +361,7 @@ export default function AdminPendingDomainsPage() {
 
       if (response.ok && data.success) {
         toast.success(`Verified ${data.summary.total} domains`);
-        fetchPendingDomains();
+        void fetchPendingDomains();
       } else {
         toast.error(data.error || "Failed to verify domains");
       }
@@ -396,7 +396,7 @@ export default function AdminPendingDomainsPage() {
 
       if (response.ok && data.success) {
         toast.success("Domain archived successfully");
-        fetchPendingDomains();
+        void fetchPendingDomains();
       } else {
         toast.error(data.error || "Failed to archive domain");
       }
@@ -430,7 +430,7 @@ export default function AdminPendingDomainsPage() {
       const data = await response.json();
       if (response.ok && data.success) {
         toast.success(`${domainToMarkResolved.domainName} marked as resolved`);
-        fetchPendingDomains();
+        void fetchPendingDomains();
       } else {
         toast.error(data.error || "Failed to mark as resolved");
       }
@@ -472,7 +472,7 @@ export default function AdminPendingDomainsPage() {
       } else {
         toast.error(registerData.message || "Retry failed — check failure reason");
       }
-      fetchPendingDomains();
+      void fetchPendingDomains();
     } catch {
       toast.error("Retry failed");
     } finally {
@@ -505,7 +505,7 @@ export default function AdminPendingDomainsPage() {
 
       if (response.ok && data.success) {
         toast.success("Domain permanently deleted");
-        fetchPendingDomains();
+        void fetchPendingDomains();
       } else {
         toast.error(data.error || "Failed to delete domain");
       }

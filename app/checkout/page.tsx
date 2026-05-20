@@ -116,7 +116,7 @@ export default function CheckoutPage() {
           }
 
           setUser(updatedUser);
-          syncWithServer();
+          void syncWithServer();
         } else {
           // If API call fails, check localStorage for fallback
           const userData = safeLocalStorage.getItem('user');
@@ -138,7 +138,7 @@ export default function CheckoutPage() {
               }
 
               setUser(localUser);
-              syncWithServer();
+              void syncWithServer();
             } catch (e) {
               router.push('/login');
             }
@@ -158,7 +158,7 @@ export default function CheckoutPage() {
               return;
             }
             setUser(localUser);
-            syncWithServer();
+            void syncWithServer();
           } catch (e) {
             router.push('/login');
           }
@@ -168,7 +168,7 @@ export default function CheckoutPage() {
       }
     };
 
-    refreshUserData();
+    void refreshUserData();
   }, [router, syncWithServer, session, status]);
 
   // Navigation prevention removed - users can freely navigate during payment

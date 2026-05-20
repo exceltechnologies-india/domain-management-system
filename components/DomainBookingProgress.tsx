@@ -75,7 +75,7 @@ export default function DomainBookingProgress({
   };
 
   useEffect(() => {
-    fetchBookingStatus();
+    void fetchBookingStatus();
 
     if (autoRefresh && !isComplete) {
       const interval = setInterval(fetchBookingStatus, 3000); // Refresh every 3 seconds

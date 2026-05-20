@@ -48,7 +48,7 @@ export default function LivePricingIndicator({ domainName, tld, onPriceUpdate }:
   }, [tld, onPriceUpdate]);
 
   useEffect(() => {
-    fetchLivePrice();
+    void fetchLivePrice();
   }, [fetchLivePrice]);
 
   const formatPrice = (price: number) => {

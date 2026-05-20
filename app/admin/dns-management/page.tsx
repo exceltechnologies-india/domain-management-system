@@ -178,7 +178,7 @@ function AdminDNSManagementContent() {
 
       setUser(userObj);
       setIsAuthLoading(false);
-      loadAllDomains(false);
+      void loadAllDomains(false);
       return;
     }
 
@@ -198,7 +198,7 @@ function AdminDNSManagementContent() {
       }
       setUser(parsedUser);
       setIsAuthLoading(false);
-      loadAllDomains(false);
+      void loadAllDomains(false);
     } catch (error) {
       logger.error('Error parsing user data:', error);
       router.push('/login');
@@ -211,8 +211,8 @@ function AdminDNSManagementContent() {
     if (selectedDomain && domains.length > 0) {
       const domain = domains.find(d => d.id === selectedDomain);
       if (domain) {
-        loadDNSRecords(selectedDomain);
-        loadNameservers(selectedDomain);
+        void loadDNSRecords(selectedDomain);
+        void loadNameservers(selectedDomain);
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -287,7 +287,7 @@ function AdminDNSManagementContent() {
             setDnsPropagationStatus('propagating');
             setPropagationRetryCount(prev => prev + 1);
             setTimeout(() => {
-              loadDNSRecords(domainId, true);
+              void loadDNSRecords(domainId, true);
             }, 30000);
             toast(`DNS zone is still propagating. Retrying in 30 seconds... (Attempt ${propagationRetryCount + 1}/3)`);
           } else {
@@ -451,8 +451,8 @@ function AdminDNSManagementContent() {
 
       if (response.ok) {
         toast.success(force ? 'DNS services synced' : 'DNS management activated');
-        loadAllDomains();
-        if (selectedDomain === domainId) loadDNSRecords(domainId);
+        void loadAllDomains();
+        if (selectedDomain === domainId) void loadDNSRecords(domainId);
       } else {
         toast.error('Failed to activate DNS management');
       }
@@ -495,7 +495,7 @@ function AdminDNSManagementContent() {
         toast.success('DNS record added');
         setNewRecord({ type: 'A', name: '', value: '', ttl: 3600, priority: undefined });
         setShowAddRecord(false);
-        loadDNSRecords(selectedDomain);
+        void loadDNSRecords(selectedDomain);
       } else {
         const error = await response.json();
         toast.error(error.error || 'Failed to add record');
@@ -526,7 +526,7 @@ function AdminDNSManagementContent() {
 
       if (response.ok) {
         toast.success('DNS record deleted');
-        loadDNSRecords(selectedDomain);
+        void loadDNSRecords(selectedDomain);
       } else {
         toast.error('Failed to delete DNS record');
       }
@@ -594,7 +594,7 @@ function AdminDNSManagementContent() {
       if (addResponse.ok) {
         toast.success('DNS record updated');
         setEditingRecord(null);
-        loadDNSRecords(selectedDomain);
+        void loadDNSRecords(selectedDomain);
       } else {
         toast.error('Failed to update record (add step)');
       }
@@ -745,7 +745,7 @@ function AdminDNSManagementContent() {
                                       message: 'This will refresh the activation status from the registrar.',
                                       confirmText: 'Re-sync',
                                     });
-                                    if (ok) handleActivateDNS(domain.id, true);
+                                    if (ok) void handleActivateDNS(domain.id, true);
                                   }}
                                   className="text-[10px] font-medium text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
                                   title="Re-sync DNS status"
@@ -763,7 +763,7 @@ function AdminDNSManagementContent() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleActivateDNS(domain.id);
+                                void handleActivateDNS(domain.id);
                               }}
                               disabled={isActivating}
                               className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white border border-blue-600 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white transition-all disabled:opacity-50"

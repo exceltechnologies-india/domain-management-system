@@ -244,7 +244,7 @@ export default function UserSettings() {
     if (session?.user) {
       const sessionUser = session.user as { id?: string; name?: string; email?: string; role?: string };
       setUser({ id: sessionUser.id || '', email: sessionUser.email || '', firstName: sessionUser.name?.split(' ')[0] || '', lastName: sessionUser.name?.split(' ').slice(1).join(' ') || '', role: sessionUser.role || 'user' });
-      loadSettings(); return;
+      void loadSettings(); return;
     }
     const token = safeLocalStorage.getItem('token');
     const userData = safeLocalStorage.getItem('user');
@@ -252,7 +252,7 @@ export default function UserSettings() {
     const u = JSON.parse(userData);
     if (u.role === 'admin') { router.push('/admin/dashboard'); return; }
     setUser(u);
-    loadSettings();
+    void loadSettings();
   }, [router, session, status, loadSettings]);
 
   useEffect(() => {

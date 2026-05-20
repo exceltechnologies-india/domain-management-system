@@ -148,7 +148,7 @@ export default function AdminOrders() {
 
       setUser(userObj as User);
       setIsAuthLoading(false);
-      fetchOrders('active', 1);
+      void fetchOrders('active', 1);
       return;
     }
 
@@ -176,14 +176,14 @@ export default function AdminOrders() {
 
     setUser(userObj);
     setIsAuthLoading(false);
-    fetchOrders('active', 1);
+    void fetchOrders('active', 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, status, session?.user?.email]);
 
   useEffect(() => {
     if (!isAuthLoading && user) {
       const targetPage = activeTab === 'active' ? activePage : archivedPage;
-      fetchOrders(activeTab, targetPage);
+      void fetchOrders(activeTab, targetPage);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
@@ -272,15 +272,15 @@ export default function AdminOrders() {
     const fetching = tab === 'active' ? activeFetching : archivedFetching;
 
     if (currentHasMore && !cache.current[currentPage + 1] && !fetching.current.has(currentPage + 1)) {
-      fetchOrders(tab, currentPage + 1, true);
+      void fetchOrders(tab, currentPage + 1, true);
     }
     if (currentPage > 1 && !cache.current[currentPage - 1] && !fetching.current.has(currentPage - 1)) {
-      fetchOrders(tab, currentPage - 1, true);
+      void fetchOrders(tab, currentPage - 1, true);
     }
   };
 
   const handleLogout = () => {
-    performLogout();
+    void performLogout();
   };
 
   const handleViewOrder = (orderId: string) => {
@@ -601,7 +601,7 @@ export default function AdminOrders() {
                     pageSize={10}
                     totalItems={activeHasMore ? (activePage * 10) + 10 : activePage * 10}
                     currentPage={activePage}
-                    onPageChange={(p) => { setActivePage(p); fetchOrders('active', p); }}
+                    onPageChange={(p) => { setActivePage(p); void fetchOrders('active', p); }}
                     onRowContextMenu={handleContextMenu}
                   />
                 ) : (
@@ -614,7 +614,7 @@ export default function AdminOrders() {
                     pageSize={10}
                     totalItems={archivedHasMore ? (archivedPage * 10) + 10 : archivedPage * 10}
                     currentPage={archivedPage}
-                    onPageChange={(p) => { setArchivedPage(p); fetchOrders('archived', p); }}
+                    onPageChange={(p) => { setArchivedPage(p); void fetchOrders('archived', p); }}
                     onRowContextMenu={handleContextMenu}
                   />
                 )}

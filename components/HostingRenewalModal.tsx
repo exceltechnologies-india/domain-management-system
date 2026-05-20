@@ -44,7 +44,7 @@ export default function HostingRenewalModal({
 
   useEffect(() => {
     if (isOpen) {
-      loadRenewalInfo();
+      void loadRenewalInfo();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, domainName]);

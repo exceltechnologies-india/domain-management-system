@@ -259,7 +259,7 @@ export default function SupportPage() {
           <AnimatePresence>
             {showForm && (
               <NewTicketForm
-                onCreated={() => { setShowForm(false); mutate(); }}
+                onCreated={() => { setShowForm(false); void mutate(); }}
                 onCancel={() => setShowForm(false)}
               />
             )}

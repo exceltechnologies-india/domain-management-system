@@ -156,7 +156,7 @@ export default function HostingPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to cancel trial');
       toast.success('Free trial cancelled. Your hosting has been terminated.');
-      mutate();
+      void mutate();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to cancel trial');
     } finally {
@@ -178,7 +178,7 @@ export default function HostingPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update');
       toast.success(newValue ? 'Auto-renewal enabled' : 'Auto-renewal disabled');
-      mutate();
+      void mutate();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to update auto-renewal');
     } finally {

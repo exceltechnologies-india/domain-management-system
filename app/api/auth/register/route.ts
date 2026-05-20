@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Synchronize to external providers asynchronously
-    (async () => {
+    void (async () => {
       try {
         const { ResellerClubAPI } = await import("@/lib/resellerclub");
         const { ZohoBooksService } = await import("@/lib/zohobooks");

@@ -185,7 +185,7 @@ export default function AdminHostingPage() {
 
       setUser(userObj);
       setIsAuthLoading(false);
-      fetchHostingData();
+      void fetchHostingData();
       return;
     }
 
@@ -205,7 +205,7 @@ export default function AdminHostingPage() {
 
     setUser(userObj);
     setIsAuthLoading(false);
-    fetchHostingData();
+    void fetchHostingData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, session, status]);
 
@@ -327,7 +327,7 @@ export default function AdminHostingPage() {
 
   useEffect(() => {
     if (showProvisionModal) {
-      fetchProvisionDeps();
+      void fetchProvisionDeps();
     }
   }, [showProvisionModal]);
 
@@ -367,7 +367,7 @@ export default function AdminHostingPage() {
         setDaUsername('');
         setValidityPeriod(12); // Reset to default
         // Refresh hosting list
-        fetchHostingData();
+        void fetchHostingData();
       } else {
         toast.error(data.message || 'Failed to provision hosting');
       }
@@ -431,7 +431,7 @@ export default function AdminHostingPage() {
         const actionPastTense = action === 'delete' ? 'terminated' : action + 'ed';
         toast.success(`Account ${actionPastTense} successfully`);
         setDeleteModal({ show: false, username: '', domain: '', hostingId: '' });
-        fetchHostingData(); // Refresh list
+        void fetchHostingData(); // Refresh list
       } else {
         toast.error(data.message || `Failed to ${action} user`);
       }
@@ -479,7 +479,7 @@ export default function AdminHostingPage() {
 
     // Fetch packages if not already loaded
     if (availablePackages.length === 0) {
-      fetchProvisionDeps();
+      void fetchProvisionDeps();
     }
   };
 
@@ -509,7 +509,7 @@ export default function AdminHostingPage() {
         setShowChangePackageModal(false);
         setChangePackageUser(null);
         setNewPackage('');
-        fetchHostingData(); // Refresh list
+        void fetchHostingData(); // Refresh list
       } else {
         toast.error(data.message || 'Failed to change package');
       }
@@ -1237,7 +1237,7 @@ export default function AdminHostingPage() {
                           {(selectedDetails.nameservers?.length ?? 0) > 0 ? selectedDetails.nameservers!.map((ns: string, i: number) => (
                             <div key={i} className="bg-white px-3 py-2 rounded-lg border border-blue-200 font-mono text-sm text-gray-700 flex justify-between items-center">
                               {ns}
-                              <button onClick={() => { navigator.clipboard.writeText(ns); toast.success('Copied!'); }} className="text-blue-500 hover:text-blue-700 p-1">
+                              <button onClick={() => { void navigator.clipboard.writeText(ns); toast.success('Copied!'); }} className="text-blue-500 hover:text-blue-700 p-1">
                                 <ExternalLink className="h-3 w-3" />
                               </button>
                             </div>

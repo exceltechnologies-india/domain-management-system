@@ -133,7 +133,7 @@ export default function DNSManagementPage() {
 
       if (!isInitialized.current) {
         isInitialized.current = true;
-        loadDomains();
+        void loadDomains();
       }
       return;
     }
@@ -157,7 +157,7 @@ export default function DNSManagementPage() {
 
       if (!isInitialized.current) {
         isInitialized.current = true;
-        loadDomains();
+        void loadDomains();
       }
     } catch (error) {
       router.push('/login');
@@ -205,7 +205,7 @@ export default function DNSManagementPage() {
     };
 
     if (user) {
-      checkServices();
+      void checkServices();
     }
   }, [user]);
 
@@ -285,7 +285,7 @@ export default function DNSManagementPage() {
 
             // Wait and retry after 30 seconds
             setTimeout(() => {
-              loadDNSRecords(domainId, true);
+              void loadDNSRecords(domainId, true);
             }, 30000);
 
             toast(`DNS zone is still propagating. Retrying in 30 seconds... (Attempt ${propagationRetryCount + 1}/3)`);
@@ -373,8 +373,8 @@ export default function DNSManagementPage() {
         const isHosted = hostedDomains.includes(domain.name);
         setIsHostedDomain(isHosted);
 
-        loadDNSRecords(selectedDomain);
-        loadNameservers(selectedDomain);
+        void loadDNSRecords(selectedDomain);
+        void loadNameservers(selectedDomain);
       }
     }
   }, [selectedDomain, domains, hostedDomains, loadDNSRecords, loadNameservers]);
@@ -521,7 +521,7 @@ export default function DNSManagementPage() {
         toast.success('DNS record added successfully');
         setNewRecord({ type: 'A', name: '', value: '', ttl: 3600, priority: undefined });
         setShowAddRecord(false);
-        loadDNSRecords(selectedDomain);
+        void loadDNSRecords(selectedDomain);
       } else {
         const error = await response.json();
         toast.error(error.error || 'Failed to add DNS record');
@@ -560,7 +560,7 @@ export default function DNSManagementPage() {
 
       if (response.ok) {
         toast.success('DNS record deleted successfully');
-        loadDNSRecords(selectedDomain);
+        void loadDNSRecords(selectedDomain);
       } else {
         const error = await response.json();
         toast.error(error.error || 'Failed to delete DNS record');
@@ -643,7 +643,7 @@ export default function DNSManagementPage() {
       if (addResponse.ok) {
         toast.success('DNS record updated successfully');
         setEditingRecord(null);
-        loadDNSRecords(selectedDomain);
+        void loadDNSRecords(selectedDomain);
       } else {
         const error = await addResponse.json();
         toast.error(error.error || 'Failed to add updated record');
@@ -708,7 +708,7 @@ export default function DNSManagementPage() {
         );
 
         // Reload domains to get updated data
-        loadDomains();
+        void loadDomains();
       } else {
         const errorData = await response.json();
         toast.error(errorData.error || 'Failed to activate DNS management');
@@ -898,7 +898,7 @@ export default function DNSManagementPage() {
                             <span className="font-mono text-sm text-gray-800 truncate">{ns}</span>
                           </div>
                           <button
-                            onClick={() => { navigator.clipboard.writeText(ns); toast.success('Copied'); }}
+                            onClick={() => { void navigator.clipboard.writeText(ns); toast.success('Copied'); }}
                             className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-white rounded-md transition-colors shrink-0"
                             title="Copy"
                           >
@@ -1096,7 +1096,7 @@ export default function DNSManagementPage() {
                           onClick={() => {
                             setPropagationRetryCount(0);
                             setDnsPropagationStatus('checking');
-                            loadDNSRecords(selectedDomain);
+                            void loadDNSRecords(selectedDomain);
                           }}
                           className="px-3 py-1 text-xs font-medium text-red-700 bg-white border border-red-200 rounded-full hover:bg-red-50 transition-colors"
                         >
@@ -1173,7 +1173,7 @@ export default function DNSManagementPage() {
                                   message: 'This re-syncs the DNS activation with the registrar. Useful if you see "DNS Service not active" errors.',
                                   confirmText: 'Re-sync',
                                 });
-                                if (ok) handleActivateDNS(true);
+                                if (ok) void handleActivateDNS(true);
                               }}
                               className="text-xs text-blue-600 hover:text-blue-700 hover:underline mt-1 font-medium"
                             >
@@ -1420,7 +1420,7 @@ export default function DNSManagementPage() {
                                           </span>
                                           <button
                                             onClick={() => {
-                                              navigator.clipboard.writeText(record.value);
+                                              void navigator.clipboard.writeText(record.value);
                                               toast.success('Value copied');
                                             }}
                                             className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-blue-600 transition-all shrink-0"

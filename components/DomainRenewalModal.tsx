@@ -68,7 +68,7 @@ export default function DomainRenewalModal({
 
   useEffect(() => {
     if (isOpen) {
-      loadRenewalInfo();
+      void loadRenewalInfo();
     }
   }, [isOpen, loadRenewalInfo]);
 

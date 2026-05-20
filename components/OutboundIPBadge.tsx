@@ -42,7 +42,7 @@ export default function OutboundIPBadge() {
       }
     };
 
-    fetchIP();
+    void fetchIP();
 
     // Refresh IP every 30 minutes
     const interval = setInterval(fetchIP, 30 * 60 * 1000);

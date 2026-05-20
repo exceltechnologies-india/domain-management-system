@@ -140,7 +140,7 @@ export default function AdminTicketDetailPage() {
         } else { router.push("/login"); }
       } catch { router.push("/login"); }
     };
-    checkAuth();
+    void checkAuth();
   }, [status, router, getAuthToken, session?.user]);
 
   const fetchTicket = useCallback(async () => {
@@ -158,7 +158,7 @@ export default function AdminTicketDetailPage() {
   }, [params.id, getAuthToken]);
 
   useEffect(() => {
-    if (!isAuthLoading && user) fetchTicket();
+    if (!isAuthLoading && user) void fetchTicket();
   }, [isAuthLoading, user, fetchTicket]);
 
   useEffect(() => {

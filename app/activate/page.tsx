@@ -24,7 +24,7 @@ export default function ActivatePage() {
 
   useEffect(() => {
     if (token) {
-      activateAccount(token);
+      void activateAccount(token);
     } else if (messageParam) {
       // User came from dashboard or login page with activation required
       const decodedMessage = decodeURIComponent(messageParam);
@@ -32,7 +32,7 @@ export default function ActivatePage() {
 
       if (decodedMessage.includes('Account not activated')) {
         // User came from dashboard - check if they're actually activated
-        checkActivationStatus();
+        void checkActivationStatus();
       } else {
         // User came from login page with activation required
         setActivationStatus('invalid');

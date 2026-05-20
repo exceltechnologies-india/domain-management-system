@@ -88,7 +88,7 @@ export default function AdminPayments() {
 
       setUser(userObj);
       setIsAuthLoading(false);
-      loadPayments();
+      void loadPayments();
       return;
     }
 
@@ -116,7 +116,7 @@ export default function AdminPayments() {
 
     setUser(userObj);
     setIsAuthLoading(false);
-    loadPayments();
+    void loadPayments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, status, session?.user?.email]);
 
@@ -158,7 +158,7 @@ export default function AdminPayments() {
   };
 
   const handleLogout = () => {
-    performLogout();
+    void performLogout();
   };
 
   const handleViewPayment = (paymentId: string) => {
@@ -179,7 +179,7 @@ export default function AdminPayments() {
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
-    loadPayments(page, searchTerm);
+    void loadPayments(page, searchTerm);
   };
 
   const handleSearch = (search: string) => {

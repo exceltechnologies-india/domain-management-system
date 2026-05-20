@@ -130,7 +130,7 @@ export default function AdminPendingHostingPage() {
 
   useEffect(() => {
     if (user) {
-      fetchPendingData();
+      void fetchPendingData();
     }
   }, [user]);
 
@@ -149,11 +149,11 @@ export default function AdminPendingHostingPage() {
 
       if (data.success) {
         toast.success(data.message || 'Provisioning retried successfully');
-        fetchPendingData(); // Refresh list to remove the item
+        void fetchPendingData(); // Refresh list to remove the item
       } else {
         toast.error(data.message || 'Retry failed');
         // Refresh to show updated error
-        fetchPendingData();
+        void fetchPendingData();
       }
     } catch (error) {
       toast.error("An error occurred during retry");

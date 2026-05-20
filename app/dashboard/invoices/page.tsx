@@ -58,7 +58,7 @@ export default function InvoicesPage() {
   const hasPendingInvoice = invoices.some((inv) => inv.zoho_pending);
   useEffect(() => {
     if (!hasPendingInvoice) return;
-    const id = setInterval(() => { mutate(); }, 30000);
+    const id = setInterval(() => { void mutate(); }, 30000);
     return () => clearInterval(id);
   }, [hasPendingInvoice, mutate]);
 
@@ -113,7 +113,7 @@ export default function InvoicesPage() {
 
         if (verifyRes.ok) {
           showSuccessToast('Payment successful! Services are being reactivated.');
-          mutate();
+          void mutate();
           router.push('/dashboard/hosting');
         } else {
           showErrorToast('Payment verified but service reactivation failed. Please contact support.');

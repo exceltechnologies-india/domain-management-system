@@ -120,7 +120,7 @@ export default function SupportTicketDetailPage() {
       });
       const json = await res.json();
       if (!res.ok) { toast.error(json.error ?? 'Failed to close ticket'); return; }
-      mutate();
+      void mutate();
       toast.success('Ticket closed');
     } catch { toast.error('Network error'); }
     finally { setClosing(false); }
@@ -140,7 +140,7 @@ export default function SupportTicketDetailPage() {
       if (!res.ok) { toast.error(json.error ?? 'Failed to send reply'); return; }
       setReply('');
       setAttachments([]);
-      mutate();
+      void mutate();
       toast.success('Reply sent');
     } catch { toast.error('Network error'); }
     finally { setSending(false); }
