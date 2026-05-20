@@ -879,7 +879,7 @@ Test count moved from 281 → 298, all green.
 
 ---
 
-### ~~[MEDIUM-6] No visible CI~~ — PARTIALLY RESOLVED 2026-05-14
+### ~~[MEDIUM-6] No visible CI~~ — **RESOLVED** 2026-05-20 (audit job now gating, deploy.sh CI-green gate added; only required-status-check on the main ruleset remains — GitHub plan limitation)
 Added [.github/workflows/ci.yml](.github/workflows/ci.yml) with two jobs triggered on push to `main` and on pull requests:
 
 **Job 1: `ci` (Lint + Test + Type-check) — blocking**
@@ -900,10 +900,10 @@ The audit step is **deliberately non-blocking** for now: `npm audit` currently r
 
 **Verified:** vitest 340/340, lint clean (8 expected `console.*` warnings, exit 0), `tsc --noEmit` clean.
 
-**Pending follow-up (the still-unresolved part):**
-1. **Gate `deploy.sh` behind CI green status.** Requires `gh` CLI authenticated on the deploy host, then a step like `gh run list --branch main --limit 1 --json conclusion` to inspect the latest run before proceeding. Defer until the team has reviewed the CI workflow output for a few cycles.
-2. **Wire the required-status-check on the `main` ruleset/branch-protection rule.** Once CI runs at least once, the GitHub UI surfaces `CI / Lint + Test + Type-check` in the "required status checks" dropdown — pick it there. (No code change needed; only the existing GitHub limitation that ruleset enforcement on Free private repos is cosmetic until upgrading to Team — see [CRITICAL-1](#critical-1).)
-3. **Upgrade Next.js + flip the audit job to blocking.** Likely a `npm audit fix` on `next` will patch all 13 advisories. Smoke-test on a branch before merging.
+**Follow-ups landed 2026-05-20:**
+1. ✅ **Gate `deploy.sh` behind CI green status.** [scripts/deploy-cloud-run.sh](scripts/deploy-cloud-run.sh) now runs a `check_ci_green` step before the build/deploy. It calls `gh run list --commit $HEAD --workflow CI --limit 1 --json status,conclusion,url` and refuses to deploy when the run is `failure`, `cancelled`, or still `in_progress`. Catches the two failure modes the audit flagged: "I forgot to push, tests are red" and "tests haven't finished yet, deploy will land before signal." Graceful degradation when `gh` is missing or unauthenticated (prints a warning, proceeds — so first-time users / fresh laptops aren't blocked by tooling). Bypass via `--skip-ci-check` for emergency hotfixes; the help text documents it. Includes a 60-second wait loop for the GitHub-Actions-queueing race (push → run-creation gap), then bails clearly with a "Did you push to origin?" hint.
+2. ✅ **Upgrade Next.js + flip the audit job to blocking.** Landed in [91ef506](.) (2026-05-16) — `npm audit fix` cleared all 13 high-severity Next.js advisories by bumping `next@15.5.15 → 15.5.18`. `continue-on-error: true` removed from the audit job in CI; `npm audit --audit-level=high` is now gating. Current state: 0 high/critical, 3 moderate (transitive, below threshold).
+3. ⏸️ **Required-status-check on the `main` ruleset/branch-protection rule.** Still pending — blocked by GitHub Free repo limitation. The UI item exists but enforcement requires GitHub Team / Pro+. No code change can address this; flip the toggle once the org is on a billable plan. Workaround: the deploy.sh CI gate above plus the gating audit job give the same effective blast-radius protection without the GitHub plan requirement.
 
 ---
 
