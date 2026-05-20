@@ -871,9 +871,15 @@ Test count moved from 281 → 298, all green.
 
 **Deliberately deferred to integration tests (deemed remaining work):**
 1. Route-level tests for [payments/verify](app/api/payments/verify/route.ts) and [webhooks/razorpay](app/api/webhooks/razorpay/route.ts). Each route has 10+ collaborators (AuthService, MongoDB models, Razorpay client, Email, Cloud Tasks, payment-services helpers, Redis nonce). Mocking that surface to test 4 early-return paths is high-effort, low-value — integration tests using a test Mongo + Razorpay sandbox are the right place.
-2. Auth surface (TOTP setup/confirm, password reset, session timeout).
+2. ~~Auth surface (TOTP setup/confirm, password reset, session timeout).~~ — TOTP primitives covered as of 2026-05-20 (see below).
 3. Domain provisioning lifecycle (`Pending → Domain` promotion).
-4. CSRF and rate-limit middleware.
+4. ~~CSRF and rate-limit middleware.~~ — CSRF was already covered in the [CRITICAL-3](#critical-3) security.test.ts pass; rate-limit covered as of 2026-05-20 (see below).
+
+**Pass landed 2026-05-20 — rate-limit + TOTP primitives:**
+- [tests/unit/lib/rate-limit.test.ts](tests/unit/lib/rate-limit.test.ts) — **18 tests** mocking `@/lib/redis` with an in-memory store so the real `RateLimiter` class is exercised end-to-end. Covers: window arithmetic (Nth allowed, N+1 blocked); per-key scoping (different IPs each get a fresh quota); the IP-fallback chain `request.ip → x-forwarded-for → x-real-ip → "unknown"` with a dedicated regression test that catches the "attacker forges x-forwarded-for to bypass" failure mode; "unknown" bucket collapses to a single key (so stripping IP-bearing fields doesn't grant fresh quota); fail-open on Redis throw (so a Redis outage doesn't lock out the app); the `checkKey(composite)` path the credentials provider uses with `login:email:ip` keys; per-endpoint configuration fences for `login` (5/15min), `passwordReset` (3/1h), `register` (5/1h), `trialOtpSend` (3/10min), `trialOtpVerify` (10/10min), `supportCreate` (5/1h per-user), and `pdfInvoice` (10/min per-user-then-IP). A bump from "5 attempts" to "50 attempts" by accident now fails CI.
+- [tests/unit/lib/totp.test.ts](tests/unit/lib/totp.test.ts) — **22 tests** locking in the 2FA primitives [lib/auth-config/providers.ts](lib/auth-config/providers.ts) calls during login. Covers: secret generation (base32 shape, no shared state), `verifyTotpCode` with whitespace tolerance, empty/non-numeric/short-code rejection, and a never-throws-on-garbage-secret regression for the `catch{}` block (otplib's stricter v6+ secret validation could otherwise break login if a malformed secret slipped into the DB), `epochTolerance: 30` skew tolerance (±30s accepted, 120s rejected) — this is the test that catches the otplib API rename from `options.window` → `epochTolerance` that landed during MEDIUM-1's 13th pass; `getTotpUri` shape (otpauth://, issuer, label); backup codes (count, format `XXXXX-XXXXX`, uniqueness); and a hash/verify round-trip with case + dash tolerance + a never-throws-on-malformed-hash fence (so a corrupt hash mid-array doesn't break the providers.ts iteration over `totpBackupCodes`).
+
+Test count: 340 → **380** (+40), all green. Lint clean, tsc clean.
 
 **Coverage threshold caveat unchanged:** [vitest.config.ts](vitest.config.ts) still excludes `lib/security.ts` and `lib/pricing-service.ts` from coverage. The 60% threshold is on whatever's measured, not the codebase. [CRITICAL-3](#critical-3) tracks the security.ts exclusion separately.
 
