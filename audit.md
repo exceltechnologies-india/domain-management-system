@@ -447,7 +447,31 @@ Audit-recommended sub-files I did NOT create:
 
 ## 4. Code Quality
 
-### ~~[MEDIUM-1] 540 `any` types~~ — PARTIALLY RESOLVED 2026-05-17 (14 typing passes 2026-05-17 → 2026-05-20; 845 → 84 sitewide, 90% reduction; every external-API wrapper / lib helper / service layer / admin route / worker / dashboard page covered)
+### ~~[MEDIUM-1] 540 `any` types~~ — **RESOLVED** 2026-05-20 (15 typing passes 2026-05-17 → 2026-05-20; 845 → 10 sitewide, 99% reduction; **every remaining `any` is intentional with an in-line `eslint-disable` + rationale**)
+
+**Fifteenth pass — long-tail completion 2026-05-20:** 30+ files touched, 74 anys removed (84 → 10 sitewide). All remaining anys (6 real, 4 false-positives in comment text) are intentional:
+
+- `lib/auth-config/callbacks.ts` (4) — NextAuth callback parameter shapes vary by provider (Google/credentials/GitHub). The four `: any` annotations on `signIn`, `jwt`, `session`, plus the `additionalData: any` for the disabled Google People API path, are kept with `// eslint-disable-next-line @typescript-eslint/no-explicit-any` comments because forcing a narrower type would lie about the runtime shape NextAuth gives us.
+- `lib/types.ts:88` (`ResellerClubResponse.data`) — RC returns wildly different payloads per endpoint (price tree, order ID, DNS records, renewal pricing…). Narrowing to `unknown` would force every callsite (~25) to cast at the read; an inline eslint-disable + rationale comment keeps it `any`, with the per-endpoint response types in `lib/resellerclub/types.ts` available for callers that want stricter shapes.
+- `components/admin/AdminDataTable.tsx:20` (`Column.render` value parameter) — kept `any` for the same variance reason documented in the thirteenth pass (forcing `unknown` cascades through every admin-page callsite).
+
+**Bulk patterns applied in this pass:**
+
+- **Catch-block narrowing** (~25 sites): `} catch (X: any) {` → `} catch (X: unknown) {` + `instanceof Error` narrowing at each `X.message` / `X.code` read. Touched `lib/sms.ts`, `lib/whatsapp.ts`, every `app/api/user/hosting/*` route, all admin order/hosting/domains/payments routes, debug/check-expiry, workers, payment subscription routes, user settings + email change verify + invoices pay, etc.
+- **Form-event casts** (3 sites): `handleSubmit(e as any)` → `handleSubmit(e as unknown as React.FormEvent)` in `ContactForm.tsx`, `ResetPasswordForm.tsx`, `ForgotPasswordForm.tsx`.
+- **NextAuth session shape narrowing** (~6 sites): `(session.user as any).role` collapsed to `as { role?: string }` in `Navigation.tsx`, `app/admin/dns-management/page.tsx`, `app/admin/hosting/pending/page.tsx`, support-tickets pages, hosting/packages page, domains/page, etc.
+- **`Order.domains.find/forEach` callbacks**: typed via `IOrder['domains'][number]` in `admin/orders/[id]/re-sync-invoice`, `admin/domains/activate-dns`, `admin/payments`, `domains/verify-status`, `user/domains/dns`, etc.
+- **Helper function param narrowing**: `checkProfileCompletion(user: any)` in both user/settings + user/complete-profile narrowed to local `ProfileShape`/`ProfileCompletionShape` interfaces. `formatRegistrationPeriod(hostingPlan: any)` → `hostingPlan: unknown` (only used as a truthy check). `showApiError(error: any)` → `unknown` + structural narrowing.
+- **`(user._id as any).toString()` pattern** (2 sites): `app/api/admin/users/reset-password` + `app/api/admin/settings` — replaced with `String(user._id ?? user.id ?? "")`.
+- **`globalThis` + Navigator-extension shapes**: `device-fingerprint.ts` narrows the `deviceMemory` Device Memory API draft property via a structural cast on `Navigator`.
+
+**Latent issue surfaced and fixed:** [models/Order.ts](models/Order.ts) — the `IOrder.domains[]` TypeScript interface was missing `dnsProvider?: "resellerclub" | "directadmin"`, even though the Mongoose schema defined it. The `any`-typed forEach was hiding this. Added to the interface — `app/api/user/domains/dns/route.ts` now reads `domain.dnsProvider` type-safely.
+
+**Verified on main 2026-05-20:** 340/340 tests, lint clean (`✔ No ESLint warnings or errors`), tsc clean.
+
+---
+
+
 
 **Fourteenth pass — long-tail batch 2026-05-20:** 30+ files touched, 75 anys removed (159 → 84 sitewide):
 

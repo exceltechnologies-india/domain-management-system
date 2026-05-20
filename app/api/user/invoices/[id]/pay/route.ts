@@ -57,7 +57,7 @@ export async function POST(
       orderId: orderReceiptId
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     serverLogger.error("❌ [INVOICE-PAY] Error:", error);
     return NextResponse.json(
       { error: "Failed to initiate payment" },

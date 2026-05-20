@@ -151,8 +151,9 @@ export async function POST(request: NextRequest) {
       }
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     serverLogger.error("Hosting renewal error:", error);
-    return secureErrorResponse(error.message || "Failed to initiate renewal", 500, "INTERNAL_ERROR");
+    const message = error instanceof Error ? error.message : "Failed to initiate renewal";
+    return secureErrorResponse(message, 500, "INTERNAL_ERROR");
   }
 }

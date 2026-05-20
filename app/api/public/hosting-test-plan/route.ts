@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
-import HostingPlan from "@/models/HostingPlan";
+import HostingPlan, { type IHostingPlan } from "@/models/HostingPlan";
 import { getSettingValue } from "@/lib/services/settings";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,9 @@ export async function GET(_request: NextRequest) {
       return NextResponse.json({ enabled: false });
     }
 
-    const plan = await HostingPlan.findOne({ planId: "test_1rs", isActive: true }).lean() as any;
+    const plan = (await HostingPlan.findOne({ planId: "test_1rs", isActive: true }).lean()) as
+      | (IHostingPlan & { razorpayPlans?: { monthly?: string } })
+      | null;
     if (!plan) {
       return NextResponse.json({ enabled: false });
     }

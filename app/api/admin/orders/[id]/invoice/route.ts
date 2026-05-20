@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
+import Order, { type IOrder } from "@/models/Order";
+import type { IUser } from "@/models/User";
 import { ZohoBooksService } from "@/lib/zohobooks";
 import { formatIndianDate } from "@/lib/dateUtils";
 import jsPDF from "jspdf";
@@ -33,7 +34,7 @@ export async function GET(
     }
 
     // Fetch the customer for this order
-    const customer = await getUserById(String((order as any).userId));
+    const customer = await getUserById(String(order.userId));
     if (!customer) {
         return NextResponse.json({ error: "Customer not found" }, { status: 404 });
     }
@@ -71,7 +72,7 @@ export async function GET(
 /**
  * Mirror the professional layout from the user-side
  */
-function generateCustomPdf(order: any, user: any, message?: string) {
+function generateCustomPdf(order: IOrder, user: IUser, message?: string) {
     const pdf = new jsPDF();
     const margin = 15;
     let y = 20;

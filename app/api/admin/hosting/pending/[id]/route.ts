@@ -24,7 +24,8 @@ export async function DELETE(
       success: true,
       message: "Pending hosting entry deleted successfully"
     });
-  } catch (error: any) {
-    return secureErrorResponse(error.message, 500, "SERVER_ERROR");
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Server error";
+    return secureErrorResponse(message, 500, "SERVER_ERROR");
   }
 }

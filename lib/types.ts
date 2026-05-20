@@ -79,7 +79,13 @@ export interface DNSRecord {
 export interface ResellerClubResponse {
   status: string;
   message?: string;
-  data?: any; // intentionally any — ResellerClub returns wildly different shapes per endpoint
+  // ResellerClub returns wildly different shapes per endpoint
+  // (price tree, order ID, DNS records, renewal pricing, …). Narrowing
+  // this to `unknown` would force every callsite (~25) to cast at the read,
+  // so the union member stays `any` here with the per-endpoint types in
+  // lib/resellerclub/types.ts available for callers that want stricter shapes.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data?: any;
 }
 
 export interface RazorpayPaymentDetails {

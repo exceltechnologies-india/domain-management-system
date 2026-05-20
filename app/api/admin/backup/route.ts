@@ -198,7 +198,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     serverLogger.error("Backup error:", error);
     return NextResponse.json(
       { error: "Internal server error during backup" },

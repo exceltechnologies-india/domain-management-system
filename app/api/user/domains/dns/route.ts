@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
+import Order, { type IOrder } from "@/models/Order";
 import { listDomainsForUser } from "@/lib/services/domains";
 import { serverLogger } from "@/lib/server-logger";
 
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     const domainIdMap = new Map(domainDocs.map(d => [d.domainName, d._id.toString()]));
 
     orders.forEach((order) => {
-      order.domains.forEach((domain: any) => {
+      order.domains.forEach((domain: IOrder['domains'][number]) => {
         const domainKey = domain.domainName;
 
         // Only include domains with "registered" status for DNS management

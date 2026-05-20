@@ -47,13 +47,13 @@ export async function POST(request: NextRequest) {
         success: true,
         message: "Subscription cancelled successfully. Hosting will expire at the end of the current term."
       });
-    } catch (razorpayError: any) {
+    } catch (razorpayError: unknown) {
       serverLogger.error(
         "❌ [CANCEL-SUBSCRIPTION] Razorpay cancellation failed:",
         razorpayError
       );
       return NextResponse.json(
-        { error: razorpayError.message || "Failed to cancel subscription" },
+        { error: razorpayError instanceof Error ? razorpayError.message : "Failed to cancel subscription" },
         { status: 500 }
       );
     }

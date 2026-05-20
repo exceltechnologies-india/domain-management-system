@@ -185,9 +185,9 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
         cartItems,
       });
       if (zohoNum) finalInvoiceNumber = zohoNum;
-    } catch (zohoError: any) {
+    } catch (zohoError: unknown) {
       invoiceCreationFailed = true;
-      invoiceCreationError = zohoError?.message ?? "Unknown Zoho error";
+      invoiceCreationError = zohoError instanceof Error ? zohoError.message : "Unknown Zoho error";
       serverLogger.error(
         `❌ [PAYMENT-VERIFY] Zoho invoice creation failed: ${invoiceCreationError}`
       );

@@ -43,7 +43,7 @@ export const redisCache = {
     }
   },
 
-  async set(key: string, value: any, ttlSeconds: number = 120): Promise<void> {
+  async set(key: string, value: unknown, ttlSeconds: number = 120): Promise<void> {
     try {
       if (!REDIS_HOST) return
       await redis.set(key, JSON.stringify(value), 'EX', ttlSeconds)

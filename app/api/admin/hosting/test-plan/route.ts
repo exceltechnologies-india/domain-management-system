@@ -88,10 +88,11 @@ export async function POST(request: NextRequest) {
         );
         rzpPlanMonthlyId = rzpPlan.id;
         serverLogger.info(`[TestPlan] Created Razorpay plan: ${rzpPlanMonthlyId}`);
-      } catch (err: any) {
-        serverLogger.error(`[TestPlan] Razorpay plan creation failed: ${err.message}`);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        serverLogger.error(`[TestPlan] Razorpay plan creation failed: ${message}`);
         return secureErrorResponse(
-          `Failed to create Razorpay plan: ${err.message}`,
+          `Failed to create Razorpay plan: ${message}`,
           500,
           "RAZORPAY_ERROR"
         );

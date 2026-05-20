@@ -34,10 +34,10 @@ export async function POST(request: NextRequest) {
       skipped,
       results,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     serverLogger.error("[InvoiceSync] Unhandled error:", err);
     return NextResponse.json(
-      { error: err?.message || "Sync failed" },
+      { error: err instanceof Error ? err.message : "Sync failed" },
       { status: 500 }
     );
   }

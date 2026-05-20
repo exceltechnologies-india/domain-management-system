@@ -15,7 +15,17 @@ import { safeLocalStorage } from '@/lib/storage';
 import { logger } from '@/lib/logger';
 
 export default function AdminSettings() {
-  const [user, setUser] = useState<any>(null);
+  // Loosely-typed user blob — comes from JWT /auth/me payload or NextAuth
+  // session. AdminLayoutNew requires firstName/lastName/role; the rest is
+  // optional ID/email used elsewhere in this page.
+  const [user, setUser] = useState<{
+    firstName: string;
+    lastName: string;
+    role: string;
+    _id?: string;
+    id?: string;
+    email?: string;
+  } | null>(null);
 
   // Split loading states
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -570,12 +580,13 @@ export default function AdminSettings() {
       showSuccessToast('Backup generated successfully');
       setIsBackupModalOpen(false);
       setBackupPassword('');
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Backup error:', error);
+      const message = error instanceof Error ? error.message : 'Failed to generate backup';
       // Determine if it was a network error or API error
-      const errorMessage = error.message === 'Failed to fetch'
+      const errorMessage = message === 'Failed to fetch'
         ? 'Network error. Please check your connection.'
-        : (error.message || 'Failed to generate backup');
+        : message;
 
       showErrorToast(errorMessage);
     } finally {

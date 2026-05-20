@@ -28,7 +28,7 @@ export async function POST(
 
     await connectDB();
 
-    const filter: any = id.match(/^[0-9a-fA-F]{24}$/)
+    const filter: Record<string, string> = id.match(/^[0-9a-fA-F]{24}$/)
       ? { _id: id }
       : { orderId: id };
 
@@ -61,10 +61,10 @@ export async function POST(
       orderId: order.orderId,
       previousInvoiceNumber: previous,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     serverLogger.error("[Admin] clear-invoice-number failed:", err);
     return NextResponse.json(
-      { error: err?.message || "Action failed" },
+      { error: err instanceof Error ? err.message : "Action failed" },
       { status: 500 }
     );
   }

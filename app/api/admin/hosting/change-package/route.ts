@@ -34,10 +34,11 @@ export async function POST(request: NextRequest) {
       success: true, 
       message: `Package for user '${username}' changed to '${newPackage}' successfully.`
     });
-  } catch (error: any) {
-    serverLogger.error(`Admin Change Package Route Error (${request.headers.get('x-user-email')}):`, error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to change package";
+    serverLogger.error(`Admin Change Package Route Error (${request.headers.get('x-user-email')}):`, message);
     return secureErrorResponse(
-      error.message || "Failed to change package",
+      message,
       500,
       "PACKAGE_CHANGE_FAILED"
     );

@@ -51,8 +51,9 @@ export async function GET(request: NextRequest) {
         if (actualNs.length > 0) {
             nameservers = actualNs;
         }
-    } catch (e: any) {
-        serverLogger.warn(`Failed to fetch live nameservers for ${username}: ${e.message}`);
+    } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : String(e);
+        serverLogger.warn(`Failed to fetch live nameservers for ${username}: ${message}`);
     }
     // Help resolve limit strings (convert 'unlimited' or '0' to readable values)
     const resolveLimit = (val: string | undefined, fallback: string = '0') => {
@@ -120,8 +121,9 @@ export async function GET(request: NextRequest) {
       data: detailedStats
     });
 
-  } catch (error: any) {
-    serverLogger.error(`Admin Hosting Details Error:`, error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    serverLogger.error(`Admin Hosting Details Error:`, message);
     return secureErrorResponse(
       "Failed to fetch hosting details",
       500,

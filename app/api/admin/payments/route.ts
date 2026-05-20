@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { RazorpayPaymentsService } from "@/lib/razorpay-payments";
 import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
+import Order, { type IOrder } from "@/models/Order";
 import { findUsersByEmails } from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
 
@@ -121,7 +121,7 @@ export async function GET(request: NextRequest) {
             paymentDetails.customerEmail ||
             razorpayPayment.email,
           domainNames:
-            orderData?.domains?.map((d: any) => d.domainName) ||
+            orderData?.domains?.map((d: IOrder['domains'][number]) => d.domainName) ||
             paymentDetails.domainNames ||
             [],
           orderId: orderData?.orderId || paymentDetails.orderId,

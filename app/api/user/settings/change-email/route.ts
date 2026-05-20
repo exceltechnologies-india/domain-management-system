@@ -126,8 +126,8 @@ export async function POST(request: NextRequest) {
     return secureJsonResponse({
       message: "If that address is available, a verification link has been sent to it.",
     });
-  } catch (error: any) {
-    serverLogger.error("[EMAIL-CHANGE] Error:", error.message || error);
+  } catch (error: unknown) {
+    serverLogger.error("[EMAIL-CHANGE] Error:", error instanceof Error ? error.message : error);
     return secureErrorResponse("Failed to initiate email change", 500, "INTERNAL_ERROR");
   }
 }

@@ -47,7 +47,24 @@ export async function GET(request: NextRequest) {
       "https://httpbin.org/ip",
     ];
 
-    const results: any = {
+    interface ServiceProbe {
+      status: "success" | "error";
+      ip?: string;
+      error?: string;
+      responseTime?: string;
+    }
+    const results: {
+      timestamp: string;
+      services: Record<string, ServiceProbe>;
+      primaryIP: string | null;
+      allIPs: string[];
+      serverInfo: {
+        userAgent: string | null;
+        host: string | null;
+        forwarded: string | null;
+        realIP: string | null;
+      };
+    } = {
       timestamp: new Date().toISOString(),
       services: {},
       primaryIP: null,
@@ -127,11 +144,21 @@ export async function GET(request: NextRequest) {
       error: hasSuccess ? undefined : "All IP detection services failed",
     };
 
-    // Save to database
+    // Save to database. The IPCheck.data shape declares primaryIP as non-null;
+    // we coerce the local "no IP detected" null to "" at the boundary.
     await recordIPCheck({
       success: responseData.success,
       message: responseData.message,
-      data: responseData.data,
+      data: {
+        ...results,
+        primaryIP: results.primaryIP ?? "",
+        serverInfo: {
+          userAgent: results.serverInfo.userAgent ?? undefined,
+          host: results.serverInfo.host ?? undefined,
+          forwarded: results.serverInfo.forwarded ?? undefined,
+          realIP: results.serverInfo.realIP ?? undefined,
+        },
+      },
       error: responseData.error,
       checkedBy: user._id,
     });

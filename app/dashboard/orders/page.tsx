@@ -94,7 +94,7 @@ export default function UserOrders() {
     }
   };
 
-  const formatRegistrationPeriod = (period: number, itemType?: 'domain' | 'hosting', hostingPlan?: any) => {
+  const formatRegistrationPeriod = (period: number, itemType?: 'domain' | 'hosting', hostingPlan?: unknown) => {
     const unit = (itemType === 'hosting' || hostingPlan ? 'month' : 'year');
     return `${period} ${unit}${period !== 1 ? 's' : ''} registration`;
   };

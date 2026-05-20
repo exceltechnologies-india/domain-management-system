@@ -91,8 +91,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(
       new URL("/login?email_change=success", appUrl)
     );
-  } catch (error: any) {
-    serverLogger.error("[EMAIL-CHANGE] Verify error:", error.message || error);
+  } catch (error: unknown) {
+    serverLogger.error("[EMAIL-CHANGE] Verify error:", error instanceof Error ? error.message : error);
     return NextResponse.redirect(
       new URL("/login?email_change=error", appUrl)
     );
