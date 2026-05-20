@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { ArrowLeft, Download, FileText, Loader2, ExternalLink, RefreshCw } from 'lucide-react';
-import AdminLayout from '@/components/admin/AdminLayoutNew';
+import AdminLayout from '@/components/admin/AdminLayout';
 import { safeLocalStorage } from '@/lib/storage';
 import { performLogout } from '@/lib/logout';
 import { AdminLayoutSkeleton, DetailPageSkeleton } from '@/components/skeletons/PageSkeletons';

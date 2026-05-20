@@ -1,1134 +1,198 @@
-# Project Audit — Domain Management System
+# Project Audit
 
-**Date:** 2026-05-13
-**Version audited:** 3.3.0
-**Scope:** Full project rescan (`/home/rsa-key-20251224/dd`)
+**Last full rescan:** 2026-05-20
+**Scope:** 485 TS/TSX source files (~92K LOC), 136 API routes, ~15 services in `lib/services/`, ~12 Mongoose models, 459 tests (434 unit + 25 integration).
 
----
+This document tracks **currently-open** findings. The full historical pass log (HIGH-4 service-layer migrations, MEDIUM-1 any-types reduction across 15 passes, MEDIUM-4 ESLint hardening, MEDIUM-5 integration-test scaffolding, MEDIUM-6 CI gating) is preserved in git history — refer to `git log --oneline --all` and the commit messages, which carry the same level of detail this file used to inline.
 
-## 1. Project Snapshot
+## Resolved (high-level — see git log for details)
 
-| Attribute | Value |
-|---|---|
-| Purpose | SaaS for domain registration + web hosting (India market) |
-| Framework | Next.js 15 (App Router, standalone build), React 19, TypeScript 6.0 |
-| Database | MongoDB 8 + Mongoose (17 collections) |
-| Auth | NextAuth.js + TOTP 2FA + custom session timeout |
-| State | Zustand (cart) + SWR |
-| Payments | Razorpay |
-| Integrations | ResellerClub, DirectAdmin, Zoho Books, GCP Cloud Tasks, Redis, Anthropic Claude |
-| Tests | Vitest + Playwright (60% threshold, ~15 test files) |
-| Deploy | Docker → GCP Cloud Run (primary); deploy.sh + plain `node --env-file=.env.local .next/standalone/server.js` (VPS fallback) |
-| Source files | ~250 TS/TSX, ~100 API routes, 103 components, 77 lib modules, 17 models |
+- ✅ **CRITICAL-1** — git/repo + branch protection (2026-05-14)
+- ✅ **CRITICAL-3** — security module under test coverage (98.93% lines)
+- ✅ **CRITICAL-4** — CSP `unsafe-eval` / `unsafe-inline` isolated to iframe-only flows
+- ✅ **HIGH-1** — monolithic service wrappers split into focused modules
+- ✅ **HIGH-2** — state-machine logic out of routes
+- ✅ **HIGH-3** — `/api/v1/*` versioning surface live
+- ✅ **HIGH-4 (User)** — every `User.X(...)` callsite outside `lib/services/users.ts` migrated (~93 → 0). **Note**: Order/Hosting/SupportTicket models still have direct callsites (see [H5] below).
+- ✅ **HIGH-5** — `Pending*` collection sweepers + auto-retry cron (2026-05-20)
+- ✅ **HIGH-6** — security module consolidation
+- ✅ **MEDIUM-1** — `any` types 845 → 10 (99% reduction; remaining 10 are intentional with eslint-disable + rationale)
+- ✅ **MEDIUM-2** — structured logger, zero `console.*` outside `lib/*-logger.ts`
+- ✅ **MEDIUM-3** — large React components decomposed
+- ✅ **MEDIUM-4** — ESLint hardened with `@typescript-eslint/no-explicit-any`, `no-unused-vars`, `no-floating-promises` (type-aware); 134 floating-promise sites fixed
+- ✅ **MEDIUM-5** — integration-test scaffolding via `mongodb-memory-server`; route-level tests for `payments/verify` + `webhooks/razorpay`; +119 tests this session
+- ✅ **MEDIUM-6** — CI lint + test + tsc + integration + audit gating; `deploy-cloud-run.sh` blocked behind CI-green
+- ✅ **MEDIUM-7** — Cloud Run replaces single-instance PM2
+- ✅ **MEDIUM-8** — atomic deploy with rollback path
+- ✅ **MEDIUM-9** — repo-root clutter cleaned
+- ✅ **LOW-1** — `npm audit` gated in CI (high+ threshold)
+- ✅ **LOW-2** — structured logging
+- ✅ **LOW-3** — DB migration history
+- ✅ **LOW-4** — Mongoose model index audit
 
----
+## Deliberately deferred (by user)
 
-## 2. Critical Flaws
+- **CRITICAL-2** — Rotate credentials baked into pre-Secret-Manager Docker layers.
+- **Day-9 roadmap** — Rotate GCP service account key.
 
-### ~~[CRITICAL-1] No git repository~~ — RESOLVED 2026-05-14
-Initialized `main`-branch repository in [/](.) and verified `.gitignore` correctly excludes `.env.local`, `gcp-key.json`, `node_modules/`, `.next/`, `coverage/`, `deployment-logs/`, `*.tsbuildinfo`, and `*.log`. Confirmed zero files inside excluded directories were staged. Initial commit `2ceee43` contains 502 files / 113,935 lines. Repo-local identity set to `Pawan <pawan@exceltechnologies.in>` (not global — only affects this repo).
-
-Remote configured at `git@github.com:exceltechnologies-india/domain-management-system.git` (private). `main` tracks `origin/main`.
-
-Classic branch protection rule created on `main` requiring PR review (1 approval), status checks (no checks added yet pending CI from MEDIUM-6), and blocking force-pushes / deletions / bypass.
-
-**Caveat — known limitation, not a bug to fix:** GitHub Free orgs do not enforce branch protection or rulesets on private repositories. The rule is saved and will activate automatically when the org upgrades to GitHub Team (~$4/user/month) or if the repo is made public. Until then it serves as documented policy only. Re-evaluate when team size or risk profile justifies the upgrade.
-
----
-
-### ~~[CRITICAL-2] Secrets baked into Docker image~~ — PARTIALLY RESOLVED 2026-05-14
-The `cp -f .env.local .next/standalone/.env.local 2>/dev/null || true` segment was removed from the [package.json](package.json) `build` script. The build script now only copies `.next/static` and `public` into the standalone output:
-
-```
-"build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/"
-```
-
-The Docker path was already safe in practice (`.env.local` is excluded by [.dockerignore](.dockerignore), so the `cp -f` was a silent no-op inside the image build). Removing it closes the footgun for `gcloud builds submit` / `gcloud run deploy --source` paths, where `.env.local` *would* be present in the build context.
-
-**Still required before production deploy:**
-1. Provision Cloud Run with secrets from Secret Manager (`MONGODB_URI`, `NEXTAUTH_SECRET`, `JWT_SECRET`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`, `ZOHO_*`, `DIRECTADMIN_*`, `RESELLERCLUB_*`, `SMTP_PASS`, `RECAPTCHA_SECRET_KEY`, `ANTHROPIC_API_KEY`, `CRON_SECRET`, `ADMIN_PASSWORD`).
-2. **Rotate any production credential that was in a previously-built/pushed image** — historical layers cannot be unbaked.
-3. Keep `.env.local` for local development only (already in [.gitignore](.gitignore) and [.dockerignore](.dockerignore)).
+Per user instruction (2026-05-20), key/credential rotation is out of scope for this project. Not surfaced as a next step.
 
 ---
 
-### ~~[CRITICAL-3] Security module excluded from coverage~~ — RESOLVED 2026-05-14
-[vitest.config.ts](vitest.config.ts) no longer excludes [lib/security.ts](lib/security.ts) from coverage. Added [tests/unit/lib/security.test.ts](tests/unit/lib/security.test.ts) — 42 tests covering every public method on `SecurityValidator`:
+## Open issues (rescan 2026-05-20)
 
-- `containsMaliciousPatterns`: SQL injection, NoSQL operators, XSS payloads, javascript:/event-handler URLs, path traversal (raw + URL-encoded), null-byte injection, command-injection metacharacters
-- `validateFileUpload`: dangerous extensions (`.exe`, `.bat`, `.cmd`, `.sh`, `.php`), oversized content, malicious content in safe-named file, path-traversal filenames
-- `sanitizeInput`: HTML stripping, max-length truncation, whitespace normalisation, special-char filtering
-- `validateEmailSecurity`: format validation, `..` / `@.` / `.@` rejection, max length, sanitised output is lowercase + trimmed
-- `validatePasswordSecurity`: length + variety requirements, common-pattern dictionary, medium / strong tiering
-- `validateCSRF`: GET/HEAD/OPTIONS bypass, Origin match, Referer fallback, production-strict header requirement, missing `NEXTAUTH_URL` rejection
+Issues are listed by severity. Each has a file pointer, one-line problem, one-line fix, and a rough effort estimate. The list is meant to be picked off in batches — see "Recommended order" at the bottom.
 
-**Measured coverage of [lib/security.ts](lib/security.ts):** 98.93% lines, 95.38% branches, 100% functions, 98.88% statements. Suite moved from 298 → 340 tests, all green.
+### HIGH
 
-**Bug fixed as a byproduct of exposing the file to tests:** `validateFileUpload` would crash with `RangeError: Maximum call stack size exceeded` when called with content larger than ~10 MB — the size check added an error but did not short-circuit, and the subsequent `containsMaliciousPatterns(content)` call overflowed the regex engine. [lib/security.ts](lib/security.ts) now returns early after the size check. Detected because the new oversized-file test failed on the first run; the fix is in the same commit.
+#### [H1] IDOR on invoice-pay
+**File:** [app/api/user/invoices/[id]/pay/route.ts:25-49](app/api/user/invoices/%5Bid%5D/pay/route.ts#L25-L49)
+**Problem:** Any logged-in user can enumerate Zoho invoice IDs from the URL and pay (or read metadata from the response on) any invoice. There's no ownership check — the route hits `zohoService.getInvoiceById(invoiceId)` directly from the URL param.
+**Fix:** Look up via local `Order.findOne({ userId, zohoInvoiceId })` first (the pattern used in `/invoices/[id]/pdf/route.ts:49`), then call Zoho.
+**Effort:** 30 min.
 
----
+#### [H2] Anthropic chat endpoint — unauthed, no rate-limit
+**File:** [app/api/chat/route.ts:19-59](app/api/chat/route.ts#L19-L59)
+**Problem:** Public POST streams Claude responses (1024 max_tokens, 20-turn history) with no auth, no rate-limit, no reCAPTCHA. A trivial loop drains the `ANTHROPIC_API_KEY` budget.
+**Fix:** Wrap with `rateLimiters` IP-keyed bucket (e.g. 10/min/IP) **and** require a session OR reCAPTCHA v3 token.
+**Effort:** 30 min.
 
-### ~~[CRITICAL-4] `unsafe-eval` and `unsafe-inline` in CSP~~ — RESOLVED 2026-05-16 (all Razorpay flows iframe-isolated; CSP allowlist inverted to deny-list)
-CSP is now per-route. [lib/security-headers.ts](lib/security-headers.ts) accepts a `strictCSP` option that strips `'unsafe-inline'` and `'unsafe-eval'` from `script-src`, leaving the nonce as the only allowed inline-script execution path. [middleware.ts](middleware.ts) sets the flag based on the request path.
+#### [H3] Zoho axios calls have no timeout
+**File:** [lib/zohobooks/*.ts](lib/zohobooks/) (every call: `contacts.ts:30,55,113`, `invoices.ts:125`, `recurring.ts:114`, etc.)
+**Problem:** ResellerClub has a 30s `axios.create({ timeout })`; Zoho uses bare `axios.get/post` with no timeout. A hung Zoho upstream stalls Cloud Run request slots until the global request timeout kicks in.
+**Fix:** Shared `const zohoAxios = axios.create({ timeout: 30_000 })` instance; use it from every module.
+**Effort:** 15 min.
 
-**Strict CSP applied to:**
-- All `/api/*` routes (including the `/api/v1/*` alias) — JSON responses, no scripts execute
-- Static legal/marketing/error pages: `/about`, `/cancellation-refund`, `/data-deletion`, `/privacy`, `/terms-and-conditions`, `/maintenance`, `/403`
+#### [H4] Trial-abuse check-then-act race
+**File:** [lib/trial-abuse.ts:111-140](lib/trial-abuse.ts#L111-L140) + `recordTrialClaim` at L168
+**Problem:** `evaluateTrialAbuse` queries `TrialClaim.exists(...)` and the claim row is only inserted after Razorpay verifies. Two concurrent requests from the same IP/device both pass the check.
+**Fix:** Sparse unique index on `(ipHash, deviceFingerprint)`; catch `E11000` as "already claimed."
+**Effort:** 15 min.
 
-**Relaxed CSP retained for:** dashboard, admin, auth (login/register/reset-password/activate/contact), cart, checkout, home, and any other page that may surface a Razorpay renewal/upgrade modal or reCAPTCHA widget. Conservative on purpose — Razorpay still requires `unsafe-eval`, and these modals can appear dynamically.
+#### [H5] Service-layer bypass — Order / Hosting / SupportTicket
+**Files:** 54 route files across `app/api/**`. ~58 direct `Order.*` callsites, ~26 direct `Hosting.*` callsites. Examples: [app/api/admin/hosting/assign/route.ts:7,83](app/api/admin/hosting/assign/route.ts), [app/api/admin/domains/route.ts:40](app/api/admin/domains/route.ts), [app/api/workers/process-hosting-expiry/route.ts](app/api/workers/process-hosting-expiry/route.ts).
+**Problem:** HIGH-4 closed only `User`; Order, Hosting, SupportTicket still have routes that call `.save()` / `Model.find` directly, bypassing the service layer.
+**Fix:** Replicate the User-service migration pattern for the other three. Each landed in ~3-4 commits in HIGH-4.
+**Effort:** Multi-hour, can be split across sessions.
 
-**Live verification (standalone build on port 3458):**
-- `/api/health` and `/api/v1/health` → `script-src 'self' 'nonce-…' blob: data: https://…` (no unsafe-*)
-- `/privacy` and `/about` → same nonce-only script-src; 200 OK; every `<script>` tag in the rendered HTML carries the correct nonce (0 unnonced scripts)
-- `/login` → still `script-src 'self' 'nonce-…' 'unsafe-inline' 'unsafe-eval' …` (relaxed as intended)
+#### [H6] `provisionCartItems` is 950 lines
+**File:** [lib/services/payment/provisioner.ts:95-1054](lib/services/payment/provisioner.ts) (one exported function)
+**Problem:** Spans 95 → 1054 of a 1054-line file. Deeply nested DA + RC + email + dates + reminder logic in one body — effectively untestable as a whole.
+**Fix:** Decompose into per-item provisioner (domain vs hosting), reminder scheduler, DA-account allocator.
+**Effort:** Multi-hour.
 
-**Suite still green:** 298/298 tests, lint clean, production build succeeded.
+### MEDIUM
 
-**Iframe-isolation infrastructure landed 2026-05-15:** New route [/razorpay-checkout](app/razorpay-checkout/page.tsx) is the *only* place in the app that loads `checkout.razorpay.com/v1/checkout.js`. Parent pages embed it as an iframe and exchange `{type, …}` messages defined in [lib/razorpay-checkout-protocol.ts](lib/razorpay-checkout-protocol.ts). React wrapper [components/RazorpayCheckoutFrame.tsx](components/RazorpayCheckoutFrame.tsx) gives consumers a `useRazorpayCheckout()` hook with a Promise-shaped `open(options)` API and a `<Frame />` overlay component that mounts on demand.
+#### [M1] Inconsistent cron auth
+**Files:** [app/api/workers/check-domain-watch/route.ts:31-32](app/api/workers/check-domain-watch/route.ts#L31-L32), [process-service-expiry/route.ts:80-81](app/api/workers/process-service-expiry/route.ts#L80-L81), [sync-zoho-invoice/route.ts:43-44](app/api/workers/sync-zoho-invoice/route.ts#L43-L44), `process-hosting-expiry/route.ts:22-23` (needs verification).
+**Problem:** These four use plain `authHeader !== process.env.CRON_SECRET` (timing-vulnerable). Other crons + `/api/cron/*` use `crypto.timingSafeEqual`.
+**Fix:** Shared `authorizeCronRequest(request)` helper; replace all four.
+**Effort:** 30 min.
 
-**Migrated as pilot:** [components/HostingRenewalModal.tsx](components/HostingRenewalModal.tsx) — direct `new window.Razorpay(options).open()` replaced with `await razorpay.open(options)`. The handler/dismiss closures are now a linear try/catch instead of nested callbacks. 340/340 tests, lint + tsc clean, production build succeeded (62 static pages, up from 61 — the new iframe page).
+#### [M2] CSRF middleware only covers `/api/admin/*`
+**File:** [middleware.ts:297-303](middleware.ts#L297-L303)
+**Problem:** `/api/user/*` and `/api/payments/*` mutating routes have no Origin/Referer check; defence reduces to NextAuth's `sameSite:lax` cookie, which still allows top-level navigation POSTs.
+**Fix:** Move `validateCSRF` above the admin branch so it runs for any authenticated mutating `/api/*`.
+**Effort:** 30 min.
 
-**Migrated additionally 2026-05-15:** [components/HostingUpgradeModal.tsx](components/HostingUpgradeModal.tsx) — happened as part of the MEDIUM-3 decomposition pass. Now uses `useRazorpayCheckout()`.
+#### [M3] User model leaks `password` + `resetToken` by default
+**File:** [models/User.ts:97,242](models/User.ts#L97) (password) + L242 (resetToken)
+**Problem:** Neither field has `select: false`. Other secret fields (`totpSecret`, `pendingEmailToken`) do. Any naive `User.findById(...)` (including `getUserById` in the service) returns the bcrypt hash + live reset token; `JSON.stringify` of the doc leaks both.
+**Fix:** Add `select:false` to both. Explicitly `.select('+password')` in the login + reset flows (the service has helpers for this already).
+**Effort:** 30 min.
 
-**Migrated 2026-05-16 (the remaining three direct-checkout.js consumers):**
-- [app/checkout/page.tsx](app/checkout/page.tsx) — main checkout (order + subscription paths). The sequential order→subscription handler chain became a linear `await razorpay.open(orderOptions); await razorpay.open(subOptions); verifyPayment(...)`.
-- [app/checkout/guest/page.tsx](app/checkout/guest/page.tsx) — guest checkout (single order path).
-- [app/dashboard/invoices/page.tsx](app/dashboard/invoices/page.tsx) — invoice repayment. Dropped `next/script` Razorpay tag.
+#### [M4] Raw upstream errors echoed to client
+**File:** [app/api/user/hosting/renew/route.ts:156-157](app/api/user/hosting/renew/route.ts#L156-L157) (and likely other `/api/user/*` routes)
+**Problem:** `secureErrorResponse(error.message, …)` echoes Razorpay/Mongo error strings back to the client (e.g. credential / network detail in upstream errors).
+**Fix:** Return a generic message; keep the real one in `serverLogger`.
+**Effort:** 15 min per route.
 
-**CSP allowlist inverted 2026-05-16 ([middleware.ts](middleware.ts)):** strict CSP is now the default. The list is now `RELAXED_CSP_PAGE_PATHS` (6 entries): `/razorpay-checkout` (the iframe) plus `/login`, `/register`, `/forgot-password`, `/reset-password`, `/contact` (Google reCAPTCHA v2, which also requires unsafe-eval). Every other page — dashboard, admin, cart, /checkout (now safe because it delegates to the iframe), payment-success, domains/*, home, legal pages — and every API route runs with nonce-only `script-src`. Migrating reCAPTCHA behind a similar iframe shim would be the next step to make those 5 strict too; out of scope for CRITICAL-4.
+#### [M5] Repeated `order.domains.find()` pattern in 16+ files
+**Files:** [app/api/user/domains/nameservers/route.ts:52](app/api/user/domains/nameservers/route.ts#L52), [app/api/admin/domains/dns/route.ts:63,150,247](app/api/admin/domains/dns/route.ts), [app/api/admin/pending-domains/[id]/register/route.ts:81,89,98,184](app/api/admin/pending-domains/%5Bid%5D/register/route.ts), + ~12 more.
+**Problem:** Same `(d) => d.domainName === name` lookup repeated. Each callsite has its own type cast.
+**Fix:** Add `findDomainItem(order, name)` / `mapDomainItems(order)` helpers in `lib/services/orders.ts`.
+**Effort:** 1 hr.
 
-**Suite green:** 340/340 tests, lint clean (0 errors), tsc clean, production build succeeded.
+#### [M6] 30 inline `session.user as {…}` narrowings
+**Files:** Across `app/**` and `lib/**`. Examples: [app/api/admin/log-error/route.ts:46](app/api/admin/log-error/route.ts#L46), [app/api/admin/users/services/route.ts:18](app/api/admin/users/services/route.ts#L18).
+**Problem:** Each route re-narrows `(session.user as { id?, role?, … })` piecemeal.
+**Fix:** One `getAuthedUser(req): { id; role; email }` helper in `lib/auth.ts`, or `next-auth` module augmentation.
+**Effort:** 1 hr.
 
-**Unchanged in this pass:**
-- `style-src 'unsafe-inline'` still required by Tailwind's utility classes and Next.js's style injection. Switching to nonce-only style-src would require either a Next.js style hash plan or a CSS-modules migration; out of scope.
-- The strict-page allowlist is still conservative. `/payment-success`, `/hosting`, `/domains/search` could likely move onto the strict list after a manual audit — track separately from CRITICAL-4.
+#### [M7] Zero unit tests for `lib/services/*`
+**Directory:** `tests/unit/lib/services/` does not exist.
+**Problem:** The 15 service modules introduced in HIGH-4 (users, orders, hostings, domains, pending-hostings, etc.) have no direct unit tests. Integration tests cover only the two payment routes.
+**Fix:** Add unit tests per service against the existing `mongodb-memory-server` scaffolding from MEDIUM-5.
+**Effort:** Multi-hour.
 
----
+#### [M8] Unused dependencies
+**File:** [package.json](package.json)
+**Problem:** `underscore`, `dns2`, `dompurify`, `whois`, `whois-api`, `whois-json`, `@react-pdf/renderer`, `styled-jsx`, + 10 stale `@types/*` (`@types/bluebird`, `@types/request*`, `@types/caseless`, `@types/raf`, `@types/json5`, `@types/scheduler`, `@types/webidl-conversions`, `@types/whatwg-url`, `@types/tough-cookie`, `@types/pako`, `@types/prop-types`) are not imported anywhere.
+**Fix:** `npm uninstall` each. Re-run build/tests.
+**Effort:** 15 min.
 
-## 3. Architectural Issues
+#### [M9] 3 moderate `npm audit` findings
+**Problem:** `brace-expansion` GHSA-jxxr-4gwj-5jf2, `protobufjs` GHSA-jggg-4jg4-v7c6, `ws` GHSA-58qx-3vcg-4xpx.
+**Fix:** `npm audit fix` — non-breaking.
+**Effort:** 15 min.
 
-### ~~[HIGH-1] Monolithic service wrappers~~ — RESOLVED 2026-05-14
+#### [M10] Duplicate AdminLayout component
+**File:** [components/admin/AdminLayout.tsx](components/admin/AdminLayout.tsx) (167 lines, dead) vs [components/admin/AdminLayoutNew.tsx](components/admin/AdminLayoutNew.tsx) (live).
+**Problem:** `AdminLayout.tsx` is not imported anywhere; the live one is re-exported as `AdminLayout` from [components/index.ts:37](components/index.ts#L37).
+**Fix:** Delete the old file; rename `AdminLayoutNew.tsx` → `AdminLayout.tsx`.
+**Effort:** 15 min.
 
-| File | LOC (before) | LOC (after barrel) | Status |
-|---|---|---|---|
-| [lib/resellerclub.ts](lib/resellerclub.ts) | 2,452 | 95 | ~~Split~~ ✅ |
-| [lib/directadmin.ts](lib/directadmin.ts) | 1,193 | 108 | ~~Split~~ ✅ |
-| [lib/zohobooks.ts](lib/zohobooks.ts) | 1,192 | 422 | ~~Split~~ ✅ |
-| [lib/auth-config.ts](lib/auth-config.ts) | 863 | 55 | ~~Split~~ ✅ |
+### LOW
 
-**resellerclub.ts split (2026-05-14):** The 2,452-line single class was split into 5 topical submodules + a shared client. The old [lib/resellerclub.ts](lib/resellerclub.ts) is now a 95-line backwards-compatible barrel exposing the same `ResellerClubAPI` class surface, so the 13 call sites across `app/`, `lib/`, and `lib/payment-services/` did not need to change.
+#### [L1] `/api/debug/check-expiry` leaks 5 active hosting rows to any logged-in user
+**File:** [app/api/debug/check-expiry/route.ts:8-29](app/api/debug/check-expiry/route.ts#L8-L29)
+**Problem:** No `isAdmin` gate; any normal user sees other tenants' `domainName` + `expiryDate`.
+**Fix:** Add `AuthService.isAdmin(request)` gate, or delete (looks like dev scaffolding).
+**Effort:** 5 min.
 
-```
-lib/resellerclub/
-  client.ts            85 LOC   shared axios instance + env validation + interceptors
-  search.ts           835 LOC   getDomainPricing, getTLDPricing, searchDomain,
-                                searchDomainWithTlds, getResellerPricingForTLD, getResellerDetails
-  customers.ts        663 LOC   getCustomerId, createCustomer, modifyCustomer, modifyContact,
-                                createContact, getOrCreateCustomerAndContact, getCustomerDetails,
-                                getCustomerDomains
-  registration.ts     364 LOC   deleteDomainOrder, registerDomain, getDomainDetails,
-                                getDomainExpiry, getDomainOrderId
-  dns.ts              393 LOC   activateDNSManagement, getDNSRecords, addDNSRecord,
-                                updateDNSRecord, deleteDNSRecord, setDefaultNameservers,
-                                setCustomNameservers, getNameservers
-  renewal-transfer.ts 125 LOC   getRenewalPricing, renewDomain, transferDomain
-```
+#### [L2] N+1 shape in admin users-services list
+**File:** [app/api/admin/users/services/route.ts:39](app/api/admin/users/services/route.ts#L39)
+**Problem:** Iterates `allServiceUsers` and does linear `.some()` over `verifiedUsers` per row (O(n·m)).
+**Fix:** Build a `Set<_id>` once before the loop.
+**Effort:** 15 min.
 
-Verified on main: 298/298 tests green, `npm run lint` clean, `npm run build` succeeded. No call-site change required (zero files in `app/`, `tests/`, `models/` modified). Each method moved verbatim — no logic changes.
+#### [L3] Stale unused `User` import
+**File:** [app/api/admin/hosting/assign/route.ts:7](app/api/admin/hosting/assign/route.ts#L7)
+**Problem:** Imports `User` but never references it directly — also confirms [H5] bypass since the route mutates the doc inline.
+**Fix:** Remove import; move mutation into the user service.
+**Effort:** 5 min (combined with [H5]).
 
-**The other three large files were split on 2026-05-14:**
+#### [L4] Stale TODOs
+**Files:** [lib/resellerclub/customers.ts:567](lib/resellerclub/customers.ts#L567) ("Store customerId/contactId in user DB" — feature shipped via `setUserResellerClubIds`), [app/api/admin/hosting/stats/route.ts:137](app/api/admin/hosting/stats/route.ts#L137) ("rely on bulk usage map").
+**Fix:** Delete or convert to issue refs.
+**Effort:** 10 min.
 
-```
-lib/directadmin/    (1,193 → 108 barrel)
-  client.ts        359  LOC  shared HTTP client: state (rate limit, circuit breaker,
-                              request queue), executeRequest, validators, error class,
-                              auth getter, constants (NAMESERVERS, KNOWN_PACKAGES)
-  packages.ts      148  LOC  listPackages, getPackageDetails, createPackage
-  users.ts         502  LOC  createUser, getUserConfig, getUserUsage, getUserDomains,
-                              changePackage, suspendUser, unsuspendUser, deleteUser,
-                              listUsers, getAllUserUsage, getOneTimeLoginUrl, domainExists
-  dns.ts           177  LOC  getDNSRecords, deleteDNSRecords, addDNSRecord,
-                              updateDNSNameservers
-  server.ts         82  LOC  getServerInfo, listResellers, getLicenseInfo
-
-lib/auth-config/    (863 → 55 barrel)
-  helpers.ts        48  LOC  GoogleProfile/GithubProfile types, extractSocialName,
-                              SOCIAL_PROVIDERS, useSecureCookies
-  providers.ts     221  LOC  the providers[] array (Google, Facebook, GitHub, Credentials
-                              with all its TOTP + bcrypt + session-activity wiring)
-  callbacks.ts     541  LOC  the callbacks { signIn, jwt, session, redirect } object
-  cookies.ts        46  LOC  the cookies {} object
-
-lib/zohobooks/      (1,192 → 422 barrel)
-  contacts.ts      286  LOC  contact-CRUD: getContactByEmail/Name, createContact,
-                              updateContactDetails, getContactPersons, updateContactPerson,
-                              updateContactToConsumer
-  invoices.ts      466  LOC  createInvoice, getInvoicesByEmail, getInvoicePdf,
-                              getAllInvoices, getInvoiceById, applyPaymentToInvoice,
-                              getInvoicesByReferenceNumber
-  recurring.ts     149  LOC  createRecurringInvoice
-  credit-notes.ts   85  LOC  createCreditNote
-  org.ts            35  LOC  getOrganizationDetails
-```
-
-**Judgement calls on the trickier shapes (worth knowing for future maintainers):**
-
-- **directadmin.ts** had module-level shared state baked into static class fields (rate-limit timer, circuit breaker, request queue). State + `executeRequest` moved to file-scoped `let` in `client.ts`. The barrel's `DirectAdminService` class re-exports `NAMESERVERS` / `KNOWN_PACKAGES` as static fields so `DirectAdminService.NAMESERVERS` still works for the 15 call sites that use it.
-
-- **zohobooks.ts** is a **singleton with instance state** (`accessToken`, `tokenExpiry`, `config`, `baseUrl`) — not a static-method class like resellerclub/directadmin. So the topical files take `self: ZohoBooksService` as their first arg and reach the singleton state via `_`-prefixed `@internal` accessors on the class (`_baseUrl`, `_orgId`, `_getHeaders()`, `_idempotentRetry`, etc.). Public class methods are 1-line `await import('./zohobooks/<topic>').then(m => m.fn(this, ...))` delegates — dynamic imports break the type cycle (topical files `import type` the class for the `self` param). Slightly more boilerplate than the other splits, but no public-API change so the 10 importers (payment-services, webhook route, admin endpoints, invoice download/pay routes) didn't move.
-
-- **auth-config.ts** is a config object so the split was straightforward — sections lifted out wholesale.
-
-**Verified on main:** 340/340 tests, lint clean, `tsc --noEmit` clean, production build succeeded. No call site outside the three subtrees was modified.
-
----
-
-### ~~[HIGH-2] Routes carrying state-machine logic~~ — RESOLVED 2026-05-14
-| Route | LOC (before) | LOC (after) | Shrinkage |
-|---|---|---|---|
-| [app/api/payments/verify/route.ts](app/api/payments/verify/route.ts) | 635 | 256 | -60% |
-| [app/api/webhooks/razorpay/route.ts](app/api/webhooks/razorpay/route.ts) | 430 | 103 | -76% |
-
-**New modules under [lib/payment-services/](lib/payment-services/) (verbatim extraction — no logic changes):**
-
-- [verification.ts](lib/payment-services/verification.ts) (176 LOC) — `verifyRazorpayPayment()` (signature → `getPaymentDetails` → status check → order/subscription mismatch checks) and `validateOrderAmountMatchesRazorpay()` (anti-underpayment fraud).
-- [order-creator.ts](lib/payment-services/order-creator.ts) (241 LOC) — `validateNoRestrictedDomains()` (pre-flight check for unsupported TLDs) and `createCompletedOrder()` (orderId/paymentId generation, type inference, provisioning, atomic Order + Payment save inside a Mongo transaction).
-- [verification-error.ts](lib/payment-services/verification-error.ts) (214 LOC) — `handleVerificationError()` (fallback-order creation for post-payment provisioning failures + HTTP error-message + status-code mapping).
-- [webhook-handlers.ts](lib/payment-services/webhook-handlers.ts) (336 LOC) — `handleSubscriptionCharged()` (9-step renewal flow: plan lookup → RenewalPayment insert → atomic claim → hosting reactivation/extension → trial-to-paid transition → Order audit record → fire-and-forget Zoho sync) and `handleSubscriptionFailed()` (immediate expiry + DA suspend).
-
-**Routes are now orchestration only.** `payments/verify` is 256 LOC because of the legitimately route-shaped success-response builder (~50 LOC of human-readable message tier construction) — closer to the audit's "30–80" target only if response shaping is extracted too, but that's a stylistic judgement call rather than a structural problem. `webhooks/razorpay` is exactly the audit's target: signature → age gate → redis nonce → dispatch → 200, all within 103 LOC.
-
-**Verified on main: 298/298 tests pass, lint clean, production build succeeded.** No call-site outside the two routes changed. Method bodies extracted verbatim — no behavioural changes — so the existing test surface is sufficient to catch regression.
+#### [L5] Chat model version drift (needs verification)
+**File:** [app/api/chat/route.ts:48](app/api/chat/route.ts#L48)
+**Problem:** Uses `claude-haiku-4-5`; cutoff in env says 2026-01, current latest haiku tier may be newer.
+**Fix:** Verify against current Anthropic model list; bump if needed.
+**Effort:** 15 min.
 
 ---
 
-### ~~[HIGH-3] No API versioning~~ — RESOLVED 2026-05-16 (v1 routing infra + every internal caller migrated)
-Foundational `/api/v1/` alias is now in place. Every existing `/api/<path>` endpoint is also reachable at `/api/v1/<path>` and produces identical behaviour (same auth gates, same handler).
+## Recommended order
 
-**Implementation:**
-- [next.config.js](next.config.js) — `rewrites()` maps `/api/v1/:path*` → `/api/:path*`. The rewrite happens at the routing layer; the URL the client sees is unchanged.
-- [middleware.ts](middleware.ts) — added a `classificationPath` that strips the `/api/v1/` prefix and is used only by the admin/public API prefix checks (`isAdminApi`, `isPublicApi`). The original `pathname` is still used for logging so audit trails can distinguish v1-specific traffic. Middleware runs *before* the rewrite, so without this normalization `/api/v1/admin/*` would have bypassed the admin auth gate — that hole is now closed.
+### Batch 1 — fast wins (~1 hr, 6 items)
+[H3] Zoho timeout + [M8] unused deps + [M9] `npm audit fix` + [M10] dedupe AdminLayout + [L1] debug route + [L4] stale TODOs.
 
-**Smoke-tested live (2026-05-14, standalone build on port 3457):**
-- `GET /api/health` → 200 `{status:"ok"}`
-- `GET /api/v1/health` → 200 `{status:"ok"}` (identical body)
-- `GET /api/admin/users` (no auth) → 401 `{error:"Unauthorized"}`
-- `GET /api/v1/admin/users` (no auth) → 401 `{error:"Unauthorized"}` — confirms no bypass via the versioned path
+### Batch 2 — security-heavy (~3 hrs, 6 items)
+[H1] IDOR invoice-pay + [H2] chat rate-limit + [H4] trial-abuse race + [M1] cron timing-safe + [M2] CSRF on user routes + [M3] User `select:false`.
 
-**Suite still green:** 298/298 tests pass; lint clean; production build succeeded.
+### Batch 3 — quality / refactor (multi-hour, can be split)
+[M5] domain-find helper + [M6] `getAuthedUser` helper + [L2] N+1 fix + [L3] stale import + [L5] chat model bump + [M4] error-message scrubbing.
 
-**Server-side callers migrated 2026-05-16:** 9 internal `${NEXTAUTH_URL}/api/<path>` and `fetch('/api/<path>')` call-sites in server-only modules were switched to `/api/v1/<path>`:
-- [lib/client-logger.ts](lib/client-logger.ts), [lib/logger.ts](lib/logger.ts), [lib/server-logger.ts](lib/server-logger.ts) — log shippers (`/api/v1/log`, `/api/v1/admin/log-error`)
-- [lib/payment-services/webhook-handlers.ts](lib/payment-services/webhook-handlers.ts) — Cloud Tasks dispatch to `/api/v1/workers/sync-zoho-invoice`
-- [app/api/user/dashboard/route.ts](app/api/user/dashboard/route.ts) — `/api/v1/workers/sync-hosting-status`
-- [app/api/cron/daily-scheduler/route.ts](app/api/cron/daily-scheduler/route.ts) (×2) — `/api/v1/workers/process-service-expiry`, `/api/v1/workers/check-domain-watch`
-- [app/api/cron/check-hosting-expiry/route.ts](app/api/cron/check-hosting-expiry/route.ts) — `/api/v1/workers/process-hosting-expiry`
-- [app/api/user/settings/change-email/route.ts](app/api/user/settings/change-email/route.ts) — user-facing email-verification link
+### Batch 4 — long-running (multi-session)
+[H5] Order/Hosting/SupportTicket service-layer migration + [H6] `provisionCartItems` decomposition + [M7] `lib/services/*` unit tests.
 
-340/340 tests still green; 0 lint errors. The rewrite layer makes both paths functionally identical, so the migration is no-op behaviourally — but server-issued URLs (Cloud Tasks targets, email links, log endpoints) now carry the versioned prefix that v2 cutover work will be able to opt out of cleanly.
+### Strengths to preserve
 
-**Client-side callers migrated 2026-05-16:** 205 references across 63 files in `app/` (excl. `app/api/`), `components/`, `hooks/`, `store/` — `fetch('/api/<path>')`, `axios.X('/api/<path>')`, `useSWR('/api/<path>', …)`, and bare URL-string literals — were rewritten to `/api/v1/<path>` with a single perl pass:
-```
-perl -i -pe 's|([\x27\x22\x60])/api/(?!v1/)|$1/api/v1/|g' <client-tree-files>
-```
-Top hotspots: `app/admin/settings/page.tsx` (22), `app/admin/system-settings/page.tsx` (13), `app/dashboard/dns-management/page.tsx` (12), `app/admin/pending-domains/page.tsx` (10), `app/admin/dns-management/page.tsx` (10).
-
-340/340 tests still pass; 0 lint errors; production build succeeded.
-
-**Excluded from migration on purpose:**
-- `app/api/**` — audit-log metadata strings (`resource: "/api/admin/backup"`) live alongside the canonical handler and document the unversioned source-of-truth path; migrating would just rename log fields without behavioural change.
-- [lib/session-activity.ts](lib/session-activity.ts):`requiresSessionRotation` — pattern matcher, currently dead code. If ever wired up, it must accept both prefixes (or strip `/v1/` before matching).
-- [lib/security/headers.ts](lib/security/headers.ts):`startsWith("/api/webhooks/")` — pattern matcher for CORS-skip; only hit by third-party callers using the configured `/api/webhooks/<vendor>` URL.
-
-**Pending future work:**
-- No `/api/v2/` exists yet, and won't until a breaking change is needed. The infrastructure is in place so introducing v2 is just adding a sibling route handler.
-- Treat `/api/v1/` semantics as stable from this point forward. Any future change that would break a v1 caller (response shape change, removed fields, changed status codes) must instead live under `/api/v2/`.
-
----
-
-### ~~[HIGH-4] No service / repository layer~~ — PARTIALLY RESOLVED 2026-05-14 (foundation + 15 model services + User wider adoption + admin CRUD tightening + lib/payment-services folded into lib/services/payment + auth-internal + session + admin-aggregation migrations 2026-05-19, zero `User.X(...)` callsites remain outside the User service)
-
-**Final User-service pass 2026-05-19:** the last 20 direct `User.X(...)` callsites flagged as the "auth-internal cluster, TOTP secret projections, admin-reporting aggregations, register's mutate-then-save" — previously deferred as intentional — were migrated. Twelve new helpers added to [lib/services/users.ts](lib/services/users.ts):
-
-- **Auth-internal password reads:** `getUserWithPassword` (replaces inline `findById(id).select("+password")` in [lib/admin-security.ts](lib/admin-security.ts) re-auth + [app/api/user/settings/change-email/route.ts](app/api/user/settings/change-email/route.ts) email-change re-auth).
-- **NextAuth-callback projections:** `getUserForTokenRefresh`, `getUserForSessionCheck`, `getUserProfileCompleted`, `getUserByEmailForLogin(email, { maxTimeMS })` — co-locate the JWT-refresh / session-create / credentials-authorize select strings so the hot-path projection contracts are obvious in one file. Migrated callsites in [lib/auth-config/callbacks.ts](lib/auth-config/callbacks.ts) (5) and [lib/auth-config/providers.ts](lib/auth-config/providers.ts) (1).
-- **TOTP login path:** `getUserWithTOTPSecretsForLogin` (variant of `getUserWithTOTPSecrets` that opts in to TOTP fields *without* the password — the credentials flow has already verified the password before this point) + `consumeUserBackupCode(userId, hash)` (the `$pull` of a single matched backup-code hash). Migrated 2 callsites in [lib/auth-config/providers.ts](lib/auth-config/providers.ts).
-- **Session-activity tracker:** `updateUserLastActivity`, `getUserSessionTimeoutFields`, `invalidateUserSessionNow` — drop the inline `connectDB().then(User.updateOne(...))` and `User.findById(id).select("lastActivityAt sessionTimeoutMinutes role")` from [lib/session-activity.ts](lib/session-activity.ts) (5 sites). The cold-path projection contract is now explicit in the service.
-- **Admin reporting:** `listAllUserBriefs` + `getUserBriefByEmail` for the [admin/hosting/stats](app/api/admin/hosting/stats/route.ts) DA-side join + fallback path; `listServiceUserCandidates` and `listUsersWithServicesAggregation` for [admin/users/services](app/api/admin/users/services/route.ts) — the 5-stage `$lookup` aggregation pipeline (Users→Domains→Hostings) is now defined in one place near the User model and the route is a 7-line orchestration over typed `UserWithServices[]`.
-- **NextAuth user creation:** the inline `new User({...}); await user.save();` in [lib/auth-config/callbacks.ts](lib/auth-config/callbacks.ts:290) on first social-login is now `await createUser({...})` via the existing service helper.
-
-**Latent issue surfaced during this pass:** [lib/auth.ts](lib/auth.ts) session-derived user lookup was calling `User.findById(sessionUser.id)` even when `sessionUser.id` was undefined (the session shape allows `id?: string`). Now guarded — if no `id` on the session, we skip the DB read entirely. Previously the implicit `undefined → null` Mongoose cast was silently making a wasted DB round-trip per cache miss.
-
-**Verified on main 2026-05-19:** 340/340 tests, lint clean (`✔ No ESLint warnings or errors`), tsc clean. Direct `User.X(...)` callsite count outside [lib/services/users.ts](lib/services/users.ts) and [tests/](tests/): **0** (down from 20 at the start of the pass). The User service is now the *only* place in the codebase that calls Mongoose methods on the User model.
-
----
-
-
-**Footprint measured:** 107 route files, ~269 distinct Mongoose-model operations across the codebase. Top models by op count: User (93), Order (67), Hosting (28), HostingPlan (25), PendingDomain (16), Domain (12), SupportTicket (11), PendingHosting (8), DomainWatch (7).
-
-**Foundation laid for the rest:** Added [lib/services/](lib/services/) (parallel to the existing [lib/payment-services/](lib/payment-services/)). The pattern mirrors the audit's referenced "half-formed" pattern — domain-specific use-case functions, not a generic repository abstraction.
-
-**User done as the concrete first model:**
-
-[lib/services/users.ts](lib/services/users.ts) — exports:
-- Reads: `getUserById`, `getUserByIdSafe` (password-stripped, the default for client returns), `getUserByEmail`, `findUserRoleById` (lightweight role lookup for admin-guards), `countAdmins`, `countUsers`, `listUsers` (paginated admin listing with sane default projection)
-- Writes: `updateUserRole` (whitelist-locked findByIdAndUpdate to prevent mass-assignment), `softDeleteUser` (sets `isActive=false`, `isDeleted=true`, `deletedAt`, invalidates sessions), `permanentDeleteUser` (snapshots `userName`/`userEmail` onto historical Orders before dropping the user), `applyUserPatch` (admin field update with session-invalidation on `isActive: true → false`)
-
-**Migrations completed:** the two highest-User-concentration route files:
-- [app/api/admin/users/route.ts](app/api/admin/users/route.ts) — GET/PUT/DELETE — was 7 direct User calls → 0. Now uses `listUsers`, `findUserRoleById`, `updateUserRole`, `softDeleteUser`, `permanentDeleteUser`.
-- [app/api/admin/users/[id]/route.ts](app/api/admin/users/[id]/route.ts) — GET/PUT/DELETE — was 5 direct User calls → 0. Now uses `getUserByIdSafe`, `getUserById`, `countAdmins`, `applyUserPatch`, `softDeleteUser`. The 30-line in-route soft-delete + invalidate-sessions logic is now a 1-liner.
-
-The user-permanent-deletion "snapshot orders before deletion" logic — previously hand-inlined in the admin route — is now centralized inside `permanentDeleteUser` where any future caller benefits automatically.
-
-**Verified on main:** 340/340 tests, lint clean, tsc clean, production build succeeded.
-
-**Order service added 2026-05-16:** [lib/services/orders.ts](lib/services/orders.ts) — exports:
-- Reads: `getOrderById`, `getOrderByOrderId`, `findUserOrder` (handles both `_id` and `orderId`, filters soft-deleted, ownership-gated in one query), `listOrdersForAdmin` (paginated + auto-applies the `userId`-snapshot fallback when the user has been hard-deleted), `listOrdersForUser`
-- Writes: `softDeleteOrder`, `permanentlyDeleteOrder`, `unarchiveOrder` (each returns the affected document so callers can log the order ID)
-
-**Routes migrated:** [app/api/admin/orders/route.ts](app/api/admin/orders/route.ts), [app/api/admin/orders/[id]/route.ts](app/api/admin/orders/[id]/route.ts), [app/api/user/orders/[id]/route.ts](app/api/user/orders/[id]/route.ts), [app/api/orders/route.ts](app/api/orders/route.ts). The 25-line populate-and-snapshot-fallback block in admin/orders is now centralised; the route shrank from ~99 lines to ~46.
-
-**Hosting service added 2026-05-16:** [lib/services/hostings.ts](lib/services/hostings.ts) — exports:
-- Reads: `getHostingById`, `findUserHosting` (the recurring `{ userId, domainName }` pattern with `domainName` optional), `userHasAnyHosting` (eligibility shortcut that avoids hauling the whole doc), `listHostingsForUser`
-
-**Sites migrated:** [lib/payment-services/webhook-handlers.ts](lib/payment-services/webhook-handlers.ts) (3 of 3 Hosting accesses), [app/api/user/hosting/check-eligibility/route.ts](app/api/user/hosting/check-eligibility/route.ts) (2 of 2). Also fixed a latent type-error caught during migration: `hosting.next_action_at = null` → `undefined` (the field is typed `Date | undefined`; the null was hidden behind the looser Mongoose Document type).
-
-**Zoho-invoice idempotency lease extracted 2026-05-16:** added to [lib/services/orders.ts](lib/services/orders.ts) — `claimOrderForZohoInvoice`, `recordZohoInvoiceForOrder` (handles the E11000 invoice-number collision internally), `releaseZohoInvoiceClaim`, `markZohoInvoiceCreationFailed`, `getOrderByRazorpayPaymentId`, `listStuckZohoInvoiceOrders`. The claim accepts opts `staleClaimAfterMs` (idempotency recovery), `allowNull` (zoho-retry tolerates legacy nulls), and `allowFailed` (zoho-retry picks up `creation_failed` rows).
-
-**Sites migrated:** [lib/payment-services/post-tasks.ts](lib/payment-services/post-tasks.ts) (full Zoho-invoice creation path now a 3-call sequence), [lib/payment-services/idempotency.ts](lib/payment-services/idempotency.ts) (drop direct Order import; lease + record + release helpers handle all transitions), [lib/zoho-invoice-retry.ts](lib/zoho-invoice-retry.ts) (entire file now zero direct Order references — `findStuckOrders` became `listStuckZohoInvoiceOrders`). The three files used to repeat the same `findOneAndUpdate` lease pattern with subtly-different `$or` arms — diverged by accident as the codebase grew. The service-level helper guarantees the same invariants everywhere, and adding a new state (e.g. `"creation_failed_permanent"`) is now a single-file change.
-
-**HostingPlan service added 2026-05-16:** [lib/services/hosting-plans.ts](lib/services/hosting-plans.ts) — exports `getPlanByPlanId(planId, { activeOnly? })`, `getPlanById(id)`, `listActivePlans({ sort? })`, `getPlanByRazorpaySubscriptionPlanId(razorpayPlanId)` (used by the `subscription.charged` webhook to map a Razorpay plan back to its local catalogue entry).
-
-**Sites migrated:** [app/api/user/hosting/upgrade/route.ts](app/api/user/hosting/upgrade/route.ts) + [/upgrade-info](app/api/user/hosting/upgrade-info/route.ts), [/renew](app/api/user/hosting/renew/route.ts) + [/renew-info](app/api/user/hosting/renew-info/route.ts), [/trial-eligibility](app/api/user/hosting/trial-eligibility/route.ts); [lib/payment-services/webhook-handlers.ts](lib/payment-services/webhook-handlers.ts), [/upgrade.ts](lib/payment-services/upgrade.ts), [/provisioner.ts](lib/payment-services/provisioner.ts), [/idempotency.ts](lib/payment-services/idempotency.ts); [app/api/workers/process-hosting-expiry/route.ts](app/api/workers/process-hosting-expiry/route.ts), [/sync-zoho-invoice/route.ts](app/api/workers/sync-zoho-invoice/route.ts). 12 of the 14 read sites migrated; the two admin CRUD routes (`/admin/hosting/packages`, `/admin/hosting/test-plan`) retain direct model access because their create/update/upsert logic is route-specific and doesn't generalise cleanly.
-
-**Verified on main 2026-05-16:** 340/340 tests, lint clean, tsc clean, production build succeeded.
-
-**Verified on main 2026-05-16:** 340/340 tests, lint clean, tsc clean, production build succeeded.
-
-**PendingDomain service added 2026-05-16:** [lib/services/pending-domains.ts](lib/services/pending-domains.ts) — exports `getPendingDomainById(id, { populateUser? })` (handles the legacy raw-string-`_id` / `ObjectId` dual-lookup in a single helper), `getPendingDomainByName`, `listActivePendingDomainsForUser` (filters `isArchived`), `listAllPendingDomainNames` (lean projection used by admin domain-index pages).
-
-**Sites migrated:** [app/api/user/domains/route.ts](app/api/user/domains/route.ts) and [app/api/user/dashboard/route.ts](app/api/user/dashboard/route.ts) (both use the `listActivePendingDomainsForUser` helper); [app/api/admin/pending-domains/[id]/route.ts](app/api/admin/pending-domains/[id]/route.ts) (3 of 3 findOne sites — the GET/PUT/DELETE handlers now share the dual-id helper; deleteOne + findOneAndUpdate inside the DELETE handler retain direct model access since the surrounding orchestration is route-specific); [app/api/admin/pending-domains/route.ts](app/api/admin/pending-domains/route.ts) (uniqueness check); [app/api/admin/domains/route.ts](app/api/admin/domains/route.ts) (admin domain index uses the lean-names helper).
-
-**Domain service added 2026-05-16:** [lib/services/domains.ts](lib/services/domains.ts) — slim by design: only the two patterns that actually repeat (`listDomainsForUser` for dashboard/index/DNS-manager views, `getDomainById` for test-automation routes). The rest of Domain access — provisioner inserts, cron lease updates, verification claims, admin cleanup deletes — is bespoke business logic that doesn't share shape across callers and stays as direct model access.
-
-**Sites migrated:** [app/api/user/domains/route.ts](app/api/user/domains/route.ts), [app/api/user/dashboard/route.ts](app/api/user/dashboard/route.ts), [app/api/user/domains/dns/route.ts](app/api/user/domains/dns/route.ts) (the three `Domain.find({ userId })` callers), [app/api/test/automation/status/route.ts](app/api/test/automation/status/route.ts), [app/api/test/automation/trigger/route.ts](app/api/test/automation/trigger/route.ts) (the two `findById` callers).
-
-**SupportTicket service added 2026-05-16:** [lib/services/support-tickets.ts](lib/services/support-tickets.ts) — `findUserTicket` + `findUserTicketLean` (the user-scoped fetches bake the `{ _id, userId }` ownership filter so a missing-userId foot-gun can't surface a foreign ticket), `listTicketsForUser`, `listTicketsForUserSummary` (consolidates the user-list `messageCount`/`lastMessage` projection), `getTicketById` + `getTicketByIdLean`, `listTicketsForAdmin` (paginated with the same summary-row shaping), `countOpenTickets` (encapsulates the `{ status: { $in: ['open','in_progress'] } }` definition for system-health). The user-side ticket-create and admin status/priority `findByIdAndUpdate` stay as direct model access — each has route-specific validation (attachments, status whitelist) and the service wrapper would just thinly forward.
-
-**Sites migrated:** [app/api/user/support/route.ts](app/api/user/support/route.ts) (list), [app/api/user/support/[id]/route.ts](app/api/user/support/[id]/route.ts) (3 of 3 findOne sites — the unused `SupportTicket` direct import dropped entirely), [app/api/admin/support-tickets/route.ts](app/api/admin/support-tickets/route.ts) (full rewrite — the 25-line list+map+pagination collapsed into a single service call), [app/api/admin/support-tickets/[id]/route.ts](app/api/admin/support-tickets/[id]/route.ts) (2 findById sites), [app/api/admin/system-health/route.ts](app/api/admin/system-health/route.ts) (open-tickets count).
-
-**DomainWatch service added 2026-05-16:** [lib/services/domain-watches.ts](lib/services/domain-watches.ts) — user side: `listWatchesForUser`, `countWatchesForUser` (used by the per-user limit check), `upsertUserWatch` (idempotent add via the unique `(userId, domainName)` index), `removeUserWatch` (returns whether anything was actually deleted so the route can 404 cleanly). Cron side: `listWatchesForCron(batchSize)` (lean + `userId` populated for the notification email), `recordWatchCheck(id, status)`, `removeWatchById(id)`.
-
-**Sites migrated:** [app/api/user/domains/watch/route.ts](app/api/user/domains/watch/route.ts) (full rewrite — every method's direct DomainWatch call replaced), [app/api/workers/check-domain-watch/route.ts](app/api/workers/check-domain-watch/route.ts) (3 of 3 sites). Zero remaining `DomainWatch.X(...)` calls outside the model file itself.
-
-**Verified on main 2026-05-16:** 340/340 tests, lint clean, tsc clean, production build succeeded.
-
-**User-model wider adoption 2026-05-17:** Migrated the dominant `User.findById(token.id).select("-password")` pattern across 24 sites (admin/user routes that resolve a NextAuth token to a user — admin/pending-domains, admin/tld-pricing/cache, admin/settings, admin/invoices, user/dashboard, user/domains, auth/me, etc.) to `getUserByIdSafe`. A second pass replaced plain `User.findById(X)` (no chained method) with `getUserById(X)` across ~12 sites in workers, webhooks, and lib/admin-auth. ~20 files lost their now-unused `import User from "@/models/User"`. Total `User.X(...)` calls outside the service dropped from 103 → 73. Remaining callers are auth-internal (`lib/auth*.ts`, `lib/session-activity.ts`, `lib/auth-config/*`) where the password hash is intentionally needed, and a handful of `User.findOne({ email })` / `User.updateOne(...)` sites that need bespoke service helpers — kept as raw access until the surrounding code is next touched.
-
-**Payment-service direct-model cleanup 2026-05-18:** Added `setUserResellerClubIds(userId, { customerId, contactId })` and `setUserDirectAdminUsername(userId, username)` to [lib/services/users.ts](lib/services/users.ts), and `getOrderByRazorpayOrderId(razorpayOrderId, { orderType? })` to [lib/services/orders.ts](lib/services/orders.ts). Migrated [lib/services/payment/provisioner.ts](lib/services/payment/provisioner.ts) (3 `User.updateOne` sites for RC IDs and DA username), [lib/services/payment/upgrade.ts](lib/services/payment/upgrade.ts) (`Order.findOne` by razorpayOrderId + `Hosting.findById`), and [lib/services/payment/renewal.ts](lib/services/payment/renewal.ts) (`Hosting.findOne({userId, domainName})` → `findUserHosting`, `Hosting.find({userId})` → `listHostingsForUser`). Type-check exposed two pre-existing typing slips that the looser-typed direct model access had hidden — the `Hosting.renewalInvoiceId`/`renewalStatus` fields written here aren't declared on `IHosting`, and the `"suspended"` status used by the fallback reactivation path isn't in the enum (the daily-scheduler writes it, but it's never been added to the schema). Both surfaced as warnings narrowed to that single call site rather than a model-wide change.
-
-**Token-based + TOTP helpers 2026-05-18:** Final pass — added named helpers for the auth-flow patterns that previously needed bespoke `User.findOne({ <tokenField> })` / `User.findById().select("+totpSecret …")` calls.
-
-Token lookups:
-- `findUserByActivationToken(token, { onlyExpired? })` — single helper covers the activate route's "find by token" and "find expired token" branches.
-- `findUserByResetToken(token)` — password-reset flow; returns hydrated so the caller can `.save()` and let the schema's pre-save hook re-hash.
-- `findUserByPendingEmailToken(tokenHash)` — opts in to the `select: false` pendingEmail* fields needed by the email-change verification flow.
-- `findUserByEmailExcluding(email, excludeUserId)` — pairs with the above for the uniqueness re-check during the TTL window.
-
-TOTP (auth-internal — each helper names the secret access on purpose so future routes can't accidentally widen the surface):
-- `getUserWithPendingTOTP(userId)` — `+totpSecretPending` opted-in; used by `/auth/totp/confirm` to verify the first code against the pending secret.
-- `getUserWithTOTPSecrets(userId)` — `+totpSecret +totpBackupCodes +password` opted-in; used by `/auth/totp/disable` which needs both the password check and the secret verification.
-- `setPendingTOTPSecret(userId, secret)` — stash a secret pending confirmation.
-- `activateTOTPForUser(userId, { secret, hashedBackupCodes })` — promote pending → active and store hashed backup codes.
-- `disableTOTPForUser(userId)` — clear all four totp* fields.
-
-Migrated [app/api/auth/activate/route.ts](app/api/auth/activate/route.ts), [/reset-password/route.ts](app/api/auth/reset-password/route.ts), [app/api/user/settings/verify-email-change/route.ts](app/api/user/settings/verify-email-change/route.ts), and the three TOTP routes (`setup`, `confirm`, `disable`). Total direct `User.X(...)` calls outside the service: 33 → 20.
-
-**Final remaining ~20 direct User accesses are intentional and shared narrowly:**
-- `lib/auth.ts`, `lib/session-activity.ts`, `lib/auth-config/{callbacks,providers}.ts`, `lib/admin-security.ts` — the auth/session/credential cluster where the password hash and bespoke session-state projections are required.
-- `app/api/user/settings/change-email/route.ts` — `findById().select("+password")` for the password-confirmation step before the email change.
-- `app/api/admin/users/services/route.ts` — admin reporting aggregation pipeline (one-off, doesn't share shape with anything else).
-- `app/api/admin/hosting/stats/route.ts` — admin DA-reconciliation fallback (`User.find({})` recovery path), one-off.
-
-These don't repeat across the codebase, so wrapping each in a service helper would buy zero abstraction and lose the projection clarity at the call site.
-
-**User-model long-tail 2026-05-18:** Added a final pass of helpers to [lib/services/users.ts](lib/services/users.ts): `findAnyAdmin`, `findUsersByIds`, `findUsersByEmails`, `listUsersWithDirectAdmin`, `listDeactivatedUsers`, `listEligibleUsersForAdminPicker`, `getUserCart` / `setUserCart` / `clearUserCart`, `reactivateUser`, `resetUser2FA`, `clearDirectAdminUsernameForAll`, `appendUserDomain`, `createUser`. Migrated ~22 call sites: cart route (3 sites), auth flows (`forgot-password`, `register` existence-check, `resend-activation`, `check-account-status`, `change-email` conflict-check), admin routes (`reactivate`, `reset-2fa`, `no-hosting`, `deactivated`, `hosting/actions`, `hosting/stats`, `payments`, `orders/invoice-conflicts`, `orders/[id]/invoice`, `reset-password`, `system-health`), and registration/checkout flows (`domains/renew`, `domains/transfer`, `payments/guest/verify`). Total direct `User.X(...)` calls outside the service dropped from 73 → ~52. The remaining 52 are intentional: `lib/services/users.ts` itself, the auth-internal cluster (`lib/auth.ts`, `lib/session-activity.ts`, `lib/auth-config/{providers,callbacks}.ts`, `lib/admin-security.ts` for the password-reauth check) where the password hash is needed, TOTP routes with bespoke `.select("totpSecret …")` projections, a handful of admin reporting aggregations (`admin/users/services`), and the `register` route's `new User() + .save()` mutate-then-save pattern.
-
-**HostingPlan admin CRUD tightening 2026-05-17:** Added `getPlanByPlanIdLean`, `setPlanActive(planId, isActive)`, and `upsertPlanByPlanId(planId, data)` to [lib/services/hosting-plans.ts](lib/services/hosting-plans.ts). The test-plan toggle route ([app/api/admin/hosting/test-plan/route.ts](app/api/admin/hosting/test-plan/route.ts)) — previously a mix of inline `findOne().lean()`, `updateOne`, and `findOneAndUpdate({ upsert: true })` calls — now reads as three service calls + Settings/Razorpay orchestration. Admin packages CRUD ([app/api/admin/hosting/packages/route.ts](app/api/admin/hosting/packages/route.ts)) stays direct: its DA-sync logic and partial-update orchestration is intentionally route-specific.
-
-**lib/payment-services/ → lib/services/payment/ 2026-05-17:** Folded the 10-file orchestration directory under `lib/services/` for consistency. Every import path updated via a single perl pass (`@/lib/payment-services/` → `@/lib/services/payment/`). No behavioural change — the move was purely structural.
-
-**Verified on main 2026-05-17:** 340/340 tests, tsc clean, production build succeeded.
-
-**Smaller-model services added 2026-05-17 (closes the long tail):**
-
-- **Settings** → [lib/services/settings.ts](lib/services/settings.ts) — `getSettingValue<T>(key, default)` (the dominant pattern: read a single value with a fallback, DB errors swallowed back to the default), `getSetting(key)` (full doc when callers need `updatedAt`/`updatedBy`), `getSettingsMap([keys])` (batch read — one query instead of N), `listSettings()`, `upsertSetting(key, value, opts)`, `deleteSetting(key)`. Migrated 14 call sites: trial-eligibility, razorpay-mode (env-bound key rotation), test-plan toggle, tld-pricing + cache routes, maintenance-status, system-health, admin/settings, public/hosting-test-plan, [lib/admin-security.ts](lib/admin-security.ts), [lib/trial-abuse.ts](lib/trial-abuse.ts), Zoho subscription-expired persistence. The legacy class shim [lib/settings-service.ts](lib/settings-service.ts) now delegates to the new functional API so the two remaining `SettingsService.getSetting` callers (`captcha-status`, recaptcha) keep compiling without churn.
-
-- **PendingHosting** → [lib/services/pending-hostings.ts](lib/services/pending-hostings.ts) — `getPendingHostingById`, `listPendingHostingsForAdmin` (admin list with `userId` populated), `countPendingHostingsByStatus`, `listStuckPendingHostings(cutoff)` (lean projection for the cron sweeper), `createPendingHosting`, `deletePendingHostingById`, `deletePendingHostingsByUsername` (admin "remove hosting" bulk-clear; also dropped a dead `{ hostingId: hostingId }` fallback branch that matched no field on the schema). Migrated all 6 call sites: admin pending list, item DELETE, retry, hosting actions, manual provision, payment provisioner, system-health, cron sweeper.
-
-- **Payment** → [lib/services/payments.ts](lib/services/payments.ts) — `createPaymentInTransaction(data, session)` (the only call shape — both checkout flows write Payment inside the atomic Order transaction). Migrated 2 sites: post-payment order-creator + guest checkout.
-
-- **IPCheck** → [lib/services/ip-checks.ts](lib/services/ip-checks.ts) — `recordIPCheck` (stamps `checkedAt`), `getLatestIPCheck` (with `checkedBy` user populated). Migrated the admin debug endpoint pair.
-
-- **RenewalPayment** → [lib/services/renewal-payments.ts](lib/services/renewal-payments.ts) — the four-step idempotency protocol now lives in named helpers: `recordRenewalPayment` (insert, callers catch E11000 as "seen"), `getRenewalByProviderPaymentId`, `claimRenewalPayment` (atomic flip `processed: false → true`), `releaseRenewalClaim` (unwind a claim if downstream work fails), `attachOrderToRenewal` (crosslink). Migrated [lib/services/payment/webhook-handlers.ts](lib/services/payment/webhook-handlers.ts) — the webhook handler no longer has to know the lock protocol.
-
-- **SystemLog** → [lib/services/system-logs.ts](lib/services/system-logs.ts) — `recordSystemLog(input)` with defaults for `level` and `source`. Migrated the public `/api/admin/log-error` browser-error funnel.
-
-- **TrialClaim** — no separate service. The model is already fully encapsulated inside [lib/trial-abuse.ts](lib/trial-abuse.ts) (the trial-abuse policy is the only consumer); pulling it out would be churn without a second caller.
-
-**Models intentionally left as direct access:**
-- **DNSRecord, TLDPricingCache** — 0 production call sites (only the model self-registration test references them). No service to wrap.
-- **Counter / IncrementalCounter** — no such standalone model; the audit comment was a paraphrase.
-
-**Pending — incremental adoption:**
-1. **User model migration:** 12 done, ~81 sites remaining across `app/api/**` and `lib/**`. The service surface is in place; routes adopt as they're next touched.
-2. **Order service migration:** 4 routes migrated; the heavier work lives in `lib/payment-services/` (idempotency, post-tasks, zoho-invoice-retry — 5–7 ops each, with atomic `findOneAndUpdate` lease patterns that warrant their own use-case-named service helpers).
-3. **Hosting service migration:** 5 of 28 ops migrated. Bigger uses (`Hosting.find` + `deleteMany` in admin actions, `findOneAndUpdate` lease in daily-scheduler) need their own use-case wrappers — out of scope for this pass.
-4. **HostingPlan, PendingDomain, Domain, SupportTicket, etc.** — smaller but worth their own modules.
-5. The existing [lib/payment-services/](lib/payment-services/) should probably move under [lib/services/](lib/services/) for consistency — left in place this pass to avoid touching all the verification/order-creator/webhook-handlers files yet again.
-
-**Migration playbook for future routes:**
-- Identify the Mongoose calls in the file.
-- Map each to a service function (extend the service module with a use-case-named function if no existing one fits — avoid creating thin pass-throughs that just wrap a single Mongoose method).
-- Replace the route-level `await connectDB()` calls when the only reason they existed was the Mongoose access — services call it themselves.
-- Keep auth, validation, response shaping in the route. Push state-changing logic and queries into the service.
-
----
-
-### ~~[HIGH-5] `Pending*` collections risk orphans~~ — RESOLVED 2026-05-14
-Added [app/api/cron/pending-sweeper/route.ts](app/api/cron/pending-sweeper/route.ts) — a daily sweeper that scans both `PendingDomain` (skipping `isArchived`) and `PendingHosting` for records older than 24h in non-terminal statuses (`pending` / `processing` / `failed`).
-
-**Severity tiers in the admin digest:**
-- WARN — 24h to 7d old
-- CRITICAL — older than 7d, OR `verificationAttempts > 5` on `PendingDomain`
-
-**Alert pattern:** Single digest email to `ADMIN_EMAIL` per run via `EmailService.sendAdminNotification`, mirroring the existing [check-unprovisioned](app/api/cron/check-unprovisioned/route.ts) cron (same auth, same logger, same email helper, same response wrappers). Records are sorted CRITICAL-first, then by age descending.
-
-**Auth:** `x-cron-secret` header (timing-safe) OR admin session.
-
-**Dedupe strategy:** Run daily, not hourly. One digest per day is the dedupe — admin sees the same record listed each morning until they resolve it. Avoids needing a `lastAlertedAt` field on the models.
-
-**Deliberately *not* implemented:** Auto-archive / TTL deletion of >30d records. Silently deleting paid-but-unprovisioned customer state would mask exactly the failure mode this cron is meant to surface. Admin archives manually via the existing UI after resolution.
-
-**Cloud Scheduler setup** (needs to be run during the deploy):
-
-```
-gcloud scheduler jobs create http pending-sweeper \
-  --schedule="0 9 * * *" --time-zone="Asia/Kolkata" \
-  --uri="https://app.anutech.in/api/cron/pending-sweeper" \
-  --http-method=GET \
-  --headers="x-cron-secret=$CRON_SECRET"
-```
-
-09:00 IST puts the digest in admin's inbox before the business day starts.
-
----
-
-### ~~[HIGH-6] Three overlapping security files~~ — RESOLVED 2026-05-15
-Consolidated into [lib/security/](lib/security/):
-
-- **[lib/security/validator.ts](lib/security/validator.ts)** (390 LOC) — `SecurityValidator` class: malicious-pattern detection, file-upload validation, input sanitization, email/password validation, CSRF (Origin/Referer check).
-- **[lib/security/headers.ts](lib/security/headers.ts)** (147 LOC) — `addSecurityHeaders`, `addCorsHeaders`, `buildPreflightResponse`. Per-route strict-CSP / relaxed-CSP gating.
-
-Old top-level files retained as thin backwards-compat barrels so the ~10 existing import sites don't need to change:
-
-- [lib/security.ts](lib/security.ts) — re-exports `SecurityValidator`.
-- [lib/security-headers.ts](lib/security-headers.ts) — re-exports `addSecurityHeaders` / `addCorsHeaders` / `buildPreflightResponse`.
-
-**Deleted as dead code:** the old `lib/security-middleware.ts` had **zero importers** (verified by grep across `app/`, `lib/`, `tests/`, `middleware.ts`). The audit-recommended `middleware.ts` submodule never landed there. Removed rather than ported.
-
-Audit-recommended sub-files I did NOT create:
-- `csrf.ts` — CSRF lives as `SecurityValidator.validateCSRF` and only has one caller (middleware.ts). Splitting it out would add a file for no readability gain.
-- `rate-limit.ts` — already exists as the top-level [lib/rate-limit.ts](lib/rate-limit.ts); not moved to avoid breaking 12+ import sites for a cosmetic relocation.
-
-**Verified:** 340/340 tests, lint clean (errors), `tsc --noEmit` clean.
-
----
-
-## 4. Code Quality
-
-### ~~[MEDIUM-1] 540 `any` types~~ — **RESOLVED** 2026-05-20 (15 typing passes 2026-05-17 → 2026-05-20; 845 → 10 sitewide, 99% reduction; **every remaining `any` is intentional with an in-line `eslint-disable` + rationale**)
-
-**Fifteenth pass — long-tail completion 2026-05-20:** 30+ files touched, 74 anys removed (84 → 10 sitewide). All remaining anys (6 real, 4 false-positives in comment text) are intentional:
-
-- `lib/auth-config/callbacks.ts` (4) — NextAuth callback parameter shapes vary by provider (Google/credentials/GitHub). The four `: any` annotations on `signIn`, `jwt`, `session`, plus the `additionalData: any` for the disabled Google People API path, are kept with `// eslint-disable-next-line @typescript-eslint/no-explicit-any` comments because forcing a narrower type would lie about the runtime shape NextAuth gives us.
-- `lib/types.ts:88` (`ResellerClubResponse.data`) — RC returns wildly different payloads per endpoint (price tree, order ID, DNS records, renewal pricing…). Narrowing to `unknown` would force every callsite (~25) to cast at the read; an inline eslint-disable + rationale comment keeps it `any`, with the per-endpoint response types in `lib/resellerclub/types.ts` available for callers that want stricter shapes.
-- `components/admin/AdminDataTable.tsx:20` (`Column.render` value parameter) — kept `any` for the same variance reason documented in the thirteenth pass (forcing `unknown` cascades through every admin-page callsite).
-
-**Bulk patterns applied in this pass:**
-
-- **Catch-block narrowing** (~25 sites): `} catch (X: any) {` → `} catch (X: unknown) {` + `instanceof Error` narrowing at each `X.message` / `X.code` read. Touched `lib/sms.ts`, `lib/whatsapp.ts`, every `app/api/user/hosting/*` route, all admin order/hosting/domains/payments routes, debug/check-expiry, workers, payment subscription routes, user settings + email change verify + invoices pay, etc.
-- **Form-event casts** (3 sites): `handleSubmit(e as any)` → `handleSubmit(e as unknown as React.FormEvent)` in `ContactForm.tsx`, `ResetPasswordForm.tsx`, `ForgotPasswordForm.tsx`.
-- **NextAuth session shape narrowing** (~6 sites): `(session.user as any).role` collapsed to `as { role?: string }` in `Navigation.tsx`, `app/admin/dns-management/page.tsx`, `app/admin/hosting/pending/page.tsx`, support-tickets pages, hosting/packages page, domains/page, etc.
-- **`Order.domains.find/forEach` callbacks**: typed via `IOrder['domains'][number]` in `admin/orders/[id]/re-sync-invoice`, `admin/domains/activate-dns`, `admin/payments`, `domains/verify-status`, `user/domains/dns`, etc.
-- **Helper function param narrowing**: `checkProfileCompletion(user: any)` in both user/settings + user/complete-profile narrowed to local `ProfileShape`/`ProfileCompletionShape` interfaces. `formatRegistrationPeriod(hostingPlan: any)` → `hostingPlan: unknown` (only used as a truthy check). `showApiError(error: any)` → `unknown` + structural narrowing.
-- **`(user._id as any).toString()` pattern** (2 sites): `app/api/admin/users/reset-password` + `app/api/admin/settings` — replaced with `String(user._id ?? user.id ?? "")`.
-- **`globalThis` + Navigator-extension shapes**: `device-fingerprint.ts` narrows the `deviceMemory` Device Memory API draft property via a structural cast on `Navigator`.
-
-**Latent issue surfaced and fixed:** [models/Order.ts](models/Order.ts) — the `IOrder.domains[]` TypeScript interface was missing `dnsProvider?: "resellerclub" | "directadmin"`, even though the Mongoose schema defined it. The `any`-typed forEach was hiding this. Added to the interface — `app/api/user/domains/dns/route.ts` now reads `domain.dnsProvider` type-safely.
-
-**Verified on main 2026-05-20:** 340/340 tests, lint clean (`✔ No ESLint warnings or errors`), tsc clean.
-
----
-
-
-
-**Fourteenth pass — long-tail batch 2026-05-20:** 30+ files touched, 75 anys removed (159 → 84 sitewide):
-
-**lib/ helpers:**
-- [lib/tld-pricing-cache.ts](lib/tld-pricing-cache.ts) (2 → 0) — `customerPricing`/`resellerPricing` widened to `unknown` (the cache layer doesn't introspect the payload; consumers narrow).
-- [lib/validation.ts](lib/validation.ts) (2 → 0) — address-sanitizer `Record<string,string>`; `validateDomainIds(domainIds: unknown)`. Surfaced that `ValidationResult.sanitized` is heterogeneous (string for primitive validators, `Record<string,string>` for the address validator) — widened the interface accordingly + narrowed at the search-route callsite where the primitive form is expected.
-- [lib/services/payment/verification.ts](lib/services/payment/verification.ts) (2 → 0) — `existingOrder: { amount: number }` (the only field the validator reads); catch narrowed.
-- [lib/services/payment/price-verifier.ts](lib/services/payment/price-verifier.ts) (2 → 0) — `extractCustomerPrice(customerData: unknown, …)` with `Record<string,unknown>` narrowing at index reads; `livePricing` typed via `Awaited<ReturnType<typeof ResellerClubAPI.getDomainPricing>>`.
-- [lib/services/domain-watches.ts](lib/services/domain-watches.ts) (2 → 0) — `UserWatchSummary._id: unknown`; new `CronWatchRow` interface so `listWatchesForCron(): Promise<CronWatchRow[]>` exposes the `userId`-populated lean shape the cron worker reads.
-- [lib/resellerclub/renewal-transfer.ts](lib/resellerclub/renewal-transfer.ts) (2 → 0) — catch narrowed via `{ response?: { data?: … }, message? }` structural cast; transfer `params: Record<string, string | number>`.
-- [lib/mongodb.ts](lib/mongodb.ts) (2 → 0) — `global.mongoose` hot-reload cache typed via a `MongooseCache` interface + a typed `globalWithMongoose` lift, replacing the historical `(global as any).mongoose` pattern.
-- [lib/domain-verification.ts](lib/domain-verification.ts) (2 → 0) — order-find callback typed via `IOrder['domains'][number]`; catch narrowed.
-- [lib/client-error-handler.ts](lib/client-error-handler.ts) (2 → 0) — `ApiError.details: unknown`; `getUserFriendlyErrorMessage(error: unknown)` with structural narrowing for `code`/`status`/`message`/`name`.
-- [lib/auth-config/helpers.ts](lib/auth-config/helpers.ts) (2 → 0) — `extractSocialName(profile: unknown, user: { name?: string | null })`; the existing per-provider casts via `GoogleProfile` / `GithubProfile` continue to narrow.
-- [lib/api-response-wrapper.ts](lib/api-response-wrapper.ts) (2 → 0) — `data: unknown` on `secureJsonResponse`; `errorDetails: unknown` on `secureErrorResponse`.
-- [lib/resellerclub/search.ts](lib/resellerclub/search.ts) (2 → 0) — JSDoc `@returns` lines updated from `Promise<any>` to the concrete `Promise<RcDomainPricing>` / `Promise<{ status, data?: ResellerDetails, error? }>` that the actual signatures already declared.
-
-**API routes:**
-- [app/api/workers/sync-hosting-status/route.ts](app/api/workers/sync-hosting-status/route.ts) (2 → 0) — both catches narrowed via `instanceof Error`.
-- [app/api/workers/sync-zoho-invoice/route.ts](app/api/workers/sync-zoho-invoice/route.ts) (2 → 0) — `hostingPlan: Awaited<ReturnType<typeof getPlanByPlanId>>`; catch narrowed.
-- [app/api/webhooks/razorpay/route.ts](app/api/webhooks/razorpay/route.ts) (2 → 0) — Redis fallback + outer catch narrowed.
-- [app/api/user/services/status/route.ts](app/api/user/services/status/route.ts) (2 → 0) — both `order.domains.some/forEach` callbacks typed via `IOrder['domains'][number]`.
-- [app/api/user/domains/route.ts](app/api/user/domains/route.ts) (2 → 0) — forEach callback typed via `IOrder['domains'][number]`; outer catch narrowed.
-- [app/api/user/dashboard/route.ts](app/api/user/dashboard/route.ts) (2 → 0) — Cloud Tasks dispatch catch + outer catch narrowed.
-- [app/api/test/automation/status/route.ts](app/api/test/automation/status/route.ts) (2 → 0) — new `ServiceSnapshot` interface for the union of Hosting/Domain lean reads; expiry-date guard added (surfaced a latent crash where `service.expiryDate` could be undefined).
-- [app/api/test/automation/trigger/route.ts](app/api/test/automation/trigger/route.ts) (2 → 0) — Mongoose hydrated-doc union `HydratedDocument<IHosting> | HydratedDocument<IDomain>` so `.save()` typechecks across both branches.
-- [app/api/orders/[id]/invoice/route.ts](app/api/orders/%5Bid%5D/invoice/route.ts) (2 → 0) — `as unknown as IOrder` boundary cast; `generateCustomPdf(order: IOrder, user: IUser, …)`.
-- [app/api/domains/sync/route.ts](app/api/domains/sync/route.ts) (2 → 0) — typed `results` array; `domainData` narrowed to `Record<string, string | undefined>` (RC's flat dotted-key shape).
-- [app/api/domains/dns/route.ts](app/api/domains/dns/route.ts) (2 → 0), [app/api/domains/activate-dns/route.ts](app/api/domains/activate-dns/route.ts) (2 → 0) — order-domains find callbacks typed via `IOrder['domains'][number]`.
-- [app/api/cron/check-hosting-expiry/route.ts](app/api/cron/check-hosting-expiry/route.ts) (2 → 0) — per-task + outer catches narrowed.
-- [app/api/check-ip/route.ts](app/api/check-ip/route.ts) (2 → 0) — `results` object typed with named `ServiceProbe` row shape; `ipCounts.reduce<Record<string, number>>(…)` generic.
-- [app/api/admin/resellerclub/balance/route.ts](app/api/admin/resellerclub/balance/route.ts) (2 → 0) — `authUser as { role?: string }`; catch narrowed.
-- [app/api/admin/tld-pricing/route.ts](app/api/admin/tld-pricing/route.ts) (2 → 0) — recursive `RcPriceNode = string | { [k]: RcPriceNode | undefined }` for RC's polymorphic price tree; the inline `as any` casts dropped, every `.addnewdomain?.["1"]` chain now type-safe under structural narrowing.
-
-**Components + dashboard pages:**
-- [components/AdminTable.tsx](components/AdminTable.tsx) (2 → 0) — converted to a generic `AdminTable<T>` mirroring the earlier `AdminDataTable<T>` pattern; simpler shape (no fancy variance concerns), so the column-value parameter is fully `unknown`.
-- [components/hosting/TrialOtpModal.tsx](components/hosting/TrialOtpModal.tsx) (2 → 0), [components/HostingUpgradeModal.tsx](components/HostingUpgradeModal.tsx) (2 → 0), [components/HostingRenewalModal.tsx](components/HostingRenewalModal.tsx) (2 → 0), [components/LoginForm.tsx](components/LoginForm.tsx) (2 → 0) — catch blocks narrowed via `instanceof Error`. Both Razorpay-iframe-checkout consumers (`HostingUpgradeModal`/`HostingRenewalModal`) extract the `{ kind: 'dismissed' }` soft-cancel tag via a structural cast so the user-dismissed-modal flow stays separated from real errors.
-- [components/DomainCrossSell.tsx](components/DomainCrossSell.tsx) (2 → 0) — search-result callback typed via the local `SearchResult` interface; Enter-key form-forwarder `as unknown as React.FormEvent`.
-- [app/dashboard/invoices/[id]/view/page.tsx](app/dashboard/invoices/%5Bid%5D/view/page.tsx), [app/dashboard/domains/[id]/page.tsx](app/dashboard/domains/%5Bid%5D/page.tsx), [app/dashboard/dns-management/page.tsx](app/dashboard/dns-management/page.tsx), [app/dashboard/hosting/page.tsx](app/dashboard/hosting/page.tsx) (2 each → 0 each) — `(session.user as any).id/role` collapsed into a single `sUser = session.user as { id?, role? }` lift per file; catch blocks narrowed.
-
-**Verified on main 2026-05-20:** 340/340 tests, lint clean, tsc clean.
-
----
-
-
-
-**Thirteenth pass — long-tail batch 2026-05-19:** 13 files touched, 42 anys removed (201 → 159 sitewide):
-
-- [components/RegisterForm.tsx](components/RegisterForm.tsx) (7 → 0). Added a local `GeocodeData` / `GeocodeAdminEntry` / `GeocodeInformativeEntry` interface set so the BigDataCloud reverse-geocode response (the primary geocoder, with Nominatim fallback shaped to match) is properly typed. Five `(item: any)` array-callback params dropped to inference. The `catch (error: any)` for `GeolocationPositionError` narrowed to `unknown` + `geoErr.code` structural read. The form-submit `as any` on the Enter-key forwarder rewritten to `as unknown as React.FormEvent`.
-- [store/cartStore.ts](store/cartStore.ts) (4 → 0). All four `catch (error: any)` blocks rewritten via `unknown` + a `{ code?, name? }` structural cast (the code paths look only at `error.code !== "ECONNRESET"` and `error.name !== "AbortError"`).
-- [components/admin/InvoiceDiagnostics.tsx](components/admin/InvoiceDiagnostics.tsx) (3 → 0). Three identical `catch (err: any)` → `err instanceof Error ? err.message : <fallback>` rewrites.
-- [components/admin/AdminDataTable.tsx](components/admin/AdminDataTable.tsx) (3 → 1). Converted to a **generic component** `AdminDataTable<T>` so consumers (`Invoice`, `Order`, `Payment`, etc.) keep their precise row types end-to-end. `data: any[]` → `data: T[]`; `onRowContextMenu: (e, row: any)` → `(e, row: T)`. The one remaining `any` is on `Column.render`'s value parameter — five callsites already type their render callbacks against concrete value types (`string` / `number`), and narrowing the column generic to `unknown` would force a cascade of widening across all of them. Kept as `any` with an inline eslint-disable + reasoning comment.
-- [components/DomainSetup.tsx](components/DomainSetup.tsx) (3 → 0). Replaced `hostingItem: any` / `(domain: any)` with the existing `CartItem` from [lib/types.ts](lib/types.ts); replaced the `find((r: any) =>)` callback with `(r: SearchResult)` using the locally-declared `SearchResult` interface.
-- [app/api/cart/route.ts](app/api/cart/route.ts) (3 → 0). Added local `RawCartItem` interface (`{ domainName?, itemType?, registrationPeriod?, [k]: unknown }`) for the validator's input — non-narrowable fields pass through the open index signature. Single `as RawCartItem[]` boundary cast where `getUserCart()` returns `unknown[]`.
-- [app/api/admin/hosting/actions/route.ts](app/api/admin/hosting/actions/route.ts) (3 → 0). Three `catch (X: any) → X.message` rewrites via `instanceof Error` narrowing.
-- [app/api/admin/diag-da/cleanup/route.ts](app/api/admin/diag-da/cleanup/route.ts) (3 → 0). `results: any[]` → typed `Array<{ username, success, daResult?, error? }>`. Two catch blocks narrowed.
-- [app/api/admin/hosting/packages/defaults/route.ts](app/api/admin/hosting/packages/defaults/route.ts) (3 → 0). Three catch blocks narrowed; the "already exists" detection runs against the narrowed message string.
-- [app/api/admin/domains/nameservers/route.ts](app/api/admin/domains/nameservers/route.ts) (3 → 0). Same JWT-token-narrowing helper pattern used in the user-side nameservers route applied; the `find((d: any) =>)` typed via `IOrder['domains'][number]`; the `nameservers.map((ns: any) =>)` typed via an `(unknown[]).map((ns) => …)` cast at the array boundary.
-- [app/admin/settings/page.tsx](app/admin/settings/page.tsx) (3 → 0). `cacheStatus: any` → typed `{ hasData?, itemCount?, lastUpdated? }`; the `(session.user as any).role` lookups narrowed to `as { role?: string }`; the catch block narrowed.
-- [app/admin/pending-domains/page.tsx](app/admin/pending-domains/page.tsx) (3 → 0). The inline `Modal: any` props rewrite as a named `ModalProps` interface; `user: any` widened to the union of fields used downstream (`firstName/lastName/role` for `AdminLayoutNew` + optional `id/email`); the NextAuth session fallback now derives `firstName`/`lastName` by splitting `session.user.name` so the `AdminLayoutNew` prop contract is preserved.
-- [app/admin/dashboard/page.tsx](app/admin/dashboard/page.tsx) (3 → 0). `user: any` → typed object; the two `(session.user as any).id/.role` casts narrowed via a single `as { id?, role? }` lift.
-
-**Verified on main 2026-05-19:** 340/340 tests, lint clean, tsc clean.
-
----
-
-
-Across `lib/`, `app/`, `components/`. TypeScript was doing far less work than it could. Worst offenders were the external API wrappers (ResellerClub / DirectAdmin responses).
-
-**First pass — ResellerClub wrappers (audit-recommended starting point):**
-
-[lib/resellerclub/types.ts](lib/resellerclub/types.ts) — new shared type file: `RcTldPricing`, `RcPricingResponse`, `RcDomainPricing`, `RcTldPricingPair` (the `getTLDPricing` shape — `customer` + `reseller` blocks + tld), `RcTldPricingDetail` (the extended shape `PricingService.getTLDPricing` returns with pre-extracted `price` / `resellerPrice` / `currency` / `registrationPeriod`), `RcAvailabilityEntry`, `RcAvailabilityResponse`, `RcAvailabilitySearchParams`, `RcDnsRecord`. The records keep open index signatures (`[k: string]: unknown`) so future upstream fields don't surface as type errors.
-
-**Migrated:**
-- [lib/resellerclub/search.ts](lib/resellerclub/search.ts) — 11 → 0 anys. Strict types on `getDomainPricing`, `getTLDPricing`, `searchDomain`'s Object.entries iteration (no more `data as any` casts), `getResellerDetails` (added the actually-used fields `billingmode`, `resellerstatus`, `totalreceipts` and tightened the index signature to `string | undefined` so callers that read `.billingmode` as a string still compile cleanly). The `catch (error: any)` was rewritten using `AxiosError` instanceof narrowing.
-- [lib/resellerclub/dns.ts](lib/resellerclub/dns.ts) — 14 → 0 anys. Added a tiny `axiosStatus(err: unknown)` helper to narrow catch errors, typed the DNS-record iteration via `RcDnsRecord`, dropped the 5 `(record as any)` casts on the dynamically-keyed record reads.
-- [lib/resellerclub-dns-specific.ts](lib/resellerclub-dns-specific.ts) — 23 → 0 anys. Same `axiosStatus` helper + bulk perl pass over the 23 identical `catch (error: any)` / `error.response?.status === 404` patterns.
-
-**Net:** 48 anys removed (≈6% of the 845 total). The `getDomainPricing` / `searchDomain` chain — the audit's named "highest-traffic" target — is now fully typed end-to-end.
-
-**Second pass — Zoho Books wrappers (2026-05-17):** Same approach, applied to the Zoho Books module:
-
-[lib/zohobooks/types.ts](lib/zohobooks/types.ts) — new shared types file: `ZohoApiEnvelope` (the `{ code, message }` wrapper every Zoho response shares), specific response wrappers for contacts/invoices/credit-notes/recurring/organization (`ZohoContactsListResponse`, `ZohoInvoiceResponse`, etc.), record types (`ZohoContact`, `ZohoContactPerson`, `ZohoLineItem`, `ZohoCreditNote`, `ZohoRecurringInvoice`, `ZohoOrganization`, `ZohoBillingAddress`), app-side input shapes (`ZohoUserInput`, `ZohoOrderInput`, `ZohoOrderItemInput`), and an `unwrapZohoError(err: unknown)` helper that replaces the `(error as any).response?.data` foot-gun. The existing `ZohoInvoice` from [lib/types.ts](lib/types.ts) is re-exported through the types module so a single canonical definition stays in place.
-
-**Migrated:**
-- [lib/zohobooks.ts](lib/zohobooks.ts) — 28 → 0 anys. Every public delegate method now has a concrete return type (`ZohoContact | null`, `ZohoInvoice[]`, etc.) instead of `any`. The internal `idempotentRetry` and `getHeaders` helpers — previously `lastError: any` + `headers: any` — now use `unknown` with narrowing via the new helper. `ZohoError.details` was widened from `any` to `unknown`.
-- [lib/zohobooks/invoices.ts](lib/zohobooks/invoices.ts) — 25 → 0 anys. `createInvoice` / `getInvoicesByEmail` / `getAllInvoices` / `getInvoiceById` / `getInvoicesByReferenceNumber` / `applyPaymentToInvoice` / `getInvoicePdf` all switched from `Promise<any>` to typed returns. Eight `catch (X: any)` blocks rewritten via `unwrapZohoError`.
-- [lib/zohobooks/contacts.ts](lib/zohobooks/contacts.ts) — 19 → 0 anys. Same pattern across `getContactByEmail` / `getContactByName` / `createContact` / `updateContactDetails` / `getContactPersons` / `updateContactPerson` / `updateContactToConsumer`.
-
-**Net:** 72 anys removed (≈8.5% of the original 845). Combined two-pass total: **120 anys removed, 845 → 725 sitewide**.
-
-**Downstream type ripples** caught + fixed during this pass:
-- [app/api/admin/system-health/route.ts](app/api/admin/system-health/route.ts): explicit casts on `org.plan_name` / `org.trial_expiry_date` since the org response now has an `unknown`-indexed signature.
-- [app/api/user/invoices/[id]/pay/route.ts](app/api/user/invoices/[id]/pay/route.ts): `invoice.balance ?? 0` since the typed `ZohoInvoice.balance` is now `number | undefined`.
-- [lib/services/payment/post-tasks.ts](lib/services/payment/post-tasks.ts): `let invoice: ZohoInvoice | null` since `createInvoice` may now return null on idempotency skip.
-
-**Verified on main 2026-05-17:** 340/340 tests, tsc clean, production build succeeded.
-
-**Third pass — DirectAdmin + smaller Zoho submodules (2026-05-17):**
-
-[lib/directadmin/types.ts](lib/directadmin/types.ts) — new shared types file: `DAParsedRecord` / `DAParsedResponse` (the parsed key=value form vs. the raw-string fall-through from `parseResponseData`), `DAErrorPayload` (the `error=1&text=…` shape DA returns on failure), and `unwrapDAError(err: unknown)` to narrow Axios catches into `{ status, data, code, message }`.
-
-**Migrated (DirectAdmin):**
-- [lib/directadmin/client.ts](lib/directadmin/client.ts) — 10 → 0 anys. `DirectAdminError.response` widened from `any` to `unknown`. `requestQueue: Promise<unknown>`. `parseDAError` / `parseResponseData` signatures rewritten with `unknown` input + typed records (rather than `any → any`). Five `catch (error: any)` sites in the executeRequest retry loop rewritten via `unwrapDAError`, dropping every `error.response?.status` / `error.code` access through a named helper.
-- [lib/directadmin/users.ts](lib/directadmin/users.ts) — 8 → 0 anys. `getUserConfig` / `getUserUsage` / `getAllUserUsage` all switched from `Promise<any>` to `Promise<Record<string, string | undefined>>`. Six `catch ((error: any) => …)` patterns rewritten to `unknown` with `unwrapDAError` narrowing.
-- [lib/directadmin/dns.ts](lib/directadmin/dns.ts) — 7 → 0 anys. Added a local `DADnsRecord` interface so `getDNSRecords` returns a real type instead of `any[]`. The BIND-zone-file fallback and URL-encoded path now share the same record shape (`key` is optional — present for API-parsed records, absent for raw-zone fallback). `deleteDNSRecords` / `addDNSRecord` / `updateDNSNameservers` switched off `Promise<any>` returns.
-- [lib/directadmin/packages.ts](lib/directadmin/packages.ts) — 3 → 0 anys. `getPackageDetails` now returns `Record<string, string | undefined>`. `createPackage(options)` typed as `Record<string, string | undefined>`.
-- [lib/directadmin/server.ts](lib/directadmin/server.ts) — 2 → 0 anys. `getServerInfo` / `getLicenseInfo` typed.
-
-**Migrated (Zoho follow-ups now that `lib/zohobooks/types.ts` exists):**
-- [lib/zohobooks/recurring.ts](lib/zohobooks/recurring.ts) — 5 → 0 anys. `createRecurringInvoice` signature uses the existing `ZohoUserInput` / `ZohoOrderInput` / `ZohoOrderItemInput` types. Two `catch (X: any)` blocks rewritten via `unwrapZohoError`.
-- [lib/zohobooks/org.ts](lib/zohobooks/org.ts) — 3 → 0 anys. `getOrganizationDetails` returns `ZohoOrganization | null`; the `find((o: any) =>)` callback typed via the returned record type.
-- [lib/zohobooks/credit-notes.ts](lib/zohobooks/credit-notes.ts) — 1 → 0 anys. Return type tightened to `ZohoCreditNote`.
-
-**Downstream ripples** caught + fixed:
-- [app/api/admin/hosting/details/route.ts](app/api/admin/hosting/details/route.ts) + [app/api/user/hosting/stats/route.ts](app/api/user/hosting/stats/route.ts) — the typed `getDNSRecords` return surfaced two `(r: any) => r.value.replace(…)` sites where `r.value` is now correctly typed as `string | undefined`; tightened with `?? ''` guards.
-
-**Net this pass:** 43 anys removed (`725 → 682`). Combined three-pass total: **163 anys removed sitewide (845 → 682, 19% reduction)** — every external-API wrapper (ResellerClub, Zoho Books, DirectAdmin) now has a co-located types module and an `unwrap-*-Error` helper for catch-block narrowing.
-
-**Verified on main 2026-05-17:** 340/340 tests, tsc clean, production build succeeded.
-
-**Pending:** 682 anys remaining. Largest residual clusters:
-- Admin route handlers (`app/api/admin/hosting/stats/route.ts`: 21, `app/admin/user-management/page.tsx`: 20) — request/response shapes plus `event: any` callback params on the UI side.
-- Other ad-hoc admin/user-page anys throughout `app/admin/**` and `app/dashboard/**` (most files 5–10).
-- Generic library helpers (`lib/audit-log.ts`: 11, `lib/rate-limit.ts`: 14) — internal types worth a dedicated pass.
-
-**Fourth pass — lib helpers + payment services + the largest admin route (2026-05-18):**
-
-- [lib/rate-limit.ts](lib/rate-limit.ts) — 14 → 0. Extracted `getClientIP` + `ipKey` / `userOrIpKey` factories so the 14 inline `(request as any).ip || x-forwarded-for || …` chains collapse to one typed helper. The bulk of the rateLimiters block became one-liner `keyGenerator: ipKey("login")` entries.
-- [lib/audit-log.ts](lib/audit-log.ts) — 10 → 0. `requestBody` / `metadata` / `query` / `details` widened from `any` to `Record<string, unknown>`; the loop iterator gets the actual `AuditLogEntry & { createdAt }` shape; `getClientIP` structural cast on NextRequest.
-- [lib/server-logger.ts](lib/server-logger.ts) — 9 → 0. Single `LogArg = unknown` type for the variadic logger; `LogOptionsObj` for the meta-object branch in `remoteLog`; structural cast on `globalThis.__requestContextStorage`.
-- [lib/admin-security.ts](lib/admin-security.ts) — 7 → 0. `AdminSecurityResult.user` typed precisely; the 3 `(user._id as any)?.toString()` casts dropped via a single named cast; `details` widened to `Record<string, unknown>`. Caught + fixed a latent bug surfaced by the typing: [middleware/admin-api-security.ts](middleware/admin-api-security.ts) was calling `user._id.toString()` on a `verifyAdminSecurity` result that never had `._id` (only `.id`). Switched to `user.id` directly.
-- [lib/pricing-service.ts](lib/pricing-service.ts) — 7 → 0. `DomainPricingPayload` interface; `getTLDPricing` returns `Record<string, RcTldPricingDetail>` instead of `{ [tld: string]: any }`; transfer-pricing block narrow-cast for the dynamic field walk. Downstream: [lib/resellerclub/search.ts](lib/resellerclub/search.ts) drops 3 `parseFloat(livePricing[tld].price)` casts (price is now `number` per the new return type).
-- [lib/provisioning.ts](lib/provisioning.ts) — 7 → 0. `provisionOrder(order, user)` switched from `(order: any, user: any)` to `(HydratedDocument<IOrder>, IUser)`, with the failedDomains list typed as `FailedDomain[]`. Cleaned up the unused `connectDB` / `Order` / `PendingDomain` / `DomainVerificationService` imports (dead carryover). The legacy flat-field address reads on user (`user.city || user.address?.city || …`) narrowed via a structural intersection cast at the top of the function.
-- [lib/services/payment/webhook-handlers.ts](lib/services/payment/webhook-handlers.ts) — 10 → 0. `RazorpayWebhookPayload` interface narrowed to the fields the handlers actually read; `MongoLikeError` + `asErr(unknown)` helper replaces the 5 `catch (X: any)` blocks; `newOrder` typed as `HydratedDocument<IOrder> | null`.
-- [lib/services/payment/order-creator.ts](lib/services/payment/order-creator.ts) — 7 → 0. `CreateCompletedOrderResult` swapped `order: any` → `HydratedDocument<IOrder>` and each `any[]` field to the exact `RegistrationResult[]` / `OrderDomain[]` type from the provisioner.
-- [app/api/admin/orders/invoice-conflicts/route.ts](app/api/admin/orders/invoice-conflicts/route.ts) — 8 → 0. Added local `LeanOrder` / `LeanUser` shapes so the `.lean()` projections and the `dupes.map(...)` aggregation entries type-check without `any` casts in the inner pipeline.
-- [app/api/admin/tld-pricing/route.ts](app/api/admin/tld-pricing/route.ts) — kept the dynamic field walk explicitly opt-out: the ResellerClub response is exposed in three sibling shapes (top-level `price`, nested `pricing` block, numeric-keyed bundles), so this admin reporting block reads off `any`-cast locals with a comment explaining why.
-
-**Net this pass:** 69 anys removed (`603 → 534`, then 8 more from invoice-conflicts → `526`). Combined four-pass total: **319 anys removed sitewide (845 → 526, 38% reduction)**.
-
-Two long-standing slips surfaced and were fixed: (1) the admin-security middleware was reading `user._id` on a shape that only has `user.id` (would have thrown if a sensitive admin path ever ran), (2) `lib/services/payment/webhook-handlers.ts` writes `isTrial` to Hosting documents but the field isn't declared on `IHosting` — narrowed via a structural cast at the single call site rather than widening the model.
-
-**Verified on main 2026-05-18:** 340/340 tests, tsc clean, production build succeeded.
-
-**Fifth pass — admin route handlers (2026-05-18):**
-
-- [app/api/admin/hosting/stats/route.ts](app/api/admin/hosting/stats/route.ts) — 19 → 0. Added local `HostingStatRow` / `LocalUser` / `HostingRecord` shapes; the DA bulk-sync tuple typed via `DaUserConfig = Record<string, string | undefined>` matching the DirectAdminService return types. Dropped the 7 `(h: any) => …` and `(localUser as any)._id.toString()` casts that the dynamic DA response had previously required.
-- [app/api/admin/pending-domains/[id]/register/route.ts](app/api/admin/pending-domains/[id]/register/route.ts) — 11 → 0. Five `(d: any) => …` callbacks on the `order.domains` array typed via `IOrder['domains'][number]`; the populated `order.userId` narrowed via a structural cast to the populated shape; `as any` on the email-template payload swapped for a `Parameters<typeof EmailService.sendOrderConfirmationEmail>[2]` extraction.
-- [app/api/admin/hosting/provision/route.ts](app/api/admin/hosting/provision/route.ts) — 10 → 0. `ProvisionBody` interface for the request body; `RecurringResult` shape for the (currently disabled) recurring-invoice path; the order-domain mutation narrowed via a `(typeof newOrder.domains)[number] & { zohoRecurringInvoiceId? … }` intersection so the dynamic field writes type-check.
-- [app/api/admin/domains/dns/route.ts](app/api/admin/domains/dns/route.ts) — 10 → 0. NextAuth-token-to-user minimal shape typed via `unknown` intermediary (NextAuth's token shape doesn't overlap `IUser` enough for a direct cast). The 3 `order.domains.find((d: any) => …)` callbacks typed via `IOrder['domains'][number]`.
-- [app/api/domains/nameservers/route.ts](app/api/domains/nameservers/route.ts) — 9 → 0. `IanaService` / `RdapNameserver` / `RdapEvent` interfaces for the RDAP response walking; `WhoisData` interface for the assembled return shape.
-- [app/api/payments/create-order/route.ts](app/api/payments/create-order/route.ts) — 8 → 0. Body destructure typed via `CartItem[]`; `(item: any) => …` filter/reduce callbacks typed via `CartItem`; the trial-toggle Settings read swapped from a direct model lookup to `getSettingValue<boolean>("hosting_trial_enabled")`. Legacy `item.planId` reads (cart shape predates the `hostingPlan` nesting) cast at the access site rather than widening `CartItem` for one backward-compatibility path.
-
-**Net this pass:** 67 anys removed (`526 → 459`). Combined five-pass total: **386 anys removed sitewide (845 → 459, 46% reduction)**.
-
-**Verified on main 2026-05-18:** 340/340 tests, tsc clean, production build succeeded.
-
-**Sixth pass — React client pages (2026-05-18):**
-
-- [app/admin/user-management/page.tsx](app/admin/user-management/page.tsx) — 18 → 0. Session-user shape narrowed via a structural cast (NextAuth's `session.user.id` / `.role` aren't on the default `Session` type); 10 `(value: any, row: User) =>` column-renderer callbacks rewritten as `(_value: unknown, row: User)`; `selectedServiceUser` state narrowed via a new `ServiceUser` interface that carries the optional `domains` / `hosting` / `directAdminUsername` arrays the admin modal reads; tab-id cast tightened to the literal-union type the state actually allows.
-- [app/admin/hosting/page.tsx](app/admin/hosting/page.tsx) — 12 → 0. Added `HostingPackage` / `PickerUser` / `HostingDetails` interfaces for the provisioning + details modal state; widened the existing `HostingData` row type with the `dbId` / `error` fields the row renderer accesses; defensive `?.` guards on the resource-usage block (`emails`, `ftp`, `databases`, `subdomains`) since DA configs vary; `(item as any).error` and `(menuData as any).dbId` reads now typed off `HostingData` / the menu-data interface.
-- [app/checkout/page.tsx](app/checkout/page.tsx) — 8 → 0. `cartItems` callbacks typed via `CartItem` so the `isTrial` field is reachable without `(item as any).isTrial` casts; `userObj` state typed as `User | null`; `orderPaymentData` typed via a new local `RazorpayPaymentResult` interface; `(err: any).kind` narrow-cast at the dismissed-iframe branch; the trial-yearly-price calc guarded against `trialItem?.price` being undefined (TS-strict required after dropping `as any`).
-
-**Net this pass:** 38 anys removed (`459 → 421`). Combined six-pass total: **424 anys removed sitewide (845 → 421, 50% reduction)**.
-
-**Verified on main 2026-05-18:** 340/340 tests, tsc clean, production build succeeded.
-
-**Seventh pass — service layer + remaining lib helpers (2026-05-18):**
-
-- [lib/services/orders.ts](lib/services/orders.ts) — 6 → 0. `AdminListResult.orders` typed via a new `AdminOrderRow` interface (Omit-pattern on `IOrder` since the post-mapped userId is either the populated User-like shape OR a synthesised stub when the user is hard-deleted); `StuckZohoInvoiceOrder` widened from open `any`/`any[]` slots to `ObjectId`/`IOrder["domains"]` so downstream callers in `lib/zoho-invoice-retry.ts` can pass the IDs without `String()` workarounds; E11000 catch narrowed via `{ code?: number }`.
-- [lib/services/support-tickets.ts](lib/services/support-tickets.ts) — 6 → 0. `UserTicketSummary` / `AdminTicketListEntry` interfaces tightened (open `any` slots became `unknown`/`IMessage`); the row-mapper functions inside `listTicketsForUserSummary`/`listTicketsForAdmin` now narrow the lean rows via a structural cast through `unknown` (Mongoose's FlattenMaps shape doesn't overlap with ISupportTicket directly, and the schema adds `createdAt` via `timestamps: { createdAt: true }` without declaring it on the interface).
-- [lib/services/users.ts](lib/services/users.ts) — 5 → 0. `ListUsersResult.users` typed via `Array<Partial<IUser> & { _id: unknown }>` matching the actual lean+projected shape; the 3 `_id: any` slots on the lean-cast generics tightened to `unknown`; the 2 `(user as any).sessionInvalidatedAt = …` assignments narrowed via a structural intersection cast.
-- [lib/services/payment/idempotency.ts](lib/services/payment/idempotency.ts) — 6 → 0. `IdempotencyContext` widened from `paymentDetails: any; user: any; existingOrder: any` to `RazorpayPaymentDetails` / `IUser` / `IOrder | null`; the resolved-cart-items shape narrow-cast through `unknown` because order.domains carries extra registrar metadata not in `CartItem`.
-- [lib/services/payment/renewal.ts](lib/services/payment/renewal.ts) — 6 → 0. Six `catch (X: any)` blocks rewritten using `err instanceof Error ? err.message : String(err)`; the renewal-email `as any` payload swapped for the typed signature (the `status: "Reactivated"` extra field — not on the email helper's input — was dropped as it was unused on the recipient side anyway).
-- [lib/recaptcha.ts](lib/recaptcha.ts) — 6 → 0. Hoisted a `Grecaptcha` interface and `grecaptcha()` accessor so the 6 `(window as any).grecaptcha` casts collapsed to one typed indirection.
-- [lib/logger.ts](lib/logger.ts) — 6 → 0. The 6 `args: any[]` parameter declarations on the client logger now use `unknown[]`. The function bodies already narrow before reading fields.
-- [lib/admin-auth.ts](lib/admin-auth.ts) — 5 → 0. `AuthResult.user` widened from `any` to a named object shape (`id: string`, `email`, etc.) plus optional `message`/`supportEmail`/`isDeactivated` for the deactivated-account branch that was previously hidden behind an outer `as any` cast; JWT-verify result narrowed via `DecodedJwt`; request-IP read structural-cast like the rest. Caller follow-up: `app/api/admin/backup/route.ts` added an explicit `if (!authResult.valid || !authResult.user)` guard so subsequent `authResult.user.id` reads pass through optional-chaining-free.
-
-**Net this pass:** 48 anys removed (`421 → 373`). Combined seven-pass total: **472 anys removed sitewide (845 → 373, 56% reduction)**.
-
-**Verified on main 2026-05-18:** 340/340 tests, tsc clean, production build succeeded.
-
-**Eighth pass — admin + worker/cron + webhook routes (2026-05-18):**
-
-- [app/api/admin/pending-domains/route.ts](app/api/admin/pending-domains/route.ts) — 6 → 0. `pendingDomainQuery` / `orderQuery` typed via `Record<string, unknown>`; the merged-list array typed via a `MergedRow` intersection that captures the fields the two sources share (`status` / `domainName` / `createdAt` / `source`); the synthetic order-derived rows typed via a local `SyntheticPendingDomain` interface.
-- [app/api/admin/pending-domains/[id]/route.ts](app/api/admin/pending-domains/[id]/route.ts) — 7 → 0. The 3 `(d: any) => d.domainName === …` callbacks typed via `IOrder["domains"][number]`; populated `pendingDomain.userId` narrowed via structural cast for the customer-email read; 3 `catch (X: any)` blocks rewritten via `instanceof Error` narrowing.
-- [app/api/admin/hosting/packages/route.ts](app/api/admin/hosting/packages/route.ts) — 6 → 0. DA `getPackageDetails` return typed via `Record<string, string | undefined>` matching the lib service signature; `parseDAValue` parameter widened to `string | undefined`; 4 `catch (X: any)` blocks rewritten with `instanceof Error` narrowing.
-- [app/api/admin/diag-da/route.ts](app/api/admin/diag-da/route.ts) — 6 → 0. The 4 `(X as any).reason.message` casts on the Promise.allSettled results collapsed into one `settledError(r: PromiseSettledResult<unknown>)` helper; cleanup-loop catch + outer catch narrowed via `instanceof Error`.
-- [app/api/workers/process-service-expiry/route.ts](app/api/workers/process-service-expiry/route.ts) — 6 → 0. Added a local `ServiceLike` interface — wider than `IHosting` or `IDomain` alone because the handler mutates fields like `processing_until` / `last_reminder_sent` on both shapes plus an optional populated `userId`. Caught a latent shape mismatch surfaced by strict typing — `userId` is the populated User object after `.populate("userId")`, but the model type still says `ObjectId | string`; narrowed at the read site rather than widening the model.
-- [app/api/cron/check-unprovisioned/route.ts](app/api/cron/check-unprovisioned/route.ts) — 6 → 0. Lean Order projection typed via `Pick<IOrder, …>` so the 4 `(o: any) => …` and `(d: any) => …` callbacks now read off the IOrder shape; the alert-failure catch narrowed via `instanceof Error`.
-- [app/razorpay/webhook/route.ts](app/razorpay/webhook/route.ts) — 6 → 0. `RazorpayPaymentEntity` / `PaymentCapturedPayload` / `RefundProcessedPayload` interfaces for the webhook payload narrowing; `handlePaymentCaptured` / `handleRefundProcessed` / `provisionServices` got their `payload: any` / `order: any` parameters typed; ObjectId → string conversion added at the 3 `getUserById(order.userId)` call sites that the typed signature requires.
-
-**Net this pass:** 43 anys removed (`373 → 330`). Combined eight-pass total: **515 anys removed sitewide (845 → 330, 61% reduction)**.
-
-**Verified on main 2026-05-18:** 340/340 tests, tsc clean, production build succeeded.
-
-**Ninth pass — guest verify + dashboard pages + RC customers + retry route (2026-05-18):**
-
-- [app/api/payments/guest/verify/route.ts](app/api/payments/guest/verify/route.ts) — 7 → 0. 4 `(i: any) => …` cartItems callbacks typed via `CartItem`; 3 `catch (X: any)` blocks rewritten via `instanceof Error` narrowing.
-- [app/dashboard/page.tsx](app/dashboard/page.tsx) — 5 → 0. `DashboardStats` widened from `recentOrders: any[]` etc. to per-list interfaces (`RecentOrderSummary`, `RecentDomainSummary`, `UpcomingRenewal`, `ActiveHosting`); each carries an open index signature because the server-side reductions assemble display strings (`registeredDate`, `name`) not in any single model.
-- [app/dashboard/settings/page.tsx](app/dashboard/settings/page.tsx) — 6 → 0. `setSettings({} as any)` swapped for `setSettings({ security: {} })` (the type's only required field); session-user narrowed via structural cast; 3 toast-error `catch (e: any)` blocks rewritten via `instanceof Error`.
-- [app/admin/order-management/page.tsx](app/admin/order-management/page.tsx) — 6 → 0. Session-user shape narrowed (same NextAuth pattern as user-management); 5 column-renderer callbacks rewritten as `(_value: unknown, row: Order)`.
-- [lib/resellerclub/customers.ts](lib/resellerclub/customers.ts) — 5 → 0. The 3 `data?: any` return-type slots tightened to `unknown` so callers `parseInt(String(…))` at the boundary; 2 `params: any` objects typed via `Record<string, string | number | undefined>`. Caller follow-up: `app/api/auth/register/route.ts` + `app/api/user/settings/route.ts` cast `customerResult.data` to `number` at the assignment site.
-- [app/api/workers/process-hosting-expiry/route.ts](app/api/workers/process-hosting-expiry/route.ts) — 5 → 0. The 2 `(d: any) => …` callbacks typed via an `IOrder['domains'][number] & { hostingPlan? }` intersection; `periodUnit as any` swapped for a literal-union guard; 2 outer `catch (X: any)` blocks narrowed.
-- [app/api/admin/hosting/pending/[id]/retry/route.ts](app/api/admin/hosting/pending/[id]/retry/route.ts) — 5 → 0. The 5 `catch (X: any)` blocks each rewritten via `instanceof Error` narrowing — uniform pattern across DA / DNS / Hosting / Email / outer-catch failures.
-- [app/api/admin/domains/route.ts](app/api/admin/domains/route.ts) — 5 → 0. The 4 `(order.userId as any).field` reads collapsed into one `populatedUser` structural cast; `(domain as any)._id` narrowed via intersection cast; `(order as any).resellerClubOrderId` typed via local `orderLoose` alias.
-
-**Net this pass:** 44 anys removed (`330 → 286`). Combined nine-pass total: **559 anys removed sitewide (845 → 286, 66% reduction)**.
-
-**Verified on main 2026-05-18:** 340/340 tests, tsc clean, production build succeeded.
-
-**Tenth pass — 5 routes + small lib helpers (2026-05-18):**
-
-- [app/api/user/hosting/check-eligibility/route.ts](app/api/user/hosting/check-eligibility/route.ts) — 5 → 0. `(user._id as any).toString()` → `String(user._id)`; 2 `catch (error: any)` blocks narrowed.
-- [app/api/payments/guest/create-order/route.ts](app/api/payments/guest/create-order/route.ts) — 5 → 0. 4 `(item: any) => …` cartItems callbacks typed via `CartItem`; outer catch narrowed via `instanceof Error`.
-- [app/api/domains/search/route.ts](app/api/domains/search/route.ts) — 5 → 0. 3 `redisCache.get<any[]>` slots typed via `DomainSearchResult[]`; the `quickResults: any[]` local typed via the same; suggestion-error fallback typed via `[] as DomainSearchResult[]`.
-- [app/api/cron/daily-scheduler/route.ts](app/api/cron/daily-scheduler/route.ts) — 5 → 0. 5 `catch (X: any)` blocks rewritten via `instanceof Error` narrowing for the hosting-queue / domain-queue / balance-check / domain-watch / outer-catch failures.
-- [app/api/admin/users/services/route.ts](app/api/admin/users/services/route.ts) — 5 → 0. `(session.user as any).role` narrowed via `sessionUser` structural cast; the 2 `(u as any).hostingExpiresAt`/`hostingCreatedAt` reads via a local `ServiceUserLean` shape; outer catch narrowed.
-- [lib/razorpay.ts](lib/razorpay.ts) — 4 → 0. Hoisted a `RazorpaySdkError` interface and `asRzpErr(unknown)` helper; the 4 `catch (error: any)` blocks each narrow via `asRzpErr` and read `.error.description` / `.message` / `.code` through the typed shape.
-- [lib/cloud-tasks.ts](lib/cloud-tasks.ts) — 4 → 0. `client: any` → `LazyCloudTasksClient` (derived from the SDK's actual return type); `payload: any` widened to `unknown` (the function serialises it via `JSON.stringify`); the local `task: any` typed via a `CloudTask` interface and the SDK signature cast through `Parameters<…>` at the createTask call site.
-- [lib/client-logger.ts](lib/client-logger.ts) — 4 → 0. 4 `details?: any` parameter declarations on the logger now `unknown`.
-- [lib/auth.ts](lib/auth.ts) — 3 → 0. `jwt.verify(...) as any` → `JWTPayload & { iat?: number }`; the 2 `(session.user as any).id`/`.email` reads via a local `sessionUser` structural cast.
-
-**lib/auth-config/callbacks.ts intentionally retained `any` (4 occurrences) with eslint-disable comments** — NextAuth's callback parameter shapes vary by provider (Google vs. credentials vs. GitHub) and the callbacks read fields defensively across those shapes; forcing a single narrower type would lie about the runtime data.
-
-**Net this pass:** 39 anys removed (`286 → 247`). Combined ten-pass total: **598 anys removed sitewide (845 → 247, 71% reduction)**.
-
-**Verified on main 2026-05-18:** 340/340 tests, tsc clean, production build succeeded.
-
-**Eleventh pass — 12 small files (4-any each) (2026-05-18):**
-
-Uniform pattern across the long tail — each file had ≤4 anys, mostly `catch (X: any)` blocks (rewritten via `instanceof Error` narrowing) and `(session.user as any).id|role` reads (narrowed via per-call structural casts). The 12 files:
-
-- [app/dashboard/invoices/page.tsx](app/dashboard/invoices/page.tsx) — 4 → 0
-- [app/api/user/hosting/stats/route.ts](app/api/user/hosting/stats/route.ts) — 4 → 0 (DA error narrowed via a local `NetErr` shape; the 2 `hostingRecords.find((h: any) => …)` callbacks now `IHosting`)
-- [app/api/cron/pending-sweeper/route.ts](app/api/cron/pending-sweeper/route.ts) — 4 → 0 (the 2 `as any[]` array casts replaced with a `StuckPendingDomainRow` interface for the lean projection)
-- [app/api/workers/check-domain-watch/route.ts](app/api/workers/check-domain-watch/route.ts) — 4 → 0 (populated `watch.userId` narrowed structurally)
-- [app/api/user/hosting/cancel-trial/route.ts](app/api/user/hosting/cancel-trial/route.ts) — 4 → 0 (the `next_action_at = null as any` swapped for `undefined` matching the typed field)
-- [app/hosting/page.tsx](app/hosting/page.tsx) — 4 → 0 (cart-item literals typed via `CartItem`; `periodUnit` literal-narrowed)
-- [app/api/admin/system-health/route.ts](app/api/admin/system-health/route.ts) — 4 → 0 (Zoho error narrowed via local `ZohoErrLike`)
-- [app/admin/settings/security/page.tsx](app/admin/settings/security/page.tsx) — 4 → 0
-- [app/admin/pricing-management/page.tsx](app/admin/pricing-management/page.tsx) — 4 → 0 (added `AdminUser` interface for the user-state; `aValue: any, bValue: any` sort comparator typed via `string | number`)
-- [app/admin/payment-management/page.tsx](app/admin/payment-management/page.tsx) — 4 → 0
-- [app/admin/invoices/page.tsx](app/admin/invoices/page.tsx) — 4 → 0 (the `AdminLayout user={session?.user as any}` cast unwound into an explicit object construction)
-- [app/admin/invoices/[id]/view/page.tsx](app/admin/invoices/[id]/view/page.tsx) — 4 → 0
-
-**Net this pass:** 48 anys removed (`247 → 199`). Combined eleven-pass total: **646 anys removed sitewide (845 → 199, 76% reduction)**.
-
-**Verified on main 2026-05-18:** 340/340 tests, tsc clean, production build succeeded.
-
-**Twelfth pass — small lib + payment services + 3-any routes (2026-05-18):**
-
-Per-file summary across the 3-any cluster:
-- [lib/totp.ts](lib/totp.ts) — 3 → 0. Dropped 2 `as any` casts on `verifySync`/`generateURI` and the `result as any` narrowing. otplib's API had changed: replaced the deprecated `options.window: 1` with `epochTolerance: 30` (1 step = 30s for TOTP). Dropped the unused `generateSync` import.
-- [lib/api-security-middleware.ts](lib/api-security-middleware.ts) — 3 → 0. `error: any` → `unknown` on `sanitizeErrorMessage` / `createErrorResponse`; `(request as any).ip` → structural cast.
-- [lib/request-context.ts](lib/request-context.ts) — 3 → 0. `(globalThis as any).__requestContextStorage` → structural cast; 2 `...rest: any[]` widened to `unknown[]`.
-- [lib/auth-config/providers.ts](lib/auth-config/providers.ts) — 3 → 0. NextAuth `req` typed via `{ headers?: unknown }`; a `readHeader(name)` helper resolves both Headers-like and plain-object header shapes; 2 catches narrowed via `instanceof Error`.
-- [lib/services/payment/provisioner.ts](lib/services/payment/provisioner.ts) — 3 → 0. 3 `catch (X: any)` blocks rewritten via `instanceof Error`; the `error instanceof DirectAdminError` branch still gets typed access to `.context`/`.status`/`.response`.
-- [lib/services/payment/upgrade.ts](lib/services/payment/upgrade.ts) — 3 → 0. 2 catches narrowed; the `order.status = "paid" as any` swapped for `as IOrder["status"]` — the schema accepts "paid" but the interface enum doesn't include it; narrow at the assignment so future order-status changes are visible.
-- [app/razorpay-checkout/page.tsx](app/razorpay-checkout/page.tsx) — 3 → 0. Hoisted `RazorpayConstructor` / `RazorpayInstance` / `RazorpayPaymentResponse` interfaces so the `Window.Razorpay: any` global declaration becomes a typed constructor; handler signature + catch narrowed.
-- [app/checkout/guest/page.tsx](app/checkout/guest/page.tsx) — 3 → 0. `(i: any) => i.isTrial` typed via `CartItem`; dismissed-iframe + outer catch narrowed.
-- [app/api/user/hosting/trial-eligibility/route.ts](app/api/user/hosting/trial-eligibility/route.ts) — 3 → 0. `(user._id as any).toString()` → `String(user._id)`; 2 catches narrowed.
-- [app/api/user/domains/nameservers/route.ts](app/api/user/domains/nameservers/route.ts) — 3 → 0. NextAuth-token-to-user via structural cast; the find-callback + the `(ns: any) => …` mapper typed via `IOrder['domains'][number]` / `unknown`.
-- [app/api/domains/renew/route.ts](app/api/domains/renew/route.ts) — 3 → 0. Surfaced a latent bug: 3 `(ResellerClubWrapper as any).getRenewalPricing|getDomainExpiry|renewDomain(...)` calls — only `renewDomain` exists on the wrapper. `getRenewalPricing` and `getDomainExpiry` live on `ResellerClubAPI`. The `as any` casts were silencing the wrong-namespace call. Fixed by importing `ResellerClubAPI` for the two reads + dropping the unused `testingMode` parameter that the wrapper never accepted.
-- [app/api/domains/booking-status/route.ts](app/api/domains/booking-status/route.ts) — 3 → 0. Mongo query typed via `Record<string, unknown>`; domain-find callbacks via `IOrder['domains'][number]`.
-
-**Net this pass:** 36 anys removed (`199 → 163`). Combined twelve-pass total: **682 anys removed sitewide (845 → 163, 81% reduction)**.
-
-**Verified on main 2026-05-18:** 340/340 tests, tsc clean, production build succeeded.
-
----
-
-### ~~[MEDIUM-2] 76 raw `console.*` calls in production code~~ — RESOLVED 2026-05-14
-[lib/server-logger.ts](lib/server-logger.ts) now emits **structured JSON in production** — one line per log entry with `severity`, `message`, ISO `time`, plus any object-arg fields merged into the top level. Cloud Logging auto-parses these and surfaces them with the right `severity` icon, full `jsonPayload`, and searchable fields. Dev mode is unchanged: human-readable `[INFO]` / `[WARNING]` / `[ERROR]` prefix on `console.*` for readability in the terminal.
-
-Verified live (NODE_ENV=production):
-```
-{"severity":"INFO","message":"hello from prod","time":"2026-05-14T07:56:01.041Z","requestId":"abc-123","userId":"u-42"}
-{"severity":"WARNING","message":"warn-level event","time":"2026-05-14T07:56:01.043Z","route":"/api/x"}
-```
-
-**All `console.*` call sites migrated.** 67 swaps across two passes:
-
-| Pass | Target | Sink |
-|---|---|---|
-| 1 (2026-05-14, server) | middleware.ts (2), lib/recaptcha.ts server class (2), lib/recaptcha.ts client class (3), lib/logout.ts (1), lib/storage.ts (2) | mixed (`serverLogger` for server, `logger` for client) |
-| 2 (2026-05-14, client) | 26 files in app/**/*.tsx + components/*.tsx (system-settings, GoogleRecaptcha, pricing-management, user-management, error boundaries, etc.) | `logger` |
-
-**ESLint hardened** ([.eslintrc.json](.eslintrc.json)) — `"no-console": "warn"` site-wide with **no allowlist**. The previous `allow: ["error"]` exception was dropped now that every `console.error` is migrated. Override keeps the rule off only on [lib/server-logger.ts](lib/server-logger.ts) and [lib/logger.ts](lib/logger.ts) (the legitimate output sinks). Lint surfaces **0 console warnings** site-wide.
-
-Any remaining `console.*` text in the codebase lives only inside comments (`// console.error(...)`), JSDoc `@example` blocks (pricing-service.ts, resellerclub/search.ts), or string literals (field-encryption.ts shows users how to generate a key via `node -e "console.log(...)"`). ESLint correctly ignores all of these — they aren't call sites.
-
-**Verified:** 340/340 tests, lint clean (0 warnings), `tsc --noEmit` clean, production build succeeded.
-
----
-
-### ~~[MEDIUM-3] Massive React components~~ — RESOLVED 2026-05-15
-| File | LOC (before) | LOC (after) | Sub-components | Status |
-|---|---|---|---|---|
-| [components/skeletons/PageSkeletons.tsx](components/skeletons/PageSkeletons.tsx) | 1,007 | 14 (barrel) | 5 in `components/skeletons/` | ~~Split~~ ✅ 2026-05-14 |
-| [components/RegisterForm.tsx](components/RegisterForm.tsx) | 686 | 474 | 3 in `components/register/` | ~~Split~~ ✅ 2026-05-15 |
-| [components/admin/InvoiceDiagnostics.tsx](components/admin/InvoiceDiagnostics.tsx) | 429 | 186 | 3 in `components/admin/invoice-diagnostics/` | ~~Split~~ ✅ 2026-05-15 |
-| [components/HostingUpgradeModal.tsx](components/HostingUpgradeModal.tsx) | 414 | 276 | 2 in `components/hosting-upgrade/` | ~~Split~~ ✅ 2026-05-15 |
-
-**PageSkeletons split (2026-05-14):** The 1,007-line client component file is now a 14-line backwards-compatible barrel that re-exports from 5 topical files alongside it. The 32 importing pages in `app/**` did not need to change.
-
-```
-components/skeletons/
-  _primitives.tsx     77 LOC   Sk, PageHeader, TableSkeleton, FormSection (internal helpers; not re-exported)
-  AdminLayout.tsx     76 LOC   AdminLayoutSkeleton, AdminTableRowsSkeleton
-  AdminPages.tsx     204 LOC   9 admin per-page skeletons
-  UserDashboard.tsx  489 LOC   12 user-dashboard skeletons
-  PaymentPages.tsx   188 LOC   CheckoutPageSkeleton, PaymentSuccessPageSkeleton, CartPageSkeleton
-  PageSkeletons.tsx   14 LOC   barrel re-export
-```
-
-**Honest bundle-size delta (build before vs after):**
-| Route | Before | After | Δ First-Load JS |
-|---|---|---|---|
-| `/cart` | 150 kB | 149 kB | **-1 kB** |
-| `/admin/hosting/packages` | 6.26 / 130 kB | 6.25 / 130 kB | -0.01 kB |
-| `/payment-success` | 4.43 / 141 kB | 4.42 / 141 kB | -0.01 kB |
-| All other routes (~32 importers) | — | — | unchanged |
-
-The audit predicted "almost certainly costing measurable JS bundle weight." That turned out to be partially wrong — Next.js's tree-shaker was already dropping unused named exports from the single-file module on most routes. The refactor's real value here is **maintainability** (5 ~200-LOC files instead of one 1,007-LOC monster, less merge-conflict surface, lower lint/tsc cost per file). One real bundle win on `/cart`; the rest are flat.
-
-**Verified:** 340/340 tests, lint clean, `tsc --noEmit` clean, production build succeeded. No call-site outside `components/skeletons/` modified.
-
-**Three stateful components split (2026-05-15)** — each had richer internal state than the skeletons (forms, queries, transitions, payment flow), so splitting required actual decomposition rather than mechanical extraction.
-
-**RegisterForm.tsx → 686 / 474** (1.45× ratio is honest — the `detectLocation` geocoding helper is ~160 LOC of fallback logic that has to stay in the parent because it owns `formData` setState. Could be lifted to a custom hook later if it grows; not today.) Split into:
-- `components/register/PersonalInfoSection.tsx` (93) — first/last name, email, company, phone
-- `components/register/AddressSection.tsx` (115) — Address Line 1, city/state/country/zipcode + auto-fill button
-- `components/register/CredentialsSection.tsx` (79) — password + confirm with self-owned show/hide toggles
-- `components/register/types.ts` (29) — `RegisterFormData`, `RegisterAddress`, `RegisterChangeHandler`
-
-**InvoiceDiagnostics.tsx → 429 / 186** — admin parent keeps state, data fetching, action handlers, top-level layout. Three sub-components extracted:
-- `components/admin/invoice-diagnostics/DiagnosticsHeader.tsx` (86) — collapsible row with status pill + refresh chip
-- `components/admin/invoice-diagnostics/ConflictsTable.tsx` (116) — invoiceNumber-collision groups with per-row "Clear #" action
-- `components/admin/invoice-diagnostics/StuckOrdersTable.tsx` (118) — paid-orders-without-Zoho-invoice rows + bulk re-sync UI
-- `components/admin/invoice-diagnostics/types.ts` (40)
-
-**HostingUpgradeModal.tsx → 414 / 276** — **double-duty migration**: simultaneously decomposed AND migrated to the iframe-based `useRazorpayCheckout()` flow added for [CRITICAL-4](#critical-4). The 7-state UI ([loading, select, confirm, paying, verifying, success, error]) keeps small states inline; the two big states extracted:
-- `components/hosting-upgrade/SelectPlanStep.tsx` (96) — plan-selection list with prorated charges
-- `components/hosting-upgrade/ConfirmStep.tsx` (92) — confirmation block + Back/Pay buttons
-- `components/hosting-upgrade/types.ts` (33)
-- Razorpay opens inside the isolated `/razorpay-checkout` iframe — kills two birds: closes a MEDIUM-3 item and migrates a CRITICAL-4 remainder consumer in the same commit. Three Razorpay flows still need migration (`app/checkout/page.tsx`, `app/checkout/guest/page.tsx`, `app/dashboard/invoices/page.tsx`); when those land too, `unsafe-eval` drops from app pages site-wide.
-
-**Verified:** 340/340 tests, lint clean (errors), `tsc --noEmit` clean, production build succeeded (62 static pages).
-
----
-
-### ~~[MEDIUM-4] ESLint config is permissive~~ — **RESOLVED** 2026-05-20 (no-floating-promises added; all three audit-recommended rules now on)
-Added the `@typescript-eslint` plugin to [.eslintrc.json](.eslintrc.json) with two of the three audit-recommended rules at warn level:
-
-```json
-"@typescript-eslint/no-explicit-any": "warn",
-"@typescript-eslint/no-unused-vars": [
-  "warn",
-  { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "caughtErrorsIgnorePattern": "^_" }
-]
-```
-
-Rules exempt on `tests/**` and `scripts/**` so mock-heavy test code doesn't drown the signal. `lib/server-logger.ts` and `lib/logger.ts` continue to opt out of `no-console`.
-
-**Surface this exposes:** **1,248 lint warnings** across `app/`, `lib/`, `components/`, `middleware.ts` —
-- 842 `no-explicit-any` (real untyped surface area; mostly third-party API response shapes)
-- 406 `no-unused-vars` (mostly stale imports + unused catch-block `error` variables)
-
-**CI handling:** the CI workflow runs `next lint --quiet` so only errors surface as GitHub annotations. Warnings show up locally on `npm run lint` and serve as a tech-debt indicator without producing 1,248 PR annotations on every push. Both audit-recommended outcomes met: visibility + non-blocking.
-
-**`no-floating-promises` added 2026-05-20** — type-aware linting enabled. `.eslintrc.json` now sets `parserOptions: { project: "./tsconfig.json" }` and `"@typescript-eslint/no-floating-promises": "warn"`. Tests + scripts override `parserOptions.project: null` (they don't need type-aware checking and including them would slow lint further). The rule surfaced **134 floating-promise sites** across 40+ files — all auto-fixed in a single sweep by a small `fix-floating-promises.mjs` script that:
-1. Ran `next lint`, parsed `file:line:col` for every `no-floating-promises` warning.
-2. For each site, inserted `void ` at the warning's column to explicitly mark the call as fire-and-forget (the rule's documented opt-out marker, distinct from a silent dangling promise).
-3. Skipped any site where the line already started with `void ` (idempotent).
-
-134 fixes across all `useEffect(() => { someAsync(); })` patterns, `onClick={() => fetchData()}` handlers, etc. — every one of them was a deliberate fire-and-forget, just unmarked. Zero `.catch()` errors swallowed by this pass; the underlying async calls still throw to the React error boundary on rejection, the `void` only silences the lint rule.
-
-**Cost:** `npm run lint` went from ~5s → ~45s because type-aware linting loads the TypeScript checker. Acceptable now that the any-count is at 10 and most files are typed strictly. CI's `next lint --quiet` is unchanged behaviour-wise (still errors-only).
-
-**Verified on main 2026-05-20:** 340/340 tests, lint clean (`✔ No ESLint warnings or errors`), tsc clean. Floating-promise warning count: 134 → 0.
-
----
-
-## 5. Testing
-
-### ~~[MEDIUM-5] Thin test coverage~~ — **RESOLVED** 2026-05-20 (route-level integration suite landed; in-memory MongoDB scaffolding via mongodb-memory-server)
-Added [tests/unit/lib/razorpay.test.ts](tests/unit/lib/razorpay.test.ts) — 17 tests covering the security-critical signature primitives that both [app/api/payments/verify/route.ts](app/api/payments/verify/route.ts) and [app/api/webhooks/razorpay/route.ts](app/api/webhooks/razorpay/route.ts) depend on as their first line of defense:
-
-- `verifyPayment` order flow: correct signature accepted, tampered order_id/payment_id/signature rejected
-- `verifyPayment` subscription flow: correct signature accepted, swapped sub_id rejected, order-flow sig sent in subscription slot rejected (guards against developer mistakes mixing the two HMAC formulas)
-- `verifyPayment` input safety: missing both order_id and subscription_id, length-mismatched signature (timingSafeEqual throw), non-hex signature, empty signature — all return false without throwing
-- `verifyWebhookSignature`: matching body+sig accepted; tampered body, forged delivery with wrong secret, empty signature, non-hex signature, and event-swapping replay all rejected
-
-Test count moved from 281 → 298, all green.
-
-**Deliberately deferred to integration tests (deemed remaining work):**
-1. Route-level tests for [payments/verify](app/api/payments/verify/route.ts) and [webhooks/razorpay](app/api/webhooks/razorpay/route.ts). Each route has 10+ collaborators (AuthService, MongoDB models, Razorpay client, Email, Cloud Tasks, payment-services helpers, Redis nonce). Mocking that surface to test 4 early-return paths is high-effort, low-value — integration tests using a test Mongo + Razorpay sandbox are the right place.
-2. ~~Auth surface (TOTP setup/confirm, password reset, session timeout).~~ — TOTP primitives covered as of 2026-05-20 (see below).
-3. Domain provisioning lifecycle (`Pending → Domain` promotion).
-4. ~~CSRF and rate-limit middleware.~~ — CSRF was already covered in the [CRITICAL-3](#critical-3) security.test.ts pass; rate-limit covered as of 2026-05-20 (see below).
-
-**Pass landed 2026-05-20 — rate-limit + TOTP primitives:**
-- [tests/unit/lib/rate-limit.test.ts](tests/unit/lib/rate-limit.test.ts) — **18 tests** mocking `@/lib/redis` with an in-memory store so the real `RateLimiter` class is exercised end-to-end. Covers: window arithmetic (Nth allowed, N+1 blocked); per-key scoping (different IPs each get a fresh quota); the IP-fallback chain `request.ip → x-forwarded-for → x-real-ip → "unknown"` with a dedicated regression test that catches the "attacker forges x-forwarded-for to bypass" failure mode; "unknown" bucket collapses to a single key (so stripping IP-bearing fields doesn't grant fresh quota); fail-open on Redis throw (so a Redis outage doesn't lock out the app); the `checkKey(composite)` path the credentials provider uses with `login:email:ip` keys; per-endpoint configuration fences for `login` (5/15min), `passwordReset` (3/1h), `register` (5/1h), `trialOtpSend` (3/10min), `trialOtpVerify` (10/10min), `supportCreate` (5/1h per-user), and `pdfInvoice` (10/min per-user-then-IP). A bump from "5 attempts" to "50 attempts" by accident now fails CI.
-- [tests/unit/lib/totp.test.ts](tests/unit/lib/totp.test.ts) — **22 tests** locking in the 2FA primitives [lib/auth-config/providers.ts](lib/auth-config/providers.ts) calls during login. Covers: secret generation (base32 shape, no shared state), `verifyTotpCode` with whitespace tolerance, empty/non-numeric/short-code rejection, and a never-throws-on-garbage-secret regression for the `catch{}` block (otplib's stricter v6+ secret validation could otherwise break login if a malformed secret slipped into the DB), `epochTolerance: 30` skew tolerance (±30s accepted, 120s rejected) — this is the test that catches the otplib API rename from `options.window` → `epochTolerance` that landed during MEDIUM-1's 13th pass; `getTotpUri` shape (otpauth://, issuer, label); backup codes (count, format `XXXXX-XXXXX`, uniqueness); and a hash/verify round-trip with case + dash tolerance + a never-throws-on-malformed-hash fence (so a corrupt hash mid-array doesn't break the providers.ts iteration over `totpBackupCodes`).
-
-Test count: 340 → **380** (+40), all green. Lint clean, tsc clean.
-
-**Second pass landed 2026-05-20 — session-activity + price-verifier + pending-hosting-retry:**
-- [tests/unit/lib/session-activity.test.ts](tests/unit/lib/session-activity.test.ts) — **27 tests**. Mocks `@/lib/redis.redisCache` with an in-memory store + the User-service helpers the tracker delegates to (`getUserSessionTimeoutFields`, `updateUserLastActivity`, `invalidateUserSessionNow`). Covers: `updateLastActivity` cold-path (cache miss → DB seed → Redis seed) including the role-based default-timeout pick (admin 15min vs user 30min) and per-user `sessionTimeoutMinutes` override; debounce window (no DB write inside the 60s `ACTIVITY_UPDATE_DEBOUNCE_MS`, write after); ghost-user no-op; never-throws contract (DB throw must not bubble — activity tracking must never break a request). `checkSessionTimeout` covers hot-path (cached activity within / past window), cold-path with cache-then-seed behaviour, no-recorded-activity fallback to `tokenIssuedAt`, fail-open when both Redis + DB throw. `rotateSession` covers Redis clear + DB invalidate stamp + a deliberate "rethrows on DB error" fence — unlike the other two paths, `rotateSession` is called from sensitive-op handlers (DELETE user, change password) where a silent rotation failure would be a security hole.
-- [tests/unit/lib/price-verifier.test.ts](tests/unit/lib/price-verifier.test.ts) — **17 tests** locking in the underpayment-fraud gate. Mocks `@/lib/resellerclub.getDomainPricing` deterministically and drives `verifyDomainPrices` through: server-total computation (`livePrice × years`), per-domain mismatch within / outside the tolerance window (₹1 absolute / 0.5% relative, whichever is larger), unverifiable-TLD rejection (RC has data but not for this specific TLD → reject; conservative because this is the attacker-bypass surface — accepting an unverifiable price means an attacker could submit any number), RC-outage fallback (`getDomainPricing` throws OR returns malformed `customerPricing` → fall back to client total + flag `fellBackToClient: true`), hosting-only carts bypass RC entirely, and the RC payload-shape regressions (correct year bucket from `addnewdomain[N]`, fallback to any available bucket for min-period TLDs like `.ai` whose only populated buckets are 2-year+, skip non-numeric / zero buckets).
-- [tests/unit/lib/pending-hosting-retry.test.ts](tests/unit/lib/pending-hosting-retry.test.ts) — **10 tests** for `provisionPendingHosting` — the function shared by the admin "Retry" button and the auto-retry cron. Mocks every injected dependency (User service / DirectAdmin / Email / Hosting model / PendingHosting model) so the real 6-step flow is exercised. Covers: happy-path full provision; user-resolution failure (no DA call, no side effects); already-provisioned-elsewhere drop (returns `{ ok: true, dropped: true }`, no DA call, no duplicate email); DA still-unreachable (re-stamp `pending.error`, do NOT touch user fields or write Hosting row); DA-then-DNS failure (DNS is best-effort); DA-then-Hosting-write failure (DA account exists, refusing to delete the PendingHosting row would lock the user in a perma-failed state — log + continue); email failure post-success; two property tests fencing the `directAdminUsername`-match invariant (mismatch would target the wrong DA account on renewal) + the 15-day-before-expiry `next_action_at` (renewal reminder window).
-
-Test count: 380 → **434** (+54). Lint clean, tsc clean.
-
-**Third pass landed 2026-05-20 — route-level integration tests + mongodb-memory-server scaffolding:**
-
-The MEDIUM-5 deliberately-deferred item #1 (route-level tests for `payments/verify` + `webhooks/razorpay`) was the only piece remaining. This pass stood up the integration-test infrastructure to make it possible:
-
-- [vitest.integration.config.ts](vitest.integration.config.ts) — separate vitest config so the in-memory MongoDB doesn't conflict with the unit suite's mongoose mock. Node env (not jsdom), serial file execution, longer hooks-timeout for the memory-server cold start.
-- [tests/integration/setup.ts](tests/integration/setup.ts) — boots `mongodb-memory-server`, connects mongoose, exports `clearAllCollections()` for per-test isolation. Pre-sets every env var the route handlers read at module-load (Razorpay/JWT/NextAuth secrets) + mocks `@/lib/mongodb` to a no-op since mongoose is already connected via the memory server (route handlers `connectDB()` is a no-op call).
-- Added `npm run test:int` script + a CI step under the existing `ci` job — both unit + integration must be green for the gate to be green.
-
-**Route-level suites (+25 tests, 434 → 459):**
-
-- [tests/integration/api/payments-verify.test.ts](tests/integration/api/payments-verify.test.ts) — **10 tests** exercising the early-exit decision tree before the full provisioning chain. Auth gate (no user → 401); body validation (missing payment-verification fields → 400 with the right error message, missing/empty cartItems → 400); signature gate (tampered signature → 400, even with otherwise-valid body); already-completed idempotency exit (status: "completed" → 200 with the existing orderId; status: "paid" or "processing" → 200 with `domainRegistrationStatus: "processing"`). Tests seed real Order documents into the in-memory Mongo and assert the route returns the right body + status without re-running provisioning.
-
-- [tests/integration/api/webhooks-razorpay.test.ts](tests/integration/api/webhooks-razorpay.test.ts) — **15 tests** locking in each of the five security layers in the webhook + the event dispatch table:
-  - **Layer 1 (signature):** rejects missing header, tampered signature, signature produced with the wrong secret, body-vs-signature mismatch (attacker re-uses a sig against a different body); accepts a correctly-signed body.
-  - **Layer 2 (timestamp):** 25-hour-old event acknowledged but NOT processed (200, no dispatch); 23-hour boundary still processed; missing `created_at` doesn't false-reject (legacy delivery).
-  - **Layer 3 (Redis nonce):** first delivery claims the key + dispatches; duplicate delivery (SET NX returns null) acked but not dispatched; Redis throw → fall through to handler (MongoDB idempotency is the backstop).
-  - **Event dispatch:** `subscription.charged` → `handleSubscriptionCharged`, `subscription.payment_failed` → `handleSubscriptionFailed`, unknown events acked silently.
-  - **Layer 5 (error masking):** handler exception → 500 with the generic `"Webhook processing failed"` message; the internal error message must NOT appear in the response body (verified by an absence-of-substring check) — important because Razorpay-replay attackers could otherwise harvest internal diagnostics.
-
-Final test count: 380 → **459** (+79 across the MEDIUM-5 session). All unit + integration tests green; lint clean, tsc clean.
-
-**Coverage threshold caveat unchanged:** [vitest.config.ts](vitest.config.ts) still excludes `lib/security.ts` and `lib/pricing-service.ts` from coverage. The 60% threshold is on whatever's measured, not the codebase. [CRITICAL-3](#critical-3) tracks the security.ts exclusion separately.
-
----
-
-### ~~[MEDIUM-6] No visible CI~~ — **RESOLVED** 2026-05-20 (audit job now gating, deploy.sh CI-green gate added; only required-status-check on the main ruleset remains — GitHub plan limitation)
-Added [.github/workflows/ci.yml](.github/workflows/ci.yml) with two jobs triggered on push to `main` and on pull requests:
-
-**Job 1: `ci` (Lint + Test + Type-check) — blocking**
-- `npm ci` on Node 20 (matches `package.json#engines`)
-- `npm run lint`
-- `npx tsc --noEmit` (full project type-check)
-- `npm test` (vitest, 340 tests)
-- `PUPPETEER_SKIP_DOWNLOAD=true` so CI doesn't waste minutes downloading Chromium
-
-**Job 2: `audit` (npm audit) — informational only (`continue-on-error: true`)**
-- `npm audit --audit-level=high` against the lockfile
-
-The audit step is **deliberately non-blocking** for now: `npm audit` currently reports 13 high-severity advisories, all in Next.js (XSS / SSRF / cache-poisoning / middleware bypass / DoS variants on `^15.5.15`). Making it blocking today would red-bar every PR. Promote it to required once Next.js is bumped to a patched 15.x (or a per-vuln allowlist is added).
-
-**Pre-flight fixes landed alongside the workflow:**
-- [tests/unit/lib/auth.test.ts](tests/unit/lib/auth.test.ts) — fixed a possibly-null deref in the bearer-token test (`result.email` → `result!.email`).
-- [tests/unit/lib/security.test.ts](tests/unit/lib/security.test.ts) — cast `process.env` to a writable record before assigning `NODE_ENV` (TypeScript 6 / @types/node 24+ types `NODE_ENV` as read-only).
-
-**Verified:** vitest 340/340, lint clean (8 expected `console.*` warnings, exit 0), `tsc --noEmit` clean.
-
-**Follow-ups landed 2026-05-20:**
-1. ✅ **Gate `deploy.sh` behind CI green status.** [scripts/deploy-cloud-run.sh](scripts/deploy-cloud-run.sh) now runs a `check_ci_green` step before the build/deploy. It calls `gh run list --commit $HEAD --workflow CI --limit 1 --json status,conclusion,url` and refuses to deploy when the run is `failure`, `cancelled`, or still `in_progress`. Catches the two failure modes the audit flagged: "I forgot to push, tests are red" and "tests haven't finished yet, deploy will land before signal." Graceful degradation when `gh` is missing or unauthenticated (prints a warning, proceeds — so first-time users / fresh laptops aren't blocked by tooling). Bypass via `--skip-ci-check` for emergency hotfixes; the help text documents it. Includes a 60-second wait loop for the GitHub-Actions-queueing race (push → run-creation gap), then bails clearly with a "Did you push to origin?" hint.
-2. ✅ **Upgrade Next.js + flip the audit job to blocking.** Landed in [91ef506](.) (2026-05-16) — `npm audit fix` cleared all 13 high-severity Next.js advisories by bumping `next@15.5.15 → 15.5.18`. `continue-on-error: true` removed from the audit job in CI; `npm audit --audit-level=high` is now gating. Current state: 0 high/critical, 3 moderate (transitive, below threshold).
-3. ⏸️ **Required-status-check on the `main` ruleset/branch-protection rule.** Still pending — blocked by GitHub Free repo limitation. The UI item exists but enforcement requires GitHub Team / Pro+. No code change can address this; flip the toggle once the org is on a billable plan. Workaround: the deploy.sh CI gate above plus the gating audit job give the same effective blast-radius protection without the GitHub plan requirement.
-
----
-
-## 6. Operational
-
-### ~~[MEDIUM-7] PM2 single-instance fork mode~~ — RESOLVED 2026-05-14
-PM2 wiring removed across the project. Cloud Run path (Dockerfile → `node server.js`) was already PM2-free; the cleanup is on the VPS side.
-
-**Changes:**
-- `ecosystem.config.js` **deleted**. The settings it held (`PORT`, `NODE_OPTIONS`, `NODE_ENV`) now live in [deploy.sh](deploy.sh) and `.env.local`.
-- [deploy.sh](deploy.sh) rewritten. The PM2 lifecycle (`pm2 delete` / `pm2 start` / `pm2 logs` / `pm2 status`) is replaced by:
-  - **Graceful stop** — read PID from `deployment-logs/.server.pid`, send SIGTERM, wait up to 10 s for in-flight requests to drain, fall back to SIGKILL. Strictly better than the old `pm2 delete + kill -9 port` combo at preserving Razorpay webhooks.
-  - **Detached start** — `nohup setsid node --env-file=.env.local .next/standalone/server.js >> $LOG_DIR/server.log 2>&1 &`, write PID, `disown`. `--env-file` replaces the env-loading PM2 was doing.
-  - **Liveness check** — confirms the new process is still alive 3 s after spawn, prints last 50 log lines if not.
-- [view-logs.sh](view-logs.sh) refactored to read `server.log` + `migrate.log` instead of `pm2-logs-*.log`.
-- [app/api/admin/razorpay-mode/route.ts](app/api/admin/razorpay-mode/route.ts) — the admin "switch test/live mode" endpoint previously called `pm2 restart next-app --update-env` to pick up the new `RAZORPAY_KEY_*` env values. Now sends SIGTERM to the PID from `deployment-logs/.server.pid`; the host's process supervisor (systemd on VPS, Cloud Run on managed hosting) is responsible for re-spawning. The admin response is explicit when no supervisor is configured: *"server was not restarted — re-deploy to apply"*.
-- [middleware.ts](middleware.ts) + [MIGRATIONS.md](MIGRATIONS.md) + [.dockerignore](.dockerignore) — comment/text updates removing stale PM2 references.
-
-**Verified:** 340/340 tests, lint clean, tsc clean, `bash -n` on both scripts, production build succeeded. The graceful-stop path also avoids the old PM2 1500 MB hard-restart that the audit flagged as dropping in-flight webhooks — the new path doesn't impose a memory cap; if you want one, set `NODE_OPTIONS="--max-old-space-size=N"` in `.env.local` (deploy.sh defaults it to 1024).
-
-**Operational note for VPS users:** deploy.sh starts the server detached but does **not** supervise it. If the node process crashes mid-life, nothing restarts it. Use a systemd unit (or any init supervisor) with `Restart=always` pointing at `.next/standalone/server.js`. On Cloud Run this is the platform's job and no supervisor setup is needed.
-
----
-
-### ~~[MEDIUM-8] `deploy.sh` is not atomic~~ — RESOLVED 2026-05-15
-[deploy.sh](deploy.sh) now follows a snapshot-and-rollback pattern. Before lint/build/migrate begins, the current `.next/` is moved to `.next.prev/`. The build then writes a fresh `.next/`. On any failure (lint, build, migrate), a `rollback_next()` helper deletes the partial `.next/` and restores `.next.prev/`. The script exits non-zero with a clear "⏪ Rolling back" log line.
-
-**Failure modes covered atomically:**
-- Lint failure
-- `next build` failure
-- `migrate:status` failure
-- `migrate` failure (with the caveat that schema state may be partially-applied — the script logs this explicitly; only the build is rolled back, the DB is not).
-
-**Manual rollback after a bad deploy** (when the new server is running but is misbehaving):
-```bash
-# Stop the running server
-kill -TERM "$(cat deployment-logs/.server.pid)"
-# Swap the rollback target back in
-mv .next .next.failed
-mv .next.prev .next
-# Re-run the start step (or re-run deploy.sh — it picks up .next as "current")
-```
-
-The old "preserve cache between builds" trick (partial-rm of `.next/static`, `.next/server`, manifests) is gone. Builds now start from a fresh `.next/` every time. Cost: ~30-60s added to each build. Trade-off accepted in exchange for atomicity — a failed build no longer leaves the deployment in a broken half-state.
-
-The audit's original recommendation built to `.next.new/` then swapped; this implementation instead snapshots to `.next.prev/` and lets the build write to `.next/` directly. Functionally equivalent atomic semantics, simpler script.
-
-**Cloud Run note:** this matters for the VPS path only. On Cloud Run, atomicity is built-in — failed revisions don't get traffic, and `gcloud run deploy` rolls back automatically.
-
-**Verified:** `bash -n deploy.sh` clean, production build succeeded.
-
----
-
-### ~~[MEDIUM-9] Repo-root clutter~~ — RESOLVED 2026-05-14
-- **`test-full-app.js`** (1,258 lines / 71 KB) deleted. It was a one-off Playwright admin-flow probe with **hardcoded credentials** (`ADMIN_PASSWORD='admin123'` in source), `BASE_URL='https://localhost'`, no integration into any test runner, and not referenced from anywhere except audit.md itself. Moving it to `scripts/` would just preserve that footgun under a different path — deletion is the correct outcome.
-- **`tsconfig.tsbuildinfo`** (524 KB) deleted from disk. Already gitignored; will be regenerated on the next `tsc` run.
-
-**Out-of-scope flag (separate from MEDIUM-9):** the same `admin123` literal also appears in [scripts/init-db.js](scripts/init-db.js) and [scripts/setup.js](scripts/setup.js) as a seed admin password. Those are bootstrap scripts (not in active production paths) but should be reviewed when the admin onboarding flow is next touched — a seed password baked into source is an easy target.
-
----
-
-### ~~[LOW-1] `npm audit` never gated~~ — RESOLVED 2026-05-17
-`npm audit --audit-level=high` now runs as a gating job in [.github/workflows/ci.yml](.github/workflows/ci.yml). Any high-or-critical advisory fails the workflow — previously the same job ran with `continue-on-error: true` and was purely informational.
-
-To clear the existing backlog before flipping the gate, ran `npm audit fix` which bumped Next.js 15.5.15 → 15.5.18 (within the existing `^15.5.15` semver range), resolving 13 listed high-severity Next.js advisories (cache key confusion, image-optimization SSRF, middleware redirect SSRF, content injection, etc.). Post-bump: `npm audit` reports `found 0 vulnerabilities`, full unit suite (340/340) green, `tsc --noEmit` clean, `next build` succeeds.
-
-If a new advisory lands, either bump the affected package or add a per-vuln suppression — do not blanket-disable by reintroducing `continue-on-error`.
-
----
-
-### ~~[LOW-2] No structured logging~~ — RESOLVED 2026-05-14
-Per the audit's "pair with MEDIUM-2" guidance, this is now fully addressed by the work from [MEDIUM-2](#medium-2) plus per-request correlation IDs landed in this pass:
-
-**Structured JSON output** (from MEDIUM-2): `serverLogger.*` emits one JSON line per entry in production, with `severity` matching Cloud Logging's `LogSeverity` enum, `message`, ISO `time`, and any object-arg fields merged to the top level. Cloud Logging auto-parses these into searchable structured entries.
-
-**Request-ID correlation** (new this pass):
-- [lib/request-id.ts](lib/request-id.ts) — `resolveRequestId(headers)` prefers Cloud Run's `X-Cloud-Trace-Context` header (so log entries automatically correlate with Cloud Trace spans), then any upstream `x-request-id`, then a fresh `crypto.randomUUID()`. Edge-runtime safe.
-- [middleware.ts](middleware.ts) — computes the request ID once per request and:
-  1. Attaches it to the response as `x-request-id` (client / load balancer / support correlation).
-  2. Attaches it to the **request** via `nextWithNonce` so route handlers can read `request.headers.get("x-request-id")` and include it in their own log meta args.
-  3. Includes `{ requestId }` in middleware's own structured logs (auth-attempt warnings, CSRF-failure warnings).
-- [lib/server-logger.ts](lib/server-logger.ts) — JSDoc now documents the `{ requestId }` meta-arg pattern so future log calls can join the correlation trail.
-
-**Live-verified on the standalone build:**
-```
-# Cloud Run-style trace header → request ID = the trace ID
-$ curl -H "X-Cloud-Trace-Context: 9d2f3a8e1b4c5d6e7f0a/1234;o=1" .../api/health
-→ x-request-id: 9d2f3a8e1b4c5d6e7f0a
-
-# Client-supplied header → echoed back
-$ curl -H "x-request-id: client-trace-abc-123" .../api/health
-→ x-request-id: client-trace-abc-123
-
-# Nothing supplied → fresh UUID
-$ curl .../api/health
-→ x-request-id: 4c4321d1-a67b-4c61-a4e7-105caa5bca3b
-```
-
-**Verified:** 340/340 tests, lint clean, tsc clean, production build succeeded.
-
-**Auto-propagation via AsyncLocalStorage (2026-05-14):** Routes no longer need to pass `{ requestId }` manually. [lib/request-context.ts](lib/request-context.ts) registers an `AsyncLocalStorage` instance on `globalThis`, and `serverLogger` reads from it on every call. Wrapping a route handler with `withRequestLogContext(...)` binds `x-request-id` for the lifetime of that request — every async operation it spawns (DB queries, service-module calls, fetch) inherits the same context and every log line that fires inside it automatically carries `requestId` in the JSON output.
-
-Wired as a demonstration on [app/api/payments/verify/route.ts](app/api/payments/verify/route.ts):
-
-```ts
-export const POST = withRequestLogContext(async (request: NextRequest) => {
-  // ... existing logic ...
-  // every serverLogger.* call below + every payment-services helper
-  // automatically logs with requestId attached
-});
-```
-
-**Direct-test verification:**
-```
---- outside context ---
-{"severity":"INFO","message":"hello from outside","time":"…"}
-
---- inside withRequestContext({requestId:"demo-123"}) ---
-{"severity":"INFO","message":"first log inside ALS","time":"…","requestId":"demo-123"}
-{"severity":"WARNING","message":"second log, still inside","time":"…","requestId":"demo-123","orderId":"ord-42"}
-
---- back outside ---
-{"severity":"INFO","message":"hello from outside again","time":"…"}
-```
-
-**Decoupling note:** request-context imports `node:async_hooks` which Webpack rejects in the Edge runtime (middleware). To avoid pulling the import into the Edge bundle, request-context publishes its storage on `globalThis.__requestContextStorage` and server-logger reads from globalThis instead of importing the module directly. Middleware (Edge) still passes `{ requestId }` explicitly to its serverLogger calls; route handlers (Node) get auto-flow.
-
-**Pending follow-up (optional, incremental):** Other route handlers can adopt `withRequestLogContext` opportunistically when next touched. No big-bang migration needed — the auto-flow is already in place for any route that wraps itself, and middleware-set request IDs are still on the response header for client-side support correlation regardless.
-
----
-
-## 7. Data & Domain Model
-
-### ~~[LOW-3] No DB migration history visible~~ — RESOLVED 2026-05-13
-The migration framework was already solid ([scripts/db/migrate.ts](scripts/db/migrate.ts), tracked in `_migrations` collection, three prior migrations on file). What was missing: a migration for the LOW-4 index additions, deploy-script integration, and a developer workflow doc.
-
-- Added [scripts/db/migrations/004_add_user_pending_hosting_support_ticket_indexes.ts](scripts/db/migrations/004_add_user_pending_hosting_support_ticket_indexes.ts) — explicit, deterministic creation of the 10 new indexes from LOW-4 on existing databases (not relying on Mongoose `autoIndex` alone). All use `{ background: true }`; `down()` wraps `dropIndex` in `.catch(() => {})` for idempotent rollback.
-- Wired migrations into [deploy.sh](deploy.sh) (step 4b): runs `npm run migrate:status` then `npm run migrate` after a successful build and before PM2 start. A failed migration aborts the deploy. Output logged to `deployment-logs/<timestamp>/migrate.log`.
-- Added [MIGRATIONS.md](MIGRATIONS.md) at the project root documenting: when to write a migration, file naming, the up/down template, local workflow, production behavior, rollback procedure, and a pre-merge safety checklist.
-
----
-
-### ~~[LOW-4] Mongoose models have inconsistent indexes~~ — RESOLVED 2026-05-13
-Audited all 17 models. Most were well-indexed already (Domain, Hosting, Order, RenewalPayment, PendingDomain, DomainWatch, TrialClaim, SystemLog). Three had real gaps where queries existed without a supporting index:
-
-- [models/User.ts](models/User.ts) — added 6 indexes covering confirmed queries: `role` (admin enumeration), `activationToken` / `resetToken` / `pendingEmailToken` (sparse, for token-lookup flows), `directAdminUsername` (sparse, for cross-system lookups), `resellerClubCustomerId` (sparse, for webhook handlers).
-- [models/PendingHosting.ts](models/PendingHosting.ts) — added 3 indexes: `status`, `userId + status`, `status + createdAt`. Required by the existing `countDocuments({ status })` calls in the admin stats endpoint and future janitor crons.
-- [models/SupportTicket.ts](models/SupportTicket.ts) — added `status + createdAt` compound for the admin queue sorted by recency.
-
-All optional fields use sparse indexes so they don't pay storage for the null majority. Indexes are auto-created on next deploy via Mongoose's default `autoIndex` behavior (no migration script required); MongoDB builds them in the background and they are small collections by application standard.
-
----
-
-## 8. Resolved Issues
-
-### Sensitive artifacts on disk — RESOLVED 2026-05-13
-- `gcp-key.json` moved to `~/.secrets-backup/gcp-key.json.20260513` (chmod 600)
-- `auth-debug.log` (135 KB stale) moved to `~/.secrets-backup/auth-debug.log.20260513`
-- `debug_payment.log` (empty) deleted
-- Misleading "Check auth-debug.log" string in [app/api/admin/orders/[id]/re-sync-invoice/route.ts](app/api/admin/orders/[id]/re-sync-invoice/route.ts) replaced with "Check server logs"
-
-**Follow-up still required:** Rotate the GCP service account key in the GCP console, then delete the backup copy.
-
----
-
-## 9. Suggested Priority Roadmap
-
-| Day | Task | Severity |
-|---|---|---|
-| 1 | ~~`git init`, push to private remote, branch protection~~ ✅ 2026-05-14 (enforcement awaits GitHub Team upgrade) | CRITICAL-1 |
-| 2 | ~~Strip `.env.local` from build script~~ ✅ 2026-05-14 · move to Cloud Run secrets, rotate exposed credentials | CRITICAL-2 |
-| 3 | ~~Sweeper cron for `PendingDomain` / `PendingHosting` with admin alerts~~ ✅ 2026-05-14 (Cloud Scheduler job still needs to be created in GCP) | HIGH-5 |
-| 4 | ~~Tests for `payments/verify` and Razorpay webhook~~ ✅ 2026-05-14 (signature primitives unit-tested; route-level integration tests remain) | MEDIUM-5 |
-| 5 | ~~Split [lib/resellerclub.ts](lib/resellerclub.ts), [lib/directadmin.ts](lib/directadmin.ts), [lib/zohobooks.ts](lib/zohobooks.ts), [lib/auth-config.ts](lib/auth-config.ts) into focused modules~~ ✅ 2026-05-14 | HIGH-1 |
-| 6 | ~~Add CI workflow (lint + test + audit)~~ ✅ 2026-05-14 (deploy gating + audit-blocking still pending) | MEDIUM-6 |
-| 7 | ~~Structured logger, remove `console.*` from server code, tighten ESLint~~ ✅ 2026-05-14 (extended to client code too — 67 swaps, 0 console warnings remaining) | MEDIUM-2 |
-| 8 | ~~Atomic deploy — snapshot `.next` → `.next.prev`, rollback on any failure~~ ✅ 2026-05-15 | MEDIUM-8 |
-| 9 | Rotate GCP service account key, delete backup | Resolved follow-up |
-| 10 | DB index audit on Mongoose models | LOW-4 |
-
----
-
-## 10. Strengths Worth Preserving
-
-Not everything is broken — these patterns are good and should not be regressed:
-
-- Clear staging-table pattern (`Pending*` collections) for eventual-consistency provisioning
-- Well-factored [lib/payment-services/](lib/payment-services/) sub-pipeline (price-verifier, provisioner, renewal, post-tasks)
-- Comprehensive middleware-level security ([middleware.ts](middleware.ts), CSP nonce, HTTPS redirect, maintenance mode)
-- Audit logging ([lib/audit-log.ts](lib/audit-log.ts)) and field encryption ([lib/field-encryption.ts](lib/field-encryption.ts))
-- Sophisticated Zustand cart with localStorage + server sync ([store/cartStore.ts](store/cartStore.ts))
-- Timestamped per-deploy log folders ([deployment-logs/](deployment-logs/))
-- TOTP 2FA with backup codes for both admin and user accounts
-- `.dockerignore` and `.gitignore` already cover the major sensitive-file classes
+- Service-layer pattern in [lib/services/](lib/services/) for `User` (every direct call routed through it).
+- 459 tests across unit + integration suites — runtime ~40s for full unit + ~5s for integration.
+- Mongoose timestamps + index audit complete; structured logging; CSP iframe-isolated for Razorpay.
+- Atomic Cloud Run deploy with `deploy-cloud-run.sh` CI-gate + smoke test.
+- Auto-retry cron drains deferred hostings when DA recovers; admin "Retry" + cron share the same `provisionPendingHosting` code path.

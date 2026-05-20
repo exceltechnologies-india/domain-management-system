@@ -21,7 +21,7 @@ import {
   Inbox,
 } from 'lucide-react';
 import RefreshButton from '@/components/dashboard/RefreshButton';
-import AdminLayoutNew from '@/components/admin/AdminLayoutNew';
+import AdminLayout from '@/components/admin/AdminLayout';
 import { AdminLayoutSkeleton, AdminGenericPageSkeleton, AdminTableRowsSkeleton } from '@/components/skeletons/PageSkeletons';
 import ActionMenu from '@/components/admin/ActionMenu';
 import { safeLocalStorage } from '@/lib/storage';
@@ -216,7 +216,7 @@ export default function AdminDomainsPage() {
   }
 
   return (
-    <AdminLayoutNew user={user} onLogout={performLogout}>
+    <AdminLayout user={user} onLogout={performLogout}>
       <div className="space-y-6">
 
         {/* ── Page header ── */}
@@ -420,6 +420,6 @@ export default function AdminDomainsPage() {
           ] : []}
         />
       </div>
-    </AdminLayoutNew>
+    </AdminLayout>
   );
 }

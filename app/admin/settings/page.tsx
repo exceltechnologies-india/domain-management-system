@@ -10,7 +10,7 @@ import {
   Wrench, Power, Shield, Tag,
 } from "lucide-react";
 import RefreshButton from "@/components/dashboard/RefreshButton";
-import AdminLayoutNew from "@/components/admin/AdminLayoutNew";
+import AdminLayout from "@/components/admin/AdminLayout";
 import { AdminLayoutSkeleton, AdminSettingsPageSkeleton } from "@/components/skeletons/PageSkeletons";
 import { formatIndianDateTime } from "@/lib/dateUtils";
 import { performLogout } from "@/lib/logout";
@@ -470,7 +470,7 @@ export default function AdminSettings() {
   ];
 
   return (
-    <AdminLayoutNew user={user} onLogout={performLogout}>
+    <AdminLayout user={user} onLogout={performLogout}>
       <div className="space-y-6">
 
         {/* Page header */}
@@ -1003,6 +1003,6 @@ export default function AdminSettings() {
           </div>
         </div>
       </div>
-    </AdminLayoutNew>
+    </AdminLayout>
   );
 }

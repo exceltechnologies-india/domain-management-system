@@ -26,7 +26,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { formatIndianDateTime } from '@/lib/dateUtils';
-import AdminLayoutNew from "@/components/admin/AdminLayoutNew";
+import AdminLayout from "@/components/admin/AdminLayout";
 import { AdminLayoutSkeleton, AdminGenericPageSkeleton, AdminTableRowsSkeleton } from "@/components/skeletons/PageSkeletons";
 import { performLogout } from "@/lib/logout";
 import { safeLocalStorage } from "@/lib/storage";
@@ -103,7 +103,7 @@ export default function AdminPendingDomainsPage() {
   const { data: session, status } = useSession();
   // Loosely-typed user blob — comes from either the JWT auth-check payload
   // (id/email/role/firstName/lastName/...) or the NextAuth session shape.
-  // AdminLayoutNew reads firstName/lastName/role; the gate above checks role.
+  // AdminLayout reads firstName/lastName/role; the gate above checks role.
   const [user, setUser] = useState<{
     firstName: string;
     lastName: string;
@@ -542,7 +542,7 @@ export default function AdminPendingDomainsPage() {
   }
 
   return (
-    <AdminLayoutNew user={user} onLogout={performLogout}>
+    <AdminLayout user={user} onLogout={performLogout}>
       <div className="space-y-6">
 
         {/* ── Page header ── */}
@@ -942,6 +942,6 @@ export default function AdminPendingDomainsPage() {
           </div>
         </Modal>
       )}
-    </AdminLayoutNew>
+    </AdminLayout>
   );
 }

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { Search, Filter, MoreVertical, Trash2, Eye, EyeOff, RefreshCw, Key, UserCheck, XCircle, CheckCircle, Server, Shield, Unlock, ShieldOff, Users, UserX, Cog } from 'lucide-react';
 import RefreshButton from '@/components/dashboard/RefreshButton';
-import AdminLayout from '@/components/admin/AdminLayoutNew';
+import AdminLayout from '@/components/admin/AdminLayout';
 import { AdminLayoutSkeleton, AdminUsersPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import AdminDataTable from '@/components/admin/AdminDataTable';
 import ActionMenu from '@/components/admin/ActionMenu';

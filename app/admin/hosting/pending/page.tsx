@@ -18,7 +18,7 @@ import {
   User as UserIcon,
   Inbox,
 } from 'lucide-react';
-import AdminLayoutNew from '@/components/admin/AdminLayoutNew';
+import AdminLayout from '@/components/admin/AdminLayout';
 import { AdminLayoutSkeleton, AdminPendingDomainsPageSkeleton, AdminTableRowsSkeleton } from '@/components/skeletons/PageSkeletons';
 import Modal from '@/components/Modal';
 import RefreshButton from '@/components/dashboard/RefreshButton';
@@ -197,7 +197,7 @@ export default function AdminPendingHostingPage() {
   }
 
   return (
-    <AdminLayoutNew user={user} onLogout={performLogout}>
+    <AdminLayout user={user} onLogout={performLogout}>
       <div className="space-y-6">
 
         {/* ── Page header ── */}
@@ -394,6 +394,6 @@ export default function AdminPendingHostingPage() {
           </div>
         )}
       </Modal>
-    </AdminLayoutNew>
+    </AdminLayout>
   );
 }

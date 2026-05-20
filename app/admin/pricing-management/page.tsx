@@ -24,7 +24,7 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { TrendingUp, RefreshCw, Search, Filter, Globe, Loader2, Tag, CheckCircle2, ArrowUp, ArrowDown } from 'lucide-react';
 import RefreshButton from '@/components/dashboard/RefreshButton';
-import AdminLayout from '@/components/admin/AdminLayoutNew';
+import AdminLayout from '@/components/admin/AdminLayout';
 import { AdminLayoutSkeleton, AdminPricingPageSkeleton, AdminTableRowsSkeleton } from '@/components/skeletons/PageSkeletons';
 import AdminDataTable from '@/components/admin/AdminDataTable';
 import { formatIndianCurrency, formatIndianNumber, formatIndianDateTime } from '@/lib/dateUtils';

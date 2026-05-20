@@ -6,7 +6,7 @@ import { Shield, Save, Eye, EyeOff, Settings, TestTube, Wifi, Plus, X, AlertCirc
 import { Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import RefreshButton from '@/components/dashboard/RefreshButton';
-import AdminLayout from '@/components/admin/AdminLayoutNew';
+import AdminLayout from '@/components/admin/AdminLayout';
 import { AdminLayoutSkeleton, AdminGenericPageSkeleton, AdminSettingsPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import AdminPasswordReset from '@/components/AdminPasswordReset';
 import { performLogout } from '@/lib/logout';
@@ -16,7 +16,7 @@ import { logger } from '@/lib/logger';
 
 export default function AdminSettings() {
   // Loosely-typed user blob — comes from JWT /auth/me payload or NextAuth
-  // session. AdminLayoutNew requires firstName/lastName/role; the rest is
+  // session. AdminLayout requires firstName/lastName/role; the rest is
   // optional ID/email used elsewhere in this page.
   const [user, setUser] = useState<{
     firstName: string;

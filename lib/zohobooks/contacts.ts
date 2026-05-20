@@ -6,7 +6,7 @@
  * without needing their own auth state.
  */
 
-import axios from 'axios';
+import { zohoAxios } from './axios-client';
 import { serverLogger } from '../server-logger';
 import type { ZohoBooksService } from '../zohobooks';
 import { ZohoError } from '../zohobooks';
@@ -27,7 +27,7 @@ export async function getContactByEmail(self: ZohoBooksService, email: string): 
 
   try {
     const headers = await self._getHeaders();
-    const response = await axios.get(`${self._baseUrl}/contacts`, {
+    const response = await zohoAxios.get(`${self._baseUrl}/contacts`, {
       headers,
       params: { email, ...self._defaultParams }
     });
@@ -52,7 +52,7 @@ export async function getContactByName(self: ZohoBooksService, name: string): Pr
 
   try {
     const headers = await self._getHeaders();
-    const response = await axios.get(`${self._baseUrl}/contacts`, {
+    const response = await zohoAxios.get(`${self._baseUrl}/contacts`, {
       headers,
       params: { ...self._defaultParams, contact_name: name }
     });
@@ -110,7 +110,7 @@ export async function createContact(self: ZohoBooksService, user: ZohoUserInput)
 
     try {
       const response = await self._idempotentRetry(() =>
-          axios.post(`${self._baseUrl}/contacts`, contactData, { headers, params: self._defaultParams })
+          zohoAxios.post(`${self._baseUrl}/contacts`, contactData, { headers, params: self._defaultParams })
       );
 
       if (response.data.code === 0) {
@@ -135,7 +135,7 @@ export async function createContact(self: ZohoBooksService, user: ZohoUserInput)
          fallbackData.gst_treatment = 'consumer';
 
          const retryResponse = await self._idempotentRetry(() =>
-             axios.post(`${self._baseUrl}/contacts`, fallbackData, { headers, params: self._defaultParams })
+             zohoAxios.post(`${self._baseUrl}/contacts`, fallbackData, { headers, params: self._defaultParams })
          );
 
          if (retryResponse.data.code === 0) {
@@ -197,7 +197,7 @@ export async function updateContactDetails(self: ZohoBooksService, contactId: st
     serverLogger.info(`[ZohoBooks] Updating main contact details for ${contactId} with data:`, JSON.stringify(updateData, null, 2));
 
     await self._idempotentRetry(() =>
-        axios.put(`${self._baseUrl}/contacts/${contactId}`, updateData, { headers, params: self._defaultParams })
+        zohoAxios.put(`${self._baseUrl}/contacts/${contactId}`, updateData, { headers, params: self._defaultParams })
     );
 
     // 2. Update the Primary Contact Person (First/Last Name)
@@ -230,7 +230,7 @@ export async function getContactPersons(self: ZohoBooksService, contactId: strin
 
   try {
     const headers = await self._getHeaders();
-    const response = await axios.get(`${self._baseUrl}/contacts/${contactId}/contactpersons`, { headers, params: self._defaultParams });
+    const response = await zohoAxios.get(`${self._baseUrl}/contacts/${contactId}/contactpersons`, { headers, params: self._defaultParams });
 
     if (response.data.code === 0) {
       return response.data.contact_persons;
@@ -262,7 +262,7 @@ export async function updateContactPerson(self: ZohoBooksService, contactPersonI
     serverLogger.info(`[ZohoBooks] Updating contact person ${contactPersonId} with data:`, JSON.stringify(personData, null, 2));
 
     const response = await self._idempotentRetry(() =>
-        axios.put(`${self._baseUrl}/contacts/contactpersons/${contactPersonId}`, personData, { headers, params: self._defaultParams })
+        zohoAxios.put(`${self._baseUrl}/contacts/contactpersons/${contactPersonId}`, personData, { headers, params: self._defaultParams })
     );
 
     return response.data.code === 0;
@@ -290,7 +290,7 @@ export async function updateContactToConsumer(self: ZohoBooksService, contactId:
     serverLogger.info(`[ZohoBooks] Forcing contact ${contactId} to consumer status`);
 
     const response = await self._idempotentRetry(() =>
-        axios.put(`${self._baseUrl}/contacts/${contactId}`, updateData, { headers, params: self._defaultParams })
+        zohoAxios.put(`${self._baseUrl}/contacts/${contactId}`, updateData, { headers, params: self._defaultParams })
     );
 
     return response.data.code === 0;

@@ -133,9 +133,10 @@ export async function GET(request: NextRequest) {
             let daConfig: DaUserConfig = {};
 
             try {
-                // We fetch individual config here - this might still be slow if we have 100s of users.
-                // TODO: optimization - rely on bulk usage map + DB for most things.
-                // For now, we wrap this in try/catch so one user failing doesn't break all.
+                // Per-user fetch can be slow at scale (~100s of users). If this
+                // becomes a hotspot, switch to the bulk usage map + DB-cached
+                // config — the try/catch around it keeps one failure from
+                // taking down the whole stats page either way.
                 daConfig = await DirectAdminService.getUserConfig(daUsername);
 
                 if (!localUser && daConfig.email) {

@@ -28,7 +28,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import RefreshButton from '@/components/dashboard/RefreshButton';
-import AdminLayoutNew from '@/components/admin/AdminLayoutNew';
+import AdminLayout from '@/components/admin/AdminLayout';
 import { AdminLayoutSkeleton, AdminGenericPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import { performLogout } from '@/lib/logout';
 import { confirmDialog } from '@/lib/confirm-dialog';
@@ -625,7 +625,7 @@ function AdminDNSManagementContent() {
   }
 
   return (
-    <AdminLayoutNew user={user} onLogout={performLogout}>
+    <AdminLayout user={user} onLogout={performLogout}>
       <div className="p-3 sm:p-4 lg:p-6">
         {/* Header */}
         <div className="mb-6 space-y-6">
@@ -1187,6 +1187,6 @@ function AdminDNSManagementContent() {
           </div>
         )}
       </div>
-    </AdminLayoutNew>
+    </AdminLayout>
   );
 }

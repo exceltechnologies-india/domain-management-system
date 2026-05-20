@@ -2,7 +2,7 @@
  * Zoho Books invoice operations.
  */
 
-import axios from 'axios';
+import { zohoAxios } from './axios-client';
 import { serverLogger } from '../server-logger';
 import { SAC_CODE, formatSubscriptionPeriod } from '../invoiceUtils';
 import type { ZohoBooksService } from '../zohobooks';
@@ -122,7 +122,7 @@ export async function createInvoice(
     let response;
     try {
       response = await self._idempotentRetry(() =>
-          axios.post(`${self._baseUrl}/invoices`, invoiceData, {
+          zohoAxios.post(`${self._baseUrl}/invoices`, invoiceData, {
               headers,
               params: { send: false, ...self._defaultParams }
           })
@@ -140,7 +140,7 @@ export async function createInvoice(
           if (fixed) {
               serverLogger.info(`[ZohoBooks] Contact fixed. Retrying invoice creation for ${orderId}...`);
               response = await self._idempotentRetry(() =>
-                  axios.post(`${self._baseUrl}/invoices`, invoiceData, {
+                  zohoAxios.post(`${self._baseUrl}/invoices`, invoiceData, {
                       headers,
                       params: { send: false, ...self._defaultParams }
                   })
@@ -162,7 +162,7 @@ export async function createInvoice(
           const retryData = { ...invoiceData, line_items: swappedLineItems };
 
           response = await self._idempotentRetry(() =>
-              axios.post(`${self._baseUrl}/invoices`, retryData, {
+              zohoAxios.post(`${self._baseUrl}/invoices`, retryData, {
                   headers,
                   params: { send: false, ...self._defaultParams }
               })
@@ -187,7 +187,7 @@ export async function createInvoice(
     // Let's mark as sent to be clean
     try {
       await self._idempotentRetry(() =>
-          axios.post(`${self._baseUrl}/invoices/${invoice.invoice_id}/status/sent`, {}, { headers, params: self._defaultParams })
+          zohoAxios.post(`${self._baseUrl}/invoices/${invoice.invoice_id}/status/sent`, {}, { headers, params: self._defaultParams })
       );
     } catch (e) {
         // Ignore if already sent or not allowed, try payment anyway
@@ -210,7 +210,7 @@ export async function createInvoice(
         };
 
         const paymentResponse = await self._idempotentRetry(() =>
-            axios.post(`${self._baseUrl}/customerpayments`, paymentData, { headers, params: self._defaultParams })
+            zohoAxios.post(`${self._baseUrl}/customerpayments`, paymentData, { headers, params: self._defaultParams })
         );
 
         if (paymentResponse.data.code === 0) {
@@ -262,7 +262,7 @@ export async function getInvoicesByEmail(self: ZohoBooksService, email: string):
 
     const headers = await self._getHeaders();
     const response = await self._idempotentRetry(() =>
-        axios.get(`${self._baseUrl}/invoices`, {
+        zohoAxios.get(`${self._baseUrl}/invoices`, {
           headers,
           params: {
             customer_id: contact.contact_id,
@@ -300,7 +300,7 @@ export async function getInvoicesByEmail(self: ZohoBooksService, email: string):
            page: 1,
            per_page: 1
          };
-         await axios.get(`${self._baseUrl}/invoices`, { headers, params: probeParams });
+         await zohoAxios.get(`${self._baseUrl}/invoices`, { headers, params: probeParams });
          serverLogger.warn('[ZohoBooks] PROBE SUCCESS: You HAVE access to invoices. The issue is likely with the specific Customer ID.');
       } catch (probeError) {
          const u = unwrapZohoError(probeError);
@@ -322,7 +322,7 @@ export async function getInvoicePdf(self: ZohoBooksService, invoiceId: string): 
     const headers = await self._getHeaders();
     // Zoho Books API to get PDF: /invoices/{invoice_id}?accept=pdf
     const response = await self._idempotentRetry(() =>
-        axios.get(`${self._baseUrl}/invoices/${invoiceId}`, {
+        zohoAxios.get(`${self._baseUrl}/invoices/${invoiceId}`, {
           headers: {
               ...headers,
               'Accept': 'application/pdf'
@@ -359,7 +359,7 @@ export async function getAllInvoices(
   try {
     const headers = await self._getHeaders();
     const response = await self._idempotentRetry(() =>
-        axios.get(`${self._baseUrl}/invoices`, {
+        zohoAxios.get(`${self._baseUrl}/invoices`, {
           headers,
           params: {
             ...self._defaultParams,
@@ -399,7 +399,7 @@ export async function getInvoiceById(self: ZohoBooksService, invoiceId: string):
   try {
     const headers = await self._getHeaders();
     const response = await self._idempotentRetry(() =>
-        axios.get(`${self._baseUrl}/invoices/${invoiceId}`, { headers, params: self._defaultParams })
+        zohoAxios.get(`${self._baseUrl}/invoices/${invoiceId}`, { headers, params: self._defaultParams })
     );
 
     if (response.data.code === 0) {
@@ -449,7 +449,7 @@ export async function applyPaymentToInvoice(
     };
 
     const response = await self._idempotentRetry(() =>
-        axios.post(`${self._baseUrl}/customerpayments`, paymentData, { headers, params: self._defaultParams })
+        zohoAxios.post(`${self._baseUrl}/customerpayments`, paymentData, { headers, params: self._defaultParams })
     );
 
     return response.data.code === 0;
@@ -469,7 +469,7 @@ export async function getInvoicesByReferenceNumber(self: ZohoBooksService, refer
   try {
     const headers = await self._getHeaders();
     const response = await self._idempotentRetry(() =>
-        axios.get(`${self._baseUrl}/invoices`, {
+        zohoAxios.get(`${self._baseUrl}/invoices`, {
           headers,
           params: {
             reference_number: referenceNumber,

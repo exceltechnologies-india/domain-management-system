@@ -30,7 +30,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import AdminLayout from "@/components/admin/AdminLayoutNew";
+import AdminLayout from "@/components/admin/AdminLayout";
 import { AdminLayoutSkeleton, AdminDashboardSkeleton } from "@/components/skeletons/PageSkeletons";
 import { performLogout } from "@/lib/logout";
 import { safeLocalStorage } from "@/lib/storage";

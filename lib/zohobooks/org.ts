@@ -2,7 +2,7 @@
  * Zoho Books organization-level operations.
  */
 
-import axios from 'axios';
+import { zohoAxios } from './axios-client';
 import { serverLogger } from '../server-logger';
 import type { ZohoBooksService } from '../zohobooks';
 import type { ZohoOrganization } from './types';
@@ -18,7 +18,7 @@ export async function getOrganizationDetails(self: ZohoBooksService): Promise<Zo
     const headers = await self._getHeaders();
     // Zoho Books API to list organizations
     const response = await self._idempotentRetry(() =>
-        axios.get(`${self._baseUrl}/organizations`, { headers })
+        zohoAxios.get(`${self._baseUrl}/organizations`, { headers })
     );
 
     if (response.data.code === 0 && response.data.organizations) {

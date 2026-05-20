@@ -10,7 +10,7 @@ import {
   Tag, Server, CreditCard, Wrench, HelpCircle,
 } from "lucide-react";
 import Link from "next/link";
-import AdminLayoutNew from "@/components/admin/AdminLayoutNew";
+import AdminLayout from "@/components/admin/AdminLayout";
 import { AdminLayoutSkeleton, AdminSupportPageSkeleton } from "@/components/skeletons/PageSkeletons";
 import { performLogout } from "@/lib/logout";
 import { safeLocalStorage } from "@/lib/storage";
@@ -161,7 +161,7 @@ export default function AdminSupportTicketsPage() {
   const userReplied = tickets.filter(t => t.lastMessage?.authorRole === "user" && (t.status === "open" || t.status === "in_progress")).length;
 
   return (
-    <AdminLayoutNew user={user} onLogout={performLogout}>
+    <AdminLayout user={user} onLogout={performLogout}>
       <div className="space-y-5">
 
         {/* Header */}
@@ -322,6 +322,6 @@ export default function AdminSupportTicketsPage() {
           </div>
         )}
       </div>
-    </AdminLayoutNew>
+    </AdminLayout>
   );
 }
