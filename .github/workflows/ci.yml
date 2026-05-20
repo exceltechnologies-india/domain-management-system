@@ -36,6 +36,12 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      - name: Integration tests (mongodb-memory-server + route-level)
+        # Boots an in-memory MongoDB + exercises the payments/verify +
+        # razorpay-webhook routes end-to-end. Separate from `npm test` so
+        # the unit suite stays fast; both must pass for the gate to be green.
+        run: npm run test:int
+
   audit:
     name: npm audit
     runs-on: ubuntu-latest
