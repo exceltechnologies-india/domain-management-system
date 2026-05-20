@@ -564,8 +564,9 @@ export async function getOrCreateCustomerAndContact(userData: {
       `✅ [PRODUCTION] Created ResellerClub contact ${contactId} for user: ${userData.email}`
     );
 
-    // TODO: Store customerId and contactId in your user database record
-    // await updateUserResellerClubIds(userData.email, customerId, contactId);
+    // Caller (the payment provisioner) persists customerId + contactId on
+    // the user document via setUserResellerClubIds() — kept out of this
+    // module so the wrapper stays User-model-agnostic.
 
     return {
       status: "success",

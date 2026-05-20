@@ -14,7 +14,7 @@ import {
   X,
   Settings
 } from 'lucide-react';
-import AdminLayoutNew from '@/components/admin/AdminLayoutNew';
+import AdminLayout from '@/components/admin/AdminLayout';
 import { AdminLayoutSkeleton, AdminHostingPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import { safeLocalStorage } from '@/lib/storage';
 import { performLogout } from '@/lib/logout';
@@ -185,7 +185,7 @@ export default function AdminPackagesPage() {
   }
 
   return (
-    <AdminLayoutNew user={user} onLogout={performLogout}>
+    <AdminLayout user={user} onLogout={performLogout}>
       <div className="space-y-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -403,6 +403,6 @@ export default function AdminPackagesPage() {
           </div>
         </div>
       )}
-    </AdminLayoutNew>
+    </AdminLayout>
   );
 }

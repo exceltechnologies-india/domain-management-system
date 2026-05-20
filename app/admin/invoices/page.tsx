@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { formatIndianDateTime } from '@/lib/dateUtils';
 import RefreshButton from '@/components/dashboard/RefreshButton';
-import AdminLayout from '@/components/admin/AdminLayoutNew';
+import AdminLayout from '@/components/admin/AdminLayout';
 import { AdminLayoutSkeleton, AdminGenericPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
 import { performLogout } from '@/lib/logout';

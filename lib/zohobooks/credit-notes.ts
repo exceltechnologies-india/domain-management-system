@@ -2,7 +2,7 @@
  * Zoho Books credit note operations.
  */
 
-import axios from 'axios';
+import { zohoAxios } from './axios-client';
 import { serverLogger } from '../server-logger';
 import type { ZohoBooksService } from '../zohobooks';
 import { ZohoError } from '../zohobooks';
@@ -51,7 +51,7 @@ export async function createCreditNote(
   };
 
   const createResponse = await self._idempotentRetry(() =>
-    axios.post(`${self._baseUrl}/creditnotes`, creditNotePayload, { headers, params: self._defaultParams })
+    zohoAxios.post(`${self._baseUrl}/creditnotes`, creditNotePayload, { headers, params: self._defaultParams })
   );
 
   if (createResponse.data.code !== 0 || !createResponse.data.creditnote) {
@@ -66,7 +66,7 @@ export async function createCreditNote(
 
   // Apply the credit note to the original invoice
   const applyResponse = await self._idempotentRetry(() =>
-    axios.post(
+    zohoAxios.post(
       `${self._baseUrl}/creditnotes/${creditNote.creditnote_id}/invoices`,
       { invoices: [{ invoice_id: zohoInvoiceId, amount_applied: amountRupees }] },
       { headers, params: self._defaultParams }

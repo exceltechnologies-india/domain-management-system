@@ -12,7 +12,7 @@ import {
   LifeBuoy, Flag, Activity,
 } from "lucide-react";
 import Link from "next/link";
-import AdminLayoutNew from "@/components/admin/AdminLayoutNew";
+import AdminLayout from "@/components/admin/AdminLayout";
 import { AdminLayoutSkeleton, TicketDetailPageSkeleton } from "@/components/skeletons/PageSkeletons";
 import { performLogout } from "@/lib/logout";
 import { safeLocalStorage } from "@/lib/storage";
@@ -229,7 +229,7 @@ export default function AdminTicketDetailPage() {
 
   if (!ticket) {
     return (
-      <AdminLayoutNew user={user} onLogout={performLogout}>
+      <AdminLayout user={user} onLogout={performLogout}>
         <div className="p-6 text-center">
           <AlertCircle className="h-10 w-10 text-gray-300 mx-auto mb-2" />
           <p className="text-gray-500">Ticket not found.</p>
@@ -237,7 +237,7 @@ export default function AdminTicketDetailPage() {
             <ArrowLeft className="h-4 w-4" /> Back to tickets
           </Link>
         </div>
-      </AdminLayoutNew>
+      </AdminLayout>
     );
   }
 
@@ -248,7 +248,7 @@ export default function AdminTicketDetailPage() {
   const awaitingReply = lastUserMsg && ticket.messages[ticket.messages.length - 1]?.authorRole === "user";
 
   return (
-    <AdminLayoutNew user={user} onLogout={performLogout}>
+    <AdminLayout user={user} onLogout={performLogout}>
       <div className="space-y-6">
 
         {/* ── Back link ── */}
@@ -485,6 +485,6 @@ export default function AdminTicketDetailPage() {
           </div>
         </div>
       </div>
-    </AdminLayoutNew>
+    </AdminLayout>
   );
 }

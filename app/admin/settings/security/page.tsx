@@ -13,7 +13,7 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
-import AdminLayoutNew from "@/components/admin/AdminLayoutNew";
+import AdminLayout from "@/components/admin/AdminLayout";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
 
 type Step = "status" | "scan" | "verify" | "backup" | "disable";
@@ -128,7 +128,7 @@ export default function AdminSecurityPage() {
   }
 
   return (
-    <AdminLayoutNew user={user}>
+    <AdminLayout user={user}>
       <div className="max-w-xl mx-auto py-10 px-4">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900">Account Security</h1>
@@ -410,6 +410,6 @@ export default function AdminSecurityPage() {
           </div>
         )}
       </div>
-    </AdminLayoutNew>
+    </AdminLayout>
   );
 }

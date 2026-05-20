@@ -34,7 +34,7 @@ export { default as AdminTabs } from "./AdminTabs";
 export { default as AdminPasswordReset } from "./AdminPasswordReset";
 
 // New Admin Components
-export { default as AdminLayout } from "./admin/AdminLayoutNew";
+export { default as AdminLayout } from "./admin/AdminLayout";
 export { default as AdminStatsCard } from "./admin/AdminStatsCard";
 export { default as AdminDataTable } from "./admin/AdminDataTable";
 export { default as AdminQuickActions } from "./admin/AdminQuickActions";

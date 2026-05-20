@@ -2,7 +2,7 @@
  * Zoho Books recurring invoice profile operations.
  */
 
-import axios from 'axios';
+import { zohoAxios } from './axios-client';
 import { serverLogger } from '../server-logger';
 import type { ZohoBooksService } from '../zohobooks';
 import type {
@@ -111,7 +111,7 @@ export async function createRecurringInvoice(
 
          // We create one profile per hosting item to allow independent cancellation
          const response = await self._idempotentRetry(() =>
-             axios.post(`${self._baseUrl}/recurringinvoices`, recurringData, { headers, params: self._defaultParams })
+             zohoAxios.post(`${self._baseUrl}/recurringinvoices`, recurringData, { headers, params: self._defaultParams })
          );
 
          if (response.data.code !== 0) {

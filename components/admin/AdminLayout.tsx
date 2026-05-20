@@ -1,18 +1,26 @@
 'use client';
 
+// Updated Admin Layout with clean white design and mobile responsiveness
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
   Users,
-  Globe,
   FileText,
   Settings,
   LogOut,
   Menu,
   X,
-  Shield
+  Shield,
+  Package,
+  Globe,
+  Server,
+  AlertTriangle,
+  Tag,
+  Activity,
+  MessageCircle,
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -30,12 +38,17 @@ export default function AdminLayout({ children, user, onLogout }: AdminLayoutPro
   const pathname = usePathname();
 
   const navigation = [
-    { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
+    { name: 'Dashboard', href: '/admin/dashboard', icon: Activity },
     { name: 'Users', href: '/admin/user-management', icon: Users },
-    { name: 'Domains', href: '/admin/domains', icon: Globe },
+    { name: 'Orders', href: '/admin/order-management', icon: Package },
     { name: 'Invoices', href: '/admin/invoices', icon: FileText },
     { name: 'Payments', href: '/admin/payment-management', icon: FileText },
-    { name: 'Settings', href: '/admin/system-settings', icon: Settings },
+    { name: 'Pending Domains', href: '/admin/pending-domains', icon: AlertTriangle },
+    { name: 'Support Tickets', href: '/admin/support-tickets', icon: MessageCircle },
+    { name: 'Hosting', href: '/admin/hosting', icon: Server },
+    { name: 'Domains', href: '/admin/domains', icon: Globe },
+    { name: 'TLD Pricing', href: '/admin/pricing-management', icon: Tag },
+    { name: 'Settings', href: '/admin/settings', icon: Settings },
   ];
 
   const isActive = (href: string) => {
@@ -49,7 +62,7 @@ export default function AdminLayout({ children, user, onLogout }: AdminLayoutPro
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="h-screen bg-gray-50 flex overflow-hidden">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
@@ -62,10 +75,13 @@ export default function AdminLayout({ children, user, onLogout }: AdminLayoutPro
       <div
         className={`fixed inset-y-0 left-0 z-50 w-72 shadow-xl transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
-        style={{ backgroundColor: '#ffffff' }}
+        style={{
+          backgroundColor: '#ffffff',
+          borderRight: '1px solid #e5e7eb'
+        }}
       >
         {/* Sidebar Header */}
-        <div className="flex items-center justify-between h-16 px-6 bg-gradient-to-r from-blue-600 to-blue-700">
+        <div className="flex items-center justify-between h-16 px-6 bg-gradient-to-r from-blue-600 to-blue-700 border-b border-blue-500">
           <div className="flex items-center">
             <div className="p-2 bg-white bg-opacity-20 rounded-lg">
               <Shield className="h-6 w-6 text-white" />
@@ -74,6 +90,7 @@ export default function AdminLayout({ children, user, onLogout }: AdminLayoutPro
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
+            aria-label="Close navigation menu"
             className="lg:hidden text-white hover:text-gray-200 transition-colors"
           >
             <X className="h-6 w-6" />
@@ -81,7 +98,7 @@ export default function AdminLayout({ children, user, onLogout }: AdminLayoutPro
         </div>
 
         {/* Navigation */}
-        <nav className="mt-6 px-4">
+        <nav className="mt-6 px-4 overflow-y-auto" style={{ backgroundColor: '#ffffff', maxHeight: 'calc(100vh - 4rem)' }}>
           <div className="space-y-1">
             {navigation.map((item) => {
               const Icon = item.icon;
@@ -104,63 +121,57 @@ export default function AdminLayout({ children, user, onLogout }: AdminLayoutPro
           </div>
         </nav>
 
-        {/* User info at bottom */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gray-50 border-t border-gray-200">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="h-10 w-10 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-md">
-                <span className="text-sm font-semibold text-white">
-                  {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
-                </span>
-              </div>
-            </div>
-            <div className="ml-3 flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-900 truncate">
-                {user?.firstName} {user?.lastName}
-              </p>
-              <p className="text-xs text-gray-500">Administrator</p>
-            </div>
-            {onLogout && (
-              <button
-                onClick={onLogout}
-                className="ml-2 p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
-                title="Logout"
-              >
-                <LogOut className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-        </div>
       </div>
 
       {/* Main content */}
-      <div className="lg:pl-72">
-        {/* Top bar */}
-        <div className="sticky top-0 z-30 bg-white shadow-sm border-b border-gray-200">
-          <div className="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8">
+      <div className="flex-1 lg:ml-0 flex flex-col overflow-hidden">
+        {/* Top bar - aligned with sidebar header */}
+        <div className="sticky top-0 z-30 bg-white shadow-sm border-b border-gray-200 h-16 flex items-center flex-shrink-0">
+          <div className="flex items-center justify-between w-full px-4 sm:px-6 lg:px-8">
+            {/* Left side - Mobile menu button */}
             <button
               onClick={() => setSidebarOpen(true)}
+              aria-label="Open navigation menu"
               className="lg:hidden p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <Menu className="h-5 w-5" />
             </button>
 
-            <div className="flex items-center space-x-4">
-              <div className="hidden sm:flex items-center space-x-3">
-                <div className="text-sm">
-                  <p className="font-medium text-gray-900">
+            {/* Right side - Admin user info */}
+            <div className="flex items-center space-x-3 ml-auto">
+              {/* Admin User Info - Right aligned */}
+              <div className="flex items-center space-x-3 bg-gray-50 rounded-lg px-3 py-2">
+                <div className="h-8 w-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-sm">
+                  <span className="text-xs font-semibold text-white uppercase">
+                    {user?.firstName ? user.firstName.charAt(0) : 'A'}
+                    {user?.lastName ? user.lastName.charAt(0) : 'U'}
+                  </span>
+                </div>
+                <div className="hidden sm:block">
+                  <p className="text-sm font-semibold text-gray-900">
                     {user?.firstName} {user?.lastName}
                   </p>
-                  <p className="text-gray-500">Administrator</p>
+                  <p className="text-xs text-gray-500">Administrator</p>
                 </div>
+                {onLogout && (
+                  <button
+                    onClick={onLogout}
+                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                    title="Logout"
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             </div>
           </div>
         </div>
 
         {/* Page content */}
-        <main className="p-4 sm:p-6 lg:p-8">
-          {children}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          <div className="animate-in fade-in duration-300 ease-out">
+            {children}
+          </div>
         </main>
       </div>
     </div>
