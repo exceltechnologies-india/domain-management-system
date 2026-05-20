@@ -29,7 +29,7 @@ This document tracks **currently-open** findings. The full historical pass log (
 - ✅ **LOW-2** — structured logging
 - ✅ **LOW-3** — DB migration history
 - ✅ **LOW-4** — Mongoose model index audit
-- ✅ **Rescan Batch 1** (2026-05-20, commit `bb91b5d`) — Zoho axios timeout (24 callsites swapped to a shared `zohoAxios = axios.create({ timeout: 30_000 })`); 20 unused deps removed (8 runtime + 12 stale `@types/*`); `npm audit fix` cleared the 3 moderate findings (now 0); `AdminLayout` dedupe (dead 167-line file removed, `AdminLayoutNew` renamed in place, 18 consumer imports updated); `/api/debug/check-expiry` deleted (dev scaffolding with data-leak risk); 2 stale TODOs converted to explanatory notes.
+- ✅ **Rescan Batch 1** (2026-05-20, commit `bb91b5d`, revision `dms-00029-4jj`) — Zoho axios timeout (24 callsites swapped to a shared `zohoAxios = axios.create({ timeout: 30_000 })`); 20 unused deps removed (8 runtime + 12 stale `@types/*`); `npm audit fix` cleared the 3 moderate findings (now 0); `AdminLayout` dedupe (dead 167-line file removed, `AdminLayoutNew` renamed in place, 18 consumer imports updated); `/api/debug/check-expiry` deleted (dev scaffolding with data-leak risk); 2 stale TODOs converted to explanatory notes. **Post-deploy verification 2026-05-20:** 434 unit + 25 integration tests green, tsc clean, lint --quiet clean, 0 npm audit findings, `/api/health` 200 OK, zero error-level Cloud Run logs in the post-deploy window.
 
 ## Deliberately deferred (by user)
 
