@@ -43,7 +43,7 @@ export async function POST(req: Request) {
       requestId,
       statusCode,
       ip,
-      user: session?.user ? (session.user as { id?: string }).id : undefined,
+      user: session?.user ? session.user.id : undefined,
     });
 
     return NextResponse.json({ success: true });

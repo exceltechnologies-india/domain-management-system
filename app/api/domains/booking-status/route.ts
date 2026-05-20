@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import Order, { type IOrder } from "@/models/Order";
 import { serverLogger } from "@/lib/server-logger";
+import { findOrderDomain } from "@/lib/services/orders";
 
 // Force dynamic rendering - required for API routes
 export const dynamic = 'force-dynamic';
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
     // Find the specific domain if domainName was provided
     let domainData = null;
     if (domainName) {
-      domainData = order.domains.find((d: IOrder['domains'][number]) => d.domainName === domainName);
+      domainData = findOrderDomain(order, domainName);
     } else {
       // Return all domains if only orderId was provided
       domainData = order.domains;

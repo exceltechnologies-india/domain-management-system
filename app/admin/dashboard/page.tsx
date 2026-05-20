@@ -282,7 +282,7 @@ export default function AdminDashboard() {
     if (status === "loading") return;
 
     if (session?.user) {
-      const sUser = session.user as { id?: string; role?: string };
+      const sUser = session.user;
       const userObj = {
         _id: sUser.id,
         firstName: session.user.name?.split(" ")[0] || "",

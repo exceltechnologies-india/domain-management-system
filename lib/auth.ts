@@ -189,7 +189,7 @@ export class AuthService {
       // 3) Fallback to NextAuth session (social login or credentials session)
       const session = await getServerSession(authOptions);
       if (session?.user) {
-        const sessionUser = session.user as { id?: string; email?: string };
+        const sessionUser = session.user;
         const userFromSession = sessionUser.id ? await getUserById(sessionUser.id) : null;
         if (userFromSession && userFromSession.isActive) {
           if (userFromSession.sessionInvalidatedAt) {

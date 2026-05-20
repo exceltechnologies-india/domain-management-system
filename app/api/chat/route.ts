@@ -45,7 +45,10 @@ export async function POST(req: NextRequest) {
     }
 
     const stream = await client.messages.stream({
-      model: "claude-haiku-4-5",
+      // Pinned to the dated Haiku 4.5 release (2025-10-01) so a future alias
+      // re-point doesn't change the chat persona or token-spend profile.
+      // Bump deliberately when the next Haiku tier ships.
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 1024,
       system: [
         {

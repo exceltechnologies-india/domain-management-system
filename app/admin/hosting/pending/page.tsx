@@ -73,7 +73,7 @@ export default function AdminPendingHostingPage() {
         firstName: session.user.name?.split(' ')[0] || '',
         lastName: session.user.name?.split(' ').slice(1).join(' ') || '',
         email: session.user.email || '',
-        role: (session.user as { role?: string }).role || 'user',
+        role: session.user.role || 'user',
       };
 
       if (userObj.role !== 'admin') {

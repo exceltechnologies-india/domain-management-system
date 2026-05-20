@@ -7,6 +7,7 @@ import Order, { type IOrder } from "@/models/Order";
 import type { IUser } from "@/models/User";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import { serverLogger } from "@/lib/server-logger";
+import { findOrderDomain } from "@/lib/services/orders";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Domain not found or unauthorized" }, { status: 404 });
     }
 
-    const domain = order.domains.find((d: IOrder['domains'][number]) => d.domainName === domainName);
+    const domain = findOrderDomain(order, domainName);
     if (!domain) {
       return NextResponse.json({ error: "Domain not found in order" }, { status: 404 });
     }

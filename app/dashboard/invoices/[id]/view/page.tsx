@@ -35,7 +35,7 @@ export default function ViewInvoicePage({ params }: { params: Promise<{ id: stri
     if (status === 'loading') return;
 
     if (session?.user) {
-      const sUser = session.user as { id?: string; role?: string };
+      const sUser = session.user;
       const userObj = {
         id: sUser.id ?? '',
         email: session.user.email || '',

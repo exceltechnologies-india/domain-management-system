@@ -208,7 +208,7 @@ export default function AdminSettings() {
   useEffect(() => {
     if (status === "loading") return;
     if (session?.user) {
-      const u = { firstName: session.user.name?.split(" ")[0] || "", lastName: session.user.name?.split(" ").slice(1).join(" ") || "", role: (session.user as { role?: string }).role || "user" };
+      const u = { firstName: session.user.name?.split(" ")[0] || "", lastName: session.user.name?.split(" ").slice(1).join(" ") || "", role: session.user.role || "user" };
       if (u.role !== "admin") { router.push("/dashboard"); return; }
       setUser(u); setIsAuthLoading(false); void loadAllSettings(); return;
     }

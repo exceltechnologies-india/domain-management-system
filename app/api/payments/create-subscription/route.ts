@@ -38,12 +38,15 @@ export async function POST(request: NextRequest) {
         interval: interval
       });
     } catch (razorpayError: unknown) {
+      // Log full error server-side; return generic message to the client.
+      // Razorpay errors can include account-id / key fragments + retry
+      // tokens that don't belong in a user-facing response.
       serverLogger.error(
         "❌ [CREATE-SUBSCRIPTION] Razorpay subscription creation failed:",
         razorpayError
       );
       return NextResponse.json(
-        { error: razorpayError instanceof Error ? razorpayError.message : "Failed to create subscription" },
+        { error: "Failed to create subscription. Please try again or contact support." },
         { status: 500 }
       );
     }

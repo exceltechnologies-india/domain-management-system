@@ -115,7 +115,7 @@ export default function DNSManagementPage() {
     }
 
     if (session?.user) {
-      const sUser = session.user as { id?: string; role?: string };
+      const sUser = session.user;
       const userObj = {
         id: sUser.id ?? '',
         email: session.user.email || '',

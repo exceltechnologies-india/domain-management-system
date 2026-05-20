@@ -4,7 +4,6 @@ import { DirectAdminService } from "@/lib/directadmin";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 import { getUserById } from "@/lib/services/users";
-import User from "@/models/User";
 import connectDB from "@/lib/mongodb";
 
 /**

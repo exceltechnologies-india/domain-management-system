@@ -7,6 +7,7 @@ import connectDB from "@/lib/mongodb";
 import Order, { type IOrder } from "@/models/Order";
 import type { IUser } from "@/models/User";
 import { serverLogger } from "@/lib/server-logger";
+import { findOrderDomain } from "@/lib/services/orders";
 
 // Force dynamic rendering - required for API routes
 export const dynamic = 'force-dynamic';
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Domain not found" }, { status: 404 });
     }
 
-    const domain = order.domains.find((d: IOrder['domains'][number]) => d.domainName === domainName);
+    const domain = findOrderDomain(order, domainName);
 
     if (!domain || !domain.resellerClubCustomerId) {
       return NextResponse.json(
@@ -147,7 +148,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Domain not found" }, { status: 404 });
     }
 
-    const domain = order.domains.find((d: IOrder['domains'][number]) => d.domainName === domainName);
+    const domain = findOrderDomain(order, domainName);
 
     if (!domain || !domain.resellerClubCustomerId) {
       return NextResponse.json(
@@ -244,7 +245,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Domain not found" }, { status: 404 });
     }
 
-    const domain = order.domains.find((d: IOrder['domains'][number]) => d.domainName === domainName);
+    const domain = findOrderDomain(order, domainName);
 
     if (!domain || !domain.resellerClubCustomerId) {
       return NextResponse.json(

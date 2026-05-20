@@ -132,8 +132,8 @@ export default function AdminTicketDetailPage() {
           const data = await res.json();
           if (data.user?.role === "admin") { setUser(data.user); setIsAuthLoading(false); }
           else { toast.error("Access denied"); router.push("/dashboard"); }
-        } else if (session?.user && (session.user as { role?: string }).role === "admin") {
-          const sUser = session.user as { role?: string; name?: string };
+        } else if (session?.user && session.user.role === "admin") {
+          const sUser = session.user;
           const [firstName = "", ...rest] = (sUser.name ?? "").split(" ");
           setUser({ firstName, lastName: rest.join(" "), role: sUser.role ?? "admin" });
           setIsAuthLoading(false);

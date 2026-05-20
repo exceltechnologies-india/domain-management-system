@@ -7,6 +7,7 @@ import { Schemas } from "@/lib/validation";
 import { SecurityValidator } from "@/lib/security";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { z } from "zod";
+import { findOrderDomain } from "@/lib/services/orders";
 
 // Force dynamic rendering - required for API routes
 export const dynamic = 'force-dynamic';
@@ -50,7 +51,7 @@ export async function GET(request: NextRequest) {
       return secureErrorResponse("Domain not found or unauthorized", 404, "NOT_FOUND");
     }
 
-    const domain = order.domains.find((d: IOrder['domains'][number]) => d.domainName === domainName);
+    const domain = findOrderDomain(order, domainName);
 
     if (!domain || !domain.resellerClubCustomerId) {
       return secureErrorResponse("Domain configuration missing", 404, "NOT_FOUND");
@@ -123,7 +124,7 @@ export async function POST(request: NextRequest) {
       return secureErrorResponse("Domain not found", 404, "NOT_FOUND");
     }
 
-    const domain = order.domains.find((d: IOrder['domains'][number]) => d.domainName === domainName);
+    const domain = findOrderDomain(order, domainName);
     if (!domain || !domain.resellerClubCustomerId) {
       return secureErrorResponse("DNS management not active", 404, "NOT_FOUND");
     }
