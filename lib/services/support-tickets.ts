@@ -211,3 +211,26 @@ export async function countOpenTickets(): Promise<number> {
   await connectDB();
   return SupportTicket.countDocuments({ status: { $in: [...OPEN_STATUSES] } });
 }
+
+/**
+ * Insert a new SupportTicket. Thin pass-through to the model — payload is
+ * intentionally loose; the schema validates at write time.
+ */
+export async function createSupportTicket(
+  payload: Record<string, unknown>
+): Promise<ISupportTicket> {
+  await connectDB();
+  return SupportTicket.create(payload);
+}
+
+/**
+ * Admin: update a ticket's mutable fields by id. Returns the updated doc
+ * (post-update). Returns null if the id didn't match.
+ */
+export async function updateTicketByIdAsAdmin(
+  id: string,
+  patch: Record<string, unknown>
+): Promise<ISupportTicket | null> {
+  await connectDB();
+  return SupportTicket.findByIdAndUpdate(id, patch, { new: true });
+}

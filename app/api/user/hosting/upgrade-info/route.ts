@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
-import connectDB from "@/lib/mongodb";
-import Hosting from "@/models/Hosting";
+import { findUserHosting } from "@/lib/services/hostings";
 import { getPlanByPlanId, listActivePlans } from "@/lib/services/hosting-plans";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { AuthService } from "@/lib/auth";
@@ -28,10 +27,7 @@ export async function GET(request: NextRequest) {
       return secureErrorResponse("domainName is required", 400, "INVALID_PARAM");
     }
 
-    await connectDB();
-
-    const hosting = await Hosting.findOne({
-      userId: user._id,
+    const hosting = await findUserHosting(String(user._id), {
       domainName: domainName.toLowerCase(),
     });
 

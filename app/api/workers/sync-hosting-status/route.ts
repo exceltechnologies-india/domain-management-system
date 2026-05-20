@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { serverLogger } from "@/lib/server-logger";
-import connectDB from "@/lib/mongodb";
 import { authorizeCronRequest } from "@/lib/cron-auth";
-import Hosting from "@/models/Hosting";
+import { listHostingsForUser } from "@/lib/services/hostings";
 import { DirectAdminService } from "@/lib/directadmin";
 
 export const dynamic = 'force-dynamic';
@@ -21,10 +20,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "userId is required" }, { status: 400 });
     }
 
-    await connectDB();
-
-    // 2. Fetch Hostings
-    const hostings = await Hosting.find({ userId }).sort({ createdAt: -1 });
+    // 2. Fetch Hostings — sync path needs every hosting, no truncation.
+    const hostings = await listHostingsForUser(userId, { limit: 0 });
 
     if (!hostings || hostings.length === 0) {
       return NextResponse.json({ success: true, message: "No hostings found" });
@@ -45,11 +42,15 @@ export async function POST(request: NextRequest) {
                  DirectAdminService.getUserDomains(hosting.directAdminUsername)
               ]);
               
-              // Check if account is suspended
+              // Check if account is suspended.
+              // "suspended" isn't yet in the IHosting status enum but is the
+              // runtime value the worker writes — cast through unknown to
+              // bypass strict TS until the schema is widened.
+              const loose = hosting as unknown as { status: string };
               if (daConfig.suspended === "yes") {
-                if (hosting.status !== 'suspended') {
-                   serverLogger.info(`[Worker:SyncHosting] Updating status for ${hosting.directAdminUsername}: ${hosting.status} -> suspended`);
-                   hosting.status = 'suspended';
+                if (loose.status !== 'suspended') {
+                   serverLogger.info(`[Worker:SyncHosting] Updating status for ${hosting.directAdminUsername}: ${loose.status} -> suspended`);
+                   loose.status = 'suspended';
                    await hosting.save();
                 }
               } else {

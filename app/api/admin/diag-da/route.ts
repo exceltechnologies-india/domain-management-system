@@ -3,8 +3,7 @@ import { AuthService } from "@/lib/auth";
 import { DirectAdminService } from "@/lib/directadmin";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
-import connectDB from "@/lib/mongodb";
-import Hosting from "@/models/Hosting";
+import { listAllHostingsForDirectAdminDiag } from "@/lib/services/hostings";
 
 export const dynamic = "force-dynamic";
 
@@ -18,8 +17,6 @@ export async function GET(request: NextRequest) {
     if (!isAdmin) {
       return secureErrorResponse("Unauthorized", 403, "FORBIDDEN");
     }
-
-    await connectDB();
 
     const url = new URL(request.url);
     const doCleanup = url.searchParams.get("cleanup") === "true";
@@ -50,7 +47,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     // 2. Fetch Hosting records from DB for cross-reference
-    const dbHostings = await Hosting.find({}, "directAdminUsername domainName status");
+    const dbHostings = await listAllHostingsForDirectAdminDiag();
 
     const settledError = (r: PromiseSettledResult<unknown>): { error: string } => ({
       error:

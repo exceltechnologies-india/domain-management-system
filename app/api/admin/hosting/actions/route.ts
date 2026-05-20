@@ -3,9 +3,8 @@ import { AuthService } from "@/lib/auth";
 import { DirectAdminService } from "@/lib/directadmin";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
-import connectDB from "@/lib/mongodb";
 import { clearDirectAdminUsernameForAll } from "@/lib/services/users";
-import Hosting from "@/models/Hosting";
+import { deleteHostingsByIdOrUsername } from "@/lib/services/hostings";
 import { RazorpayService } from "@/lib/razorpay";
 
 export const dynamic = 'force-dynamic';
@@ -48,15 +47,16 @@ export async function POST(request: NextRequest) {
       case 'delete':
         // For delete, we also need to clear the local records
         // to keep states consistent (even if DA user is already gone).
-        
-        // Update local DB
-        await connectDB();
 
-        // 1. Check for active subscription(s) and cancel them
-        const query = hostingId ? { _id: hostingId } : { directAdminUsername: username };
-        const hostingRecords = await Hosting.find(query);
-        
-        for (const record of hostingRecords) {
+        // 1. Match local rows, cancel their subscriptions, then delete.
+        // Service helper returns matchedHostings (pre-delete snapshot) so the
+        // loop below can iterate over them even after the rows are gone.
+        const { deletedCount, matchedHostings } = await deleteHostingsByIdOrUsername({
+          hostingId,
+          directAdminUsername: username,
+        });
+
+        for (const record of matchedHostings) {
           if (record.subscriptionId) {
             try {
                serverLogger.info(`Cancelling Razorpay subscription ${record.subscriptionId} for user ${username || record.directAdminUsername}`);
@@ -68,9 +68,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // 2. Delete ALL matching Hosting records from local DB
-        const deleteHostingResult = await Hosting.deleteMany(query);
-        serverLogger.info(`Permanently deleted ${deleteHostingResult.deletedCount} Hosting record(s) for ${username || 'N/A'} (ID: ${hostingId || 'N/A'}) from local DB`);
+        serverLogger.info(`Permanently deleted ${deletedCount} Hosting record(s) for ${username || 'N/A'} (ID: ${hostingId || 'N/A'}) from local DB`);
 
         // 3. Clear any PendingHosting records
         if (username) {

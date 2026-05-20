@@ -5,8 +5,7 @@ import {
 } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 import { authorizeCronRequest } from "@/lib/cron-auth";
-import connectDB from "@/lib/mongodb";
-import Hosting from "@/models/Hosting";
+import { getHostingById } from "@/lib/services/hostings";
 import Domain from "@/models/Domain";
 import { EmailService } from "@/lib/email";
 import { WhatsAppService } from "@/lib/whatsapp";
@@ -90,10 +89,8 @@ export async function POST(request: NextRequest) {
       return secureErrorResponse("Invalid payload", 400, "INVALID_PAYLOAD");
     }
 
-    await connectDB();
-
     if (serviceType === "hosting") {
-      service = (await Hosting.findById(serviceId).populate("userId")) as unknown as ServiceLike | null;
+      service = (await getHostingById(serviceId, { populateUser: true })) as unknown as ServiceLike | null;
     } else {
       service = (await Domain.findById(serviceId).populate("userId")) as unknown as ServiceLike | null;
     }

@@ -547,6 +547,25 @@ export async function createOrder(payload: Record<string, unknown>): Promise<IOr
 }
 
 /**
+ * Session-aware variant of {@link createOrder}: builds the document with `new`
+ * and saves inside the supplied Mongoose session so the insert participates
+ * in the caller's `withTransaction(...)` block. Returns the saved doc.
+ *
+ * Use this from routes that need atomic Order+Payment inserts (currently
+ * `payments/verify` and `payments/guest/verify`). For non-transactional
+ * inserts, prefer {@link createOrder}.
+ */
+export async function createOrderInSession(
+  payload: Record<string, unknown>,
+  session: mongoose.ClientSession
+): Promise<IOrder> {
+  await connectDB();
+  const doc = new Order(payload);
+  await doc.save({ session });
+  return doc;
+}
+
+/**
  * Unconditional variant of {@link markZohoInvoiceCreationFailed}: stamps
  * `creation_failed` regardless of the prior value. Used from the payments/verify
  * catch-block where the post-create Zoho call threw and the prior state is
@@ -743,6 +762,18 @@ export async function listAllOrdersForAdminDomains(): Promise<IOrder[]> {
     .populate("userId", "firstName lastName email phone companyName")
     .sort({ createdAt: -1 })
     .lean<IOrder[]>();
+}
+
+/**
+ * Eligibility check: has this user ever placed a trial-hosting order?
+ * Returns true if any order with `orderType: "hosting_trial"` exists for
+ * `userId`. Used by the one-trial-per-user gate in /api/payments/create-order
+ * and /api/user/hosting/trial-eligibility.
+ */
+export async function userHasPriorTrialOrder(userId: unknown): Promise<boolean> {
+  await connectDB();
+  const exists = await Order.exists({ userId, orderType: "hosting_trial" });
+  return !!exists;
 }
 
 /**
