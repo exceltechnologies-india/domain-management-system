@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import Order, { type IOrder } from "@/models/Order";
 import { ResellerClubAPI } from "@/lib/resellerclub";
 import { serverLogger } from "@/lib/server-logger";
-import { findOrderDomain } from "@/lib/services/orders";
+import { findOrderByDomainForUser, findOrderDomain } from "@/lib/services/orders";
 
 // Force dynamic rendering - required for API routes
 export const dynamic = 'force-dynamic';
@@ -26,13 +24,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await connectDB();
-
-    // Find the order containing this domain
-    const order = await Order.findOne({
-      userId: user._id,
-      "domains.domainName": domainName,
-    });
+    const order = await findOrderByDomainForUser(user._id, domainName);
 
     if (!order) {
       return NextResponse.json({ error: "Domain not found" }, { status: 404 });

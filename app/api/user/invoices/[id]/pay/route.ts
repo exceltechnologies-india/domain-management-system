@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { RazorpayService } from "@/lib/razorpay";
 import { ZohoBooksService } from "@/lib/zohobooks";
-import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
+import { findOrderByZohoInvoiceForUser } from "@/lib/services/orders";
 import { serverLogger } from "@/lib/server-logger";
 
 export const dynamic = 'force-dynamic';
@@ -29,12 +28,11 @@ export async function POST(
     // the pattern used in the sibling `/invoices/[id]/pdf/route.ts`.
     // Without this gate, any logged-in user can enumerate Zoho invoice IDs
     // and either pay or peek at another tenant's invoice metadata.
-    await connectDB();
-    const ownedOrder = await Order.findOne({
-      userId: user._id,
-      zohoInvoiceId: invoiceId,
-      isDeleted: { $ne: true },
-    }).select("_id zohoInvoiceId");
+    const ownedOrder = await findOrderByZohoInvoiceForUser(
+      user._id,
+      invoiceId,
+      { select: "_id zohoInvoiceId" }
+    );
 
     if (!ownedOrder) {
       serverLogger.warn(

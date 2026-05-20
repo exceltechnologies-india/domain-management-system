@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
+import { listAllOrdersForAdminDomains } from "@/lib/services/orders";
 import { listAllPendingDomainNames } from "@/lib/services/pending-domains";
 import { serverLogger } from "@/lib/server-logger";
 
@@ -27,20 +26,14 @@ export async function GET(request: NextRequest) {
     const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
     const limit = Math.min(MAX_DOMAINS_PAGE_SIZE, Math.max(1, parseInt(searchParams.get("limit") ?? "50", 10)));
 
-    // Connect to database
-    await connectDB();
-
     // 1. Fetch all pending domain names to filter them out of the registered list
     const pendingDomainsList = await listAllPendingDomainNames();
     const pendingNormalizedNames = new Set(
       pendingDomainsList.map((pd) => pd.domainName.toLowerCase().trim())
     );
 
-    // 2. Get all orders with domains - use lean() for performance and raw data access
-    const orders = await Order.find({})
-      .populate("userId", "firstName lastName email phone companyName")
-      .sort({ createdAt: -1 })
-      .lean();
+    // 2. Get all orders with domains — service handles populate + lean
+    const orders = await listAllOrdersForAdminDomains();
 
     // Flatten domains with customer information
     // Only include registered domains for DNS management
@@ -50,7 +43,8 @@ export async function GET(request: NextRequest) {
       if (!order.domains || !Array.isArray(order.domains)) continue;
 
       for (const domain of order.domains) {
-        const domainName = (domain.domainName || domain.name || "").toLowerCase().trim();
+        // Legacy rows may have stored the domain name under `name` instead of `domainName`.
+        const domainName = (domain.domainName || (domain as unknown as { name?: string }).name || "").toLowerCase().trim();
         
         // CRITICAL FILTER: If this domain is in the PendingDomain collection, 
         // it SHOULD NOT show up in the Registered list, even if status is 'registered'

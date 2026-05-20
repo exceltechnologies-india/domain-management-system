@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
+import {
+  findInvoiceNumberConflicts,
+  listOrdersByIds,
+  listStuckZohoInvoiceOrdersAdmin,
+} from "@/lib/services/orders";
 import { findUsersByIds } from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
 
@@ -80,31 +83,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await connectDB();
-
     // --- 1. Find invoiceNumber values held by more than one Order doc ---
-    const dupes = await Order.aggregate([
-      { $match: { invoiceNumber: { $exists: true, $ne: null } } },
-      {
-        $group: {
-          _id: "$invoiceNumber",
-          count: { $sum: 1 },
-          orderIds: { $push: "$_id" },
-        },
-      },
-      { $match: { count: { $gt: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 100 },
-    ]);
+    const dupes = await findInvoiceNumberConflicts();
 
     const allOrderIds = dupes.flatMap((d) => d.orderIds);
-    const dupeOrders = allOrderIds.length
-      ? await Order.find({ _id: { $in: allOrderIds } })
-          .select(
-            "_id orderId userId userEmail userName status amount invoiceNumber zohoInvoiceId razorpayPaymentId createdAt isDeleted"
-          )
-          .lean()
-      : [];
+    const dupeOrders = await listOrdersByIds(
+      allOrderIds,
+      "_id orderId userId userEmail userName status amount invoiceNumber zohoInvoiceId razorpayPaymentId createdAt isDeleted"
+    );
 
     const userIds = [
       ...new Set((dupeOrders as unknown as LeanOrder[]).map((o) => String(o.userId))),
@@ -126,23 +112,11 @@ export async function GET(request: NextRequest) {
     }));
 
     // --- 2. Find paid orders whose Zoho invoice never resolved ---
-    const stuckDocs = await Order.find({
-      status: { $in: ["completed", "paid"] },
-      isDeleted: { $ne: true },
-      $or: [
-        { zohoInvoiceId: { $exists: false } },
-        { zohoInvoiceId: null },
-        { zohoInvoiceId: "" },
-        { zohoInvoiceId: "creation_failed" },
-        { zohoInvoiceId: "pending_creation" },
-      ],
-    })
-      .select(
-        "_id orderId userId userEmail userName status amount invoiceNumber zohoInvoiceId razorpayPaymentId createdAt isDeleted"
-      )
-      .sort({ createdAt: -1 })
-      .limit(100)
-      .lean();
+    const stuckDocs = await listStuckZohoInvoiceOrdersAdmin({
+      limit: 100,
+      select:
+        "_id orderId userId userEmail userName status amount invoiceNumber zohoInvoiceId razorpayPaymentId createdAt isDeleted",
+    });
 
     const stuckUserIds = [
       ...new Set((stuckDocs as unknown as LeanOrder[]).map((o) => String(o.userId))),

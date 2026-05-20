@@ -2,9 +2,9 @@ import { AUTH_SECRET } from "@/lib/auth-secret";
 import { NextRequest, NextResponse } from "next/server";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
-import connectDB from "@/lib/mongodb";
 import { getUserByIdSafe } from "@/lib/services/users";
-import Order, { type IOrder } from "@/models/Order";
+import { listOrdersForUser } from "@/lib/services/orders";
+import type { IOrder } from "@/models/Order";
 import { AuthService } from "@/lib/auth";
 import { getToken } from "next-auth/jwt";
 
@@ -13,10 +13,6 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
-
-
-
     // Try to get user from JWT token first
     let user = await AuthService.getUserFromRequest(request);
     
@@ -48,10 +44,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Get user's orders to check for active services
-    const orders = await Order.find({
-      userId: user._id,
-      isDeleted: { $ne: true },
-    }).select('domains amount status');
+    const orders = await listOrdersForUser(user._id, {
+      limit: 0,
+      populateUser: false,
+      select: "domains amount status",
+    });
 
     // Check for active domains
     // A user has active domains if they have any order with domains that are NOT active hosting items

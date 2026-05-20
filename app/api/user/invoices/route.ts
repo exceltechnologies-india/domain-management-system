@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
+import { listUserInvoiceOrders } from "@/lib/services/orders";
 import { serverLogger } from "@/lib/server-logger";
 import { selfHealUserInvoices } from "@/lib/zoho-invoice-retry";
 
@@ -26,16 +25,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await connectDB();
-
-    const orders = await Order.find({
-      userId: user._id,
-      invoiceNumber: { $exists: true, $ne: null },
-      isDeleted: { $ne: true },
-    })
-      .sort({ createdAt: -1 })
-      .select("invoiceNumber zohoInvoiceId amount currency status createdAt")
-      .lean();
+    const orders = await listUserInvoiceOrders(user._id);
 
     let hasStuck = false;
     const invoices = orders.map((order) => {

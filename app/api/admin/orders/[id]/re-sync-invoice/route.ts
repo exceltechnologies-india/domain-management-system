@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { serverLogger } from "@/lib/server-logger";
 import { ZohoBooksService } from "@/lib/zohobooks";
-import connectDB from "@/lib/mongodb";
-import Order, { type IOrder } from "@/models/Order";
+import type { IOrder } from "@/models/Order";
+import { getOrderByIdOrOrderId } from "@/lib/services/orders";
 import { getUserById } from "@/lib/services/users";
 
 // Force dynamic rendering
@@ -22,15 +22,8 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await connectDB();
-
     // Find the order by database ID or orderId
-    const order = await Order.findOne({
-        $or: [
-            { _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : undefined },
-            { orderId: id }
-        ].filter(Boolean)
-    });
+    const order = await getOrderByIdOrOrderId(id);
 
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
@@ -39,7 +32,7 @@ export async function POST(
     serverLogger.info(`📂 [ADMIN] Manual re-sync triggered for order ${order.orderId} by admin ${adminUser.email}`);
 
     // Find the associated user
-    const user = await getUserById(order.userId);
+    const user = await getUserById(String(order.userId));
     if (!user) {
         return NextResponse.json({ error: "Associated user not found" }, { status: 404 });
     }

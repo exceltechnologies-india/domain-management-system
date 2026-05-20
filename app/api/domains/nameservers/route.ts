@@ -2,12 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { promisify } from "util";
 import dns from "dns";
-import connectDB from "@/lib/mongodb";
-import Order, { type IOrder } from "@/models/Order";
 import Domain from "@/models/Domain";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import { serverLogger } from "@/lib/server-logger";
-import { findOrderDomain } from "@/lib/services/orders";
+import { findOrderByDomainForUser, findOrderDomain } from "@/lib/services/orders";
 
 // Force dynamic rendering - required for API routes
 export const dynamic = 'force-dynamic';
@@ -331,9 +329,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid domain name format" }, { status: 400 });
     }
 
-    await connectDB();
-
-    const order = await Order.findOne({ "domains.domainName": domainName, userId: user._id, isDeleted: { $ne: true } });
+    const order = await findOrderByDomainForUser(user._id, domainName);
     if (!order) {
       return NextResponse.json({ error: "Domain not found for this user" }, { status: 404 });
     }

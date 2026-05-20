@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
-import connectDB from "@/lib/mongodb";
-import Order, { type IOrder } from "@/models/Order";
 import { serverLogger } from "@/lib/server-logger";
-import { findOrderDomain } from "@/lib/services/orders";
+import { findOrderByDomainForUser, findOrderDomain } from "@/lib/services/orders";
 
 // Force dynamic rendering - required for API routes
 export const dynamic = 'force-dynamic';
@@ -26,13 +24,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await connectDB();
-
-    // Find the order containing this domain
-    const order = await Order.findOne({
-      userId: user._id,
-      "domains.domainName": domainName,
-    });
+    const order = await findOrderByDomainForUser(user._id, domainName);
 
     if (!order) {
       return NextResponse.json({ error: "Domain not found" }, { status: 404 });
@@ -67,7 +59,9 @@ export async function POST(request: NextRequest) {
     // No additional calculations needed - amount is the total
 
     // Call ResellerClub API first — do not mark success locally until the API confirms
-    const resellerOrderId = domain.resellerClubOrderId || order.resellerClubOrderId;
+    // Top-level fallback is a legacy escape hatch from when Order docs could
+    // carry a parent resellerClubOrderId before per-domain fields existed.
+    const resellerOrderId = domain.resellerClubOrderId || (order as unknown as { resellerClubOrderId?: string }).resellerClubOrderId;
 
     if (resellerOrderId) {
       let activationResult;

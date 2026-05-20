@@ -2,8 +2,8 @@ import { AUTH_SECRET } from "@/lib/auth-secret";
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { getToken } from "next-auth/jwt";
-import connectDB from "@/lib/mongodb";
-import Order, { type IOrder } from "@/models/Order";
+import type { IOrder } from "@/models/Order";
+import { findUserOrder } from "@/lib/services/orders";
 import { getUserByIdSafe } from "@/lib/services/users";
 import type { IUser } from "@/models/User";
 import { ZohoBooksService } from "@/lib/zohobooks";
@@ -22,8 +22,6 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    await connectDB();
-
     // Try JWT first, then NextAuth session
     let user = await AuthService.getUserFromRequest(request);
 
@@ -48,10 +46,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const orderData = await Order.findOne({
-      _id: id,
-      userId: user._id,
-    }).exec();
+    const orderData = await findUserOrder(id, String(user._id));
 
     if (!orderData) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });

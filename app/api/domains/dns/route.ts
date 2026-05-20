@@ -1,13 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import { AuthService } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import Order, { type IOrder } from "@/models/Order";
 import { Schemas } from "@/lib/validation";
 import { SecurityValidator } from "@/lib/security";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { z } from "zod";
-import { findOrderDomain } from "@/lib/services/orders";
+import { findOrderByDomainForUser, findOrderDomain } from "@/lib/services/orders";
 
 // Force dynamic rendering - required for API routes
 export const dynamic = 'force-dynamic';
@@ -35,17 +33,12 @@ export async function GET(request: NextRequest) {
     }
     const domainName = domainResult.data;
 
-    await connectDB();
-
     /**
      * 🛡️ DEFENSE-IN-DEPTH: Security Layer 3 - Resource Ownership (Broken Access Control Prevention)
      * Verifies that the requested domain actually belongs to the authenticated user.
      * defense: prevents IDOR (Insecure Direct Object Reference) attacks.
      */
-    const order = await Order.findOne({
-      "domains.domainName": domainName,
-      userId: user._id,
-    });
+    const order = await findOrderByDomainForUser(user._id, domainName);
 
     if (!order) {
       return secureErrorResponse("Domain not found or unauthorized", 404, "NOT_FOUND");
@@ -109,16 +102,11 @@ export async function POST(request: NextRequest) {
 
     const { domainName, recordData } = result.data;
 
-    await connectDB();
-
     /**
      * 🛡️ DEFENSE-IN-DEPTH: Security Layer 3 - Resource Ownership
      * Validates that the user has the right to modify the specified domain.
      */
-    const order = await Order.findOne({
-      "domains.domainName": domainName,
-      userId: user._id,
-    });
+    const order = await findOrderByDomainForUser(user._id, domainName);
 
     if (!order) {
       return secureErrorResponse("Domain not found", 404, "NOT_FOUND");
@@ -180,15 +168,10 @@ export async function PUT(request: NextRequest) {
 
     const { domainName, recordId, recordData } = result.data;
 
-    await connectDB();
-    
     /**
      * 🛡️ DEFENSE-IN-DEPTH: Security Layer 3 - Resource Ownership
      */
-    const order = await Order.findOne({
-      "domains.domainName": domainName,
-      userId: user._id,
-    });
+    const order = await findOrderByDomainForUser(user._id, domainName);
 
     if (!order) {
       return secureErrorResponse("Unauthorized modification attempt", 403, "UNAUTHORIZED");
@@ -243,15 +226,10 @@ export async function DELETE(request: NextRequest) {
       return secureErrorResponse("Invalid delete request", 400, "VALIDATION_ERROR", result.error.format());
     }
 
-    await connectDB();
-    
     /**
      * 🛡️ DEFENSE-IN-DEPTH: Security Layer 3 - Resource Ownership
      */
-    const order = await Order.findOne({
-      "domains.domainName": result.data.domainName,
-      userId: user._id,
-    });
+    const order = await findOrderByDomainForUser(user._id, result.data.domainName);
 
     if (!order) {
       return secureErrorResponse("Unauthorized deletion attempt", 403, "UNAUTHORIZED");

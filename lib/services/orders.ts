@@ -34,9 +34,171 @@ export async function getOrderById(id: string): Promise<IOrder | null> {
  * Look up an order by its user-facing `orderId` field (e.g. `ord_…`). Returns
  * null when not found. No privacy gate — caller must enforce ownership.
  */
-export async function getOrderByOrderId(orderId: string): Promise<IOrder | null> {
+export async function getOrderByOrderId(
+  orderId: string,
+  options?: { populate?: { path: string; select?: string } }
+): Promise<IOrder | null> {
   await connectDB();
-  return Order.findOne({ orderId });
+  let query = Order.findOne({ orderId });
+  if (options?.populate) query = query.populate(options.populate.path, options.populate.select);
+  return query;
+}
+
+/**
+ * Admin variant of {@link findUserOrder}: accept either `_id` or `orderId`
+ * and look up without a userId scope. The admin re-sync flow needs both
+ * paths because legacy URLs reference the orderId, but new admin URLs use
+ * the Mongo `_id`.
+ *
+ * Optional `select` projects only the named fields — used by the
+ * `clear-invoice-number` admin tool which only needs ids.
+ */
+export async function getOrderByIdOrOrderId(
+  idOrOrderId: string,
+  options?: { select?: string }
+): Promise<IOrder | null> {
+  await connectDB();
+  const isObjectId = /^[0-9a-fA-F]{24}$/.test(idOrOrderId);
+  let query = Order.findOne({
+    $or: isObjectId ? [{ _id: idOrOrderId }, { orderId: idOrOrderId }] : [{ orderId: idOrOrderId }],
+  });
+  if (options?.select) query = query.select(options.select);
+  return query;
+}
+
+/**
+ * Cron: completed orders older than `staleAfterMs` that still carry at
+ * least one domain item in `pending` status. Used by the
+ * /api/cron/check-unprovisioned alert path.
+ */
+export async function listStuckCompletedOrders(opts: {
+  staleAfterMs: number;
+  select?: string;
+}): Promise<IOrder[]> {
+  await connectDB();
+  const cutoff = new Date(Date.now() - opts.staleAfterMs);
+  let query = Order.find({
+    status: "completed",
+    createdAt: { $lt: cutoff },
+    "domains.status": "pending",
+  });
+  if (opts.select) query = query.select(opts.select);
+  return query.lean<IOrder[]>();
+}
+
+/**
+ * Admin diagnostic: find every set of orders sharing the same
+ * `invoiceNumber`. Two or more orders sharing a number is the root cause
+ * of the E11000 duplicate-key errors during the Zoho retry path.
+ * Returns up to 100 conflict groups, largest first.
+ */
+export interface InvoiceNumberConflictGroup {
+  _id: string;
+  count: number;
+  orderIds: mongoose.Types.ObjectId[];
+}
+
+export async function findInvoiceNumberConflicts(): Promise<InvoiceNumberConflictGroup[]> {
+  await connectDB();
+  return Order.aggregate<InvoiceNumberConflictGroup>([
+    { $match: { invoiceNumber: { $exists: true, $ne: null } } },
+    {
+      $group: {
+        _id: "$invoiceNumber",
+        count: { $sum: 1 },
+        orderIds: { $push: "$_id" },
+      },
+    },
+    { $match: { count: { $gt: 1 } } },
+    { $sort: { count: -1 } },
+    { $limit: 100 },
+  ]);
+}
+
+/**
+ * Admin diagnostic: hydrate a list of order IDs with the slim projection the
+ * invoice-conflicts dashboard renders.
+ */
+export async function listOrdersByIds(ids: unknown[], select?: string): Promise<IOrder[]> {
+  await connectDB();
+  if (ids.length === 0) return [];
+  let query = Order.find({ _id: { $in: ids } });
+  if (select) query = query.select(select);
+  return query.lean<IOrder[]>();
+}
+
+/**
+ * Admin diagnostic: paid/completed orders missing a resolved Zoho invoice
+ * (unscoped — the user-scoped variant is {@link listStuckZohoInvoiceOrders}).
+ * Used by the admin invoice-conflicts page.
+ */
+export async function listStuckZohoInvoiceOrdersAdmin(opts?: { limit?: number; select?: string }): Promise<IOrder[]> {
+  await connectDB();
+  const limit = opts?.limit ?? 100;
+  let query = Order.find({
+    status: { $in: ["completed", "paid"] },
+    isDeleted: { $ne: true },
+    $or: [
+      { zohoInvoiceId: { $exists: false } },
+      { zohoInvoiceId: null },
+      { zohoInvoiceId: "" },
+      { zohoInvoiceId: "creation_failed" },
+      { zohoInvoiceId: "pending_creation" },
+    ],
+  })
+    .sort({ createdAt: -1 })
+    .limit(limit);
+  if (opts?.select) query = query.select(opts.select);
+  return query.lean<IOrder[]>();
+}
+
+/**
+ * Admin: orders that still have at least one domain item in `pending` or
+ * `processing` status. Used by the admin pending-domains view to surface
+ * in-flight registrations that haven't been moved to the PendingDomain
+ * collection yet. Populates the owner for the table render.
+ */
+export async function listOrdersWithInFlightDomains(): Promise<IOrder[]> {
+  await connectDB();
+  return Order.find({
+    isDeleted: { $ne: true },
+    "domains.status": { $in: ["pending", "processing"] },
+  })
+    .populate("userId", "firstName lastName email phone companyName")
+    .sort({ createdAt: -1 })
+    .lean<IOrder[]>();
+}
+
+/** Total order count — surfaced in the admin system-health dashboard. */
+export async function countAllOrders(): Promise<number> {
+  await connectDB();
+  return Order.countDocuments();
+}
+
+/**
+ * Admin: orders whose `razorpayPaymentId` is in the supplied list, populated
+ * with the owner's name+email. Used by the admin "recent payments" view to
+ * enrich Razorpay's payment list with our internal order metadata.
+ */
+export async function listOrdersByRazorpayPaymentIds(paymentIds: string[]): Promise<IOrder[]> {
+  await connectDB();
+  if (paymentIds.length === 0) return [];
+  return Order.find({ razorpayPaymentId: { $in: paymentIds } })
+    .populate("userId", "firstName lastName email", User);
+}
+
+/**
+ * Admin tool: unset the `invoiceNumber` on a specific order — used to free a
+ * collided unique-index value. Returns the matchedCount so the caller can
+ * detect "no-op" vs "actually cleared".
+ */
+export async function clearOrderInvoiceNumber(orderObjectId: unknown): Promise<{ modifiedCount: number }> {
+  await connectDB();
+  const result = await Order.updateOne(
+    { _id: orderObjectId },
+    { $unset: { invoiceNumber: "" } }
+  );
+  return { modifiedCount: result.modifiedCount };
 }
 
 /**
@@ -177,18 +339,24 @@ export async function listOrdersForAdmin(opts: {
  * but matches the historic response shape) and filters soft-deleted orders.
  */
 export async function listOrdersForUser(
-  userId: string,
-  opts?: { limit?: number }
+  userId: unknown,
+  opts?: { limit?: number; populateUser?: boolean; select?: string }
 ): Promise<IOrder[]> {
   await connectDB();
   const limit = opts?.limit ?? 50;
-  return Order.find({
+  const populateUser = opts?.populateUser ?? true;
+  let query = Order.find({
     userId,
     isDeleted: { $ne: true },
-  })
-    .populate("userId", "firstName lastName email", User)
-    .sort({ createdAt: -1 })
-    .limit(limit);
+  }).sort({ createdAt: -1 });
+  if (opts?.select) query = query.select(opts.select);
+  if (populateUser) {
+    query = query.populate("userId", "firstName lastName email", User);
+  }
+  // limit=0 (or negative) means "no limit" — used by views that flatten
+  // every order's domains and can't tolerate truncation (e.g. DNS mgmt).
+  if (limit > 0) query = query.limit(limit);
+  return query;
 }
 
 // ─── Writes (admin) ───────────────────────────────────────────────────────────
@@ -445,4 +613,155 @@ export function filterOrderDomainsByName(
 ): OrderDomain[] {
   const wanted = new Set(domainNames);
   return order.domains.filter((d) => wanted.has(d.domainName));
+}
+
+// ─── Domain-keyed lookups ───────────────────────────────────────────────────
+//
+// "Find the order that contains this domain" is one of the most-repeated
+// shapes across the codebase. Two variants: user-scoped (privacy-safe; used
+// by /api/user/domains/* + /api/domains/*) and admin-scoped (no userId
+// filter; used by /api/admin/**). Both filter out soft-deleted rows.
+
+/**
+ * Find the order that contains a domain owned by a specific user. Returns
+ * null when no such order exists OR when the order exists but the userId
+ * doesn't match — both cases map to a 404 in route handlers, which keeps
+ * tenant-existence indistinguishable from missing-from-this-user.
+ */
+export async function findOrderByDomainForUser(
+  userId: unknown,
+  domainName: string
+): Promise<IOrder | null> {
+  await connectDB();
+  return Order.findOne({
+    "domains.domainName": domainName,
+    userId,
+    isDeleted: { $ne: true },
+  });
+}
+
+/**
+ * Admin variant — find ANY order containing the named domain. No userId
+ * scope. Filters out soft-deleted rows. Use only from admin-gated routes;
+ * for user-side lookups call {@link findOrderByDomainForUser} instead.
+ *
+ * `populate` is the standard Mongoose populate path spec — passed through
+ * verbatim so booking-status / admin views can attach owner info without
+ * needing a separate helper per shape.
+ */
+export async function findOrderByDomain(
+  domainName: string,
+  options?: { populate?: { path: string; select?: string } }
+): Promise<IOrder | null> {
+  await connectDB();
+  let query = Order.findOne({
+    "domains.domainName": domainName,
+    isDeleted: { $ne: true },
+  });
+  if (options?.populate) query = query.populate(options.populate.path, options.populate.select);
+  return query;
+}
+
+/**
+ * Find an order by Zoho invoice id (the `zohoInvoiceId` field that
+ * `payments/verify` writes after a successful Zoho create). User-scoped so
+ * the route layer doesn't have to repeat the ownership filter for IDOR
+ * defence.
+ */
+export async function findOrderByZohoInvoiceForUser(
+  userId: unknown,
+  zohoInvoiceId: string,
+  options?: { select?: string }
+): Promise<IOrder | null> {
+  await connectDB();
+  let query = Order.findOne({
+    userId,
+    zohoInvoiceId,
+    isDeleted: { $ne: true },
+  });
+  if (options?.select) query = query.select(options.select);
+  return query;
+}
+
+/**
+ * Find an order by Razorpay payment id. Used by the renewal flow when only
+ * the payment id is known (no order id). Note: distinct from
+ * `getOrderByRazorpayPaymentId` which uses the upstream field name —
+ * see that helper's doc for the historical reason.
+ */
+export async function findOrderByRazorpayPaymentField(
+  razorpayPaymentId: string
+): Promise<IOrder | null> {
+  await connectDB();
+  return Order.findOne({ razorpayPaymentId });
+}
+
+/**
+ * Admin: list every order (including soft-deleted) populated with the user
+ * fields the admin domain-flatten view needs. Returns lean objects — callers
+ * iterate and don't need Mongoose document methods.
+ *
+ * Use only from admin-gated routes. The shape mirrors what
+ * `app/api/admin/domains/route.ts` consumed when it called Order.find({})
+ * directly; new admin consumers should reuse this helper instead.
+ */
+export async function listAllOrdersForAdminDomains(): Promise<IOrder[]> {
+  await connectDB();
+  return Order.find({})
+    .populate("userId", "firstName lastName email phone companyName")
+    .sort({ createdAt: -1 })
+    .lean<IOrder[]>();
+}
+
+/**
+ * Eligibility check: has this user (by id OR by email — covers the migration
+ * window where an order may have been written before user-account creation)
+ * ever placed a hosting order in a non-failed state? Used by the trial-flow
+ * pre-flight and the hosting-eligibility endpoint.
+ */
+export async function findPriorHostingOrderForUser(
+  userId: unknown,
+  email: string
+): Promise<IOrder | null> {
+  await connectDB();
+  return Order.findOne({
+    $or: [{ userEmail: email }, { userId }],
+    "domains.itemType": "hosting",
+    status: { $in: ["paid", "completed", "processing"] },
+  });
+}
+
+/**
+ * Recent completed orders for a user, used by the dashboard "domains in
+ * process" view. `withinDays` defaults to 14 — matches the prior inline
+ * default. Sorted oldest first so newer entries can overwrite stale ones
+ * when callers de-dupe by name.
+ */
+export async function listRecentCompletedOrdersForUser(
+  userId: unknown,
+  opts: { withinDays?: number } = {}
+): Promise<IOrder[]> {
+  await connectDB();
+  const days = opts.withinDays ?? 14;
+  return Order.find({
+    userId,
+    status: "completed",
+    createdAt: { $gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000) },
+  }).sort({ createdAt: 1 });
+}
+
+/**
+ * User invoice listing: orders that have an `invoiceNumber` set. Returns a
+ * lean projection — only the fields the invoices UI renders.
+ */
+export async function listUserInvoiceOrders(userId: unknown): Promise<IOrder[]> {
+  await connectDB();
+  return Order.find({
+    userId,
+    invoiceNumber: { $exists: true, $ne: null },
+    isDeleted: { $ne: true },
+  })
+    .sort({ createdAt: -1 })
+    .select("invoiceNumber zohoInvoiceId amount currency status createdAt")
+    .lean<IOrder[]>();
 }

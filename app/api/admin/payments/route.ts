@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { RazorpayPaymentsService } from "@/lib/razorpay-payments";
-import connectDB from "@/lib/mongodb";
-import Order, { type IOrder } from "@/models/Order";
+import type { IOrder } from "@/models/Order";
+import { listOrdersByRazorpayPaymentIds } from "@/lib/services/orders";
 import { findUsersByEmails } from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
 
@@ -16,9 +16,6 @@ export async function GET(request: NextRequest) {
     if (!user || user.role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    // Connect to database
-    await connectDB();
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -57,9 +54,9 @@ export async function GET(request: NextRequest) {
     );
 
     // Get our order data to match with Razorpay payments
-    const ourOrders = await Order.find({
-      razorpayPaymentId: { $in: allDomainPayments.map((p) => p.id) },
-    }).populate("userId", "firstName lastName email");
+    const ourOrders = await listOrdersByRazorpayPaymentIds(
+      allDomainPayments.map((p) => p.id)
+    );
 
     // Create a map of Razorpay payment ID to our order data
     const orderMap = new Map();

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
+import { clearOrderInvoiceNumber, getOrderByIdOrOrderId } from "@/lib/services/orders";
 import { serverLogger } from "@/lib/server-logger";
 
 export const dynamic = "force-dynamic";
@@ -26,13 +25,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await connectDB();
-
-    const filter: Record<string, string> = id.match(/^[0-9a-fA-F]{24}$/)
-      ? { _id: id }
-      : { orderId: id };
-
-    const order = await Order.findOne(filter).select("_id orderId invoiceNumber");
+    const order = await getOrderByIdOrOrderId(id, { select: "_id orderId invoiceNumber" });
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
@@ -46,10 +39,7 @@ export async function POST(
       });
     }
 
-    await Order.updateOne(
-      { _id: order._id },
-      { $unset: { invoiceNumber: "" } }
-    );
+    await clearOrderInvoiceNumber(order._id);
 
     serverLogger.info(
       `[Admin] Cleared invoiceNumber "${previous}" on order ${order.orderId} (by ${adminUser.email})`

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
+import { findUserOrder } from "@/lib/services/orders";
 import { serverLogger } from "@/lib/server-logger";
 
 // Force dynamic rendering - required for API routes
@@ -19,15 +18,8 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Connect to database
-    await connectDB();
-
-    // Fetch specific order (excluding soft-deleted)
-    const order = await Order.findOne({
-      _id: id,
-      userId: user._id || user.id, // Support both formats
-      isDeleted: { $ne: true },
-    });
+    // Fetch specific order (excluding soft-deleted, user-scoped)
+    const order = await findUserOrder(id, String(user._id || user.id));
 
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });

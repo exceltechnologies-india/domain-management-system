@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
-import Order, { type IOrder } from "@/models/Order";
+import type { IOrder } from "@/models/Order";
 import { serverLogger } from "@/lib/server-logger";
-import { findOrderDomain } from "@/lib/services/orders";
+import {
+  findOrderByDomain,
+  findOrderDomain,
+  getOrderByOrderId,
+} from "@/lib/services/orders";
 
 // Force dynamic rendering - required for API routes
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
-
     const { searchParams } = new URL(request.url);
     const orderId = searchParams.get("orderId");
     const domainName = searchParams.get("domainName");
@@ -22,18 +23,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const query: Record<string, unknown> = {};
-    if (orderId) {
-      query.orderId = orderId;
-    }
-    if (domainName) {
-      query["domains.domainName"] = domainName;
-    }
-
-    const order = await Order.findOne(query).populate(
-      "userId",
-      "email firstName lastName"
-    );
+    const populate = { path: "userId", select: "email firstName lastName" };
+    // orderId wins when both are supplied — matches the prior findOne behavior
+    // (Mongo would pick whichever index it preferred); keep deterministic here.
+    const order = orderId
+      ? await getOrderByOrderId(orderId, { populate })
+      : await findOrderByDomain(domainName!, { populate });
 
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
@@ -83,9 +78,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await connectDB();
-
-    const order = await Order.findOne({ orderId });
+    const order = await getOrderByOrderId(orderId);
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
