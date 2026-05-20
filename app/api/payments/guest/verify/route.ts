@@ -7,7 +7,7 @@ import mongoose from "mongoose";
 import type { IUser } from "@/models/User";
 import { createUser, getUserByEmail } from "@/lib/services/users";
 import Order from "@/models/Order";
-import { forceMarkZohoCreationFailed, getOrderByRazorpayOrderId } from "@/lib/services/orders";
+import { createOrder, createOrderInSession, forceMarkZohoCreationFailed, getOrderByRazorpayOrderId } from "@/lib/services/orders";
 import { createPaymentInTransaction } from "@/lib/services/payments";
 import { provisionCartItems } from "@/lib/services/payment/provisioner";
 import { createZohoInvoice, runPostPaymentTasks } from "@/lib/services/payment/post-tasks";
@@ -218,7 +218,7 @@ export async function POST(request: NextRequest) {
         ? "hosting"
         : "domain";
 
-    const order = new Order({
+    const orderPayload = {
       orderId,
       userId: guestUser._id,
       userName: `${guestUser.firstName || ""} ${guestUser.lastName || ""}`.trim(),
@@ -240,12 +240,13 @@ export async function POST(request: NextRequest) {
         paymentCurrency: paymentDetails.currency,
         razorpayOrderId: paymentDetails.order_id,
       },
-    });
+    };
 
+    let order!: Awaited<ReturnType<typeof createOrderInSession>>;
     const dbSession = await mongoose.startSession();
     try {
       await dbSession.withTransaction(async () => {
-        await order.save({ session: dbSession });
+        order = await createOrderInSession(orderPayload, dbSession);
         await createPaymentInTransaction(
           {
             userId: guestUser!._id,
@@ -354,7 +355,7 @@ export async function POST(request: NextRequest) {
           (sum: number, item: CartItem) => sum + (item.price || 0) * (item.registrationPeriod || 1),
           0
         );
-        const fallbackOrder = new Order({
+        const fallbackOrder = await createOrder({
           orderId,
           userId: guestUser._id,
           userName: `${guestUser.firstName || ""} ${guestUser.lastName || ""}`.trim(),
@@ -402,8 +403,7 @@ export async function POST(request: NextRequest) {
             razorpayOrderId: razorpay_order_id,
           },
         });
-        await fallbackOrder.save();
-        serverLogger.warn(`[GuestCheckout] Fallback order created: ${orderId} for ${guestEmail}`);
+        serverLogger.warn(`[GuestCheckout] Fallback order created: ${fallbackOrder.orderId} for ${guestEmail}`);
       } catch (fallbackErr: unknown) {
         const fbMessage = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
         serverLogger.error("[GuestCheckout] Fallback order creation also failed:", fbMessage);

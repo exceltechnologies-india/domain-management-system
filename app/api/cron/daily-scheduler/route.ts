@@ -4,9 +4,12 @@ import {
   secureErrorResponse,
 } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
-import connectDB from "@/lib/mongodb";
 import { authorizeCronRequest } from "@/lib/cron-auth";
-import Hosting from "@/models/Hosting";
+import {
+  listDueServiceHostingCandidates,
+  lockHostingForScheduler,
+  releaseHostingSchedulerLock,
+} from "@/lib/services/hostings";
 import Domain from "@/models/Domain";
 import { AuthService } from "@/lib/auth";
 import { createHttpTask } from "@/lib/cloud-tasks";
@@ -96,34 +99,29 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    await connectDB();
-
     // Use TimeService to support simulation
     const now = TimeService.now(request);
     const simulatedTime = request.headers.get("x-simulated-time") || searchParams.get("simulatedTime");
     
     const lockExpiry = new Date(now.getTime() + LOCK_DURATION_MS);
 
-    /**
-     * Query: services that are due for action AND not currently locked.
-     * - next_action_at <= now — catches up on any missed runs automatically
-     * - processing_until IS NULL OR processing_until < now — only unlocked services
-     * - status NOT IN terminal states — don't re-process terminated/failed services
-     */
-    const eligibilityQuery = {
+    // Eligibility query (`next_action_at <= now` and processing-lock free) is
+    // encapsulated by the service helpers below — the hosting variant lives
+    // in lib/services/hostings.ts; the Domain side still lives inline.
+    const domainEligibilityQuery = {
       next_action_at: { $lte: now },
       $or: [
         { processing_until: null },
         { processing_until: { $exists: false } },
-        { processing_until: { $lt: now } }, // Expired locks are also eligible
+        { processing_until: { $lt: now } },
       ],
       status: { $nin: ["failed", "terminated"] },
     };
 
     // Fetch candidate IDs only (lean for performance)
     const [candidateHostings, candidateDomains] = await Promise.all([
-      Hosting.find(eligibilityQuery).select("_id domainName").limit(BATCH_SIZE),
-      Domain.find(eligibilityQuery).select("_id domainName").limit(BATCH_SIZE),
+      listDueServiceHostingCandidates({ now, batchSize: BATCH_SIZE }),
+      Domain.find(domainEligibilityQuery).select("_id domainName").limit(BATCH_SIZE),
     ]);
 
     serverLogger.info(
@@ -144,18 +142,11 @@ export async function GET(request: NextRequest) {
     for (const candidate of candidateHostings) {
       try {
         // ATOMIC LOCK — only succeeds if the service is still unlocked
-        const locked = await Hosting.findOneAndUpdate(
-          {
-            _id: candidate._id,
-            $or: [
-              { processing_until: null },
-              { processing_until: { $exists: false } },
-              { processing_until: { $lt: now } },
-            ],
-          },
-          { $set: { processing_until: lockExpiry } },
-          { new: false } // Return the old doc (we just need to know if it matched)
-        );
+        const locked = await lockHostingForScheduler({
+          hostingId: candidate._id,
+          now,
+          lockExpiry,
+        });
 
         if (!locked) {
           // Another scheduler/worker already locked this service
@@ -179,10 +170,10 @@ export async function GET(request: NextRequest) {
         results.failed++;
 
         // Release the lock if we acquired it but failed to queue
-        await Hosting.updateOne(
-          { _id: candidate._id, processing_until: lockExpiry },
-          { $set: { processing_until: null } }
-        ).catch(() => {});
+        await releaseHostingSchedulerLock({
+          hostingId: candidate._id,
+          lockExpiry,
+        }).catch(() => {});
       }
     }
 

@@ -3,8 +3,8 @@ import { AuthService } from "@/lib/auth";
 import { DirectAdminService } from "@/lib/directadmin";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
-import Hosting, { type IHosting } from "@/models/Hosting";
-import connectDB from "@/lib/mongodb";
+import type { IHosting } from "@/models/Hosting";
+import { listUserHostingsByDomain, upsertHostingFromDirectAdminStats } from "@/lib/services/hostings";
 
 export const dynamic = 'force-dynamic';
 
@@ -20,8 +20,6 @@ export async function GET(request: NextRequest) {
     if (!authUser) {
       return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
     }
-
-    await connectDB();
 
     const user = authUser;
 
@@ -120,10 +118,9 @@ export async function GET(request: NextRequest) {
             let createdAt = null;
 
             // 1. Find the best matching local record for THIS domain
-            const hostingRecords = await Hosting.find({
-                userId: user._id,
-                domainName: daConfig.domain
-            }).sort({ createdAt: -1 }); // Newest first
+            const hostingRecords = daConfig.domain
+              ? await listUserHostingsByDomain(user._id, daConfig.domain)
+              : [];
 
             // Strategy:
             // 1. Match by DA Username (Exact link)
@@ -171,7 +168,10 @@ export async function GET(request: NextRequest) {
 
             // CRITICAL FIX: Do not auto-unsuspend if local DB indicates suspension/termination
             // This prevents "Active" status from DA overriding "Suspended" status from Billing/Expiry
-            if (derivedStatus === 'active' && hostingRecord && (hostingRecord.status === 'suspended' || hostingRecord.status === 'terminated')) {
+            // "suspended" isn't in the typed enum yet but DOES exist at runtime; widen the
+            // comparison via cast.
+            const recordStatus = hostingRecord?.status as unknown as string | undefined;
+            if (derivedStatus === 'active' && hostingRecord && (recordStatus === 'suspended' || recordStatus === 'terminated')) {
                  // ONLY override if this record is indeed the one we are looking at (linked by username)
                  if (hostingRecord.directAdminUsername === daUsername) {
                     derivedStatus = hostingRecord.status;
@@ -192,31 +192,28 @@ export async function GET(request: NextRequest) {
                     ? { _id: hostingRecord._id }
                     : { userId: user._id, domainName: daConfig.domain };
 
-                await Hosting.updateOne(
-                    updateFilter,
-                    {
-                        $set: {
-                            status: derivedStatus,
-                            directAdminUsername: daUsername, // Ensure we link to correct DA user
-                            // Update plan details if available
-                            ...(daConfig.package ? { planId: daConfig.package } : {})
-                        },
-                        $setOnInsert: {
-                            // Defaults for new records found on DA but missing in DB
-                            userId: user._id,
-                            domainName: daConfig.domain,
-                            orderId: `IMPORTED-${daUsername}`,
-                            name: daConfig.package || 'Imported Plan',
-                            serverPackage: daConfig.package || 'default',
-                            planId: daConfig.package || 'default',
-                            startDate: daConfig.date_created ? new Date(daConfig.date_created) : new Date(),
-                            // Default expiry to 1 year from now if unknown, to ensure it shows as Active
-                            expiryDate: new Date(Date.now() + 365*24*60*60*1000), 
-                            autoRenew: false
-                        }
+                await upsertHostingFromDirectAdminStats({
+                    filter: updateFilter,
+                    set: {
+                        status: derivedStatus,
+                        directAdminUsername: daUsername, // Ensure we link to correct DA user
+                        // Update plan details if available
+                        ...(daConfig.package ? { planId: daConfig.package } : {}),
                     },
-                    { upsert: true }
-                );
+                    setOnInsert: {
+                        // Defaults for new records found on DA but missing in DB
+                        userId: user._id,
+                        domainName: daConfig.domain,
+                        orderId: `IMPORTED-${daUsername}`,
+                        name: daConfig.package || 'Imported Plan',
+                        serverPackage: daConfig.package || 'default',
+                        planId: daConfig.package || 'default',
+                        startDate: daConfig.date_created ? new Date(daConfig.date_created) : new Date(),
+                        // Default expiry to 1 year from now if unknown, to ensure it shows as Active
+                        expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+                        autoRenew: false,
+                    },
+                });
             } catch (syncErr) {
                 serverLogger.error(`Error syncing local DB for ${daConfig.domain}`, syncErr);
             }

@@ -1,9 +1,11 @@
 import { NextRequest } from "next/server";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { AuthService } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import SupportTicket from "@/models/SupportTicket";
-import { getTicketById, getTicketByIdLean } from "@/lib/services/support-tickets";
+import {
+  getTicketById,
+  getTicketByIdLean,
+  updateTicketByIdAsAdmin,
+} from "@/lib/services/support-tickets";
 import { EmailService } from "@/lib/email";
 import {
   validateAttachments,
@@ -30,7 +32,6 @@ export async function GET(
     if (!isAdmin) return secureErrorResponse("Forbidden", 403, "FORBIDDEN");
 
     const { id } = await params;
-    await connectDB();
 
     const ticket = await getTicketByIdLean(id);
     if (!ticket) return secureErrorResponse("Ticket not found", 404, "NOT_FOUND");
@@ -69,13 +70,7 @@ export async function PATCH(
       update.priority = body.priority;
     }
 
-    await connectDB();
-
-    const ticket = await SupportTicket.findByIdAndUpdate(
-      id,
-      { $set: update },
-      { new: true }
-    ).lean();
+    const ticket = await updateTicketByIdAsAdmin(id, { $set: update });
 
     if (!ticket) return secureErrorResponse("Ticket not found", 404, "NOT_FOUND");
 
@@ -107,8 +102,6 @@ export async function POST(
     if (!attachmentResult.ok) {
       return secureErrorResponse(attachmentResult.error, 400, "VALIDATION_ERROR");
     }
-
-    await connectDB();
 
     const ticket = await getTicketById(id);
     if (!ticket) return secureErrorResponse("Ticket not found", 404, "NOT_FOUND");

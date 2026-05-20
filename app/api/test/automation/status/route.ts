@@ -4,8 +4,7 @@ import {
   secureErrorResponse,
 } from "@/lib/api-response-wrapper";
 import { AuthService } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import Hosting from "@/models/Hosting";
+import { getHostingById } from "@/lib/services/hostings";
 import { getDomainById } from "@/lib/services/domains";
 import { TimeService } from "@/lib/time-service";
 
@@ -30,8 +29,6 @@ export async function GET(request: NextRequest) {
       return secureErrorResponse("Missing parameters", 400, "INVALID_PARAMS");
     }
 
-    await connectDB();
-
     // Shared fields the test-automation status read needs across Hosting/Domain.
     // Each model has its own expiry-field name (hosting uses expiryDate, domain
     // uses expiresAt), so we project the structural union here.
@@ -47,7 +44,7 @@ export async function GET(request: NextRequest) {
     }
     let service: ServiceSnapshot | null;
     if (serviceType === "hosting") {
-      service = (await Hosting.findById(serviceId).lean()) as unknown as ServiceSnapshot | null;
+      service = (await getHostingById(serviceId, { lean: true })) as unknown as ServiceSnapshot | null;
     } else {
       service = (await getDomainById(serviceId)) as unknown as ServiceSnapshot | null;
     }

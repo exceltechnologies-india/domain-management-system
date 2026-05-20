@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 import { authorizeCronRequest } from "@/lib/cron-auth";
-import connectDB from "@/lib/mongodb";
-import Hosting from "@/models/Hosting";
+import { listExpiredActiveHostings } from "@/lib/services/hostings";
 import { AuthService } from "@/lib/auth";
 import { getCurrentDate } from "@/lib/dateUtils";
 import { createHttpTask } from "@/lib/cloud-tasks";
@@ -20,14 +19,9 @@ export async function GET(request: NextRequest) {
         }
     }
 
-    await connectDB();
-
     // 2. Find Expired Active Hostings
     const today = getCurrentDate();
-    const expiredHostings = await Hosting.find({
-        status: 'active',
-        expiryDate: { $lt: today, $ne: null }
-    }).select('_id domainName directAdminUsername'); // Select minimal fields
+    const expiredHostings = await listExpiredActiveHostings(today);
 
     serverLogger.info(`[AutoSuspend] Found ${expiredHostings.length} expired active hosting accounts.`);
 

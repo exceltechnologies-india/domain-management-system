@@ -4,10 +4,10 @@ import {
   secureErrorResponse,
 } from "@/lib/api-response-wrapper";
 import { AuthService } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import Hosting, { type IHosting } from "@/models/Hosting";
+import type { IHosting } from "@/models/Hosting";
 import type { IDomain } from "@/models/Domain";
 import type { HydratedDocument } from "mongoose";
+import { getHostingById } from "@/lib/services/hostings";
 import { getDomainById } from "@/lib/services/domains";
 import { AUTOMATION_CONFIG } from "@/config/automation";
 
@@ -32,8 +32,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { serviceId, serviceType, now } = body;
 
-    await connectDB();
-
     // 2. If serviceId is provided, we can either:
     //    a) Force its next_action_at to 'now' and then call daily-scheduler
     //    b) Call the worker directly (simpler for unit testing logic)
@@ -45,7 +43,7 @@ export async function POST(request: NextRequest) {
       // we touch (`next_action_at`, `processing_until`).
       let service: HydratedDocument<IHosting> | HydratedDocument<IDomain> | null;
       if (serviceType === "hosting") {
-        service = await Hosting.findById(serviceId);
+        service = (await getHostingById(serviceId)) as HydratedDocument<IHosting> | null;
       } else {
         service = (await getDomainById(serviceId)) as HydratedDocument<IDomain> | null;
       }

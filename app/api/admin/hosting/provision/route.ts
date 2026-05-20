@@ -8,7 +8,7 @@ import { ZohoBooksService } from "@/lib/zohobooks";
 import { getUserById } from "@/lib/services/users";
 import { createOrder } from "@/lib/services/orders";
 import { createPendingHosting } from "@/lib/services/pending-hostings";
-import Hosting from "@/models/Hosting";
+import { createHosting } from "@/lib/services/hostings";
 import { calculateHostingDates } from "@/lib/hosting-dates";
 
 /**
@@ -231,7 +231,7 @@ export async function POST(request: NextRequest) {
         }
         // 5e. Create Hosting Record for visibility in Services Modal
         try {
-            await Hosting.create({
+            await createHosting({
                 userId: user._id,
                 domainName: domain,
                 planId: plan?.planId || packageName,

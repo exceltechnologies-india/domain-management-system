@@ -1,9 +1,7 @@
 import { NextRequest } from "next/server";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { AuthService } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import SupportTicket from "@/models/SupportTicket";
-import { listTicketsForUserSummary } from "@/lib/services/support-tickets";
+import { createSupportTicket, listTicketsForUserSummary } from "@/lib/services/support-tickets";
 import { EmailService } from "@/lib/email";
 import { validateAttachments } from "@/lib/support-attachments";
 import { rateLimiters } from "@/lib/rate-limit";
@@ -23,8 +21,6 @@ export async function GET(request: NextRequest) {
   try {
     const user = await AuthService.getUserFromRequest(request);
     if (!user) return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
-
-    await connectDB();
 
     const tickets = await listTicketsForUserSummary(String(user._id));
 
@@ -70,9 +66,7 @@ export async function POST(request: NextRequest) {
       return secureErrorResponse(attachmentResult.error, 400, "VALIDATION_ERROR");
     }
 
-    await connectDB();
-
-    const ticket = await SupportTicket.create({
+    const ticket = await createSupportTicket({
       userId: user._id,
       userEmail: user.email,
       userName: `${user.firstName} ${user.lastName}`.trim(),

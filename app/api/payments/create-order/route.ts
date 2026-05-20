@@ -112,11 +112,8 @@ export async function POST(request: NextRequest) {
         const item = recurringHostingItems[0];
         const isTrial = item.isTrial === true;
 
-        const { connectToDatabase } = await import("@/lib/mongoose");
         const HostingPlan = (await import("@/models/HostingPlan")).default;
-        const Order = (await import("@/models/Order")).default;
-
-        await connectToDatabase();
+        const { userHasPriorTrialOrder } = await import("@/lib/services/orders");
 
         // Server-side trial eligibility enforcement
         if (isTrial) {
@@ -131,7 +128,7 @@ export async function POST(request: NextRequest) {
           if (!trialsEnabled) {
             return NextResponse.json({ error: "Free trials are currently unavailable" }, { status: 400 });
           }
-          const priorTrial = await Order.exists({ userId: user.id, orderType: "hosting_trial" });
+          const priorTrial = await userHasPriorTrialOrder(user.id);
           if (priorTrial) {
             return NextResponse.json({ error: "You have already used your free trial" }, { status: 400 });
           }

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
+import { userHasPriorTrialOrder } from "@/lib/services/orders";
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import { getSettingValue } from "@/lib/services/settings";
 import { AuthService } from "@/lib/auth";
@@ -37,8 +36,6 @@ async function runEligibility(
   const user = await AuthService.getUserFromRequest(request);
   if (!user) return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
 
-  await connectDB();
-
   // 1. Global trials kill-switch
   const trialEnabled = await getSettingValue<boolean>("hosting_trial_enabled", true);
   const trialsEnabled = trialEnabled !== false;
@@ -48,7 +45,7 @@ async function runEligibility(
 
   // 2. One trial per user lifetime
   const userId = String(user._id);
-  const priorTrial = await Order.exists({ userId, orderType: "hosting_trial" });
+  const priorTrial = await userHasPriorTrialOrder(userId);
   if (priorTrial) {
     return secureJsonResponse({ eligible: false, reason: "You have already used your free trial" });
   }

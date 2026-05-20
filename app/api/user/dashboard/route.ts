@@ -6,7 +6,7 @@ import { getUserByIdSafe } from "@/lib/services/users";
 import { listOrdersForUser } from "@/lib/services/orders";
 import { listDomainsForUser } from "@/lib/services/domains";
 import { listActivePendingDomainsForUser } from "@/lib/services/pending-domains";
-import Hosting from "@/models/Hosting";
+import { listHostingsForUser, touchHostingsLastSyncedForUser } from "@/lib/services/hostings";
 import { AuthService } from "@/lib/auth";
 import { DirectAdminService } from "@/lib/directadmin";
 import { getToken } from "next-auth/jwt";
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
       listOrdersForUser(user._id, { limit: 0, populateUser: false }),
       listDomainsForUser(String(user._id)),
       listActivePendingDomainsForUser(String(user._id)),
-      Hosting.find({ userId: user._id }).sort({ createdAt: -1 })
+      listHostingsForUser(user._id, { limit: 0 })
     ]);
     
     // --- Synchronization Logic Start ---
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
         await createHttpTask(queueName, workerUrl, { userId: user._id });
 
         // Stamp all hostings so the next visit within 5 min skips the dispatch
-        await Hosting.updateMany({ userId: user._id }, { $set: { lastSyncedAt: new Date() } });
+        await touchHostingsLastSyncedForUser(user._id);
 
         serverLogger.info(`[DashboardAPI] Queued background sync for user ${user._id}`);
       } catch (e: unknown) {
@@ -158,10 +158,12 @@ export async function GET(request: NextRequest) {
       ...userHostings.filter(h => h.status === "active" && h.expiryDate).map(h => ({ name: h.domainName, expiry: h.expiryDate, type: 'Hosting' }))
     ]
     .map(item => {
-       const daysLeft = Math.ceil((new Date(item.expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+       // `expiry` is filtered above; non-null at runtime, cast for TS.
+       const expiry = item.expiry as Date;
+       const daysLeft = Math.ceil((new Date(expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
        return {
          domain: item.name, // Frontend expects 'domain' key
-         expiryDate: formatDateIN(item.expiry),
+         expiryDate: formatDateIN(expiry),
          daysLeft,
          type: item.type
        };

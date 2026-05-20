@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { RazorpayService } from "@/lib/razorpay";
-import Hosting from "@/models/Hosting";
+import { findUserHostingById } from "@/lib/services/hostings";
 import { serverLogger } from "@/lib/server-logger";
 
 // Force dynamic rendering
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Find hosting
-    const hosting = await Hosting.findOne({ _id: hostingId, userId: user.id });
+    const hosting = await findUserHostingById(hostingId, user.id);
     if (!hosting) {
       return NextResponse.json({ error: "Hosting service not found" }, { status: 404 });
     }

@@ -1,8 +1,7 @@
 import { NextRequest } from "next/server";
-import connectDB from "@/lib/mongodb";
-import Hosting from "@/models/Hosting";
+import { findUserHosting } from "@/lib/services/hostings";
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
-import Order from "@/models/Order";
+import { createOrder } from "@/lib/services/orders";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { AuthService } from "@/lib/auth";
 import { RazorpayService } from "@/lib/razorpay";
@@ -30,10 +29,7 @@ export async function POST(request: NextRequest) {
       return secureErrorResponse("domainName and targetPlanId are required", 400, "INVALID_PARAM");
     }
 
-    await connectDB();
-
-    const hosting = await Hosting.findOne({
-      userId: user._id,
+    const hosting = await findUserHosting(String(user._id), {
       domainName: domainName.toLowerCase(),
     });
 
@@ -103,7 +99,7 @@ export async function POST(request: NextRequest) {
       }
     );
 
-    const order = new Order({
+    const order = await createOrder({
       orderId,
       userId: user._id,
       userEmail: user.email,
@@ -143,8 +139,6 @@ export async function POST(request: NextRequest) {
         }],
       }],
     });
-
-    await order.save();
 
     return secureJsonResponse({
       success: true,

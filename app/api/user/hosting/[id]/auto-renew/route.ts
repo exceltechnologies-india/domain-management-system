@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import Hosting from "@/models/Hosting";
+import { findUserHostingById } from "@/lib/services/hostings";
 import { serverLogger } from "@/lib/server-logger";
 
 export const dynamic = "force-dynamic";
@@ -22,9 +21,7 @@ export async function PATCH(
       return NextResponse.json({ error: "autoRenew must be a boolean" }, { status: 400 });
     }
 
-    await connectDB();
-
-    const hosting = await Hosting.findOne({ _id: id, userId: user._id });
+    const hosting = await findUserHostingById(id, user._id);
     if (!hosting) {
       return NextResponse.json({ error: "Hosting not found" }, { status: 404 });
     }

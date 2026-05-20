@@ -20,9 +20,15 @@ import type { IHosting } from "@/models/Hosting";
  * Used by workers / admin tools that already have a primary-key reference
  * (e.g. via RenewalPayment.serviceId or Hosting.find().select('_id') results).
  */
-export async function getHostingById(id: string): Promise<IHosting | null> {
+export async function getHostingById(
+  id: string,
+  options?: { populateUser?: boolean; lean?: boolean }
+): Promise<IHosting | null> {
   await connectDB();
-  return Hosting.findById(id);
+  let query = Hosting.findById(id);
+  if (options?.populateUser) query = query.populate("userId");
+  if (options?.lean) return query.lean<IHosting>();
+  return query;
 }
 
 /**
@@ -54,13 +60,202 @@ export async function userHasAnyHosting(userId: string): Promise<boolean> {
 
 /**
  * List hostings for the given user. Default sort is most-recent-first, the
- * shape every dashboard caller wants.
+ * shape every dashboard caller wants. `limit: 0` (or negative) returns all —
+ * dashboard / sync paths flatten across every hosting so they can't tolerate
+ * truncation.
  */
 export async function listHostingsForUser(
-  userId: string,
+  userId: unknown,
   opts?: { limit?: number }
 ): Promise<IHosting[]> {
   await connectDB();
   const limit = opts?.limit ?? 50;
-  return Hosting.find({ userId }).sort({ createdAt: -1 }).limit(limit);
+  let query = Hosting.find({ userId }).sort({ createdAt: -1 });
+  if (limit > 0) query = query.limit(limit);
+  return query;
+}
+
+/**
+ * Look up a hosting by `_id` scoped to a userId — the safe ownership pattern
+ * for /api/user/hosting/[id]/* routes that take an id from the URL.
+ */
+export async function findUserHostingById(
+  hostingId: string,
+  userId: unknown
+): Promise<IHosting | null> {
+  await connectDB();
+  return Hosting.findOne({ _id: hostingId, userId });
+}
+
+/**
+ * Mark every hosting owned by `userId` as just-synced. Used by the dashboard
+ * refresh-throttle so a flurry of dashboard loads only queues one background
+ * sync job per cooldown window.
+ */
+export async function touchHostingsLastSyncedForUser(userId: unknown): Promise<void> {
+  await connectDB();
+  await Hosting.updateMany({ userId }, { $set: { lastSyncedAt: new Date() } });
+}
+
+/**
+ * Insert a new Hosting document. Thin pass-through to Model.create — the
+ * payload type is intentionally loose (mirrors Mongoose's own permissive
+ * Model.create), the schema validates at write time.
+ */
+export async function createHosting(payload: Record<string, unknown>): Promise<IHosting> {
+  await connectDB();
+  return Hosting.create(payload);
+}
+
+/**
+ * Daily-scheduler: candidate hostings whose `next_action_at` is due and
+ * whose processing lock has expired (or never existed). Lean projection —
+ * the scheduler only needs `_id` and `domainName` to dispatch a task.
+ */
+export async function listDueServiceHostingCandidates(opts: {
+  now: Date;
+  batchSize: number;
+}): Promise<IHosting[]> {
+  await connectDB();
+  return Hosting.find({
+    next_action_at: { $lte: opts.now },
+    $or: [
+      { processing_until: null },
+      { processing_until: { $exists: false } },
+      { processing_until: { $lt: opts.now } },
+    ],
+    status: { $nin: ["failed", "terminated"] },
+  })
+    .select("_id domainName")
+    .limit(opts.batchSize);
+}
+
+/**
+ * Daily-scheduler: atomically acquire the processing lock on a hosting that
+ * is still eligible. Returns null when another worker already locked it (so
+ * the caller can skip without queueing a duplicate task).
+ */
+export async function lockHostingForScheduler(opts: {
+  hostingId: unknown;
+  now: Date;
+  lockExpiry: Date;
+}): Promise<IHosting | null> {
+  await connectDB();
+  return Hosting.findOneAndUpdate(
+    {
+      _id: opts.hostingId,
+      $or: [
+        { processing_until: null },
+        { processing_until: { $exists: false } },
+        { processing_until: { $lt: opts.now } },
+      ],
+    },
+    { $set: { processing_until: opts.lockExpiry } },
+    { new: false }
+  );
+}
+
+/**
+ * Daily-scheduler: release a lock we acquired but failed to queue a task
+ * for. Guarded on the original `lockExpiry` so a concurrent worker can't be
+ * blown out — if another path reset processing_until before us, the
+ * conditional update is a no-op.
+ */
+export async function releaseHostingSchedulerLock(opts: {
+  hostingId: unknown;
+  lockExpiry: Date;
+}): Promise<void> {
+  await connectDB();
+  await Hosting.updateOne(
+    { _id: opts.hostingId, processing_until: opts.lockExpiry },
+    { $set: { processing_until: null } }
+  );
+}
+
+/**
+ * All hosting rows owned by `userId` that match `domainName`, newest first.
+ * Multiple rows for the same (userId, domainName) are possible across
+ * repurchase cycles — the stats / sync paths walk all of them to pick the
+ * one currently linked to the live DA username.
+ */
+export async function listUserHostingsByDomain(
+  userId: unknown,
+  domainName: string
+): Promise<IHosting[]> {
+  await connectDB();
+  return Hosting.find({ userId, domainName }).sort({ createdAt: -1 });
+}
+
+/**
+ * Stats-sync upsert: write the DA-derived status / plan onto an existing
+ * hosting row (matched by `_id` or `(userId, domainName)`), inserting one if
+ * none exists. The `$setOnInsert` defaults populate the new row with the
+ * fields DA can give us — startDate, expiryDate placeholder, etc.
+ */
+export async function upsertHostingFromDirectAdminStats(opts: {
+  filter: Record<string, unknown>;
+  set: Record<string, unknown>;
+  setOnInsert: Record<string, unknown>;
+}): Promise<void> {
+  await connectDB();
+  await Hosting.updateOne(
+    opts.filter,
+    { $set: opts.set, $setOnInsert: opts.setOnInsert },
+    { upsert: true }
+  );
+}
+
+/**
+ * Cron: active hostings whose expiry has passed `cutoff`. Returns a slim
+ * projection — the auto-suspend queue only needs `_id`, `domainName`, and the
+ * DA username for logging.
+ */
+export async function listExpiredActiveHostings(cutoff: Date): Promise<IHosting[]> {
+  await connectDB();
+  return Hosting.find({
+    status: "active",
+    expiryDate: { $lt: cutoff, $ne: null },
+  }).select("_id domainName directAdminUsername");
+}
+
+/**
+ * Admin diag: every hosting in the DB, projected to the DA-cross-reference
+ * fields only. Used by the diag-da endpoint to reconcile DB ↔ DirectAdmin.
+ */
+export async function listAllHostingsForDirectAdminDiag(): Promise<IHosting[]> {
+  await connectDB();
+  return Hosting.find({}, "directAdminUsername domainName status");
+}
+
+/**
+ * Admin: every hosting linked to the supplied DirectAdmin username. Multiple
+ * rows are possible when a user has bought additional accounts that re-use
+ * the same DA username (legacy data) — the delete-action loop needs all of
+ * them to cancel subscriptions.
+ */
+export async function listHostingsByDirectAdminUsername(
+  directAdminUsername: string
+): Promise<IHosting[]> {
+  await connectDB();
+  return Hosting.find({ directAdminUsername });
+}
+
+/**
+ * Admin: delete every hosting matching a `_id` or a DirectAdmin username.
+ * Returns the deletedCount so the route can log a sensible message.
+ *
+ * Caller MUST gate this behind an admin auth check — the helper assumes
+ * the route layer enforced the boundary.
+ */
+export async function deleteHostingsByIdOrUsername(opts: {
+  hostingId?: string;
+  directAdminUsername?: string;
+}): Promise<{ deletedCount: number; matchedHostings: IHosting[] }> {
+  await connectDB();
+  const query: Record<string, unknown> = opts.hostingId
+    ? { _id: opts.hostingId }
+    : { directAdminUsername: opts.directAdminUsername };
+  const matchedHostings = await Hosting.find(query);
+  const result = await Hosting.deleteMany(query);
+  return { deletedCount: result.deletedCount ?? 0, matchedHostings };
 }

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
-import Hosting from "@/models/Hosting";
+import { findUserHostingById } from "@/lib/services/hostings";
 import { RazorpayService } from "@/lib/razorpay";
 import { DirectAdminService } from "@/lib/directadmin";
 import { AuthService } from "@/lib/auth";
@@ -31,15 +30,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "hostingId is required" }, { status: 400 });
     }
 
-    await connectDB();
+    const hosting = await findUserHostingById(hostingId, user._id);
 
-    const hosting = await Hosting.findOne({
-      _id: hostingId,
-      userId: user._id,
-      isTrial: true,
-    });
-
-    if (!hosting) {
+    if (!hosting || !hosting.isTrial) {
       return NextResponse.json({ error: "Trial hosting not found" }, { status: 404 });
     }
 
