@@ -29,7 +29,13 @@ This document tracks **currently-open** findings. The full historical pass log (
 - ✅ **LOW-2** — structured logging
 - ✅ **LOW-3** — DB migration history
 - ✅ **LOW-4** — Mongoose model index audit
-- ✅ **Rescan Batch 1** (2026-05-20, commit `bb91b5d`, revision `dms-00029-4jj`) — Zoho axios timeout (24 callsites swapped to a shared `zohoAxios = axios.create({ timeout: 30_000 })`); 20 unused deps removed (8 runtime + 12 stale `@types/*`); `npm audit fix` cleared the 3 moderate findings (now 0); `AdminLayout` dedupe (dead 167-line file removed, `AdminLayoutNew` renamed in place, 18 consumer imports updated); `/api/debug/check-expiry` deleted (dev scaffolding with data-leak risk); 2 stale TODOs converted to explanatory notes. **Post-deploy verification 2026-05-20:** 434 unit + 25 integration tests green, tsc clean, lint --quiet clean, 0 npm audit findings, `/api/health` 200 OK, zero error-level Cloud Run logs in the post-deploy window.
+- ✅ **[H3] Zoho axios timeout** (commit `bb91b5d`) — 24 callsites swapped to a shared `zohoAxios = axios.create({ timeout: 30_000 })` in `lib/zohobooks/axios-client.ts`. Hung Zoho upstream no longer stalls Cloud Run slots.
+- ✅ **[M8] Unused dependencies removed** (commit `bb91b5d`) — 20 packages uninstalled: `underscore`, `dns2`, `dompurify`, `whois`, `whois-api`, `whois-json`, `@react-pdf/renderer`, `styled-jsx`, + 12 stale `@types/*`. All had zero refs across the codebase before removal.
+- ✅ **[M9] `npm audit` cleared** (commit `bb91b5d`) — `brace-expansion`, `protobufjs`, `ws` advisories patched via `npm audit fix`. 3 moderate → 0 vulnerabilities.
+- ✅ **[M10] AdminLayout deduped** (commit `bb91b5d`) — dead 167-line `components/admin/AdminLayout.tsx` removed; `AdminLayoutNew.tsx` renamed in place; 18 consumer imports + the `components/index.ts` re-export updated; default-export function renamed `AdminLayoutNew` → `AdminLayout`.
+- ✅ **[L1] `/api/debug/check-expiry` removed** (commit `bb91b5d`) — dev-scaffolding route that leaked 5 active hosting rows (domainName + expiryDate) to any logged-in user. Not referenced anywhere; deleting was cleaner than gating.
+- ✅ **[L4] Stale TODOs resolved** (commit `bb91b5d`) — `lib/resellerclub/customers.ts:567` (resellerClub-id persistence shipped via `setUserResellerClubIds`) and `app/api/admin/hosting/stats/route.ts:137` (per-user DA fetch trade-off) — both converted to explanatory notes.
+- ✅ **Batch 1 verification 2026-05-20** (revision `dms-00029-4jj`) — 434 unit + 25 integration tests green, tsc clean, `next lint --quiet` clean, 0 `npm audit` findings, `/api/health` 200 OK, zero error-level Cloud Run logs in the post-deploy window.
 
 ## Deliberately deferred (by user)
 
