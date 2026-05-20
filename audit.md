@@ -13,7 +13,7 @@ This document tracks **currently-open** findings. The full historical pass log (
 - ✅ **HIGH-1** — monolithic service wrappers split into focused modules
 - ✅ **HIGH-2** — state-machine logic out of routes
 - ✅ **HIGH-3** — `/api/v1/*` versioning surface live
-- ✅ **HIGH-4 (User)** — every `User.X(...)` callsite outside `lib/services/users.ts` migrated (~93 → 0). **Note**: Order/Hosting/SupportTicket models still have direct callsites (see [H5] below).
+- ✅ **HIGH-4 (User)** — every `User.X(...)` callsite outside `lib/services/users.ts` migrated (~93 → 0). **Note**: Order/Hosting/SupportTicket models still have direct callsites (see [H4] below).
 - ✅ **HIGH-5** — `Pending*` collection sweepers + auto-retry cron (2026-05-20)
 - ✅ **HIGH-6** — security module consolidation
 - ✅ **MEDIUM-1** — `any` types 845 → 10 (99% reduction; remaining 10 are intentional with eslint-disable + rationale)
@@ -29,6 +29,7 @@ This document tracks **currently-open** findings. The full historical pass log (
 - ✅ **LOW-2** — structured logging
 - ✅ **LOW-3** — DB migration history
 - ✅ **LOW-4** — Mongoose model index audit
+- ✅ **Rescan Batch 1** (2026-05-20, commit `bb91b5d`) — Zoho axios timeout (24 callsites swapped to a shared `zohoAxios = axios.create({ timeout: 30_000 })`); 20 unused deps removed (8 runtime + 12 stale `@types/*`); `npm audit fix` cleared the 3 moderate findings (now 0); `AdminLayout` dedupe (dead 167-line file removed, `AdminLayoutNew` renamed in place, 18 consumer imports updated); `/api/debug/check-expiry` deleted (dev scaffolding with data-leak risk); 2 stale TODOs converted to explanatory notes.
 
 ## Deliberately deferred (by user)
 
@@ -57,25 +58,19 @@ Issues are listed by severity. Each has a file pointer, one-line problem, one-li
 **Fix:** Wrap with `rateLimiters` IP-keyed bucket (e.g. 10/min/IP) **and** require a session OR reCAPTCHA v3 token.
 **Effort:** 30 min.
 
-#### [H3] Zoho axios calls have no timeout
-**File:** [lib/zohobooks/*.ts](lib/zohobooks/) (every call: `contacts.ts:30,55,113`, `invoices.ts:125`, `recurring.ts:114`, etc.)
-**Problem:** ResellerClub has a 30s `axios.create({ timeout })`; Zoho uses bare `axios.get/post` with no timeout. A hung Zoho upstream stalls Cloud Run request slots until the global request timeout kicks in.
-**Fix:** Shared `const zohoAxios = axios.create({ timeout: 30_000 })` instance; use it from every module.
-**Effort:** 15 min.
-
-#### [H4] Trial-abuse check-then-act race
+#### [H3] Trial-abuse check-then-act race
 **File:** [lib/trial-abuse.ts:111-140](lib/trial-abuse.ts#L111-L140) + `recordTrialClaim` at L168
 **Problem:** `evaluateTrialAbuse` queries `TrialClaim.exists(...)` and the claim row is only inserted after Razorpay verifies. Two concurrent requests from the same IP/device both pass the check.
 **Fix:** Sparse unique index on `(ipHash, deviceFingerprint)`; catch `E11000` as "already claimed."
 **Effort:** 15 min.
 
-#### [H5] Service-layer bypass — Order / Hosting / SupportTicket
+#### [H4] Service-layer bypass — Order / Hosting / SupportTicket
 **Files:** 54 route files across `app/api/**`. ~58 direct `Order.*` callsites, ~26 direct `Hosting.*` callsites. Examples: [app/api/admin/hosting/assign/route.ts:7,83](app/api/admin/hosting/assign/route.ts), [app/api/admin/domains/route.ts:40](app/api/admin/domains/route.ts), [app/api/workers/process-hosting-expiry/route.ts](app/api/workers/process-hosting-expiry/route.ts).
 **Problem:** HIGH-4 closed only `User`; Order, Hosting, SupportTicket still have routes that call `.save()` / `Model.find` directly, bypassing the service layer.
 **Fix:** Replicate the User-service migration pattern for the other three. Each landed in ~3-4 commits in HIGH-4.
 **Effort:** Multi-hour, can be split across sessions.
 
-#### [H6] `provisionCartItems` is 950 lines
+#### [H5] `provisionCartItems` is 950 lines
 **File:** [lib/services/payment/provisioner.ts:95-1054](lib/services/payment/provisioner.ts) (one exported function)
 **Problem:** Spans 95 → 1054 of a 1054-line file. Deeply nested DA + RC + email + dates + reminder logic in one body — effectively untestable as a whole.
 **Fix:** Decompose into per-item provisioner (domain vs hosting), reminder scheduler, DA-account allocator.
@@ -125,49 +120,21 @@ Issues are listed by severity. Each has a file pointer, one-line problem, one-li
 **Fix:** Add unit tests per service against the existing `mongodb-memory-server` scaffolding from MEDIUM-5.
 **Effort:** Multi-hour.
 
-#### [M8] Unused dependencies
-**File:** [package.json](package.json)
-**Problem:** `underscore`, `dns2`, `dompurify`, `whois`, `whois-api`, `whois-json`, `@react-pdf/renderer`, `styled-jsx`, + 10 stale `@types/*` (`@types/bluebird`, `@types/request*`, `@types/caseless`, `@types/raf`, `@types/json5`, `@types/scheduler`, `@types/webidl-conversions`, `@types/whatwg-url`, `@types/tough-cookie`, `@types/pako`, `@types/prop-types`) are not imported anywhere.
-**Fix:** `npm uninstall` each. Re-run build/tests.
-**Effort:** 15 min.
-
-#### [M9] 3 moderate `npm audit` findings
-**Problem:** `brace-expansion` GHSA-jxxr-4gwj-5jf2, `protobufjs` GHSA-jggg-4jg4-v7c6, `ws` GHSA-58qx-3vcg-4xpx.
-**Fix:** `npm audit fix` — non-breaking.
-**Effort:** 15 min.
-
-#### [M10] Duplicate AdminLayout component
-**File:** [components/admin/AdminLayout.tsx](components/admin/AdminLayout.tsx) (167 lines, dead) vs [components/admin/AdminLayoutNew.tsx](components/admin/AdminLayoutNew.tsx) (live).
-**Problem:** `AdminLayout.tsx` is not imported anywhere; the live one is re-exported as `AdminLayout` from [components/index.ts:37](components/index.ts#L37).
-**Fix:** Delete the old file; rename `AdminLayoutNew.tsx` → `AdminLayout.tsx`.
-**Effort:** 15 min.
-
 ### LOW
 
-#### [L1] `/api/debug/check-expiry` leaks 5 active hosting rows to any logged-in user
-**File:** [app/api/debug/check-expiry/route.ts:8-29](app/api/debug/check-expiry/route.ts#L8-L29)
-**Problem:** No `isAdmin` gate; any normal user sees other tenants' `domainName` + `expiryDate`.
-**Fix:** Add `AuthService.isAdmin(request)` gate, or delete (looks like dev scaffolding).
-**Effort:** 5 min.
-
-#### [L2] N+1 shape in admin users-services list
+#### [L1] N+1 shape in admin users-services list
 **File:** [app/api/admin/users/services/route.ts:39](app/api/admin/users/services/route.ts#L39)
 **Problem:** Iterates `allServiceUsers` and does linear `.some()` over `verifiedUsers` per row (O(n·m)).
 **Fix:** Build a `Set<_id>` once before the loop.
 **Effort:** 15 min.
 
-#### [L3] Stale unused `User` import
+#### [L2] Stale unused `User` import
 **File:** [app/api/admin/hosting/assign/route.ts:7](app/api/admin/hosting/assign/route.ts#L7)
-**Problem:** Imports `User` but never references it directly — also confirms [H5] bypass since the route mutates the doc inline.
+**Problem:** Imports `User` but never references it directly — also confirms [H4] bypass since the route mutates the doc inline.
 **Fix:** Remove import; move mutation into the user service.
-**Effort:** 5 min (combined with [H5]).
+**Effort:** 5 min (combined with [H4]).
 
-#### [L4] Stale TODOs
-**Files:** [lib/resellerclub/customers.ts:567](lib/resellerclub/customers.ts#L567) ("Store customerId/contactId in user DB" — feature shipped via `setUserResellerClubIds`), [app/api/admin/hosting/stats/route.ts:137](app/api/admin/hosting/stats/route.ts#L137) ("rely on bulk usage map").
-**Fix:** Delete or convert to issue refs.
-**Effort:** 10 min.
-
-#### [L5] Chat model version drift (needs verification)
+#### [L3] Chat model version drift (needs verification)
 **File:** [app/api/chat/route.ts:48](app/api/chat/route.ts#L48)
 **Problem:** Uses `claude-haiku-4-5`; cutoff in env says 2026-01, current latest haiku tier may be newer.
 **Fix:** Verify against current Anthropic model list; bump if needed.
@@ -177,17 +144,14 @@ Issues are listed by severity. Each has a file pointer, one-line problem, one-li
 
 ## Recommended order
 
-### Batch 1 — fast wins (~1 hr, 6 items)
-[H3] Zoho timeout + [M8] unused deps + [M9] `npm audit fix` + [M10] dedupe AdminLayout + [L1] debug route + [L4] stale TODOs.
+### Batch 1 — security-heavy (~3 hrs, 6 items)
+[H1] IDOR invoice-pay + [H2] chat rate-limit + [H3] trial-abuse race + [M1] cron timing-safe + [M2] CSRF on user routes + [M3] User `select:false`.
 
-### Batch 2 — security-heavy (~3 hrs, 6 items)
-[H1] IDOR invoice-pay + [H2] chat rate-limit + [H4] trial-abuse race + [M1] cron timing-safe + [M2] CSRF on user routes + [M3] User `select:false`.
+### Batch 2 — quality / refactor (multi-hour, can be split)
+[M5] domain-find helper + [M6] `getAuthedUser` helper + [L1] N+1 fix + [L2] stale import + [L3] chat model bump + [M4] error-message scrubbing.
 
-### Batch 3 — quality / refactor (multi-hour, can be split)
-[M5] domain-find helper + [M6] `getAuthedUser` helper + [L2] N+1 fix + [L3] stale import + [L5] chat model bump + [M4] error-message scrubbing.
-
-### Batch 4 — long-running (multi-session)
-[H5] Order/Hosting/SupportTicket service-layer migration + [H6] `provisionCartItems` decomposition + [M7] `lib/services/*` unit tests.
+### Batch 3 — long-running (multi-session)
+[H4] Order/Hosting/SupportTicket service-layer migration + [H5] `provisionCartItems` decomposition + [M7] `lib/services/*` unit tests.
 
 ### Strengths to preserve
 
