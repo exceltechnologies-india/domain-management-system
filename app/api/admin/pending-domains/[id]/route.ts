@@ -6,7 +6,8 @@ import mongoose from "mongoose";
 import connectDB from "@/lib/mongodb";
 import PendingDomain from "@/models/PendingDomain";
 import { getPendingDomainById } from "@/lib/services/pending-domains";
-import Order, { type IOrder } from "@/models/Order";
+import { getOrderByOrderId } from "@/lib/services/orders";
+import type { IOrder } from "@/models/Order";
 import { getUserByIdSafe } from "@/lib/services/users";
 import Domain from "@/models/Domain";
 import { getToken } from "next-auth/jwt";
@@ -132,7 +133,7 @@ export async function PUT(
     // When admin updates pending domain status, also update the corresponding domain in the Order collection
     if (status && pendingDomain.orderId) {
       try {
-        const order = await Order.findOne({ orderId: pendingDomain.orderId });
+        const order = await getOrderByOrderId(pendingDomain.orderId);
 
         if (order) {
           // Find and update the matching domain in the order
@@ -299,7 +300,7 @@ export async function DELETE(
       // 2. SYNC WITH ORDER COLLECTION - Update status to 'cancelled'
       if (pendingDomain.orderId) {
         try {
-          const order = await Order.findOne({ orderId: pendingDomain.orderId });
+          const order = await getOrderByOrderId(pendingDomain.orderId);
           if (order) {
             const domainIndex = order.domains.findIndex(
               (d: IOrder["domains"][number]) => d.domainName === pendingDomain.domainName
@@ -362,7 +363,7 @@ export async function DELETE(
     if (pendingDomain.orderId) {
       try {
         serverLogger.info(`[${reqId}] Syncing with Order: ${pendingDomain.orderId}`);
-        const order = await Order.findOne({ orderId: pendingDomain.orderId });
+        const order = await getOrderByOrderId(pendingDomain.orderId);
 
         if (order) {
           // Find and update the matching domain in the order

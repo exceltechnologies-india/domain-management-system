@@ -2,9 +2,8 @@ import { AUTH_SECRET } from "@/lib/auth-secret";
 import { NextRequest, NextResponse } from "next/server";
 import { secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
-import connectDB from "@/lib/mongodb";
 import { getUserByIdSafe } from "@/lib/services/users";
-import Order from "@/models/Order";
+import { listOrdersForUser } from "@/lib/services/orders";
 import { listDomainsForUser } from "@/lib/services/domains";
 import { listActivePendingDomainsForUser } from "@/lib/services/pending-domains";
 import Hosting from "@/models/Hosting";
@@ -20,8 +19,6 @@ export async function GET(request: NextRequest) {
 
 
   try {
-    await connectDB();
-
     // Try to get user from JWT token first
     let user = await AuthService.getUserFromRequest(request);
     
@@ -62,7 +59,7 @@ export async function GET(request: NextRequest) {
 
     // Get user's orders, domains, and hosting
     const [orders, domains, pendingDomainsRaw, hostings] = await Promise.all([
-      Order.find({ userId: user._id, isDeleted: { $ne: true } }).sort({ createdAt: -1 }),
+      listOrdersForUser(user._id, { limit: 0, populateUser: false }),
       listDomainsForUser(String(user._id)),
       listActivePendingDomainsForUser(String(user._id)),
       Hosting.find({ userId: user._id }).sort({ createdAt: -1 })

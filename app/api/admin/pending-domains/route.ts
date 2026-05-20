@@ -4,7 +4,7 @@ import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import PendingDomain from "@/models/PendingDomain";
 import { getPendingDomainByName } from "@/lib/services/pending-domains";
-import Order from "@/models/Order";
+import { listOrdersWithInFlightDomains } from "@/lib/services/orders";
 import { getUserByIdSafe } from "@/lib/services/users";
 import { getToken } from "next-auth/jwt";
 import { serverLogger } from "@/lib/server-logger";
@@ -100,15 +100,7 @@ export async function GET(request: NextRequest) {
     const pendingDomainsFromOrders: SyntheticPendingDomain[] = [];
 
     if (!archived) {
-      const orderQuery: Record<string, unknown> = {
-        isDeleted: { $ne: true },
-        "domains.status": { $in: ["pending", "processing"] },
-      };
-
-      const ordersWithPendingDomains = await Order.find(orderQuery)
-        .populate("userId", "firstName lastName email phone companyName")
-        .sort({ createdAt: -1 })
-        .lean();
+      const ordersWithPendingDomains = await listOrdersWithInFlightDomains();
 
       // Extract pending/processing domains from orders
       for (const order of ordersWithPendingDomains) {
@@ -150,8 +142,8 @@ export async function GET(request: NextRequest) {
               registrationPeriod: domain.registrationPeriod,
               userId: order.userId,
               orderId: order.orderId,
-              customerId: domain.resellerClubCustomerId || 0,
-              contactId: domain.resellerClubContactId || 0,
+              customerId: Number(domain.resellerClubCustomerId) || 0,
+              contactId: Number(domain.resellerClubContactId) || 0,
               status: domain.status,
               reason: domain.error || "Domain registration in progress",
               verificationAttempts: 0,

@@ -4,8 +4,8 @@ import { serverLogger } from "@/lib/server-logger";
 import { EmailService } from "@/lib/email";
 import { AuthService } from "@/lib/auth";
 import { authorizeCronRequest } from "@/lib/cron-auth";
-import connectDB from "@/lib/mongodb";
-import Order, { type IOrder } from "@/models/Order";
+import type { IOrder } from "@/models/Order";
+import { listStuckCompletedOrders } from "@/lib/services/orders";
 import {
   listDeferredPendingHostings,
   provisionPendingHosting,
@@ -41,8 +41,6 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    await connectDB();
-
     // ── Part 1: drain deferred PendingHosting rows ──────────────────────────
     const deferred = await listDeferredPendingHostings();
     const retryResults = { attempted: deferred.length, succeeded: 0, dropped: 0, failed: 0 };
@@ -63,15 +61,10 @@ export async function GET(request: NextRequest) {
     }
 
     // ── Part 2: alert on stuck orders ───────────────────────────────────────
-    const cutoff = new Date(Date.now() - 30 * 60 * 1000);
-
-    const stuckOrders = await Order.find({
-      status: "completed",
-      createdAt: { $lt: cutoff },
-      "domains.status": "pending",
-    })
-      .select("orderId userEmail userName createdAt domains")
-      .lean();
+    const stuckOrders = await listStuckCompletedOrders({
+      staleAfterMs: 30 * 60 * 1000,
+      select: "orderId userEmail userName createdAt domains",
+    });
 
     serverLogger.info(`[CheckUnprovisioned] Found ${stuckOrders.length} stuck orders`);
 

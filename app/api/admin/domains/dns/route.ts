@@ -3,11 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import { AuthService } from "@/lib/auth";
 import { getToken } from "next-auth/jwt";
-import connectDB from "@/lib/mongodb";
-import Order, { type IOrder } from "@/models/Order";
 import type { IUser } from "@/models/User";
 import { serverLogger } from "@/lib/server-logger";
-import { findOrderDomain } from "@/lib/services/orders";
+import { findOrderByDomain, findOrderDomain } from "@/lib/services/orders";
 
 // Force dynamic rendering - required for API routes
 export const dynamic = 'force-dynamic';
@@ -49,13 +47,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    await connectDB(); // Connect to DB
-
     // Find the domain in the database (admin can access any domain)
-    const order = await Order.findOne({
-      "domains.domainName": domainName,
-      isDeleted: { $ne: true },
-    });
+    const order = await findOrderByDomain(domainName);
 
     if (!order) {
       return NextResponse.json({ error: "Domain not found" }, { status: 404 });
@@ -136,13 +129,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await connectDB(); // Connect to DB
-
     // Find the domain in the database (admin can access any domain)
-    const order = await Order.findOne({
-      "domains.domainName": domainName,
-      isDeleted: { $ne: true },
-    });
+    const order = await findOrderByDomain(domainName);
 
     if (!order) {
       return NextResponse.json({ error: "Domain not found" }, { status: 404 });
@@ -233,13 +221,8 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    await connectDB(); // Connect to DB
-
     // Find the domain in the database (admin can access any domain)
-    const order = await Order.findOne({
-      "domains.domainName": domainName,
-      isDeleted: { $ne: true },
-    });
+    const order = await findOrderByDomain(domainName);
 
     if (!order) {
       return NextResponse.json({ error: "Domain not found" }, { status: 404 });

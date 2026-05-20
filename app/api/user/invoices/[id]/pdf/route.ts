@@ -3,8 +3,7 @@ import { AuthService } from "@/lib/auth";
 import { ZohoBooksService } from "@/lib/zohobooks";
 import { rateLimiters } from "@/lib/rate-limit";
 import { serverLogger } from "@/lib/server-logger";
-import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
+import { findOrderByZohoInvoiceForUser } from "@/lib/services/orders";
 
 // Force dynamic rendering
 export const dynamic = "force-dynamic";
@@ -43,12 +42,8 @@ export async function GET(
       return NextResponse.json({ error: "Invoice not available" }, { status: 404 });
     }
 
-    await connectDB();
-
     // Security check: verify ownership via MongoDB — avoids 2 round-trips to Zoho
-    const order = await Order.findOne({ userId: user._id, zohoInvoiceId: id })
-      .select("_id")
-      .lean();
+    const order = await findOrderByZohoInvoiceForUser(user._id, id, { select: "_id" });
     if (!order) {
       serverLogger.warn(`[Security] Unauthorized PDF access attempt by ${user.email} for invoice ${id}`);
       return NextResponse.json(

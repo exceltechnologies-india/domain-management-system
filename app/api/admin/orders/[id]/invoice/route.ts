@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import Order, { type IOrder } from "@/models/Order";
+import type { IOrder } from "@/models/Order";
+import { getOrderById } from "@/lib/services/orders";
 import type { IUser } from "@/models/User";
 import { ZohoBooksService } from "@/lib/zohobooks";
 import { formatIndianDate } from "@/lib/dateUtils";
@@ -25,9 +25,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await connectDB();
-
-    const order = await Order.findOne({ _id: id });
+    const order = await getOrderById(id);
 
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });

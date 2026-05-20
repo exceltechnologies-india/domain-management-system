@@ -8,7 +8,7 @@ import PendingDomain from "@/models/PendingDomain";
 import { countPendingHostingsByStatus } from "@/lib/services/pending-hostings";
 import { getSettingValue } from "@/lib/services/settings";
 import { countUsers } from "@/lib/services/users";
-import Order from "@/models/Order";
+import { countAllOrders } from "@/lib/services/orders";
 import Domain from "@/models/Domain";
 import { countOpenTickets } from "@/lib/services/support-tickets";
 import { ResellerClubAPI } from "@/lib/resellerclub";
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
       dbLatencyMs = ms() - dbStart;
       const [users, orders, domains, openTickets, pendingDomains, pendingHosting] = await Promise.all([
         countUsers(),
-        Order.countDocuments(),
+        countAllOrders(),
         Domain.countDocuments(),
         countOpenTickets(),
         PendingDomain.countDocuments({ status: "pending" }),

@@ -2,12 +2,10 @@ import { AUTH_SECRET } from "@/lib/auth-secret";
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { getToken } from "next-auth/jwt";
-import connectDB from "@/lib/mongodb";
-import Order, { type IOrder } from "@/models/Order";
 import type { IUser } from "@/models/User";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import { serverLogger } from "@/lib/server-logger";
-import { findOrderDomain } from "@/lib/services/orders";
+import { findOrderByDomain, findOrderDomain } from "@/lib/services/orders";
 
 export const dynamic = "force-dynamic";
 
@@ -42,10 +40,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid domain name format" }, { status: 400 });
   }
 
-    await connectDB();
-
     // Admin can access any order
-    const order = await Order.findOne({ "domains.domainName": domainName, isDeleted: { $ne: true } });
+    const order = await findOrderByDomain(domainName);
     if (!order) {
       return NextResponse.json({ error: "Domain not found" }, { status: 404 });
     }

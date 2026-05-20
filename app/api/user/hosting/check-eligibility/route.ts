@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
+import { findPriorHostingOrderForUser } from "@/lib/services/orders";
 import { findUserHosting, userHasAnyHosting } from "@/lib/services/hostings";
 import { AuthService } from "@/lib/auth";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
@@ -18,8 +17,6 @@ async function performEligibilityCheck(
   email: string,
   domainName: string | null
 ) {
-  await connectDB();
-
   // 1. Check if this user already has any hosting
   if (await userHasAnyHosting(userId)) {
     return {
@@ -28,11 +25,7 @@ async function performEligibilityCheck(
     };
   }
 
-  const previousOrder = await Order.findOne({
-    $or: [{ userEmail: email }, { userId }],
-    "domains.itemType": "hosting",
-    status: { $in: ["paid", "completed", "processing"] },
-  });
+  const previousOrder = await findPriorHostingOrderForUser(userId, email);
 
   if (previousOrder) {
     return {

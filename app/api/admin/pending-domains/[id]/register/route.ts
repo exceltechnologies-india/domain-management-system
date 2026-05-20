@@ -4,6 +4,7 @@ import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import PendingDomain from "@/models/PendingDomain";
 import Order, { type IOrder } from "@/models/Order";
+import { getOrderByOrderId, recordZohoInvoiceForOrder } from "@/lib/services/orders";
 import { getUserById, getUserByIdSafe } from "@/lib/services/users";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import { DomainVerificationService } from "@/lib/domain-verification";
@@ -136,7 +137,7 @@ export async function POST(
 
         // --- ZOHO BOOKS SYNC ---
         try {
-          const syncOrder = await Order.findOne({ orderId: pendingDomain.orderId });
+          const syncOrder = await getOrderByOrderId(pendingDomain.orderId);
           const syncUser = await getUserById(pendingDomain.userId);
 
           if (syncUser && syncOrder && (!syncOrder.zohoInvoiceId || syncOrder.zohoInvoiceId === 'pending_creation')) {
@@ -163,10 +164,10 @@ export async function POST(
             );
 
             if (invoice?.invoice_id) {
-                await Order.updateOne(
-                    { _id: syncOrder._id },
-                    { $set: { zohoInvoiceId: invoice.invoice_id, invoiceNumber: invoice.invoice_number } }
-                );
+                await recordZohoInvoiceForOrder(String(syncOrder._id), {
+                    invoiceId: invoice.invoice_id,
+                    invoiceNumber: invoice.invoice_number,
+                });
             }
           }
         } catch (e) {
@@ -179,7 +180,7 @@ export async function POST(
         pendingDomain.reason = `Registration failed: ${result.message}`;
         await pendingDomain.save();
 
-        const order = await Order.findOne({ orderId: pendingDomain.orderId });
+        const order = await getOrderByOrderId(pendingDomain.orderId);
         if (order) {
           const idx = order.domains.findIndex((d: IOrder['domains'][number]) => d.domainName === pendingDomain.domainName);
           if (idx !== -1) {

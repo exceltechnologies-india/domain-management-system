@@ -2,10 +2,10 @@ import { AUTH_SECRET } from "@/lib/auth-secret";
 import { NextRequest, NextResponse } from "next/server";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { AuthService } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
 import { listDomainsForUser } from "@/lib/services/domains";
 import { listActivePendingDomainsForUser } from "@/lib/services/pending-domains";
-import Order, { type IOrder } from "@/models/Order";
+import { listRecentCompletedOrdersForUser } from "@/lib/services/orders";
+import type { IOrder } from "@/models/Order";
 import { getUserByIdSafe } from "@/lib/services/users";
 import { getToken } from "next-auth/jwt";
 import { isHostingItem } from "@/lib/billing";
@@ -15,8 +15,6 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
-    
     // Try to get user from JWT token first
     let user = await AuthService.getUserFromRequest(request);
     
@@ -46,11 +44,7 @@ export async function GET(request: NextRequest) {
     const domainMap = new Map();
 
     // 1. Fetch recent successful orders to find domains in process
-    const recentOrders = await Order.find({
-      userId: user._id,
-      status: "completed", // Payment succeeded
-      createdAt: { $gte: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000) } // Last 14 days
-    }).sort({ createdAt: 1 }); // Process oldest first so newest wins if duplicates in orders
+    const recentOrders = await listRecentCompletedOrdersForUser(user._id, { withinDays: 14 });
 
     recentOrders.forEach(order => {
       if (order.isDeleted) return; // Skip deleted orders

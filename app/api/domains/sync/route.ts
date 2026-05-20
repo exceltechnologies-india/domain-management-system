@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
 import { getUserById } from "@/lib/services/users";
-import User from "@/models/User";
 import Order from "@/models/Order";
+import { findOrderByDomainForUser } from "@/lib/services/orders";
 import { ResellerClubAPI } from "@/lib/resellerclub";
 import { serverLogger } from "@/lib/server-logger";
 
@@ -17,8 +16,6 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    await connectDB();
 
     // Get user from database
     const dbUser = await getUserById(String(user._id));
@@ -106,11 +103,7 @@ export async function POST(request: NextRequest) {
 
 
         // Check if domain already exists in database
-        const existingOrder = await Order.findOne({
-          "domains.domainName": domainName,
-          userId: user._id,
-          isDeleted: { $ne: true }
-        });
+        const existingOrder = await findOrderByDomainForUser(user._id, domainName);
 
         if (existingOrder) {
           skipped++;

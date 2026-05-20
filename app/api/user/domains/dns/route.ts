@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
-import connectDB from "@/lib/mongodb";
-import Order, { type IOrder } from "@/models/Order";
+import type { IOrder } from "@/models/Order";
 import { listDomainsForUser } from "@/lib/services/domains";
+import { listOrdersForUser } from "@/lib/services/orders";
 import { serverLogger } from "@/lib/server-logger";
 
 // Force dynamic rendering - required for API routes
@@ -16,12 +16,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await connectDB();
-
-    // Get all orders for the user
-    const orders = await Order.find({ userId: user._id })
-      .sort({ createdAt: -1 })
-      .populate("userId", "email firstName lastName");
+    // Get all orders for the user — DNS view flattens domains across every
+    // order, so pass limit:0 to disable the default 50-row cap.
+    const orders = await listOrdersForUser(String(user._id), { limit: 0 });
 
     // Extract domains from orders - ONLY REGISTERED domains for DNS management
     const domains = [];
@@ -63,7 +60,7 @@ export async function GET(request: NextRequest) {
             autoRenew: false,
             bookingStatus: domain.bookingStatus || [],
             orderId: order.orderId,
-            resellerClubOrderId: domain.resellerClubOrderId || order.resellerClubOrderId,
+            resellerClubOrderId: domain.resellerClubOrderId || (order as unknown as { resellerClubOrderId?: string }).resellerClubOrderId,
             resellerClubCustomerId: domain.resellerClubCustomerId,
             resellerClubContactId: domain.resellerClubContactId,
             dnsActivated: domain.dnsActivated || false,
