@@ -3,13 +3,13 @@ import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrap
 import { serverLogger } from "@/lib/server-logger";
 import { EmailService } from "@/lib/email";
 import { AuthService } from "@/lib/auth";
+import { authorizeCronRequest } from "@/lib/cron-auth";
 import connectDB from "@/lib/mongodb";
 import Order, { type IOrder } from "@/models/Order";
 import {
   listDeferredPendingHostings,
   provisionPendingHosting,
 } from "@/lib/services/pending-hostings";
-import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -34,15 +34,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(request: NextRequest) {
   try {
-    const cronSecret = process.env.CRON_SECRET;
-    const providedSecret = request.headers.get("x-cron-secret") ?? "";
-    const isCron =
-      cronSecret !== undefined &&
-      cronSecret.length > 0 &&
-      providedSecret.length === cronSecret.length &&
-      crypto.timingSafeEqual(Buffer.from(providedSecret), Buffer.from(cronSecret));
-
-    if (!isCron) {
+    if (!authorizeCronRequest(request)) {
       const isAdmin = await AuthService.isAdmin(request);
       if (!isAdmin) {
         return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");

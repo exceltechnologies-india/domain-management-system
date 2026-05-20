@@ -556,7 +556,7 @@ export async function findUserByResetToken(token: string): Promise<IUser | null>
   return User.findOne({
     resetToken: token,
     resetTokenExpiry: { $gt: new Date() },
-  });
+  }).select("+resetToken +resetTokenExpiry");
 }
 
 /**
@@ -711,6 +711,21 @@ export async function getUserWithPassword(
 }
 
 /**
+ * Cheap "does this user have a password set" check. Used by the
+ * `/api/auth/me` payload so the frontend can render "set password" vs
+ * "change password" without ever surfacing the bcrypt hash to the client.
+ * Returns false for missing users (callers treat that the same as "no
+ * password set" — they already gated on the user existing before this).
+ */
+export async function userHasPassword(userId: unknown): Promise<boolean> {
+  await connectDB();
+  const row = await User.findById(userId)
+    .select("+password")
+    .lean<{ password?: string }>();
+  return !!row?.password;
+}
+
+/**
  * Projection used by NextAuth's JWT-refresh callback to re-check the user
  * on every token rotation: `isActive`, `role`, `sessionInvalidatedAt`,
  * `passwordChangedAt`, `profileCompleted`. Returns null when the user no
@@ -757,13 +772,16 @@ export async function getUserProfileCompleted(
  * Find a user by email with the auth-flow read-timeout cap. The credentials-
  * login path runs inside the NextAuth `authorize` callback which has tight
  * latency budget — cap the Mongo read so a slow primary doesn't stall login.
+ * Opts in to `+password` since the caller is about to bcrypt-compare it.
  */
 export async function getUserByEmailForLogin(
   email: string,
   opts?: { maxTimeMS?: number }
 ): Promise<IUser | null> {
   await connectDB();
-  return User.findOne({ email }).maxTimeMS(opts?.maxTimeMS ?? 5000);
+  return User.findOne({ email })
+    .select("+password")
+    .maxTimeMS(opts?.maxTimeMS ?? 5000);
 }
 
 /**

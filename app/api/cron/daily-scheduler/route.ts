@@ -5,7 +5,7 @@ import {
 } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 import connectDB from "@/lib/mongodb";
-import crypto from "crypto";
+import { authorizeCronRequest } from "@/lib/cron-auth";
 import Hosting from "@/models/Hosting";
 import Domain from "@/models/Domain";
 import { AuthService } from "@/lib/auth";
@@ -89,15 +89,7 @@ export async function GET(request: NextRequest) {
   try {
     // ── Auth ──────────────────────────────────────────────────────────────────
     const { searchParams } = new URL(request.url);
-    const cronSecret = process.env.CRON_SECRET;
-    const providedSecret = request.headers.get("x-cron-secret") ?? "";
-    const isCron =
-      cronSecret !== undefined &&
-      cronSecret.length > 0 &&
-      providedSecret.length === cronSecret.length &&
-      crypto.timingSafeEqual(Buffer.from(providedSecret), Buffer.from(cronSecret));
-
-    if (!isCron) {
+    if (!authorizeCronRequest(request)) {
       const isAdmin = await AuthService.isAdmin(request);
       if (!isAdmin) {
         return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");

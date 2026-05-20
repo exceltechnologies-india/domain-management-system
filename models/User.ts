@@ -100,6 +100,13 @@ const UserSchema = new Schema<IUser>(
         return !this.provider || this.provider === "credentials";
       },
       minlength: 6,
+      // Default: NEVER include the bcrypt hash in queries. Auth-only call
+      // sites (lib/services/users.ts → getUserWithPassword, the credentials
+      // provider's `authorize`, the change-email re-auth) explicitly opt-in
+      // via `.select("+password")`. Anything else that grabbed the field
+      // historically was an accidental leak — `JSON.stringify(user)` would
+      // serialise the hash into API responses without any caller noticing.
+      select: false,
     },
     firstName: {
       type: String,
@@ -241,9 +248,15 @@ const UserSchema = new Schema<IUser>(
     },
     resetToken: {
       type: String,
+      // Same reasoning as `password` — the reset-token is live cred
+      // material until the expiry. Reset flows opt-in via
+      // `findUserByResetToken` which calls `.select("+resetToken
+      // +resetTokenExpiry")`.
+      select: false,
     },
     resetTokenExpiry: {
       type: Date,
+      select: false,
     },
     pendingEmail: {
       type: String,

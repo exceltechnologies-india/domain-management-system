@@ -3,6 +3,7 @@ import connectDB from "@/lib/mongodb";
 import { AuthService } from "@/lib/auth";
 import { ResellerClubAPI } from "@/lib/resellerclub";
 import { Schemas } from "@/lib/validation";
+import { getUserWithPassword } from "@/lib/services/users";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 
@@ -166,7 +167,10 @@ export async function PUT(request: NextRequest) {
     }
 
     // 2. Password Update Handling
-    let hadPasswordBefore = !!user.password;
+    // The User model now has `select: false` on `password`, so the doc
+    // loaded by AuthService.getUserFromRequest doesn't carry it. Refetch
+    // explicitly when a password update is requested.
+    let hadPasswordBefore = false;
     if (body.password) {
       const { currentPassword, newPassword } = body.password;
 
@@ -179,25 +183,31 @@ export async function PUT(request: NextRequest) {
         return secureErrorResponse(strength.errors[0], 400, "WEAK_PASSWORD");
       }
 
+      const userWithPassword = await getUserWithPassword(user._id);
+      if (!userWithPassword) {
+        return secureErrorResponse("User not found", 404, "USER_NOT_FOUND");
+      }
+      hadPasswordBefore = !!userWithPassword.password;
+
       /**
        * 🛡️ DEFENSE-IN-DEPTH: Security Layer 4 - Verify Current Password
        * Prevents account takeover (ATO) if the session is compromised.
        */
-      if (user.password) {
+      if (userWithPassword.password) {
         if (!currentPassword) {
           return secureErrorResponse("Current password required", 400, "MISSING_PASSWORD");
         }
-        if (!(await user.comparePassword(currentPassword))) {
+        if (!(await userWithPassword.comparePassword(currentPassword))) {
           return secureErrorResponse("Incorrect current password", 401, "INVALID_PASSWORD");
         }
-        if (await user.comparePassword(newPassword)) {
+        if (await userWithPassword.comparePassword(newPassword)) {
           return secureErrorResponse("New password must be different", 400, "SAME_PASSWORD");
         }
       }
 
-      // Hash is performed automatically by User model pre-save hook 
-      // OR explicit hash inside the route if it's already implemented. 
-      // Note: User model usually has a pre-save hook.
+      // Hash is performed automatically by User model pre-save hook.
+      // Also mirror the new password onto the working `user` doc so the
+      // final `user.save()` below persists it.
       user.password = newPassword;
     }
 

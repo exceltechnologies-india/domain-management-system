@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { serverLogger } from "@/lib/server-logger";
 import connectDB from "@/lib/mongodb";
-import crypto from "crypto";
+import { authorizeCronRequest } from "@/lib/cron-auth";
 import Hosting from "@/models/Hosting";
 import { DirectAdminService } from "@/lib/directadmin";
 
@@ -10,14 +10,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: NextRequest) {
   try {
     // 1. Authenticate Request
-    const cronSecret = process.env.CRON_SECRET;
-    const providedSecret = request.headers.get("x-cron-secret") ?? "";
-    const isAuthorized =
-      cronSecret !== undefined &&
-      cronSecret.length > 0 &&
-      providedSecret.length === cronSecret.length &&
-      crypto.timingSafeEqual(Buffer.from(providedSecret), Buffer.from(cronSecret));
-    if (!isAuthorized) {
+    if (!authorizeCronRequest(request)) {
       serverLogger.warn("[Worker:SyncHosting] Unauthorized access attempt");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

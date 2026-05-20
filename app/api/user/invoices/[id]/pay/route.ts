@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { RazorpayService } from "@/lib/razorpay";
 import { ZohoBooksService } from "@/lib/zohobooks";
+import connectDB from "@/lib/mongodb";
+import Order from "@/models/Order";
 import { serverLogger } from "@/lib/server-logger";
 
 export const dynamic = 'force-dynamic';
@@ -19,6 +21,28 @@ export async function POST(
     const { id: invoiceId } = await params;
     if (!invoiceId) {
       return NextResponse.json({ error: "Invoice ID is required" }, { status: 400 });
+    }
+
+    // SECURITY: ownership gate. The invoice id comes from the URL, so we
+    // can't trust it. Confirm there's a local Order owned by this user
+    // that references this zohoInvoiceId before fetching from Zoho. Mirrors
+    // the pattern used in the sibling `/invoices/[id]/pdf/route.ts`.
+    // Without this gate, any logged-in user can enumerate Zoho invoice IDs
+    // and either pay or peek at another tenant's invoice metadata.
+    await connectDB();
+    const ownedOrder = await Order.findOne({
+      userId: user._id,
+      zohoInvoiceId: invoiceId,
+      isDeleted: { $ne: true },
+    }).select("_id zohoInvoiceId");
+
+    if (!ownedOrder) {
+      serverLogger.warn(
+        `[INVOICE-PAY] User ${user._id} attempted to pay invoice ${invoiceId} that doesn't belong to them`
+      );
+      // 404 (not 403) to avoid leaking whether the invoice exists for some
+      // other user — same response shape as the "no such invoice" case below.
+      return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
     }
 
     const zohoService = ZohoBooksService.getInstance();

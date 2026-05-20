@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { getToken } from "next-auth/jwt";
 import connectDB from "@/lib/mongodb";
-import { getUserByIdSafe } from "@/lib/services/users";
+import { getUserByIdSafe, userHasPassword } from "@/lib/services/users";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 
@@ -38,7 +38,9 @@ export async function GET(request: NextRequest) {
       return secureErrorResponse("Not authenticated", 401, "UNAUTHORIZED");
     }
 
-    const hasPassword = !!user.password;
+    // `user.password` is select:false on the model. Check via the service
+    // helper so the bcrypt hash never enters this handler's scope.
+    const hasPassword = await userHasPassword(user._id);
     
     // Ensure profileCompleted is a strict boolean (true/false)
     // MongoDB might return it as undefined or other values

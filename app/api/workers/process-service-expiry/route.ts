@@ -4,6 +4,7 @@ import {
   secureErrorResponse,
 } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
+import { authorizeCronRequest } from "@/lib/cron-auth";
 import connectDB from "@/lib/mongodb";
 import Hosting from "@/models/Hosting";
 import Domain from "@/models/Domain";
@@ -77,8 +78,7 @@ export async function POST(request: NextRequest) {
   let serviceType: "hosting" | "domain" = "hosting";
 
   try {
-    const authHeader = request.headers.get("x-cron-secret");
-    if (!authHeader || authHeader !== process.env.CRON_SECRET) {
+    if (!authorizeCronRequest(request)) {
       return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
     }
 
