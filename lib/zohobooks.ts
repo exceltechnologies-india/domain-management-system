@@ -128,7 +128,7 @@ export class ZohoBooksService {
   // Fire-and-forget: persist expiry to DB so it survives server restarts.
   // Uses a dynamic import to avoid pulling mongoose into Edge runtime contexts.
   private persistSubscriptionExpiredToDB(): void {
-    (async () => {
+    void (async () => {
       try {
         const { upsertSetting } = await import("./services/settings");
         await upsertSetting(
@@ -145,7 +145,7 @@ export class ZohoBooksService {
   // Call this when the subscription is confirmed active again (e.g., after upgrade).
   public clearSubscriptionExpiredInDB(): void {
     this._subscriptionExpired = false;
-    (async () => {
+    void (async () => {
       try {
         const { deleteSetting } = await import("./services/settings");
         await deleteSetting("zoho.subscription_expired");

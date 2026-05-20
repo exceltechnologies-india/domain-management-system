@@ -39,7 +39,7 @@ export default function InvoiceDiagnostics() {
   }, []);
 
   useEffect(() => {
-    fetchDiagnostics();
+    void fetchDiagnostics();
   }, [fetchDiagnostics]);
 
   const handleClearInvoiceNumber = async (orderId: string) => {

@@ -1,6 +1,10 @@
 {
   "extends": ["next/core-web-vitals"],
   "plugins": ["@typescript-eslint"],
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "project": "./tsconfig.json"
+  },
   "rules": {
     "no-console": "warn",
     "react/no-unescaped-entities": "off",
@@ -12,7 +16,8 @@
         "varsIgnorePattern": "^_",
         "caughtErrorsIgnorePattern": "^_"
       }
-    ]
+    ],
+    "@typescript-eslint/no-floating-promises": "warn"
   },
   "overrides": [
     {
@@ -25,7 +30,11 @@
       "files": ["tests/**/*.{ts,tsx}", "scripts/**/*.{ts,js}"],
       "rules": {
         "@typescript-eslint/no-explicit-any": "off",
-        "@typescript-eslint/no-unused-vars": "off"
+        "@typescript-eslint/no-unused-vars": "off",
+        "@typescript-eslint/no-floating-promises": "off"
+      },
+      "parserOptions": {
+        "project": null
       }
     }
   ]

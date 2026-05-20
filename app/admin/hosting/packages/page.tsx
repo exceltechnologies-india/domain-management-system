@@ -130,7 +130,7 @@ export default function AdminPackagesPage() {
   };
 
   useEffect(() => {
-    if (user) fetchPackages();
+    if (user) void fetchPackages();
   }, [user]);
 
   const handleUpdate = async (e: React.FormEvent) => {
@@ -158,7 +158,7 @@ export default function AdminPackagesPage() {
       if (data.success) {
         toast.success('Package updated successfully');
         setIsEditModalOpen(false);
-        fetchPackages();
+        void fetchPackages();
       } else {
         toast.error(data.message || 'Update failed');
       }

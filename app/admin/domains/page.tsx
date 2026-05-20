@@ -104,7 +104,7 @@ export default function AdminDomainsPage() {
         return;
       }
       setUser(userObj);
-      fetchDomains();
+      void fetchDomains();
       return;
     }
 
@@ -123,7 +123,7 @@ export default function AdminDomainsPage() {
     }
 
     setUser(userObj);
-    fetchDomains();
+    void fetchDomains();
   }, [router, session, sessionStatus]);
 
   const fetchDomains = async () => {
@@ -201,7 +201,7 @@ export default function AdminDomainsPage() {
 
       if (data.success) {
         toast.success(`${domain.name} synced successfully`, { id: `sync-${domain.id}` });
-        fetchDomains(); // Refresh the list
+        void fetchDomains(); // Refresh the list
       } else {
         toast.error(data.error || 'Sync failed', { id: `sync-${domain.id}` });
       }

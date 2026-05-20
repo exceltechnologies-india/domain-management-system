@@ -62,14 +62,14 @@ export const logger = {
     if (isDevelopment) {
       console.error(...args);
     }
-    sendToServer('error', args);
+    void sendToServer('error', args);
   },
 
   warn: (...args: unknown[]) => {
     if (isDevelopment) {
       console.warn(...args);
     }
-    sendToServer('warn', args);
+    void sendToServer('warn', args);
   },
 
   info: (...args: unknown[]) => {

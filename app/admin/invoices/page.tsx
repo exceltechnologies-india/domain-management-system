@@ -74,7 +74,7 @@ export default function AdminInvoicesPage() {
         return;
       }
       setIsAuthLoading(false);
-      fetchInvoices(page);
+      void fetchInvoices(page);
       return;
     }
 
@@ -101,7 +101,7 @@ export default function AdminInvoicesPage() {
     }
 
     setIsAuthLoading(false);
-    fetchInvoices(page);
+    void fetchInvoices(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, status, session?.user?.email, page]);
 
@@ -151,10 +151,10 @@ export default function AdminInvoicesPage() {
 
   const prefetchAdjacent = (currentPage: number, currentHasMore: boolean) => {
     if (currentHasMore && !invoicesCache.current[currentPage + 1] && !fetchingPages.current.has(currentPage + 1)) {
-      fetchInvoices(currentPage + 1, true);
+      void fetchInvoices(currentPage + 1, true);
     }
     if (currentPage > 1 && !invoicesCache.current[currentPage - 1] && !fetchingPages.current.has(currentPage - 1)) {
-      fetchInvoices(currentPage - 1, true);
+      void fetchInvoices(currentPage - 1, true);
     }
   };
 

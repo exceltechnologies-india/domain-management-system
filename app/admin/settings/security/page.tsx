@@ -122,7 +122,7 @@ export default function AdminSecurityPage() {
   }
 
   function copyToClipboard(text: string) {
-    navigator.clipboard.writeText(text).then(() =>
+    void navigator.clipboard.writeText(text).then(() =>
       showSuccessToast("Copied to clipboard")
     );
   }

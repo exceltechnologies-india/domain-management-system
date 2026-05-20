@@ -89,7 +89,7 @@ export default function ViewInvoicePage({ params }: { params: Promise<{ id: stri
       }
     };
 
-    fetchPdf();
+    void fetchPdf();
 
     return () => {
       cancelled = true;

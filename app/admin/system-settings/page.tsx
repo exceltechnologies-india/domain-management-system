@@ -100,7 +100,7 @@ export default function AdminSettings() {
     setIsAuthLoading(false);
 
     // Trigger data loading after auth is confirmed
-    loadSystemSettings();
+    void loadSystemSettings();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
@@ -600,7 +600,7 @@ export default function AdminSettings() {
   };
 
   const handleLogout = () => {
-    performLogout();
+    void performLogout();
   };
 
   const tabs = [

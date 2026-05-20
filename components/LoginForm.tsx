@@ -239,7 +239,7 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
             className="space-y-6"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
-                handleSubmit(e as unknown as React.FormEvent);
+                void handleSubmit(e as unknown as React.FormEvent);
               }
             }}
           >

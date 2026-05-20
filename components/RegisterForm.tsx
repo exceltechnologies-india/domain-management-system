@@ -439,7 +439,7 @@ export default function RegisterForm({ className = '' }: RegisterFormProps) {
             className="space-y-6"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
-                handleSubmit(e as unknown as React.FormEvent);
+                void handleSubmit(e as unknown as React.FormEvent);
               }
             }}
           >

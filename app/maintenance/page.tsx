@@ -50,7 +50,7 @@ export default function MaintenancePage() {
     }
   };
 
-  useEffect(() => { fetchStatus(); }, []);
+  useEffect(() => { void fetchStatus(); }, []);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);

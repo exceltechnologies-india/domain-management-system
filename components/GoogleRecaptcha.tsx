@@ -119,7 +119,7 @@ export default function GoogleRecaptcha({
       }
     };
 
-    renderRecaptcha();
+    void renderRecaptcha();
 
     return () => {
       isMounted = false;

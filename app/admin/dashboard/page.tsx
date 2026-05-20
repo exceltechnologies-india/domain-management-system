@@ -293,7 +293,7 @@ export default function AdminDashboard() {
       if (userObj.role !== "admin") { router.push("/dashboard"); return; }
       setUser(userObj);
       setIsAuthLoading(false);
-      fetchHealth();
+      void fetchHealth();
       return;
     }
 

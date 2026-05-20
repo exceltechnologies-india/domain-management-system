@@ -93,7 +93,7 @@ export default function DomainCrossSell() {
         <div 
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
-              handleSearch(e as unknown as React.FormEvent);
+              void handleSearch(e as unknown as React.FormEvent);
             }
           }}
           className="relative"

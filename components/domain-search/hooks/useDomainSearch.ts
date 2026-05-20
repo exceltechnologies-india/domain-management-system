@@ -102,7 +102,7 @@ export function useDomainSearch({
       setSearchTerm(initialSearchTerm);
       if (autoSearch) {
         const timer = setTimeout(() => {
-          handleSearch(undefined, initialSearchTerm);
+          void handleSearch(undefined, initialSearchTerm);
         }, 100);
         return () => clearTimeout(timer);
       }

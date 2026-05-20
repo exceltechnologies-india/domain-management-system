@@ -90,7 +90,7 @@ export default function CartPage() {
         setUser(base);
         const fresh = await refreshUserFromServer();
         if (fresh) setUser((prev) => prev ? { ...prev, ...fresh } : fresh);
-        mergeWithServerCart();
+        void mergeWithServerCart();
         return;
       }
 
@@ -107,11 +107,11 @@ export default function CartPage() {
         if (base.role === 'admin') { router.push('/admin/dashboard'); return; }
         const fresh = await refreshUserFromServer(token);
         setUser(fresh ?? base);
-        mergeWithServerCart();
+        void mergeWithServerCart();
       } catch { /* ignore parse error */ }
     };
 
-    init();
+    void init();
   }, [router, mergeWithServerCart, session, status]);
 
   // ── React to external profile-update events ───────────────────────────────
@@ -125,7 +125,7 @@ export default function CartPage() {
     };
 
     window.addEventListener('profileUpdated', handleProfileUpdate);
-    const onStorage = (e: StorageEvent) => { if (e.key === 'user') handleProfileUpdate(); };
+    const onStorage = (e: StorageEvent) => { if (e.key === 'user') void handleProfileUpdate(); };
     window.addEventListener('storage', onStorage);
     return () => {
       window.removeEventListener('profileUpdated', handleProfileUpdate);

@@ -97,7 +97,7 @@ export default function AdminViewInvoicePage({ params }: { params: Promise<{ id:
       }
     };
 
-    fetchPdf();
+    void fetchPdf();
 
     return () => {
       cancelled = true;

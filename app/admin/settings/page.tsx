@@ -210,7 +210,7 @@ export default function AdminSettings() {
     if (session?.user) {
       const u = { firstName: session.user.name?.split(" ")[0] || "", lastName: session.user.name?.split(" ").slice(1).join(" ") || "", role: (session.user as { role?: string }).role || "user" };
       if (u.role !== "admin") { router.push("/dashboard"); return; }
-      setUser(u); setIsAuthLoading(false); loadAllSettings(); return;
+      setUser(u); setIsAuthLoading(false); void loadAllSettings(); return;
     }
     const getCookieValue = (name: string) => { const v = `; ${document.cookie}`; const p = v.split(`; ${name}=`); if (p.length === 2) return p.pop()?.split(";").shift(); return null; };
     const token = getCookieValue("token") || safeLocalStorage.getItem("token");
@@ -218,7 +218,7 @@ export default function AdminSettings() {
     if (!token || !userData) { router.push("/login"); return; }
     const u = JSON.parse(userData);
     if (u.role !== "admin") { router.push("/dashboard"); return; }
-    setUser(u); setIsAuthLoading(false); loadAllSettings();
+    setUser(u); setIsAuthLoading(false); void loadAllSettings();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, status, session?.user?.email]);
 
@@ -692,7 +692,7 @@ export default function AdminSettings() {
                               <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">Primary Outbound IP</p>
                               <p className="text-2xl font-mono text-blue-900">{ipData.data.primaryIP || "N/A"}</p>
                             </div>
-                            <button onClick={() => { navigator.clipboard.writeText(ipData.data?.primaryIP || ""); showSuccessToast("Copied!"); }} className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-blue-700 bg-white border border-blue-200 rounded-lg hover:bg-blue-50">
+                            <button onClick={() => { void navigator.clipboard.writeText(ipData.data?.primaryIP || ""); showSuccessToast("Copied!"); }} className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-blue-700 bg-white border border-blue-200 rounded-lg hover:bg-blue-50">
                               <Copy className="h-3.5 w-3.5" /> Copy
                             </button>
                           </div>

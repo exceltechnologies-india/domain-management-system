@@ -122,7 +122,7 @@ export default function AdminTLDPricing() {
 
       setUser(userObj);
       setIsAuthLoading(false); // Auth done, UI (shell) can load
-      loadTLDPricing();
+      void loadTLDPricing();
       return;
     }
 
@@ -150,7 +150,7 @@ export default function AdminTLDPricing() {
 
     setUser(userObj);
     setIsAuthLoading(false); // Auth done, UI (shell) can load
-    loadTLDPricing();
+    void loadTLDPricing();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, status, session?.user?.email]);
 
@@ -217,7 +217,7 @@ export default function AdminTLDPricing() {
   };
 
   const handleLogout = () => {
-    performLogout();
+    void performLogout();
   };
 
 

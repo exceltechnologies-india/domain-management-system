@@ -59,7 +59,7 @@ export default function ManageDomain() {
         role: sUser.role || 'user',
       };
       setUser(userObj);
-      loadDomainDetails(userObj);
+      void loadDomainDetails(userObj);
       return;
     }
 
@@ -73,7 +73,7 @@ export default function ManageDomain() {
 
     const userObj = JSON.parse(userData);
     setUser(userObj);
-    loadDomainDetails(userObj);
+    void loadDomainDetails(userObj);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, session, status, params.id]);
 
@@ -113,7 +113,7 @@ export default function ManageDomain() {
           const isHosted = hostedDomains.includes(foundDomain.name);
           setIsHostedDomain(isHosted);
 
-          loadNameservers(foundDomain.name);
+          void loadNameservers(foundDomain.name);
         } else {
           toast.error('Domain not found');
           router.push('/dashboard/domains');
@@ -188,7 +188,7 @@ export default function ManageDomain() {
 
       if (response.ok) {
         toast.success('Nameservers updated successfully');
-        loadNameservers(domain.name);
+        void loadNameservers(domain.name);
       } else {
         toast.error(data.error || 'Failed to update nameservers');
       }

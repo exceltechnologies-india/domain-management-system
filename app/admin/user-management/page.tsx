@@ -123,7 +123,7 @@ export default function AdminUsers() {
 
       setUser(userObj as User);
       setIsAuthLoading(false);
-      loadUsers();
+      void loadUsers();
       return;
     }
 
@@ -151,7 +151,7 @@ export default function AdminUsers() {
 
     setUser(userObj);
     setIsAuthLoading(false);
-    loadUsers();
+    void loadUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, status, session?.user?.email]);
 
@@ -218,7 +218,7 @@ export default function AdminUsers() {
   };
 
   const handleLogout = () => {
-    performLogout();
+    void performLogout();
   };
 
   const handleViewUser = (userId: string) => {
@@ -1049,7 +1049,7 @@ export default function AdminUsers() {
               </div>
             </div>
 
-            <form onSubmit={(e) => { e.preventDefault(); handlePasswordResetSubmit(); }}>
+            <form onSubmit={(e) => { e.preventDefault(); void handlePasswordResetSubmit(); }}>
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
