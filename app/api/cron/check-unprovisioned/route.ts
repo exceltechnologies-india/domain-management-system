@@ -1,18 +1,33 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 import { EmailService } from "@/lib/email";
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import Order, { type IOrder } from "@/models/Order";
+import {
+  listDeferredPendingHostings,
+  provisionPendingHosting,
+} from "@/lib/services/pending-hostings";
 import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Scans for orders paid >30 minutes ago that still have domains in "pending"
- * status (provisioning never completed). Emails admin with the list so they
- * can retry manually from the admin panel.
+ * Two-part cron:
+ *
+ * 1. **Auto-retry deferred hostings.** Drains `PendingHosting` rows with
+ *    `status: "pending"` (the soft-fail rows the provisioner writes when DA
+ *    is unreachable at checkout-time, added 2026-05-19). Each row is retried
+ *    via {@link provisionPendingHosting} — the same code path the admin
+ *    "Retry" button uses, so manual + auto retries stay in sync. DA is
+ *    cheap once reachable; DA-still-unreachable retries fail-fast at the
+ *    same code path that wrote the row in the first place.
+ *
+ * 2. **Alert on stuck orders.** Scans for completed orders > 30 min old
+ *    whose domain-side hasn't reached "registered". Emails admin with the
+ *    list (the auto-retry above handles the hosting side; this catches the
+ *    domain side, ResellerClub stalls, and any genuinely-failed hostings).
  *
  * Auth: x-cron-secret header (timing-safe comparison) OR admin session.
  * Recommended schedule: every 30 minutes via external cron trigger.
@@ -36,6 +51,26 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
+    // ── Part 1: drain deferred PendingHosting rows ──────────────────────────
+    const deferred = await listDeferredPendingHostings();
+    const retryResults = { attempted: deferred.length, succeeded: 0, dropped: 0, failed: 0 };
+    for (const pending of deferred) {
+      const result = await provisionPendingHosting(pending);
+      if (result.ok) {
+        if (result.dropped) retryResults.dropped += 1;
+        else retryResults.succeeded += 1;
+      } else {
+        retryResults.failed += 1;
+      }
+    }
+    if (deferred.length > 0) {
+      serverLogger.info(
+        `[CheckUnprovisioned] Auto-retry drained ${deferred.length} deferred hosting(s): ` +
+        `${retryResults.succeeded} provisioned, ${retryResults.dropped} dropped, ${retryResults.failed} still failing`
+      );
+    }
+
+    // ── Part 2: alert on stuck orders ───────────────────────────────────────
     const cutoff = new Date(Date.now() - 30 * 60 * 1000);
 
     const stuckOrders = await Order.find({
@@ -77,7 +112,10 @@ export async function GET(request: NextRequest) {
       serverLogger.warn(`[CheckUnprovisioned] Admin alerted for ${stuckOrders.length} stuck orders:\n${orderList}`);
     }
 
-    return secureJsonResponse({ checked: stuckOrders.length });
+    return secureJsonResponse({
+      checked: stuckOrders.length,
+      retry: retryResults,
+    });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     serverLogger.error("[CheckUnprovisioned] Error:", message);
