@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
-import { getToken } from "next-auth/jwt";
-import { AUTH_SECRET } from "@/lib/auth-secret";
 import { getSettingsMap, upsertSetting } from "@/lib/services/settings";
-import { getUserByIdSafe } from "@/lib/services/users";
 import { connectToDatabase } from "@/lib/mongoose";
 import { serverLogger } from "@/lib/server-logger";
 import fs from "fs";
@@ -12,17 +9,8 @@ import { execSync } from "child_process";
 
 export const dynamic = "force-dynamic";
 
-async function getAdminUser(request: NextRequest) {
-  let user = await AuthService.getUserFromRequest(request);
-  if (!user) {
-    const token = await getToken({ req: request, secret: AUTH_SECRET });
-    if (token?.id) {
-      user = await getUserByIdSafe(token.id);
-    }
-  }
-  if (!user || user.role !== "admin") return null;
-  return user;
-}
+const getAdminUser = (request: NextRequest) =>
+  AuthService.getAdminFromRequest(request);
 
 function readEnvFile(): Record<string, string> {
   const envPath = path.join(process.cwd(), ".env.local");

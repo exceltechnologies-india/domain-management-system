@@ -70,11 +70,18 @@ export async function GET(request: NextRequest) {
       ];
     }
 
+    // Hard upper bound on the in-memory merge. The route loads every
+    // matching PendingDomain row + every in-flight Order to merge + paginate
+    // in memory — past a few thousand rows this OOMs. 1000 is a safety net
+    // (the UI shows 20/page; if results genuinely exceed 1000 the admin
+    // should narrow with search/status filters).
+    const HARD_FETCH_CAP = 1000;
     const pendingDomainsFromCollection = await PendingDomain.find(
       pendingDomainQuery
     )
       .populate("userId", "firstName lastName email phone companyName")
       .sort({ createdAt: -1 })
+      .limit(HARD_FETCH_CAP)
       .lean();
 
     // STEP 2: Get domains from Orders with pending/processing status

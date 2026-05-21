@@ -226,4 +226,16 @@ export class AuthService {
     const user = await this.getUserFromRequest(request);
     return !!user;
   }
+
+  /**
+   * Admin variant of {@link getUserFromRequest}: returns the hydrated User
+   * doc only when authenticated AND `role === "admin"`. Returns null
+   * otherwise. Routes drop the manual `getToken({req,secret})` fallback +
+   * inline role check and just call this — `getUserFromRequest` already
+   * walks the Bearer → NextAuth-getToken → NextAuth-session ladder.
+   */
+  static async getAdminFromRequest(request: NextRequest): Promise<IUser | null> {
+    const user = await this.getUserFromRequest(request);
+    return user && user.role === "admin" ? user : null;
+  }
 }

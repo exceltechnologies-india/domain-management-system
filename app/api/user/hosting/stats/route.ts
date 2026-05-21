@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { DirectAdminService } from "@/lib/directadmin";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
+import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { serverLogger } from "@/lib/server-logger";
 import type { IHosting } from "@/models/Hosting";
 import { listUserHostingsByDomain, upsertHostingFromDirectAdminStats } from "@/lib/services/hostings";
@@ -23,47 +24,65 @@ export async function GET(request: NextRequest) {
 
     const user = authUser;
 
-    // 2. Identification Strategy
-    // We want to find ALL accounts that belong to this user.
-    // Source A: Explicitly linked username (user.directAdminUsername)
-    // Source B: Accounts on DA with matching email (user.email)
-    
-    // Fetch Global Lists once to scan
-    const [daUserList, daUsageMap, serverInfo] = await Promise.all([
-        DirectAdminService.listUsers(),
-        DirectAdminService.getAllUserUsage(),
-        DirectAdminService.getServerInfo()
-    ]);
+    // Per-user rate-limit. The route below can fan out into ~hundreds of
+    // DA RPC calls when the email-discovery path runs — capping per-user
+    // bounds the DA load any single user can trigger.
+    const rl = await rateLimiters.api.checkKey(`stats:${user._id}`);
+    if (!rl.allowed) {
+      return rateLimitResponse(rl, {
+        limit: 100,
+        message: "Too many stats requests. Please wait before retrying.",
+      });
+    }
 
+    // 2. Identification Strategy
+    // Source A: Explicitly linked username (user.directAdminUsername) — fast path.
+    // Source B: Email-match scan over the full DA user list — slow fallback,
+    //           only used when we don't have a linked username yet.
+    //
+    // The email-match scan used to run on every request and amplified one
+    // HTTP request into N `getUserConfig` calls (N = total DA users). Now
+    // it only fires when we have no other way to find the user's account,
+    // which is also the only correct time it's needed.
     const matchingDaUsernames = new Set<string>();
 
-    // Add Primary Linked Account
     if (user.directAdminUsername) {
+        // Fast path — linked account is sufficient. Skip the full enumeration.
         matchingDaUsernames.add(user.directAdminUsername);
     }
 
-    // Scan for Email Matches (if email exists)
-    if (user.email) {
-        // We fetch config for ALL users in parallel to find email matches.
-        // This effectively "discovers" unlinked accounts.
-        
-        const scanPromises = daUserList.map(async (username) => {
-             // Skip if already matched
-             if (matchingDaUsernames.has(username)) return;
+    const [daUsageMap, serverInfo] = await Promise.all([
+        DirectAdminService.getAllUserUsage(),
+        DirectAdminService.getServerInfo(),
+    ]);
 
-             try {
-                 // Optimization: In a huge system this would be slow.
-                 // Ideally we'd have a backend job syncing this.
-                 const conf = await DirectAdminService.getUserConfig(username);
-                 if (conf && conf.email === user.email) {
-                     matchingDaUsernames.add(username);
-                 }
-             } catch (e) {
-                 // Ignore errors
-             }
-        });
-        
-        await Promise.all(scanPromises);
+    // Only fall back to the email-discovery scan when we still don't know
+    // any DA username for this user. This is the migration-window path
+    // (account exists on DA but the User row's `directAdminUsername` was
+    // never persisted) — rare, and the result auto-fills user.directAdminUsername.
+    if (matchingDaUsernames.size === 0 && user.email) {
+        const daUserList = await DirectAdminService.listUsers();
+        const MAX_SCAN = 200; // bound the worst-case fan-out per request
+
+        if (daUserList.length > MAX_SCAN) {
+            serverLogger.warn(
+                `[stats] DA user list (${daUserList.length}) exceeds MAX_SCAN ` +
+                `(${MAX_SCAN}); skipping email-discovery scan for ${user.email}. ` +
+                `Set User.directAdminUsername to bypass this fallback.`
+            );
+        } else {
+            const scanPromises = daUserList.map(async (username) => {
+                try {
+                    const conf = await DirectAdminService.getUserConfig(username);
+                    if (conf && conf.email === user.email) {
+                        matchingDaUsernames.add(username);
+                    }
+                } catch {
+                    // Ignore per-user errors — best-effort discovery.
+                }
+            });
+            await Promise.all(scanPromises);
+        }
     }
 
     const targetUsernames = Array.from(matchingDaUsernames);
