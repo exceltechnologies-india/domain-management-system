@@ -26,7 +26,12 @@ export async function getHostingById(
 ): Promise<IHosting | null> {
   await connectDB();
   let query = Hosting.findById(id);
-  if (options?.populateUser) query = query.populate("userId");
+  // Narrow projection — workers that populate only read identity + contact
+  // fields. Pulling the full User doc (incl. address/legacy lists) is wasted
+  // memory under cron batch sizes.
+  if (options?.populateUser) {
+    query = query.populate("userId", "email firstName lastName whatsappNumber phone phoneCc");
+  }
   if (options?.lean) return query.lean<IHosting>();
   return query;
 }
@@ -127,7 +132,8 @@ export async function listDueServiceHostingCandidates(opts: {
     status: { $nin: ["failed", "terminated"] },
   })
     .select("_id domainName")
-    .limit(opts.batchSize);
+    .limit(opts.batchSize)
+    .lean<IHosting[]>();
 }
 
 /**
@@ -183,7 +189,7 @@ export async function listUserHostingsByDomain(
   domainName: string
 ): Promise<IHosting[]> {
   await connectDB();
-  return Hosting.find({ userId, domainName }).sort({ createdAt: -1 });
+  return Hosting.find({ userId, domainName }).sort({ createdAt: -1 }).lean<IHosting[]>();
 }
 
 /**
@@ -215,7 +221,9 @@ export async function listExpiredActiveHostings(cutoff: Date): Promise<IHosting[
   return Hosting.find({
     status: "active",
     expiryDate: { $lt: cutoff, $ne: null },
-  }).select("_id domainName directAdminUsername");
+  })
+    .select("_id domainName directAdminUsername")
+    .lean<IHosting[]>();
 }
 
 /**
@@ -224,7 +232,7 @@ export async function listExpiredActiveHostings(cutoff: Date): Promise<IHosting[
  */
 export async function listAllHostingsForDirectAdminDiag(): Promise<IHosting[]> {
   await connectDB();
-  return Hosting.find({}, "directAdminUsername domainName status");
+  return Hosting.find({}, "directAdminUsername domainName status").lean<IHosting[]>();
 }
 
 /**

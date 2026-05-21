@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
+import crypto from "crypto";
 
 /**
  * Mongoose Order Document Interface
@@ -318,18 +319,22 @@ OrderSchema.index({ userId: 1, status: 1 });                    // status filter
  * state, it generates a unique Invoice Number for billing purposes.
  */
 OrderSchema.pre("save", function (next) {
+  // Random suffix uses crypto.randomBytes (~16M values) instead of
+  // Math.random.substring(2,5) (~46k values). The old impl + ms-granular
+  // timestamp prefix collided under burst load — admin/orders/invoice-conflicts
+  // exists because we hit that in prod.
+  const randomSuffix = () => crypto.randomBytes(4).toString("hex").toUpperCase();
+
   // Generate PO number for all new orders (successful or failed)
   if (this.isNew && !this.purchaseOrderNumber) {
     const timestamp = Date.now().toString().slice(-6);
-    const random = Math.random().toString(36).substring(2, 5).toUpperCase();
-    this.purchaseOrderNumber = `PO-${timestamp}-${random}`;
+    this.purchaseOrderNumber = `PO-${timestamp}-${randomSuffix()}`;
   }
 
   // Generate invoice number only for completed orders
   if (this.isNew && this.status === "completed" && !this.invoiceNumber) {
     const timestamp = Date.now().toString().slice(-6);
-    const random = Math.random().toString(36).substring(2, 5).toUpperCase();
-    this.invoiceNumber = `INV-${timestamp}-${random}`;
+    this.invoiceNumber = `INV-${timestamp}-${randomSuffix()}`;
   }
   next();
 });

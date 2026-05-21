@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import { verifyAdminAuth } from "@/lib/admin-auth";
 import { getUserWithPassword } from "@/lib/services/users";
-import User from "@/models/User";
 import mongoose from "mongoose";
 import zlib from "node:zlib";
 import { Readable } from "node:stream";

@@ -102,6 +102,15 @@ export async function GET(request: NextRequest) {
     if (!archived) {
       const ordersWithPendingDomains = await listOrdersWithInFlightDomains();
 
+      // Pre-build a Set of lowercased domain names already in the PendingDomain
+      // collection. Avoids the O(N·M) .some() scan that ran for every order
+      // domain.
+      const pendingNamesInCollection = new Set(
+        pendingDomainsFromCollection.map((pd) =>
+          (pd.domainName || "").toLowerCase()
+        )
+      );
+
       // Extract pending/processing domains from orders
       for (const order of ordersWithPendingDomains) {
         for (const domain of order.domains) {
@@ -109,14 +118,9 @@ export async function GET(request: NextRequest) {
           if ((domain.status !== "pending" && domain.status !== "processing") || domain.itemType === 'hosting') {
             continue;
           }
-          // Check if this domain is already in PendingDomain collection
-          const existsInCollection = pendingDomainsFromCollection.some(
-            (pd) =>
-              pd.domainName.toLowerCase() === domain.domainName.toLowerCase()
-          );
 
           // Only add if not already in PendingDomain collection
-          if (!existsInCollection) {
+          if (!pendingNamesInCollection.has(domain.domainName.toLowerCase())) {
             // Apply status filter if specified
             if (status && status !== "all" && domain.status !== status) {
               continue;

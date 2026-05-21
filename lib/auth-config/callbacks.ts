@@ -172,104 +172,23 @@ export const callbacks = {
         );
         let dbUser = await getUserByEmail(user.email);
 
-        // Fetch additional user data from Google/Facebook if access token available
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let additionalData: any = {};
-
-        // DISABLED: These scopes require Google verification for production apps
-        // Re-enable after getting verification for sensitive scopes
-        /*
-        if (account.provider === "google" && account.access_token) {
-          try {
-            // Fetch phone numbers and addresses from Google People API
-            const peopleResponse = await fetch(
-              "https://people.googleapis.com/v1/people/me?personFields=phoneNumbers,addresses",
-              {
-                headers: {
-                  Authorization: `Bearer ${account.access_token}`,
-                },
-              }
-            );
-
-            if (peopleResponse.ok) {
-              const peopleData = await peopleResponse.json();
-
-              // Extract phone number
-              if (
-                peopleData.phoneNumbers &&
-                peopleData.phoneNumbers.length > 0
-              ) {
-                const primaryPhone = peopleData.phoneNumbers[0].value;
-                // Parse phone number (assuming Indian format)
-                const cleanPhone = primaryPhone.replace(/\D/g, "");
-                if (cleanPhone.length === 10) {
-                  additionalData.phone = cleanPhone;
-                  additionalData.phoneCc = "+91";
-                } else if (cleanPhone.length > 10) {
-                  additionalData.phone = cleanPhone.slice(-10);
-                  additionalData.phoneCc = "+" + cleanPhone.slice(0, -10);
-                }
-              }
-
-              // Extract address
-              if (peopleData.addresses && peopleData.addresses.length > 0) {
-                const primaryAddress = peopleData.addresses[0];
-                additionalData.address = {
-                  line1: primaryAddress.streetAddress || "",
-                  city: primaryAddress.city || "",
-                  state: primaryAddress.region || "",
-                  country: primaryAddress.countryCode || "IN",
-                  zipcode: primaryAddress.postalCode || "",
-                };
-              }
-            }
-          } catch (error) {
-            // Silent fail - additional data is optional
-          }
-        }
-        */
-
-        // DISABLED: Facebook additional scopes also disabled for consistency
-        /*
-        if (account.provider === "facebook" && account.access_token) {
-          try {
-            // Fetch user data from Facebook Graph API
-            const fbResponse = await fetch(
-              `https://graph.facebook.com/me?fields=mobile_phone,location{location{city,state,country,zip}}&access_token=${account.access_token}`
-            );
-
-            if (fbResponse.ok) {
-              const fbData = await fbResponse.json();
-
-              // Extract phone number
-              if (fbData.mobile_phone) {
-                const cleanPhone = fbData.mobile_phone.replace(/\D/g, "");
-                if (cleanPhone.length === 10) {
-                  additionalData.phone = cleanPhone;
-                  additionalData.phoneCc = "+91";
-                } else if (cleanPhone.length > 10) {
-                  additionalData.phone = cleanPhone.slice(-10);
-                  additionalData.phoneCc = "+" + cleanPhone.slice(0, -10);
-                }
-              }
-
-              // Extract address from location
-              if (fbData.location && fbData.location.location) {
-                const loc = fbData.location.location;
-                additionalData.address = {
-                  line1: "",
-                  city: loc.city || "",
-                  state: loc.state || "",
-                  country: loc.country || "IN",
-                  zipcode: loc.zip || "",
-                };
-              }
-            }
-          } catch (error) {
-            // Silent fail - additional data is optional
-          }
-        }
-        */
+        // Profile-enrichment fetches against Google People + Facebook Graph
+        // (phone + address) were prototyped but never shipped — those scopes
+        // need Google sensitive-scope verification, which we never pursued.
+        // The carrier `additionalData` is kept so the downstream branches are
+        // typed correctly until we re-enable the fetches (restore from git
+        // history if so).
+        const additionalData: {
+          phone?: string;
+          phoneCc?: string;
+          address?: {
+            line1: string;
+            city: string;
+            state: string;
+            country: string;
+            zipcode: string;
+          };
+        } = {};
 
         if (!dbUser) {
           // Create new user from social login with enhanced profile data
