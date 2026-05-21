@@ -1,27 +1,19 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { recordSystemLog } from "@/lib/services/system-logs";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
-import crypto from "crypto";
+import { authorizeCronRequest } from "@/lib/cron-auth";
 import { serverLogger } from "@/lib/server-logger";
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const { message, source, url, stack, metadata, service, requestId, statusCode, ip: bodyIp } = await req.json();
 
     const origin = req.headers.get("origin") || req.headers.get("referer");
     const ip = bodyIp || req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown";
 
-    // Timing-safe CRON_SECRET check — no fallback; unset env var means cron path is always rejected
-    const cronSecret = process.env.CRON_SECRET;
-    const providedSecret = req.headers.get("x-cron-secret") ?? "";
-    const isLocalCron =
-      cronSecret !== undefined &&
-      cronSecret.length > 0 &&
-      providedSecret.length === cronSecret.length &&
-      crypto.timingSafeEqual(Buffer.from(providedSecret), Buffer.from(cronSecret));
-
     // Accept if: valid internal secret, authenticated session, or same-origin browser request
+    const isLocalCron = authorizeCronRequest(req);
     const session = await getServerSession(authOptions);
     const validOrigin = origin
       ? origin.includes(process.env.NEXTAUTH_URL || "")

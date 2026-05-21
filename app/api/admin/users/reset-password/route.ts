@@ -2,7 +2,6 @@ import { AUTH_SECRET } from "@/lib/auth-secret";
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import { getUserById, getUserByIdSafe } from "@/lib/services/users";
-import User from "@/models/User";
 import { AuthService } from "@/lib/auth";
 import { getToken } from "next-auth/jwt";
 import bcrypt from "bcryptjs";

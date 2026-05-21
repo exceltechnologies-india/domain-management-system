@@ -7,7 +7,6 @@
  */
 import { describe, it, expect } from "vitest";
 
-import DNSRecord from "@/models/DNSRecord";
 import Hosting from "@/models/Hosting";
 import HostingPlan from "@/models/HostingPlan";
 import IPCheck from "@/models/IPCheck";
@@ -17,37 +16,6 @@ import PendingHosting from "@/models/PendingHosting";
 import RenewalPayment from "@/models/RenewalPayment";
 import Settings from "@/models/Settings";
 import SystemLog from "@/models/SystemLog";
-import TLDPricingCache from "@/models/TLDPricingCache";
-
-// ─── DNSRecord ───────────────────────────────────────────────────────────────
-
-describe("DNSRecord model", () => {
-  it("imports without error", () => {
-    expect(DNSRecord).toBeDefined();
-  });
-
-  it("defines the correct DNS record types", () => {
-    const validTypes: Array<"A" | "AAAA" | "CNAME" | "MX" | "TXT" | "NS"> = [
-      "A", "AAAA", "CNAME", "MX", "TXT", "NS",
-    ];
-    expect(validTypes).toHaveLength(6);
-    expect(validTypes).toContain("A");
-    expect(validTypes).toContain("MX");
-    expect(validTypes).toContain("TXT");
-  });
-
-  it("TTL minimum is 300 seconds (5 minutes)", () => {
-    // Ensures TTL can't be set unreasonably low
-    const minTTL = 300;
-    expect(minTTL).toBe(300);
-    expect(minTTL).toBeGreaterThanOrEqual(60); // at least 1 minute
-  });
-
-  it("TTL maximum is 86400 seconds (24 hours)", () => {
-    const maxTTL = 86400;
-    expect(maxTTL).toBe(86400);
-  });
-});
 
 // ─── Hosting ─────────────────────────────────────────────────────────────────
 
@@ -289,42 +257,3 @@ describe("SystemLog model", () => {
   });
 });
 
-// ─── TLDPricingCache ─────────────────────────────────────────────────────────
-
-describe("TLDPricingCache model", () => {
-  it("imports without error", () => {
-    expect(TLDPricingCache).toBeDefined();
-  });
-
-  it("uses a singleton key pattern", () => {
-    const singletonKey = "tld_pricing_cache";
-    expect(singletonKey).toBe("tld_pricing_cache");
-  });
-
-  it("tldPricing entries contain required pricing fields", () => {
-    const sampleEntry = {
-      tld: "com",
-      customerPrice: 1200,
-      resellerPrice: 900,
-      currency: "INR",
-      category: "generic",
-    };
-    expect(sampleEntry.tld).toBe("com");
-    expect(sampleEntry.customerPrice).toBeGreaterThan(sampleEntry.resellerPrice);
-    expect(sampleEntry.currency).toBe("INR");
-  });
-
-  it("margin is the difference between customer and reseller price", () => {
-    const customerPrice = 1200;
-    const resellerPrice = 900;
-    const margin = customerPrice - resellerPrice;
-    expect(margin).toBe(300);
-    expect(margin).toBeGreaterThan(0);
-  });
-
-  it("cachedAt and expiresAt are Date fields", () => {
-    const now = new Date();
-    const expiresIn30Min = new Date(now.getTime() + 30 * 60 * 1000);
-    expect(expiresIn30Min.getTime()).toBeGreaterThan(now.getTime());
-  });
-});
