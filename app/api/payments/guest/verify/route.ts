@@ -11,6 +11,7 @@ import { claimPendingOrderForProcessing, createOrder, createOrderInSession, forc
 import { createPaymentInTransaction } from "@/lib/services/payments";
 import { provisionCartItems } from "@/lib/services/payment/provisioner";
 import { finalizePendingOrder } from "@/lib/services/payment/order-creator";
+import { validateOrderAmountMatchesRazorpay } from "@/lib/services/payment/verification";
 import { createZohoInvoice, runPostPaymentTasks } from "@/lib/services/payment/post-tasks";
 import { recordSystemLog } from "@/lib/services/system-logs";
 import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
@@ -131,6 +132,22 @@ export async function POST(request: NextRequest) {
 
     // ── Idempotency guard ────────────────────────────────────────────────────
     const existingOrder = await getOrderByRazorpayOrderId(razorpay_order_id);
+
+    // Defense-in-depth ownership check. The pending Order was written at
+    // /guest/create-order time with `userEmail: resolvedEmail`. The verify
+    // token's `guestEmail` must match — otherwise a different guest is trying
+    // to claim a pending order they didn't initiate.
+    if (
+      existingOrder &&
+      existingOrder.userEmail &&
+      existingOrder.userEmail.toLowerCase() !== guestEmail.toLowerCase()
+    ) {
+      serverLogger.warn(
+        `[GuestCheckout] Token email ${guestEmail} attempted to claim order ${existingOrder.orderId} owned by ${existingOrder.userEmail}`
+      );
+      return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    }
+
     if (existingOrder?.status === "completed") {
       return NextResponse.json({
         success: true,
@@ -153,6 +170,19 @@ export async function POST(request: NextRequest) {
         isGuest: true,
         domainRegistrationStatus: "processing",
       });
+    }
+
+    // ── Amount-matches-DB check (anti-underpayment fraud) ────────────────────
+    // Mirrors the logged-in /verify check. The Razorpay signature confirms
+    // the order id + total were Razorpay-signed, but doesn't bind them to
+    // OUR amount expectation — without this, a tampered Razorpay order with
+    // a lower amount than the DB row could still verify.
+    if (existingOrder && existingOrder.status === "pending") {
+      const amountCheck = await validateOrderAmountMatchesRazorpay(
+        razorpay_order_id,
+        existingOrder
+      );
+      if (!amountCheck.ok) return amountCheck.response;
     }
 
     // ── Validate domains ─────────────────────────────────────────────────────
@@ -272,7 +302,8 @@ export async function POST(request: NextRequest) {
       const finalised = await finalizePendingOrder({
         order: claimed,
         user: guestUser,
-        cartItems,
+        // cartItems intentionally NOT passed — derived from `claimed.domains`
+        // inside finalizePendingOrder. See SECURITY note there.
         razorpay_payment_id,
         razorpay_signature,
         paymentDetails,

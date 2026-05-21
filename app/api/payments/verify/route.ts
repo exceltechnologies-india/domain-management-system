@@ -86,6 +86,19 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
       ? await getOrderByRazorpayOrderId(razorpay_order_id)
       : null;
 
+    // Defense-in-depth ownership check. The Razorpay signature is order-bound
+    // so cross-account claim isn't directly exploitable today, but any future
+    // change to the signature path would have nothing else stopping it.
+    if (existingOrder && String(existingOrder.userId) !== String(user._id)) {
+      serverLogger.warn(
+        `[PAYMENT-VERIFY] User ${user._id} attempted to claim order ${existingOrder.orderId} owned by ${existingOrder.userId}`
+      );
+      return NextResponse.json(
+        { error: "Order not found" },
+        { status: 404 }
+      );
+    }
+
     if (existingOrder) {
       if (existingOrder.status === "completed") {
         return NextResponse.json({
@@ -207,7 +220,11 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
       } = await finalizePendingOrder({
         order: claimed,
         user,
-        cartItems,
+        // cartItems intentionally NOT passed — finalizePendingOrder derives
+        // them from `claimed.domains` (pinned at create-order time). The
+        // Razorpay signature check doesn't bind item composition, so
+        // trusting request-body cartItems here would let a user swap one
+        // paid domain for another.
         razorpay_payment_id,
         razorpay_signature,
         razorpay_subscription_id,

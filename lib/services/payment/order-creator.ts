@@ -252,7 +252,6 @@ export interface FinalizePendingOrderInput {
   /** The order that was already claimed (pending → processing) by the caller. */
   order: HydratedDocument<IOrder>;
   user: IUser;
-  cartItems: CartItem[];
   razorpay_payment_id: string;
   razorpay_signature: string;
   razorpay_subscription_id?: string;
@@ -267,6 +266,12 @@ export interface FinalizePendingOrderInput {
  * {@link createCompletedOrder}'s return shape so the calling route can
  * keep the same downstream code (Zoho invoice, post-payment tasks).
  *
+ * SECURITY: cartItems is derived from `order.domains` (pinned at
+ * create-order time), NOT from the request body. The Razorpay signature
+ * check only validates the order id + total — it doesn't bind the item
+ * composition. Trusting request-body cartItems here would let a user who
+ * paid for `cheap.in` swap it for `expensive.com`.
+ *
  * Why .save() rather than updateOne(): the Order pre-save hook generates
  * `invoiceNumber` on the `completed` transition; that hook only fires on
  * doc.save(), not on direct updates.
@@ -277,7 +282,6 @@ export async function finalizePendingOrder(
   const {
     order,
     user,
-    cartItems,
     razorpay_payment_id,
     razorpay_signature,
     razorpay_subscription_id,
@@ -285,6 +289,25 @@ export async function finalizePendingOrder(
   } = input;
 
   const orderId = order.orderId;
+
+  // Rebuild cartItems from the DB-pinned `order.domains` array. Each entry
+  // was written at create-order time after the price-verifier passed, so
+  // this is the trusted view of what the user actually paid for.
+  const cartItems: CartItem[] = order.domains.map((d) => ({
+    domainName: d.domainName,
+    price: d.price,
+    currency: d.currency,
+    registrationPeriod: d.registrationPeriod,
+    itemType: d.itemType,
+    periodUnit: d.periodUnit as CartItem["periodUnit"],
+    hostingPlan: d.hostingPlan
+      ? {
+          id: d.hostingPlan.planId,
+          name: d.hostingPlan.name,
+          serverPackage: d.hostingPlan.serverPackage,
+        }
+      : undefined,
+  }));
 
   serverLogger.info(
     `🚀 [PAYMENT-VERIFY] Finalising pending order ${orderId} — starting provisioning. status=${paymentDetails.status}`
