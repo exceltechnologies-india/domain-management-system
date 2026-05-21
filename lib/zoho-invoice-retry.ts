@@ -125,28 +125,29 @@ async function retryOne(
 }
 
 /**
- * Kick off background retries for the given user's stuck orders.
- * Returns immediately — work continues in the background.
+ * Run the throttled retry inline for the given user's stuck orders.
+ * Awaitable — callers must await, otherwise the work dies on Cloud Run when
+ * CPU is throttled after the response is sent. Each attempt is gated by the
+ * 5-min Redis throttle so repeated page loads don't hammer Zoho.
  */
-export function selfHealUserInvoices(userId: string): void {
-  void (async () => {
-    try {
-      const stuckOrders = await listStuckZohoInvoiceOrders(userId);
-      if (stuckOrders.length === 0) return;
+export async function selfHealUserInvoices(userId: string): Promise<RetryResult[]> {
+  try {
+    const stuckOrders = await listStuckZohoInvoiceOrders(userId);
+    if (stuckOrders.length === 0) return [];
 
-      serverLogger.info(
-        `[ZohoRetry] Self-heal triggered for user ${userId}: ${stuckOrders.length} stuck order(s)`
-      );
+    serverLogger.info(
+      `[ZohoRetry] Self-heal triggered for user ${userId}: ${stuckOrders.length} stuck order(s)`
+    );
 
-      // Retry sequentially so we don't blast Zoho with parallel requests
-      // for the same user. Each respects its own throttle.
-      for (const order of stuckOrders) {
-        await retryOne(order);
-      }
-    } catch (err) {
-      serverLogger.error("[ZohoRetry] selfHealUserInvoices failed:", err);
+    const results: RetryResult[] = [];
+    for (const order of stuckOrders) {
+      results.push(await retryOne(order));
     }
-  })();
+    return results;
+  } catch (err) {
+    serverLogger.error("[ZohoRetry] selfHealUserInvoices failed:", err);
+    return [];
+  }
 }
 
 /**
