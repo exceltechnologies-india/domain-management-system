@@ -59,10 +59,15 @@ export async function getOrderByIdOrOrderId(
   options?: { select?: string }
 ): Promise<IOrder | null> {
   await connectDB();
+  // 24-hex looks like a Mongo `_id`; everything else is treated as the
+  // user-facing `orderId` field (e.g. `ord_…`, `rnw_…`). Branch on the
+  // detector rather than $or-ing both — keeps the filter intent explicit
+  // and means a hypothetical 24-hex string that also happened to equal an
+  // existing `orderId` value can't match the wrong row.
   const isObjectId = /^[0-9a-fA-F]{24}$/.test(idOrOrderId);
-  let query = Order.findOne({
-    $or: isObjectId ? [{ _id: idOrOrderId }, { orderId: idOrOrderId }] : [{ orderId: idOrOrderId }],
-  });
+  let query = Order.findOne(
+    isObjectId ? { _id: idOrOrderId } : { orderId: idOrOrderId }
+  );
   if (options?.select) query = query.select(options.select);
   return query;
 }
@@ -159,14 +164,18 @@ export async function listStuckZohoInvoiceOrdersAdmin(opts?: { limit?: number; s
  * in-flight registrations that haven't been moved to the PendingDomain
  * collection yet. Populates the owner for the table render.
  */
-export async function listOrdersWithInFlightDomains(): Promise<IOrder[]> {
+export async function listOrdersWithInFlightDomains(
+  opts: { limit?: number } = {}
+): Promise<IOrder[]> {
   await connectDB();
+  const limit = opts.limit ?? 1000; // hard cap — the admin route merges this in memory
   return Order.find({
     isDeleted: { $ne: true },
     "domains.status": { $in: ["pending", "processing"] },
   })
     .populate("userId", "firstName lastName email phone companyName")
     .sort({ createdAt: -1 })
+    .limit(limit)
     .lean<IOrder[]>();
 }
 
@@ -635,16 +644,57 @@ export async function completeOrder(
 }
 
 /**
+ * Typed payload for {@link createOrder} / {@link createOrderInSession}.
+ * Mirrors the Order schema's fields; passing fields outside this set is a
+ * TS error rather than a silent Mongoose strip. Extra keys can still be
+ * added by passing the existing `Record<string, unknown>` fallback if
+ * truly needed (legacy back-compat).
+ */
+export interface CreateOrderInput {
+  orderId: string;
+  purchaseOrderNumber?: string;
+  userId: unknown;
+  userName?: string;
+  userEmail?: string;
+  paymentId: string;
+  razorpayOrderId: string;
+  razorpayPaymentId: string;
+  razorpaySignature: string;
+  amount: number;
+  currency?: string;
+  status?: "pending" | "paid" | "processing" | "completed" | "failed" | "refunded";
+  domains: unknown[];
+  successfulDomains?: string[];
+  paymentVerification?: {
+    verifiedAt: Date;
+    paymentStatus: string;
+    paymentAmount: number;
+    paymentCurrency: string;
+    razorpayOrderId: string;
+  };
+  invoiceNumber?: string;
+  zohoInvoiceId?: string;
+  orderType?: "domain" | "hosting" | "bundle" | "renewal" | "hosting_upgrade" | "hosting_trial" | "unknown";
+  upgradeDetails?: {
+    hostingId: string;
+    fromPlanId: string;
+    toPlanId: string;
+    remainingDays: number;
+  };
+}
+
+/**
  * Insert a new Order document. Thin pass-through to the model constructor +
  * save, exposed here so callers don't import the Mongoose model directly.
  * Returns the persisted document so callers can read the generated `_id`.
  *
- * The payload type is intentionally loose (`Record<string, unknown>`) to
- * mirror Mongoose's own permissive `Model.create()` — the model schema does
- * the actual validation at write time. Callers that want compile-time
- * checking should pass a typed object literal.
+ * The payload is `CreateOrderInput` plus a loose-record escape hatch so
+ * legacy callers still compile while new callers get compile-time
+ * checking against the schema shape.
  */
-export async function createOrder(payload: Record<string, unknown>): Promise<IOrder> {
+export async function createOrder(
+  payload: CreateOrderInput | Record<string, unknown>
+): Promise<IOrder> {
   await connectDB();
   return Order.create(payload);
 }
@@ -659,7 +709,7 @@ export async function createOrder(payload: Record<string, unknown>): Promise<IOr
  * inserts, prefer {@link createOrder}.
  */
 export async function createOrderInSession(
-  payload: Record<string, unknown>,
+  payload: CreateOrderInput | Record<string, unknown>,
   session: mongoose.ClientSession
 ): Promise<IOrder> {
   await connectDB();

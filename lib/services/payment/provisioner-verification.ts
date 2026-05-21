@@ -141,9 +141,17 @@ export async function runDomainVerificationPhase(
     `📝 [PAYMENT-VERIFY] Creating/updating ${pendingDomainsToCreate.length} pending domain records for admin management`
   );
   try {
+    // Scope the upsert filter to (domainName, userId). Keying on domainName
+    // alone meant a second user failing on the same name would silently
+    // overwrite the first user's PendingDomain row — including the
+    // `userId` field, which is how the admin dashboard surfaces who owns
+    // the failed registration.
     const bulkOps = pendingDomainsToCreate.map((domain) => ({
       updateOne: {
-        filter: { domainName: domain.domainName },
+        filter: {
+          domainName: domain.domainName,
+          userId: domain.userId,
+        },
         update: { $set: domain },
         upsert: true,
       },

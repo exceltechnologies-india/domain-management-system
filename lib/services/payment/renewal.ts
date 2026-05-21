@@ -2,9 +2,12 @@ import { NextResponse } from "next/server";
 import { DirectAdminService } from "@/lib/directadmin";
 import { ZohoBooksService } from "@/lib/zohobooks";
 import { EmailService } from "@/lib/email";
-import connectDB from "@/lib/mongodb";
-import Order from "@/models/Order";
 import type { IOrder } from "@/models/Order";
+import {
+  getOrderByOrderId,
+  getOrderByRazorpayOrderId,
+  recordZohoInvoiceForOrder,
+} from "@/lib/services/orders";
 import { listHostingsForUser } from "@/lib/services/hostings";
 import { getCurrentDate } from "@/lib/dateUtils";
 import { serverLogger } from "@/lib/server-logger";
@@ -41,14 +44,12 @@ export async function handleRenewalPayment(
       paymentDetails?.notes?.type || "ID Prefix"
     }`
   );
-  await connectDB();
-
-  let renewalOrder = await Order.findOne({
-    $or: [
-      { razorpayOrderId: razorpay_order_id },
-      { orderId: razorpay_order_id },
-    ],
-  });
+  // The verify route may pass either the Razorpay order id (`order_…`) or
+  // our internal orderId (`ord_…`/`rnw_…`). Try the Razorpay match first
+  // (the common case) and fall back to the internal lookup.
+  let renewalOrder =
+    (await getOrderByRazorpayOrderId(razorpay_order_id)) ??
+    (await getOrderByOrderId(razorpay_order_id));
 
   const zohoService = ZohoBooksService.getInstance();
   let invoiceId = paymentDetails?.notes?.invoice_id;
@@ -84,9 +85,16 @@ export async function handleRenewalPayment(
 
       if (invoice && invoice.invoice_id) {
         invoiceId = invoice.invoice_id;
+        // Use the service helper so the E11000 collision-on-invoiceNumber
+        // path is the same one /api/payments/verify uses (graceful fall-back
+        // to invoiceId-only when the number is already taken).
+        await recordZohoInvoiceForOrder(String(renewalOrder._id), {
+          invoiceId: invoice.invoice_id,
+          invoiceNumber: invoice.invoice_number,
+        });
+        // Keep the in-memory doc in sync so downstream reads see the new ids.
         renewalOrder.zohoInvoiceId = invoice.invoice_id;
         renewalOrder.invoiceNumber = invoice.invoice_number;
-        await renewalOrder.save();
         serverLogger.info(
           `✅ [PAYMENT-VERIFY] Zoho Invoice created and paid for renewal: ${invoiceId}`
         );

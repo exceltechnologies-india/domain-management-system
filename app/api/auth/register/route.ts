@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
-import { getUserByEmail } from "@/lib/services/users";
+import { createUserWithCredentials, getUserByEmail } from "@/lib/services/users";
 import { EmailService } from "@/lib/email";
 import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { Schemas } from "@/lib/validation";
@@ -80,8 +78,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    await connectDB();
-
     /**
      * 🛡️ DEFENSE-IN-DEPTH: Security Layer 5 - Business Logic Guard
      * Prevent registration of existing accounts.
@@ -107,25 +103,20 @@ export async function POST(request: NextRequest) {
     // profileCompleted is false when registering with minimal fields (email+password).
     // Users are prompted to complete their profile (phone, address, etc.) before checkout.
     const hasFullProfile = !!(phone && address?.line1 && address?.city);
-    const user = new User({
+    const user = await createUserWithCredentials({
       email,
       password,
       firstName,
       lastName,
-      ...(phone ? { phone } : {}),
-      ...(phoneCc ? { phoneCc } : {}),
-      ...(companyName ? { companyName } : {}),
-      ...(gstNumber ? { gstNumber } : {}),
-      ...(address ? { address } : {}),
-      role: "user", // Strict enforcement of default role
-      isActivated: false,
+      phone,
+      phoneCc,
+      companyName,
+      gstNumber,
+      address,
       activationToken,
       activationTokenExpiry,
-      provider: "credentials",
       profileCompleted: hasFullProfile,
     });
-
-    await user.save();
 
     // Trigger activation email asynchronously
     EmailService.sendActivationEmail(

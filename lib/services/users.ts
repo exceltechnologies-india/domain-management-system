@@ -492,6 +492,57 @@ export async function createUser(data: Record<string, unknown>): Promise<IUser> 
 }
 
 /**
+ * Typed variant of {@link createUser} for the credentials-registration
+ * flow. Schema field names are mirrored so the auth/register route stops
+ * passing an untyped `Record<string, unknown>` through. Optional profile
+ * fields are spread in conditionally — leaving them off lands the schema
+ * defaults rather than `undefined` writes.
+ */
+export interface RegisterUserInput {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  phoneCc?: string;
+  companyName?: string;
+  gstNumber?: string;
+  address?: {
+    line1: string;
+    city: string;
+    state: string;
+    country: string;
+    zipcode: string;
+  };
+  activationToken: string;
+  activationTokenExpiry: Date;
+  profileCompleted: boolean;
+}
+
+export async function createUserWithCredentials(
+  input: RegisterUserInput
+): Promise<IUser> {
+  await connectDB();
+  return User.create({
+    email: input.email,
+    password: input.password,
+    firstName: input.firstName,
+    lastName: input.lastName,
+    ...(input.phone ? { phone: input.phone } : {}),
+    ...(input.phoneCc ? { phoneCc: input.phoneCc } : {}),
+    ...(input.companyName ? { companyName: input.companyName } : {}),
+    ...(input.gstNumber ? { gstNumber: input.gstNumber } : {}),
+    ...(input.address ? { address: input.address } : {}),
+    role: "user", // strict — registration never sets admin
+    isActivated: false,
+    activationToken: input.activationToken,
+    activationTokenExpiry: input.activationTokenExpiry,
+    provider: "credentials",
+    profileCompleted: input.profileCompleted,
+  });
+}
+
+/**
  * Persist ResellerClub customer/contact IDs onto the user document. Called
  * by the post-payment provisioner after `getOrCreateCustomerAndContact` so
  * future profile-sync calls can re-target the same RC contact. Only writes
