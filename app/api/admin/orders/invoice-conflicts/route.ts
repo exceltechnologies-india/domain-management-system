@@ -78,8 +78,8 @@ function slim(order: LeanOrder, user: LeanUser | undefined): OrderSlim {
  */
 export async function GET(request: NextRequest) {
   try {
-    const adminUser = await AuthService.getUserFromRequest(request);
-    if (!adminUser || adminUser.role !== "admin") {
+    const adminUser = await AuthService.getAdminFromRequest(request);
+    if (!adminUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

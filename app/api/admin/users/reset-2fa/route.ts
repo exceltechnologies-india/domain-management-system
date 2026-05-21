@@ -14,8 +14,8 @@ const bodySchema = z.object({
 // POST - Admin resets 2FA for a user
 export async function POST(request: NextRequest) {
   try {
-    const admin = await AuthService.getUserFromRequest(request);
-    if (!admin || admin.role !== "admin") {
+    const admin = await AuthService.getAdminFromRequest(request);
+    if (!admin) {
       return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
     }
 

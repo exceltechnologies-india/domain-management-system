@@ -28,8 +28,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const isAdmin = await AuthService.isAdmin(request);
-    if (!isAdmin) return secureErrorResponse("Forbidden", 403, "FORBIDDEN");
+    const admin = await AuthService.getAdminFromRequest(request);
+    if (!admin) return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
 
     const { id } = await params;
 
@@ -47,10 +47,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const isAdmin = await AuthService.isAdmin(request);
-    if (!isAdmin) return secureErrorResponse("Forbidden", 403, "FORBIDDEN");
+    const admin = await AuthService.getAdminFromRequest(request);
+    if (!admin) return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
 
-    const admin = await AuthService.getUserFromRequest(request);
     const { id } = await params;
     const body = await request.json();
 
@@ -85,10 +84,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const isAdmin = await AuthService.isAdmin(request);
-    if (!isAdmin) return secureErrorResponse("Forbidden", 403, "FORBIDDEN");
+    const admin = await AuthService.getAdminFromRequest(request);
+    if (!admin) return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
 
-    const admin = await AuthService.getUserFromRequest(request);
     const { id } = await params;
     const { message, attachments } = await request.json();
 
@@ -96,7 +94,7 @@ export async function POST(
     if (message.length > 5000) return secureErrorResponse("Message too long", 400, "VALIDATION_ERROR");
 
     const attachmentResult = validateAttachments(attachments, {
-      userId: admin?._id?.toString(),
+      userId: admin._id?.toString(),
       route: "admin.reply",
     });
     if (!attachmentResult.ok) {
@@ -113,13 +111,12 @@ export async function POST(
       if (capErr) return secureErrorResponse(capErr, 400, "TICKET_STORAGE_FULL");
     }
 
-    const adminName = admin
-      ? `${admin.firstName} ${admin.lastName}`.trim()
-      : "Support Team";
+    const adminName =
+      `${admin.firstName} ${admin.lastName}`.trim() || "Support Team";
 
     ticket.messages.push({
       content: message.trim(),
-      authorId: admin!._id,
+      authorId: admin._id,
       authorRole: "admin",
       authorName: adminName,
       attachments: attachmentResult.attachments,

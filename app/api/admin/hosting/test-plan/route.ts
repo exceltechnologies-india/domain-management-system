@@ -16,16 +16,11 @@ export const dynamic = "force-dynamic";
 const TEST_PLAN_ID = "test_1rs";
 const TEST_PLAN_DA_PACKAGE = "Starter"; // reuse smallest DA package
 
-async function getAdminName(request: NextRequest): Promise<string> {
-  const admin = await AuthService.getUserFromRequest(request);
-  return admin ? `${admin.firstName} ${admin.lastName}`.trim() : "admin";
-}
-
 // ── GET /api/admin/hosting/test-plan ──────────────────────────────────────
 export async function GET(request: NextRequest) {
   try {
-    const isAdmin = await AuthService.isAdmin(request);
-    if (!isAdmin) return secureErrorResponse("Forbidden", 403, "FORBIDDEN");
+    const admin = await AuthService.getAdminFromRequest(request);
+    if (!admin) return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
 
     await connectDB();
 
@@ -45,10 +40,10 @@ export async function GET(request: NextRequest) {
 // Body: { action: 'enable' | 'disable', razorpayPlanMonthly?: string }
 export async function POST(request: NextRequest) {
   try {
-    const isAdmin = await AuthService.isAdmin(request);
-    if (!isAdmin) return secureErrorResponse("Forbidden", 403, "FORBIDDEN");
+    const admin = await AuthService.getAdminFromRequest(request);
+    if (!admin) return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
 
-    const adminName = await getAdminName(request);
+    const adminName = `${admin.firstName} ${admin.lastName}`.trim() || "admin";
     const body = await request.json();
     const { action, razorpayPlanMonthly } = body;
 

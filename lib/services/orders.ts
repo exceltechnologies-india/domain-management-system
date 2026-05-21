@@ -596,54 +596,6 @@ export async function claimPendingOrderForProcessing(
 }
 
 /**
- * Mark a `processing` (or stuck-`pending`) order as terminally failed —
- * e.g. /verify signature mismatch or unrecoverable provisioning error.
- * The failure reason itself goes to system-logs / stderr; the Order
- * collection only carries the status transition.
- */
-export async function markOrderFailed(
-  razorpayOrderId: string
-): Promise<IOrder | null> {
-  await connectDB();
-  return Order.findOneAndUpdate(
-    {
-      razorpayOrderId,
-      status: { $in: ["pending", "processing", "paid"] },
-    },
-    { $set: { status: "failed" } },
-    { new: true }
-  );
-}
-
-/**
- * Finalise an order after successful provisioning. Replaces the
- * pre-populated `domains` array with the post-provisioning view, records
- * the successful-domain list, and flips status to `completed` (which is
- * what triggers `invoiceNumber` generation via the pre-save hook).
- *
- * Called from /verify and from /razorpay/webhook — whichever path claimed
- * the order is responsible for invoking this.
- */
-export async function completeOrder(
-  orderObjectId: string | mongoose.Types.ObjectId,
-  updates: {
-    domains: IOrder["domains"];
-    successfulDomains: string[];
-  }
-): Promise<IOrder | null> {
-  await connectDB();
-  // Use .save() (not updateOne) so the pre-save hook fires and generates
-  // the invoiceNumber on the completed transition.
-  const order = await Order.findById(orderObjectId);
-  if (!order) return null;
-  order.domains = updates.domains as IOrder["domains"];
-  order.successfulDomains = updates.successfulDomains;
-  order.status = "completed";
-  await order.save();
-  return order;
-}
-
-/**
  * Typed payload for {@link createOrder} / {@link createOrderInSession}.
  * Mirrors the Order schema's fields; passing fields outside this set is a
  * TS error rather than a silent Mongoose strip. Extra keys can still be

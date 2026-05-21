@@ -7,12 +7,9 @@ import { AuthService } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const authUser = await AuthService.getUserFromRequest(request);
+  const authUser = await AuthService.getAdminFromRequest(request);
   if (!authUser) {
     return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
-  }
-  if ((authUser as { role?: string }).role !== "admin") {
-    return secureErrorResponse("Forbidden", 403, "FORBIDDEN");
   }
 
   try {

@@ -327,19 +327,44 @@ export async function finalizePendingOrder(
     razorpay_subscription_id,
   });
 
-  // Replace the pre-populated placeholder domains[] with the post-provisioning
-  // view (registration results, ResellerClub IDs, hosting plan metadata, etc.)
-  order.domains = orderDomains as unknown as IOrder["domains"];
-  order.successfulDomains = finalSuccessfulDomains;
-  order.razorpayPaymentId = razorpay_payment_id;
-  order.razorpaySignature = razorpay_signature;
-  order.paymentVerification = {
+  const paymentVerification = {
     verifiedAt: new Date(),
     paymentStatus: paymentDetails.status,
     paymentAmount: paymentDetails.amount,
     paymentCurrency: paymentDetails.currency,
     razorpayOrderId: paymentDetails.order_id,
-  } as IOrder["paymentVerification"];
+  };
+
+  // Persist the post-provisioning view (registration results, ResellerClub
+  // IDs, hosting plan metadata, payment metadata) on the Order BEFORE the
+  // status-flip transaction. provisionCartItems already created Hosting docs
+  // and registered domains in RC — if the subsequent save() throws (schema
+  // validation, mongo blip), this updateOne ensures the Order at minimum
+  // reflects what was actually provisioned. Without this the Order would
+  // stay at status=processing with the placeholder domains[] from
+  // /create-order and admin would have no way to reconcile the real
+  // post-provisioning state without re-running the RC/DA side effects.
+  await Order.updateOne(
+    { _id: order._id },
+    {
+      $set: {
+        domains: orderDomains,
+        successfulDomains: finalSuccessfulDomains,
+        razorpayPaymentId: razorpay_payment_id,
+        razorpaySignature: razorpay_signature,
+        paymentVerification,
+      },
+    }
+  );
+
+  // Refresh the in-memory doc so save() emits only the status transition
+  // (which fires the pre-save hook for invoiceNumber generation) plus the
+  // Payment row, both inside the transaction.
+  order.domains = orderDomains as unknown as IOrder["domains"];
+  order.successfulDomains = finalSuccessfulDomains;
+  order.razorpayPaymentId = razorpay_payment_id;
+  order.razorpaySignature = razorpay_signature;
+  order.paymentVerification = paymentVerification as IOrder["paymentVerification"];
   order.status = "completed";
 
   const registrationTotalAmount = cartItems.reduce(
@@ -363,6 +388,12 @@ export async function finalizePendingOrder(
         dbSession
       );
     });
+  } catch (error) {
+    serverLogger.error(
+      `[PAYMENT-VERIFY] Order ${orderId} save/Payment transaction failed AFTER provisioning. Provisioning results are persisted on the Order via updateOne — admin should flip status manually.`,
+      error
+    );
+    throw error;
   } finally {
     await dbSession.endSession();
   }
