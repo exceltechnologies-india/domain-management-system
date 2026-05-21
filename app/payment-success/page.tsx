@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { CheckCircle, XCircle, ArrowRight, Home, CreditCard, AlertCircle, Clock, Loader2, ReceiptText } from 'lucide-react';
+import { CheckCircle, XCircle, ArrowRight, Home, CreditCard, AlertCircle, Clock, Loader2, ReceiptText, Mail } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import { safeLocalStorage, safeSessionStorage } from '@/lib/storage';
 import Footer from '@/components/Footer';
@@ -372,17 +372,25 @@ export default function PaymentResultPage() {
           {/* ── Guest: save your account ── */}
           {result.isGuest && result.guestEmail && (
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-5">
-              <h3 className="text-sm font-semibold text-blue-900 mb-1">Save your account</h3>
-              <p className="text-xs text-blue-700 mb-4">
-                An account was created for <strong>{result.guestEmail}</strong>. Set a password to
-                access your domain, manage DNS, and enable auto-renewal.
-              </p>
+              <div className="flex items-start gap-3 mb-3">
+                <div className="p-2 bg-blue-100 rounded-lg flex-shrink-0">
+                  <Mail className="h-4 w-4 text-blue-700" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-blue-900 mb-1">Check your email to finish setup</h3>
+                  <p className="text-xs text-blue-700">
+                    We&apos;ve emailed a password setup link to <strong>{result.guestEmail}</strong>.
+                    Click the link in that email to choose a password and activate your account.
+                    The link expires in 1 hour.
+                  </p>
+                </div>
+              </div>
               <a
                 href={`/reset-password?email=${encodeURIComponent(result.guestEmail)}&setup=1`}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                className="inline-flex items-center gap-2 text-xs font-medium text-blue-700 hover:text-blue-900 underline underline-offset-2"
               >
-                Set Password &amp; Activate Account
-                <ArrowRight className="h-4 w-4" />
+                Didn&apos;t get it? Resend setup email
+                <ArrowRight className="h-3 w-3" />
               </a>
             </div>
           )}
