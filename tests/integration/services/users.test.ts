@@ -225,4 +225,15 @@ describe("setUserResellerClubIds / setUserDirectAdminUsername", () => {
     expect(refetched?.resellerClubContactId).toBe(5678);
     expect(refetched?.directAdminUsername).toBe("daX1");
   });
+
+  it("setUserDirectAdminUsername is CAS-style: first writer wins, second is no-op", async () => {
+    // Two concurrent hosting provisionings on the same user would each try
+    // to stamp their generated DA username. With the CAS guard, only the
+    // first write lands.
+    const u = await createUser(buildUserPayload({ email: "cas@user.test" }));
+    await setUserDirectAdminUsername(String(u._id), "daFirst");
+    await setUserDirectAdminUsername(String(u._id), "daSecond");
+    const refetched = await User.findById(u._id);
+    expect(refetched?.directAdminUsername).toBe("daFirst");
+  });
 });

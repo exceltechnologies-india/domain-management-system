@@ -564,13 +564,30 @@ export async function setUserResellerClubIds(
  * Persist the DirectAdmin username onto the user document. Called after
  * a hosting account is successfully provisioned so subsequent renewals /
  * admin actions can resolve the user back to their DA account.
+ *
+ * CAS-style: only writes when the field is currently empty
+ * (unset / null / ""). Two concurrent hosting provisionings on the same
+ * user (rare — multi-hosting carts) would otherwise race on this field;
+ * with the guard, the first writer wins on the User row and the second
+ * is a no-op. The losing Hosting document still carries its own correct
+ * `directAdminUsername` so the per-account mapping isn't lost.
  */
 export async function setUserDirectAdminUsername(
   userId: string,
   username: string
 ): Promise<void> {
   await connectDB();
-  await User.updateOne({ _id: userId }, { $set: { directAdminUsername: username } });
+  await User.updateOne(
+    {
+      _id: userId,
+      $or: [
+        { directAdminUsername: { $exists: false } },
+        { directAdminUsername: null },
+        { directAdminUsername: "" },
+      ],
+    },
+    { $set: { directAdminUsername: username } }
+  );
 }
 
 // ─── Token-based lookups ─────────────────────────────────────────────────────

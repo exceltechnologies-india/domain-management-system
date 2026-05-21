@@ -88,10 +88,11 @@ export async function provisionCartItems(
   // Promise.all so a 5-item cart doesn't pay 5× the RC + DA latency. Output
   // order is preserved by `cartItems.map` — same as the prior for-loop.
   //
-  // The hosting branch does mutate `user.directAdminUsername` via the user
-  // service, but in practice carts carry at most one hosting item; two
-  // concurrent hosting writes would race on the same field but converge to
-  // one of the two valid values, not corruption.
+  // The hosting branch mutates `user.directAdminUsername` via
+  // setUserDirectAdminUsername — guarded with a CAS-style "only set when
+  // empty" filter, so two concurrent hosting items race-safe: the first
+  // writer wins on the User row, the second is a no-op (the second
+  // Hosting doc still carries its own correct DA username).
   const perItem = await Promise.all(
     cartItems.map(async (item) => {
       if (isHostingItem(item)) {
