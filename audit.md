@@ -37,10 +37,72 @@ This document tracks **currently-open** findings. The full historical pass log (
 - ✅ **[M1] Service-layer integration tests** (commit `ad0c7b4`) — New `tests/integration/services/` suite with 75 tests across orders/hostings/users/support-tickets/domains. Locks in the `select: false` defaults on `password` / `resetToken` so a future accidental removal surfaces here. 434 unit + 100 integration = 534 tests passing.
 - ✅ **Batch 1 verification 2026-05-21** (revision `dms-00032-zqf`) — `/api/health` 200 OK, zero error-level Cloud Run logs in 15-min post-deploy window.
 - ✅ **Follow-ups closed (2026-05-21)** — [M6 sweep] all 14 remaining admin routes migrated onto `AuthService.getAdminFromRequest` (~150 lines of duplicate `getToken` + inline role-check removed); [M7 expansion] 6 new test files added — `system-logs.test.ts` (4 tests), `ip-checks.test.ts` (3), `domain-watches.test.ts` (6), `hosting-plans.test.ts` (10), `renewal-payments.test.ts` (6), `pending-domains.test.ts` (6). All 17 services now covered. Tests: **425 unit + 153 integration = 578 passing**.
+- ✅ **Rescan-2 Batch 5a (2026-05-21 security fixes)** — [H1] `finalizePendingOrder` now rebuilds its `cartItems` from the DB-pinned `order.domains` (set at create-order time) instead of trusting the request body. Closes the swap-domain hole the new pending-order flow accidentally opened — a user who paid for `cheap.in` could no longer submit `cartItems=[{domainName:"expensive.com"}]` and get the swap. `cartItems` removed from `FinalizePendingOrderInput`; both `/verify` and `/guest/verify` call sites updated. [H3] Defense-in-depth ownership check on `existingOrder` — logged-in `/verify` compares `existingOrder.userId === user._id`, guest `/verify` compares `existingOrder.userEmail === guestEmail` (from the signed token). Mismatch returns 404 (not 403) so we don't leak existence across tenants. [H4] Guest `/verify` now calls `validateOrderAmountMatchesRazorpay` on pending orders — closes the underpayment-fraud surface the logged-in path already had covered. Tests: 425 unit + 153 integration green.
 - ✅ **Rescan Batch 4 (2026-05-21 quality / coverage)** — [H3] `user/hosting/stats` no longer fans out an unbounded DA email-discovery scan: scan only runs when `user.directAdminUsername` isn't already linked (rare migration-window case), capped at 200 DA users, and the whole route is per-user rate-limited; [H4] `auth/register` migrated from `new User(...)` to new typed `createUserWithCredentials(input)` service helper — last `new User(...)` callsite in `app/api/**` is now gone; [M6] new `AuthService.getAdminFromRequest(request)` helper wraps `getUserFromRequest` + role check; one representative sweep in `admin/razorpay-mode` (deletes the local `getAdminUser` helper + redundant `getToken` fallback). 14 more admin routes carry the same duplicate pattern and are tracked as a follow-up — the helper exists, sweep is mechanical; [M7] new `tests/integration/services/{payments,settings}.test.ts` — 14 tests covering settings round-trips + DB-error fallback + payments persistence + status-enum coverage + required-field rejection; [M12] `lib/services/payment/renewal.ts` no longer imports `Order` directly — uses `getOrderByRazorpayOrderId` / `getOrderByOrderId` / `recordZohoInvoiceForOrder` (closes the H1 carve-out); [L4] `getOrderByIdOrOrderId` branches on `ObjectId.isValid` and picks exactly one filter — removes the latent `$or` footgun; [L5] PendingDomain bulk-upsert filter scoped to `(domainName, userId)` so two users failing the same name don't overwrite each other's audit rows; [L7] new `CreateOrderInput` interface — `createOrder`/`createOrderInSession` now accept the typed shape or the legacy `Record<string, unknown>` for compat; [L9] admin pending-domains route capped at 1000 rows per source (PendingDomain + in-flight Order) to bound the in-memory merge; `listOrdersWithInFlightDomains` helper accepts `limit` option. **[L11] dropped** — the agent's "write-only / legacy" analysis was wrong; `Order.userName` is read by `listOrdersForAdmin` as a hard-deleted-user fallback, and `paymentId` is a real fallback in 4 places. Tests: 425 unit + 114 integration = 539 passing.
 - ✅ **Rescan Batch 3 (2026-05-21 perf / latency)** — [H5] sparse indexes added on `Order.razorpayPaymentId` / `razorpayOrderId` / `zohoInvoiceId` (every webhook + verify path was COLLSCAN before); [L10] compound `(next_action_at, processing_until)` index on `Domain` mirrors the existing Hosting index so daily-scheduler doesn't COLLSCAN the domain side of the loop; [H6] `provisionCartItems` per-item loop fan-out via `Promise.all` — 5-item carts no longer pay 5× the RC+DA latency, order preservation comes from `cartItems.map`; [H7] check-unprovisioned cron drain now chunked at concurrency 5 (was serial — 50 DA `createUser` calls ~100s, now ~20s); [M8] daily-scheduler lock+enqueue loops chunked at concurrency 20 for both hosting and domain sides (500-row run was ~80s, now ~4s); [M9] check-domain-watch worker chunked at concurrency 5 (RC rate-limit-friendly, 100 calls 30s→6s); [M10] handleRenewalPayment pre-fetches all user hostings once + builds a `Map<domainName, Hosting>` instead of an N-round-trip `findUserHosting` per item; [M13] `AbortSignal.timeout(60_000)` on the daily-scheduler→check-domain-watch fetch; [M14] 30s timeout patched onto the Razorpay SDK's internal axios client (mirrors the resolved Zoho axios timeout); [M15] `AbortSignal.timeout(15_000)` on the WhatsApp Graph `sendMessage` fetch. Tests: 425 unit + 100 integration green.
 - ✅ **Rescan Batch 2 (2026-05-21 security hardening)** — [H1] guest checkout now refuses to attach a purchase to an existing non-guest user (409 in both `guest/create-order` and `guest/verify`); [H2] new `rateLimiters.guestCheckout` bucket (5/min/IP) gates both unauthenticated endpoints; [M1] provisioner-hosting + provisioner-domain no longer echo RC / DA error strings to the user — `registrationResult.error` / `orderDomain.error` / `bookingStatus.message` carry generic copy, raw `details` stay in `serverLogger`; [M2] new `rateLimiters.hostingRenewUpgrade` bucket (5/min/user) gates `user/hosting/{renew,upgrade}`; [M5] new `rateLimitResponse(rl, opts)` helper in [lib/rate-limit.ts](lib/rate-limit.ts) returns a uniform 429 envelope (Retry-After + X-RateLimit-* + security headers) — 12 callsites swept onto it (`auth/activate`, `auth/register`, `auth/resend-activation`, `auth/forgot-password`, `user/support` (POST + reply), `user/hosting/trial-otp/{send,verify}`, `user/invoices/[id]/pdf`, `chat`, `domains/{search,bulk-search,pricing,transfer}`); [L6] `admin/hosting/actions` catch now returns "Hosting action failed. Check server logs" instead of the raw error message. Tests: 425 unit + 100 integration green.
 - ✅ **Rescan Batch 1 (2026-05-21 fast wins)** — [L1] dead OAuth social-profile code deleted from [callbacks.ts](lib/auth-config/callbacks.ts) (93 commented lines + the surrounding `any`-typed carrier replaced with a typed shape); [L2] `admin/log-error` swapped to `authorizeCronRequest` (drops the local `crypto` import + inline timing-safe check); [L3] unused `import User from "@/models/User"` removed from `admin/backup` + `admin/users/reset-password`; [M3] `Order` pre-save invoice/PO suffix swapped from `Math.random().toString(36).substring(2,5)` (~46k values) to `crypto.randomBytes(4).toString("hex")` (~4B values) — closes the collision class behind `findInvoiceNumberConflicts`; [M4] orphan models `DNSRecord.ts` + `TLDPricingCache.ts` deleted (zero importers outside their own tests); [M11] `.lean()` added to `listExpiredActiveHostings`, `listDueServiceHostingCandidates`, `listUserHostingsByDomain`, `listAllHostingsForDirectAdminDiag`; [M16] `getHostingById`'s `populate("userId")` narrowed to a 6-field projection; [L8] admin/pending-domains O(N·M) `.some()` swapped for a pre-built `Set<string>`. Tests: 425 unit + 100 integration green (425 = 434 − 9 deleted DNSRecord/TLDPricingCache tests).
+
+## Open issues (rescan 2026-05-21 post-batch)
+
+Rescan run after Batch 1-4 + follow-up shipped. Findings are about the new code paths.
+
+_Batch 5a (security fixes) closed: [H1], [H3], [H4]._
+
+### HIGH
+
+#### [H2] Webhook still uses the legacy serial provisioner
+**File:** [app/razorpay/webhook/route.ts:282](app/razorpay/webhook/route.ts) → `ProvisioningService.provisionOrder` ([lib/provisioning.ts:35](lib/provisioning.ts) `for (const item of cartItems)`).
+**Problem:** [H6] from rescan-1 closed the serial loop in `/verify`'s path via `Promise.all` in `provisionCartItems`. The webhook path didn't migrate — when the webhook wins the claim race (typical when the user closes the browser tab after paying), provisioning is back to N× serial latency. The audit's "5-item carts no longer pay 5× latency" claim only holds for the verify-wins path.
+**Fix:** Have the webhook call `finalizePendingOrder` so both paths share the parallelized provisioner.
+
+### MEDIUM
+
+#### [M1] Webhook never writes a Payment row
+**File:** [app/razorpay/webhook/route.ts:204-220](app/razorpay/webhook/route.ts)
+**Problem:** `/verify` writes a Payment row via `createPaymentInTransaction` (`order-creator.ts:331`). The webhook path doesn't. Orders completed via webhook are invisible to any join on the Payment collection (admin payments listing, reconciliation cron, accounting exports).
+**Fix:** Call `createPaymentInTransaction(...)` inside the webhook's claim block.
+
+#### [M2] M6 admin-auth sweep missed 16 more routes
+**Files:** `admin/payments`, `admin/users` (multiple), `admin/orders/[id]` (multiple), `admin/domains` (route + activate-dns), `admin/orders/invoice-conflicts`, `admin/support-tickets/[id]`, `admin/tld-pricing`, `admin/resellerclub/balance`, `admin/hosting/test-plan` and others — `grep AuthService.getUserFromRequest app/api/admin` still shows 16+ hits.
+**Problem:** The M6 sweep didn't catch every route — the inline `AuthService.getUserFromRequest(request)` + role-check pattern lives in 16 more admin files. Functionally fine, but the audit's "all admin routes onto getAdminFromRequest" claim was overstated.
+**Fix:** Finish the sweep mechanically.
+
+#### [M3] Test coverage for the new pending-order / fan-out / guest paths
+**Pattern:** Zero `grep` hits for `claimPendingOrderForProcessing`, `finalizePendingOrder`, or `provisionHostingItem` in `tests/`.
+**Problem:** The 13 new service tests cover the read helpers but not the write paths the refactor introduced. The concurrent claim race, fan-out output ordering, guest email-claim 409, and amount-mismatch rejection are all untested.
+**Fix:** Add `tests/integration/services/payment/` with at least: (a) concurrent claim returns null for the loser, (b) `Promise.all` fan-out preserves input order, (c) guest email-claim 409 path, (d) amount-mismatch rejection.
+
+#### [M4] Provisioning runs outside the order-save transaction
+**File:** [lib/services/payment/order-creator.ts:299-345](lib/services/payment/order-creator.ts)
+**Problem:** `provisionCartItems` (RC + DA side effects) runs **before** the Mongo session opens. If `order.save()` aborts (validation, blip), domains are already registered in RC and Hosting rows already created but the Order stays in `processing` forever. The new pending-order pattern doesn't actually make these atomic.
+**Fix:** Provision first, then guard the order completion via `updateOne({ status: "processing" })` so a save failure leaves the order auto-recoverable by the next worker.
+
+#### [M5] Dead exports in `lib/services/orders.ts`
+**File:** [lib/services/orders.ts](lib/services/orders.ts) — `markOrderFailed` (line 604), `completeOrder` (line 627). Zero callers outside the file. (Note: `markZohoInvoiceCreationFailed` IS still used by `lib/zoho-invoice-retry.ts` — agent flagged that one in error.)
+**Fix:** Delete the two unused exports.
+
+### LOW
+
+#### [L1] DA-username write race acknowledged but unmitigated
+**File:** [lib/services/payment/provisioner.ts:91-94](lib/services/payment/provisioner.ts) — comment says "two concurrent hosting writes would race on the same field but converge."
+**Problem:** Real carts with two hosting items would leave the User row with whichever DA username won the write race — the other Hosting row's DA username is still correct via the per-Hosting field, so this is mostly cosmetic / legacy-fallback, but the fix is trivial.
+**Fix:** Scope `setUserDirectAdminUsername` to only set when the field is empty (CAS-style).
+
+#### [L2] Webhook fetches user twice in one delivery
+**File:** [app/razorpay/webhook/route.ts:164,276](app/razorpay/webhook/route.ts) — both call `getUserById(String(claimed.userId))`.
+**Fix:** Hoist to a single fetch and thread through.
+
+#### [L3] Dead `User` model import in webhook
+**File:** [app/razorpay/webhook/route.ts:249,275](app/razorpay/webhook/route.ts) — `const User = (await import("@/models/User")).default;` but the local variable is unused; downstream code uses `getUserById`.
+**Fix:** Delete both lines.
+
+#### [L4] `DA_DEFAULT_PACKAGE` env var not documented
+**File:** [lib/services/payment/provisioner-hosting.ts:286](lib/services/payment/provisioner-hosting.ts)
+**Problem:** No `.env.example` exists in the repo; if/when added, both `DA_DEFAULT_PACKAGE` and `DIRECTADMIN_IP` (line 80) should be listed.
+**Fix:** Create `.env.example` or note in a CONFIG.md.
+
+---
 
 ## Deliberately deferred (by user)
 
