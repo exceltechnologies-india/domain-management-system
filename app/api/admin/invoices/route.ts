@@ -1,8 +1,5 @@
-import { AUTH_SECRET } from "@/lib/auth-secret";
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
-import { getToken } from "next-auth/jwt";
-import { getUserByIdSafe } from "@/lib/services/users";
 import { ZohoBooksService } from "@/lib/zohobooks";
 import connectDB from "@/lib/mongodb";
 import { serverLogger } from "@/lib/server-logger";
@@ -13,24 +10,10 @@ export async function GET(request: NextRequest) {
   try {
     await connectDB();
     
-    // Auth Check
     serverLogger.info('[AdminAPI] Invoice Request received');
-    let user = await AuthService.getUserFromRequest(request);
-    
+    const user = await AuthService.getAdminFromRequest(request);
     if (!user) {
-      serverLogger.info('[AdminAPI] No user from request, checking NextAuth token');
-      const token = await getToken({ 
-        req: request,
-        secret: AUTH_SECRET,
-      });
-      
-      if (token?.id) {
-        user = await getUserByIdSafe(token.id);
-      }
-    }
-
-    if (!user || user.role !== "admin") {
-      serverLogger.info('[AdminAPI] Unauthorized access attempt', user?.email);
+      serverLogger.info('[AdminAPI] Unauthorized access attempt');
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

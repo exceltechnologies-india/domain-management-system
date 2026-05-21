@@ -1,15 +1,13 @@
-import { AUTH_SECRET } from "@/lib/auth-secret";
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import PendingDomain from "@/models/PendingDomain";
 import type { IOrder } from "@/models/Order";
 import { getOrderByOrderId, recordZohoInvoiceForOrder } from "@/lib/services/orders";
-import { getUserById, getUserByIdSafe } from "@/lib/services/users";
+import { getUserById } from "@/lib/services/users";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import { DomainVerificationService } from "@/lib/domain-verification";
 import { EmailService } from "@/lib/email";
-import { getToken } from "next-auth/jwt";
 import { serverLogger } from "@/lib/server-logger";
 import { ZohoBooksService } from "@/lib/zohobooks";
 
@@ -25,19 +23,8 @@ export async function POST(
 
     const { id } = await params;
 
-    // Verify admin authentication
-    let user = await AuthService.getUserFromRequest(request);
+    const user = await AuthService.getAdminFromRequest(request);
     if (!user) {
-      const token = await getToken({ 
-        req: request,
-        secret: AUTH_SECRET,
-      });
-      if (token?.id) {
-        user = await getUserByIdSafe(token.id);
-      }
-    }
-
-    if (!user || user.role !== "admin" || !user.isActive) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

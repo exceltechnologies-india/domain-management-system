@@ -1,4 +1,3 @@
-import { AUTH_SECRET } from "@/lib/auth-secret";
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { serverLogger } from "@/lib/server-logger";
@@ -8,9 +7,7 @@ import PendingDomain from "@/models/PendingDomain";
 import { getPendingDomainById } from "@/lib/services/pending-domains";
 import { getOrderByOrderId } from "@/lib/services/orders";
 import type { IOrder } from "@/models/Order";
-import { getUserByIdSafe } from "@/lib/services/users";
 import Domain from "@/models/Domain";
-import { getToken } from "next-auth/jwt";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 
 // Force dynamic rendering - required for API routes
@@ -24,28 +21,8 @@ export async function GET(
     const { id } = await params;
     await connectDB();
 
-    // Verify admin authentication - Try JWT first, then NextAuth session
-    let user = await AuthService.getUserFromRequest(request);
-    
-    // If no user from JWT, try NextAuth session via getToken (works with cookies)
+    const user = await AuthService.getAdminFromRequest(request);
     if (!user) {
-      const token = await getToken({ 
-        req: request,
-        secret: AUTH_SECRET,
-      });
-      
-      if (token?.id) {
-        // Get user by id from NextAuth token
-        user = await getUserByIdSafe(token.id);
-        
-        if (!user || !user.isActive) {
-          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-      }
-    }
-
-    // Check if user is admin
-    if (!user || user.role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -79,28 +56,8 @@ export async function PUT(
     const { id } = await params;
     await connectDB();
 
-    // Verify admin authentication - Try JWT first, then NextAuth session
-    let user = await AuthService.getUserFromRequest(request);
-    
-    // If no user from JWT, try NextAuth session via getToken (works with cookies)
+    const user = await AuthService.getAdminFromRequest(request);
     if (!user) {
-      const token = await getToken({ 
-        req: request,
-        secret: AUTH_SECRET,
-      });
-      
-      if (token?.id) {
-        // Get user by id from NextAuth token
-        user = await getUserByIdSafe(token.id);
-        
-        if (!user || !user.isActive) {
-          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-      }
-    }
-
-    // Check if user is admin
-    if (!user || user.role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -207,30 +164,9 @@ export async function DELETE(
     serverLogger.info(`[${reqId}] DELETE /api/admin/pending-domains/${pendingDomainId} started`);
     await connectDB();
 
-    // Verify admin authentication - Try JWT first, then NextAuth session
-    let user = await AuthService.getUserFromRequest(request);
-
-    // If no user from JWT, try NextAuth session via getToken (works with cookies)
+    const user = await AuthService.getAdminFromRequest(request);
     if (!user) {
-      const token = await getToken({
-        req: request,
-        secret: AUTH_SECRET,
-      });
-
-      if (token?.id) {
-        // Get user by id from NextAuth token
-        user = await getUserByIdSafe(token.id);
-
-        if (!user || !user.isActive) {
-          serverLogger.warn(`[${reqId}] User not found or inactive`);
-          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-      }
-    }
-
-    // Check if user is admin
-    if (!user || user.role !== "admin") {
-      serverLogger.warn(`[${reqId}] Unauthorized access attempt by ${user?.email}`);
+      serverLogger.warn(`[${reqId}] Unauthorized access attempt`);
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
