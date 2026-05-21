@@ -1,10 +1,7 @@
-import { AUTH_SECRET } from "@/lib/auth-secret";
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import { DomainVerificationService } from "@/lib/domain-verification";
-import { getToken } from "next-auth/jwt";
-import { getUserByIdSafe } from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
 
 // Force dynamic rendering - required for API routes
@@ -14,21 +11,8 @@ export async function POST(request: NextRequest) {
   try {
     await connectDB();
 
-    // 1. Verify admin authentication
-    let user = await AuthService.getUserFromRequest(request);
-    
+    const user = await AuthService.getAdminFromRequest(request);
     if (!user) {
-      const token = await getToken({ 
-        req: request,
-        secret: AUTH_SECRET,
-      });
-      
-      if (token?.id) {
-        user = await getUserByIdSafe(token.id);
-      }
-    }
-
-    if (!user || user.role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

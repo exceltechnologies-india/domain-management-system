@@ -1,10 +1,7 @@
-import { AUTH_SECRET } from "@/lib/auth-secret";
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
-import { getToken } from "next-auth/jwt";
 import connectDB from "@/lib/mongodb";
 import { getLatestIPCheck } from "@/lib/services/ip-checks";
-import { getUserByIdSafe } from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
 
 // Force dynamic rendering - required for API routes
@@ -14,28 +11,8 @@ export async function GET(request: NextRequest) {
   try {
     await connectDB();
 
-    // Try JWT first, then NextAuth session
-    let user = await AuthService.getUserFromRequest(request);
-
-    // If no user from JWT, try NextAuth session via getToken (works with cookies)
+    const user = await AuthService.getAdminFromRequest(request);
     if (!user) {
-      const token = await getToken({
-        req: request,
-        secret: AUTH_SECRET,
-      });
-
-      if (token?.id) {
-        // Get user by id from NextAuth token
-        user = await getUserByIdSafe(token.id);
-
-        if (!user || !user.isActive) {
-          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-      }
-    }
-
-    // Check admin authentication
-    if (!user || user.role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

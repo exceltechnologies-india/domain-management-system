@@ -1,9 +1,7 @@
-import { AUTH_SECRET } from "@/lib/auth-secret";
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
-import { getUserById, getUserByIdSafe } from "@/lib/services/users";
+import { getUserById } from "@/lib/services/users";
 import { AuthService } from "@/lib/auth";
-import { getToken } from "next-auth/jwt";
 import bcrypt from "bcryptjs";
 import { EmailService } from "@/lib/email";
 import { requireReAuth } from "@/lib/admin-security";
@@ -16,28 +14,8 @@ export async function POST(request: NextRequest) {
   try {
     await connectDB();
 
-    // Verify admin authentication - Try JWT first, then NextAuth session
-    let user = await AuthService.getUserFromRequest(request);
-    
-    // If no user from JWT, try NextAuth session via getToken (works with cookies)
+    const user = await AuthService.getAdminFromRequest(request);
     if (!user) {
-      const token = await getToken({ 
-        req: request,
-        secret: AUTH_SECRET,
-      });
-      
-      if (token?.id) {
-        // Get user by id from NextAuth token
-        user = await getUserByIdSafe(token.id);
-        
-        if (!user || !user.isActive) {
-          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-      }
-    }
-
-    // Check if user is admin
-    if (!user || user.role !== "admin") {
       return NextResponse.json({ error: "Admin access required" }, { status: 403 });
     }
 

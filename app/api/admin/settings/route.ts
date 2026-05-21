@@ -1,10 +1,7 @@
-import { AUTH_SECRET } from "@/lib/auth-secret";
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
-import { getToken } from "next-auth/jwt";
 import { listSettings, upsertSetting, getSetting } from "@/lib/services/settings";
 import { connectToDatabase } from "@/lib/mongoose";
-import { getUserByIdSafe } from "@/lib/services/users";
 import { requireReAuth } from "@/lib/admin-security";
 import { serverLogger } from "@/lib/server-logger";
 
@@ -15,28 +12,10 @@ export async function GET(request: NextRequest) {
   try {
     await connectToDatabase();
 
-    // Try JWT first, then NextAuth session
-    let user = await AuthService.getUserFromRequest(request);
-
-    // If no user from JWT, try NextAuth session via getToken (works with cookies)
+    // AuthService.getAdminFromRequest walks Bearer → NextAuth-getToken →
+    // NextAuth-session internally; routes used to duplicate that ladder.
+    const user = await AuthService.getAdminFromRequest(request);
     if (!user) {
-      const token = await getToken({
-        req: request,
-        secret: AUTH_SECRET,
-      });
-
-      if (token?.id) {
-        // Get user by id from NextAuth token
-        user = await getUserByIdSafe(token.id);
-
-        if (!user || !user.isActive) {
-          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-      }
-    }
-
-    // Check admin authentication
-    if (!user || user.role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -72,28 +51,10 @@ export async function POST(request: NextRequest) {
   try {
     await connectToDatabase();
 
-    // Try JWT first, then NextAuth session
-    let user = await AuthService.getUserFromRequest(request);
-
-    // If no user from JWT, try NextAuth session via getToken (works with cookies)
+    // AuthService.getAdminFromRequest walks Bearer → NextAuth-getToken →
+    // NextAuth-session internally; routes used to duplicate that ladder.
+    const user = await AuthService.getAdminFromRequest(request);
     if (!user) {
-      const token = await getToken({
-        req: request,
-        secret: AUTH_SECRET,
-      });
-
-      if (token?.id) {
-        // Get user by id from NextAuth token
-        user = await getUserByIdSafe(token.id);
-
-        if (!user || !user.isActive) {
-          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-      }
-    }
-
-    // Check admin authentication
-    if (!user || user.role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

@@ -1,9 +1,6 @@
-import { AUTH_SECRET } from "@/lib/auth-secret";
 import { NextRequest, NextResponse } from "next/server";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import { AuthService } from "@/lib/auth";
-import { getToken } from "next-auth/jwt";
-import type { IUser } from "@/models/User";
 import { serverLogger } from "@/lib/server-logger";
 import { findOrderByDomain, findOrderDomain } from "@/lib/services/orders";
 
@@ -12,25 +9,8 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    // Check authentication (JWT first, then NextAuth session)
-    let user = await AuthService.getUserFromRequest(request);
+    const user = await AuthService.getAdminFromRequest(request);
     if (!user) {
-      const token = await getToken({ req: request, secret: AUTH_SECRET });
-      if (token?.id) {
-        // Minimal user object for role check
-        // Minimal user object for the role check — the route only reads
-        // `_id` and `role` from this. Cast through unknown because the
-        // NextAuth token shape differs from IUser.
-        const t = token as unknown as { id: string; role?: string };
-        user = { _id: t.id, role: t.role || "user" } as unknown as IUser;
-      }
-    }
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Check if user is admin
-    if (user.role !== "admin") {
       return NextResponse.json(
         { error: "Admin access required" },
         { status: 403 }
@@ -96,24 +76,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication (JWT first, then NextAuth session)
-    let user = await AuthService.getUserFromRequest(request);
+    const user = await AuthService.getAdminFromRequest(request);
     if (!user) {
-      const token = await getToken({ req: request, secret: AUTH_SECRET });
-      if (token?.id) {
-        // Minimal user object for the role check — the route only reads
-        // `_id` and `role` from this. Cast through unknown because the
-        // NextAuth token shape differs from IUser.
-        const t = token as unknown as { id: string; role?: string };
-        user = { _id: t.id, role: t.role || "user" } as unknown as IUser;
-      }
-    }
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Check if user is admin
-    if (user.role !== "admin") {
       return NextResponse.json(
         { error: "Admin access required" },
         { status: 403 }
@@ -176,24 +140,8 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    // Check authentication (JWT first, then NextAuth session)
-    let user = await AuthService.getUserFromRequest(request);
+    const user = await AuthService.getAdminFromRequest(request);
     if (!user) {
-      const token = await getToken({ req: request, secret: AUTH_SECRET });
-      if (token?.id) {
-        // Minimal user object for the role check — the route only reads
-        // `_id` and `role` from this. Cast through unknown because the
-        // NextAuth token shape differs from IUser.
-        const t = token as unknown as { id: string; role?: string };
-        user = { _id: t.id, role: t.role || "user" } as unknown as IUser;
-      }
-    }
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Check if user is admin
-    if (user.role !== "admin") {
       return NextResponse.json(
         { error: "Admin access required" },
         { status: 403 }
