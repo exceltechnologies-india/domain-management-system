@@ -29,11 +29,15 @@ export interface ZohoInvoiceContext {
 }
 
 /**
- * Creates a Zoho Books invoice synchronously.
- * Throws on failure — callers must handle and surface the error.
- * Returns the created invoice ID and Zoho invoice number.
+ * Single attempt at creating a Zoho Books invoice. Claims the order,
+ * issues the Zoho call, and on any failure releases the claim and rethrows.
+ * The `_idempotentRetry` inside zohoService.createInvoice handles transient
+ * 5xx/429/network errors at the HTTP layer; the outer retry in
+ * `createZohoInvoice` covers cold-start races, token-refresh blips, and any
+ * other case where re-running the whole flow (re-claim + re-fetch contact +
+ * re-issue) is the right move.
  */
-export async function createZohoInvoice(
+async function attemptCreateZohoInvoice(
   ctx: ZohoInvoiceContext
 ): Promise<{ invoiceId: string; invoiceNumber: string | null }> {
   const { order, orderId, razorpay_payment_id, paymentDetails, user, cartItems } = ctx;
@@ -92,6 +96,38 @@ export async function createZohoInvoice(
     invoiceId: invoice.invoice_id,
     invoiceNumber: invoice.invoice_number || null,
   };
+}
+
+/**
+ * Creates a Zoho Books invoice synchronously with an outer retry layer.
+ * Two attempts by default with a 1.5s delay between them — handles the
+ * cold-start window and short Zoho hiccups so the user's first payment
+ * usually lands an invoice without needing the background self-heal.
+ * Throws on final failure — callers must handle and surface the error.
+ */
+export async function createZohoInvoice(
+  ctx: ZohoInvoiceContext,
+  options: { maxAttempts?: number; retryDelayMs?: number } = {}
+): Promise<{ invoiceId: string; invoiceNumber: string | null }> {
+  const maxAttempts = options.maxAttempts ?? 2;
+  const retryDelayMs = options.retryDelayMs ?? 1500;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await attemptCreateZohoInvoice(ctx);
+    } catch (err) {
+      lastError = err;
+      if (attempt < maxAttempts) {
+        const msg = err instanceof Error ? err.message : String(err);
+        serverLogger.warn(
+          `[ZohoInvoice] Attempt ${attempt}/${maxAttempts} failed for order ${ctx.orderId}: ${msg} — retrying in ${retryDelayMs}ms`
+        );
+        await new Promise((r) => setTimeout(r, retryDelayMs));
+      }
+    }
+  }
+  throw lastError;
 }
 
 /**
