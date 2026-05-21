@@ -11,6 +11,7 @@ import { createOrder, createOrderInSession, forceMarkZohoCreationFailed, getOrde
 import { createPaymentInTransaction } from "@/lib/services/payments";
 import { provisionCartItems } from "@/lib/services/payment/provisioner";
 import { createZohoInvoice, runPostPaymentTasks } from "@/lib/services/payment/post-tasks";
+import { recordSystemLog } from "@/lib/services/system-logs";
 import { isDomainSupported, requiresAdditionalDetails } from "@/lib/domainRequirements";
 import { EmailService } from "@/lib/email";
 import type { CartItem, RazorpayPaymentDetails } from "@/lib/types";
@@ -264,6 +265,10 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Zoho invoice (best-effort) ───────────────────────────────────────────
+    // createZohoInvoice retries internally (2 attempts, 1.5s gap) so transient
+    // cold-start / token-refresh races don't leave the order stuck. Only on
+    // final failure do we mark creation_failed and rely on the background
+    // self-heal in /api/user/invoices.
     try {
       await createZohoInvoice({
         order,
@@ -275,7 +280,17 @@ export async function POST(request: NextRequest) {
       });
     } catch (zohoErr: unknown) {
       const message = zohoErr instanceof Error ? zohoErr.message : String(zohoErr);
+      const stack = zohoErr instanceof Error ? zohoErr.stack : undefined;
       serverLogger.error(`[GuestCheckout] Zoho invoice failed: ${message}`);
+      // Durable record so we don't depend on Cloud Logging capturing stderr.
+      await recordSystemLog({
+        level: "error",
+        message: `[GuestCheckout] Zoho invoice failed after retries: ${message}`,
+        source: "guest/verify",
+        service: "payments",
+        stack,
+        metadata: { orderId, email: guestEmail, razorpayPaymentId: razorpay_payment_id },
+      }).catch(() => {});
       await forceMarkZohoCreationFailed(String(order._id)).catch(() => {});
     }
 

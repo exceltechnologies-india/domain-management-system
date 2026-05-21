@@ -20,6 +20,7 @@ import {
   createCompletedOrder,
 } from "@/lib/services/payment/order-creator";
 import { handleVerificationError } from "@/lib/services/payment/verification-error";
+import { recordSystemLog } from "@/lib/services/system-logs";
 import { withRequestLogContext } from "@/lib/request-context";
 import type { IUser } from "@/models/User";
 import type { CartItem } from "@/lib/types";
@@ -188,9 +189,19 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
     } catch (zohoError: unknown) {
       invoiceCreationFailed = true;
       invoiceCreationError = zohoError instanceof Error ? zohoError.message : "Unknown Zoho error";
+      const stack = zohoError instanceof Error ? zohoError.stack : undefined;
       serverLogger.error(
         `❌ [PAYMENT-VERIFY] Zoho invoice creation failed: ${invoiceCreationError}`
       );
+      // Durable record so we don't depend on Cloud Logging capturing stderr.
+      await recordSystemLog({
+        level: "error",
+        message: `[PAYMENT-VERIFY] Zoho invoice failed after retries: ${invoiceCreationError}`,
+        source: "payments/verify",
+        service: "payments",
+        stack,
+        metadata: { orderId, userId: String(user._id), razorpayPaymentId: razorpay_payment_id },
+      }).catch(() => {});
       try {
         await forceMarkZohoCreationFailed(String(order._id));
       } catch (_) {}
