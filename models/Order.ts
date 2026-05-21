@@ -57,6 +57,7 @@ export interface IOrder extends Document {
       serverPackage: string; // The actual package name on DA server
     };
     periodUnit?: "minutes" | "months" | "years" | "days";
+    isTrial?: boolean;
     zohoRecurringInvoiceId?: string;
     zohoRecurringProfileStatus?: string;
     zohoRecurringProfileError?: string;
@@ -234,6 +235,15 @@ const OrderSchema = new Schema<IOrder>(
           type: String,
           enum: ["minutes", "months", "years", "days"],
           default: "years",
+        },
+        // Trial flag must survive the create-order → pending → finalize round
+        // trip. Without it, finalizePendingOrder rebuilds cartItems from
+        // order.domains with isTrial=undefined, the hosting provisioner takes
+        // the paid branch, and the 1-trial-per-user eligibility gate gets
+        // defeated for any cart that mixes a trial hosting with a paid domain.
+        isTrial: {
+          type: Boolean,
+          default: false,
         },
         zohoRecurringInvoiceId: {
             type: String,

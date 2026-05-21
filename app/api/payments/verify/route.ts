@@ -20,6 +20,7 @@ import {
   validateNoRestrictedDomains,
   createCompletedOrder,
   finalizePendingOrder,
+  cartItemsFromOrderDomains,
 } from "@/lib/services/payment/order-creator";
 import { handleVerificationError } from "@/lib/services/payment/verification-error";
 import { recordSystemLog } from "@/lib/services/system-logs";
@@ -37,6 +38,11 @@ export const dynamic = "force-dynamic";
 export const POST = withRequestLogContext(async (request: NextRequest) => {
   let user: IUser | null = null;
   let cartItems: CartItem[] = [];
+  // Hoisted so handleVerificationError below can update the right pending
+  // Order instead of creating a duplicate fallback row.
+  let razorpayOrderIdOuter: string | undefined;
+  let razorpayPaymentIdOuter: string | undefined;
+  let existingOrderRef: Awaited<ReturnType<typeof getOrderByRazorpayOrderId>> = null;
 
   try {
     user = await AuthService.getUserFromRequest(request);
@@ -50,7 +56,12 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
       razorpay_subscription_id,
       razorpay_payment_id,
       razorpay_signature,
-    } = body;
+    } = body as {
+      razorpay_order_id?: string;
+      razorpay_subscription_id?: string;
+      razorpay_payment_id?: string;
+      razorpay_signature?: string;
+    };
     cartItems = body.cartItems;
 
     if (
@@ -63,6 +74,13 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
         { status: 400 }
       );
     }
+
+    // Mirror to outer-scope refs so the catch handler can pass real
+    // Razorpay identifiers + the existing pending Order to
+    // handleVerificationError (so it updates the right row instead of
+    // creating a duplicate fallback).
+    razorpayOrderIdOuter = razorpay_order_id;
+    razorpayPaymentIdOuter = razorpay_payment_id;
 
     if (!cartItems || !Array.isArray(cartItems) || cartItems.length === 0) {
       return NextResponse.json(
@@ -85,6 +103,7 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
     const existingOrder = razorpay_order_id
       ? await getOrderByRazorpayOrderId(razorpay_order_id)
       : null;
+    existingOrderRef = existingOrder;
 
     // Defense-in-depth ownership check. The Razorpay signature is order-bound
     // so cross-account claim isn't directly exploitable today, but any future
@@ -153,7 +172,7 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
 
     // 6) Idempotency guard for already-processed new orders
     const idempotencyResponse = await handleAlreadyProcessedPayment({
-      razorpay_order_id,
+      razorpay_order_id: razorpay_order_id ?? "",
       razorpay_payment_id,
       paymentDetails,
       user,
@@ -257,6 +276,13 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
     let invoiceCreationError: string | null = null;
     let finalInvoiceNumber = order.invoiceNumber;
 
+    // Use DB-trusted projection of the persisted order (not the request body)
+    // for Zoho line items. Batch 5a [H1] closed the swap-domain hole for
+    // provisioning by deriving cartItems from order.domains inside
+    // finalizePendingOrder; this closes the parallel gap for the invoice
+    // path so the Zoho/GST record matches what was actually sold.
+    const zohoCartItems = cartItemsFromOrderDomains(order.domains);
+
     try {
       const { invoiceNumber: zohoNum } = await createZohoInvoice({
         order,
@@ -264,7 +290,7 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
         razorpay_payment_id,
         paymentDetails,
         user,
-        cartItems,
+        cartItems: zohoCartItems,
       });
       if (zohoNum) finalInvoiceNumber = zohoNum;
     } catch (zohoError: unknown) {
@@ -346,6 +372,13 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
       { status: invoiceCreationFailed ? 207 : 200 }
     );
   } catch (error) {
-    return handleVerificationError({ error, user, cartItems });
+    return handleVerificationError({
+      error,
+      user,
+      cartItems,
+      existingOrder: existingOrderRef,
+      razorpay_order_id: razorpayOrderIdOuter,
+      razorpay_payment_id: razorpayPaymentIdOuter,
+    });
   }
 });

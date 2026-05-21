@@ -21,6 +21,38 @@ import type { CartItem, RazorpayPaymentDetails } from "@/lib/types";
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@anutech.in";
 
 /**
+ * Project a persisted Order's `domains` subdocs to the `CartItem` shape
+ * downstream consumers (Zoho invoice, post-payment tasks) expect. Returns
+ * the DB-trusted view — pinned at /create-order time after the price
+ * verifier passed — so callers can swap the request-body cartItems for
+ * this without trusting client-supplied prices, names, or trial flags.
+ *
+ * Mirrors the projection in `finalizePendingOrder`'s rebuild block; kept
+ * exported so /verify + /guest/verify can use it for the Zoho-invoice
+ * step without re-deriving the shape inline.
+ */
+export function cartItemsFromOrderDomains(
+  domains: IOrder["domains"]
+): CartItem[] {
+  return domains.map((d) => ({
+    domainName: d.domainName,
+    price: d.price,
+    currency: d.currency,
+    registrationPeriod: d.registrationPeriod,
+    itemType: d.itemType,
+    periodUnit: d.periodUnit as CartItem["periodUnit"],
+    isTrial: d.isTrial === true,
+    hostingPlan: d.hostingPlan
+      ? {
+          id: d.hostingPlan.planId,
+          name: d.hostingPlan.name,
+          serverPackage: d.hostingPlan.serverPackage,
+        }
+      : undefined,
+  }));
+}
+
+/**
  * Reject orders containing domains that require manual verification or are
  * unsupported. Returns ok:false with a fully-formed 400 response if any
  * such domains are present.
@@ -292,7 +324,9 @@ export async function finalizePendingOrder(
 
   // Rebuild cartItems from the DB-pinned `order.domains` array. Each entry
   // was written at create-order time after the price-verifier passed, so
-  // this is the trusted view of what the user actually paid for.
+  // this is the trusted view of what the user actually paid for. `isTrial`
+  // must round-trip: without it the hosting provisioner takes the paid
+  // branch and the 1-trial-per-user gate is bypassed for bundle carts.
   const cartItems: CartItem[] = order.domains.map((d) => ({
     domainName: d.domainName,
     price: d.price,
@@ -300,6 +334,7 @@ export async function finalizePendingOrder(
     registrationPeriod: d.registrationPeriod,
     itemType: d.itemType,
     periodUnit: d.periodUnit as CartItem["periodUnit"],
+    isTrial: d.isTrial === true,
     hostingPlan: d.hostingPlan
       ? {
           id: d.hostingPlan.planId,

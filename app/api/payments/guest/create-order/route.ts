@@ -342,6 +342,8 @@ export async function POST(request: NextRequest) {
             item.periodUnit ||
             (item.itemType === "hosting" ? "months" : "years"),
           itemType: item.itemType || "domain",
+          isTrial:
+            (item as CartItem & { isTrial?: boolean }).isTrial === true,
           status: "pending",
           hostingPlan: item.hostingPlan
             ? {
