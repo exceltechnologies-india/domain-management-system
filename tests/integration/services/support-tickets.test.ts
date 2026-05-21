@@ -82,11 +82,11 @@ describe("findUserTicket + findUserTicketLean", () => {
     const intruder = validUserId();
     const t = await createSupportTicket(buildTicketPayload({ userId: owner }));
 
-    expect((await findUserTicket(String(t._id), owner))?.userId.toString())
+    expect((await findUserTicket(String(t._id), String(owner)))?.userId.toString())
       .toBe(owner.toString());
-    expect(await findUserTicket(String(t._id), intruder)).toBeNull();
+    expect(await findUserTicket(String(t._id), String(intruder))).toBeNull();
 
-    const lean = await findUserTicketLean(String(t._id), owner);
+    const lean = await findUserTicketLean(String(t._id), String(owner));
     expect(lean?.userEmail).toBeDefined();
   });
 });
