@@ -311,6 +311,15 @@ OrderSchema.index({ "domains.domainName": 1 });
 OrderSchema.index({ userId: 1, orderType: 1, createdAt: -1 }); // order history
 OrderSchema.index({ userId: 1, status: 1 });                    // status filtering
 
+// Razorpay / Zoho identifier lookups — touched by every webhook, payment-verify
+// idempotency check, and Zoho retry cron. Without these the queries COLLSCAN.
+// Sparse on zohoInvoiceId because most rows don't carry one until the invoice
+// step lands; sparse on razorpayPaymentId/Id because pending/renewal Orders
+// may write "pending" sentinels.
+OrderSchema.index({ razorpayPaymentId: 1 }, { sparse: true });
+OrderSchema.index({ razorpayOrderId: 1 }, { sparse: true });
+OrderSchema.index({ zohoInvoiceId: 1 }, { sparse: true });
+
 /**
  * Pre-save Database Hook for Orders
  * 

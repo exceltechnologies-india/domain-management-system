@@ -83,49 +83,64 @@ export async function provisionCartItems(
 
   const customerResult = await setupRcCustomerAndContact(user);
 
+  // Per-item helpers are pure-returning (see H2 decomposition): each yields
+  // {registrationResult, orderDomain, successfulDomain?}. Fan out with
+  // Promise.all so a 5-item cart doesn't pay 5× the RC + DA latency. Output
+  // order is preserved by `cartItems.map` — same as the prior for-loop.
+  //
+  // The hosting branch does mutate `user.directAdminUsername` via the user
+  // service, but in practice carts carry at most one hosting item; two
+  // concurrent hosting writes would race on the same field but converge to
+  // one of the two valid values, not corruption.
+  const perItem = await Promise.all(
+    cartItems.map(async (item) => {
+      if (isHostingItem(item)) {
+        return provisionHostingItem(item, {
+          user,
+          orderId,
+          razorpay_payment_id,
+          razorpay_subscription_id,
+          customerResult,
+        });
+      }
+
+      // Placeholder hosting domain names — the hosting item already covered
+      // this cart slot; emit a success row so the response shape stays stable.
+      if (item.domainName.startsWith("hosting-")) {
+        serverLogger.warn(
+          `⚠️ [PAYMENT-VERIFY] Skipping domain registration for placeholder: ${item.domainName}`
+        );
+        return {
+          registrationResult: {
+            domainName: item.domainName,
+            status: "success" as const,
+            message: "Hosting setup complete",
+            itemType: "hosting" as const,
+          },
+          // Placeholder rows don't contribute an orderDomain — they ride on
+          // the linked hosting item's row instead.
+          orderDomain: null,
+        };
+      }
+
+      return provisionDomainItem(item, {
+        user,
+        orderId,
+        cartItems,
+        customerResult,
+      });
+    })
+  );
+
   const registrationResults: RegistrationResult[] = [];
   const successfulDomains: string[] = [];
   const orderDomains: OrderDomain[] = [];
-
-  for (const item of cartItems) {
-    if (isHostingItem(item)) {
-      const r = await provisionHostingItem(item, {
-        user,
-        orderId,
-        razorpay_payment_id,
-        razorpay_subscription_id,
-        customerResult,
-      });
-      registrationResults.push(r.registrationResult);
-      orderDomains.push(r.orderDomain);
-      if (r.successfulDomain) successfulDomains.push(r.successfulDomain);
-      continue;
-    }
-
-    // Placeholder hosting domain names — the hosting item already covered
-    // this cart slot; emit a success row so the response shape stays stable.
-    if (item.domainName.startsWith("hosting-")) {
-      serverLogger.warn(
-        `⚠️ [PAYMENT-VERIFY] Skipping domain registration for placeholder: ${item.domainName}`
-      );
-      registrationResults.push({
-        domainName: item.domainName,
-        status: "success",
-        message: "Hosting setup complete",
-        itemType: "hosting",
-      });
-      continue;
-    }
-
-    const r = await provisionDomainItem(item, {
-      user,
-      orderId,
-      cartItems,
-      customerResult,
-    });
+  for (const r of perItem) {
     registrationResults.push(r.registrationResult);
-    orderDomains.push(r.orderDomain);
-    if (r.successfulDomain) successfulDomains.push(r.successfulDomain);
+    if (r.orderDomain) orderDomains.push(r.orderDomain);
+    if ("successfulDomain" in r && r.successfulDomain) {
+      successfulDomains.push(r.successfulDomain);
+    }
   }
 
   serverLogger.info("📊 [PAYMENT-VERIFY] Domain registration summary:", {

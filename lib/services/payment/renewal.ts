@@ -5,7 +5,7 @@ import { EmailService } from "@/lib/email";
 import connectDB from "@/lib/mongodb";
 import Order from "@/models/Order";
 import type { IOrder } from "@/models/Order";
-import { findUserHosting, listHostingsForUser } from "@/lib/services/hostings";
+import { listHostingsForUser } from "@/lib/services/hostings";
 import { getCurrentDate } from "@/lib/dateUtils";
 import { serverLogger } from "@/lib/server-logger";
 import type { IUser } from "@/models/User";
@@ -123,12 +123,18 @@ export async function handleRenewalPayment(
   // 2. Reactivate Hosting and Extend Expiry
   try {
     if (renewalOrder && renewalOrder.domains) {
+      // Pre-fetch all hostings for the user once + index by domainName so the
+      // per-item loop is O(N+M) instead of N round-trips.
+      const userIdStr = String(user.id || user._id);
+      const allHostings = await listHostingsForUser(userIdStr, { limit: 0 });
+      const hostingByDomain = new Map(
+        allHostings.map((h) => [h.domainName, h])
+      );
+
       for (const item of renewalOrder.domains) {
         if (item.itemType === "hosting") {
           const domainName = item.domainName;
-          const hosting = await findUserHosting(String(user.id || user._id), {
-            domainName,
-          });
+          const hosting = hostingByDomain.get(domainName);
 
           if (hosting) {
             serverLogger.info(
