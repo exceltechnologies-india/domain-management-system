@@ -10,7 +10,10 @@ import Order from "@/models/Order";
 import { claimPendingOrderForProcessing, createOrder, createOrderInSession, forceMarkZohoCreationFailed, getOrderByRazorpayOrderId } from "@/lib/services/orders";
 import { createPaymentInTransaction } from "@/lib/services/payments";
 import { provisionCartItems } from "@/lib/services/payment/provisioner";
-import { finalizePendingOrder } from "@/lib/services/payment/order-creator";
+import {
+  finalizePendingOrder,
+  cartItemsFromOrderDomains,
+} from "@/lib/services/payment/order-creator";
 import { validateOrderAmountMatchesRazorpay } from "@/lib/services/payment/verification";
 import { createZohoInvoice, runPostPaymentTasks } from "@/lib/services/payment/post-tasks";
 import { recordSystemLog } from "@/lib/services/system-logs";
@@ -393,6 +396,13 @@ export async function POST(request: NextRequest) {
     // cold-start / token-refresh races don't leave the order stuck. Only on
     // final failure do we mark creation_failed and rely on the background
     // self-heal in /api/user/invoices.
+    //
+    // cartItems for Zoho must be the DB-trusted projection of order.domains,
+    // not the request body — Batch 5a [H1] closed the swap-domain hole on
+    // provisioning; mirror it here so the invoice/GST record matches what
+    // was actually sold.
+    const zohoCartItems = cartItemsFromOrderDomains(order.domains);
+
     try {
       await createZohoInvoice({
         order,
@@ -400,7 +410,7 @@ export async function POST(request: NextRequest) {
         razorpay_payment_id,
         paymentDetails,
         user: guestUser,
-        cartItems,
+        cartItems: zohoCartItems,
       });
     } catch (zohoErr: unknown) {
       const message = zohoErr instanceof Error ? zohoErr.message : String(zohoErr);
