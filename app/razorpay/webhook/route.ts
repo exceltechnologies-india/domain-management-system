@@ -3,10 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import connectDB from "@/lib/mongodb";
 import Order, { type IOrder } from "@/models/Order";
-import type { HydratedDocument } from "mongoose";
 import { ZohoBooksService } from "@/lib/zohobooks";
 import { serverLogger } from "@/lib/server-logger";
 import { claimPendingOrderForProcessing } from "@/lib/services/orders";
+import { finalizePendingOrder } from "@/lib/services/payment/order-creator";
+import type { RazorpayPaymentDetails } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -157,13 +158,23 @@ async function handlePaymentCaptured(payload: PaymentCapturedPayload) {
         `[Webhook] Claimed pending order ${claimed.orderId} for provisioning (rzp=${razorpayOrderId})`
     );
 
-    // Phase 4: Zoho Invoice Creation
+    const user = await getUserById(String(claimed.userId));
+    if (!user) {
+        serverLogger.error(
+            `[Webhook] User ${claimed.userId} not found for order ${claimed.orderId} — leaving order in processing for admin inspection`
+        );
+        throw new Error("User not found for order");
+    }
+
+    // Phase 4: Zoho Invoice Creation. Done inline (not inside
+    // finalizePendingOrder) because the /verify path also does Zoho inline
+    // — keeping both call sites symmetrical here avoids the webhook silently
+    // skipping invoicing on the unhappy path. Stamp the resulting ids onto
+    // `claimed` without saving; finalizePendingOrder will persist them in
+    // its transaction below.
     if (!claimed.zohoInvoiceId) {
         try {
             const zohoService = ZohoBooksService.getInstance();
-            const user = await getUserById(String(claimed.userId));
-            if (!user) throw new Error("User not found for order");
-
             const items = claimed.domains.map((d: IOrder["domains"][number]) => ({
                 domainName: d.domainName,
                 price: d.price,
@@ -185,33 +196,42 @@ async function handlePaymentCaptured(payload: PaymentCapturedPayload) {
             if (invoice && invoice.invoice_id) {
                 claimed.zohoInvoiceId = invoice.invoice_id;
                 claimed.invoiceNumber = invoice.invoice_number;
-                await claimed.save();
             } else {
                 throw new Error("Zoho Invoice creation returned no ID");
             }
         } catch (error) {
-            serverLogger.error("❌ Zoho Sync Failed", error);
             // Don't rethrow — let provisioning proceed. The self-heal cron
             // picks up `creation_failed` orders later. Throwing here would
             // cause Razorpay to retry the webhook even though the payment
             // is safely captured and the order is being provisioned.
-            try {
-                claimed.zohoInvoiceId = "creation_failed";
-                await claimed.save();
-            } catch (_) {}
+            serverLogger.error("❌ Zoho Sync Failed", error);
+            claimed.zohoInvoiceId = "creation_failed";
         }
     }
 
-    // Phase 5: Provisioning
+    // Phase 5: Provisioning + Payment row + status flip. finalizePendingOrder
+    // runs the per-item provisioner fan-out, writes the Payment row, and
+    // transitions the order to `completed` inside one Mongo transaction —
+    // identical to the /verify happy path.
+    const paymentDetails = {
+        id: payment.id,
+        amount: payment.amount,
+        currency: payment.currency,
+        status: "captured" as const,
+        order_id: payment.order_id ?? claimed.razorpayOrderId,
+    } as RazorpayPaymentDetails;
+
     try {
-        const results = await provisionServices(claimed);
-        const successCount = results.successfulDomains.length;
-        const failCount = results.failedDomains.length;
+        const result = await finalizePendingOrder({
+            order: claimed,
+            user,
+            razorpay_payment_id: payment.id,
+            razorpay_signature: claimed.razorpaySignature || "",
+            paymentDetails,
+        });
         serverLogger.info(
-            `[Webhook] Provisioned ${claimed.orderId}: success=${successCount} fail=${failCount}`
+            `[Webhook] Provisioned ${claimed.orderId}: success=${result.finalSuccessfulDomains.length} pending=${result.pendingDomains.length} fail=${result.failedDomains.length}`
         );
-        claimed.status = "completed";
-        await claimed.save();
     } catch (error) {
         serverLogger.error("❌ [Webhook] Provisioning Failed", error);
         // Leave the order in `processing` so admin can inspect; rethrow so
@@ -246,7 +266,6 @@ async function handleRefundProcessed(payload: RefundProcessedPayload) {
 
   try {
     const zohoService = ZohoBooksService.getInstance();
-    const User = (await import("@/models/User")).default;
     const user = await getUserById(String(order.userId));
     if (!user) throw new Error("User not found for refunded order");
 
@@ -271,13 +290,3 @@ async function handleRefundProcessed(payload: RefundProcessedPayload) {
   }
 }
 
-async function provisionServices(order: HydratedDocument<IOrder>) {
-    const User = (await import("@/models/User")).default;
-    const user = await getUserById(String(order.userId));
-    if (!user) throw new Error("User not found for provisioning");
-    
-    // Import dynamically to avoid circle if any (though lib should be fine)
-    const { ProvisioningService } = await import("@/lib/provisioning");
-    
-    return await ProvisioningService.provisionOrder(order, user);
-}
