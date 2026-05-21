@@ -42,15 +42,24 @@ export async function GET(request: NextRequest) {
     }
 
     // ── Part 1: drain deferred PendingHosting rows ──────────────────────────
+    // Concurrency-capped fan-out: DA `createUser` is the bottleneck (~2s
+    // cold). Running 50 serially blows the Cloud Tasks visibility timeout.
+    // Cap at 5 to stay friendly to DA without throttling ourselves.
     const deferred = await listDeferredPendingHostings();
     const retryResults = { attempted: deferred.length, succeeded: 0, dropped: 0, failed: 0 };
-    for (const pending of deferred) {
-      const result = await provisionPendingHosting(pending);
-      if (result.ok) {
-        if (result.dropped) retryResults.dropped += 1;
-        else retryResults.succeeded += 1;
-      } else {
-        retryResults.failed += 1;
+    const CONCURRENCY = 5;
+    for (let i = 0; i < deferred.length; i += CONCURRENCY) {
+      const chunk = deferred.slice(i, i + CONCURRENCY);
+      const results = await Promise.allSettled(
+        chunk.map((pending) => provisionPendingHosting(pending))
+      );
+      for (const r of results) {
+        if (r.status === "fulfilled" && r.value.ok) {
+          if (r.value.dropped) retryResults.dropped += 1;
+          else retryResults.succeeded += 1;
+        } else {
+          retryResults.failed += 1;
+        }
       }
     }
     if (deferred.length > 0) {

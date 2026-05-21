@@ -32,6 +32,18 @@ export const razorpay = new Razorpay({
   key_secret: RAZORPAY_KEY_SECRET,
 });
 
+// 30s upper bound on every Razorpay HTTP call. The SDK's internal axios
+// client has no default timeout — a hung Razorpay slot would otherwise
+// stall payment-verify indefinitely (mirrors the resolved [H3] Zoho axios
+// timeout). Set on `api.defaults` because the SDK doesn't expose a
+// constructor `timeout` option in v2.x.
+{
+  const apiClient = (razorpay as unknown as { api?: { defaults?: { timeout?: number } } }).api;
+  if (apiClient?.defaults) {
+    apiClient.defaults.timeout = 30_000;
+  }
+}
+
 export interface PaymentOrder {
   id: string;
   amount: number;

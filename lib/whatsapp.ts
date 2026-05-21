@@ -56,8 +56,12 @@ export class WhatsAppService {
         : [];
 
     try {
+      // 15s upper bound — runs inside worker hot paths
+      // (`process-service-expiry`). A hung Graph slot must not stall the
+      // worker's Cloud Run slot.
       const res = await fetch(`${GRAPH_URL}/${this.phoneNumberId}/messages`, {
         method: "POST",
+        signal: AbortSignal.timeout(15_000),
         headers: {
           Authorization: `Bearer ${this.token}`,
           "Content-Type": "application/json",

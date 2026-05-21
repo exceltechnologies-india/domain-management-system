@@ -138,85 +138,108 @@ export async function GET(request: NextRequest) {
       failed: 0,
     };
 
-    // ── Process Hostings ──────────────────────────────────────────────────────
-    for (const candidate of candidateHostings) {
-      try {
-        // ATOMIC LOCK — only succeeds if the service is still unlocked
-        const locked = await lockHostingForScheduler({
-          hostingId: candidate._id,
-          now,
-          lockExpiry,
-        });
+    // Concurrency cap for lock+enqueue. Each iteration does a Mongo
+    // findOneAndUpdate + a Cloud Tasks createHttpTask (~80ms total). Serial
+    // 500-row runs took ~80s; chunks of 20 cut that to ~4s without
+    // overwhelming the queue.
+    const SCHED_CONCURRENCY = 20;
 
-        if (!locked) {
-          // Another scheduler/worker already locked this service
-          results.skippedLocked++;
+    // ── Process Hostings ──────────────────────────────────────────────────────
+    for (let i = 0; i < candidateHostings.length; i += SCHED_CONCURRENCY) {
+      const chunk = candidateHostings.slice(i, i + SCHED_CONCURRENCY);
+      const outcomes = await Promise.allSettled(
+        chunk.map(async (candidate) => {
+          // ATOMIC LOCK — only succeeds if the service is still unlocked
+          const locked = await lockHostingForScheduler({
+            hostingId: candidate._id,
+            now,
+            lockExpiry,
+          });
+
+          if (!locked) return { kind: "skipped" } as const;
+
+          try {
+            await createHttpTask(queueName, workerUrl, {
+              serviceId: candidate._id.toString(),
+              serviceType: "hosting",
+              simulatedTime,
+            });
+            return { kind: "queued" } as const;
+          } catch (error: unknown) {
+            // Release lock and surface the failure so the caller can count it.
+            const message = error instanceof Error ? error.message : String(error);
+            serverLogger.error(
+              `[DailyCron] Failed to queue hosting ${candidate._id}: ${message}`
+            );
+            await releaseHostingSchedulerLock({
+              hostingId: candidate._id,
+              lockExpiry,
+            }).catch(() => {});
+            return { kind: "failed" } as const;
+          }
+        })
+      );
+
+      for (const outcome of outcomes) {
+        if (outcome.status === "rejected") {
+          results.failed++;
           continue;
         }
-
-        // Push to Cloud Tasks
-        await createHttpTask(queueName, workerUrl, {
-          serviceId: candidate._id.toString(),
-          serviceType: "hosting",
-          simulatedTime, // Pass simulated time to worker
-        });
-
-        results.queuedHostings++;
-      } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : String(error);
-        serverLogger.error(
-          `[DailyCron] Failed to lock/queue hosting ${candidate._id}: ${message}`
-        );
-        results.failed++;
-
-        // Release the lock if we acquired it but failed to queue
-        await releaseHostingSchedulerLock({
-          hostingId: candidate._id,
-          lockExpiry,
-        }).catch(() => {});
+        if (outcome.value.kind === "skipped") results.skippedLocked++;
+        else if (outcome.value.kind === "queued") results.queuedHostings++;
+        else results.failed++;
       }
     }
 
     // ── Process Domains ───────────────────────────────────────────────────────
-    for (const candidate of candidateDomains) {
-      try {
-        const locked = await Domain.findOneAndUpdate(
-          {
-            _id: candidate._id,
-            $or: [
-              { processing_until: null },
-              { processing_until: { $exists: false } },
-              { processing_until: { $lt: now } },
-            ],
-          },
-          { $set: { processing_until: lockExpiry } },
-          { new: false }
-        );
+    for (let i = 0; i < candidateDomains.length; i += SCHED_CONCURRENCY) {
+      const chunk = candidateDomains.slice(i, i + SCHED_CONCURRENCY);
+      const outcomes = await Promise.allSettled(
+        chunk.map(async (candidate) => {
+          const locked = await Domain.findOneAndUpdate(
+            {
+              _id: candidate._id,
+              $or: [
+                { processing_until: null },
+                { processing_until: { $exists: false } },
+                { processing_until: { $lt: now } },
+              ],
+            },
+            { $set: { processing_until: lockExpiry } },
+            { new: false }
+          );
 
-        if (!locked) {
-          results.skippedLocked++;
+          if (!locked) return { kind: "skipped" } as const;
+
+          try {
+            await createHttpTask(queueName, workerUrl, {
+              serviceId: candidate._id.toString(),
+              serviceType: "domain",
+              simulatedTime,
+            });
+            return { kind: "queued" } as const;
+          } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            serverLogger.error(
+              `[DailyCron] Failed to queue domain ${candidate._id}: ${message}`
+            );
+            await Domain.updateOne(
+              { _id: candidate._id, processing_until: lockExpiry },
+              { $set: { processing_until: null } }
+            ).catch(() => {});
+            return { kind: "failed" } as const;
+          }
+        })
+      );
+
+      for (const outcome of outcomes) {
+        if (outcome.status === "rejected") {
+          results.failed++;
           continue;
         }
-
-        await createHttpTask(queueName, workerUrl, {
-          serviceId: candidate._id.toString(),
-          serviceType: "domain",
-          simulatedTime, // Pass simulated time to worker
-        });
-
-        results.queuedDomains++;
-      } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : String(error);
-        serverLogger.error(
-          `[DailyCron] Failed to lock/queue domain ${candidate._id}: ${message}`
-        );
-        results.failed++;
-
-        // Release lock on queue failure
-        await Domain.updateOne(
-          { _id: candidate._id, processing_until: lockExpiry },
-          { $set: { processing_until: null } }
-        ).catch(() => {});
+        if (outcome.value.kind === "skipped") results.skippedLocked++;
+        else if (outcome.value.kind === "queued") results.queuedDomains++;
+        else results.failed++;
       }
     }
 
@@ -231,12 +254,15 @@ export async function GET(request: NextRequest) {
     const domainWatchResult = await (async () => {
       try {
         const workerWatchUrl = `${process.env.NEXTAUTH_URL}/api/v1/workers/check-domain-watch`;
+        // 60s upper bound — a hung domain-watch worker must not block the
+        // cron Cloud Run slot indefinitely.
         const res = await fetch(workerWatchUrl, {
           method: "POST",
           headers: {
             "x-cron-secret": process.env.CRON_SECRET ?? "",
             "Content-Type": "application/json",
           },
+          signal: AbortSignal.timeout(60_000),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return await res.json();
