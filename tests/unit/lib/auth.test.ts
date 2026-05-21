@@ -172,73 +172,39 @@ describe("AuthService.verifyToken", () => {
   });
 });
 
-// ─── Base64 (non-JWT) token fallback path ────────────────────────────────────
-// auth.ts has a secondary decoding path for non-JWT base64 tokens (NextAuth compatibility).
-// These cover lines 88-124 of auth.ts.
+// ─── Unsigned-token rejection (regression guard for the deleted base64 fallback) ─
+// Earlier code accepted a Bearer payload of `base64(JSON.stringify({userId, email,
+// role}))` if jwt.verify failed and the token had no dots. That was an auth
+// bypass — any attacker who could enumerate or guess an admin _id could
+// authenticate as that admin without ever knowing JWT_SECRET. These cases
+// pin the verifier to JWT-only.
 
 function makeBase64Token(payload: object): string {
   const json = JSON.stringify(payload);
-  // Convert to standard base64 and then to base64url
-  return Buffer.from(json).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+  return Buffer.from(json)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "");
 }
 
-describe("AuthService.verifyToken — base64 fallback path", () => {
-  it("accepts a valid base64-encoded token without dots", () => {
+describe("AuthService.verifyToken — rejects unsigned base64 tokens", () => {
+  it("rejects a base64-encoded JSON payload that mimics a valid claim set", () => {
+    // This is the exact shape a forged admin token would take.
     const payload = {
       userId: "507f1f77bcf86cd799439011",
-      email: "test@example.com",
-      role: "user",
+      email: "admin@example.com",
+      role: "admin",
       iat: Math.floor(Date.now() / 1000),
       exp: Math.floor(Date.now() / 1000) + 86400,
     };
     const token = makeBase64Token(payload);
-    // Token has no dots → triggers base64 fallback path
     expect(token.includes(".")).toBe(false);
-    const result = AuthService.verifyToken(token);
-    expect(result).not.toBeNull();
-    expect(result?.userId).toBe(payload.userId);
-    expect(result?.email).toBe(payload.email);
-  });
-
-  it("returns null for an expired base64 token", () => {
-    const payload = {
-      userId: "507f1f77bcf86cd799439011",
-      email: "test@example.com",
-      role: "user",
-      iat: Math.floor(Date.now() / 1000) - 100,
-      exp: Math.floor(Date.now() / 1000) - 10, // already expired
-    };
-    const token = makeBase64Token(payload);
     expect(AuthService.verifyToken(token)).toBeNull();
   });
 
-  it("returns null for a base64 token that is older than 30 days", () => {
-    const thirtyOneDaysAgo = Math.floor(Date.now() / 1000) - 31 * 24 * 60 * 60;
-    const payload = {
-      userId: "507f1f77bcf86cd799439011",
-      email: "test@example.com",
-      role: "user",
-      iat: thirtyOneDaysAgo,
-    };
-    const token = makeBase64Token(payload);
-    expect(AuthService.verifyToken(token)).toBeNull();
-  });
-
-  it("returns null for a base64 token missing required fields", () => {
-    const payload = { email: "test@example.com" }; // missing userId and role
-    const token = makeBase64Token(payload);
-    expect(AuthService.verifyToken(token)).toBeNull();
-  });
-
-  it("returns null for a string with invalid base64url characters", () => {
-    // Contains characters outside [A-Za-z0-9-_=] → fails the pattern check
-    expect(AuthService.verifyToken("not!valid@base64")).toBeNull();
-  });
-
-  it("returns null for a base64 string that is not valid JSON", () => {
-    // Valid base64url, but decodes to non-JSON bytes
-    const token = Buffer.from("not json {{{").toString("base64url");
-    expect(AuthService.verifyToken(token)).toBeNull();
+  it("rejects a dot-less alphanumeric string that isn't a JWT", () => {
+    expect(AuthService.verifyToken("dGVzdHRva2Vu")).toBeNull();
   });
 });
 

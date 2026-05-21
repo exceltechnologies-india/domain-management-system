@@ -37,6 +37,7 @@ This document tracks **currently-open** findings. The full historical pass log (
 - ✅ **[M1] Service-layer integration tests** (commit `ad0c7b4`) — New `tests/integration/services/` suite with 75 tests across orders/hostings/users/support-tickets/domains. Locks in the `select: false` defaults on `password` / `resetToken` so a future accidental removal surfaces here. 434 unit + 100 integration = 534 tests passing.
 - ✅ **Batch 1 verification 2026-05-21** (revision `dms-00032-zqf`) — `/api/health` 200 OK, zero error-level Cloud Run logs in 15-min post-deploy window.
 - ✅ **Follow-ups closed (2026-05-21)** — [M6 sweep] all 14 remaining admin routes migrated onto `AuthService.getAdminFromRequest` (~150 lines of duplicate `getToken` + inline role-check removed); [M7 expansion] 6 new test files added — `system-logs.test.ts` (4 tests), `ip-checks.test.ts` (3), `domain-watches.test.ts` (6), `hosting-plans.test.ts` (10), `renewal-payments.test.ts` (6), `pending-domains.test.ts` (6). All 17 services now covered. Tests: **425 unit + 153 integration = 578 passing**.
+- ✅ **Rescan-3 Batch 6a (2026-05-21 auth bypass)** — [H1] Deleted the base64-fallback block in [AuthService.verifyToken](lib/auth.ts) (lines 93-131). The fallback accepted any dot-less, base64url-shaped Bearer token whose decoded JSON had `userId`/`email`/`role` — no signature, no HMAC. An attacker who could enumerate an admin `_id` (which leaks via admin UI URLs, exports, debug pages) could send `Bearer base64({userId:"<admin-id>",email:"x",role:"admin"})` and authenticate as that admin since `getUserById(payload.userId)` would resolve to the real admin row. Verified zero callers in the repo emit base64 tokens — was dead code, pure auth-bypass surface. `verifyToken` is now JWT-only. Flipped the 6 stale tests in [tests/unit/lib/auth.test.ts](tests/unit/lib/auth.test.ts) that previously asserted the fallback worked into 2 regression-guard tests asserting forged-payload + dot-less-alphanumeric strings are rejected. Tests: 426 unit + 159 integration = 585 green.
 - ✅ **Rescan-2 Batch 5d (2026-05-21 lows)** — [L1] `setUserDirectAdminUsername` now uses a CAS-style filter (`directAdminUsername` $exists:false || null || ""), so two concurrent hosting provisionings on the same user race-safe: first writer wins on the User row, second is a no-op. The losing Hosting doc still carries its own correct DA username so the per-account mapping survives. Comment in [provisioner.ts](lib/services/payment/provisioner.ts) updated to reflect the guard; integration test added (`tests/integration/services/users.test.ts`). [L4] New `.env.example` at repo root documenting every `process.env.*` consumed by the runtime, grouped by category (runtime, DB/cache, auth, Razorpay, ResellerClub, DirectAdmin including `DIRECTADMIN_IP` + `DA_DEFAULT_PACKAGE`, Zoho, SMTP, SMS/WhatsApp, GCP queues, cron, AI, test-only). Whitelisted in `.gitignore` (`!.env.example`). Tests: 430 unit + 159 integration = 589 green.
 - ✅ **Rescan-2 Batch 5c (2026-05-21 medium / quality)** — [M2] M6 admin-auth sweep completed: 16 remaining admin routes (`admin/payments`, `admin/users` ×3, `admin/users/deactivated`, `admin/users/reset-2fa`, `admin/users/reactivate`, `admin/orders/[id]` ×2, `admin/orders/[id]/invoice`, `admin/orders/[id]/re-sync-invoice`, `admin/orders/[id]/clear-invoice-number`, `admin/orders/invoice-conflicts`, `admin/domains`, `admin/domains/activate-dns`, `admin/tld-pricing`, `admin/resellerclub/balance`, `admin/hosting/test-plan`, `admin/support-tickets/[id]`) migrated from inline `getUserFromRequest + user.role === "admin"` to single `AuthService.getAdminFromRequest`. Pattern-B routes (`domains`, `domains/activate-dns`, `resellerclub/balance`) had split 401/403 responses collapsed to 401-only (matches the `razorpay-mode` shape — non-admin existence isn't leaked). Pattern-C routes (`hosting/test-plan`, `support-tickets/[id]`) collapsed `isAdmin` + `getUserFromRequest` duplicate calls into one. [M3] Test coverage added for the new pending-order write paths: 5 new integration tests in `tests/integration/services/orders.test.ts` cover `claimPendingOrderForProcessing` (first-wins, concurrent race exactly-one-winner, unknown-order null, post-pending null, paymentVerification stamp); 5 new unit tests in `tests/unit/lib/payment-verification.test.ts` cover `validateOrderAmountMatchesRazorpay` (match / underpay / overpay / rupee→paise rounding / Razorpay-fetch failure). [M4] Provisioning transaction-boundary gap closed in `finalizePendingOrder`: post-provisioning state (domains[], successfulDomains, payment metadata) is now persisted via `Order.updateOne` BEFORE the save+Payment-row transaction opens. If the transactional save throws (validation, mongo blip), the Order document now reflects what RC/DA actually did — admin can manually flip status without re-running side effects. New catch+log inside the transaction explicitly calls this out. [M5] Dead exports `markOrderFailed` + `completeOrder` deleted from `lib/services/orders.ts` (zero callers; `markZohoInvoiceCreationFailed` retained — still used by `zoho-invoice-retry.ts`). Tests: 430 unit + 158 integration = 588 green.
 - ✅ **Rescan-2 Batch 5b (2026-05-21 webhook parity)** — [H2] Razorpay webhook migrated off the legacy serial `ProvisioningService.provisionOrder` (`lib/provisioning.ts`) onto `finalizePendingOrder` — webhook now goes through the same `Promise.all` fan-out as `/verify`, so webhook-wins races no longer pay 5× per-item latency. `lib/provisioning.ts` deleted (zero remaining callers). [M1] Payment row gap closed — `finalizePendingOrder`'s in-transaction `createPaymentInTransaction` runs on the webhook path too, so orders completed via webhook are now visible to admin/payments + reconciliation joins. Order status transition + Payment insert are now in the same Mongo transaction. [L2] `getUserById(String(claimed.userId))` hoisted to a single fetch (previously called once in the Zoho block, once inside `provisionServices`). [L3] Dead `const User = (await import("@/models/User")).default` lines removed from both refund and (now-deleted) `provisionServices` handlers. Tests: 425 unit + 153 integration = 578 green.
@@ -59,7 +60,96 @@ _Batch 5d (lows) closed: [L1], [L4]._
 
 ---
 
-## Deliberately deferred (by user)
+## Open issues (rescan-3 2026-05-21)
+
+Fresh audit after Batch 5a-5d landed. Scope covered: post-batch regressions, middleware/CSP, cron auth, server-logger feedback loops, frontend admin auth, type-safety drift across the verify routes.
+
+_Batch 6a (auth bypass) closed: [H1]._
+
+### HIGH
+
+#### [H2] `createZohoInvoice` still trusts request-body `cartItems` after H1 fix — invoice misrepresents the order
+**Files:** [app/api/payments/verify/route.ts:261-268](app/api/payments/verify/route.ts), [app/api/payments/guest/verify/route.ts:397-404](app/api/payments/guest/verify/route.ts)
+**Problem:** Batch 5a's [H1] closed the swap-domain hole for provisioning (`finalizePendingOrder` rebuilds from `order.domains`), but the next step in both verify routes calls `createZohoInvoice({…, cartItems})` with the **request-body** cartItems. A user who paid for `cheap.in` can submit `cartItems=[{domainName:"expensive.com", price:10000}]` and: provisioning correctly registers cheap.in, but the Zoho-emailed invoice + GST record shows "expensive.com — ₹10,000". The webhook path correctly uses `claimed.domains`; only the two verify paths regressed.
+**Fix:** In the pending-finalize branch of both verify routes, build a DB-trusted `cartItems` from `order.domains` (same projection `idempotency.ts:52-55` uses) and pass it to `createZohoInvoice`.
+**Effort:** ~30 min + integration test asserting Zoho line items match `order.domains`.
+
+#### [H3] `isTrial` lost when finalising a pending bundle order — defeats trial gating
+**Files:** [models/Order.ts:152-247](models/Order.ts) (no `isTrial` on the `domains` subschema), [app/api/payments/create-order/route.ts:261](app/api/payments/create-order/route.ts) (`domains.map` doesn't carry `isTrial`), [lib/services/payment/order-creator.ts:296-310](lib/services/payment/order-creator.ts) (cartItems rebuild misses `isTrial`), [lib/services/payment/provisioner-hosting.ts:146](lib/services/payment/provisioner-hosting.ts) (`isTrial = item.isTrial === true`).
+**Problem:** Bundle carts (trial hosting + paid domain) have `oneTimeAmount > 0`, so `/create-order` persists a pending Order. The pending domains[] array omits `isTrial`. On verify, finalizePendingOrder rebuilds cartItems from `order.domains` — `isTrial` is undefined → hosting provisioner takes the paid branch (full registrationPeriod, isTrial=false on the Hosting doc). The 1-trial-per-user eligibility gate is defeated for any user willing to add a cheap domain to their cart.
+**Fix:** Add `isTrial: { type: Boolean, default: false }` to the `Order.domains` subschema, mirror it in `/create-order`'s `domains.map`, propagate it in the finalizePendingOrder cartItems rebuild.
+**Effort:** ~45 min — schema, two call-sites, one integration test.
+
+#### [H4] `handleVerificationError` fallback creates a duplicate Order — undoes M4 transaction-boundary fix
+**File:** [lib/services/payment/verification-error.ts:60-114](lib/services/payment/verification-error.ts)
+**Problem:** Batch 5c's [M4] made `finalizePendingOrder` persist post-provisioning state on the existing Order via `Order.updateOne` BEFORE the save-transaction — so admin can recover from a transaction throw without re-running RC/DA. But if anything in the verify path throws, control bubbles to `handleVerificationError` which **creates a brand-new Order** with random fallback id + `razorpayOrderId: "fallback_order"` + `status: "completed"`. The real pending Order (now carrying actual provisioning data from M4) is orphaned; admin sees two Order rows for one payment, the real Razorpay tracking IDs are discarded, and the new Order's `status: "completed"` lies (the inner `domains[].status: "pending"` says otherwise).
+**Fix:** When `existingOrder` is reachable, `Order.updateOne` it instead of constructing a new Order. Preserve the real `razorpay_order_id` / `razorpay_payment_id` from route scope. Use `status: "processing"` not `"completed"` when no domain is successfully registered.
+**Effort:** ~30 min + integration test that simulates a transaction throw and asserts no duplicate Order.
+
+### MEDIUM
+
+#### [M1] Guest-verify catch-block fallback can hit duplicate `orderId` constraint
+**File:** [app/api/payments/guest/verify/route.ts:491-545](app/api/payments/guest/verify/route.ts)
+**Problem:** If anything throws after `orderId` is bound to the existing pending Order's id, the catch tries `createOrder({orderId, …})` — but a row with that orderId already exists post-finalize. Duplicate-key error swallowed; user sees a generic 500. Same internally-inconsistent `status: "completed"` while domains are pending.
+**Fix:** Detect that orderId already points at a persisted Order and update instead of create; never mark status completed when no domain was registered.
+
+#### [M2] Webhook-finalised orders store `"pending"` as `razorpaySignature`
+**File:** [app/razorpay/webhook/route.ts:229](app/razorpay/webhook/route.ts)
+**Problem:** The webhook passes `claimed.razorpaySignature || ""` to `finalizePendingOrder`. The pre-claim placeholder is `"pending"` (truthy), so webhook-completed orders land with `razorpaySignature: "pending"` in the DB — indistinguishable from in-flight rows. `webhook-handlers.ts:261` already uses `"webhook_verified"` for the renewal path; the webhook should match.
+**Fix:** Pass `razorpay_signature: "webhook_verified"` from the webhook to `finalizePendingOrder`.
+
+#### [M3] Maintenance-mode middleware fetch has no timeout — self-DoS surface
+**File:** [middleware.ts:144-156](middleware.ts)
+**Problem:** Middleware fetches `127.0.0.1/api/public/maintenance-status` per cache miss (15s TTL) without an `AbortSignal.timeout`. A slow/hung handler blocks every middleware-handled request. Compounds with Cloud Run scale-up cold-start storms.
+**Fix:** `signal: AbortSignal.timeout(2_000)`; existing catch already returns `{enabled:false}`.
+
+#### [M4] `serverLogger.error` fires uncapped self-referential HTTP call → request storm risk
+**File:** [lib/server-logger.ts:66-100,208-211](lib/server-logger.ts)
+**Problem:** Every `serverLogger.error(...)` POSTs to `/api/v1/admin/log-error`. The fetch has no timeout, no recursion guard. If `recordSystemLog` inside that route throws, the route's catch calls `serverLogger.error("Failed to log error to database:", e)` — another POST to itself — exponential storm under a Mongo or SystemLog-model outage.
+**Fix:** Add `AbortSignal.timeout(2_000)`; sentinel header `x-internal-error-log: 1` to skip `remoteLog` for self-originated requests; change the route's catch to `console.error` to break the loop.
+
+#### [M5] Step-up auth for security settings is bypassable via the `category` request field
+**File:** [app/api/admin/settings/route.ts:61-73](app/api/admin/settings/route.ts)
+**Problem:** `requireReAuth` only fires when the request body says `category === "security"`. The same admin can update `2fa_required` (or any security key) by passing `category: "general"` and skip the re-auth challenge. Category should be derived from the stored setting or a server-side key whitelist.
+**Fix:** Look up the existing setting's category by key (`getSetting(key)`); maintain a `SECURITY_KEYS` allowlist.
+
+#### [M6] Remaining direct `Order.*` callsites outside `lib/services/orders.ts`
+**Files:** [app/api/admin/hosting/stats/route.ts:13](app/api/admin/hosting/stats/route.ts) (dead import), [lib/domain-verification.ts:123](lib/domain-verification.ts) (`Order.find`), [app/razorpay/webhook/route.ts:83,256](app/razorpay/webhook/route.ts) (`Order.findOne`).
+**Problem:** The H1 service-layer migration claim ("zero direct `Order.*` outside the service") is overstated. The webhook — the most-touched payment file — has two raw queries.
+**Fix:** Delete the dead import. Add `findOrdersByDomainName` for domain-verification, `findOrderByRazorpayOrderIdOrPaymentId` and reuse the existing `findOrderByRazorpayPaymentField` for the refund lookup.
+
+### LOW
+
+#### [L1] CSP nonce encodes a UUID string instead of random bytes
+**File:** [middleware.ts:112-114](middleware.ts)
+**Problem:** `Buffer.from(crypto.randomUUID()).toString("base64")` encodes the 36-char UUID string (with dashes), not its 16 random bytes. Same entropy as the UUID, but the standard idiom is `crypto.randomBytes(16).toString("base64")`.
+
+#### [L2] Dead localStorage admin-auth fallback across 5 admin pages
+**Files:** [app/admin/user-management/page.tsx:130-150](app/admin/user-management/page.tsx), [app/admin/order-management/page.tsx:155](app/admin/order-management/page.tsx), [app/admin/payment-management/page.tsx:95](app/admin/payment-management/page.tsx), [app/admin/pricing-management/page.tsx:129](app/admin/pricing-management/page.tsx), [app/admin/invoices/page.tsx:81](app/admin/invoices/page.tsx).
+**Problem:** Each page has a "Fallback to localStorage (legacy support)" block that reads a `token` cookie no auth route sets + a JWT-shaped localStorage value (XSS-exfiltration-prone pattern). Pure dead code now that NextAuth owns auth.
+**Fix:** Delete the fallback branches.
+
+#### [L3] `rateLimiters.hostingRenewUpgrade` has misleading comment; `userOrIpKey` reads unset header
+**File:** [lib/rate-limit.ts:208-214](lib/rate-limit.ts)
+**Problem:** `hostingRenewUpgrade` claims user-keying but has no `keyGenerator`; `userOrIpKey` reads `x-user-id` which is never set by middleware. Today all callers use explicit `checkKey(...)` so it's latent — but a future refactor calling `isAllowed(request)` would silently degrade to IP-keying.
+**Fix:** Either give the limiter a `userOrIpKey("hosting_renew")` (and set `x-user-id` in middleware), or delete `userOrIpKey` and update the comments.
+
+#### [L4] Double-write of RC IDs in `setupRcCustomerAndContact`
+**File:** [lib/services/payment/provisioner.ts:237-265](lib/services/payment/provisioner.ts)
+**Problem:** When `user.resellerClubCustomerId` is unset, `setUserResellerClubIds` is called twice — once with contactId + maybe-undefined customerId, then again with just customerId. Two `User.updateOne` round-trips where one suffices.
+**Fix:** Consolidate to a single call after the if-blocks.
+
+#### [L5] `verification-error.ts:194` echoes raw `error.message` to user
+**File:** [lib/services/payment/verification-error.ts:194](lib/services/payment/verification-error.ts)
+**Problem:** Catch-all branch passes `error.message` straight into the user-facing string — same raw-error-leak class that Batch 2's [M1] closed elsewhere.
+**Fix:** Generic "encountered an error, contact support" copy in the response; keep `error.message` in `serverLogger.error`.
+
+#### [L6] Daily-scheduler domain lock-step misses the `status` filter the candidate query uses
+**File:** [app/api/cron/daily-scheduler/route.ts:199-210](app/api/cron/daily-scheduler/route.ts)
+**Problem:** Candidate query at lines 111-119 filters `status: { $nin: ["failed", "terminated"] }`; the per-domain atomic lock filters only on `_id` + `processing_until`. If status flips between fetch and lock, the scheduler queues the row anyway. Rare; matches the bug class the Hosting branch already avoids.
+**Fix:** Mirror the `status` filter into the lock-step filter.
+
+---
 
 - **CRITICAL-2** — Rotate credentials baked into pre-Secret-Manager Docker layers.
 - **Day-9 roadmap** — Rotate GCP service account key.

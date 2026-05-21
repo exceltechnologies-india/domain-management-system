@@ -58,81 +58,32 @@ export class AuthService {
   }
 
   /**
-   * Verifies an incoming JWT token with strict structural integrity checks.
-   * 
-   * It enforces algorithm bounds (HS256), matching issuer/audience properties,
-   * expiration times, and custom maximum token age thresholds. Furthermore,
-   * it includes a fallback decoder for NextAuth-style session tokens.
-   * 
-   * @param {string} token - The raw JWT or Base64 string to verify
-   * @returns {JWTPayload | null} The decoded payload if valid, or null if the token is tampered/expired
+   * Verifies an incoming JWT token with strict structural integrity checks:
+   * algorithm pinned to HS256, issuer + audience matched, expiry + 30-day
+   * max-age enforced. Returns the decoded payload on success or null on any
+   * failure. Callers MUST still resolve `payload.userId` against the DB —
+   * `role` from the payload is informational only.
    */
   static verifyToken(token: string): JWTPayload | null {
     try {
-      // First try to verify as a proper JWT token
-      try {
-        const decoded = jwt.verify(token, JWT_SECRET, {
-          issuer: "excel-technologies",
-          audience: "domain-management-system",
-          algorithms: ["HS256"],
-        }) as JWTPayload & { iat?: number };
+      const decoded = jwt.verify(token, JWT_SECRET, {
+        issuer: "excel-technologies",
+        audience: "domain-management-system",
+        algorithms: ["HS256"],
+      }) as JWTPayload & { iat?: number };
 
-        // Additional security checks
-        if (!decoded.userId || !decoded.email || !decoded.role) {
-          return null;
-        }
-
-        // Check if token is not too old (additional security)
-        const tokenAge = Date.now() / 1000 - (decoded.iat ?? 0);
-        const maxAge = 30 * 24 * 60 * 60; // 30 days in seconds
-        if (tokenAge > maxAge) {
-          return null;
-        }
-
-        return decoded as JWTPayload;
-      } catch (jwtError) {
-        // If JWT verification fails, optionally try to decode as base64 (non-JWT tokens)
-        // Only attempt base64 when it does NOT look like a JWT (i.e., no dots)
-        const looksLikeJwt = token.includes(".");
-        if (looksLikeJwt) {
-          return null;
-        }
-
-        // Basic base64url pattern check to avoid noisy errors
-        const base64UrlPattern = /^[A-Za-z0-9-_]+=*$/;
-        if (!base64UrlPattern.test(token)) {
-          return null;
-        }
-
-        try {
-          const decodedStr = atob(token.replace(/-/g, "+").replace(/_/g, "/"));
-          const decoded = JSON.parse(decodedStr);
-
-          if (!decoded.userId || !decoded.email || !decoded.role) {
-            return null;
-          }
-
-          if (decoded.exp && Date.now() / 1000 > decoded.exp) {
-            return null;
-          }
-
-          if (decoded.iat) {
-            const tokenAge = Date.now() / 1000 - decoded.iat;
-            const maxAge = 30 * 24 * 60 * 60;
-            if (tokenAge > maxAge) {
-              return null;
-            }
-          }
-
-          return decoded as JWTPayload;
-        } catch {
-          // Quietly fail; we'll fall back to NextAuth session elsewhere
-          return null;
-        }
+      if (!decoded.userId || !decoded.email || !decoded.role) {
+        return null;
       }
-    } catch (error) {
-      // Reduce noise: token verification may fail legitimately for session-only auth
-      // console.debug("Token verification failed:", error);
+
+      const tokenAge = Date.now() / 1000 - (decoded.iat ?? 0);
+      const maxAge = 30 * 24 * 60 * 60; // 30 days in seconds
+      if (tokenAge > maxAge) {
+        return null;
+      }
+
+      return decoded as JWTPayload;
+    } catch {
       return null;
     }
   }
