@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserByEmail } from "@/lib/services/users";
 import { EmailService } from "@/lib/email";
-import { rateLimiters } from "@/lib/rate-limit";
+import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import crypto from "crypto";
 import { serverLogger } from "@/lib/server-logger";
 
@@ -12,10 +12,7 @@ export async function POST(request: NextRequest) {
   try {
     const rateLimit = await rateLimiters.resendActivation.isAllowed(request);
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        { error: "Too many requests. Please try again later." },
-        { status: 429 }
-      );
+      return rateLimitResponse(rateLimit, { limit: 3 });
     }
 
     const { email } = await request.json();

@@ -3,7 +3,7 @@ import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
 import { getUserByEmail } from "@/lib/services/users";
 import { EmailService } from "@/lib/email";
-import { rateLimiters } from "@/lib/rate-limit";
+import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { Schemas } from "@/lib/validation";
 import { RecaptchaServer } from "@/lib/recaptcha";
 import { SecurityValidator } from "@/lib/security";
@@ -31,11 +31,10 @@ export async function POST(request: NextRequest) {
      */
     const rateLimit = await rateLimiters.register.isAllowed(request);
     if (!rateLimit.allowed) {
-      return secureErrorResponse(
-        "Too many registration attempts. Please try again later.",
-        429,
-        "RATE_LIMIT_EXCEEDED"
-      );
+      return rateLimitResponse(rateLimit, {
+        limit: 5,
+        message: "Too many registration attempts. Please try again later.",
+      });
     }
 
     const body = await request.json();

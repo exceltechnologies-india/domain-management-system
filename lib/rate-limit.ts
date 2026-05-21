@@ -1,6 +1,7 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
 import { serverLogger } from "@/lib/server-logger";
+import { addSecurityHeaders } from "@/lib/security-headers";
 
 interface RateLimitConfig {
   windowMs: number;
@@ -192,4 +193,52 @@ export const rateLimiters = {
     maxRequests: 10,
     keyGenerator: ipKey("chat"),
   }),
+
+  // Guest checkout (unauthenticated /payments/guest/{create-order,verify}).
+  // Each request hits Razorpay create-order or payment-fetch + writes a
+  // user row + a pending Order. 5 attempts/min/IP is enough for a real
+  // human juggling cart UI but caps abusers from minting Razorpay orders
+  // at scale.
+  guestCheckout: new RateLimiter({
+    windowMs: 60 * 1000, // 1 minute
+    maxRequests: 5,
+    keyGenerator: ipKey("guest_checkout"),
+  }),
+
+  // User-side hosting renew / upgrade. Authenticated, but each call mints
+  // a pending Razorpay order — gate by user id, not IP, so a single user
+  // can't open dozens of "Pay Now" tabs.
+  hostingRenewUpgrade: new RateLimiter({
+    windowMs: 60 * 1000, // 1 minute
+    maxRequests: 5,
+  }),
 };
+
+/**
+ * Standard 429 envelope for rate-limited endpoints. Returns the uniform
+ * `Retry-After` + `X-RateLimit-*` headers that the client UI keys off of,
+ * with the same security-header set every other API response carries.
+ *
+ * Use everywhere a `rateLimiters.X.checkKey(...)` / `.isAllowed()` call
+ * fails — keeps the envelope shape consistent across the API surface.
+ */
+export function rateLimitResponse(
+  rl: { allowed: boolean; remaining: number; resetTime: number },
+  options: { message?: string; limit?: number } = {}
+): NextResponse {
+  const retryAfter = Math.max(1, Math.ceil((rl.resetTime - Date.now()) / 1000));
+  const response = NextResponse.json(
+    {
+      error: options.message || "Too many requests. Please wait before retrying.",
+    },
+    {
+      status: 429,
+      headers: {
+        "Retry-After": String(retryAfter),
+        "X-RateLimit-Remaining": String(rl.remaining),
+        ...(options.limit ? { "X-RateLimit-Limit": String(options.limit) } : {}),
+      },
+    }
+  );
+  return addSecurityHeaders(response);
+}

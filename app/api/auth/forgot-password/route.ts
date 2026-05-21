@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserByEmail } from "@/lib/services/users";
 import { EmailService } from "@/lib/email";
 import { RecaptchaServer } from "@/lib/recaptcha";
-import { rateLimiters } from "@/lib/rate-limit";
+import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { Schemas } from "@/lib/validation";
 import { SecurityValidator } from "@/lib/security";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
@@ -28,11 +28,10 @@ export async function POST(request: NextRequest) {
      */
     const rateLimit = await rateLimiters.passwordReset.isAllowed(request);
     if (!rateLimit.allowed) {
-      return secureErrorResponse(
-        "Too many password reset attempts. Please try again later.",
-        429,
-        "RATE_LIMIT_EXCEEDED"
-      );
+      return rateLimitResponse(rateLimit, {
+        limit: 3,
+        message: "Too many password reset attempts. Please try again later.",
+      });
     }
 
     const body = await request.json();

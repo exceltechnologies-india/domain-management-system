@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import { ResellerClubAPI } from "@/lib/resellerclub";
 import { AuthService } from "@/lib/auth";
-import { rateLimiters } from "@/lib/rate-limit";
+import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import connectDB from "@/lib/mongodb";
 import Domain from "@/models/Domain";
 import { appendUserDomain, getUserById } from "@/lib/services/users";
@@ -14,15 +14,10 @@ export async function POST(request: NextRequest) {
   try {
     const rateLimit = await rateLimiters.api.isAllowed(request);
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        { error: "Too many requests. Please try again later." },
-        {
-          status: 429,
-          headers: {
-            "Retry-After": Math.ceil((rateLimit.resetTime - Date.now()) / 1000).toString(),
-          },
-        }
-      );
+      return rateLimitResponse(rateLimit, {
+        limit: 100,
+        message: "Too many requests. Please try again later.",
+      });
     }
 
     // Check authentication

@@ -4,7 +4,7 @@ import { AuthService } from "@/lib/auth";
 import { createSupportTicket, listTicketsForUserSummary } from "@/lib/services/support-tickets";
 import { EmailService } from "@/lib/email";
 import { validateAttachments } from "@/lib/support-attachments";
-import { rateLimiters } from "@/lib/rate-limit";
+import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { serverLogger } from "@/lib/server-logger";
 
 const escapeHtml = (s: string) =>
@@ -40,11 +40,9 @@ export async function POST(request: NextRequest) {
     const rl = await rateLimiters.supportCreate.checkKey(`support_create:${userIdStr}`);
     if (!rl.allowed) {
       serverLogger.warn(`[support] create rate-limited for user ${userIdStr}`);
-      return secureErrorResponse(
-        "You've created too many tickets recently. Please try again later.",
-        429,
-        "RATE_LIMITED"
-      );
+      return rateLimitResponse(rl, {
+        message: "You've created too many tickets recently. Please try again later.",
+      });
     }
 
     const body = await request.json();

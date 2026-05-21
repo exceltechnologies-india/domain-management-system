@@ -13,6 +13,7 @@ import { isDisposableEmail } from "@/lib/disposable-emails";
 import { getClientIp, hashIp } from "@/lib/trial-abuse";
 import { createOrder } from "@/lib/services/orders";
 import { createUser, getUserByEmail } from "@/lib/services/users";
+import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { randomBytes } from "crypto";
 import type { CartItem } from "@/lib/types";
 
@@ -38,6 +39,16 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(request: NextRequest) {
   try {
+    // Rate-limit per IP. Unauthenticated path that hits Razorpay create-order
+    // + writes a Mongo row on every call — needs to be capped against abuse.
+    const rl = await rateLimiters.guestCheckout.isAllowed(request);
+    if (!rl.allowed) {
+      return rateLimitResponse(rl, {
+        limit: 5,
+        message: "Too many checkout attempts. Please wait a minute and try again.",
+      });
+    }
+
     const body = await request.json();
     const {
       email,
@@ -261,6 +272,23 @@ export async function POST(request: NextRequest) {
     // and by the existing `isGuest: true` flag for cleanup.
     try {
       let guestUser = await getUserByEmail(resolvedEmail);
+      // Reject if the email belongs to an already-registered (non-guest)
+      // user — a funded attacker could otherwise plant Order/Hosting/Domain
+      // rows under any known email's account. Existing guest rows from
+      // earlier abandoned checkouts are fine to reuse (they're already
+      // owned by this same un-authenticated flow).
+      if (guestUser && !guestUser.isGuest) {
+        serverLogger.warn(
+          `[GuestCheckout] Blocked email-claim attempt for registered user ${resolvedEmail}`
+        );
+        return NextResponse.json(
+          {
+            error:
+              "An account with this email already exists. Please sign in to continue your purchase.",
+          },
+          { status: 409 }
+        );
+      }
       if (!guestUser) {
         guestUser = await createUser({
           email: resolvedEmail,

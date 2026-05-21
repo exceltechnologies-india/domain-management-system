@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { findUserByActivationToken } from "@/lib/services/users";
 import { AuthService } from "@/lib/auth";
-import { rateLimiters } from "@/lib/rate-limit";
+import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { serverLogger } from "@/lib/server-logger";
 
 // Force dynamic rendering - required for API routes
@@ -11,10 +11,10 @@ export async function POST(request: NextRequest) {
   try {
     const rateLimit = await rateLimiters.activation.isAllowed(request);
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        { error: "Too many activation attempts. Please try again later." },
-        { status: 429 }
-      );
+      return rateLimitResponse(rateLimit, {
+        limit: 10,
+        message: "Too many activation attempts. Please try again later.",
+      });
     }
 
     const { token } = await request.json();

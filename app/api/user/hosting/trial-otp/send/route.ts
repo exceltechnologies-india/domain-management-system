@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { AuthService } from "@/lib/auth";
-import { rateLimiters } from "@/lib/rate-limit";
+import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { sendSms } from "@/lib/sms";
 import { generateOtp, storeOtp } from "@/lib/trial-otp";
 import { serverLogger } from "@/lib/server-logger";
@@ -24,11 +24,10 @@ export async function POST(request: NextRequest) {
   try {
     const rl = await rateLimiters.trialOtpSend.isAllowed(request);
     if (!rl.allowed) {
-      return secureErrorResponse(
-        "Too many OTP requests. Please wait a few minutes and try again.",
-        429,
-        "RATE_LIMITED"
-      );
+      return rateLimitResponse(rl, {
+        limit: 3,
+        message: "Too many OTP requests. Please wait a few minutes and try again.",
+      });
     }
 
     const body = (await request.json().catch(() => ({}))) as { phone?: string };
