@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { serverLogger } from "@/lib/server-logger";
 import { AuthService } from "@/lib/auth";
 import {
+  claimPendingOrderForProcessing,
   forceMarkZohoCreationFailed,
   getOrderByRazorpayOrderId,
 } from "@/lib/services/orders";
@@ -18,6 +19,7 @@ import {
 import {
   validateNoRestrictedDomains,
   createCompletedOrder,
+  finalizePendingOrder,
 } from "@/lib/services/payment/order-creator";
 import { handleVerificationError } from "@/lib/services/payment/verification-error";
 import { recordSystemLog } from "@/lib/services/system-logs";
@@ -151,25 +153,87 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
     const restrictedCheck = validateNoRestrictedDomains(cartItems);
     if (!restrictedCheck.ok) return restrictedCheck.response;
 
-    // 8) New order flow: provision cart items + atomic Order/Payment save
-    const {
-      order,
-      orderId,
-      registrationResults,
-      finalSuccessfulDomains,
-      pendingDomains,
-      failedDomains,
-      orderDomains,
-      orderStatus,
-    } = await createCompletedOrder({
-      user,
-      cartItems,
-      razorpay_order_id,
-      razorpay_payment_id,
-      razorpay_signature,
-      razorpay_subscription_id,
-      paymentDetails,
-    });
+    // 8) Pending-order finalisation: the order was persisted at /create-order
+    // time with status=pending. Atomically claim it so /verify and the
+    // /razorpay/webhook can't both run provisioning. If we lost the claim,
+    // the webhook is already handling it — return a "processing" response.
+    // If no pending order exists (shouldn't happen — /create-order writes
+    // one — but defensive for legacy flows), fall through to the legacy
+    // createCompletedOrder path.
+    let order;
+    let orderId: string;
+    let registrationResults;
+    let finalSuccessfulDomains: string[];
+    let pendingDomains;
+    let failedDomains;
+    let orderDomains;
+    let orderStatus: "completed";
+
+    if (existingOrder && existingOrder.status === "pending" && razorpay_order_id) {
+      const claimed = await claimPendingOrderForProcessing(razorpay_order_id, {
+        razorpayPaymentId: razorpay_payment_id,
+        razorpaySignature: razorpay_signature,
+        paymentVerification: {
+          verifiedAt: new Date(),
+          paymentStatus: paymentDetails.status,
+          paymentAmount: paymentDetails.amount,
+          paymentCurrency: paymentDetails.currency,
+          // Razorpay's payment-details payload can be null here; use the
+          // request-body order id, which we've already required-checked.
+          razorpayOrderId: paymentDetails.order_id ?? razorpay_order_id,
+        },
+      });
+      if (!claimed) {
+        // Webhook beat us to it. Return success with the order id we know.
+        serverLogger.info(
+          `[PAYMENT-VERIFY] Pending order ${existingOrder.orderId} already claimed by webhook — returning processing`
+        );
+        return NextResponse.json({
+          success: true,
+          message: "Payment processed, provisioning in progress.",
+          orderId: existingOrder.orderId,
+          domainRegistrationStatus: "processing",
+        });
+      }
+      ({
+        order,
+        orderId,
+        registrationResults,
+        finalSuccessfulDomains,
+        pendingDomains,
+        failedDomains,
+        orderDomains,
+        orderStatus,
+      } = await finalizePendingOrder({
+        order: claimed,
+        user,
+        cartItems,
+        razorpay_payment_id,
+        razorpay_signature,
+        razorpay_subscription_id,
+        paymentDetails,
+      }));
+    } else {
+      // Legacy / defensive path — no pending order found, build from scratch.
+      ({
+        order,
+        orderId,
+        registrationResults,
+        finalSuccessfulDomains,
+        pendingDomains,
+        failedDomains,
+        orderDomains,
+        orderStatus,
+      } = await createCompletedOrder({
+        user,
+        cartItems,
+        razorpay_order_id,
+        razorpay_payment_id,
+        razorpay_signature,
+        razorpay_subscription_id,
+        paymentDetails,
+      }));
+    }
 
     // 9) Zoho invoice (synchronous so failures surface to the caller)
     let invoiceCreationFailed = false;

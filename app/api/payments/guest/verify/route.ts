@@ -7,9 +7,10 @@ import mongoose from "mongoose";
 import type { IUser } from "@/models/User";
 import { createUser, getUserByEmail } from "@/lib/services/users";
 import Order from "@/models/Order";
-import { createOrder, createOrderInSession, forceMarkZohoCreationFailed, getOrderByRazorpayOrderId } from "@/lib/services/orders";
+import { claimPendingOrderForProcessing, createOrder, createOrderInSession, forceMarkZohoCreationFailed, getOrderByRazorpayOrderId } from "@/lib/services/orders";
 import { createPaymentInTransaction } from "@/lib/services/payments";
 import { provisionCartItems } from "@/lib/services/payment/provisioner";
+import { finalizePendingOrder } from "@/lib/services/payment/order-creator";
 import { createZohoInvoice, runPostPaymentTasks } from "@/lib/services/payment/post-tasks";
 import { recordSystemLog } from "@/lib/services/system-logs";
 import { isDomainSupported, requiresAdditionalDetails } from "@/lib/domainRequirements";
@@ -128,6 +129,20 @@ export async function POST(request: NextRequest) {
         isGuest: true,
       });
     }
+    // The webhook is already running provisioning — don't double-process.
+    if (
+      existingOrder?.status === "processing" ||
+      existingOrder?.status === "paid"
+    ) {
+      return NextResponse.json({
+        success: true,
+        message: "Payment processed, provisioning in progress.",
+        orderId: existingOrder.orderId,
+        guestEmail,
+        isGuest: true,
+        domainRegistrationStatus: "processing",
+      });
+    }
 
     // ── Validate domains ─────────────────────────────────────────────────────
     // Hosting items skip this — they don't go through RC at all.
@@ -192,76 +207,127 @@ export async function POST(request: NextRequest) {
       serverLogger.info(`[GuestCheckout] Existing user ${guestEmail} — using their saved profile`);
     }
 
-    // ── Provision domains ────────────────────────────────────────────────────
-    orderId = `ord_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-
-    const { orderDomains, finalSuccessfulDomains } = await provisionCartItems({
-      cartItems,
-      user: guestUser,
-      orderId,
-      razorpay_payment_id,
-    });
-
-    const registrationTotalAmount = cartItems.reduce(
-      (sum, item) => sum + item.price * (item.registrationPeriod || 1),
-      0
-    );
-
-    // Mirror the logged-in flow's mixed-cart classification.
-    const hasDomainItem = cartItems.some(
-      (i) => !i.itemType || i.itemType === "domain"
-    );
-    const hasHostingItem = cartItems.some((i) => i.itemType === "hosting");
-    const derivedOrderType: "domain" | "hosting" | "bundle" =
-      hasDomainItem && hasHostingItem
-        ? "bundle"
-        : hasHostingItem
-        ? "hosting"
-        : "domain";
-
-    const orderPayload = {
-      orderId,
-      userId: guestUser._id,
-      userName: `${guestUser.firstName || ""} ${guestUser.lastName || ""}`.trim(),
-      userEmail: guestEmail,
-      paymentId: `pay_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-      razorpayOrderId: razorpay_order_id,
-      razorpayPaymentId: razorpay_payment_id,
-      razorpaySignature: razorpay_signature,
-      amount: registrationTotalAmount,
-      currency: "INR",
-      status: "completed",
-      domains: orderDomains,
-      successfulDomains: finalSuccessfulDomains,
-      orderType: derivedOrderType,
-      paymentVerification: {
-        verifiedAt: new Date(),
-        paymentStatus: paymentDetails.status,
-        paymentAmount: paymentDetails.amount,
-        paymentCurrency: paymentDetails.currency,
-        razorpayOrderId: paymentDetails.order_id,
-      },
-    };
-
+    // ── Claim the pending order and provision ────────────────────────────────
+    // The order was persisted at /create-order time with status=pending.
+    // Atomically claim it (pending → processing) so /verify and the
+    // /razorpay/webhook can't both run provisioning. If we lost the claim,
+    // the webhook is already handling it — return success and let the user
+    // re-fetch when provisioning completes.
     let order!: Awaited<ReturnType<typeof createOrderInSession>>;
-    const dbSession = await mongoose.startSession();
-    try {
-      await dbSession.withTransaction(async () => {
-        order = await createOrderInSession(orderPayload, dbSession);
-        await createPaymentInTransaction(
-          {
-            userId: guestUser!._id,
-            orderId: orderId!,
-            razorpayPaymentId: razorpay_payment_id,
-            amount: registrationTotalAmount,
-            currency: paymentDetails.currency || "INR",
-            status: "completed",
-          },
-          dbSession
-        );
+    let finalSuccessfulDomains: string[] = [];
+    let orderDomains: Awaited<ReturnType<typeof provisionCartItems>>["orderDomains"] = [];
+
+    if (existingOrder && existingOrder.status === "pending") {
+      const claimed = await claimPendingOrderForProcessing(razorpay_order_id, {
+        razorpayPaymentId: razorpay_payment_id,
+        razorpaySignature: razorpay_signature,
+        paymentVerification: {
+          verifiedAt: new Date(),
+          paymentStatus: paymentDetails.status,
+          paymentAmount: paymentDetails.amount,
+          paymentCurrency: paymentDetails.currency,
+          razorpayOrderId: paymentDetails.order_id ?? razorpay_order_id,
+        },
       });
-    } finally {
-      await dbSession.endSession();
+      if (!claimed) {
+        serverLogger.info(
+          `[GuestCheckout] Pending order ${existingOrder.orderId} already claimed by webhook — returning processing`
+        );
+        return NextResponse.json({
+          success: true,
+          message: "Payment processed, provisioning in progress.",
+          orderId: existingOrder.orderId,
+          guestEmail,
+          isGuest: true,
+          domainRegistrationStatus: "processing",
+        });
+      }
+      const finalised = await finalizePendingOrder({
+        order: claimed,
+        user: guestUser,
+        cartItems,
+        razorpay_payment_id,
+        razorpay_signature,
+        paymentDetails,
+      });
+      order = finalised.order;
+      orderId = finalised.orderId;
+      orderDomains = finalised.orderDomains;
+      finalSuccessfulDomains = finalised.finalSuccessfulDomains;
+    } else {
+      // Legacy / defensive path — pending order wasn't found (shouldn't
+      // happen now that /create-order writes one). Build the order from
+      // scratch the way the pre-refactor flow did.
+      orderId = `ord_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
+      const provisioned = await provisionCartItems({
+        cartItems,
+        user: guestUser,
+        orderId,
+        razorpay_payment_id,
+      });
+      orderDomains = provisioned.orderDomains;
+      finalSuccessfulDomains = provisioned.finalSuccessfulDomains;
+
+      const registrationTotalAmount = cartItems.reduce(
+        (sum, item) => sum + item.price * (item.registrationPeriod || 1),
+        0
+      );
+
+      const hasDomainItem = cartItems.some(
+        (i) => !i.itemType || i.itemType === "domain"
+      );
+      const hasHostingItem = cartItems.some((i) => i.itemType === "hosting");
+      const derivedOrderType: "domain" | "hosting" | "bundle" =
+        hasDomainItem && hasHostingItem
+          ? "bundle"
+          : hasHostingItem
+          ? "hosting"
+          : "domain";
+
+      const orderPayload = {
+        orderId,
+        userId: guestUser._id,
+        userName: `${guestUser.firstName || ""} ${guestUser.lastName || ""}`.trim(),
+        userEmail: guestEmail,
+        paymentId: `pay_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+        razorpayOrderId: razorpay_order_id,
+        razorpayPaymentId: razorpay_payment_id,
+        razorpaySignature: razorpay_signature,
+        amount: registrationTotalAmount,
+        currency: "INR",
+        status: "completed",
+        domains: orderDomains,
+        successfulDomains: finalSuccessfulDomains,
+        orderType: derivedOrderType,
+        paymentVerification: {
+          verifiedAt: new Date(),
+          paymentStatus: paymentDetails.status,
+          paymentAmount: paymentDetails.amount,
+          paymentCurrency: paymentDetails.currency,
+          razorpayOrderId: paymentDetails.order_id,
+        },
+      };
+
+      const dbSession = await mongoose.startSession();
+      try {
+        await dbSession.withTransaction(async () => {
+          order = await createOrderInSession(orderPayload, dbSession);
+          await createPaymentInTransaction(
+            {
+              userId: guestUser!._id,
+              orderId: orderId!,
+              razorpayPaymentId: razorpay_payment_id,
+              amount: registrationTotalAmount,
+              currency: paymentDetails.currency || "INR",
+              status: "completed",
+            },
+            dbSession
+          );
+        });
+      } finally {
+        await dbSession.endSession();
+      }
     }
 
     // ── Zoho invoice (best-effort) ───────────────────────────────────────────

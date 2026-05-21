@@ -44,10 +44,13 @@ const validUserId = () => new mongoose.Types.ObjectId();
 // Helper builds a minimal-valid payload so individual tests can override the
 // fields they care about without re-stating the whole skeleton.
 //
-// NOTE: default status is "pending" — the Order schema's pre-save hook
+// NOTE: default status is "paid" — the Order schema's pre-save hook
 // auto-generates an `invoiceNumber` when status is "completed", which would
-// pollute the invoice-list / dupe-key assertions. Tests that need
-// "completed" override it explicitly.
+// pollute the invoice-list / dupe-key assertions. We used to default to
+// "pending" for the same reason, but `pending` now means "checkout
+// intent, not yet paid" and is filtered out of user-visible listings.
+// Tests that need either extreme ("pending" for the lifecycle suite,
+// "completed" for invoice-number tests) override it explicitly.
 function buildOrderPayload(overrides: Record<string, unknown> = {}) {
   const tag = Math.random().toString(36).slice(2, 8);
   return {
@@ -59,7 +62,7 @@ function buildOrderPayload(overrides: Record<string, unknown> = {}) {
     razorpaySignature: `sig_${tag}`,
     amount: 1000,
     currency: "INR",
-    status: "pending",
+    status: "paid",
     domains: [],
     successfulDomains: [],
     paymentVerification: {

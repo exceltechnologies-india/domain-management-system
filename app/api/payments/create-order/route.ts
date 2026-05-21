@@ -4,6 +4,7 @@ import { RazorpayService } from "@/lib/razorpay";
 import { serverLogger } from "@/lib/server-logger";
 import { validateDomainPeriod } from "@/lib/tld-policies";
 import { verifyDomainPrices } from "@/lib/services/payment/price-verifier";
+import { createOrder } from "@/lib/services/orders";
 import type { CartItem } from "@/lib/types";
 import {
   evaluateTrialAbuse,
@@ -224,10 +225,80 @@ export async function POST(request: NextRequest) {
         const shortTs = Date.now().toString().slice(-10);
         const rand = Math.random().toString(36).substring(2, 6);
         const receiptId = `ord_${shortTs}_${rand}`;
-        
+
         const rzpOrder = await RazorpayService.createOrder(oneTimeAmount, "INR", receiptId);
         razorpayOrderId = rzpOrder.id;
         serverLogger.info(`✅ [CREATE-ORDER] Order Created: ${razorpayOrderId} for amount: ₹${oneTimeAmount}`);
+
+        // Persist a pending Order row keyed by razorpayOrderId. This closes
+        // the race where Razorpay's webhook arrived before /verify committed
+        // the order — both paths now find this row and converge via atomic
+        // claim. If the DB write fails we refuse the call: leaving a paid
+        // Razorpay order with no DB row is worse than a clean failure
+        // because the user can retry the checkout.
+        try {
+          const internalOrderId = `ord_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+          const hasDomainItem = cartItems.some((i) => !i.itemType || i.itemType === "domain");
+          const hasHostingItem = cartItems.some((i) => i.itemType === "hosting");
+          const derivedOrderType: "domain" | "hosting" | "bundle" =
+            hasDomainItem && hasHostingItem ? "bundle" : hasHostingItem ? "hosting" : "domain";
+
+          await createOrder({
+            orderId: internalOrderId,
+            userId: user.id,
+            userName: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+            userEmail: user.email,
+            // Placeholders that satisfy the required+unique constraints until
+            // /verify or /razorpay/webhook fills in the real values.
+            paymentId: `pay_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+            razorpayOrderId,
+            razorpayPaymentId: "pending",
+            razorpaySignature: "pending",
+            amount: oneTimeAmount,
+            currency: "INR",
+            status: "pending",
+            orderType: derivedOrderType,
+            domains: cartItems.map((item) => ({
+              domainName: item.domainName,
+              price: item.price,
+              currency: item.currency || "INR",
+              registrationPeriod: item.registrationPeriod || 1,
+              periodUnit:
+                item.periodUnit ||
+                (item.itemType === "hosting" ? "months" : "years"),
+              itemType: item.itemType || "domain",
+              status: "pending",
+              hostingPlan: item.hostingPlan
+                ? {
+                    planId: (item.hostingPlan as CartItem["hostingPlan"] & { planId?: string; id?: string })?.planId ||
+                      (item.hostingPlan as CartItem["hostingPlan"] & { id?: string })?.id,
+                    name: item.hostingPlan.name,
+                    serverPackage: (item.hostingPlan as CartItem["hostingPlan"] & { serverPackage?: string })?.serverPackage,
+                  }
+                : undefined,
+              bookingStatus: [
+                {
+                  step: "payment_verified",
+                  message: "Waiting for payment confirmation",
+                  timestamp: new Date(),
+                  progress: 5,
+                },
+              ],
+            })),
+          });
+          serverLogger.info(
+            `📝 [CREATE-ORDER] Pending Order persisted: ${internalOrderId} (rzp=${razorpayOrderId})`
+          );
+        } catch (dbErr) {
+          serverLogger.error(
+            `❌ [CREATE-ORDER] Failed to persist pending Order for rzp=${razorpayOrderId}:`,
+            dbErr
+          );
+          return NextResponse.json(
+            { error: "Failed to initialise order. Please try again." },
+            { status: 500 }
+          );
+        }
       }
 
       // 4. Validate we have a payment target

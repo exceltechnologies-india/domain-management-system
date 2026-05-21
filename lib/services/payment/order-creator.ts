@@ -247,3 +247,117 @@ export async function createCompletedOrder(
     orderStatus,
   };
 }
+
+export interface FinalizePendingOrderInput {
+  /** The order that was already claimed (pending → processing) by the caller. */
+  order: HydratedDocument<IOrder>;
+  user: IUser;
+  cartItems: CartItem[];
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+  razorpay_subscription_id?: string;
+  paymentDetails: RazorpayPaymentDetails;
+}
+
+/**
+ * Finalise an order that already exists in `processing` state — created at
+ * /create-order time as `pending`, then claimed atomically by /verify or
+ * /razorpay/webhook. Provisions the cart, writes the per-domain results
+ * onto the existing document, and transitions it to `completed`. Mirrors
+ * {@link createCompletedOrder}'s return shape so the calling route can
+ * keep the same downstream code (Zoho invoice, post-payment tasks).
+ *
+ * Why .save() rather than updateOne(): the Order pre-save hook generates
+ * `invoiceNumber` on the `completed` transition; that hook only fires on
+ * doc.save(), not on direct updates.
+ */
+export async function finalizePendingOrder(
+  input: FinalizePendingOrderInput
+): Promise<CreateCompletedOrderResult> {
+  const {
+    order,
+    user,
+    cartItems,
+    razorpay_payment_id,
+    razorpay_signature,
+    razorpay_subscription_id,
+    paymentDetails,
+  } = input;
+
+  const orderId = order.orderId;
+
+  serverLogger.info(
+    `🚀 [PAYMENT-VERIFY] Finalising pending order ${orderId} — starting provisioning. status=${paymentDetails.status}`
+  );
+
+  const {
+    registrationResults,
+    orderDomains,
+    finalSuccessfulDomains,
+    pendingDomains,
+    failedDomains,
+  } = await provisionCartItems({
+    cartItems,
+    user,
+    orderId,
+    razorpay_payment_id,
+    razorpay_subscription_id,
+  });
+
+  // Replace the pre-populated placeholder domains[] with the post-provisioning
+  // view (registration results, ResellerClub IDs, hosting plan metadata, etc.)
+  order.domains = orderDomains as unknown as IOrder["domains"];
+  order.successfulDomains = finalSuccessfulDomains;
+  order.razorpayPaymentId = razorpay_payment_id;
+  order.razorpaySignature = razorpay_signature;
+  order.paymentVerification = {
+    verifiedAt: new Date(),
+    paymentStatus: paymentDetails.status,
+    paymentAmount: paymentDetails.amount,
+    paymentCurrency: paymentDetails.currency,
+    razorpayOrderId: paymentDetails.order_id,
+  } as IOrder["paymentVerification"];
+  order.status = "completed";
+
+  const registrationTotalAmount = cartItems.reduce(
+    (total, item) => total + item.price * (item.registrationPeriod || 1),
+    0
+  );
+
+  const dbSession = await mongoose.startSession();
+  try {
+    await dbSession.withTransaction(async () => {
+      await order.save({ session: dbSession });
+      await createPaymentInTransaction(
+        {
+          userId: user._id,
+          orderId,
+          razorpayPaymentId: razorpay_payment_id,
+          amount: registrationTotalAmount,
+          currency: paymentDetails.currency || "INR",
+          status: "completed",
+        },
+        dbSession
+      );
+    });
+  } finally {
+    await dbSession.endSession();
+  }
+
+  serverLogger.info(
+    `✅ [PAYMENT-VERIFY] Pending order finalised: ${orderId} PON=${order.purchaseOrderNumber}`
+  );
+
+  return {
+    order,
+    orderId,
+    paymentId: order.paymentId,
+    registrationTotalAmount,
+    registrationResults,
+    orderDomains,
+    finalSuccessfulDomains,
+    pendingDomains,
+    failedDomains,
+    orderStatus: "completed",
+  };
+}

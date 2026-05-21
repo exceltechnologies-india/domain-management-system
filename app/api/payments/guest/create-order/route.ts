@@ -11,6 +11,9 @@ import { validateDomainPeriod } from "@/lib/tld-policies";
 import { verifyDomainPrices } from "@/lib/services/payment/price-verifier";
 import { isDisposableEmail } from "@/lib/disposable-emails";
 import { getClientIp, hashIp } from "@/lib/trial-abuse";
+import { createOrder } from "@/lib/services/orders";
+import { createUser, getUserByEmail } from "@/lib/services/users";
+import { randomBytes } from "crypto";
 import type { CartItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -248,6 +251,101 @@ export async function POST(request: NextRequest) {
     // ── Issue (or reuse) guest token ──────────────────────────────────────────
     const guestToken =
       existingToken ?? signGuestToken(resolvedEmail, registrantDetails);
+
+    // ── Get-or-create guest user + persist pending Order ──────────────────────
+    // We need a userId on the pending Order. /verify previously did this
+    // after payment, but to close the webhook race we have to commit a row
+    // *before* the user pays. Trade-off: a row in the users collection per
+    // checkout intent, even ones that bail before paying. Mitigated by
+    // get-or-create (repeat attempts from the same email reuse the row)
+    // and by the existing `isGuest: true` flag for cleanup.
+    try {
+      let guestUser = await getUserByEmail(resolvedEmail);
+      if (!guestUser) {
+        guestUser = await createUser({
+          email: resolvedEmail,
+          password: randomBytes(32).toString("hex"), // unusable random password
+          firstName: registrantDetails.firstName,
+          lastName: registrantDetails.lastName,
+          phone: registrantDetails.phone,
+          phoneCc: "+91",
+          address: {
+            line1: registrantDetails.addressLine1,
+            city: registrantDetails.city,
+            state: registrantDetails.state,
+            country: "IN",
+            zipcode: registrantDetails.zipcode,
+          },
+          role: "user",
+          isActive: true,
+          isActivated: true,
+          isGuest: true,
+          profileCompleted: true,
+          provider: "credentials",
+        });
+        serverLogger.info(`[GuestCheckout] Created guest user: ${resolvedEmail}`);
+      }
+
+      const internalOrderId = `ord_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      const hasDomainItem = cartItems.some((i: CartItem) => !i.itemType || i.itemType === "domain");
+      const hasHostingItem = cartItems.some((i: CartItem) => i.itemType === "hosting");
+      const derivedOrderType: "domain" | "hosting" | "bundle" =
+        hasDomainItem && hasHostingItem ? "bundle" : hasHostingItem ? "hosting" : "domain";
+
+      await createOrder({
+        orderId: internalOrderId,
+        userId: guestUser._id,
+        userName: `${guestUser.firstName || ""} ${guestUser.lastName || ""}`.trim(),
+        userEmail: resolvedEmail,
+        paymentId: `pay_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+        razorpayOrderId: rzpOrder.id,
+        razorpayPaymentId: "pending",
+        razorpaySignature: "pending",
+        amount: totalAmount,
+        currency: "INR",
+        status: "pending",
+        orderType: derivedOrderType,
+        domains: cartItems.map((item: CartItem) => ({
+          domainName: item.domainName,
+          price: item.price,
+          currency: item.currency || "INR",
+          registrationPeriod: item.registrationPeriod || 1,
+          periodUnit:
+            item.periodUnit ||
+            (item.itemType === "hosting" ? "months" : "years"),
+          itemType: item.itemType || "domain",
+          status: "pending",
+          hostingPlan: item.hostingPlan
+            ? {
+                planId: (item.hostingPlan as CartItem["hostingPlan"] & { planId?: string; id?: string })?.planId ||
+                  (item.hostingPlan as CartItem["hostingPlan"] & { id?: string })?.id,
+                name: item.hostingPlan.name,
+                serverPackage: (item.hostingPlan as CartItem["hostingPlan"] & { serverPackage?: string })?.serverPackage,
+              }
+            : undefined,
+          bookingStatus: [
+            {
+              step: "payment_verified",
+              message: "Waiting for payment confirmation",
+              timestamp: new Date(),
+              progress: 5,
+            },
+          ],
+        })),
+      });
+      serverLogger.info(
+        `📝 [GuestCheckout] Pending Order persisted: ${internalOrderId} (rzp=${rzpOrder.id})`
+      );
+    } catch (dbErr) {
+      serverLogger.error(
+        `❌ [GuestCheckout] Failed to persist pending Order for rzp=${rzpOrder.id}:`,
+        dbErr
+      );
+      return NextResponse.json(
+        { error: "Failed to initialise order. Please try again." },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,

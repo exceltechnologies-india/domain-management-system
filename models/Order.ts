@@ -331,8 +331,11 @@ OrderSchema.pre("save", function (next) {
     this.purchaseOrderNumber = `PO-${timestamp}-${randomSuffix()}`;
   }
 
-  // Generate invoice number only for completed orders
-  if (this.isNew && this.status === "completed" && !this.invoiceNumber) {
+  // Generate invoice number for completed orders that don't yet have one.
+  // Fires on both fresh creates and on the `pending → completed` transition
+  // used by the new pending-order lifecycle (orders persisted at
+  // /create-order, finalised by /verify or /razorpay/webhook).
+  if (this.status === "completed" && !this.invoiceNumber) {
     const timestamp = Date.now().toString().slice(-6);
     this.invoiceNumber = `INV-${timestamp}-${randomSuffix()}`;
   }
