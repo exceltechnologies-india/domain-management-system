@@ -20,8 +20,8 @@ export async function POST(
   try {
     const { id } = await params;
 
-    const adminUser = await AuthService.getUserFromRequest(request);
-    if (!adminUser || adminUser.role !== "admin") {
+    const adminUser = await AuthService.getAdminFromRequest(request);
+    if (!adminUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

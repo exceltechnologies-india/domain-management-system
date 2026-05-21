@@ -9,18 +9,9 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication
-    const user = await AuthService.getUserFromRequest(request);
+    const user = await AuthService.getAdminFromRequest(request);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Check if user is admin
-    if (user.role !== "admin") {
-      return NextResponse.json(
-        { error: "Admin access required" },
-        { status: 403 }
-      );
     }
 
     const { domainName, force } = await request.json();

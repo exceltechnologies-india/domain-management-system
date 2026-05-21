@@ -20,9 +20,8 @@ const MAX_PAGE_SIZE = 100;
 // GET - Fetch users (admin only) with pagination
 export async function GET(request: NextRequest) {
   try {
-    // Authorization: Strict admin check
-    const user = await AuthService.getUserFromRequest(request);
-    if (!user || user.role !== "admin") {
+    const user = await AuthService.getAdminFromRequest(request);
+    if (!user) {
       return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
     }
 
@@ -77,9 +76,8 @@ export async function GET(request: NextRequest) {
 // PUT - Update user role (admin only)
 export async function PUT(request: NextRequest) {
   try {
-    // Authorization: Strict admin check
-    const user = await AuthService.getUserFromRequest(request);
-    if (!user || user.role !== "admin") {
+    const user = await AuthService.getAdminFromRequest(request);
+    if (!user) {
       return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
     }
 
@@ -144,9 +142,8 @@ export async function PUT(request: NextRequest) {
 // DELETE - Delete user (admin only)
 export async function DELETE(request: NextRequest) {
   try {
-    // Authorization: Strict admin check
-    const user = await AuthService.getUserFromRequest(request);
-    if (!user || user.role !== "admin") {
+    const user = await AuthService.getAdminFromRequest(request);
+    if (!user) {
       return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
     }
 

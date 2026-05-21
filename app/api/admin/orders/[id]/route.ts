@@ -16,8 +16,8 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const user = await AuthService.getUserFromRequest(request);
-    if (!user || user.role !== "admin") {
+    const user = await AuthService.getAdminFromRequest(request);
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -62,8 +62,8 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const user = await AuthService.getUserFromRequest(request);
-    if (!user || user.role !== "admin") {
+    const user = await AuthService.getAdminFromRequest(request);
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

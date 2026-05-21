@@ -11,15 +11,9 @@ const MAX_DOMAINS_PAGE_SIZE = 100;
 
 export async function GET(request: NextRequest) {
   try {
-    // Check authentication
-    const user = await AuthService.getUserFromRequest(request);
+    const user = await AuthService.getAdminFromRequest(request);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Check if user is admin
-    if (user.role !== "admin") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);

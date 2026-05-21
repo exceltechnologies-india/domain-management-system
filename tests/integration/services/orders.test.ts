@@ -16,6 +16,7 @@ import { clearAllCollections } from "../setup";
 import Order from "@/models/Order";
 import {
   claimOrderForZohoInvoice,
+  claimPendingOrderForProcessing,
   clearOrderInvoiceNumber,
   createOrder,
   findOrderByDomain,
@@ -607,5 +608,82 @@ describe("Zoho-invoice claim lifecycle", () => {
     // Order A still owns the invoiceNumber.
     const refetchedA = await Order.findById(ordA._id);
     expect(refetchedA?.invoiceNumber).toBe("INV-DUP");
+  });
+});
+
+describe("claimPendingOrderForProcessing (pending → processing race)", () => {
+  // The /verify route + /razorpay/webhook can fire against the same order
+  // within milliseconds of each other (user closes tab right after paying,
+  // Razorpay then sends the captured webhook). Both code paths call this
+  // claim helper; only one must win. The guard is the atomic
+  // findOneAndUpdate({status: "pending"}) — losers see status != "pending"
+  // and bail out as no-ops.
+  it("first caller claims; second caller sees null", async () => {
+    const tag = Math.random().toString(36).slice(2, 8);
+    const rzp = `rzp_ord_${tag}`;
+    await createOrder(buildOrderPayload({ razorpayOrderId: rzp, status: "pending" }));
+
+    const winner = await claimPendingOrderForProcessing(rzp, {
+      razorpayPaymentId: "rzp_pay_win",
+    });
+    expect(winner).not.toBeNull();
+    expect(winner?.status).toBe("processing");
+    expect(winner?.razorpayPaymentId).toBe("rzp_pay_win");
+
+    const loser = await claimPendingOrderForProcessing(rzp, {
+      razorpayPaymentId: "rzp_pay_lose",
+    });
+    // Status is now "processing" — claim guard rejects.
+    expect(loser).toBeNull();
+  });
+
+  it("concurrent calls — exactly one returns non-null", async () => {
+    const tag = Math.random().toString(36).slice(2, 8);
+    const rzp = `rzp_ord_${tag}`;
+    await createOrder(buildOrderPayload({ razorpayOrderId: rzp, status: "pending" }));
+
+    // Fire both claim attempts in parallel against the same pending row.
+    // findOneAndUpdate is atomic at the Mongo layer, so one must win.
+    const [a, b] = await Promise.all([
+      claimPendingOrderForProcessing(rzp, { razorpayPaymentId: "rzp_pay_a" }),
+      claimPendingOrderForProcessing(rzp, { razorpayPaymentId: "rzp_pay_b" }),
+    ]);
+    const winners = [a, b].filter((r) => r !== null);
+    expect(winners).toHaveLength(1);
+  });
+
+  it("returns null when no pending order exists for the razorpay id", async () => {
+    const result = await claimPendingOrderForProcessing("rzp_ord_does_not_exist", {});
+    expect(result).toBeNull();
+  });
+
+  it("returns null when order exists but already past pending", async () => {
+    const tag = Math.random().toString(36).slice(2, 8);
+    const rzp = `rzp_ord_${tag}`;
+    // Already processing — webhook arriving after /verify already claimed.
+    await createOrder(buildOrderPayload({ razorpayOrderId: rzp, status: "processing" }));
+    const result = await claimPendingOrderForProcessing(rzp, {
+      razorpayPaymentId: "rzp_pay_late",
+    });
+    expect(result).toBeNull();
+  });
+
+  it("stamps paymentVerification subdoc when supplied", async () => {
+    const tag = Math.random().toString(36).slice(2, 8);
+    const rzp = `rzp_ord_${tag}`;
+    await createOrder(buildOrderPayload({ razorpayOrderId: rzp, status: "pending" }));
+
+    const claimed = await claimPendingOrderForProcessing(rzp, {
+      razorpayPaymentId: "rzp_pay_pv",
+      paymentVerification: {
+        verifiedAt: new Date("2026-05-21T10:00:00Z"),
+        paymentStatus: "captured",
+        paymentAmount: 12345,
+        paymentCurrency: "INR",
+        razorpayOrderId: rzp,
+      },
+    });
+    expect(claimed?.paymentVerification?.paymentStatus).toBe("captured");
+    expect(claimed?.paymentVerification?.paymentAmount).toBe(12345);
   });
 });
