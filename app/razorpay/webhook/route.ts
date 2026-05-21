@@ -6,6 +6,7 @@ import Order, { type IOrder } from "@/models/Order";
 import type { HydratedDocument } from "mongoose";
 import { ZohoBooksService } from "@/lib/zohobooks";
 import { serverLogger } from "@/lib/server-logger";
+import { claimPendingOrderForProcessing } from "@/lib/services/orders";
 
 export const dynamic = "force-dynamic";
 
@@ -75,109 +76,147 @@ interface RefundProcessedPayload {
 async function handlePaymentCaptured(payload: PaymentCapturedPayload) {
     await connectDB();
     const payment = payload.payload.payment.entity;
-    // receipt holds the Internal Order ID (ORD...) as per Phase 2.1
-    const orderId = payment.notes?.receipt || payment.description; 
-    
-    // Fallback: search by Razorpay Order ID if provided
+    const orderId = payment.notes?.receipt || payment.description;
     const razorpayOrderId = payment.order_id;
 
-
-
-    let order = await Order.findOne({ 
+    const order = await Order.findOne({
         $or: [
             { orderId: orderId },
-            { razorpayOrderId: razorpayOrderId }
-        ]
+            { razorpayOrderId: razorpayOrderId },
+        ],
     });
 
+    // Defensive: with the pending-order persistence in place at /create-order,
+    // the order should always exist by the time the webhook fires. If it
+    // doesn't (legacy orphan payment, or someone bypassing /create-order),
+    // log and return 200 so Razorpay doesn't retry-storm. We can't safely
+    // create an order here — we don't have cart contents from the Razorpay
+    // payload alone.
     if (!order) {
-        serverLogger.error(`❌ Order not found for payment ...${payment.id?.slice(-6)}`);
-        throw new Error("Order not found");
+        serverLogger.warn(
+            `[Webhook] Order not found for payment ...${payment.id?.slice(-6)} (rzpOrder=${razorpayOrderId}). Returning 200 to stop retries.`
+        );
+        return;
     }
 
-    // 2. Idempotency & Phase 3.2: Mark as PAID
-    if (order.status === 'paid' || order.status === 'processing' || order.status === 'completed') {
-        // We continue to ensure Invoice is synced even if previously marked paid
-    } else {
-        order.status = 'paid';
-        order.razorpayPaymentId = payment.id;
-        order.paymentVerification = {
+    // Renewal / upgrade orders have their own verify-side handlers
+    // (`handleRenewalPayment`, `handleUpgradePayment`) that know how to
+    // reactivate hosting, advance expiry dates, etc. The webhook can't
+    // safely run that logic from generic provisioning, so it stays out
+    // of the way and lets /verify do the work.
+    if (
+        order.orderType === "renewal" ||
+        order.orderType === "hosting_upgrade"
+    ) {
+        if (!order.razorpayPaymentId || order.razorpayPaymentId === "pending") {
+            order.razorpayPaymentId = payment.id;
+            await order.save();
+        }
+        serverLogger.info(
+            `[Webhook] payment.captured for ${order.orderId}: orderType=${order.orderType} — deferring to /verify`
+        );
+        return;
+    }
+
+    // Idempotency: once verify (or a prior webhook delivery) has moved the
+    // order past `pending`, the webhook becomes a no-op. We still record
+    // the Razorpay payment id if the row is still carrying the placeholder.
+    if (order.status !== "pending") {
+        if (!order.razorpayPaymentId || order.razorpayPaymentId === "pending") {
+            order.razorpayPaymentId = payment.id;
+            await order.save();
+        }
+        serverLogger.info(
+            `[Webhook] payment.captured for ${order.orderId}: status=${order.status} — no-op (verify/another delivery handled it)`
+        );
+        return;
+    }
+
+    // Status is `pending` — attempt to claim. If we lose the claim, /verify
+    // is mid-flight; nothing for us to do. Use the order's stored
+    // razorpayOrderId (string, non-null per schema) rather than the
+    // optional one off the Razorpay payload.
+    const claimed = await claimPendingOrderForProcessing(order.razorpayOrderId, {
+        razorpayPaymentId: payment.id,
+        paymentVerification: {
             verifiedAt: new Date(),
-            paymentStatus: 'captured',
+            paymentStatus: "captured",
             paymentAmount: payment.amount,
             paymentCurrency: payment.currency,
-            razorpayOrderId: payment.order_id
-        };
-        await order.save();
+            razorpayOrderId: order.razorpayOrderId,
+        },
+    });
+    if (!claimed) {
+        serverLogger.info(
+            `[Webhook] payment.captured for ${order.orderId}: claim lost to /verify — no-op`
+        );
+        return;
     }
 
-    // 4. Phase 4: Zoho Invoice Creation
-    // "ONLY AFTER: Zoho invoice = PAID"
-    
-    if (!order.zohoInvoiceId) {
+    serverLogger.info(
+        `[Webhook] Claimed pending order ${claimed.orderId} for provisioning (rzp=${razorpayOrderId})`
+    );
+
+    // Phase 4: Zoho Invoice Creation
+    if (!claimed.zohoInvoiceId) {
         try {
             const zohoService = ZohoBooksService.getInstance();
-            
-            // We need User details and Items to create invoice
-            // Fetch User
-           const User = (await import("@/models/User")).default; // Dynamic import to avoid cycles/init issues
-           const user = await getUserById(String(order.userId));
-           if (!user) throw new Error("User not found for order");
+            const user = await getUserById(String(claimed.userId));
+            if (!user) throw new Error("User not found for order");
 
-           // Reconstruct items from Order (since we need to pass them to Zoho)
-           // Order.domains contains item details including price
-           const items = order.domains.map((d: IOrder["domains"][number]) => ({
-               domainName: d.domainName,
-               price: d.price,
-               itemType: d.itemType,
-               registrationPeriod: d.registrationPeriod,
-               hostingPlan: d.hostingPlan
-           }));
+            const items = claimed.domains.map((d: IOrder["domains"][number]) => ({
+                domainName: d.domainName,
+                price: d.price,
+                itemType: d.itemType,
+                registrationPeriod: d.registrationPeriod,
+                hostingPlan: d.hostingPlan,
+            }));
 
             const invoice = await zohoService.createInvoice(
                 {
-                    orderId: order.orderId,
+                    orderId: claimed.orderId,
                     razorpayPaymentId: payment.id,
-                    total: payment.amount
+                    total: payment.amount,
                 },
                 user,
                 items
             );
 
             if (invoice && invoice.invoice_id) {
-                order.zohoInvoiceId = invoice.invoice_id;
-                order.invoiceNumber = invoice.invoice_number;
-                await order.save();
+                claimed.zohoInvoiceId = invoice.invoice_id;
+                claimed.invoiceNumber = invoice.invoice_number;
+                await claimed.save();
             } else {
                 throw new Error("Zoho Invoice creation returned no ID");
             }
         } catch (error) {
             serverLogger.error("❌ Zoho Sync Failed", error);
-            throw error;
+            // Don't rethrow — let provisioning proceed. The self-heal cron
+            // picks up `creation_failed` orders later. Throwing here would
+            // cause Razorpay to retry the webhook even though the payment
+            // is safely captured and the order is being provisioned.
+            try {
+                claimed.zohoInvoiceId = "creation_failed";
+                await claimed.save();
+            } catch (_) {}
         }
     }
 
-    // 5. Phase 5: Provisioning
-    // "ONLY AFTER: Zoho invoice = PAID" (We confirmed ID exists above)
-    
-    if (order.status !== 'completed') {
-        // Mark as Processing
-        order.status = 'processing';
-        await order.save();
-
-        try {
-            const results = await provisionServices(order);
-            
-            const successCount = results.successfulDomains.length;
-            const failCount = results.failedDomains.length;
-            
-            order.status = 'completed';
-            await order.save();
-            
-        } catch (error) {
-            serverLogger.error("❌ Provisioning Failed", error);
-            throw error;
-        }
+    // Phase 5: Provisioning
+    try {
+        const results = await provisionServices(claimed);
+        const successCount = results.successfulDomains.length;
+        const failCount = results.failedDomains.length;
+        serverLogger.info(
+            `[Webhook] Provisioned ${claimed.orderId}: success=${successCount} fail=${failCount}`
+        );
+        claimed.status = "completed";
+        await claimed.save();
+    } catch (error) {
+        serverLogger.error("❌ [Webhook] Provisioning Failed", error);
+        // Leave the order in `processing` so admin can inspect; rethrow so
+        // Razorpay retries the webhook and we get another shot at provisioning.
+        throw error;
     }
 }
 

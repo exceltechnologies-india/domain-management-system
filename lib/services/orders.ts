@@ -14,6 +14,7 @@
  * are still on the order) is applied inside the service.
  */
 import mongoose from "mongoose";
+import type { HydratedDocument } from "mongoose";
 import connectDB from "@/lib/mongodb";
 import Order from "@/models/Order";
 import type { IOrder } from "@/models/Order";
@@ -294,12 +295,19 @@ export async function listOrdersForAdmin(opts: {
   archived?: boolean;
   page?: number;
   perPage?: number;
+  /** Include orders still in `pending` state. Default false — checkout
+   * intents that haven't been paid clutter the admin orders view. */
+  includePending?: boolean;
 }): Promise<AdminListResult> {
   await connectDB();
   const page = Math.max(1, opts.page ?? 1);
   const perPage = Math.max(1, opts.perPage ?? 100);
   const skip = (page - 1) * perPage;
-  const query = opts.archived ? { isDeleted: true } : { isDeleted: { $ne: true } };
+  const baseQuery: Record<string, unknown> = opts.archived
+    ? { isDeleted: true }
+    : { isDeleted: { $ne: true } };
+  if (!opts.includePending) baseQuery.status = { $ne: "pending" };
+  const query = baseQuery;
 
   const [rawOrders, total] = await Promise.all([
     Order.find(query)
@@ -337,6 +345,9 @@ export async function listOrdersForAdmin(opts: {
 /**
  * User-scoped list for the dashboard. Populates `userId` (mostly redundant
  * but matches the historic response shape) and filters soft-deleted orders.
+ * Excludes `status: "pending"` — those are checkout intents that haven't
+ * been paid yet (created at /create-order time) and don't belong in any
+ * user-visible list.
  */
 export async function listOrdersForUser(
   userId: unknown,
@@ -348,6 +359,7 @@ export async function listOrdersForUser(
   let query = Order.find({
     userId,
     isDeleted: { $ne: true },
+    status: { $ne: "pending" },
   }).sort({ createdAt: -1 });
   if (opts?.select) query = query.select(opts.select);
   if (populateUser) {
@@ -529,6 +541,97 @@ export async function markZohoInvoiceCreationFailed(
     { _id: orderId, zohoInvoiceId: "pending_creation" },
     { $set: { zohoInvoiceId: "creation_failed" } }
   );
+}
+
+// ─── Pending-order lifecycle ──────────────────────────────────────────────────
+//
+// To close the race where Razorpay's webhook arrives before our /verify
+// endpoint has committed the Order, we persist a row at create-order time
+// with `status: "pending"`. Both /verify and the webhook then converge on
+// the same row via atomic claim: whichever path wins the `pending →
+// processing` transition runs provisioning + Zoho-invoice creation; the
+// loser becomes an idempotent no-op.
+
+/**
+ * Atomically transition a `pending` order to `processing` and stamp the
+ * Razorpay payment metadata. Returns the updated order if we won the claim,
+ * or null if the order is already past `pending` (another worker — either
+ * /verify or the webhook — beat us to it). The query is guarded on
+ * `status: "pending"` so the transition is mutually exclusive even under
+ * concurrent calls from /verify and /razorpay/webhook.
+ */
+export async function claimPendingOrderForProcessing(
+  razorpayOrderId: string,
+  updates: {
+    razorpayPaymentId?: string;
+    razorpaySignature?: string;
+    paymentVerification?: {
+      verifiedAt: Date;
+      paymentStatus: string;
+      paymentAmount: number;
+      paymentCurrency: string;
+      razorpayOrderId: string;
+    };
+  } = {}
+): Promise<HydratedDocument<IOrder> | null> {
+  await connectDB();
+  const set: Record<string, unknown> = { status: "processing" };
+  if (updates.razorpayPaymentId) set.razorpayPaymentId = updates.razorpayPaymentId;
+  if (updates.razorpaySignature) set.razorpaySignature = updates.razorpaySignature;
+  if (updates.paymentVerification) set.paymentVerification = updates.paymentVerification;
+  return Order.findOneAndUpdate(
+    { razorpayOrderId, status: "pending" },
+    { $set: set },
+    { new: true }
+  ) as Promise<HydratedDocument<IOrder> | null>;
+}
+
+/**
+ * Mark a `processing` (or stuck-`pending`) order as terminally failed —
+ * e.g. /verify signature mismatch or unrecoverable provisioning error.
+ * The failure reason itself goes to system-logs / stderr; the Order
+ * collection only carries the status transition.
+ */
+export async function markOrderFailed(
+  razorpayOrderId: string
+): Promise<IOrder | null> {
+  await connectDB();
+  return Order.findOneAndUpdate(
+    {
+      razorpayOrderId,
+      status: { $in: ["pending", "processing", "paid"] },
+    },
+    { $set: { status: "failed" } },
+    { new: true }
+  );
+}
+
+/**
+ * Finalise an order after successful provisioning. Replaces the
+ * pre-populated `domains` array with the post-provisioning view, records
+ * the successful-domain list, and flips status to `completed` (which is
+ * what triggers `invoiceNumber` generation via the pre-save hook).
+ *
+ * Called from /verify and from /razorpay/webhook — whichever path claimed
+ * the order is responsible for invoking this.
+ */
+export async function completeOrder(
+  orderObjectId: string | mongoose.Types.ObjectId,
+  updates: {
+    domains: IOrder["domains"];
+    successfulDomains: string[];
+  }
+): Promise<IOrder | null> {
+  await connectDB();
+  // Use .save() (not updateOne) so the pre-save hook fires and generates
+  // the invoiceNumber on the completed transition.
+  const order = await Order.findById(orderObjectId);
+  if (!order) return null;
+  order.domains = updates.domains as IOrder["domains"];
+  order.successfulDomains = updates.successfulDomains;
+  order.status = "completed";
+  await order.save();
+  return order;
 }
 
 /**
@@ -758,7 +861,7 @@ export async function findOrderByRazorpayPaymentField(
  */
 export async function listAllOrdersForAdminDomains(): Promise<IOrder[]> {
   await connectDB();
-  return Order.find({})
+  return Order.find({ status: { $ne: "pending" } })
     .populate("userId", "firstName lastName email phone companyName")
     .sort({ createdAt: -1 })
     .lean<IOrder[]>();
@@ -815,7 +918,8 @@ export async function listRecentCompletedOrdersForUser(
 
 /**
  * User invoice listing: orders that have an `invoiceNumber` set. Returns a
- * lean projection — only the fields the invoices UI renders.
+ * lean projection — only the fields the invoices UI renders. Excludes
+ * `status: "pending"` for the same reason as {@link listOrdersForUser}.
  */
 export async function listUserInvoiceOrders(userId: unknown): Promise<IOrder[]> {
   await connectDB();
@@ -823,6 +927,7 @@ export async function listUserInvoiceOrders(userId: unknown): Promise<IOrder[]> 
     userId,
     invoiceNumber: { $exists: true, $ne: null },
     isDeleted: { $ne: true },
+    status: { $ne: "pending" },
   })
     .sort({ createdAt: -1 })
     .select("invoiceNumber zohoInvoiceId amount currency status createdAt")
