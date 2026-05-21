@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ResellerClubAPI } from "@/lib/resellerclub";
-import { rateLimiters } from "@/lib/rate-limit";
+import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { serverLogger } from "@/lib/server-logger";
 import { isRestrictedTLD } from "@/lib/domainRequirements";
 
@@ -23,10 +23,10 @@ export async function POST(request: NextRequest) {
   try {
     const rateLimit = await rateLimiters.bulkDomainSearch.isAllowed(request);
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        { success: false, error: "Too many requests. Please wait a moment before searching again." },
-        { status: 429 }
-      );
+      return rateLimitResponse(rateLimit, {
+        limit: 5,
+        message: "Too many requests. Please wait a moment before searching again.",
+      });
     }
 
     const body = await request.json();

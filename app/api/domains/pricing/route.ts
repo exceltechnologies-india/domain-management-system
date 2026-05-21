@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ResellerClubAPI } from "@/lib/resellerclub";
-import { rateLimiters } from "@/lib/rate-limit";
+import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { serverLogger } from "@/lib/server-logger";
 import { tldPricingCache } from "@/lib/tld-pricing-cache";
 import { getSettingsMap } from "@/lib/services/settings";
@@ -27,10 +27,10 @@ export async function GET(request: NextRequest) {
   try {
     const rateLimit = await rateLimiters.domainPricing.isAllowed(request);
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        { success: false, error: "Too many requests. Please slow down.", requestId },
-        { status: 429 }
-      );
+      return rateLimitResponse(rateLimit, {
+        limit: 30,
+        message: "Too many requests. Please slow down.",
+      });
     }
 
     const { searchParams } = new URL(request.url);

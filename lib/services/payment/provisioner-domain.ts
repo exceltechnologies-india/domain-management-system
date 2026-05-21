@@ -277,11 +277,16 @@ async function handlePendingDomain(
     }
   }
 
+  // User-facing error stays generic — raw `result.message` (which can carry
+  // RC account-state / balance fragments) stays in serverLogger only.
+  const userFacingError =
+    "Domain registration is taking longer than expected. We'll complete it automatically.";
+
   return {
     registrationResult: {
       domainName: item.domainName,
       status: "pending",
-      error: result.message,
+      error: userFacingError,
       orderId: pendingRcOrderId,
       itemType: "domain",
     },
@@ -295,7 +300,7 @@ async function handlePendingDomain(
       status: "pending",
       dnsProvider: "resellerclub",
       bookingStatus: domainBookingStatus,
-      error: result.message,
+      error: userFacingError,
       resellerClubOrderId: pendingRcOrderId,
       resellerClubCustomerId: ctx.customerResult.customerId,
       resellerClubContactId: ctx.customerResult.contactId,
@@ -334,11 +339,20 @@ async function handleFailedDomain(
         result.message.toLowerCase().includes("pending order for")));
 
   const domainStatus = isInsufficientBalance ? "pending" : "failed";
+  // Two layers of message:
+  //   - `statusMessage`: what gets pushed into bookingStatus.message (already
+  //     curated, no raw RC text).
+  //   - `userFacingError`: what shows up under `error:` in the response. Kept
+  //     generic for the "failed" branch so RC's `result.message` (which can
+  //     carry balance / account-state fragments) never reaches the client.
   const statusMessage = isInsufficientBalance
     ? result.message?.toLowerCase().includes("already exists in our database")
       ? "Domain registration is being processed."
       : "Domain registration pending due to insufficient balance"
-    : `Domain registration failed: ${result.message || "Unknown error"}`;
+    : "Domain registration failed. Our team has been notified.";
+  const userFacingError = isInsufficientBalance
+    ? statusMessage
+    : "Domain registration failed. Our team has been notified — please contact support if this persists.";
 
   let failedRcOrderId = result.data?.orderid;
   if (!failedRcOrderId && isInsufficientBalance) {
@@ -369,7 +383,7 @@ async function handleFailedDomain(
       status: domainStatus,
       itemType: "domain",
       orderId: failedRcOrderId,
-      error: result.message,
+      error: userFacingError,
     },
     orderDomain: {
       domainName: item.domainName,
@@ -381,7 +395,7 @@ async function handleFailedDomain(
       status: domainStatus,
       dnsProvider: "resellerclub",
       bookingStatus: domainBookingStatus,
-      error: result.message,
+      error: userFacingError,
       resellerClubOrderId: failedRcOrderId,
       resellerClubCustomerId: ctx.customerResult.customerId,
       resellerClubContactId: ctx.customerResult.contactId,
@@ -423,9 +437,15 @@ function handleDomainException(
       errorMessage.toLowerCase().includes("credit limit"));
 
   const domainStatus = isInsufficientBalance ? "pending" : "failed";
+  // User-facing copy stays generic — raw `errorMessage` (which can be a
+  // thrown Error from RC/axios with stack/URL fragments) stays in
+  // serverLogger only.
   const statusMessage = isInsufficientBalance
     ? "Domain registration pending due to insufficient balance"
-    : `Registration failed: ${errorMessage}`;
+    : "Domain registration failed. Our team has been notified.";
+  const userFacingError = isInsufficientBalance
+    ? statusMessage
+    : "Domain registration failed. Our team has been notified — please contact support if this persists.";
 
   domainBookingStatus.push({
     step: isInsufficientBalance ? "domain_pending" : "domain_failed",
@@ -439,7 +459,7 @@ function handleDomainException(
       domainName: item.domainName,
       status: domainStatus,
       itemType: "domain",
-      error: errorMessage,
+      error: userFacingError,
     },
     orderDomain: {
       domainName: item.domainName,
@@ -452,7 +472,7 @@ function handleDomainException(
       status: domainStatus,
       dnsProvider: "resellerclub",
       bookingStatus: domainBookingStatus,
-      error: errorMessage,
+      error: userFacingError,
       resellerClubCustomerId: ctx.customerResult.customerId,
       resellerClubContactId: ctx.customerResult.contactId,
     },

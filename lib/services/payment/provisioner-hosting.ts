@@ -323,9 +323,12 @@ async function handleHostingProvisionError(
     );
   }
 
+  // User-facing copy is always generic — DA / RC error strings can carry
+  // upstream-state fragments (account paths, retry tokens, internal hostnames).
+  // Raw `details` stays in serverLogger + PendingHosting for postmortem.
   const userFacingError = isDaUnreachable
     ? "Hosting setup is queued. Our provisioning system is temporarily unavailable — we'll complete this automatically once it's back."
-    : details;
+    : "Hosting provisioning failed. Our team has been notified — please contact support if this persists.";
 
   serverLogger.error(
     isDaUnreachable
@@ -376,7 +379,7 @@ async function handleHostingProvisionError(
         step: isDaUnreachable ? "hosting_deferred" : "domain_failed",
         message: isDaUnreachable
           ? "Provisioning queued — waiting for server availability"
-          : `Provisioning failed: ${details}`,
+          : userFacingError, // generic — raw `details` stays in serverLogger
         timestamp: new Date(),
         progress: isDaUnreachable ? 50 : 100,
       },

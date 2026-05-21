@@ -5,6 +5,7 @@ import { createOrder } from "@/lib/services/orders";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { AuthService } from "@/lib/auth";
 import { RazorpayService } from "@/lib/razorpay";
+import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { serverLogger } from "@/lib/server-logger";
 
 export const dynamic = 'force-dynamic';
@@ -21,6 +22,19 @@ export async function POST(request: NextRequest) {
     const user = await AuthService.getUserFromRequest(request);
     if (!user) {
       return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    // Per-user throttle: each call mints a pending Razorpay order + a DB row.
+    // 5/min/user is enough for a real human re-trying the "Pay Now" button
+    // but bounds a logged-in attacker from minting orders at scale.
+    const rl = await rateLimiters.hostingRenewUpgrade.checkKey(
+      `hosting_renew:${user._id}`
+    );
+    if (!rl.allowed) {
+      return rateLimitResponse(rl, {
+        limit: 5,
+        message: "Too many renewal attempts. Please wait a minute and try again.",
+      });
     }
 
     const { domainName } = await request.json();

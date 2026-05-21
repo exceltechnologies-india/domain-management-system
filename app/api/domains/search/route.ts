@@ -6,7 +6,7 @@ import { isRestrictedTLD } from "@/lib/domainRequirements";
 import { DirectAdminService } from "@/lib/directadmin";
 import { redisCache } from "@/lib/redis";
 import { SuggestionGenerator } from "@/lib/suggestion-generator";
-import { rateLimiters } from "@/lib/rate-limit";
+import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { serverLogger } from "@/lib/server-logger";
 import type { DomainSearchResult } from "@/lib/types";
 
@@ -20,10 +20,10 @@ export async function POST(request: NextRequest) {
   try {
     const rateLimit = await rateLimiters.domainSearch.isAllowed(request);
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        { success: false, error: "Too many search requests. Please slow down.", requestId },
-        { status: 429 }
-      );
+      return rateLimitResponse(rateLimit, {
+        limit: 20,
+        message: "Too many search requests. Please slow down.",
+      });
     }
 
     const { domain, tlds, quick } = await request.json();

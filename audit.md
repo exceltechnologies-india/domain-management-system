@@ -36,6 +36,7 @@ This document tracks **currently-open** findings. The full historical pass log (
 - ✅ **[H2] `provisionCartItems` decomposed** (commit `fa95307`) — The 1054-line `lib/services/payment/provisioner.ts` is now four focused modules: `provisioner.ts` (255 lines, orchestrator), `provisioner-hosting.ts` (388 lines), `provisioner-domain.ts` (460 lines, 4 inner handlers), `provisioner-verification.ts` (193 lines).
 - ✅ **[M1] Service-layer integration tests** (commit `ad0c7b4`) — New `tests/integration/services/` suite with 75 tests across orders/hostings/users/support-tickets/domains. Locks in the `select: false` defaults on `password` / `resetToken` so a future accidental removal surfaces here. 434 unit + 100 integration = 534 tests passing.
 - ✅ **Batch 1 verification 2026-05-21** (revision `dms-00032-zqf`) — `/api/health` 200 OK, zero error-level Cloud Run logs in 15-min post-deploy window.
+- ✅ **Rescan Batch 2 (2026-05-21 security hardening)** — [H1] guest checkout now refuses to attach a purchase to an existing non-guest user (409 in both `guest/create-order` and `guest/verify`); [H2] new `rateLimiters.guestCheckout` bucket (5/min/IP) gates both unauthenticated endpoints; [M1] provisioner-hosting + provisioner-domain no longer echo RC / DA error strings to the user — `registrationResult.error` / `orderDomain.error` / `bookingStatus.message` carry generic copy, raw `details` stay in `serverLogger`; [M2] new `rateLimiters.hostingRenewUpgrade` bucket (5/min/user) gates `user/hosting/{renew,upgrade}`; [M5] new `rateLimitResponse(rl, opts)` helper in [lib/rate-limit.ts](lib/rate-limit.ts) returns a uniform 429 envelope (Retry-After + X-RateLimit-* + security headers) — 12 callsites swept onto it (`auth/activate`, `auth/register`, `auth/resend-activation`, `auth/forgot-password`, `user/support` (POST + reply), `user/hosting/trial-otp/{send,verify}`, `user/invoices/[id]/pdf`, `chat`, `domains/{search,bulk-search,pricing,transfer}`); [L6] `admin/hosting/actions` catch now returns "Hosting action failed. Check server logs" instead of the raw error message. Tests: 425 unit + 100 integration green.
 - ✅ **Rescan Batch 1 (2026-05-21 fast wins)** — [L1] dead OAuth social-profile code deleted from [callbacks.ts](lib/auth-config/callbacks.ts) (93 commented lines + the surrounding `any`-typed carrier replaced with a typed shape); [L2] `admin/log-error` swapped to `authorizeCronRequest` (drops the local `crypto` import + inline timing-safe check); [L3] unused `import User from "@/models/User"` removed from `admin/backup` + `admin/users/reset-password`; [M3] `Order` pre-save invoice/PO suffix swapped from `Math.random().toString(36).substring(2,5)` (~46k values) to `crypto.randomBytes(4).toString("hex")` (~4B values) — closes the collision class behind `findInvoiceNumberConflicts`; [M4] orphan models `DNSRecord.ts` + `TLDPricingCache.ts` deleted (zero importers outside their own tests); [M11] `.lean()` added to `listExpiredActiveHostings`, `listDueServiceHostingCandidates`, `listUserHostingsByDomain`, `listAllHostingsForDirectAdminDiag`; [M16] `getHostingById`'s `populate("userId")` narrowed to a 6-field projection; [L8] admin/pending-domains O(N·M) `.some()` swapped for a pre-built `Set<string>`. Tests: 425 unit + 100 integration green (425 = 434 − 9 deleted DNSRecord/TLDPricingCache tests).
 
 ## Deliberately deferred (by user)
@@ -52,6 +53,7 @@ Per user instruction (2026-05-20), key/credential rotation is out of scope. Not 
 Issues are listed by severity. Each has a file pointer, one-line problem, one-line fix, and a rough effort estimate. See "Recommended order" at the bottom for batching.
 
 _Batch 1 (fast wins) closed: [L1], [L2], [L3], [M3], [M4], [M11], [M16], [L8]._
+_Batch 2 (security hardening) closed: [H1], [H2], [M1], [M2], [M5], [L6]._
 
 ### HIGH
 
@@ -236,9 +238,7 @@ _Batch 1 (fast wins) closed: [L1], [L2], [L3], [M3], [M4], [M11], [M16], [L8]._
 ## Recommended order
 
 ### ~~Batch 1 — fast wins~~ ✅ shipped (see Resolved section)
-
-### Batch 2 — security / hardening (~3 hours)
-[H1] guest-checkout email-claim challenge, [H2] guest rate-limit, [M1] raw-error echoing, [M2] renew/upgrade rate-limit, [M5] uniform 429 envelope, [L6] admin error generification.
+### ~~Batch 2 — security / hardening~~ ✅ shipped (see Resolved section)
 
 ### Batch 3 — perf / latency (~3 hours)
 [H5] Order indexes, [H6] provisioner fan-out, [H7] cron-unprovisioned concurrency, [M8] daily-scheduler concurrency, [M9] check-domain-watch concurrency, [M10] renewal N+1, [M13] cross-worker timeout, [M14] Razorpay timeout, [M15] WhatsApp timeout, [L10] Domain index.

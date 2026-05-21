@@ -108,10 +108,13 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: unknown) {
+    // Log the real message internally but return a generic one to the client.
+    // DA / Mongo / Razorpay error strings can carry credential or
+    // internal-host fragments that don't belong even in an admin response.
     const message = error instanceof Error ? error.message : "Failed to perform hosting action";
     serverLogger.error(`Admin Hosting Action Error (${request.url}):`, message);
     return secureErrorResponse(
-      message,
+      "Hosting action failed. Check server logs for details.",
       500,
       "ACTION_FAILED"
     );

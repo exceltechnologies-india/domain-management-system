@@ -13,6 +13,7 @@ import { provisionCartItems } from "@/lib/services/payment/provisioner";
 import { finalizePendingOrder } from "@/lib/services/payment/order-creator";
 import { createZohoInvoice, runPostPaymentTasks } from "@/lib/services/payment/post-tasks";
 import { recordSystemLog } from "@/lib/services/system-logs";
+import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { isDomainSupported, requiresAdditionalDetails } from "@/lib/domainRequirements";
 import { EmailService } from "@/lib/email";
 import type { CartItem, RazorpayPaymentDetails } from "@/lib/types";
@@ -34,6 +35,16 @@ export async function POST(request: NextRequest) {
   let razorpay_signature = "";
 
   try {
+    // Rate-limit per IP. Unauthenticated path that hits Razorpay
+    // payment-fetch + writes a payment row on every call.
+    const rl = await rateLimiters.guestCheckout.isAllowed(request);
+    if (!rl.allowed) {
+      return rateLimitResponse(rl, {
+        limit: 5,
+        message: "Too many verification attempts. Please wait a minute and try again.",
+      });
+    }
+
     const body = await request.json();
     const parsed: {
       guestToken: string;
@@ -163,6 +174,22 @@ export async function POST(request: NextRequest) {
     // in /checkout/guest before payment) — these are what ResellerClub will
     // see on the WHOIS contact, so they must be real, not dummy values.
     guestUser = await getUserByEmail(guestEmail);
+    // Email-claim defence: refuse to attach this purchase to a registered
+    // (non-guest) user. /create-order already gates this, but verify is the
+    // last fence — a malformed call path that skipped create-order must not
+    // bind services to a victim's account.
+    if (guestUser && !guestUser.isGuest) {
+      serverLogger.warn(
+        `[GuestCheckout] Blocked verify email-claim for registered user ${guestEmail}`
+      );
+      return NextResponse.json(
+        {
+          error:
+            "An account with this email already exists. Please sign in to continue your purchase.",
+        },
+        { status: 409 }
+      );
+    }
     if (!guestUser) {
       guestUser = await createUser({
         email: guestEmail,

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { ZohoBooksService } from "@/lib/zohobooks";
-import { rateLimiters } from "@/lib/rate-limit";
+import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { serverLogger } from "@/lib/server-logger";
 import { findOrderByZohoInvoiceForUser } from "@/lib/services/orders";
 
@@ -25,17 +25,10 @@ export async function GET(
     // Rate limit: 10 PDF downloads per minute per user
     const rl = await rateLimiters.pdfInvoice.checkKey(`pdf_invoice:${user._id}`);
     if (!rl.allowed) {
-      return NextResponse.json(
-        { error: "Too many requests. Please wait before downloading again." },
-        {
-          status: 429,
-          headers: {
-            "Retry-After": String(Math.ceil((rl.resetTime - Date.now()) / 1000)),
-            "X-RateLimit-Limit": "10",
-            "X-RateLimit-Remaining": String(rl.remaining),
-          },
-        }
-      );
+      return rateLimitResponse(rl, {
+        limit: 10,
+        message: "Too many requests. Please wait before downloading again.",
+      });
     }
 
     if (ZOHO_SENTINEL.has(id)) {

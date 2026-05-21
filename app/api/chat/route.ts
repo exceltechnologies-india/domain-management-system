@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { rateLimiters } from "@/lib/rate-limit";
+import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -25,15 +25,10 @@ export async function POST(req: NextRequest) {
     // no auth requirement.
     const rl = await rateLimiters.chat.isAllowed(req);
     if (!rl.allowed) {
-      return NextResponse.json(
-        { error: "Too many requests. Please slow down and try again in a minute." },
-        {
-          status: 429,
-          headers: {
-            "Retry-After": Math.ceil((rl.resetTime - Date.now()) / 1000).toString(),
-          },
-        }
-      );
+      return rateLimitResponse(rl, {
+        limit: 10,
+        message: "Too many requests. Please slow down and try again in a minute.",
+      });
     }
 
     const { messages } = await req.json();

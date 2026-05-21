@@ -9,7 +9,7 @@ import {
   sumExistingAttachmentBytes,
   checkTicketTotalCap,
 } from "@/lib/support-attachments";
-import { rateLimiters } from "@/lib/rate-limit";
+import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { serverLogger } from "@/lib/server-logger";
 
 const escapeHtml = (s: string) =>
@@ -110,11 +110,9 @@ export async function POST(
     const rl = await rateLimiters.supportReply.checkKey(`support_reply:${userIdStr}`);
     if (!rl.allowed) {
       serverLogger.warn(`[support] reply rate-limited for user ${userIdStr}`);
-      return secureErrorResponse(
-        "You've sent too many replies recently. Please try again later.",
-        429,
-        "RATE_LIMITED"
-      );
+      return rateLimitResponse(rl, {
+        message: "You've sent too many replies recently. Please try again later.",
+      });
     }
 
     const { id } = await params;
