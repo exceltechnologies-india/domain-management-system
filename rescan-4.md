@@ -16,12 +16,19 @@ All four HIGH findings have been verified against the actual code, not just trus
 | Batch 7d | H4 — Mongo `maxPoolSize` 10 → 50 + Cloud Run pairing | ✅ Closed | `9b60a9f` |
 | Batch 7e | M2 + M3 + M5 + M7 + M9 + M10 + M11 + M12 + M15 + L2 | ✅ Closed | `8aee422` |
 | Batch 7f | L3 + L4 + L5 + L6 + L7 + L9 + L10 + L11 | ✅ Closed | `5ee9c94` |
+| Batch 7g | M1 slice 1 — RC `registerDomain` anti-corruption (13 tests) | 🔄 In progress | `67390e4` |
+| Batch 7h | M1 slice 2 — DA `createUser` anti-corruption (7 tests) | 🔄 In progress | `6391de2` |
+| Batch 7i | M1 slice 3 — RC `renewDomain` + /domains/renew 202-on-pending | 🔄 In progress | `2fca12a` |
+| Batch 7j | M1 slice 4 — inner/outer RC fragment vocab unified | 🔄 In progress | `c31bf1e` |
+| Batch 7k | M1 slice 5 — DA `suspendUser` + expiry-worker not-found skip | 🔄 In progress | `292802c` |
+| Batch 7l | M1 slice 6 — DA `unsuspendUser` + 4 callsite migrations | 🔄 In progress | `90ac494` |
 
-**All four HIGHs + 9 MEDIUMs + 9 LOWs cleared.** Bonus catches:
+**All four HIGHs + 9 MEDIUMs + 9 LOWs cleared. M1 (anti-corruption layer) in progress** — 6 vertical slices shipped (2 RC + 3 DA + 1 vocab unification). Bonus catches:
 - 7e: M3's tightened `BookingStep` type uncovered a real save-validation bug — `provisioner-hosting.ts:379` emits `step: "hosting_deferred"` but the schema enum didn't include it.
 - 7f: L6's `Redis | null` typing exposed 3 latent null-deref sites (rate-limit, razorpay webhook, tld-pricing-cache) — each guarded.
+- 7g–7l: M1 vertical slices establish the `lib/integrations/{resellerclub,directadmin}/` pattern. ~25 `toLowerCase().includes()` chains removed from app code; the inner/outer classification layers now share one fragment vocabulary so a wording change updates both halves.
 
-Remaining work: 6 MEDIUMs (M1, M4, M6, M8, M13, M14 — all multi-day/-week or deferred) + 3 LOWs (L1 Razorpay wrapper, L8 React error boundaries, L12 a11y eslint) + 3 architectural suggestions.
+Remaining work: 5 MEDIUMs (M1 [continuing], M4, M6, M8, M13, M14 — all multi-day/-week or deferred) + 3 LOWs (L1 Razorpay wrapper, L8 React error boundaries, L12 a11y eslint) + 3 architectural suggestions.
 
 ---
 
@@ -57,7 +64,7 @@ Remaining work: 6 MEDIUMs (M1, M4, M6, M8, M13, M14 — all multi-day/-week or d
 
 ### Architecture
 
-#### [M1] No anti-corruption layer between routes/services and DirectAdmin / ResellerClub wire shapes
+#### 🔄 [M1] No anti-corruption layer between routes/services and DirectAdmin / ResellerClub wire shapes — IN PROGRESS (6 slices shipped, see Status table)
 **Files:** 57 callsites of `DirectAdminService.*` and 65 of `ResellerClubAPI.*`/`ResellerClubWrapper.*` directly inside `app/api/**` + `lib/services/payment/`. 51 `toLowerCase().includes(...)` chains parsing upstream English across the codebase.
 **Problem:** Routes and provisioners read raw upstream response shapes (`result.status === "success"`, `result.message.toLowerCase().includes("insufficient balance")`). Any wording change at ResellerClub silently flips success → failed.
 **Fix:** Introduce `lib/integrations/{resellerclub,directadmin}/` modules that translate raw responses into typed `Result<Outcome, ErrorVariant>` unions. Callers branch on the variant, not the message text. Multi-week effort; can be incremental starting with the provisioner-domain helpers.
@@ -235,10 +242,18 @@ Remaining work: 6 MEDIUMs (M1, M4, M6, M8, M13, M14 — all multi-day/-week or d
 - ~~**Batch 7d** — H4 (Mongo pool sizing)~~ ✅ shipped `9b60a9f`
 - ~~**Batch 7e** — M2 + M3 + M5 + M7 + M9 + M10 + M11 + M12 + M15 + L2~~ ✅ shipped `8aee422`
 - ~~**Batch 7f** — L3 + L4 + L5 + L6 + L7 + L9 + L10 + L11~~ ✅ shipped `5ee9c94`
-- **Batch 7g** — L1 (Razorpay client wrapper, 10 mechanical thin wrappers) — ~1h.
-- **Batch 7h** — M13 (typed PaymentError) — ~3.5h.
-- **Batch 7i** — M8 (PendingDomain._id ObjectId) — needs prod data audit.
-- **Batch 7j** — M14 (component test harness) + cart-store tests.
-- **Batch 7k** — L8 (React error boundaries) + L12 (a11y eslint + axe) — ~1 day.
-- **Batch 7l** — M4 + M6 (frontend decomposition) — multi-day, per page.
-- **Project 8** — anti-corruption layer (M1). Multi-week.
+- ~~**Batch 7g** — M1 slice 1: RC registerDomain anti-corruption~~ 🔄 shipped `67390e4`
+- ~~**Batch 7h** — M1 slice 2: DA createUser anti-corruption~~ 🔄 shipped `6391de2`
+- ~~**Batch 7i** — M1 slice 3: RC renewDomain anti-corruption~~ 🔄 shipped `2fca12a`
+- ~~**Batch 7j** — M1 slice 4: inner/outer RC fragment vocab unified~~ 🔄 shipped `c31bf1e`
+- ~~**Batch 7k** — M1 slice 5: DA suspendUser anti-corruption~~ 🔄 shipped `292802c`
+- ~~**Batch 7l** — M1 slice 6: DA unsuspendUser + webhook suspend migration~~ 🔄 shipped `90ac494`
+- **Batch 7m** — M1 slice 7: RC transferDomain — ~1h.
+- **Batch 7n** — M1 slice 8: RC getDomainOrderId / getDomainDetails — ~1.5h.
+- **Batch 7o** — M1 slice 9: DA updateDNSNameservers + modifyDomain — ~1.5h.
+- **Batch 7p** — L1 (Razorpay client wrapper, mechanical thin wrappers) — ~1h.
+- **Batch 7q** — M13 (typed PaymentError) — ~3.5h.
+- **Batch 7r** — M8 (PendingDomain._id ObjectId) — needs prod data audit.
+- **Batch 7s** — M14 (component test harness) + cart-store tests.
+- **Batch 7t** — L8 (React error boundaries) + L12 (a11y eslint + axe) — ~1 day.
+- **Batch 7u** — M4 + M6 (frontend decomposition) — multi-day, per page.
