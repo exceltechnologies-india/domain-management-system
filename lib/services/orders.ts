@@ -274,15 +274,19 @@ export async function findUserOrder(
   options?: { select?: string }
 ): Promise<IOrder | null> {
   await connectDB();
-  const or: Record<string, unknown>[] = [{ orderId: orderIdOrId }];
-  if (mongoose.Types.ObjectId.isValid(orderIdOrId)) {
-    or.push({ _id: orderIdOrId });
-  }
-  let query = Order.findOne({
-    $or: or,
+  // Branch on ObjectId.isValid and use exactly one filter — mirror of the
+  // pattern in getOrderByIdOrOrderId. The previous shape used $or, which
+  // was safe under userId scope but kept the same latent footgun (any
+  // future caller using this without userId scope would happily match the
+  // wrong row).
+  const filter: Record<string, unknown> = {
+    ...(mongoose.Types.ObjectId.isValid(orderIdOrId)
+      ? { _id: orderIdOrId }
+      : { orderId: orderIdOrId }),
     userId,
     isDeleted: { $ne: true },
-  });
+  };
+  let query = Order.findOne(filter);
   if (options?.select) query = query.select(options.select);
   return query.lean<IOrder>().exec() as Promise<IOrder | null>;
 }

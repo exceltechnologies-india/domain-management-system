@@ -68,6 +68,17 @@ export class RateLimiter {
   }> {
     const windowSeconds = Math.ceil(this.config.windowMs / 1000);
 
+    // No Redis configured (dev / cold-start) — fail-open. Matches the
+    // catch-block behaviour below so rate-limit failures don't take down
+    // the app under a Redis outage.
+    if (!redis) {
+      return {
+        allowed: true,
+        remaining: this.config.maxRequests,
+        resetTime: Date.now() + this.config.windowMs,
+      };
+    }
+
     try {
       const count = await redis.incr(key);
       if (count === 1) {

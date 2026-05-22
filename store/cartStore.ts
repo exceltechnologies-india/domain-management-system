@@ -5,7 +5,7 @@ import { safeLocalStorage } from "@/lib/storage";
 import { getMinRegistrationPeriod } from "@/lib/tld-min-periods";
 import { isRestricted, getMaxYears } from "@/lib/tld-policies";
 import toast from "react-hot-toast";
-import { clientLogger } from "@/lib/client-logger";
+import { logger } from "@/lib/logger";
 
 // Debounce timer — batches rapid cart mutations into a single server sync
 let saveDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -279,7 +279,7 @@ export const useCartStore = create<CartStore>()(
           // Only log non-abort errors to reduce noise in development
           const err = error as { code?: string; name?: string };
           if (err.code !== "ECONNRESET" && err.name !== "AbortError") {
-            clientLogger.error("Failed to sync cart with server", error);
+            logger.error("Failed to sync cart with server", error);
           }
         } finally {
           set({ isLoading: false });
@@ -313,7 +313,7 @@ export const useCartStore = create<CartStore>()(
           // Only log non-abort errors to reduce noise in development
           const err = error as { code?: string; name?: string };
           if (err.code !== "ECONNRESET" && err.name !== "AbortError") {
-            clientLogger.error("Failed to load cart from server", error);
+            logger.error("Failed to load cart from server", error);
           }
         }
       },
@@ -338,7 +338,7 @@ export const useCartStore = create<CartStore>()(
           // Only log non-abort errors to reduce noise in development
           const err = error as { code?: string; name?: string };
           if (err.code !== "ECONNRESET" && err.name !== "AbortError") {
-            clientLogger.error("Failed to save cart to server", error);
+            logger.error("Failed to save cart to server", error);
           }
         }
       },
@@ -382,7 +382,7 @@ export const useCartStore = create<CartStore>()(
           // Only log non-abort errors to reduce noise in development
           const err = error as { code?: string; name?: string };
           if (err.code !== "ECONNRESET" && err.name !== "AbortError") {
-            clientLogger.error("Failed to merge cart with server", error);
+            logger.error("Failed to merge cart with server", error);
           }
         }
       },

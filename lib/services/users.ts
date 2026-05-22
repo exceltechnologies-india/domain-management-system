@@ -18,22 +18,17 @@ import type { IUser } from "@/models/User";
 // ─── Reads ────────────────────────────────────────────────────────────────────
 
 /**
- * Read a user by primary key. Returns null when not found.
- * Includes all fields including the password hash — only use this for
- * auth-internal code paths. Most callers want {@link getUserByIdSafe} instead.
+ * Read a user by primary key. Returns null when not found. The user
+ * schema declares `password: { select: false }` (and the same for TOTP
+ * secrets/backup codes) so the hash is never returned without an
+ * explicit `.select("+password")`. This is safe to use anywhere that
+ * needs to return user data to clients — there's no separate "safe"
+ * variant any more (the previous `getUserByIdSafe` was a no-op
+ * `.select("-password")` on top of the same default-excluded field).
  */
 export async function getUserById(id: string): Promise<IUser | null> {
   await connectDB();
   return User.findById(id);
-}
-
-/**
- * Read a user by primary key, with the password hash stripped.
- * The default for any code path that returns user data to clients.
- */
-export async function getUserByIdSafe(id: string): Promise<IUser | null> {
-  await connectDB();
-  return User.findById(id).select("-password");
 }
 
 /**

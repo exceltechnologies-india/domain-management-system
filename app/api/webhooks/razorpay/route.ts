@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
      * Longer-lived duplicates are still caught by the MongoDB processed flag.
      */
     const paymentId = payload.payload?.payment?.entity?.id;
-    if (paymentId && event) {
+    if (paymentId && event && redis) {
       const nonceKey = `webhook:nonce:${event}:${paymentId}`;
       try {
         const claimed = await redis.set(nonceKey, "1", "EX", WEBHOOK_NONCE_TTL_S, "NX");

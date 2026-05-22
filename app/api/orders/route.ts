@@ -1,7 +1,7 @@
 import { AUTH_SECRET } from "@/lib/auth-secret";
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
-import { getUserByIdSafe } from "@/lib/services/users";
+import { getUserById } from "@/lib/services/users";
 import { listOrdersForUser } from "@/lib/services/orders";
 import { getToken } from "next-auth/jwt";
 import { serverLogger } from "@/lib/server-logger";
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     if (!user) {
       const token = await getToken({ req: request, secret: AUTH_SECRET });
       if (token?.id) {
-        user = await getUserByIdSafe(token.id as string);
+        user = await getUserById(token.id as string);
         if (!user || !user.isActive) {
           return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
