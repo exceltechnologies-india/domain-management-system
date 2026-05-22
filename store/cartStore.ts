@@ -154,10 +154,14 @@ export const useCartStore = create<CartStore>()(
           };
         });
 
-        // Debounced save — batches rapid adds into a single request
-        if (safeLocalStorage.getItem("token")) {
-          debouncedSave(() => get().saveToServer());
-        }
+        // Debounced save — batches rapid adds into a single request.
+        // No client-side auth gate: saveToServer relies on the NextAuth
+        // session cookie (credentials:"include") and fails-soft on 401
+        // for guests. The previous localStorage "token" gate broke after
+        // the NextAuth-only migration — that key is never written for
+        // credentials login, so authenticated users' carts stopped
+        // persisting server-side.
+        debouncedSave(() => get().saveToServer());
       },
 
       removeItem: (domainName, itemType) => {
@@ -186,10 +190,7 @@ export const useCartStore = create<CartStore>()(
           return { items: withoutDomain };
         });
 
-        // Debounced save
-        if (safeLocalStorage.getItem("token")) {
-          debouncedSave(() => get().saveToServer());
-        }
+        debouncedSave(() => get().saveToServer());
       },
 
       updateItem: (domainName, updates, itemType) => {
@@ -201,19 +202,13 @@ export const useCartStore = create<CartStore>()(
           ),
         }));
 
-        // Debounced save
-        if (safeLocalStorage.getItem("token")) {
-          debouncedSave(() => get().saveToServer());
-        }
+        debouncedSave(() => get().saveToServer());
       },
 
       clearCart: () => {
         set({ items: [] });
 
-        // Debounced save
-        if (safeLocalStorage.getItem("token")) {
-          debouncedSave(() => get().saveToServer());
-        }
+        debouncedSave(() => get().saveToServer());
       },
 
       getSubtotalPrice: () => {
@@ -293,14 +288,14 @@ export const useCartStore = create<CartStore>()(
 
       loadFromServer: async () => {
         try {
-          const token = safeLocalStorage.getItem("token");
-          if (!token) return;
-
+          // Auth via the NextAuth session cookie carried by
+          // credentials:"include". A guest (no session) gets a 401 from
+          // /api/cart, which falls through the `response.ok` branch as
+          // a no-op — fail-soft. The previous Bearer-token gate was a
+          // dead pre-NextAuth path.
           const response = await fetch("/api/v1/cart", {
             method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
+            credentials: "include",
           });
 
           if (response.ok) {
@@ -325,17 +320,14 @@ export const useCartStore = create<CartStore>()(
 
       saveToServer: async () => {
         try {
-          const token = safeLocalStorage.getItem("token");
-          if (!token) return;
-
           const { items } = get();
 
           const response = await fetch("/api/v1/cart", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
             },
+            credentials: "include",
             body: JSON.stringify({ cart: items }),
           });
 
@@ -353,18 +345,14 @@ export const useCartStore = create<CartStore>()(
 
       mergeWithServerCart: async () => {
         try {
-          const token = safeLocalStorage.getItem("token");
-          if (!token) return;
-
           const localItems = get().items;
           if (localItems.length === 0) return;
 
-          // Load server cart
+          // Load server cart via the NextAuth session cookie. 401 falls
+          // through as no-op (fail-soft for guests).
           const response = await fetch("/api/v1/cart", {
             method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
+            credentials: "include",
           });
 
           if (response.ok) {
@@ -408,12 +396,11 @@ export const useCartStore = create<CartStore>()(
           const validatedItems = validateAndCorrectCartItems(state.items);
           if (JSON.stringify(validatedItems) !== JSON.stringify(state.items)) {
             state.items = validatedItems;
-            // Save corrected items back to localStorage
+            // Push the validation-corrected cart back to the server. The
+            // NextAuth cookie carries auth; saveToServer is a no-op on 401
+            // for guests.
             setTimeout(() => {
-              const token = safeLocalStorage.getItem("token");
-              if (token) {
-                useCartStore.getState().saveToServer();
-              }
+              useCartStore.getState().saveToServer();
             }, 100);
           }
         }
