@@ -10,8 +10,9 @@ import type { RegisterDomainOutcome, RenewDomainOutcome } from "./types";
 
 /**
  * Substring fragments RC's error messages use when registration is
- * deferred for balance / credit reasons. Kept here as a private constant
- * so any RC wording drift is fixed in one place.
+ * deferred for balance / credit reasons. Shared with the inner-layer
+ * `lib/resellerclub/registration.ts` so both classification points
+ * agree on the vocabulary.
  */
 export const BALANCE_PENDING_FRAGMENTS = [
   "insufficient balance",
@@ -19,6 +20,22 @@ export const BALANCE_PENDING_FRAGMENTS = [
   "insufficient funds",
   "account balance",
   "credit limit",
+  // RC sometimes wraps a balance issue in a generic support-contact
+  // message without naming the underlying cause — treat as pending so
+  // the auto-retry cron has a chance to drain it.
+  "please contact support",
+] as const;
+
+/**
+ * Substring fragments RC returns when the registration is queued for
+ * registry processing (lock contention, racing reseller orders, etc.).
+ * Most clear on their own — same semantics as balance-pending from the
+ * caller's POV.
+ */
+export const PROCESSING_LOCK_FRAGMENTS = [
+  "order locked for processing",
+  "locked for processing",
+  "processing",
 ] as const;
 
 /**
@@ -62,6 +79,11 @@ export function classifyRegisterDomainResponse(
   if (matchesAny(res.message, BALANCE_PENDING_FRAGMENTS)) {
     return { kind: "balance_pending" };
   }
+  if (matchesAny(res.message, PROCESSING_LOCK_FRAGMENTS)) {
+    // Processing-lock acts like balance_pending from the caller's
+    // perspective — queue for retry rather than surface a hard error.
+    return { kind: "balance_pending" };
+  }
   if (matchesAny(res.message, ALREADY_IN_PROGRESS_FRAGMENTS)) {
     return { kind: "already_in_progress" };
   }
@@ -98,7 +120,10 @@ export function classifyRenewDomainResponse(
     return { kind: "balance_pending" };
   }
 
-  if (matchesAny(res.message, BALANCE_PENDING_FRAGMENTS)) {
+  if (
+    matchesAny(res.message, BALANCE_PENDING_FRAGMENTS) ||
+    matchesAny(res.message, PROCESSING_LOCK_FRAGMENTS)
+  ) {
     return { kind: "balance_pending" };
   }
   return {

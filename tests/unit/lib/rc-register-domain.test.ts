@@ -80,6 +80,21 @@ describe("classifyRegisterDomainResponse", () => {
       expect(out.reason).toMatch(/RC returned status=error/);
     }
   });
+
+  // Batch 7j added "please contact support" + the processing-lock
+  // fragments so the inner registration.ts layer and this outer
+  // classifier can't drift.
+  it.each([
+    "Please contact support for further assistance",
+    "Order locked for processing — try again later",
+    "locked for processing",
+    "Domain Registration: processing",
+  ])("treats new fragment as balance_pending: %s", (msg) => {
+    const out = classifyRegisterDomainResponse(
+      baseResponse({ status: "error", message: msg })
+    );
+    expect(out.kind).toBe("balance_pending");
+  });
 });
 
 describe("classifyRenewDomainResponse", () => {
