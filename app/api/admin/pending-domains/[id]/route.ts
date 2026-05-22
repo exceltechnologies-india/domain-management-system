@@ -9,6 +9,7 @@ import { getOrderByOrderId } from "@/lib/services/orders";
 import type { IOrder } from "@/models/Order";
 import Domain from "@/models/Domain";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
+import { getDomainOrderId as rcGetDomainOrderId } from "@/lib/integrations/resellerclub";
 
 // Force dynamic rendering - required for API routes
 export const dynamic = "force-dynamic";
@@ -203,9 +204,9 @@ export async function DELETE(
       if (!rcOrderId) {
         try {
           serverLogger.info(`[${reqId}] ResellerClub order ID missing in DB, searching via API for: ${pendingDomain.domainName}`);
-          const searchResult = await ResellerClubWrapper.getDomainOrderId(pendingDomain.domainName);
-          if (searchResult.status === 'success' && searchResult.data) {
-            rcOrderId = searchResult.data;
+          const searchOutcome = await rcGetDomainOrderId({ domainName: pendingDomain.domainName });
+          if (searchOutcome.kind === "found") {
+            rcOrderId = searchOutcome.orderId;
             serverLogger.info(`[${reqId}] ✅ Found Order ID via search: ${rcOrderId}`);
           }
         } catch (searchError) {

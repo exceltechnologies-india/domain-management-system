@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
-import { ResellerClubAPI } from "@/lib/resellerclub";
+import { getDomainDetails as rcGetDomainDetails } from "@/lib/integrations/resellerclub";
 import { serverLogger } from "@/lib/server-logger";
 import { findOrderByDomainForUser, findOrderDomain } from "@/lib/services/orders";
 
@@ -39,31 +39,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check domain status in ResellerClub
-    const result = await ResellerClubAPI.getDomainDetails(domainName);
+    const outcome = await rcGetDomainDetails({ domainName });
 
-    if (result.status === "error") {
-      // If domain not found in ResellerClub, it might be pending or failed
-      if (result.message && result.message.includes("404")) {
-        return NextResponse.json({
-          success: true,
-          domainName,
-          status: "pending",
-          message:
-            "Domain not found in ResellerClub - likely pending registration",
-          resellerClubStatus: "not_found",
-        });
-      }
-
+    if (outcome.kind === "not_found") {
       return NextResponse.json({
-        success: false,
-        error: result.message,
+        success: true,
+        domainName,
+        status: "pending",
+        message:
+          "Domain not found in ResellerClub - likely pending registration",
+        resellerClubStatus: "not_found",
       });
     }
 
-    // Domain found in ResellerClub - check if it's actually registered
-    const domainData = result.data;
-    const isRegistered = domainData && domainData.domainstatus === "Active";
+    if (outcome.kind === "hard_failure") {
+      return NextResponse.json({
+        success: false,
+        error: outcome.reason,
+      });
+    }
+
+    const domainData = outcome.details;
+    const isRegistered = domainData.domainstatus === "Active";
 
     return NextResponse.json({
       success: true,
@@ -72,7 +69,7 @@ export async function POST(request: NextRequest) {
       message: isRegistered
         ? "Domain is registered and active"
         : "Domain found but not yet active",
-      resellerClubStatus: domainData?.domainstatus || "unknown",
+      resellerClubStatus: domainData.domainstatus || "unknown",
       resellerClubData: domainData,
     });
   } catch (error) {

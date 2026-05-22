@@ -14,13 +14,15 @@
  * since each operation has its own meaningful states.
  *
  * Migrated:
- *   - registerDomain → RegisterDomainOutcome
- *   - renewDomain    → RenewDomainOutcome
- *   - transferDomain → TransferDomainOutcome
+ *   - registerDomain    → RegisterDomainOutcome
+ *   - renewDomain       → RenewDomainOutcome
+ *   - transferDomain    → TransferDomainOutcome
+ *   - getDomainOrderId  → GetDomainOrderIdOutcome
+ *   - getDomainDetails  → GetDomainDetailsOutcome
  *
  * To migrate next (follow-up batches):
- *   - getDomainOrderId, getDomainDetails, getDNSRecords;
- *     DirectAdmin: modifyDomain, updateDNS, getUserConfig, deleteUser.
+ *   - getDNSRecords;
+ *     DirectAdmin: modifyDomain (updateDNSNameservers permanently disabled).
  */
 
 /**
@@ -91,4 +93,58 @@ export type TransferDomainOutcome =
   | { kind: "transfer_initiated"; entityId?: string }
   | { kind: "balance_pending" }
   | { kind: "transfer_rejected"; reason: string }
+  | { kind: "hard_failure"; reason: string };
+
+/**
+ * Outcome of a `getDomainOrderId` call (RC `/api/domains/orderid.json`).
+ *
+ * Used as a pre-flight by renewal / cleanup / sync workflows that need
+ * the RC-side order-id to act on a domain. The interesting distinction
+ * is `not_found` (RC says no such order on our reseller account — this
+ * is a real signal during admin cleanup and during pending-domain
+ * cancellation) vs `hard_failure` (network blip, RC outage, etc.).
+ *
+ * - `found`         — RC returned an order-id; `orderId` is non-empty.
+ * - `not_found`     — RC reports no matching order. Callers like
+ *                      admin pending-domain delete treat this as "no
+ *                      registrar-side cancellation needed".
+ * - `hard_failure`  — network/RC error. `reason` is internal/log-only.
+ */
+export type GetDomainOrderIdOutcome =
+  | { kind: "found"; orderId: string }
+  | { kind: "not_found"; reason: string }
+  | { kind: "hard_failure"; reason: string };
+
+/**
+ * Loose shape of the RC `/api/domains/details.json` response data.
+ * Fields are not all present in every response — callers should
+ * defensively check before parsing.
+ */
+export interface DomainDetailsRecord {
+  endtime?: string;
+  creationtime?: string;
+  currentstatus?: string;
+  domainstatus?: string;
+  ns?: string[];
+  // RC also returns several other fields (entityid, productkey, etc.)
+  // — preserved on the underlying object but not typed here.
+  [k: string]: unknown;
+}
+
+/**
+ * Outcome of a `getDomainDetails` call (RC `/api/domains/details.json`).
+ *
+ * Read op — distinguishing `not_found` from `hard_failure` lets the
+ * verify-status route (and DomainVerificationService.syncDomainWithRegistrar)
+ * map "RC has no record of this domain" onto a meaningful UI state
+ * (likely pending registration) rather than a generic 500.
+ *
+ * - `found`         — RC returned the details record.
+ * - `not_found`     — RC reports no such domain on our reseller
+ *                      account.
+ * - `hard_failure`  — network/RC error. `reason` is internal/log-only.
+ */
+export type GetDomainDetailsOutcome =
+  | { kind: "found"; details: DomainDetailsRecord }
+  | { kind: "not_found"; reason: string }
   | { kind: "hard_failure"; reason: string };

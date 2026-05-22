@@ -8,6 +8,8 @@ import {
   classifyRegisterDomainResponse,
   classifyRenewDomainResponse,
   classifyTransferDomainResponse,
+  classifyGetDomainOrderIdResponse,
+  classifyGetDomainDetailsResponse,
 } from "@/lib/integrations/resellerclub/classify";
 import type { ResellerClubResponse } from "@/lib/types";
 
@@ -205,6 +207,114 @@ describe("classifyTransferDomainResponse", () => {
   it("unrelated error → hard_failure", () => {
     const out = classifyTransferDomainResponse(
       baseResponse({ status: "error", message: "Network connection refused" })
+    );
+    expect(out.kind).toBe("hard_failure");
+  });
+});
+
+describe("classifyGetDomainOrderIdResponse", () => {
+  it("status:success with data string → found", () => {
+    const out = classifyGetDomainOrderIdResponse(
+      baseResponse({ status: "success", data: "RC-98765" })
+    );
+    expect(out.kind).toBe("found");
+    if (out.kind === "found") expect(out.orderId).toBe("RC-98765");
+  });
+
+  it("status:success with numeric data → found (stringified)", () => {
+    const out = classifyGetDomainOrderIdResponse(
+      baseResponse({ status: "success", data: 12345 as unknown as undefined })
+    );
+    expect(out.kind).toBe("found");
+    if (out.kind === "found") expect(out.orderId).toBe("12345");
+  });
+
+  it("status:success but data is the literal string 'undefined' → not_found", () => {
+    // Defensive: occasional RC quirk where the order id is missing
+    // but the wrapper still returns status=success.
+    const out = classifyGetDomainOrderIdResponse(
+      baseResponse({ status: "success", data: "undefined" as unknown as undefined })
+    );
+    expect(out.kind).toBe("not_found");
+  });
+
+  it.each([
+    "404 Not Found",
+    "Domain not found in your account",
+    "No orders found for this domain",
+    "No order found",
+    "no matching entity",
+    "no domain registered with this name",
+    "Domain does not exist",
+    "Could not find the requested resource",
+  ])("not-found fragment recognised: %s", (msg) => {
+    const out = classifyGetDomainOrderIdResponse(
+      baseResponse({ status: "error", message: msg })
+    );
+    expect(out.kind).toBe("not_found");
+  });
+
+  it("unrelated error → hard_failure", () => {
+    const out = classifyGetDomainOrderIdResponse(
+      baseResponse({ status: "error", message: "Connection refused by upstream" })
+    );
+    expect(out.kind).toBe("hard_failure");
+    if (out.kind === "hard_failure") {
+      expect(out.reason).toBe("Connection refused by upstream");
+    }
+  });
+
+  it("undefined message + error status → hard_failure with synthesised reason", () => {
+    const out = classifyGetDomainOrderIdResponse(
+      baseResponse({ status: "error" })
+    );
+    expect(out.kind).toBe("hard_failure");
+    if (out.kind === "hard_failure") {
+      expect(out.reason).toMatch(/status=error/);
+    }
+  });
+});
+
+describe("classifyGetDomainDetailsResponse", () => {
+  it("status:success with data → found", () => {
+    const out = classifyGetDomainDetailsResponse(
+      baseResponse({
+        status: "success",
+        data: {
+          endtime: "1800000000",
+          creationtime: "1700000000",
+          domainstatus: "Active",
+        },
+      })
+    );
+    expect(out.kind).toBe("found");
+    if (out.kind === "found") expect(out.details.domainstatus).toBe("Active");
+  });
+
+  it.each([
+    "404 from registrar",
+    "no domain found",
+    "domain does not exist on our account",
+  ])("not-found fragment recognised: %s", (msg) => {
+    const out = classifyGetDomainDetailsResponse(
+      baseResponse({ status: "error", message: msg })
+    );
+    expect(out.kind).toBe("not_found");
+  });
+
+  it("error without not-found fragment → hard_failure", () => {
+    const out = classifyGetDomainDetailsResponse(
+      baseResponse({ status: "error", message: "Failed to fetch domain details" })
+    );
+    expect(out.kind).toBe("hard_failure");
+  });
+
+  it("status:success but no data → hard_failure", () => {
+    // Inner wrapper guarantees success only when response.data is set;
+    // belt-and-braces — if some upstream layer drops the data, treat it
+    // as hard rather than crashing on undefined access at the callsite.
+    const out = classifyGetDomainDetailsResponse(
+      baseResponse({ status: "success", data: undefined })
     );
     expect(out.kind).toBe("hard_failure");
   });

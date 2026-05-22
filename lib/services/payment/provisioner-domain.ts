@@ -7,13 +7,13 @@
  * Returns a shape the orchestrator pushes into its accumulator arrays —
  * the helper itself never touches the orchestrator's local state.
  */
-import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 import Domain from "@/models/Domain";
 import { calculateItemExpiration } from "@/lib/billing";
 import { AUTOMATION_CONFIG } from "@/config/automation";
 import {
   registerDomain as rcRegisterDomain,
+  getDomainOrderId as rcGetDomainOrderId,
   type RegisterDomainOutcome,
 } from "@/lib/integrations/resellerclub";
 
@@ -196,12 +196,12 @@ async function dispatchOutcome(
  * returns undefined on failure. */
 async function fetchOrderIdFallback(domainName: string): Promise<string | undefined> {
   try {
-    const orderIdResponse = await ResellerClubWrapper.getDomainOrderId(domainName);
-    if (orderIdResponse.status === "success" && orderIdResponse.data) {
-      return String(orderIdResponse.data);
+    const outcome = await rcGetDomainOrderId({ domainName });
+    if (outcome.kind === "found") {
+      return outcome.orderId;
     }
     serverLogger.warn(
-      `[PAYMENT-VERIFY] Order-id fallback returned no data for ${domainName}`
+      `[PAYMENT-VERIFY] Order-id fallback ${outcome.kind} for ${domainName}: ${outcome.reason}`
     );
   } catch (err) {
     serverLogger.warn(

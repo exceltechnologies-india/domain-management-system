@@ -12,6 +12,10 @@
  */
 
 import { ResellerClubWrapper } from "./resellerclub-wrapper";
+import {
+  getDomainOrderId as rcGetDomainOrderId,
+  getDomainDetails as rcGetDomainDetails,
+} from "@/lib/integrations/resellerclub";
 import Domain from "@/models/Domain";
 import { type IOrder } from "@/models/Order";
 import { findOrdersByDomainName } from "@/lib/services/orders";
@@ -35,33 +39,28 @@ export class DomainVerificationService {
   static async syncDomainWithRegistrar(domainName: string) {
     try {
       serverLogger.info(`🔄 [DOMAIN-SYNC] Starting registrar sync for: ${domainName}`);
-      
-      // 1. Get ResellerClub Order ID
-      const orderIdResponse = await ResellerClubWrapper.getDomainOrderId(domainName);
-      
-      if (orderIdResponse.status !== "success" || !orderIdResponse.data) {
+
+      const orderIdOutcome = await rcGetDomainOrderId({ domainName });
+      if (orderIdOutcome.kind !== "found") {
         serverLogger.warn(`⚠️ [DOMAIN-SYNC] No ResellerClub order found for ${domainName}`);
         return {
           success: false,
           error: "No active order found at registrar for this domain.",
         };
       }
-      
-      const resellerClubOrderId = orderIdResponse.data;
-      
-      // 2. Get Full Domain Details
-      const detailsResult = await ResellerClubWrapper.getDomainDetails(domainName);
-      
-      if (detailsResult.status !== "success" || !detailsResult.data) {
+      const resellerClubOrderId = orderIdOutcome.orderId;
+
+      const detailsOutcome = await rcGetDomainDetails({ domainName });
+      if (detailsOutcome.kind !== "found") {
         return {
           success: false,
           error: "Failed to fetch domain details from registrar.",
         };
       }
-      
-      const details = detailsResult.data;
-      const expiresAt = new Date(parseInt(details.endtime) * 1000);
-      const registeredAt = new Date(parseInt(details.creationtime) * 1000);
+
+      const details = detailsOutcome.details;
+      const expiresAt = new Date(parseInt(details.endtime ?? "0") * 1000);
+      const registeredAt = new Date(parseInt(details.creationtime ?? "0") * 1000);
 
       // Map ResellerClub currentstatus to our local status using an allowlist.
       // ONLY "Active" (case-insensitive) from ResellerClub means the domain is
