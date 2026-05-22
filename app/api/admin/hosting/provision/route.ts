@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
-import { DirectAdminService } from "@/lib/directadmin";
+import { DirectAdminService, DA_SERVER_IP } from "@/lib/directadmin";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 import { EmailService } from "@/lib/email";
@@ -262,7 +262,7 @@ export async function POST(request: NextRequest) {
             {
                 domainName: domain,
                 packageName: packageName,
-                serverIp: process.env.DIRECTADMIN_IP || "136.115.64.54",
+                serverIp: DA_SERVER_IP,
                 nameservers: DirectAdminService.NAMESERVERS
             }
         );

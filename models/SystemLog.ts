@@ -26,7 +26,9 @@ const SystemLogSchema = new Schema<ISystemLog>(
     source: { type: String, required: true },
     url: { type: String },
     stack: { type: String },
-    service: { type: String, index: true },
+    // No standalone index on `service` — the compound
+    // `{ service: 1, createdAt: -1 }` below covers prefix-only lookups.
+    service: { type: String },
     requestId: { type: String },
     statusCode: { type: Number },
     ip: { type: String },
@@ -43,7 +45,9 @@ const SystemLogSchema = new Schema<ISystemLog>(
 SystemLogSchema.index({ level: 1, createdAt: -1 });
 SystemLogSchema.index({ service: 1, createdAt: -1 });
 SystemLogSchema.index({ requestId: 1 });
-SystemLogSchema.index({ createdAt: -1 });
+// No standalone `{ createdAt: -1 }` index — the compound indexes above are
+// prefix-able for time-ranged queries by level/service, and the capped
+// collection's insertion order is monotonic on createdAt anyway.
 
 export default mongoose.models.SystemLog ||
   mongoose.model<ISystemLog>("SystemLog", SystemLogSchema);

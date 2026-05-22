@@ -7,6 +7,7 @@ import { serverLogger } from '@/lib/server-logger';
 import {
   ADMIN_USER,
   API_KEY,
+  DA_SERVER_IP,
   DA_URL,
   DEFAULT_TIMEOUT_MS,
   DirectAdminError,
@@ -103,10 +104,10 @@ export async function getOneTimeLoginUrl(username: string, redirectUrl: string =
  * @param email User's email address
  * @param domain Primary domain to associate with the account
  * @param packageName The hosting package name to assign
- * @param ip The IP address to assign (default: '136.115.64.54')
+ * @param ip The IP address to assign (default: `DA_SERVER_IP` from client.ts)
  * @returns DirectAdmin API response
  */
-export async function createUser(username: string, email: string, domain: string, packageName: string, ip: string = '136.115.64.54') {
+export async function createUser(username: string, email: string, domain: string, packageName: string, ip: string = DA_SERVER_IP) {
   validateUsername(username);
   packageName = normalizePackageName(packageName);
   validatePackageName(packageName);

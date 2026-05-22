@@ -2,8 +2,29 @@ import mongoose, { Document, Schema } from "mongoose";
 import crypto from "crypto";
 
 /**
+ * Booking-status step values. Single source of truth shared between the
+ * schema enum + the TS interface so a typo doesn't compile (silently
+ * tripping the Mongoose validator only at runtime).
+ */
+export const BOOKING_STEPS = [
+  "payment_verified",
+  "customer_created",
+  "contact_created",
+  "domain_registering",
+  "domain_pending",
+  "domain_registered",
+  "domain_failed",
+  "dns_activated",
+  // hosting-specific: DA unreachable at provision time, queued for retry by
+  // the pending-hosting cron. Was missing from the schema enum before M3 — any
+  // save with this value would have tripped Mongoose validation.
+  "hosting_deferred",
+] as const;
+export type BookingStep = (typeof BOOKING_STEPS)[number];
+
+/**
  * Mongoose Order Document Interface
- * 
+ *
  * Represents a complete customer order in the system, which can include multiple
  * domain registrations and hosting packages. Tracks the payment gateway status
  * (Razorpay) and provisioning progress (bookingStatus).
@@ -28,15 +49,7 @@ export interface IOrder extends Document {
     registrationPeriod: number;
     status: "pending" | "processing" | "registered" | "failed" | "cancelled";
     bookingStatus: {
-      step:
-        | "payment_verified"
-        | "customer_created"
-        | "contact_created"
-        | "domain_registering"
-        | "domain_pending"
-        | "domain_registered"
-        | "domain_failed"
-        | "dns_activated";
+      step: BookingStep;
       message: string;
       timestamp: Date;
       progress: number; // 0-100
@@ -177,16 +190,10 @@ const OrderSchema = new Schema<IOrder>(
           {
             step: {
               type: String,
-              enum: [
-                "payment_verified",
-                "customer_created",
-                "contact_created",
-                "domain_registering",
-                "domain_pending",
-                "domain_registered",
-                "domain_failed",
-                "dns_activated",
-              ],
+              // Spread from the BOOKING_STEPS const to keep the schema enum
+              // and the IOrder TS literal in lockstep. Mongoose accepts a
+              // mutable string[] for `enum`, so we copy to a fresh array.
+              enum: [...BOOKING_STEPS],
               required: true,
             },
             message: {

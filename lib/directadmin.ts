@@ -27,7 +27,7 @@ import * as users from './directadmin/users';
 import * as dns from './directadmin/dns';
 import * as server from './directadmin/server';
 
-export { DirectAdminError } from './directadmin/client';
+export { DirectAdminError, DA_SERVER_IP } from './directadmin/client';
 
 /**
  * DirectAdmin Service

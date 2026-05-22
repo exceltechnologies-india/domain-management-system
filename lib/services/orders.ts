@@ -13,6 +13,7 @@
  * fallback (when the User has been hard-deleted but `userName` / `userEmail`
  * are still on the order) is applied inside the service.
  */
+import crypto from "crypto";
 import mongoose from "mongoose";
 import type { HydratedDocument } from "mongoose";
 import connectDB from "@/lib/mongodb";
@@ -687,6 +688,88 @@ export async function createOrderInSession(
   await connectDB();
   const doc = new Order(payload);
   await doc.save({ session });
+  return doc;
+}
+
+export interface CreateRenewalOrderInput {
+  user: {
+    _id: mongoose.Types.ObjectId | string;
+    firstName?: string;
+    lastName?: string;
+    email: string;
+  };
+  payment: {
+    id: string;
+    amount: number; // paise (Razorpay convention)
+    currency: string;
+    order_id?: string | null;
+  };
+  subscriptionId: string;
+  domainName: string;
+  isMonthly: boolean;
+  hostingPlan?: {
+    planId: string;
+    name: string;
+    serverPackage: string;
+  };
+}
+
+/**
+ * Build + save an audit-trail Order row for a hosting-renewal webhook
+ * delivery. Replaces the inline `new Order({...}).save()` previously in
+ * lib/services/payment/webhook-handlers.ts so the model isn't accessed
+ * directly outside this service.
+ *
+ * The orderId suffix uses `crypto.randomBytes(4).toString("hex")` (8 hex
+ * chars, ~4B values) instead of the previous `Math.floor(Math.random() *
+ * 1000)` (~1k values). Same collision class as the M3 invoice-number fix
+ * — burst renewal webhooks for the same millisecond would otherwise have
+ * collided on the orderId unique index.
+ */
+export async function createRenewalOrder(
+  input: CreateRenewalOrderInput
+): Promise<HydratedDocument<IOrder>> {
+  await connectDB();
+  const { user, payment, subscriptionId, domainName, isMonthly, hostingPlan } = input;
+  const amountRupees = payment.amount / 100;
+  const orderId = `ORD-RNW-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
+
+  const doc = new Order({
+    orderId,
+    userId: user._id,
+    userName: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+    userEmail: user.email,
+    paymentId: payment.id,
+    razorpayOrderId: payment.order_id || subscriptionId,
+    razorpayPaymentId: payment.id,
+    razorpaySignature: "webhook_verified",
+    amount: amountRupees,
+    currency: payment.currency,
+    status: "completed",
+    orderType: "renewal",
+    domains: [
+      {
+        domainName,
+        price: amountRupees,
+        currency: payment.currency,
+        registrationPeriod: isMonthly ? 1 : 12,
+        periodUnit: isMonthly ? "months" : "years",
+        status: "registered",
+        itemType: "hosting",
+        hostingPlan,
+      },
+    ],
+    successfulDomains: [domainName],
+    paymentVerification: {
+      verifiedAt: new Date(),
+      paymentStatus: "captured",
+      paymentAmount: amountRupees,
+      paymentCurrency: payment.currency,
+      razorpayOrderId: payment.order_id || subscriptionId,
+    },
+  });
+
+  await doc.save();
   return doc;
 }
 

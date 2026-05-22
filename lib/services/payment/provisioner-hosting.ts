@@ -8,7 +8,7 @@
  * the helper itself never touches the orchestrator's local state.
  */
 import crypto from "crypto";
-import { DirectAdminService, DirectAdminError } from "@/lib/directadmin";
+import { DirectAdminService, DirectAdminError, DA_SERVER_IP } from "@/lib/directadmin";
 import { EmailService } from "@/lib/email";
 import { serverLogger } from "@/lib/server-logger";
 import {
@@ -77,7 +77,7 @@ export async function provisionHostingItem(
   );
 
   const packageName = resolveDaPackageName(item);
-  const daIp = process.env.DIRECTADMIN_IP || "136.115.64.54";
+  const daIp = DA_SERVER_IP;
   const MAX_USERNAME_ATTEMPTS = 3;
   let daUsername = "";
 
