@@ -17,7 +17,6 @@ import { performLogout } from "@/lib/logout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
-import { safeLocalStorage } from "@/lib/storage";
 
 interface IPData {
   success: boolean;
@@ -212,21 +211,12 @@ export default function AdminSettings() {
       if (u.role !== "admin") { router.push("/dashboard"); return; }
       setUser(u); setIsAuthLoading(false); void loadAllSettings(); return;
     }
-    const getCookieValue = (name: string) => { const v = `; ${document.cookie}`; const p = v.split(`; ${name}=`); if (p.length === 2) return p.pop()?.split(";").shift(); return null; };
-    const token = getCookieValue("token") || safeLocalStorage.getItem("token");
-    const userData = safeLocalStorage.getItem("user");
-    if (!token || !userData) { router.push("/login"); return; }
-    const u = JSON.parse(userData);
-    if (u.role !== "admin") { router.push("/dashboard"); return; }
-    setUser(u); setIsAuthLoading(false); void loadAllSettings();
+    router.push("/login");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, status, session?.user?.email]);
 
   // ── Data loading ──────────────────────────────────────────────────────────
-  const authHeaders = (extra: Record<string, string> = {}): HeadersInit => {
-    const token = safeLocalStorage.getItem("token");
-    return token ? { Authorization: `Bearer ${token}`, ...extra } : extra;
-  };
+  const authHeaders = (extra: Record<string, string> = {}): HeadersInit => extra;
 
   const loadAllSettings = async () => {
     setIsDataLoading(true);
@@ -264,8 +254,8 @@ export default function AdminSettings() {
       const d = await res.json(); const s = d.settings || {};
       const en = s["admin_ip_whitelist_enabled"];
       setIpWhitelistEnabled(en?.value === true || en?.value === "true");
-      const storedUser = safeLocalStorage.getItem("user");
-      const userId = storedUser ? JSON.parse(storedUser)._id || JSON.parse(storedUser).id : "";
+      const sessionUser = session?.user as { _id?: string; id?: string } | undefined;
+      const userId = sessionUser?._id || sessionUser?.id || "";
       if (userId) {
         const ws = s[`admin_ip_whitelist_${userId}`];
         if (ws?.value) setWhitelistedIPs(Array.isArray(ws.value) ? ws.value : typeof ws.value === "string" ? ws.value.split(",").map((i: string) => i.trim()) : []);
@@ -367,7 +357,7 @@ export default function AdminSettings() {
     if (!user) return;
     setIsSavingWhitelist(true);
     try {
-      const userObj = session?.user || JSON.parse(safeLocalStorage.getItem("user") || "{}");
+      const userObj = (session?.user || {}) as { _id?: string; id?: string };
       const userId = userObj._id || userObj.id || "";
       if (!userId) { showErrorToast("User ID not found"); return; }
       await fetch("/api/v1/admin/settings", { method: "POST", headers: authHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ key: "admin_ip_whitelist_enabled", value: ipWhitelistEnabled, description: "Enable IP whitelisting for admin APIs", category: "security" }) });

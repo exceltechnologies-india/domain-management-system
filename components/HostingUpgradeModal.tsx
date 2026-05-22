@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { X, ArrowUp, AlertTriangle, RefreshCw, ShieldCheck } from 'lucide-react';
-import { safeLocalStorage, safeSessionStorage } from '@/lib/storage';
+import { useSession } from 'next-auth/react';
+import { safeSessionStorage } from '@/lib/storage';
 import { useRouter } from 'next/navigation';
 import { useRazorpayCheckout } from '@/components/RazorpayCheckoutFrame';
 import SelectPlanStep from './hosting-upgrade/SelectPlanStep';
@@ -29,6 +30,7 @@ export default function HostingUpgradeModal({
   const [selectedPlan, setSelectedPlan] = useState<EligiblePlan | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const router = useRouter();
+  const { data: session } = useSession();
   // Razorpay checkout is loaded inside an isolated iframe (see
   // components/RazorpayCheckoutFrame.tsx) so this page can keep a strict CSP
   // without the eval-using checkout.js script.
@@ -46,10 +48,9 @@ export default function HostingUpgradeModal({
 
   const loadUpgradeInfo = async () => {
     try {
-      const token = safeLocalStorage.getItem('token');
       const response = await fetch(
         `/api/v1/user/hosting/upgrade-info?domainName=${encodeURIComponent(domainName)}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { credentials: 'include' }
       );
       const json = await response.json();
       if (!response.ok) {
@@ -81,15 +82,11 @@ export default function HostingUpgradeModal({
     setStep('paying');
 
     try {
-      const token = safeLocalStorage.getItem('token');
-
       // 1. Create the Razorpay order via our backend.
       const orderRes = await fetch('/api/v1/user/hosting/upgrade', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ domainName, targetPlanId: selectedPlan.planId }),
       });
 
@@ -99,8 +96,7 @@ export default function HostingUpgradeModal({
       }
 
       const { razorpayOrderId, amount, currency } = orderJson.data;
-      const userRaw = safeLocalStorage.getItem('user');
-      const userEmail = userRaw ? JSON.parse(userRaw).email : '';
+      const userEmail = session?.user?.email || '';
 
       // 2. Open Razorpay Checkout inside the isolated iframe.
       let paymentResponse;
@@ -132,10 +128,8 @@ export default function HostingUpgradeModal({
       setStep('verifying');
       const verifyRes = await fetch('/api/v1/payments/verify', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           razorpay_order_id: paymentResponse.razorpay_order_id,
           razorpay_payment_id: paymentResponse.razorpay_payment_id,

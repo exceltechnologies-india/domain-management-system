@@ -14,45 +14,17 @@ import DomainSearch from '@/components/DomainSearch';
 import ClientOnly from '@/components/ClientOnly';
 import Footer from '@/components/Footer';
 import ChatWidget from '@/components/ChatWidget';
-import { safeLocalStorage } from '@/lib/storage';
-
-interface User {
-  firstName: string;
-  lastName: string;
-  role: string;
-}
 
 export default function HomePage() {
-  const [user, setUser] = useState<User | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    // Check if user is logged in (client-side only)
-    if (typeof window !== 'undefined') {
-      const getCookieValue = (name: string) => {
-        const value = `; ${document.cookie}`;
-        const parts = value.split(`; ${name}=`);
-        if (parts.length === 2) return parts.pop()?.split(';').shift();
-        return null;
-      };
-
-      const token = getCookieValue('token') || safeLocalStorage.getItem('token');
-      const userData = safeLocalStorage.getItem('user');
-
-      if (token && userData) {
-        try {
-          setUser(JSON.parse(userData));
-        } catch (error) {
-          // Error parsing user data
-        }
-      }
-    }
   }, []);
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--google-bg-secondary)' }}>
-      <Navigation user={user} />
+      <Navigation />
 
       <motion.div
         initial={{ opacity: 0 }}

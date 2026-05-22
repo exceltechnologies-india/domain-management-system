@@ -184,12 +184,9 @@ export default function UserSettings() {
     try {
       isLoadingSettings.current = true;
       setIsLoading(true);
-      const token = safeLocalStorage.getItem('token');
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       try {
-        const res = await fetch('/api/v1/user/settings', { headers });
+        const res = await fetch('/api/v1/user/settings', { credentials: 'include' });
         if (res.ok) {
           const data = await res.json();
           setSettings(data);
@@ -218,9 +215,7 @@ export default function UserSettings() {
         }
       } catch { setSettings({ security: {} }); }
 
-      const meH: Record<string, string> = {};
-      if (token) meH['Authorization'] = `Bearer ${token}`;
-      const meRes = await fetch('/api/v1/auth/me', { headers: meH });
+      const meRes = await fetch('/api/v1/auth/me', { credentials: 'include' });
       if (meRes.ok) {
         const meData = await meRes.json();
         setHasExistingPassword(meData.user?.password === true);
@@ -246,13 +241,7 @@ export default function UserSettings() {
       setUser({ id: sessionUser.id || '', email: sessionUser.email || '', firstName: sessionUser.name?.split(' ')[0] || '', lastName: sessionUser.name?.split(' ').slice(1).join(' ') || '', role: sessionUser.role || 'user' });
       void loadSettings(); return;
     }
-    const token = safeLocalStorage.getItem('token');
-    const userData = safeLocalStorage.getItem('user');
-    if (!token || !userData) { router.push('/login'); return; }
-    const u = JSON.parse(userData);
-    if (u.role === 'admin') { router.push('/admin/dashboard'); return; }
-    setUser(u);
-    void loadSettings();
+    router.push('/login');
   }, [router, session, status, loadSettings]);
 
   useEffect(() => {
@@ -273,10 +262,7 @@ export default function UserSettings() {
 
   useEffect(() => {
     if (activeSection !== 'security' || totpEnabled !== null) return;
-    const token = safeLocalStorage.getItem('token');
-    const h: Record<string, string> = {};
-    if (token) h['Authorization'] = `Bearer ${token}`;
-    fetch('/api/v1/auth/totp/setup', { headers: h })
+    fetch('/api/v1/auth/totp/setup', { credentials: 'include' })
       .then(r => r.json()).then(d => setTotpEnabled(d.totpEnabled ?? false)).catch(() => setTotpEnabled(false));
   }, [activeSection, totpEnabled]);
 
@@ -284,10 +270,7 @@ export default function UserSettings() {
   const handleTotpStartSetup = async () => {
     setTotpIsLoading(true);
     try {
-      const token = safeLocalStorage.getItem('token');
-      const h: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) h['Authorization'] = `Bearer ${token}`;
-      const res = await fetch('/api/v1/auth/totp/setup', { method: 'POST', headers: h });
+      const res = await fetch('/api/v1/auth/totp/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Setup failed');
       setTotpQrUrl(data.qrCodeDataUrl);
@@ -301,10 +284,7 @@ export default function UserSettings() {
     if (totpVerifyCode.length !== 6) { toast.error('Enter the 6-digit code from your authenticator app'); return; }
     setTotpIsLoading(true);
     try {
-      const token = safeLocalStorage.getItem('token');
-      const h: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) h['Authorization'] = `Bearer ${token}`;
-      const res = await fetch('/api/v1/auth/totp/confirm', { method: 'POST', headers: h, body: JSON.stringify({ code: totpVerifyCode }) });
+      const res = await fetch('/api/v1/auth/totp/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ code: totpVerifyCode }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Verification failed');
       setTotpBackupCodes(data.backupCodes);
@@ -318,10 +298,7 @@ export default function UserSettings() {
     if (!totpDisableCode || !totpDisablePassword) { toast.error('Both fields are required'); return; }
     setTotpIsLoading(true);
     try {
-      const token = safeLocalStorage.getItem('token');
-      const h: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) h['Authorization'] = `Bearer ${token}`;
-      const res = await fetch('/api/v1/auth/totp/disable', { method: 'POST', headers: h, body: JSON.stringify({ code: totpDisableCode, password: totpDisablePassword }) });
+      const res = await fetch('/api/v1/auth/totp/disable', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ code: totpDisableCode, password: totpDisablePassword }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not disable 2FA');
       setTotpEnabled(false); setTotpStep('status'); setTotpDisableCode(''); setTotpDisablePassword('');
@@ -348,10 +325,7 @@ export default function UserSettings() {
     if (passwordData.newPassword !== passwordData.confirmPassword) { toast.error('Passwords do not match'); return; }
     setIsSaving(true);
     try {
-      const token = safeLocalStorage.getItem('token');
-      const h: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) h['Authorization'] = `Bearer ${token}`;
-      const res = await fetch('/api/v1/user/settings', { method: 'PUT', headers: h, body: JSON.stringify({ password: { currentPassword: hasExistingPassword ? passwordData.currentPassword : undefined, newPassword: passwordData.newPassword } }) });
+      const res = await fetch('/api/v1/user/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ password: { currentPassword: hasExistingPassword ? passwordData.currentPassword : undefined, newPassword: passwordData.newPassword } }) });
       if (res.ok) {
         toast.success(hasExistingPassword ? 'Password changed successfully' : 'Password set successfully!');
         setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' }); setHasExistingPassword(true);
@@ -363,11 +337,8 @@ export default function UserSettings() {
   const handleUpdateProfile = async (updatedUser: Partial<User>) => {
     try {
       setIsSaving(true);
-      const token = safeLocalStorage.getItem('token');
-      const h: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) h['Authorization'] = `Bearer ${token}`;
       const profileData = { ...updatedUser, phoneCc: '+91', address: { ...updatedUser.address, country: 'IN' } };
-      const res = await fetch('/api/v1/user/settings', { method: 'PUT', headers: h, body: JSON.stringify({ profile: profileData }) });
+      const res = await fetch('/api/v1/user/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ profile: profileData }) });
       if (res.ok) {
         const rd = await res.json();
         const serverUser = rd.user;

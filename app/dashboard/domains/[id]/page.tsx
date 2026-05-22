@@ -9,7 +9,6 @@ import UserLayout from '@/components/user/UserLayout';
 import { DashboardLayoutSkeleton, DetailPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import ClientOnly from '@/components/ClientOnly';
 import { performLogout } from '@/lib/logout';
-import { safeLocalStorage } from '@/lib/storage';
 import { formatIndianDateTime } from '@/lib/dateUtils';
 import { logger } from '@/lib/logger';
 
@@ -63,17 +62,7 @@ export default function ManageDomain() {
       return;
     }
 
-    const token = safeLocalStorage.getItem('token');
-    const userData = safeLocalStorage.getItem('user');
-
-    if (!token || !userData) {
-      router.push('/login');
-      return;
-    }
-
-    const userObj = JSON.parse(userData);
-    setUser(userObj);
-    void loadDomainDetails(userObj);
+    router.push('/login');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, session, status, params.id]);
 
@@ -82,23 +71,16 @@ export default function ManageDomain() {
       setIsLoading(true);
 
       // 1. Check services to see which domains are hosted
-      const statusRes = await fetch('/api/v1/user/services/status');
+      const statusRes = await fetch('/api/v1/user/services/status', { credentials: 'include' });
       let hostedDomains: string[] = [];
       if (statusRes.ok) {
         const statusData = await statusRes.json();
         hostedDomains = statusData.hostedDomains || [];
       }
 
-      const token = safeLocalStorage.getItem('token');
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json'
-      };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
       // Fetch all domains and find the one matching the ID
       // Ideally we should have a single domain endpoint, but this works for now
       const response = await fetch('/api/v1/user/domains', {
-        headers,
         credentials: 'include'
       });
 
@@ -132,12 +114,9 @@ export default function ManageDomain() {
   const loadNameservers = async (domainName: string) => {
     try {
       setIsNameserverLoading(true);
-      const token = safeLocalStorage.getItem('token');
-      const headers: HeadersInit = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const response = await fetch(`/api/v1/domains/nameservers?domainName=${encodeURIComponent(domainName)}`, {
-        headers
+        credentials: 'include'
       });
 
       if (response.ok) {
@@ -166,11 +145,6 @@ export default function ManageDomain() {
 
     try {
       setIsUpdating(true);
-      const token = safeLocalStorage.getItem('token');
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json'
-      };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const payload = {
         domainName: domain.name,
@@ -180,7 +154,8 @@ export default function ManageDomain() {
 
       const response = await fetch('/api/v1/user/domains/nameservers', {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(payload)
       });
 

@@ -56,13 +56,11 @@ export default function CartPage() {
   useEffect(() => { setIsClient(true); }, []);
 
   // ── Fetch latest user profile from the server ─────────────────────────────
-  const refreshUserFromServer = async (token?: string): Promise<User | null> => {
+  const refreshUserFromServer = async (): Promise<User | null> => {
     try {
       const response = await fetch('/api/v1/auth/me', {
-        headers: token
-          ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
-          : { 'Content-Type': 'application/json' },
-        credentials: token ? 'omit' : 'include',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
       });
       if (!response.ok) return null;
       const { user: serverUser } = await response.json();
@@ -93,22 +91,6 @@ export default function CartPage() {
         void mergeWithServerCart();
         return;
       }
-
-      const getCookieValue = (name: string) => {
-        const parts = `; ${document.cookie}`.split(`; ${name}=`);
-        return parts.length === 2 ? parts.pop()?.split(';').shift() : null;
-      };
-      const token = getCookieValue('token') ?? safeLocalStorage.getItem('token') ?? undefined;
-      const stored = safeLocalStorage.getItem('user');
-      if (!token || !stored) return;
-
-      try {
-        const base: User = JSON.parse(stored);
-        if (base.role === 'admin') { router.push('/admin/dashboard'); return; }
-        const fresh = await refreshUserFromServer(token);
-        setUser(fresh ?? base);
-        void mergeWithServerCart();
-      } catch { /* ignore parse error */ }
     };
 
     void init();
@@ -117,8 +99,7 @@ export default function CartPage() {
   // ── React to external profile-update events ───────────────────────────────
   useEffect(() => {
     const handleProfileUpdate = async () => {
-      const token = session?.user ? undefined : (safeLocalStorage.getItem('token') ?? undefined);
-      const fresh = await refreshUserFromServer(token);
+      const fresh = await refreshUserFromServer();
       if (fresh) {
         setUser((prev) => prev ? { ...prev, ...fresh, profileCompleted: fresh.profileCompleted } : fresh);
       }
@@ -155,16 +136,12 @@ export default function CartPage() {
     }
 
     // Always re-verify profile status from the server before allowing checkout
-    const token = session?.user
-      ? undefined
-      : (safeLocalStorage.getItem('token') ?? undefined);
-
-    if (!token && !session?.user) {
+    if (!session?.user) {
       router.push(`/login?returnUrl=${encodeURIComponent('/checkout')}`);
       return;
     }
 
-    const fresh = await refreshUserFromServer(token);
+    const fresh = await refreshUserFromServer();
     const latestProfileCompleted = fresh?.profileCompleted ?? user.profileCompleted;
 
     if (fresh) {

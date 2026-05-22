@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { ArrowLeft, Download, FileText, Loader2, ExternalLink, RefreshCw } from 'lucide-react';
 import AdminLayout from '@/components/admin/AdminLayout';
-import { safeLocalStorage } from '@/lib/storage';
 import { performLogout } from '@/lib/logout';
 import { AdminLayoutSkeleton, DetailPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
@@ -52,25 +51,7 @@ export default function AdminViewInvoicePage({ params }: { params: Promise<{ id:
       return;
     }
 
-    const token = safeLocalStorage.getItem('token');
-    const userData = safeLocalStorage.getItem('user');
-
-    if (!token || !userData) {
-      router.push('/login');
-      return;
-    }
-
-    try {
-      const parsedUser = JSON.parse(userData);
-      if (parsedUser.role !== 'admin') {
-        router.push('/dashboard');
-        return;
-      }
-      setUser(parsedUser);
-      setIsAuthLoading(false);
-    } catch (e) {
-      router.push('/login');
-    }
+    router.push('/login');
   }, [router, session, status]);
 
   // Fetch PDF as blob URL — works in all browsers including Firefox
@@ -83,7 +64,7 @@ export default function AdminViewInvoicePage({ params }: { params: Promise<{ id:
       setIsLoadingPdf(true);
       setPdfError(null);
       try {
-        const res = await fetch(`/api/v1/admin/invoices/${invoiceId}/pdf`);
+        const res = await fetch(`/api/v1/admin/invoices/${invoiceId}/pdf`, { credentials: 'include' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const blob = await res.blob();
         if (cancelled) return;
@@ -121,7 +102,7 @@ export default function AdminViewInvoicePage({ params }: { params: Promise<{ id:
         showSuccessToast('Invoice downloaded successfully');
         return;
       }
-      const response = await fetch(`/api/v1/admin/invoices/${invoiceId}/pdf`);
+      const response = await fetch(`/api/v1/admin/invoices/${invoiceId}/pdf`, { credentials: 'include' });
       if (!response.ok) { showErrorToast('Failed to download invoice'); return; }
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -152,7 +133,7 @@ export default function AdminViewInvoicePage({ params }: { params: Promise<{ id:
       blobUrlRef.current = null;
     }
     setIsLoadingPdf(true);
-    fetch(`/api/v1/admin/invoices/${invoiceId}/pdf`)
+    fetch(`/api/v1/admin/invoices/${invoiceId}/pdf`, { credentials: 'include' })
       .then(r => { if (!r.ok) throw new Error(); return r.blob(); })
       .then(blob => {
         const url = URL.createObjectURL(blob);

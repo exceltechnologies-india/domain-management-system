@@ -185,18 +185,9 @@ export default function UserDashboard() {
     const loadingToast = silent ? null : toast.loading('Syncing your domains...');
 
     try {
-      let token = safeLocalStorage.getItem('token');
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json'
-      };
-
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
       const response = await fetch('/api/v1/domains/sync', {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include'
       });
 

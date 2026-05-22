@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { ArrowLeft, Download, FileText, Loader2, ExternalLink, RefreshCw } from 'lucide-react';
 import UserLayout from '@/components/user/UserLayout';
-import { safeLocalStorage } from '@/lib/storage';
 import { performLogout } from '@/lib/logout';
 import { DashboardLayoutSkeleton, DetailPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
@@ -48,20 +47,7 @@ export default function ViewInvoicePage({ params }: { params: Promise<{ id: stri
       return;
     }
 
-    const token = safeLocalStorage.getItem('token');
-    const userData = safeLocalStorage.getItem('user');
-
-    if (!token || !userData) {
-      router.push('/login');
-      return;
-    }
-
-    try {
-      setUser(JSON.parse(userData));
-      setIsAuthLoading(false);
-    } catch (e) {
-      router.push('/login');
-    }
+    router.push('/login');
   }, [router, session, status]);
 
   // Fetch PDF as blob URL — works in all browsers including Firefox
@@ -75,7 +61,7 @@ export default function ViewInvoicePage({ params }: { params: Promise<{ id: stri
       setIsLoadingPdf(true);
       setPdfError(null);
       try {
-        const res = await fetch(`/api/v1/user/invoices/${invoiceId}/pdf`);
+        const res = await fetch(`/api/v1/user/invoices/${invoiceId}/pdf`, { credentials: 'include' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const blob = await res.blob();
         if (cancelled) return;
@@ -115,7 +101,7 @@ export default function ViewInvoicePage({ params }: { params: Promise<{ id: stri
         return;
       }
       // Fallback: fetch fresh
-      const response = await fetch(`/api/v1/user/invoices/${invoiceId}/pdf`);
+      const response = await fetch(`/api/v1/user/invoices/${invoiceId}/pdf`, { credentials: 'include' });
       if (!response.ok) { showErrorToast('Failed to download invoice'); return; }
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -148,7 +134,7 @@ export default function ViewInvoicePage({ params }: { params: Promise<{ id: stri
     // Re-trigger effect by bumping a counter would be cleaner, but simply
     // re-fetching here is fine since user is already set.
     setIsLoadingPdf(true);
-    fetch(`/api/v1/user/invoices/${invoiceId}/pdf`)
+    fetch(`/api/v1/user/invoices/${invoiceId}/pdf`, { credentials: 'include' })
       .then(r => { if (!r.ok) throw new Error(); return r.blob(); })
       .then(blob => {
         const url = URL.createObjectURL(blob);

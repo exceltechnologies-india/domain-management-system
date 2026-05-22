@@ -13,7 +13,6 @@ import Link from "next/link";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { AdminLayoutSkeleton, AdminSupportPageSkeleton } from "@/components/skeletons/PageSkeletons";
 import { performLogout } from "@/lib/logout";
-import { safeLocalStorage } from "@/lib/storage";
 import { formatIndianDateTime } from "@/lib/dateUtils";
 
 const STATUS_TABS = ["all", "open", "in_progress", "resolved", "closed"] as const;
@@ -90,24 +89,11 @@ export default function AdminSupportTicketsPage() {
   const [activeTab, setActiveTab] = useState<StatusTab>("open");
   const [search, setSearch] = useState("");
 
-  const getAuthToken = useCallback(() => {
-    const getCookieValue = (name: string) => {
-      const value = `; ${document.cookie}`;
-      const parts = value.split(`; ${name}=`);
-      if (parts.length === 2) return parts.pop()?.split(";").shift();
-      return null;
-    };
-    return getCookieValue("token") || safeLocalStorage.getItem("token");
-  }, []);
-
   useEffect(() => {
     if (status === "loading") return;
     const checkAuth = async () => {
       try {
-        const token = getAuthToken();
-        const headers: HeadersInit = { "Content-Type": "application/json" };
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-        const res = await fetch("/api/v1/auth/me", { method: "GET", headers, credentials: "include" });
+        const res = await fetch("/api/v1/auth/me", { method: "GET", credentials: "include" });
         if (res.ok) {
           const data = await res.json();
           if (data.user?.role === "admin") { setUser(data.user); setIsAuthLoading(false); }
@@ -121,21 +107,18 @@ export default function AdminSupportTicketsPage() {
       } catch { router.push("/login"); }
     };
     void checkAuth();
-  }, [status, router, getAuthToken, session?.user]);
+  }, [status, router, session?.user]);
 
   const fetchTickets = useCallback(async () => {
     setLoading(true);
     try {
-      const token = getAuthToken();
-      const headers: HeadersInit = {};
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-      const res = await fetch(`/api/v1/admin/support-tickets?status=${activeTab}`, { headers, credentials: "include" });
+      const res = await fetch(`/api/v1/admin/support-tickets?status=${activeTab}`, { credentials: "include" });
       const data = await res.json();
       if (res.ok) setTickets(data.tickets ?? []);
       else toast.error(data.error ?? "Failed to load tickets");
     } catch { toast.error("Network error"); }
     finally { setLoading(false); }
-  }, [activeTab, getAuthToken]);
+  }, [activeTab]);
 
   useEffect(() => {
     if (!isAuthLoading && user) void fetchTickets();

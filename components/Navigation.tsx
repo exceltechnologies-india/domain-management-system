@@ -93,13 +93,13 @@ export default function Navigation({
 
             <div className="flex items-center space-x-4">
               <div className="hidden md:flex items-center space-x-6">
-                {isMounted && user && (
+                {isMounted && (user ?? currentUser) && (
                   <>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${user.role === 'admin'
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${(user ?? currentUser)?.role === 'admin'
                       ? 'bg-red-100 text-red-800'
                       : 'bg-blue-100 text-blue-800'
                       }`}>
-                      {user.role?.toUpperCase()}
+                      {(user ?? currentUser)?.role?.toUpperCase()}
                     </span>
                   </>
                 )}

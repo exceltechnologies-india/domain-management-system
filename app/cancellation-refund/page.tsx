@@ -1,48 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import ClientOnly from '@/components/ClientOnly';
 import { motion } from 'framer-motion';
 import { RotateCcw, Calendar, AlertCircle, CheckCircle, Clock, DollarSign } from 'lucide-react';
 import { formatIndianDate } from '@/lib/dateUtils';
-import { safeLocalStorage } from '@/lib/storage';
-
-interface User {
-  firstName: string;
-  lastName: string;
-  role: string;
-}
 
 export default function CancellationRefundPage() {
-  const [user, setUser] = useState<User | null>(null);
-  const router = useRouter();
-
-  useEffect(() => {
-    const token = safeLocalStorage.getItem('token');
-    const userData = safeLocalStorage.getItem('user');
-
-    if (token && userData) {
-      try {
-        const userObj = JSON.parse(userData);
-        setUser(userObj);
-
-        // Redirect admin users to admin dashboard
-        if (userObj.role === 'admin') {
-          router.push('/admin/dashboard');
-          return;
-        }
-      } catch (error) {
-        // Error parsing user data
-      }
-    }
-  }, [router]);
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <Navigation user={user} />
+      <Navigation />
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}

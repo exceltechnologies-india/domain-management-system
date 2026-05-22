@@ -18,7 +18,6 @@ import UserLayout from '@/components/user/UserLayout';
 import { DashboardLayoutSkeleton, OrdersPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import ClientOnly from '@/components/ClientOnly';
 import RefreshButton from '@/components/dashboard/RefreshButton';
-import { safeLocalStorage } from '@/lib/storage';
 
 interface Order {
   _id: string;
@@ -118,21 +117,10 @@ export default function UserOrders() {
     }
 
     try {
-
-
-      // Get token from localStorage (for credential login) or use session cookie (for NextAuth)
-      let token = safeLocalStorage.getItem('token');
-      const headers: HeadersInit = {};
-
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
       toast.loading('Downloading invoice...', { id: 'download-invoice' });
 
       const response = await fetch(`/api/v1/orders/${order._id}/invoice`, {
         method: 'GET',
-        headers,
         credentials: 'include', // Include cookies for NextAuth session
       });
 

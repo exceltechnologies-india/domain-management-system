@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { AdminLayoutSkeleton, AdminHostingPageSkeleton } from '@/components/skeletons/PageSkeletons';
-import { safeLocalStorage } from '@/lib/storage';
 import { performLogout } from '@/lib/logout';
 import toast from 'react-hot-toast';
 
@@ -80,22 +79,7 @@ export default function AdminPackagesPage() {
       return;
     }
 
-    const token = safeLocalStorage.getItem('token');
-    const userData = safeLocalStorage.getItem('user');
-
-    if (!token || !userData) {
-      router.push('/login');
-      return;
-    }
-
-    const userObj = JSON.parse(userData);
-    if (userObj.role !== 'admin') {
-      router.push('/dashboard');
-      return;
-    }
-
-    setUser(userObj);
-    setIsLoading(false);
+    router.push('/login');
   }, [router, session, status]);
 
   const [isServerDown, setIsServerDown] = useState(false);
@@ -104,11 +88,8 @@ export default function AdminPackagesPage() {
     try {
       setIsLoadingData(true);
       setIsServerDown(false);
-      const token = safeLocalStorage.getItem('token');
-      const headers: HeadersInit = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch('/api/v1/admin/hosting/packages', { headers });
+      const res = await fetch('/api/v1/admin/hosting/packages', { credentials: 'include' });
       const data = await res.json();
 
       if (res.status === 503 || data?.code === 'DA_SERVER_DOWN') {
@@ -139,13 +120,10 @@ export default function AdminPackagesPage() {
 
     try {
       setIsUpdating(true);
-      const token = safeLocalStorage.getItem('token');
       const res = await fetch('/api/v1/admin/hosting/packages', {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           id: editingPkg._id,
           name: editingPkg.name,

@@ -29,7 +29,6 @@ import { formatIndianDateTime } from '@/lib/dateUtils';
 import AdminLayout from "@/components/admin/AdminLayout";
 import { AdminLayoutSkeleton, AdminGenericPageSkeleton, AdminTableRowsSkeleton } from "@/components/skeletons/PageSkeletons";
 import { performLogout } from "@/lib/logout";
-import { safeLocalStorage } from "@/lib/storage";
 
 interface PendingDomain {
   _id: string;
@@ -158,10 +157,7 @@ export default function AdminPendingDomainsPage() {
     try {
       setIsBalanceLoading(true);
       setBalanceError(null);
-      const token = getAuthToken();
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch('/api/v1/admin/resellerclub/balance', { headers, credentials: 'include' });
+      const res = await fetch('/api/v1/admin/resellerclub/balance', { credentials: 'include' });
       const data = await res.json();
       if (res.ok && data.success) {
         setRcAccount(data.account);
@@ -175,29 +171,14 @@ export default function AdminPendingDomainsPage() {
     }
   };
 
-  const getAuthToken = () => {
-    const getCookieValue = (name: string) => {
-      const value = `; ${document.cookie}`;
-      const parts = value.split(`; ${name}=`);
-      if (parts.length === 2) return parts.pop()?.split(';').shift();
-      return null;
-    };
-    return getCookieValue('token') || safeLocalStorage.getItem('token');
-  };
-
   // Auth Effect
   useEffect(() => {
     const checkAuth = async () => {
       if (status === 'loading') return;
 
       try {
-        const token = getAuthToken();
-        const headers: HeadersInit = { 'Content-Type': 'application/json' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-
         const response = await fetch('/api/v1/auth/me', {
           method: 'GET',
-          headers,
           credentials: 'include',
         });
 
@@ -256,7 +237,6 @@ export default function AdminPendingDomainsPage() {
   const fetchPendingDomains = async () => {
     try {
       setIsDataLoading(true);
-      const token = getAuthToken();
       const params = new URLSearchParams({
         page: pagination.page.toString(),
         limit: pagination.limit.toString(),
@@ -265,11 +245,7 @@ export default function AdminPendingDomainsPage() {
         ...(activeTab === "archived" && { archived: "true" }),
       });
 
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
       const response = await fetch(`/api/v1/admin/pending-domains?${params}`, {
-        headers,
         credentials: 'include'
       });
 
@@ -319,13 +295,10 @@ export default function AdminPendingDomainsPage() {
     try {
       setActionLoading(`register:${domainToRegister._id}`);
       setShowRegisterConfirm(false);
-      const token = getAuthToken();
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const response = await fetch(`/api/v1/admin/pending-domains/${domainToRegister._id}/register`, {
         method: "POST",
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
       });
       const data = await response.json();
@@ -347,13 +320,10 @@ export default function AdminPendingDomainsPage() {
   const handleVerifyDomains = async (domainIds: string[]) => {
     try {
       setActionLoading("verify");
-      const token = getAuthToken();
-      const headers: HeadersInit = { "Content-Type": "application/json" };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const response = await fetch("/api/v1/admin/pending-domains/verify", {
         method: "POST",
-        headers,
+        headers: { "Content-Type": "application/json" },
         credentials: 'include',
         body: JSON.stringify({ domainIds }),
       });
@@ -383,13 +353,10 @@ export default function AdminPendingDomainsPage() {
     try {
       setActionLoading(`archive:${domainToArchive._id}`);
       setShowArchiveConfirm(false);
-      const token = getAuthToken();
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const response = await fetch(`/api/v1/admin/pending-domains/${domainToArchive._id}`, {
         method: "DELETE",
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
       });
       const data = await response.json();
@@ -418,12 +385,9 @@ export default function AdminPendingDomainsPage() {
     try {
       setActionLoading(`resolve:${domainToMarkResolved._id}`);
       setShowMarkResolvedConfirm(false);
-      const token = getAuthToken();
-      const headers: HeadersInit = { "Content-Type": "application/json" };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
       const response = await fetch(`/api/v1/admin/pending-domains/${domainToMarkResolved._id}`, {
         method: "PUT",
-        headers,
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ status: "completed", reason: "Manually resolved by admin" }),
       });
@@ -446,9 +410,7 @@ export default function AdminPendingDomainsPage() {
     // Reset to pending first, then register
     try {
       setActionLoading(`retry:${domain._id}`);
-      const token = getAuthToken();
       const headers: HeadersInit = { "Content-Type": "application/json" };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
 
       const resetRes = await fetch(`/api/v1/admin/pending-domains/${domain._id}`, {
         method: "PUT",
@@ -491,14 +453,11 @@ export default function AdminPendingDomainsPage() {
     try {
       setActionLoading(`delete:${domainToDelete._id}`);
       setShowDeleteConfirm(false);
-      const token = getAuthToken();
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       // Call API with permanent=true query param
       const response = await fetch(`/api/v1/admin/pending-domains/${domainToDelete._id}?permanent=true`, {
         method: "DELETE",
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
       });
       const data = await response.json();

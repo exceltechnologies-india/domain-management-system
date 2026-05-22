@@ -15,7 +15,6 @@ import Link from "next/link";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { AdminLayoutSkeleton, TicketDetailPageSkeleton } from "@/components/skeletons/PageSkeletons";
 import { performLogout } from "@/lib/logout";
-import { safeLocalStorage } from "@/lib/storage";
 import { formatIndianDateTime } from "@/lib/dateUtils";
 import AttachmentPicker, { PickedAttachment } from "@/components/support/AttachmentPicker";
 import MessageAttachments from "@/components/support/MessageAttachments";
@@ -110,24 +109,11 @@ export default function AdminTicketDetailPage() {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const getAuthToken = useCallback(() => {
-    const getCookieValue = (name: string) => {
-      const value = `; ${document.cookie}`;
-      const parts = value.split(`; ${name}=`);
-      if (parts.length === 2) return parts.pop()?.split(";").shift();
-      return null;
-    };
-    return getCookieValue("token") || safeLocalStorage.getItem("token");
-  }, []);
-
   useEffect(() => {
     if (status === "loading") return;
     const checkAuth = async () => {
       try {
-        const token = getAuthToken();
-        const headers: HeadersInit = { "Content-Type": "application/json" };
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-        const res = await fetch("/api/v1/auth/me", { method: "GET", headers, credentials: "include" });
+        const res = await fetch("/api/v1/auth/me", { method: "GET", credentials: "include" });
         if (res.ok) {
           const data = await res.json();
           if (data.user?.role === "admin") { setUser(data.user); setIsAuthLoading(false); }
@@ -141,21 +127,18 @@ export default function AdminTicketDetailPage() {
       } catch { router.push("/login"); }
     };
     void checkAuth();
-  }, [status, router, getAuthToken, session?.user]);
+  }, [status, router, session?.user]);
 
   const fetchTicket = useCallback(async () => {
     setLoading(true);
     try {
-      const token = getAuthToken();
-      const headers: HeadersInit = {};
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-      const res = await fetch(`/api/v1/admin/support-tickets/${params.id}`, { headers, credentials: "include" });
+      const res = await fetch(`/api/v1/admin/support-tickets/${params.id}`, { credentials: "include" });
       const data = await res.json();
       if (res.ok) setTicket(data.ticket);
       else toast.error(data.error ?? "Failed to load ticket");
     } catch { toast.error("Network error"); }
     finally { setLoading(false); }
-  }, [params.id, getAuthToken]);
+  }, [params.id]);
 
   useEffect(() => {
     if (!isAuthLoading && user) void fetchTicket();
@@ -165,20 +148,15 @@ export default function AdminTicketDetailPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [ticket?.messages.length]);
 
-  const authHeaders = (): HeadersInit => {
-    const token = getAuthToken();
-    const h: HeadersInit = { "Content-Type": "application/json" };
-    if (token) h["Authorization"] = `Bearer ${token}`;
-    return h;
-  };
-
   const handleReply = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reply.trim()) return;
     setSending(true);
     try {
       const res = await fetch(`/api/v1/admin/support-tickets/${params.id}`, {
-        method: "POST", headers: authHeaders(), credentials: "include",
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ message: reply.trim(), attachments }),
       });
       const data = await res.json();
@@ -196,7 +174,9 @@ export default function AdminTicketDetailPage() {
     setUpdatingStatus(true);
     try {
       const res = await fetch(`/api/v1/admin/support-tickets/${params.id}`, {
-        method: "PATCH", headers: authHeaders(), credentials: "include",
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ status: newStatus }),
       });
       const data = await res.json();
@@ -210,7 +190,9 @@ export default function AdminTicketDetailPage() {
     if (ticket?.priority === newPriority) return;
     try {
       const res = await fetch(`/api/v1/admin/support-tickets/${params.id}`, {
-        method: "PATCH", headers: authHeaders(), credentials: "include",
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ priority: newPriority }),
       });
       const data = await res.json();

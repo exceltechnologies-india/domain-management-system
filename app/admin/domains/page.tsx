@@ -24,7 +24,6 @@ import RefreshButton from '@/components/dashboard/RefreshButton';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { AdminLayoutSkeleton, AdminGenericPageSkeleton, AdminTableRowsSkeleton } from '@/components/skeletons/PageSkeletons';
 import ActionMenu from '@/components/admin/ActionMenu';
-import { safeLocalStorage } from '@/lib/storage';
 import { performLogout } from '@/lib/logout';
 import toast from 'react-hot-toast';
 import { formatIndianDateTime } from '@/lib/dateUtils';
@@ -108,32 +107,13 @@ export default function AdminDomainsPage() {
       return;
     }
 
-    const token = safeLocalStorage.getItem('token');
-    const userData = safeLocalStorage.getItem('user');
-
-    if (!token || !userData) {
-      router.push('/login');
-      return;
-    }
-
-    const userObj = JSON.parse(userData);
-    if (userObj.role !== 'admin') {
-      router.push('/dashboard');
-      return;
-    }
-
-    setUser(userObj);
-    void fetchDomains();
+    router.push('/login');
   }, [router, session, sessionStatus]);
 
   const fetchDomains = async () => {
     try {
       setIsLoading(true);
-      const token = safeLocalStorage.getItem('token');
-      const headers: HeadersInit = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch('/api/v1/admin/domains', { headers });
+      const res = await fetch('/api/v1/admin/domains', { credentials: 'include' });
       const data = await res.json();
 
       if (data.success) {
@@ -185,15 +165,10 @@ export default function AdminDomainsPage() {
   const handleSync = async (domain: Domain) => {
     try {
       toast.loading(`Syncing ${domain.name} with registrar...`, { id: `sync-${domain.id}` });
-      const token = safeLocalStorage.getItem('token');
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json'
-      };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
       const res = await fetch('/api/v1/admin/domains/sync', {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ domainName: domain.name })
       });
 
