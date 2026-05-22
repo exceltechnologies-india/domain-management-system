@@ -12,9 +12,13 @@ import { serverLogger } from "@/lib/server-logger";
 import Domain from "@/models/Domain";
 import { calculateItemExpiration } from "@/lib/billing";
 import { AUTOMATION_CONFIG } from "@/config/automation";
+import {
+  registerDomain as rcRegisterDomain,
+  type RegisterDomainOutcome,
+} from "@/lib/integrations/resellerclub";
 
 import type { IUser } from "@/models/User";
-import type { CartItem, ResellerClubResponse } from "@/lib/types";
+import type { CartItem } from "@/lib/types";
 import type { OrderDomain, RegistrationResult } from "./provisioner";
 
 const FIRST_REMINDER_DAYS = Math.max(...AUTOMATION_CONFIG.REMINDER_DAYS);
@@ -118,37 +122,105 @@ export async function provisionDomainItem(
       progress: 80,
     });
 
-    const result = await ResellerClubWrapper.registerDomain(
-      item.domainName,
-      item.registrationPeriod || 1,
-      customerResult.customerId,
-      registrationNameservers,
-      {
+    // M1 anti-corruption layer: rcRegisterDomain catches exceptions and
+    // maps the raw RC response onto a typed RegisterDomainOutcome. The
+    // callsite below switches on `outcome.kind` — no more
+    // `result.message.toLowerCase().includes("insufficient balance")`
+    // chains, no more split between the failed-branch + exception-branch
+    // doing the same string heuristic twice.
+    const outcome = await rcRegisterDomain({
+      domainName: item.domainName,
+      years: item.registrationPeriod || 1,
+      customerId: customerResult.customerId,
+      nameServers: registrationNameservers,
+      contacts: {
         admin: customerResult.contactId,
         tech: customerResult.contactId,
         billing: customerResult.contactId,
       },
-      item.tldAttributes
-    );
+      tldAttributes: item.tldAttributes,
+    });
 
-    if (result.status === "success") {
-      return handleSuccessfulDomain(item, ctx, result, domainBookingStatus, user, orderId);
-    } else if (result.status === "pending") {
-      return handlePendingDomain(item, ctx, result, domainBookingStatus);
-    } else {
-      return handleFailedDomain(item, ctx, result, domainBookingStatus);
-    }
+    return dispatchOutcome(outcome, item, ctx, domainBookingStatus, user, orderId);
   } catch (error) {
-    return handleDomainException(error, item, ctx, domainBookingStatus);
+    // rcRegisterDomain already maps exceptions to outcomes, so reaching
+    // this catch means something in our own dispatchOutcome / Domain.create
+    // threw. Treat as hard failure.
+    serverLogger.error(
+      `[PAYMENT-VERIFY] Unexpected post-registration error for ${item.domainName}:`,
+      error
+    );
+    const message = error instanceof Error ? error.message : String(error);
+    return dispatchOutcome(
+      { kind: "hard_failure", reason: message },
+      item,
+      ctx,
+      domainBookingStatus,
+      user,
+      orderId
+    );
   }
 }
 
-/** ResellerClub returned status=success — write the Domain record, build
- * the success shape. */
-async function handleSuccessfulDomain(
+/**
+ * Translate the typed `RegisterDomainOutcome` into the existing branch
+ * helpers. Keeps the per-branch logic (success vs pending vs failed) in
+ * place — only the discrimination changes from string-matching to a
+ * compile-time-checked union.
+ */
+async function dispatchOutcome(
+  outcome: RegisterDomainOutcome,
   item: CartItem,
   ctx: DomainProvisionContext,
-  result: ResellerClubResponse,
+  domainBookingStatus: OrderDomain["bookingStatus"],
+  user: IUser,
+  orderId: string
+): Promise<DomainProvisionResult> {
+  switch (outcome.kind) {
+    case "registered":
+      return handleRegisteredDomain(item, ctx, outcome.orderId, domainBookingStatus, user, orderId);
+    case "registered_no_order_id":
+      return handleRegisteredNoOrderId(item, ctx, domainBookingStatus, user, orderId);
+    case "balance_pending":
+      return handleBalancePending(item, ctx, domainBookingStatus);
+    case "already_in_progress":
+      return handleAlreadyInProgress(item, ctx, domainBookingStatus);
+    case "hard_failure":
+      return handleHardFailure(item, ctx, outcome.reason, domainBookingStatus);
+  }
+}
+
+/** Look up the RC order-id for a domain when the registerDomain response
+ * didn't include it (or for the pending / already-in-progress branches
+ * that don't get an orderId in the initial response). Best-effort —
+ * returns undefined on failure. */
+async function fetchOrderIdFallback(domainName: string): Promise<string | undefined> {
+  try {
+    const orderIdResponse = await ResellerClubWrapper.getDomainOrderId(domainName);
+    if (orderIdResponse.status === "success" && orderIdResponse.data) {
+      return String(orderIdResponse.data);
+    }
+    serverLogger.warn(
+      `[PAYMENT-VERIFY] Order-id fallback returned no data for ${domainName}`
+    );
+  } catch (err) {
+    serverLogger.warn(
+      `[PAYMENT-VERIFY] Order-id fallback threw for ${domainName}:`,
+      err
+    );
+  }
+  return undefined;
+}
+
+/**
+ * RC accepted the registration. If `rcOrderId` is undefined we do the
+ * fallback fetch (the "registered_no_order_id" branch). On either path
+ * we write a Domain record and return the success shape.
+ */
+async function handleRegisteredDomain(
+  item: CartItem,
+  ctx: DomainProvisionContext,
+  rcOrderId: string | undefined,
   domainBookingStatus: OrderDomain["bookingStatus"],
   user: IUser,
   orderId: string
@@ -166,33 +238,12 @@ async function handleSuccessfulDomain(
 
   const expiresAt = calculateItemExpiration(item).expiresAt;
 
-  let resellerClubOrderId = result.data?.orderid;
-
+  let resellerClubOrderId = rcOrderId;
   if (!resellerClubOrderId) {
     serverLogger.error(
-      `⚠️ [PAYMENT-VERIFY] WARNING: Domain registered but no orderid in response for ${item.domainName}! Attempting fallback fetch...`
+      `⚠️ [PAYMENT-VERIFY] Domain registered but no orderid in response for ${item.domainName} — fetching fallback`
     );
-    try {
-      const orderIdResponse = await ResellerClubWrapper.getDomainOrderId(
-        item.domainName
-      );
-      if (orderIdResponse.status === "success" && orderIdResponse.data) {
-        resellerClubOrderId = orderIdResponse.data;
-        serverLogger.info(
-          `✅ [PAYMENT-VERIFY] Fallback success! Retrieved Order ID: ${resellerClubOrderId} for ${item.domainName}`
-        );
-      } else {
-        serverLogger.error(
-          `❌ [PAYMENT-VERIFY] Fallback failed: Could not retrieve Order ID even after search. Response:`,
-          orderIdResponse
-        );
-      }
-    } catch (fallbackError) {
-      serverLogger.error(
-        `❌ [PAYMENT-VERIFY] Fallback error: Exception while fetching Order ID for ${item.domainName}:`,
-        fallbackError
-      );
-    }
+    resellerClubOrderId = await fetchOrderIdFallback(item.domainName);
   }
 
   try {
@@ -203,11 +254,11 @@ async function handleSuccessfulDomain(
       price: item.price,
       currency: item.currency || "INR",
       registrationPeriod: item.registrationPeriod || 1,
-      orderId: orderId,
-      resellerClubOrderId: resellerClubOrderId,
+      orderId,
+      resellerClubOrderId,
       dnsProvider: "resellerclub",
       registeredAt: new Date(),
-      expiresAt: expiresAt,
+      expiresAt,
       autoRenew: false,
       next_action_at: expiresAt
         ? new Date(expiresAt.getTime() - FIRST_REMINDER_DAYS * 24 * 60 * 60 * 1000)
@@ -244,43 +295,38 @@ async function handleSuccessfulDomain(
       bookingStatus: domainBookingStatus,
       orderId: resellerClubOrderId,
       expiresAt,
-      resellerClubOrderId: resellerClubOrderId,
+      resellerClubOrderId,
       resellerClubCustomerId: ctx.customerResult.customerId,
       resellerClubContactId: ctx.customerResult.contactId,
     },
   };
 }
 
-/** ResellerClub returned status=pending — typical when insufficient balance
- * pushes the order to manual review. */
-async function handlePendingDomain(
+/** Wrapper for the `registered_no_order_id` outcome — delegate to the
+ * regular registered handler with undefined orderId; the fallback fetch
+ * kicks in there. */
+function handleRegisteredNoOrderId(
   item: CartItem,
   ctx: DomainProvisionContext,
-  result: ResellerClubResponse,
-  domainBookingStatus: OrderDomain["bookingStatus"]
+  domainBookingStatus: OrderDomain["bookingStatus"],
+  user: IUser,
+  orderId: string
 ): Promise<DomainProvisionResult> {
-  serverLogger.info(
-    `⏳ [PAYMENT-VERIFY] Domain registration pending: ${item.domainName} - ${result.message}`
-  );
+  return handleRegisteredDomain(item, ctx, undefined, domainBookingStatus, user, orderId);
+}
 
-  let pendingRcOrderId = result.data?.orderid;
-  if (!pendingRcOrderId) {
-    try {
-      const orderIdResponse = await ResellerClubWrapper.getDomainOrderId(item.domainName);
-      if (orderIdResponse.status === "success" && orderIdResponse.data) {
-        pendingRcOrderId = orderIdResponse.data;
-      }
-    } catch {
-      serverLogger.warn(
-        `[PAYMENT-VERIFY] Failed to fetch Order ID for pending domain ${item.domainName}`
-      );
-    }
-  }
-
-  // User-facing error stays generic — raw `result.message` (which can carry
-  // RC account-state / balance fragments) stays in serverLogger only.
-  const userFacingError =
-    "Domain registration is taking longer than expected. We'll complete it automatically.";
+/**
+ * Build the pending-orderDomain shape used by both balance-pending and
+ * already-in-progress branches. Returned status is "pending" in both
+ * cases; only the user-facing copy differs.
+ */
+async function buildPendingOrderDomain(
+  item: CartItem,
+  ctx: DomainProvisionContext,
+  domainBookingStatus: OrderDomain["bookingStatus"],
+  userFacingError: string
+): Promise<DomainProvisionResult> {
+  const pendingRcOrderId = await fetchOrderIdFallback(item.domainName);
 
   return {
     registrationResult: {
@@ -308,81 +354,69 @@ async function handlePendingDomain(
   };
 }
 
-/** ResellerClub returned anything other than success/pending. Some "failed"
- * messages are actually retryable (insufficient-balance variants) so we
- * down-grade them to status=pending. */
-async function handleFailedDomain(
+/** RC put the registration in balance-pending state. Auto-resolves when
+ * ops tops up the reseller account; we treat it as pending and let the
+ * self-heal cron flip it to registered later. */
+function handleBalancePending(
   item: CartItem,
   ctx: DomainProvisionContext,
-  result: ResellerClubResponse,
   domainBookingStatus: OrderDomain["bookingStatus"]
 ): Promise<DomainProvisionResult> {
-  serverLogger.error(
-    `❌ [PAYMENT-VERIFY] Domain registration failed: ${item.domainName} - ${result.message}`
-  );
-
   serverLogger.info(
-    `🔍 [PAYMENT-VERIFY] ResellerClub response for "${item.domainName}":`,
-    { status: result.status, message: result.message, data: result.data }
+    `⏳ [PAYMENT-VERIFY] Domain registration balance-pending: ${item.domainName}`
   );
+  return buildPendingOrderDomain(
+    item,
+    ctx,
+    domainBookingStatus,
+    "Domain registration pending due to insufficient balance"
+  );
+}
 
-  const isInsufficientBalance =
-    result.status === "pending" ||
-    (result.message &&
-      (result.message.toLowerCase().includes("insufficient balance") ||
-        result.message.toLowerCase().includes("low funds") ||
-        result.message.toLowerCase().includes("insufficient funds") ||
-        result.message.toLowerCase().includes("account balance") ||
-        result.message.toLowerCase().includes("credit limit") ||
-        result.message.toLowerCase().includes("already exists in our database") ||
-        result.message.toLowerCase().includes("pending order") ||
-        result.message.toLowerCase().includes("pending order for")));
+/** RC says the same name is already in flight (duplicate or pre-existing
+ * pending order on our reseller side). Treat as pending — the prior order
+ * will complete and we'll surface that completion via the cron. */
+function handleAlreadyInProgress(
+  item: CartItem,
+  ctx: DomainProvisionContext,
+  domainBookingStatus: OrderDomain["bookingStatus"]
+): Promise<DomainProvisionResult> {
+  serverLogger.info(
+    `⏳ [PAYMENT-VERIFY] Domain registration already in progress: ${item.domainName}`
+  );
+  return buildPendingOrderDomain(
+    item,
+    ctx,
+    domainBookingStatus,
+    "Domain registration is being processed."
+  );
+}
 
-  const domainStatus = isInsufficientBalance ? "pending" : "failed";
-  // Two layers of message:
-  //   - `statusMessage`: what gets pushed into bookingStatus.message (already
-  //     curated, no raw RC text).
-  //   - `userFacingError`: what shows up under `error:` in the response. Kept
-  //     generic for the "failed" branch so RC's `result.message` (which can
-  //     carry balance / account-state fragments) never reaches the client.
-  const statusMessage = isInsufficientBalance
-    ? result.message?.toLowerCase().includes("already exists in our database")
-      ? "Domain registration is being processed."
-      : "Domain registration pending due to insufficient balance"
-    : "Domain registration failed. Our team has been notified.";
-  const userFacingError = isInsufficientBalance
-    ? statusMessage
-    : "Domain registration failed. Our team has been notified — please contact support if this persists.";
+/** Truly failed — TLD validation, locked domain, contact-data rejection,
+ * etc. `reason` is internal-only (already logged inside the integration
+ * layer); the user sees the generic message. */
+function handleHardFailure(
+  item: CartItem,
+  ctx: DomainProvisionContext,
+  _reason: string,
+  domainBookingStatus: OrderDomain["bookingStatus"]
+): DomainProvisionResult {
+  const userFacingError =
+    "Domain registration failed. Our team has been notified — please contact support if this persists.";
+  const statusMessage = "Domain registration failed. Our team has been notified.";
 
-  let failedRcOrderId = result.data?.orderid;
-  if (!failedRcOrderId && isInsufficientBalance) {
-    try {
-      const orderIdResponse = await ResellerClubWrapper.getDomainOrderId(item.domainName);
-      if (orderIdResponse.status === "success" && orderIdResponse.data) {
-        failedRcOrderId = orderIdResponse.data;
-      }
-    } catch {
-      serverLogger.warn(
-        `[PAYMENT-VERIFY] Failed to fetch Order ID for on-hold domain ${item.domainName}`
-      );
-    }
-  }
-
-  if (!isInsufficientBalance) {
-    domainBookingStatus.push({
-      step: "domain_failed",
-      message: statusMessage,
-      timestamp: new Date(),
-      progress: 100,
-    });
-  }
+  domainBookingStatus.push({
+    step: "domain_failed",
+    message: statusMessage,
+    timestamp: new Date(),
+    progress: 100,
+  });
 
   return {
     registrationResult: {
       domainName: item.domainName,
-      status: domainStatus,
+      status: "failed",
       itemType: "domain",
-      orderId: failedRcOrderId,
       error: userFacingError,
     },
     orderDomain: {
@@ -392,84 +426,7 @@ async function handleFailedDomain(
       currency: item.currency || "INR",
       registrationPeriod: item.registrationPeriod || 1,
       periodUnit: item.periodUnit || "years",
-      status: domainStatus,
-      dnsProvider: "resellerclub",
-      bookingStatus: domainBookingStatus,
-      error: userFacingError,
-      resellerClubOrderId: failedRcOrderId,
-      resellerClubCustomerId: ctx.customerResult.customerId,
-      resellerClubContactId: ctx.customerResult.contactId,
-    },
-  };
-}
-
-/** Exception path — same insufficient-balance heuristic as the failed
- * branch, but operating on an exception message instead of a result shape. */
-function handleDomainException(
-  error: unknown,
-  item: CartItem,
-  ctx: DomainProvisionContext,
-  domainBookingStatus: OrderDomain["bookingStatus"]
-): DomainProvisionResult {
-  serverLogger.error(
-    `Domain registration error for ${item.domainName}:`,
-    error
-  );
-
-  const errorMessage = error instanceof Error ? error.message : "Unknown error";
-
-  serverLogger.info(
-    `🔍 [PAYMENT-VERIFY] Domain registration error for "${item.domainName}":`,
-    {
-      error: errorMessage,
-      errorType:
-        error instanceof Error ? error.constructor.name : typeof error,
-      stack: error instanceof Error ? error.stack : undefined,
-    }
-  );
-
-  const isInsufficientBalance =
-    errorMessage &&
-    (errorMessage.toLowerCase().includes("insufficient balance") ||
-      errorMessage.toLowerCase().includes("low funds") ||
-      errorMessage.toLowerCase().includes("insufficient funds") ||
-      errorMessage.toLowerCase().includes("account balance") ||
-      errorMessage.toLowerCase().includes("credit limit"));
-
-  const domainStatus = isInsufficientBalance ? "pending" : "failed";
-  // User-facing copy stays generic — raw `errorMessage` (which can be a
-  // thrown Error from RC/axios with stack/URL fragments) stays in
-  // serverLogger only.
-  const statusMessage = isInsufficientBalance
-    ? "Domain registration pending due to insufficient balance"
-    : "Domain registration failed. Our team has been notified.";
-  const userFacingError = isInsufficientBalance
-    ? statusMessage
-    : "Domain registration failed. Our team has been notified — please contact support if this persists.";
-
-  domainBookingStatus.push({
-    step: isInsufficientBalance ? "domain_pending" : "domain_failed",
-    message: statusMessage,
-    timestamp: new Date(),
-    progress: isInsufficientBalance ? 50 : 100,
-  });
-
-  return {
-    registrationResult: {
-      domainName: item.domainName,
-      status: domainStatus,
-      itemType: "domain",
-      error: userFacingError,
-    },
-    orderDomain: {
-      domainName: item.domainName,
-      itemType: "domain",
-      price: item.price,
-      currency: item.currency || "INR",
-      registrationPeriod: item.registrationPeriod || 1,
-      periodUnit:
-        item.periodUnit || (item.itemType === "hosting" ? "months" : "years"),
-      status: domainStatus,
+      status: "failed",
       dnsProvider: "resellerclub",
       bookingStatus: domainBookingStatus,
       error: userFacingError,
