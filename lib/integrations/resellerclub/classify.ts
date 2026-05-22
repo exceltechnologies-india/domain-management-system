@@ -10,6 +10,9 @@ import type {
   RegisterDomainOutcome,
   RenewDomainOutcome,
   TransferDomainOutcome,
+  GetDomainOrderIdOutcome,
+  GetDomainDetailsOutcome,
+  DomainDetailsRecord,
 } from "./types";
 
 /**
@@ -61,6 +64,24 @@ export const ALREADY_IN_PROGRESS_FRAGMENTS = [
  * registrar, wait 60d). Distinguish from hard_failure so the caller
  * can surface a clearer message than "transfer failed".
  */
+/**
+ * Substring fragments RC uses when a read op (orderid / details lookup)
+ * targets a name that doesn't exist on our reseller account. Includes
+ * common 404-ish wordings and explicit "no orders" / "no domain"
+ * variants.
+ */
+export const READ_NOT_FOUND_FRAGMENTS = [
+  "404",
+  "not found",
+  "no orders found",
+  "no order found",
+  "no matching",
+  "no entity found",
+  "no domain",
+  "does not exist",
+  "could not find",
+] as const;
+
 export const TRANSFER_REJECTED_FRAGMENTS = [
   "auth code",
   "auth-code",
@@ -153,6 +174,70 @@ export function classifyRenewDomainResponse(
     matchesAny(res.message, PROCESSING_LOCK_FRAGMENTS)
   ) {
     return { kind: "balance_pending" };
+  }
+  return {
+    kind: "hard_failure",
+    reason: res.message || `RC returned status=${res.status} with no message`,
+  };
+}
+
+/**
+ * Map a raw RC `getDomainOrderId` response onto the typed outcome.
+ *
+ * The inner wrapper in `lib/resellerclub/registration.ts` returns
+ * `{status: "success", data: <orderIdString>}` on hit, and a generic
+ * `{status: "error", message: "Failed to fetch domain order ID"}` on
+ * any throw — that generic message loses the not-found signal. We
+ * still match `READ_NOT_FOUND_FRAGMENTS` against the message so the
+ * thin layer can disambiguate when RC's wording does leak through.
+ */
+export function classifyGetDomainOrderIdResponse(
+  res: ResellerClubResponse
+): GetDomainOrderIdOutcome {
+  if (res.status === "success" && res.data) {
+    const orderId = String(res.data);
+    if (!orderId || orderId === "undefined" || orderId === "null") {
+      return {
+        kind: "not_found",
+        reason: "RC returned success but empty order-id",
+      };
+    }
+    return { kind: "found", orderId };
+  }
+
+  if (matchesAny(res.message, READ_NOT_FOUND_FRAGMENTS)) {
+    return {
+      kind: "not_found",
+      reason: res.message || "RC reports no such order",
+    };
+  }
+  return {
+    kind: "hard_failure",
+    reason: res.message || `RC returned status=${res.status} with no message`,
+  };
+}
+
+/**
+ * Map a raw RC `getDomainDetails` response onto the typed outcome.
+ * `data` is RC's raw details object — we cast through the loose
+ * `DomainDetailsRecord` interface rather than re-validating field by
+ * field (callers parse defensively).
+ */
+export function classifyGetDomainDetailsResponse(
+  res: ResellerClubResponse
+): GetDomainDetailsOutcome {
+  if (res.status === "success" && res.data) {
+    return {
+      kind: "found",
+      details: res.data as DomainDetailsRecord,
+    };
+  }
+
+  if (matchesAny(res.message, READ_NOT_FOUND_FRAGMENTS)) {
+    return {
+      kind: "not_found",
+      reason: res.message || "RC reports no such domain",
+    };
   }
   return {
     kind: "hard_failure",
