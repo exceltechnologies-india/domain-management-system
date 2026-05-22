@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import { ResellerClubAPI } from "@/lib/resellerclub";
+import { transferDomain as rcTransferDomain } from "@/lib/integrations/resellerclub";
 import { AuthService } from "@/lib/auth";
 import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import connectDB from "@/lib/mongodb";
@@ -76,17 +76,47 @@ export async function POST(request: NextRequest) {
       billing: rcCustomer.contactId
     };
 
-    // Initiate Transfer
-    const result = await ResellerClubWrapper.transferDomain(
+    // Initiate Transfer via the typed wrapper. Branches:
+    //   transfer_initiated → happy path; entityId is the RC tracking id
+    //   balance_pending   → 202 "queued" (auto-resolves when ops tops up)
+    //   transfer_rejected → 400 with a clearer "rejected by registry"
+    //                       copy than the previous generic error
+    //   hard_failure      → 500 with generic copy
+    const outcome = await rcTransferDomain({
       domainName,
       authCode,
-      rcCustomer.customerId,
-      contacts
-    );
+      customerId: rcCustomer.customerId,
+      contacts,
+    });
 
-    if (result.status === "error") {
-      return NextResponse.json({ error: result.message }, { status: 500 });
+    if (outcome.kind === "balance_pending") {
+      return NextResponse.json(
+        {
+          error:
+            "Transfer is queued — our system is finishing the request. You'll see it in your domain list once it starts.",
+          status: "pending",
+        },
+        { status: 202 }
+      );
     }
+    if (outcome.kind === "transfer_rejected") {
+      return NextResponse.json(
+        {
+          error:
+            "The registry rejected this transfer. Check that the EPP/auth code is correct, the domain is unlocked, and it's older than 60 days.",
+        },
+        { status: 400 }
+      );
+    }
+    if (outcome.kind === "hard_failure") {
+      return NextResponse.json(
+        { error: "Failed to initiate domain transfer. Our team has been notified." },
+        { status: 500 }
+      );
+    }
+
+    // outcome.kind === "transfer_initiated"
+    const entityId = outcome.entityId;
 
     // Create a pending Domain record for the transfer
     const domainRecord = new Domain({
@@ -97,7 +127,7 @@ export async function POST(request: NextRequest) {
       currency: "INR",
       registrationPeriod: 1,
       userId: user._id,
-      resellerClubOrderId: result.data?.entityid?.toString() || undefined,
+      resellerClubOrderId: entityId,
     });
 
     await domainRecord.save();
@@ -109,7 +139,7 @@ export async function POST(request: NextRequest) {
       currency: "INR",
       registrationPeriod: 1,
       status: "pending",
-      orderId: result.data?.entityid?.toString() || undefined,
+      orderId: entityId,
     });
 
     return NextResponse.json({
