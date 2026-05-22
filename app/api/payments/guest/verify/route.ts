@@ -6,8 +6,7 @@ import connectDB from "@/lib/mongodb";
 import mongoose from "mongoose";
 import type { IUser } from "@/models/User";
 import { createUser, getUserByEmail } from "@/lib/services/users";
-import Order from "@/models/Order";
-import { claimPendingOrderForProcessing, createOrder, createOrderInSession, forceMarkZohoCreationFailed, getOrderByRazorpayOrderId } from "@/lib/services/orders";
+import { claimPendingOrderForProcessing, createOrder, createOrderInSession, forceMarkZohoCreationFailed, getOrderByOrderId, getOrderByRazorpayOrderId } from "@/lib/services/orders";
 import { createPaymentInTransaction } from "@/lib/services/payments";
 import { provisionCartItems } from "@/lib/services/payment/provisioner";
 import {
@@ -500,59 +499,75 @@ export async function POST(request: NextRequest) {
 
     if (!isPaymentError && guestUser && orderId && cartItems?.length) {
       try {
-        const totalAmount = cartItems.reduce(
-          (sum: number, item: CartItem) => sum + (item.price || 0) * (item.registrationPeriod || 1),
-          0
-        );
-        const fallbackOrder = await createOrder({
-          orderId,
-          userId: guestUser._id,
-          userName: `${guestUser.firstName || ""} ${guestUser.lastName || ""}`.trim(),
-          userEmail: guestEmail,
-          paymentId: `pay_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-          razorpayOrderId: razorpay_order_id,
-          razorpayPaymentId: razorpay_payment_id,
-          razorpaySignature: razorpay_signature,
-          amount: totalAmount,
-          currency: "INR",
-          status: "completed",
-          orderType:
-            cartItems.some((i: CartItem) => !i.itemType || i.itemType === "domain") &&
-            cartItems.some((i: CartItem) => i.itemType === "hosting")
-              ? "bundle"
-              : cartItems.some((i: CartItem) => i.itemType === "hosting")
-              ? "hosting"
-              : "domain",
-          domains: cartItems.map((item: CartItem) => ({
-            domainName: item.domainName,
-            itemType: item.itemType || "domain",
-            price: item.price,
-            currency: item.currency || "INR",
-            registrationPeriod: item.registrationPeriod || 1,
-            periodUnit:
-              item.periodUnit ||
-              (item.itemType === "hosting" ? "months" : "years"),
-            status: "pending",
-            bookingStatus: [
-              {
-                step: "payment_verified",
-                message: "Payment verified — provisioning failed, pending manual review",
-                timestamp: new Date(),
-                progress: 30,
-              },
-            ],
-            error: "Provisioning failed — please contact support",
-          })),
-          successfulDomains: [],
-          paymentVerification: {
-            verifiedAt: new Date(),
-            paymentStatus: "completed",
-            paymentAmount: totalAmount,
-            paymentCurrency: "INR",
+        // If orderId already points at a persisted Order (the pending-finalize
+        // path completed, then a downstream task threw), don't recreate it.
+        // The Order on disk already reflects the true post-provisioning state;
+        // a createOrder here would hit the unique-orderId index and the
+        // duplicate-key error would be swallowed silently.
+        const alreadyPersisted = await getOrderByOrderId(orderId);
+        if (alreadyPersisted) {
+          serverLogger.warn(
+            `[GuestCheckout] Post-finalize error for ${orderId} — Order already persisted (status=${alreadyPersisted.status}). Skipping fallback createOrder.`
+          );
+        } else {
+          const totalAmount = cartItems.reduce(
+            (sum: number, item: CartItem) => sum + (item.price || 0) * (item.registrationPeriod || 1),
+            0
+          );
+          // status:"processing" (not "completed") — no domain was registered
+          // in this branch, so the inner domains[].status:"pending" stays
+          // consistent with the row-level status. Admin / self-heal can
+          // advance it once the underlying issue is resolved.
+          const fallbackOrder = await createOrder({
+            orderId,
+            userId: guestUser._id,
+            userName: `${guestUser.firstName || ""} ${guestUser.lastName || ""}`.trim(),
+            userEmail: guestEmail,
+            paymentId: `pay_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
             razorpayOrderId: razorpay_order_id,
-          },
-        });
-        serverLogger.warn(`[GuestCheckout] Fallback order created: ${fallbackOrder.orderId} for ${guestEmail}`);
+            razorpayPaymentId: razorpay_payment_id,
+            razorpaySignature: razorpay_signature,
+            amount: totalAmount,
+            currency: "INR",
+            status: "processing",
+            orderType:
+              cartItems.some((i: CartItem) => !i.itemType || i.itemType === "domain") &&
+              cartItems.some((i: CartItem) => i.itemType === "hosting")
+                ? "bundle"
+                : cartItems.some((i: CartItem) => i.itemType === "hosting")
+                ? "hosting"
+                : "domain",
+            domains: cartItems.map((item: CartItem) => ({
+              domainName: item.domainName,
+              itemType: item.itemType || "domain",
+              price: item.price,
+              currency: item.currency || "INR",
+              registrationPeriod: item.registrationPeriod || 1,
+              periodUnit:
+                item.periodUnit ||
+                (item.itemType === "hosting" ? "months" : "years"),
+              status: "pending",
+              bookingStatus: [
+                {
+                  step: "payment_verified",
+                  message: "Payment verified — provisioning failed, pending manual review",
+                  timestamp: new Date(),
+                  progress: 30,
+                },
+              ],
+              error: "Provisioning failed — please contact support",
+            })),
+            successfulDomains: [],
+            paymentVerification: {
+              verifiedAt: new Date(),
+              paymentStatus: "captured_pending_support",
+              paymentAmount: totalAmount,
+              paymentCurrency: "INR",
+              razorpayOrderId: razorpay_order_id,
+            },
+          });
+          serverLogger.warn(`[GuestCheckout] Fallback order created: ${fallbackOrder.orderId} for ${guestEmail}`);
+        }
       } catch (fallbackErr: unknown) {
         const fbMessage = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
         serverLogger.error("[GuestCheckout] Fallback order creation also failed:", fbMessage);

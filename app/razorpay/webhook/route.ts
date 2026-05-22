@@ -2,10 +2,14 @@ import { getUserById } from "@/lib/services/users";
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import connectDB from "@/lib/mongodb";
-import Order, { type IOrder } from "@/models/Order";
+import { type IOrder } from "@/models/Order";
 import { ZohoBooksService } from "@/lib/zohobooks";
 import { serverLogger } from "@/lib/server-logger";
-import { claimPendingOrderForProcessing } from "@/lib/services/orders";
+import {
+  claimPendingOrderForProcessing,
+  findOrderByRazorpayOrderIdOrInternalId,
+  getOrderByRazorpayPaymentId,
+} from "@/lib/services/orders";
 import { finalizePendingOrder } from "@/lib/services/payment/order-creator";
 import type { RazorpayPaymentDetails } from "@/lib/types";
 
@@ -80,12 +84,10 @@ async function handlePaymentCaptured(payload: PaymentCapturedPayload) {
     const orderId = payment.notes?.receipt || payment.description;
     const razorpayOrderId = payment.order_id;
 
-    const order = await Order.findOne({
-        $or: [
-            { orderId: orderId },
-            { razorpayOrderId: razorpayOrderId },
-        ],
-    });
+    const order = await findOrderByRazorpayOrderIdOrInternalId(
+        orderId,
+        razorpayOrderId
+    );
 
     // Defensive: with the pending-order persistence in place at /create-order,
     // the order should always exist by the time the webhook fires. If it
@@ -222,11 +224,18 @@ async function handlePaymentCaptured(payload: PaymentCapturedPayload) {
     } as RazorpayPaymentDetails;
 
     try {
+        // razorpaySignature: the webhook doesn't carry a per-payment HMAC
+        // (only the whole-payload x-razorpay-signature header, which lives at
+        // a different layer). Use the same "webhook_verified" sentinel
+        // `lib/services/payment/webhook-handlers.ts` uses for the renewal
+        // path — distinguishes webhook-completed rows from in-flight orders
+        // (whose razorpaySignature is the literal "pending" placeholder
+        // /create-order stamps in).
         const result = await finalizePendingOrder({
             order: claimed,
             user,
             razorpay_payment_id: payment.id,
-            razorpay_signature: claimed.razorpaySignature || "",
+            razorpay_signature: "webhook_verified",
             paymentDetails,
         });
         serverLogger.info(
@@ -253,7 +262,7 @@ async function handleRefundProcessed(payload: RefundProcessedPayload) {
   const refundId: string = refund.id;
   const refundAmountPaise: number = refund.amount;
 
-  const order = await Order.findOne({ razorpayPaymentId: paymentId });
+  const order = await getOrderByRazorpayPaymentId(paymentId);
   if (!order) {
     serverLogger.warn(`[Webhook] refund.processed: no order found for payment ...${paymentId?.slice(-6)}`);
     return;

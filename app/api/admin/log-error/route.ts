@@ -3,7 +3,6 @@ import { recordSystemLog } from "@/lib/services/system-logs";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { authorizeCronRequest } from "@/lib/cron-auth";
-import { serverLogger } from "@/lib/server-logger";
 
 export async function POST(req: NextRequest) {
   try {
@@ -40,7 +39,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    serverLogger.error("Failed to log error to database:", error);
+    // Use console.error (NOT serverLogger.error) — the latter POSTs to this
+    // same route, so a Mongo / SystemLog-model outage would otherwise turn a
+    // single failed log write into an exponential request storm.
+    // eslint-disable-next-line no-console
+    console.error("[log-error] Failed to record system log:", error);
     return NextResponse.json({ error: "Logging failed" }, { status: 500 });
   }
 }

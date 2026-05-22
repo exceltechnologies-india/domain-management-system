@@ -76,6 +76,10 @@ function remoteLog(args: LogArg[]) {
       typeof a === "object" && !(a instanceof Error) ? JSON.stringify(a) : String(a)
     );
 
+    // 2s timeout — a hung log-error handler would otherwise queue indefinite
+    // outbound fetches per `serverLogger.error()` call. The log-error route
+    // breaks the recursion loop by using `console.error` (not
+    // `serverLogger.error`) in its own catch.
     fetch(`${appUrl}/api/v1/admin/log-error`, {
       method: "POST",
       headers: {
@@ -93,6 +97,7 @@ function remoteLog(args: LogArg[]) {
         ip: optionsObj?.ip,
         metadata: optionsObj,
       }),
+      signal: AbortSignal.timeout(2000),
     }).catch(() => {});
   } catch {
     // never let logging crash the request
