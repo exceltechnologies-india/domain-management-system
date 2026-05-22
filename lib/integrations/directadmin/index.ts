@@ -8,15 +8,19 @@ export { suspendUser } from "./suspend-user";
 export type { SuspendUserInput } from "./suspend-user";
 export { unsuspendUser } from "./unsuspend-user";
 export type { UnsuspendUserInput } from "./unsuspend-user";
+export { getUserConfig } from "./get-user-config";
+export type { GetUserConfigInput } from "./get-user-config";
 export type {
   CreateUserOutcome,
   SuspendUserOutcome,
   UnsuspendUserOutcome,
+  GetUserConfigOutcome,
 } from "./types";
 export {
   classifyCreateUserError,
   classifySuspendUserError,
   classifyUnsuspendUserError,
+  classifyGetUserConfigError,
   USERNAME_COLLISION_FRAGMENTS,
   USER_NOT_FOUND_FRAGMENTS,
   matchesAny,
@@ -25,4 +29,5 @@ export type {
   SingleCreateUserAttempt,
   SingleSuspendUserAttempt,
   SingleUnsuspendUserAttempt,
+  SingleGetUserConfigAttempt,
 } from "./classify";

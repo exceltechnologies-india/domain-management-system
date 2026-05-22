@@ -9,9 +9,11 @@
  *   - createUser    → CreateUserOutcome (with inline username-retry)
  *   - suspendUser   → SuspendUserOutcome
  *   - unsuspendUser → UnsuspendUserOutcome
+ *   - getUserConfig → GetUserConfigOutcome
  *
  * To migrate next:
- *   - deleteUser, modifyDomain, updateDNS, getUserConfig
+ *   - deleteUser, modifyDomain (updateDNSNameservers is permanently
+ *     disabled — see lib/directadmin/dns.ts; skip)
  */
 
 /**
@@ -87,6 +89,26 @@ export type SuspendUserOutcome =
  */
 export type UnsuspendUserOutcome =
   | { kind: "unsuspended" }
+  | { kind: "user_not_found"; reason: string }
+  | { kind: "da_unreachable"; reason: string }
+  | { kind: "hard_failure"; reason: string };
+
+/**
+ * Outcome of a `getUserConfig` call (DA's CMD_API_SHOW_USER_CONFIG).
+ * Read op — distinguishing user_not_found from da_unreachable is the
+ * whole reason this exists. Callers like the sync-hosting-status
+ * worker can mark a Hosting row terminally orphaned when the DA user
+ * is genuinely gone, while still treating DA-blip errors as
+ * retryable.
+ *
+ * - `found`           — DA returned the config map.
+ * - `user_not_found`  — DA reports no such user. Hosting row points
+ *                        at a deleted/never-created account.
+ * - `da_unreachable`  — DA 503 / network. Caller should retry later.
+ * - `hard_failure`    — anything else (permission, validation).
+ */
+export type GetUserConfigOutcome =
+  | { kind: "found"; config: Record<string, string | undefined> }
   | { kind: "user_not_found"; reason: string }
   | { kind: "da_unreachable"; reason: string }
   | { kind: "hard_failure"; reason: string };

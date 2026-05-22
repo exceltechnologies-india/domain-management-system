@@ -10,6 +10,7 @@ import {
   classifyCreateUserError,
   classifySuspendUserError,
   classifyUnsuspendUserError,
+  classifyGetUserConfigError,
 } from "@/lib/integrations/directadmin/classify";
 
 describe("classifyCreateUserError", () => {
@@ -124,5 +125,33 @@ describe("classifyUnsuspendUserError", () => {
     const out = classifyUnsuspendUserError(undefined, undefined);
     expect(out.kind).toBe("hard");
     if (out.kind === "hard") expect(out.reason).toMatch(/unsuspendUser failed/);
+  });
+});
+
+describe("classifyGetUserConfigError", () => {
+  it("user_not_found fragment → user_not_found", () => {
+    const out = classifyGetUserConfigError("Unable to find user foo", undefined);
+    expect(out.kind).toBe("user_not_found");
+  });
+
+  it("user_not_found beats 503", () => {
+    const out = classifyGetUserConfigError("user not found", 503);
+    expect(out.kind).toBe("user_not_found");
+  });
+
+  it("503 → unreachable", () => {
+    const out = classifyGetUserConfigError("backend timed out", 503);
+    expect(out.kind).toBe("unreachable");
+  });
+
+  it("anything else → hard", () => {
+    const out = classifyGetUserConfigError("Permission denied", 200);
+    expect(out.kind).toBe("hard");
+  });
+
+  it("undefined message + undefined status → hard with getUserConfig-specific default reason", () => {
+    const out = classifyGetUserConfigError(undefined, undefined);
+    expect(out.kind).toBe("hard");
+    if (out.kind === "hard") expect(out.reason).toMatch(/getUserConfig failed/);
   });
 });

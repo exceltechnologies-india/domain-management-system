@@ -115,3 +115,31 @@ export function classifyUnsuspendUserError(
   }
   return { kind: "hard", reason: errorMessage || "DA unsuspendUser failed" };
 }
+
+/**
+ * Classifier for getUserConfig errors. Same vocabulary as the suspend
+ * pair — USER_NOT_FOUND_FRAGMENTS lets the sync-hosting-status worker
+ * (and admin views) tell "user genuinely gone" apart from "DA being
+ * slow." Separate function so the synthesised default reason mentions
+ * the right operation in logs.
+ */
+export type SingleGetUserConfigAttempt =
+  | { kind: "user_not_found"; reason: string }
+  | { kind: "unreachable"; reason: string }
+  | { kind: "hard"; reason: string };
+
+export function classifyGetUserConfigError(
+  errorMessage: string | undefined,
+  daStatus: number | undefined
+): SingleGetUserConfigAttempt {
+  if (matchesAny(errorMessage, USER_NOT_FOUND_FRAGMENTS)) {
+    return {
+      kind: "user_not_found",
+      reason: errorMessage || "DA reported user not found",
+    };
+  }
+  if (daStatus === 503) {
+    return { kind: "unreachable", reason: errorMessage || "DA returned 503" };
+  }
+  return { kind: "hard", reason: errorMessage || "DA getUserConfig failed" };
+}
