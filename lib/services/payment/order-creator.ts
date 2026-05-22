@@ -110,7 +110,8 @@ export interface CreateCompletedOrderInput {
 export interface CreateCompletedOrderResult {
   order: HydratedDocument<IOrder>;
   orderId: string;
-  paymentId: string;
+  /** Legacy `Order.paymentId` — optional after L10 dropped the required/unique constraint. */
+  paymentId?: string;
   registrationTotalAmount: number;
   registrationResults: RegistrationResult[];
   orderDomains: OrderDomain[];

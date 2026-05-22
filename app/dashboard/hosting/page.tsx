@@ -14,7 +14,6 @@ import { confirmDialog } from '@/lib/confirm-dialog';
 import UserLayout from '@/components/user/UserLayout';
 import { performLogout } from '@/lib/logout';
 import { DashboardLayoutSkeleton, HostingPageSkeleton } from '@/components/skeletons/PageSkeletons';
-import { clientLogger } from '@/lib/client-logger';
 import RefreshButton from '@/components/dashboard/RefreshButton';
 import HostingRenewalModal from '@/components/HostingRenewalModal';
 import HostingUpgradeModal from '@/components/HostingUpgradeModal';

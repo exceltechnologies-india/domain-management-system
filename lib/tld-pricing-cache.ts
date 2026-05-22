@@ -123,6 +123,7 @@ class TLDPricingCacheService {
    * Check if cache exists and is valid
    */
   async isValid(): Promise<boolean> {
+    if (!redis) return false;
     try {
       const exists = await redis.exists(this.CACHE_KEY);
       return exists === 1;
@@ -159,8 +160,10 @@ class TLDPricingCacheService {
         };
       }
 
-      // Get remaining TTL from Redis (in seconds)
-      const remainingTimeInSeconds = await redis.ttl(this.CACHE_KEY);
+      // Get remaining TTL from Redis (in seconds). If REDIS_HOST isn't
+      // configured, `cache` would already have returned null above, so
+      // `redis` is guaranteed non-null here — but be defensive.
+      const remainingTimeInSeconds = redis ? await redis.ttl(this.CACHE_KEY) : 0;
       const now = new Date();
       const expiresAt = new Date(now.getTime() + remainingTimeInSeconds * 1000);
 

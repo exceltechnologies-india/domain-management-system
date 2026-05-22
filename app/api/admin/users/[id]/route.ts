@@ -3,7 +3,6 @@ import { verifyAdminAuth } from "@/lib/admin-auth";
 import { requireReAuth } from "@/lib/admin-security";
 import { serverLogger } from "@/lib/server-logger";
 import {
-  getUserByIdSafe,
   getUserById,
   countAdmins,
   applyUserPatch,
@@ -26,7 +25,7 @@ export async function GET(
       return NextResponse.json({ error: authResult.error }, { status: 401 });
     }
 
-    const user = await getUserByIdSafe(id);
+    const user = await getUserById(id);
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }

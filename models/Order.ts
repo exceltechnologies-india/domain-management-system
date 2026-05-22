@@ -35,7 +35,8 @@ export interface IOrder extends Document {
   userId: Schema.Types.ObjectId;
   userName?: string;
   userEmail?: string;
-  paymentId: string;
+  /** Legacy — see schema comment. New writes can omit. */
+  paymentId?: string;
   razorpayOrderId: string;
   razorpayPaymentId: string;
   razorpaySignature: string;
@@ -132,10 +133,12 @@ const OrderSchema = new Schema<IOrder>(
       lowercase: true,
       trim: true,
     },
+    // Legacy field — never read by any code path; `razorpayPaymentId` is
+    // the real payment identifier and is independently indexed. Kept here
+    // (without required/unique) to avoid a destructive schema change on
+    // existing rows that still carry it. New writes can omit it.
     paymentId: {
       type: String,
-      required: true,
-      unique: true,
     },
     razorpayOrderId: {
       type: String,

@@ -10,6 +10,7 @@ import {
   recordZohoInvoiceForOrder,
   releaseZohoInvoiceClaim,
 } from "@/lib/services/orders";
+import { inferPeriodUnit } from "@/lib/billing";
 
 export interface PostTasksContext {
   order: IOrder;
@@ -62,13 +63,7 @@ async function attemptCreateZohoInvoice(
       user,
       cartItems.map((item) => ({
         ...item,
-        periodUnit:
-          item.periodUnit ||
-          (item.itemType === "hosting"
-            ? item.registrationPeriod === 10
-              ? "minutes"
-              : "months"
-            : "years"),
+        periodUnit: inferPeriodUnit(item),
       }))
     );
   } catch (err) {

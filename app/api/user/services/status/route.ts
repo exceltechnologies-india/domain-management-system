@@ -2,7 +2,7 @@ import { AUTH_SECRET } from "@/lib/auth-secret";
 import { NextRequest, NextResponse } from "next/server";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
-import { getUserByIdSafe } from "@/lib/services/users";
+import { getUserById } from "@/lib/services/users";
 import { listOrdersForUser } from "@/lib/services/orders";
 import type { IOrder } from "@/models/Order";
 import { AuthService } from "@/lib/auth";
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       });
       
       if (token?.id) {
-        user = await getUserByIdSafe(token.id);
+        user = await getUserById(token.id);
         
         if (!user || !user.isActive) {
           serverLogger.warn(`[ServiceStatusAPI] User invalid: ${token.id}`);

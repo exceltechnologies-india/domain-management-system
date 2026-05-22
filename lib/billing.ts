@@ -30,6 +30,27 @@ export function isHostingItem(item: CartItem): boolean {
 }
 
 /**
+ * Single source of truth for inferring a cart item's billing period unit
+ * when the explicit `periodUnit` field is missing. Replaces the 5 ad-hoc
+ * `item.registrationPeriod === 10` / `=== 12` checks scattered around the
+ * payment/post-tasks/cart-store code (rescan-4 L3).
+ *
+ *   - hosting + registrationPeriod === 10 → "minutes" (test cycle)
+ *   - hosting otherwise                   → "months" (covers monthly + yearly)
+ *   - domain                              → "years"
+ *
+ * Trial detection is the caller's concern — this function returns the
+ * raw periodic UNIT, not a billing-cycle label like "monthly" / "yearly".
+ */
+export function inferPeriodUnit(item: CartItem): 'minutes' | 'months' | 'years' | 'days' {
+  if (item.periodUnit) return item.periodUnit;
+  if (isHostingItem(item)) {
+    return item.registrationPeriod === 10 ? 'minutes' : 'months';
+  }
+  return 'years';
+}
+
+/**
  * Strictly checks if a cart item is a domain registration.
  * Uses inverse logic of isHostingItem for consistency.
  */

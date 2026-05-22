@@ -8,7 +8,7 @@ import { NextRequest } from "next/server";
 import { serverLogger } from "@/lib/server-logger";
 import { getToken } from "next-auth/jwt";
 import connectDB from "@/lib/mongodb";
-import { getUserByIdSafe, getUserWithPassword } from "@/lib/services/users";
+import { getUserById, getUserWithPassword } from "@/lib/services/users";
 import bcrypt from "bcryptjs";
 import { getSetting, getSettingValue } from "@/lib/services/settings";
 import { rateLimiters } from "@/lib/rate-limit";
@@ -61,7 +61,7 @@ export async function verifyAdminSecurity(
 
     // 3. Verify user exists and is active
     await connectDB();
-    const user = await getUserByIdSafe(token.id);
+    const user = await getUserById(token.id);
 
     if (!user) {
       return {

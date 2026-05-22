@@ -6,7 +6,7 @@ import { listDomainsForUser } from "@/lib/services/domains";
 import { listActivePendingDomainsForUser } from "@/lib/services/pending-domains";
 import { listRecentCompletedOrdersForUser } from "@/lib/services/orders";
 import type { IOrder } from "@/models/Order";
-import { getUserByIdSafe } from "@/lib/services/users";
+import { getUserById } from "@/lib/services/users";
 import { getToken } from "next-auth/jwt";
 import { isHostingItem } from "@/lib/billing";
 
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       
       if (token?.id) {
         // Get user by id from NextAuth token
-        user = await getUserByIdSafe(token.id);
+        user = await getUserById(token.id);
         
         if (!user || !user.isActive) {
           return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
