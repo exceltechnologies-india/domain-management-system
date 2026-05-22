@@ -9,7 +9,7 @@ import { getHostingById } from "@/lib/services/hostings";
 import Domain from "@/models/Domain";
 import { EmailService } from "@/lib/email";
 import { WhatsAppService } from "@/lib/whatsapp";
-import { DirectAdminService as DA } from "@/lib/directadmin";
+import { suspendUser as daSuspendUser } from "@/lib/integrations/directadmin";
 import { TimeService } from "@/lib/time-service";
 import { AUTOMATION_CONFIG } from "@/config/automation";
 
@@ -51,17 +51,30 @@ async function suspendService(
   serviceType: "hosting" | "domain"
 ): Promise<void> {
   if (serviceType === "hosting" && service.directAdminUsername) {
-    try {
-      await DA.suspendUser(service.directAdminUsername);
-      serverLogger.info(
-        `[Worker] DirectAdmin user suspended: ${service.directAdminUsername}`
-      );
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      serverLogger.error(
-        `[Worker] Failed to suspend DA user ${service.directAdminUsername}: ${message}`
-      );
-      throw err;
+    // Branch on the typed outcome instead of catch-everything-and-throw.
+    // user_not_found is terminal (no point retrying — the DA account
+    // doesn't exist); da_unreachable / hard_failure throw so Cloud
+    // Tasks retries the worker.
+    const outcome = await daSuspendUser({ username: service.directAdminUsername });
+    switch (outcome.kind) {
+      case "suspended":
+        serverLogger.info(
+          `[Worker] DirectAdmin user suspended: ${service.directAdminUsername}`
+        );
+        return;
+      case "user_not_found":
+        serverLogger.warn(
+          `[Worker] DA user ${service.directAdminUsername} not found — treating as already-suspended (no retry): ${outcome.reason}`
+        );
+        return;
+      case "da_unreachable":
+        throw new Error(
+          `DA unreachable while suspending ${service.directAdminUsername}: ${outcome.reason}`
+        );
+      case "hard_failure":
+        throw new Error(
+          `DA suspendUser hard failure for ${service.directAdminUsername}: ${outcome.reason}`
+        );
     }
   } else if (serviceType === "domain") {
     serverLogger.info(
