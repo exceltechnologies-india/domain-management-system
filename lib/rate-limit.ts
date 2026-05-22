@@ -28,6 +28,12 @@ function ipKey(prefix: string): (request: NextRequest) => string {
   return (request) => `${prefix}:${getClientIP(request)}`;
 }
 
+// Prefer an `x-user-id` header set by upstream auth middleware (so two users
+// behind a NAT each get their own bucket), fall back to the client IP. Note:
+// no middleware in this codebase currently emits `x-user-id`, so this
+// effectively IP-keys today — that's a safe degradation. Callers that need
+// genuine per-user limiting use `limiter.checkKey('prefix:' + user._id)`
+// explicitly (see `app/api/user/hosting/{renew,upgrade}/route.ts`).
 function userOrIpKey(prefix: string): (request: NextRequest) => string {
   return (request) => {
     const userId =
@@ -206,11 +212,14 @@ export const rateLimiters = {
   }),
 
   // User-side hosting renew / upgrade. Authenticated, but each call mints
-  // a pending Razorpay order — gate by user id, not IP, so a single user
-  // can't open dozens of "Pay Now" tabs.
+  // a pending Razorpay order — callers MUST use the explicit
+  // `checkKey('hosting_renew:' + user._id)` form (the renew + upgrade routes
+  // do). The IP-keyed fallback below is a safety net so a future bare
+  // `isAllowed(req)` call doesn't accidentally produce an unbucketed limit.
   hostingRenewUpgrade: new RateLimiter({
     windowMs: 60 * 1000, // 1 minute
     maxRequests: 5,
+    keyGenerator: ipKey("hosting_renew_fallback"),
   }),
 };
 

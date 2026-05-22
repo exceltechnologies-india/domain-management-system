@@ -13,7 +13,6 @@ import Modal from '@/components/Modal';
 import { formatIndianDate, formatIndianDateTime } from '@/lib/dateUtils';
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
 import { performLogout } from '@/lib/logout';
-import { safeLocalStorage } from '@/lib/storage';
 import { logger } from '@/lib/logger';
 
 interface Order {
@@ -152,31 +151,9 @@ export default function AdminOrders() {
       return;
     }
 
-    // Fallback to localStorage (legacy support)
-    const getCookieValue = (name: string) => {
-      const value = `; ${document.cookie}`;
-      const parts = value.split(`; ${name}=`);
-      if (parts.length === 2) return parts.pop()?.split(';').shift();
-      return null;
-    };
-
-    const token = getCookieValue('token') || safeLocalStorage.getItem('token');
-    const userData = safeLocalStorage.getItem('user');
-
-    if (!token || !userData) {
-      router.push('/login');
-      return;
-    }
-
-    const userObj = JSON.parse(userData);
-    if (userObj.role !== 'admin') {
-      router.push('/dashboard');
-      return;
-    }
-
-    setUser(userObj);
-    setIsAuthLoading(false);
-    void fetchOrders('active', 1);
+    // No NextAuth session → /login. Previous localStorage/token-cookie
+    // fallback read values no auth route ever wrote — dead code.
+    router.push('/login');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, status, session?.user?.email]);
 
@@ -223,16 +200,7 @@ export default function AdminOrders() {
 
       const archivedParam = tab === 'archived' ? 'true' : 'false';
 
-      const getCookieValue = (name: string) => {
-        const value = `; ${document.cookie}`;
-        const parts = value.split(`; ${name}=`);
-        if (parts.length === 2) return parts.pop()?.split(';').shift();
-        return null;
-      };
-
-      let token = getCookieValue('token') || safeLocalStorage.getItem('token');
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const response = await fetch(`/api/v1/admin/orders?page=${targetPage}&per_page=10&archived=${archivedParam}`, {
         method: 'GET',
@@ -303,14 +271,9 @@ export default function AdminOrders() {
 
     try {
       setIsDeleting(true);
-      let token = safeLocalStorage.getItem('token');
       const headers: HeadersInit = {
         'Content-Type': 'application/json'
       };
-
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
 
       const url = `/api/v1/admin/orders/${orderToDelete._id}${activeTab === 'archived' ? '?permanent=true' : ''}`;
 
@@ -366,14 +329,9 @@ export default function AdminOrders() {
 
     try {
       setIsUnarchiving(true);
-      let token = safeLocalStorage.getItem('token');
       const headers: HeadersInit = {
         'Content-Type': 'application/json'
       };
-
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
 
       const response = await fetch(`/api/v1/admin/orders/${orderToUnarchive._id}`, {
         method: 'PATCH',

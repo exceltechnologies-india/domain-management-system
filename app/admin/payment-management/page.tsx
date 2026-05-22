@@ -10,7 +10,6 @@ import { AdminLayoutSkeleton, AdminPaymentsPageSkeleton } from '@/components/ske
 import AdminDataTable from '@/components/admin/AdminDataTable';
 import { formatIndianDate, formatIndianTime, formatIndianDateTime, formatIndianCurrency } from '@/lib/dateUtils';
 import { performLogout } from '@/lib/logout';
-import { safeLocalStorage } from '@/lib/storage';
 import { logger } from '@/lib/logger';
 
 interface Payment {
@@ -92,45 +91,18 @@ export default function AdminPayments() {
       return;
     }
 
-    // Fallback to localStorage (legacy support)
-    const getCookieValue = (name: string) => {
-      const value = `; ${document.cookie}`;
-      const parts = value.split(`; ${name}=`);
-      if (parts.length === 2) return parts.pop()?.split(';').shift();
-      return null;
-    };
-
-    const token = getCookieValue('token') || safeLocalStorage.getItem('token');
-    const userData = safeLocalStorage.getItem('user');
-
-    if (!token || !userData) {
-      router.push('/login');
-      return;
-    }
-
-    const userObj = JSON.parse(userData);
-    if (userObj.role !== 'admin') {
-      router.push('/dashboard');
-      return;
-    }
-
-    setUser(userObj);
-    setIsAuthLoading(false);
-    void loadPayments();
+    // No NextAuth session → /login. Previous localStorage/token-cookie
+    // fallback read values no auth route ever wrote — dead code.
+    router.push('/login');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, status, session?.user?.email]);
 
   const loadPayments = async (page: number = currentPage, search: string = searchTerm) => {
     try {
       setIsDataLoading(true);
-      let token = safeLocalStorage.getItem('token');
       const headers: HeadersInit = {
         'Content-Type': 'application/json'
       };
-
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
 
       // Always fetch only the latest 5 transactions (no pagination)
       const response = await fetch(`/api/v1/admin/payments?limit=5&skip=0`, {

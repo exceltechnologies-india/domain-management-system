@@ -196,9 +196,14 @@ export async function GET(request: NextRequest) {
       const chunk = candidateDomains.slice(i, i + SCHED_CONCURRENCY);
       const outcomes = await Promise.allSettled(
         chunk.map(async (candidate) => {
+          // Mirror the candidate-query's status filter so a Domain whose
+          // status flipped to failed/terminated between fetch and lock
+          // can't slip into the worker queue. The Hosting branch already
+          // gets this guard via lockHostingForScheduler.
           const locked = await Domain.findOneAndUpdate(
             {
               _id: candidate._id,
+              status: { $nin: ["failed", "terminated"] },
               $or: [
                 { processing_until: null },
                 { processing_until: { $exists: false } },
