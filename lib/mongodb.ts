@@ -43,13 +43,33 @@ async function connectDB() {
   }
 
   if (!cached.promise) {
+    // Connection-pool sizing is tied to Cloud Run's `--concurrency` value
+    // (see scripts/deploy-cloud-run.sh — currently 80). Each in-flight
+    // request that touches Mongo holds one connection from the pool while
+    // its query is in flight. With the previous `maxPoolSize: 10`, the
+    // 11th concurrent Mongo-touching request on an instance would queue
+    // behind the active 10, adding latency floor proportional to query
+    // duration. Bumped to 50 — comfortably covers most realistic
+    // simultaneous request fan-outs on an 80-concurrency instance,
+    // headroom for short bursts without thrashing.
+    //
+    // Atlas cap math: 50 × max-instances (5) = 250 connections worst-case
+    // against the cluster — well inside an M10's 1500-connection limit.
+    //
+    // If `--concurrency` is raised, raise this number too. If we ever
+    // move to per-route DB pools or a connection proxy, revisit.
     const opts = {
       bufferCommands: false,
-      maxPoolSize: 10, // Maximum 10 connections in the pool
-      minPoolSize: 2, // Minimum 2 connections maintained
-      maxIdleTimeMS: 30000, // Close idle connections after 30 seconds
-      serverSelectionTimeoutMS: 5000, // 5 second timeout for server selection
-      socketTimeoutMS: 45000, // 45 second timeout for socket operations
+      maxPoolSize: 50,
+      minPoolSize: 2,
+      maxConnecting: 5, // up from the default 2 — faster pool warmup on burst
+      maxIdleTimeMS: 30000,
+      // Block at most 10s waiting for a free pool connection before throwing.
+      // Default is infinite, which under saturation turns into invisible
+      // 60s request hangs that don't surface as "Mongo is the bottleneck".
+      waitQueueTimeoutMS: 10000,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
     };
 
     cached.promise = mongoose.connect(MONGODB_URI!, opts).then((mongoose) => {
