@@ -8,7 +8,8 @@
  * the helper itself never touches the orchestrator's local state.
  */
 import crypto from "crypto";
-import { DirectAdminService, DirectAdminError, DA_SERVER_IP } from "@/lib/directadmin";
+import { DirectAdminService, DA_SERVER_IP } from "@/lib/directadmin";
+import { createUser as daCreateUser } from "@/lib/integrations/directadmin";
 import { EmailService } from "@/lib/email";
 import { serverLogger } from "@/lib/server-logger";
 import {
@@ -79,31 +80,48 @@ export async function provisionHostingItem(
   const packageName = resolveDaPackageName(item);
   const daIp = DA_SERVER_IP;
   const MAX_USERNAME_ATTEMPTS = 3;
+
+  // Pre-generate the candidate-username list — daCreateUser tries them in
+  // order, retrying on collisions. Single typed outcome returned.
+  const usernameCandidates = Array.from({ length: MAX_USERNAME_ATTEMPTS }, () =>
+    generateDaUsername(targetDomain)
+  );
+  serverLogger.info(
+    `📦 [PAYMENT-VERIFY] Creating DA User for ${targetDomain} on package ${packageName} with IP ${daIp} (candidates: ${usernameCandidates.join(", ")})`
+  );
+
   let daUsername = "";
+  const daOutcome = await daCreateUser({
+    email: user.email,
+    domain: targetDomain,
+    packageName,
+    ip: daIp,
+    usernameCandidates,
+  });
 
   try {
-    for (let attempt = 1; attempt <= MAX_USERNAME_ATTEMPTS; attempt++) {
-      daUsername = generateDaUsername(targetDomain);
-      serverLogger.info(`👤 [PAYMENT-VERIFY] Generated DA Username (attempt ${attempt}): ${daUsername}`);
-      serverLogger.info(`📦 [PAYMENT-VERIFY] Creating DA User: ${daUsername} on package ${packageName} with IP ${daIp}`);
-      try {
-        await DirectAdminService.createUser(
-          daUsername,
-          user.email,
-          targetDomain,
-          packageName,
-          daIp
+    switch (daOutcome.kind) {
+      case "created":
+        daUsername = daOutcome.username;
+        break;
+      case "username_collision_exhausted":
+        // Out of fresh candidates after 3 collisions — treat as hard
+        // failure (rare; would imply our username generator is colliding
+        // with an unusually large existing-account name space).
+        throw new Error(
+          `DA username collisions exhausted after ${MAX_USERNAME_ATTEMPTS} attempts`
         );
-        break; // success — exit retry loop
-      } catch (usernameErr: unknown) {
-        const errMessage = usernameErr instanceof Error ? usernameErr.message : String(usernameErr);
-        const msg = errMessage.toLowerCase();
-        if (attempt < MAX_USERNAME_ATTEMPTS && msg.includes("already exists")) {
-          serverLogger.warn(`⚠️ [PAYMENT-VERIFY] Username collision on "${daUsername}", retrying (${attempt}/${MAX_USERNAME_ATTEMPTS})`);
-          continue;
-        }
-        throw usernameErr; // non-collision error or final attempt — propagate
-      }
+      case "da_unreachable":
+        // Bubble up as a DirectAdminError-like — handleHostingException
+        // detects DA-unreachable via the existing branch and routes to
+        // PendingHosting for cron retry.
+        throw Object.assign(new Error(daOutcome.reason), {
+          // Mark the error shape so the existing catch can spot it.
+          __daUnreachable: true,
+          status: 503,
+        });
+      case "hard_failure":
+        throw new Error(daOutcome.reason);
     }
 
     let planName = packageName;
@@ -307,15 +325,20 @@ async function handleHostingProvisionError(
   const errMessage = error instanceof Error ? error.message : String(error);
   let details = errMessage;
 
+  // M1 slice 2: the typed daCreateUser wrapper signals "DA unreachable"
+  // by attaching `__daUnreachable: true` (+ status:503) to the thrown
+  // Error. Either signal is sufficient — older direct DirectAdminError
+  // throws still pass through via the status check.
   const isDaUnreachable =
-    error instanceof DirectAdminError && error.status === 503;
+    (error instanceof Error &&
+      (error as Error & { __daUnreachable?: boolean }).__daUnreachable === true) ||
+    (error instanceof Error &&
+      (error as Error & { status?: number }).status === 503);
 
-  if (error instanceof DirectAdminError) {
-    context = `DA-FAIL: ${error.context || "Unknown Operation"}`;
-    details = `${error.message} (Status: ${error.status})`;
-    serverLogger.error(`[${context}] ${details}`, {
-      response: error.response,
-    });
+  if (error instanceof Error && (error as { status?: number }).status !== undefined) {
+    context = `DA-FAIL`;
+    details = `${error.message} (Status: ${(error as { status?: number }).status})`;
+    serverLogger.error(`[${context}] ${details}`);
   } else {
     serverLogger.error(
       `[PAYMENT-VERIFY-HOSTING] Unexpected error: ${errMessage}`,
