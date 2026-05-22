@@ -141,10 +141,16 @@ const PendingDomainSchema = new Schema<IPendingDomain>(
 );
 
 // Indexes for efficient queries
-// Partial unique index: only enforce uniqueness for non-archived records.
-// Archived PendingDomains must not block re-registration of the same domain name.
+// Partial unique index scoped to (domainName, userId): keeps two users' failed
+// registrations for the same name as separate audit rows. The bulk-upsert in
+// lib/services/payment/provisioner-verification.ts:151-154 filters on
+// (domainName, userId) — when previously the unique index was scoped to
+// domainName alone, that filter wouldn't find user A's existing row, the
+// upsert tried to insert a new doc for user B, and the global unique threw
+// E11000. Archived rows are excluded so a soft-deleted record doesn't block
+// re-registration.
 PendingDomainSchema.index(
-  { domainName: 1 },
+  { domainName: 1, userId: 1 },
   { unique: true, partialFilterExpression: { isArchived: { $ne: true } } }
 );
 PendingDomainSchema.index({ userId: 1, status: 1 });
