@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { DirectAdminService, DA_SERVER_IP } from "@/lib/directadmin";
+import { unsuspendUser as daUnsuspendUser } from "@/lib/integrations/directadmin";
 import { ZohoBooksService } from "@/lib/zohobooks";
 import { EmailService } from "@/lib/email";
 import type { IOrder } from "@/models/Order";
@@ -153,17 +154,11 @@ export async function handleRenewalPayment(
               hosting.status
             );
             if (needsUnsuspend && hosting.directAdminUsername) {
-              try {
-                await DirectAdminService.unsuspendUser(
-                  hosting.directAdminUsername
-                );
-              } catch (daErr: unknown) {
-                const daMessage = daErr instanceof Error ? daErr.message : String(daErr);
-                serverLogger.error(
-                  `⚠️ [PAYMENT-VERIFY] DirectAdmin unsuspend failed for ${domainName}, proceeding with DB update:`,
-                  daMessage
-                );
-              }
+              // Typed outcome — internal logs already differentiate
+              // user_not_found / unreachable / hard. Callsite still
+              // proceeds with the DB update regardless: payment is
+              // captured and the DB is the source of truth.
+              await daUnsuspendUser({ username: hosting.directAdminUsername });
             }
 
             const now = getCurrentDate();
@@ -239,9 +234,9 @@ export async function handleRenewalPayment(
         const status = hosting.status as string;
         if (status === "suspended" || status === "expired") {
           if (hosting.directAdminUsername) {
-            await DirectAdminService.unsuspendUser(
-              hosting.directAdminUsername
-            );
+            // Typed outcome — logs categorise the failure, DB update
+            // below still proceeds (payment is the source of truth).
+            await daUnsuspendUser({ username: hosting.directAdminUsername });
           }
           const now = getCurrentDate();
           const newExpiry = new Date(now);

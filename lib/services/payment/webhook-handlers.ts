@@ -15,7 +15,10 @@ import {
 import { serverLogger } from "@/lib/server-logger";
 import { EmailService } from "@/lib/email";
 import { createHttpTask } from "@/lib/cloud-tasks";
-import { DirectAdminService as DA } from "@/lib/directadmin";
+import {
+  suspendUser as daSuspendUser,
+  unsuspendUser as daUnsuspendUser,
+} from "@/lib/integrations/directadmin";
 
 /**
  * Razorpay webhook event handlers. Pure business logic — the HTTP-layer
@@ -189,16 +192,17 @@ export async function handleSubscriptionCharged(payload: RazorpayWebhookPayload)
     }
     hosting.expiryDate = newExpiry;
 
-    // Unsuspend on DirectAdmin if it was expired/suspended
+    // Unsuspend on DirectAdmin if it was expired/suspended. Typed
+    // outcome — wrapper logs each failure mode at the right severity;
+    // DB update still proceeds (payment is the source of truth).
     if (hosting.status === "expired" && hosting.directAdminUsername) {
-      try {
-        await DA.unsuspendUser(hosting.directAdminUsername);
-        serverLogger.info(`[Webhook] Unsuspended DA user: ${hosting.directAdminUsername}`);
-      } catch (daErr: unknown) {
-        serverLogger.error(
-          `[Webhook] Failed to unsuspend DA user ${hosting.directAdminUsername}: ${asErr(daErr).message}`
+      const outcome = await daUnsuspendUser({
+        username: hosting.directAdminUsername,
+      });
+      if (outcome.kind === "unsuspended") {
+        serverLogger.info(
+          `[Webhook] Unsuspended DA user: ${hosting.directAdminUsername}`
         );
-        // Don't abort — DB update is the source of truth
       }
     }
   } else {
@@ -320,10 +324,19 @@ export async function handleSubscriptionFailed(payload: RazorpayWebhookPayload) 
     hosting.next_action_at = undefined; // Prevent scheduler from re-queuing the already-expired service
     await hosting.save();
 
-    // Instantly suspend on DirectAdmin
+    // Instantly suspend on DirectAdmin. Typed outcome — log per kind
+    // inside the wrapper; this is the auto-renew-failed path so we
+    // continue even if DA can't be reached (Hosting is already
+    // marked expired in the DB).
     if (hosting.directAdminUsername) {
-      await DA.suspendUser(hosting.directAdminUsername);
-      serverLogger.info(`[Webhook] Suspended DA user immediately: ${hosting.directAdminUsername}`);
+      const outcome = await daSuspendUser({
+        username: hosting.directAdminUsername,
+      });
+      if (outcome.kind === "suspended") {
+        serverLogger.info(
+          `[Webhook] Suspended DA user immediately: ${hosting.directAdminUsername}`
+        );
+      }
     }
   } catch (err: unknown) {
     serverLogger.error(`[Webhook] Failed to process immediate expiration: ${asErr(err).message}`);
