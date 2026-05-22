@@ -24,7 +24,6 @@ import AdminLayout from '@/components/admin/AdminLayout';
 import { AdminLayoutSkeleton, AdminGenericPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
 import { performLogout } from '@/lib/logout';
-import { safeLocalStorage } from '@/lib/storage';
 import AdminDataTable from '@/components/admin/AdminDataTable';
 import InvoiceDiagnostics from '@/components/admin/InvoiceDiagnostics';
 import { logger } from '@/lib/logger';
@@ -78,30 +77,9 @@ export default function AdminInvoicesPage() {
       return;
     }
 
-    // Fallback to localStorage (legacy support)
-    const getCookieValue = (name: string) => {
-      const value = `; ${document.cookie}`;
-      const parts = value.split(`; ${name}=`);
-      if (parts.length === 2) return parts.pop()?.split(';').shift();
-      return null;
-    };
-
-    const token = getCookieValue('token') || safeLocalStorage.getItem('token');
-    const userData = safeLocalStorage.getItem('user');
-
-    if (!token || !userData) {
-      router.push('/login');
-      return;
-    }
-
-    const userObj = JSON.parse(userData);
-    if (userObj.role !== 'admin') {
-      router.push('/dashboard');
-      return;
-    }
-
-    setIsAuthLoading(false);
-    void fetchInvoices(page);
+    // No NextAuth session → /login. Previous localStorage/token-cookie
+    // fallback read values no auth route ever wrote — dead code.
+    router.push('/login');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, status, session?.user?.email, page]);
 

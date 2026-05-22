@@ -233,12 +233,20 @@ async function setupRcCustomerAndContact(user: IUser): Promise<{
 
   // Persist RC IDs on the User so future profile updates can sync the contact
   // record via modifyContact(). getOrCreateCustomerAndContact() is a no-op DB
-  // writer; we own persistence here.
+  // writer; we own persistence here. Only fields the user doesn't already
+  // have get written — single round-trip, then mirror onto the in-memory
+  // `user` so callers later in the request don't refetch.
   try {
     await setUserResellerClubIds(String(user._id), {
       customerId: user.resellerClubCustomerId ? undefined : customerResult.customerId,
       contactId: user.resellerClubContactId ? undefined : customerResult.contactId,
     });
+    if (!user.resellerClubCustomerId) {
+      user.resellerClubCustomerId = customerResult.customerId;
+    }
+    if (!user.resellerClubContactId) {
+      user.resellerClubContactId = customerResult.contactId;
+    }
   } catch (persistErr) {
     serverLogger.error("[PAYMENT-VERIFY] Failed to persist RC IDs on user:", persistErr);
   }
@@ -246,23 +254,6 @@ async function setupRcCustomerAndContact(user: IUser): Promise<{
   serverLogger.info(
     `✅ [PAYMENT-VERIFY] Customer account created successfully: ${customerResult.customerId}`
   );
-
-  if (!user.resellerClubCustomerId) {
-    try {
-      await setUserResellerClubIds(String(user._id), {
-        customerId: customerResult.customerId,
-      });
-      user.resellerClubCustomerId = customerResult.customerId;
-      serverLogger.info(
-        `✅ [PAYMENT-VERIFY] Saved ResellerClub customer ID to database: ${user.email}`
-      );
-    } catch (error) {
-      serverLogger.error(
-        `⚠️ [PAYMENT-VERIFY] Failed to save ResellerClub customer ID:`,
-        error
-      );
-    }
-  }
 
   return {
     customerId: customerResult.customerId,

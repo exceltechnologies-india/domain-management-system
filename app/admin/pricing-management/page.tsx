@@ -29,7 +29,6 @@ import { AdminLayoutSkeleton, AdminPricingPageSkeleton, AdminTableRowsSkeleton }
 import AdminDataTable from '@/components/admin/AdminDataTable';
 import { formatIndianCurrency, formatIndianNumber, formatIndianDateTime } from '@/lib/dateUtils';
 import { performLogout } from '@/lib/logout';
-import { safeLocalStorage } from '@/lib/storage';
 import { logger } from '@/lib/logger';
 
 /**
@@ -126,31 +125,9 @@ export default function AdminTLDPricing() {
       return;
     }
 
-    // Fallback to localStorage (legacy support)
-    const getCookieValue = (name: string) => {
-      const value = `; ${document.cookie}`;
-      const parts = value.split(`; ${name}=`);
-      if (parts.length === 2) return parts.pop()?.split(';').shift();
-      return null;
-    };
-
-    const token = getCookieValue('token') || safeLocalStorage.getItem('token');
-    const userData = safeLocalStorage.getItem('user');
-
-    if (!token || !userData) {
-      router.push('/login');
-      return;
-    }
-
-    const userObj = JSON.parse(userData);
-    if (userObj.role !== 'admin') {
-      router.push('/dashboard');
-      return;
-    }
-
-    setUser(userObj);
-    setIsAuthLoading(false); // Auth done, UI (shell) can load
-    void loadTLDPricing();
+    // No NextAuth session → /login. Previous localStorage/token-cookie
+    // fallback read values no auth route ever wrote — dead code.
+    router.push('/login');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, status, session?.user?.email]);
 
@@ -158,14 +135,9 @@ export default function AdminTLDPricing() {
     try {
       setIsDataLoading(true);
 
-      let token = safeLocalStorage.getItem('token');
       const headers: HeadersInit = {
         'Content-Type': 'application/json'
       };
-
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
 
       const response = await fetch('/api/v1/admin/tld-pricing', {
         headers,
@@ -194,12 +166,9 @@ export default function AdminTLDPricing() {
   const purgeCache = async () => {
     setIsPurgingCache(true);
     try {
-      const token = safeLocalStorage.getItem('token');
       const response = await fetch('/api/v1/admin/tld-pricing/cache', {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        credentials: 'include',
       });
 
       if (response.ok) {

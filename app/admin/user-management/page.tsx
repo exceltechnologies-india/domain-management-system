@@ -13,7 +13,6 @@ import Modal from '@/components/Modal';
 import { formatIndianDate, formatIndianLongDateTime, formatIndianDateTime } from '@/lib/dateUtils';
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
 import { performLogout } from '@/lib/logout';
-import { safeLocalStorage } from '@/lib/storage';
 import { logger } from '@/lib/logger';
 
 interface User {
@@ -127,53 +126,22 @@ export default function AdminUsers() {
       return;
     }
 
-    // Fallback to localStorage (legacy support)
-    const getCookieValue = (name: string) => {
-      const value = `; ${document.cookie}`;
-      const parts = value.split(`; ${name}=`);
-      if (parts.length === 2) return parts.pop()?.split(';').shift();
-      return null;
-    };
-
-    const token = getCookieValue('token') || safeLocalStorage.getItem('token');
-    const userData = safeLocalStorage.getItem('user');
-
-    if (!token || !userData) {
-      router.push('/login');
-      return;
-    }
-
-    const userObj = JSON.parse(userData);
-    if (userObj.role !== 'admin') {
-      router.push('/dashboard');
-      return;
-    }
-
-    setUser(userObj);
-    setIsAuthLoading(false);
-    void loadUsers();
+    // No NextAuth session → redirect to login. The previous code had a
+    // localStorage/token-cookie fallback, but no auth route ever wrote
+    // those values — it was dead code that lit up safeLocalStorage reads
+    // on every page load.
+    router.push('/login');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, status, session?.user?.email]);
 
   const loadUsers = async () => {
     setIsDataLoading(true);
     try {
-      // Get token from localStorage or cookies
-      const getCookieValue = (name: string) => {
-        const value = `; ${document.cookie}`;
-        const parts = value.split(`; ${name}=`);
-        if (parts.length === 2) return parts.pop()?.split(';').shift();
-        return null;
-      };
-
-      let token = getCookieValue('token') || safeLocalStorage.getItem('token');
+      // NextAuth cookie is shipped via credentials:'include'; no Bearer
+      // token to forward (the localStorage `token` was never written).
       const headers: HeadersInit = {
         'Content-Type': 'application/json'
       };
-
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
 
       // Fetch all data in parallel
       const [activeResult, deactivatedResult, servicesResult] = await Promise.allSettled([
@@ -264,21 +232,9 @@ export default function AdminUsers() {
     setIsResettingPassword(true);
 
     try {
-      const getCookieValue = (name: string) => {
-        const value = `; ${document.cookie}`;
-        const parts = value.split(`; ${name}=`);
-        if (parts.length === 2) return parts.pop()?.split(';').shift();
-        return null;
-      };
-
-      let token = getCookieValue('token') || safeLocalStorage.getItem('token');
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
       };
-
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
 
       const response = await fetch('/api/v1/admin/users/reset-password', {
         method: 'POST',
@@ -333,14 +289,9 @@ export default function AdminUsers() {
 
     try {
       setIsDeactivating(true);
-      let token = safeLocalStorage.getItem('token');
       const headers: HeadersInit = {
         'Content-Type': 'application/json'
       };
-
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
 
       const response = await fetch('/api/v1/admin/users', {
         method: 'DELETE',
@@ -400,14 +351,9 @@ export default function AdminUsers() {
 
     try {
       setIsReactivating(true);
-      let token = safeLocalStorage.getItem('token');
       const headers: HeadersInit = {
         'Content-Type': 'application/json'
       };
-
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
 
       const response = await fetch('/api/v1/admin/users/reactivate', {
         method: 'POST',
@@ -466,14 +412,9 @@ export default function AdminUsers() {
 
     try {
       setIsPermanentlyDeleting(true);
-      let token = safeLocalStorage.getItem('token');
       const headers: HeadersInit = {
         'Content-Type': 'application/json'
       };
-
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
 
       const response = await fetch(`/api/v1/admin/users?permanent=true`, {
         method: 'DELETE',
@@ -521,9 +462,7 @@ export default function AdminUsers() {
     if (!userToReset2FA) return;
     setIsResetting2FA(true);
     try {
-      const token = safeLocalStorage.getItem('token');
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const response = await fetch('/api/v1/admin/users/reset-2fa', {
         method: 'POST',

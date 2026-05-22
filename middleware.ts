@@ -108,9 +108,17 @@ const normalizePath = (path: string) => {
 };
 
 // Generate a cryptographically random nonce per request for nonce-based CSP.
-// Base64-encodes a UUID so only alphanumeric/+/= chars appear in the header.
+// 16 random bytes → 24 base64 chars, the standard idiom. The previous form
+// base64-encoded the 36-char UUID *string* (with dashes), which produced a
+// longer output without adding entropy. Middleware runs in Edge runtime
+// so we use Web Crypto's getRandomValues — Node's `crypto.randomBytes` is
+// not available here.
 function generateNonce(): string {
-  return Buffer.from(crypto.randomUUID()).toString("base64");
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
 }
 
 // Create a NextResponse.next() that forwards the nonce + request ID to the
