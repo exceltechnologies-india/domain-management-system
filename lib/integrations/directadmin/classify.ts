@@ -89,3 +89,29 @@ export function classifySuspendUserError(
   }
   return { kind: "hard", reason: errorMessage || "DA suspendUser failed" };
 }
+
+/**
+ * Classifier for unsuspendUser. Identical logic to suspendUser — DA's
+ * error vocabulary is the same for both — but a separate function so
+ * the synthesised default reason mentions the right operation in logs.
+ */
+export type SingleUnsuspendUserAttempt =
+  | { kind: "user_not_found"; reason: string }
+  | { kind: "unreachable"; reason: string }
+  | { kind: "hard"; reason: string };
+
+export function classifyUnsuspendUserError(
+  errorMessage: string | undefined,
+  daStatus: number | undefined
+): SingleUnsuspendUserAttempt {
+  if (matchesAny(errorMessage, USER_NOT_FOUND_FRAGMENTS)) {
+    return {
+      kind: "user_not_found",
+      reason: errorMessage || "DA reported user not found",
+    };
+  }
+  if (daStatus === 503) {
+    return { kind: "unreachable", reason: errorMessage || "DA returned 503" };
+  }
+  return { kind: "hard", reason: errorMessage || "DA unsuspendUser failed" };
+}

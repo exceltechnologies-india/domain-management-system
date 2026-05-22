@@ -6,11 +6,12 @@
  * raw DA error messages.
  *
  * Migrated:
- *   - createUser  → CreateUserOutcome (with inline username-retry)
- *   - suspendUser → SuspendUserOutcome
+ *   - createUser    → CreateUserOutcome (with inline username-retry)
+ *   - suspendUser   → SuspendUserOutcome
+ *   - unsuspendUser → UnsuspendUserOutcome
  *
  * To migrate next:
- *   - unsuspendUser, deleteUser, modifyDomain, updateDNS
+ *   - deleteUser, modifyDomain, updateDNS, getUserConfig
  */
 
 /**
@@ -63,6 +64,29 @@ export type CreateUserOutcome =
  */
 export type SuspendUserOutcome =
   | { kind: "suspended" }
+  | { kind: "user_not_found"; reason: string }
+  | { kind: "da_unreachable"; reason: string }
+  | { kind: "hard_failure"; reason: string };
+
+/**
+ * Outcome of an `unsuspendUser` call. Symmetric with SuspendUserOutcome
+ * — same four buckets, same `user_not_found` semantics — except the
+ * caller's response should be stricter: in the renewal flow we EXPECT
+ * the DA account to be there, so user_not_found is a real anomaly
+ * (the Hosting row references a username DA doesn't know).
+ *
+ * - `unsuspended`     — DA accepted (or user was already active —
+ *                        unsuspend is idempotent in DA's wire form).
+ * - `user_not_found`  — DA doesn't recognize the username. Renewal
+ *                        callers should log at error level + still
+ *                        proceed with the DB update (the customer paid).
+ * - `da_unreachable`  — network/5xx. Callers usually swallow + log
+ *                        since payment is already captured; the
+ *                        background reconciliation handles it.
+ * - `hard_failure`    — anything else; log + alert ops.
+ */
+export type UnsuspendUserOutcome =
+  | { kind: "unsuspended" }
   | { kind: "user_not_found"; reason: string }
   | { kind: "da_unreachable"; reason: string }
   | { kind: "hard_failure"; reason: string };

@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyCreateUserError,
   classifySuspendUserError,
+  classifyUnsuspendUserError,
 } from "@/lib/integrations/directadmin/classify";
 
 describe("classifyCreateUserError", () => {
@@ -92,5 +93,36 @@ describe("classifySuspendUserError", () => {
     const out = classifySuspendUserError(undefined, undefined);
     expect(out.kind).toBe("hard");
     if (out.kind === "hard") expect(out.reason).toMatch(/suspendUser failed/);
+  });
+});
+
+describe("classifyUnsuspendUserError", () => {
+  // Same vocabulary as suspendUser — same fragments, same status logic.
+  // The differentiator is the synthesised default reason mentions the
+  // right operation in logs.
+  it("recognises user_not_found fragments (shared vocabulary)", () => {
+    const out = classifyUnsuspendUserError("Unable to find user foo", undefined);
+    expect(out.kind).toBe("user_not_found");
+  });
+
+  it("user_not_found beats 503", () => {
+    const out = classifyUnsuspendUserError("user not found", 503);
+    expect(out.kind).toBe("user_not_found");
+  });
+
+  it("503 → unreachable", () => {
+    const out = classifyUnsuspendUserError("backend timeout", 503);
+    expect(out.kind).toBe("unreachable");
+  });
+
+  it("anything else → hard", () => {
+    const out = classifyUnsuspendUserError("Permission denied", 200);
+    expect(out.kind).toBe("hard");
+  });
+
+  it("undefined message + undefined status → hard with unsuspend-specific default reason", () => {
+    const out = classifyUnsuspendUserError(undefined, undefined);
+    expect(out.kind).toBe("hard");
+    if (out.kind === "hard") expect(out.reason).toMatch(/unsuspendUser failed/);
   });
 });
