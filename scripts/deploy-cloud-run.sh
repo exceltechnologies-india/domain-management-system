@@ -204,6 +204,9 @@ gcloud run deploy "$SERVICE" \
   --max-instances=5 \
   --timeout=300 \
   --concurrency=80 \
+  `# concurrency is paired with lib/mongodb.ts:maxPoolSize (currently 50).` \
+  `# Bumping concurrency without raising maxPoolSize will queue requests` \
+  `# behind the pool and add latency proportional to query duration.` \
   --service-account="$SERVICE_ACCOUNT" \
   --vpc-connector="$VPC_CONNECTOR" \
   --vpc-egress=all-traffic \
