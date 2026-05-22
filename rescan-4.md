@@ -97,7 +97,7 @@ Remaining work: 6 MEDIUMs (M1, M4, M6, M8, M13, M14 — all multi-day/-week or d
 - [models/SystemLog.ts:29](models/SystemLog.ts) (`service: { index: true }`) is a prefix of `:44` (`{ service: 1, createdAt: -1 }`)
 **Fix:** Drop the prefix-redundant single-field indexes. ~30 min + migration.
 
-#### [M8] `PendingDomain._id` is `Schema.Types.Mixed`
+#### ⏸ [M8] `PendingDomain._id` is `Schema.Types.Mixed` — DEFERRED (needs prod data audit before backfill)
 **File:** [models/PendingDomain.ts:34](models/PendingDomain.ts)
 **Problem:** Accepts both ObjectId and String. Every read/write must remember which kind of id this row has.
 **Fix:** Pick ObjectId; backfill any String-keyed rows. ~2 hours + migration.
@@ -125,7 +125,7 @@ Remaining work: 6 MEDIUMs (M1, M4, M6, M8, M13, M14 — all multi-day/-week or d
 **Problem:** Last `new Order(...)` outside the service layer (audit said H1 closed this class). `orderId = \`ORD-RNW-${Date.now()}-${Math.floor(Math.random() * 1000)}\`` — same Math.random class that batch 1's [M3] fixed for invoice numbers but only ~1000 suffixes, will collide under burst.
 **Fix:** `createRenewalOrder(input)` helper + `crypto.randomBytes(4).toString("hex")`. ~30 min.
 
-#### [M13] String-message-based error dispatch in `verification-error.ts`
+#### ⏸ [M13] String-message-based error dispatch in `verification-error.ts` — DEFERRED (multi-site refactor, dedicated batch)
 **File:** [lib/services/payment/verification-error.ts:219-266](lib/services/payment/verification-error.ts)
 **Problem:** `else if (error.message.includes("Invalid payment signature"))` × 7. Any upstream wording change flips errors into the generic 500. 20 such `error.message.includes` patterns across `lib/`.
 **Fix:** Throw typed `PaymentError("signature_error")` / `PaymentError("amount_mismatch")` from inner helpers; dispatch on `.code`. ~3 hours.
@@ -145,7 +145,7 @@ Remaining work: 6 MEDIUMs (M1, M4, M6, M8, M13, M14 — all multi-day/-week or d
 
 ## Cleanups (LOW)
 
-### [L1] Razorpay SDK escape-hatch casts repeated 10×
+### ⏸ [L1] Razorpay SDK escape-hatch casts repeated 10× — DEFERRED (10 mechanical thin wrappers, dedicated session)
 **Files:** `lib/razorpay.ts:41,223,244,257,303,338,354`, `lib/razorpay-payments.ts:54,77,93`
 **Fix:** Wrap once in a typed `lib/razorpay-client.ts`; collapse the 10 casts to 1.
 
