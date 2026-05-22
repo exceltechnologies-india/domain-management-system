@@ -4,5 +4,13 @@
  */
 export { registerDomain } from "./register-domain";
 export type { RegisterDomainInput } from "./register-domain";
-export { classifyRegisterDomainResponse } from "./classify";
-export type { RegisterDomainOutcome } from "./types";
+export { renewDomain } from "./renew-domain";
+export type { RenewDomainInput } from "./renew-domain";
+export {
+  classifyRegisterDomainResponse,
+  classifyRenewDomainResponse,
+} from "./classify";
+export type {
+  RegisterDomainOutcome,
+  RenewDomainOutcome,
+} from "./types";

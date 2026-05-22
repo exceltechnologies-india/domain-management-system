@@ -4,7 +4,10 @@
  * tweak can't silently flip outcomes between branches.
  */
 import { describe, expect, it } from "vitest";
-import { classifyRegisterDomainResponse } from "@/lib/integrations/resellerclub/classify";
+import {
+  classifyRegisterDomainResponse,
+  classifyRenewDomainResponse,
+} from "@/lib/integrations/resellerclub/classify";
 import type { ResellerClubResponse } from "@/lib/types";
 
 const baseResponse = (overrides: Partial<ResellerClubResponse>): ResellerClubResponse =>
@@ -76,5 +79,59 @@ describe("classifyRegisterDomainResponse", () => {
     if (out.kind === "hard_failure") {
       expect(out.reason).toMatch(/RC returned status=error/);
     }
+  });
+});
+
+describe("classifyRenewDomainResponse", () => {
+  it("status:success with orderid + price → renewed (number price)", () => {
+    const out = classifyRenewDomainResponse(
+      baseResponse({ status: "success", data: { orderid: "RC-RNW-1", price: 1499 } })
+    );
+    expect(out.kind).toBe("renewed");
+    if (out.kind === "renewed") {
+      expect(out.orderId).toBe("RC-RNW-1");
+      expect(out.price).toBe(1499);
+    }
+  });
+
+  it("coerces numeric-string price field to number", () => {
+    const out = classifyRenewDomainResponse(
+      baseResponse({ status: "success", data: { orderid: "X", price: "899.50" } })
+    );
+    expect(out.kind).toBe("renewed");
+    if (out.kind === "renewed") expect(out.price).toBeCloseTo(899.5);
+  });
+
+  it("status:success without price → renewed with undefined price", () => {
+    const out = classifyRenewDomainResponse(
+      baseResponse({ status: "success", data: { orderid: "X" } })
+    );
+    expect(out.kind).toBe("renewed");
+    if (out.kind === "renewed") expect(out.price).toBeUndefined();
+  });
+
+  it.each([
+    "Insufficient balance",
+    "Reseller account balance below threshold",
+    "Insufficient funds in account",
+    "Reseller credit limit reached",
+  ])("balance-pending fragments are recognised: %s", (msg) => {
+    const out = classifyRenewDomainResponse(
+      baseResponse({ status: "error", message: msg })
+    );
+    expect(out.kind).toBe("balance_pending");
+  });
+
+  it("status:pending → balance_pending", () => {
+    expect(classifyRenewDomainResponse(baseResponse({ status: "pending" })).kind).toBe(
+      "balance_pending"
+    );
+  });
+
+  it("registry rejection → hard_failure", () => {
+    const out = classifyRenewDomainResponse(
+      baseResponse({ status: "error", message: "Domain is locked at registry" })
+    );
+    expect(out.kind).toBe("hard_failure");
   });
 });

@@ -15,10 +15,11 @@
  *
  * Migrated:
  *   - registerDomain → RegisterDomainOutcome
+ *   - renewDomain    → RenewDomainOutcome
  *
  * To migrate next (follow-up batches):
- *   - getDomainOrderId, getDomainDetails, getDNSRecords, renewDomain,
- *     transferDomain, the DirectAdmin createUser / suspendUser path.
+ *   - getDomainOrderId, getDomainDetails, getDNSRecords, transferDomain;
+ *     DirectAdmin: suspendUser, modifyDomain, updateDNS, getUserConfig.
  */
 
 /**
@@ -45,4 +46,23 @@ export type RegisterDomainOutcome =
   | { kind: "registered_no_order_id" }
   | { kind: "balance_pending" }
   | { kind: "already_in_progress" }
+  | { kind: "hard_failure"; reason: string };
+
+/**
+ * Outcome of a `renewDomain` call. The wrapper does the order-id +
+ * expiry-date pre-flight lookups inline (previously in
+ * `ResellerClubWrapper.renewDomain`) and folds those failures into this
+ * single outcome.
+ *
+ * - `renewed`         — RC accepted the renewal. `orderId` / `price`
+ *                       carried through from the response when present.
+ * - `balance_pending` — RC queued the renewal pending reseller-account
+ *                       top-up (same fragments class as registerDomain).
+ * - `hard_failure`    — anything else (order-id lookup failed, expiry
+ *                       lookup failed, registry rejected, etc.).
+ *                       `reason` is internal-only.
+ */
+export type RenewDomainOutcome =
+  | { kind: "renewed"; orderId?: string; price?: number }
+  | { kind: "balance_pending" }
   | { kind: "hard_failure"; reason: string };

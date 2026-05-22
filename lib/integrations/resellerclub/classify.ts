@@ -6,7 +6,7 @@
  * (test envs don't set them).
  */
 import type { ResellerClubResponse } from "@/lib/types";
-import type { RegisterDomainOutcome } from "./types";
+import type { RegisterDomainOutcome, RenewDomainOutcome } from "./types";
 
 /**
  * Substring fragments RC's error messages use when registration is
@@ -64,6 +64,42 @@ export function classifyRegisterDomainResponse(
   }
   if (matchesAny(res.message, ALREADY_IN_PROGRESS_FRAGMENTS)) {
     return { kind: "already_in_progress" };
+  }
+  return {
+    kind: "hard_failure",
+    reason: res.message || `RC returned status=${res.status} with no message`,
+  };
+}
+
+/**
+ * Map a raw RC `renewDomain` response onto the typed outcome. Pure —
+ * the orderId / expiry pre-flight failures are folded into the
+ * `hard_failure` branch by the wrapper, not classify itself.
+ *
+ * Reuses BALANCE_PENDING_FRAGMENTS — RC uses identical message
+ * vocabulary for renew and register when the reseller account is short.
+ */
+export function classifyRenewDomainResponse(
+  res: ResellerClubResponse
+): RenewDomainOutcome {
+  if (res.status === "success") {
+    const orderId = res.data?.orderid ? String(res.data.orderid) : undefined;
+    const priceRaw = res.data?.price;
+    const price =
+      typeof priceRaw === "number"
+        ? priceRaw
+        : typeof priceRaw === "string"
+        ? Number(priceRaw)
+        : undefined;
+    return { kind: "renewed", orderId, price: Number.isFinite(price) ? price : undefined };
+  }
+
+  if (res.status === "pending") {
+    return { kind: "balance_pending" };
+  }
+
+  if (matchesAny(res.message, BALANCE_PENDING_FRAGMENTS)) {
+    return { kind: "balance_pending" };
   }
   return {
     kind: "hard_failure",

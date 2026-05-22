@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import { ResellerClubAPI } from "@/lib/resellerclub";
+import { renewDomain as rcRenewDomain } from "@/lib/integrations/resellerclub";
 import { AuthService } from "@/lib/auth";
 import { createOrder } from "@/lib/services/orders";
 import { appendUserDomain } from "@/lib/services/users";
@@ -77,12 +77,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Renew domain
-    const result = await ResellerClubWrapper.renewDomain(domainName, years);
+    // Renew domain via the typed wrapper. Outcomes:
+    //   renewed         — happy path, carry through orderId + price
+    //   balance_pending — RC queued for ops top-up; surface a clear
+    //                     user message, but DON'T return a 500 (the
+    //                     renewal will complete asynchronously)
+    //   hard_failure    — anything else; user sees generic copy, raw
+    //                     reason stays in serverLogger
+    const outcome = await rcRenewDomain({ domainName, years });
 
-    if (result.status === "error") {
-      return NextResponse.json({ error: result.message }, { status: 500 });
+    if (outcome.kind === "balance_pending") {
+      return NextResponse.json(
+        {
+          error:
+            "Renewal is queued — our system is finishing the request. Please check your domain list in a few minutes.",
+          status: "pending",
+        },
+        { status: 202 }
+      );
     }
+    if (outcome.kind === "hard_failure") {
+      return NextResponse.json(
+        { error: "Failed to renew domain. Our team has been notified." },
+        { status: 500 }
+      );
+    }
+
+    // outcome.kind === "renewed"
+    const renewedPrice = outcome.price ?? 0;
+    const renewedOrderId = outcome.orderId;
 
     // Create order record for renewal
     const order = await createOrder({
@@ -91,17 +114,17 @@ export async function POST(request: NextRequest) {
       userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
       userEmail: user.email,
       paymentId,
-      amount: result.data?.price || 0,
+      amount: renewedPrice,
       currency: "INR",
       status: "completed",
       domains: [
         {
           domainName,
-          price: result.data?.price || 0,
+          price: renewedPrice,
           currency: "INR",
           registrationPeriod: years,
           status: "registered",
-          orderId: result.data?.orderid,
+          orderId: renewedOrderId,
           expiresAt: new Date(Date.now() + years * 365 * 24 * 60 * 60 * 1000),
         },
       ],
@@ -111,11 +134,11 @@ export async function POST(request: NextRequest) {
     // Update user's domain list
     await appendUserDomain(String(user._id), {
       domainName,
-      price: result.data?.price || 0,
+      price: renewedPrice,
       currency: "INR",
       registrationPeriod: years,
       status: "registered",
-      orderId: result.data?.orderid,
+      orderId: renewedOrderId,
       expiresAt: new Date(Date.now() + years * 365 * 24 * 60 * 60 * 1000),
     });
 
