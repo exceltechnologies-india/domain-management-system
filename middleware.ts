@@ -141,8 +141,13 @@ async function getMaintenanceStatus(_origin: string): Promise<{ enabled: boolean
     // Use the loopback HTTP address so this request bypasses Nginx TLS and
     // avoids HTTPS self-referral issues on the server.
     const port = process.env.PORT || '3000';
+    // 2s timeout — a hung maintenance-status handler would otherwise block
+    // every middleware-handled request and compound with Cloud Run cold-start
+    // storms. AbortSignal.timeout throws, which lands in the catch below
+    // (fail-open: maintenance disabled).
     const res = await fetch(`http://127.0.0.1:${port}/api/public/maintenance-status`, {
       headers: { 'x-internal-maintenance-check': '1' },
+      signal: AbortSignal.timeout(2000),
     });
     if (res.ok) {
       const data = await res.json();

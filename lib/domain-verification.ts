@@ -13,7 +13,8 @@
 
 import { ResellerClubWrapper } from "./resellerclub-wrapper";
 import Domain from "@/models/Domain";
-import Order, { type IOrder } from "@/models/Order";
+import { type IOrder } from "@/models/Order";
+import { findOrdersByDomainName } from "@/lib/services/orders";
 import { serverLogger } from "@/lib/server-logger";
 
 export interface DomainVerificationResult {
@@ -120,7 +121,7 @@ export class DomainVerificationService {
       }
 
       // 4. Update Order Collection (Sync any matching domain entries in orders)
-      const orders = await Order.find({ "domains.domainName": domainName.toLowerCase().trim() });
+      const orders = await findOrdersByDomainName(domainName.toLowerCase().trim());
       for (const order of orders) {
         const domainIndex = order.domains.findIndex(
           (d: IOrder['domains'][number]) => d.domainName === domainName.toLowerCase().trim()

@@ -229,6 +229,26 @@ export async function getOrderByRazorpayPaymentId(
  * `orderType`. Used by the upgrade-payment handler (which expects a
  * `"hosting_upgrade"` order) and other razorpay-keyed flows.
  */
+/**
+ * Webhook-specific lookup: Razorpay's payment-captured payload carries both
+ * `notes.receipt` (our internal `orderId`) and `payment.order_id` (the
+ * razorpay order id). Either may be the right key depending on how
+ * /create-order set the receipt. Match on either; first hit wins. Wraps
+ * the previous `Order.findOne({$or:…})` so the webhook stays out of the
+ * model layer.
+ */
+export async function findOrderByRazorpayOrderIdOrInternalId(
+  internalOrderId: string | undefined,
+  razorpayOrderId: string | undefined
+): Promise<HydratedDocument<IOrder> | null> {
+  await connectDB();
+  const or: Record<string, unknown>[] = [];
+  if (internalOrderId) or.push({ orderId: internalOrderId });
+  if (razorpayOrderId) or.push({ razorpayOrderId });
+  if (or.length === 0) return null;
+  return Order.findOne({ $or: or }) as Promise<HydratedDocument<IOrder> | null>;
+}
+
 export async function getOrderByRazorpayOrderId(
   razorpayOrderId: string,
   opts?: { orderType?: string }
@@ -816,6 +836,22 @@ export async function findOrderByDomain(
   });
   if (options?.populate) query = query.populate(options.populate.path, options.populate.select);
   return query;
+}
+
+/**
+ * List ALL orders carrying the named domain (no userId scope). Used by the
+ * domain-verification sync to update every Order row that references a
+ * domain whose status just changed in the registrar. Includes
+ * soft-deleted rows because they still need their per-domain status
+ * tracked for refund / audit views.
+ */
+export async function findOrdersByDomainName(
+  domainName: string
+): Promise<HydratedDocument<IOrder>[]> {
+  await connectDB();
+  return Order.find({ "domains.domainName": domainName }) as Promise<
+    HydratedDocument<IOrder>[]
+  >;
 }
 
 /**
