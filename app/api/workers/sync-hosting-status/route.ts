@@ -3,6 +3,7 @@ import { serverLogger } from "@/lib/server-logger";
 import { authorizeCronRequest } from "@/lib/cron-auth";
 import { listHostingsForUser } from "@/lib/services/hostings";
 import { DirectAdminService } from "@/lib/directadmin";
+import { getUserConfig as daGetUserConfig } from "@/lib/integrations/directadmin";
 
 export const dynamic = 'force-dynamic';
 
@@ -35,62 +36,86 @@ export async function POST(request: NextRequest) {
         if (['active', 'suspended'].includes(hosting.status)) {
           // Sync status with DirectAdmin
           if (hosting.directAdminUsername) {
+            const username = hosting.directAdminUsername;
+            // M1 slice 8: typed outcome replaces the inline error-message
+            // parsing ("User does not exist" / "cannot be found" /
+            // ECONNREFUSED / DA_SERVER_DOWN) that used to live in the
+            // catch block below.
+            const configOutcome = await daGetUserConfig({ username });
+
+            if (configOutcome.kind === "user_not_found") {
+              serverLogger.warn(
+                `[Worker:SyncHosting] User ${username} confirmed missing on DA. Marking as terminated.`
+              );
+              hosting.status = "terminated";
+              hosting.autoRenew = false;
+              await hosting.save();
+              return;
+            }
+            if (configOutcome.kind === "da_unreachable") {
+              serverLogger.warn(
+                `[Worker:SyncHosting] DA unreachable for ${username}, skipping sync. Reason: ${configOutcome.reason}`
+              );
+              return;
+            }
+            if (configOutcome.kind === "hard_failure") {
+              serverLogger.error(
+                `[Worker:SyncHosting] getUserConfig hard_failure for ${username}: ${configOutcome.reason}`
+              );
+              return;
+            }
+
+            // configOutcome.kind === "found"
+            const daConfig = configOutcome.config;
+
+            // getUserDomains stays raw for now (separate slice). On error,
+            // skip the domain-presence check rather than throwing — better
+            // to keep the suspended/active sync from getUserConfig than
+            // miss it entirely.
+            let userDomains: string[] = [];
             try {
-              // Fetch config AND domains to verify specific domain existence
-              const [daConfig, userDomains] = await Promise.all([
-                 DirectAdminService.getUserConfig(hosting.directAdminUsername),
-                 DirectAdminService.getUserDomains(hosting.directAdminUsername)
-              ]);
-              
-              // Check if account is suspended.
-              // "suspended" isn't yet in the IHosting status enum but is the
-              // runtime value the worker writes — cast through unknown to
-              // bypass strict TS until the schema is widened.
-              const loose = hosting as unknown as { status: string };
-              if (daConfig.suspended === "yes") {
-                if (loose.status !== 'suspended') {
-                   serverLogger.info(`[Worker:SyncHosting] Updating status for ${hosting.directAdminUsername}: ${loose.status} -> suspended`);
-                   loose.status = 'suspended';
-                   await hosting.save();
-                }
-              } else {
-                 // Account is active, but is the specific DOMAIN present?
-                 const normalizedUserDomains = userDomains.map(d => d.toLowerCase());
-                 const isDomainPresent = normalizedUserDomains.includes(hosting.domainName.toLowerCase());
+              userDomains = await DirectAdminService.getUserDomains(username);
+            } catch (domErr) {
+              serverLogger.warn(
+                `[Worker:SyncHosting] getUserDomains failed for ${username} — proceeding without domain-presence check.`,
+                domErr
+              );
+            }
 
-                 if (!isDomainPresent) {
-                     serverLogger.warn(`[Worker:SyncHosting] Domain ${hosting.domainName} missing from DA account ${hosting.directAdminUsername}. Marking as terminated.`);
-                     hosting.status = 'terminated';
-                     hosting.autoRenew = false;
-                     await hosting.save();
-                 } else if (hosting.status !== 'active') {
-                   serverLogger.info(`[Worker:SyncHosting] Updating status for ${hosting.directAdminUsername}: ${hosting.status} -> active`);
-                   hosting.status = 'active';
-                   await hosting.save();
-                 }
+            // Check if account is suspended.
+            // "suspended" isn't yet in the IHosting status enum but is the
+            // runtime value the worker writes — cast through unknown to
+            // bypass strict TS until the schema is widened.
+            const loose = hosting as unknown as { status: string };
+            if (daConfig.suspended === "yes") {
+              if (loose.status !== "suspended") {
+                serverLogger.info(
+                  `[Worker:SyncHosting] Updating status for ${username}: ${loose.status} -> suspended`
+                );
+                loose.status = "suspended";
+                await hosting.save();
               }
-            } catch (error: unknown) {
-               // Handle "User does not exist" error
-               const errorMessage = error instanceof Error ? error.message : String(error);
-               
-               const isConnectionError = errorMessage.includes("getsockopt") || 
-                                         errorMessage.includes("ETIMEDOUT") || 
-                                         errorMessage.includes("ECONNREFUSED") ||
-                                         errorMessage.includes("DA_SERVER_DOWN");
+            } else {
+              // Account is active, but is the specific DOMAIN present?
+              const normalizedUserDomains = userDomains.map((d) => d.toLowerCase());
+              const isDomainPresent = normalizedUserDomains.includes(
+                hosting.domainName.toLowerCase()
+              );
 
-               if (isConnectionError) {
-                   serverLogger.warn(`[Worker:SyncHosting] Connection error for ${hosting.directAdminUsername}. Skipping sync. Error: ${errorMessage}`);
-                   return; // Skip sync, keep local status
-               }
-
-               if (errorMessage.includes("User does not exist") || errorMessage.includes("cannot be found")) {
-                  serverLogger.warn(`[Worker:SyncHosting] User ${hosting.directAdminUsername} confirmed missing on DA. Marking as terminated.`);
-                  hosting.status = 'terminated';
-                  hosting.autoRenew = false;
-                  await hosting.save();
-               } else {
-                  serverLogger.error(`[Worker:SyncHosting] Failed to check status for ${hosting.directAdminUsername}: ${errorMessage}`, { error });
-               }
+              if (!isDomainPresent && userDomains.length > 0) {
+                serverLogger.warn(
+                  `[Worker:SyncHosting] Domain ${hosting.domainName} missing from DA account ${username}. Marking as terminated.`
+                );
+                hosting.status = "terminated";
+                hosting.autoRenew = false;
+                await hosting.save();
+              } else if (hosting.status !== "active") {
+                serverLogger.info(
+                  `[Worker:SyncHosting] Updating status for ${username}: ${hosting.status} -> active`
+                );
+                hosting.status = "active";
+                await hosting.save();
+              }
             }
           }
         }
