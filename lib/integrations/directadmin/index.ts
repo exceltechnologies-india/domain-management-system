@@ -4,10 +4,17 @@
  */
 export { createUser } from "./create-user";
 export type { CreateUserInput } from "./create-user";
-export type { CreateUserOutcome } from "./types";
+export { suspendUser } from "./suspend-user";
+export type { SuspendUserInput } from "./suspend-user";
+export type { CreateUserOutcome, SuspendUserOutcome } from "./types";
 export {
   classifyCreateUserError,
+  classifySuspendUserError,
   USERNAME_COLLISION_FRAGMENTS,
+  USER_NOT_FOUND_FRAGMENTS,
   matchesAny,
 } from "./classify";
-export type { SingleCreateUserAttempt } from "./classify";
+export type {
+  SingleCreateUserAttempt,
+  SingleSuspendUserAttempt,
+} from "./classify";
