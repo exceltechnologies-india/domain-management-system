@@ -16,10 +16,11 @@
  * Migrated:
  *   - registerDomain → RegisterDomainOutcome
  *   - renewDomain    → RenewDomainOutcome
+ *   - transferDomain → TransferDomainOutcome
  *
  * To migrate next (follow-up batches):
- *   - getDomainOrderId, getDomainDetails, getDNSRecords, transferDomain;
- *     DirectAdmin: suspendUser, modifyDomain, updateDNS, getUserConfig.
+ *   - getDomainOrderId, getDomainDetails, getDNSRecords;
+ *     DirectAdmin: modifyDomain, updateDNS, getUserConfig, deleteUser.
  */
 
 /**
@@ -65,4 +66,29 @@ export type RegisterDomainOutcome =
 export type RenewDomainOutcome =
   | { kind: "renewed"; orderId?: string; price?: number }
   | { kind: "balance_pending" }
+  | { kind: "hard_failure"; reason: string };
+
+/**
+ * Outcome of a `transferDomain` call. RC kicks off the registry transfer
+ * asynchronously — the user-facing flow needs to communicate "transfer
+ * started, will complete in N days at the gaining registry" rather than
+ * synchronous success.
+ *
+ * - `transfer_initiated`     — RC accepted the request; `entityId` is
+ *                               the RC-side tracking id (sometimes called
+ *                               orderId elsewhere).
+ * - `balance_pending`        — same reseller-account-balance fragments
+ *                               that affect register/renew.
+ * - `transfer_rejected`      — registry rejected (bad EPP code, domain
+ *                               locked, transfer-prohibited status,
+ *                               within 60d of registration, etc.).
+ *                               `reason` is internal/log-only; the user
+ *                               sees a generic "transfer rejected" copy.
+ * - `hard_failure`           — anything else (RC API error, network).
+ *                               Same generic-message handling.
+ */
+export type TransferDomainOutcome =
+  | { kind: "transfer_initiated"; entityId?: string }
+  | { kind: "balance_pending" }
+  | { kind: "transfer_rejected"; reason: string }
   | { kind: "hard_failure"; reason: string };

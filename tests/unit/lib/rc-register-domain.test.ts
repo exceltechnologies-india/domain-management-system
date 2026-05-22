@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyRegisterDomainResponse,
   classifyRenewDomainResponse,
+  classifyTransferDomainResponse,
 } from "@/lib/integrations/resellerclub/classify";
 import type { ResellerClubResponse } from "@/lib/types";
 
@@ -146,6 +147,64 @@ describe("classifyRenewDomainResponse", () => {
   it("registry rejection → hard_failure", () => {
     const out = classifyRenewDomainResponse(
       baseResponse({ status: "error", message: "Domain is locked at registry" })
+    );
+    expect(out.kind).toBe("hard_failure");
+  });
+});
+
+describe("classifyTransferDomainResponse", () => {
+  it("status:success with entityid → transfer_initiated", () => {
+    const out = classifyTransferDomainResponse(
+      baseResponse({ status: "success", data: { entityid: 12345 } })
+    );
+    expect(out.kind).toBe("transfer_initiated");
+    if (out.kind === "transfer_initiated") expect(out.entityId).toBe("12345");
+  });
+
+  it("status:success without entityid → transfer_initiated (entityId undefined)", () => {
+    const out = classifyTransferDomainResponse(
+      baseResponse({ status: "success", data: {} })
+    );
+    expect(out.kind).toBe("transfer_initiated");
+    if (out.kind === "transfer_initiated") expect(out.entityId).toBeUndefined();
+  });
+
+  it.each([
+    "Invalid auth code provided",
+    "auth-code mismatch",
+    "Bad authcode",
+    "Invalid EPP key for this domain",
+    "Transfer is prohibited at the registry",
+    "clientTransferProhibited",
+    "Domain is within 60 days of registration",
+    "60-day rule still applies",
+    "Transfer not allowed for transfer right now",
+  ])("registry-rejection fragment is recognised: %s", (msg) => {
+    const out = classifyTransferDomainResponse(
+      baseResponse({ status: "error", message: msg })
+    );
+    expect(out.kind).toBe("transfer_rejected");
+  });
+
+  it.each([
+    "Insufficient balance",
+    "Account balance is below threshold",
+  ])("balance fragment → balance_pending: %s", (msg) => {
+    const out = classifyTransferDomainResponse(
+      baseResponse({ status: "error", message: msg })
+    );
+    expect(out.kind).toBe("balance_pending");
+  });
+
+  it("status:pending → balance_pending", () => {
+    expect(classifyTransferDomainResponse(baseResponse({ status: "pending" })).kind).toBe(
+      "balance_pending"
+    );
+  });
+
+  it("unrelated error → hard_failure", () => {
+    const out = classifyTransferDomainResponse(
+      baseResponse({ status: "error", message: "Network connection refused" })
     );
     expect(out.kind).toBe("hard_failure");
   });

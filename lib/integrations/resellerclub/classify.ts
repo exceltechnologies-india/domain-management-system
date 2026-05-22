@@ -6,7 +6,11 @@
  * (test envs don't set them).
  */
 import type { ResellerClubResponse } from "@/lib/types";
-import type { RegisterDomainOutcome, RenewDomainOutcome } from "./types";
+import type {
+  RegisterDomainOutcome,
+  RenewDomainOutcome,
+  TransferDomainOutcome,
+} from "./types";
 
 /**
  * Substring fragments RC's error messages use when registration is
@@ -46,6 +50,30 @@ export const ALREADY_IN_PROGRESS_FRAGMENTS = [
   "already exists in our database",
   "pending order",
   "pending order for",
+] as const;
+
+/**
+ * Substring fragments RC returns when a transferDomain request is
+ * rejected by the registry — bad auth code, transfer-prohibited
+ * status, domain inside the post-registration 60-day lock, etc.
+ *
+ * These are user-actionable (fix the EPP code, contact the losing
+ * registrar, wait 60d). Distinguish from hard_failure so the caller
+ * can surface a clearer message than "transfer failed".
+ */
+export const TRANSFER_REJECTED_FRAGMENTS = [
+  "auth code",
+  "auth-code",
+  "authcode",
+  "invalid epp",
+  "transfer is prohibited",
+  "clienttransferprohibited",
+  "serverttransferprohibited",
+  "60 day",
+  "60-day",
+  "60days",
+  "60 days",
+  "not allowed for transfer",
 ] as const;
 
 export function matchesAny(
@@ -125,6 +153,45 @@ export function classifyRenewDomainResponse(
     matchesAny(res.message, PROCESSING_LOCK_FRAGMENTS)
   ) {
     return { kind: "balance_pending" };
+  }
+  return {
+    kind: "hard_failure",
+    reason: res.message || `RC returned status=${res.status} with no message`,
+  };
+}
+
+/**
+ * Map a raw RC `transferDomain` response onto the typed outcome. Pure.
+ * The `entityid` field RC returns is the transfer's tracking id at the
+ * registrar — surfaced as `entityId` on the typed outcome.
+ *
+ * Branches: registry-rejection variants (bad EPP code, transfer-lock)
+ * → transfer_rejected; reseller-account-balance → balance_pending;
+ * everything else → hard_failure.
+ */
+export function classifyTransferDomainResponse(
+  res: ResellerClubResponse
+): TransferDomainOutcome {
+  if (res.status === "success") {
+    const entityId = res.data?.entityid ? String(res.data.entityid) : undefined;
+    return { kind: "transfer_initiated", entityId };
+  }
+
+  if (res.status === "pending") {
+    return { kind: "balance_pending" };
+  }
+
+  if (
+    matchesAny(res.message, BALANCE_PENDING_FRAGMENTS) ||
+    matchesAny(res.message, PROCESSING_LOCK_FRAGMENTS)
+  ) {
+    return { kind: "balance_pending" };
+  }
+  if (matchesAny(res.message, TRANSFER_REJECTED_FRAGMENTS)) {
+    return {
+      kind: "transfer_rejected",
+      reason: res.message || "registry rejected the transfer",
+    };
   }
   return {
     kind: "hard_failure",
