@@ -7,6 +7,12 @@ import { ResellerClubResponse } from "@/lib/types";
 import { serverLogger } from "@/lib/server-logger";
 import { getRegistrationParamPairs, mapRegistrationError } from "@/lib/tld-policies";
 import { api } from "./client";
+import {
+  BALANCE_PENDING_FRAGMENTS,
+  PROCESSING_LOCK_FRAGMENTS,
+  ALREADY_IN_PROGRESS_FRAGMENTS,
+  matchesAny,
+} from "@/lib/integrations/resellerclub/classify";
 
 /**
  * Delete or Cancel a domain registration order
@@ -163,26 +169,18 @@ export async function registerDomain(domainData: {
       const errorMessage =
         response.data.error || "Domain registration failed";
 
-      // Check for various error conditions that indicate pending status
+      // The same fragment vocabulary lives in
+      // lib/integrations/resellerclub/classify.ts — kept in one place so
+      // the inner-layer (this file's response → ResellerClubResponse
+      // mapping) and the outer-layer (classifyRegisterDomainResponse →
+      // typed outcome) can't drift. RC's "InvoicePaid" status with an
+      // error attached is also treated as pending here.
       const isPendingStatus =
-        errorMessage &&
-        (errorMessage.toLowerCase().includes("insufficient balance") ||
-          errorMessage.toLowerCase().includes("low funds") ||
-          errorMessage.toLowerCase().includes("insufficient funds") ||
-          errorMessage.toLowerCase().includes("account balance") ||
-          errorMessage.toLowerCase().includes("credit limit") ||
-          errorMessage
-            .toLowerCase()
-            .includes("order locked for processing") ||
-          errorMessage.toLowerCase().includes("please contact support") ||
-          errorMessage.toLowerCase().includes("locked for processing") ||
-          errorMessage.toLowerCase().includes("processing") ||
-          errorMessage
-            .toLowerCase()
-            .includes("already exists in our database") ||
-          errorMessage.toLowerCase().includes("pending order") ||
-          errorMessage.toLowerCase().includes("pending order for") ||
-          response.data.status === "InvoicePaid"); // InvoicePaid with error message indicates pending
+        (errorMessage &&
+          (matchesAny(errorMessage, BALANCE_PENDING_FRAGMENTS) ||
+            matchesAny(errorMessage, PROCESSING_LOCK_FRAGMENTS) ||
+            matchesAny(errorMessage, ALREADY_IN_PROGRESS_FRAGMENTS))) ||
+        response.data.status === "InvoicePaid";
 
       // If this looks like a registry-policy error (T&C, eligibility,
       // minimum period, contact validation), surface a clearer message
