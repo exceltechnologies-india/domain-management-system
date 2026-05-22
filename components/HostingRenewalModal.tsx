@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { X, Calendar, CreditCard, AlertTriangle, CheckCircle, RefreshCw, ShieldCheck } from 'lucide-react';
 import { formatIndianDate, formatIndianCurrency } from '@/lib/dateUtils';
 import { toast } from 'react-hot-toast';
-import { safeLocalStorage, safeSessionStorage } from '@/lib/storage';
+import { useSession } from 'next-auth/react';
+import { safeSessionStorage } from '@/lib/storage';
 import { useRouter } from 'next/navigation';
 import { useRazorpayCheckout } from '@/components/RazorpayCheckoutFrame';
 
@@ -37,6 +38,7 @@ export default function HostingRenewalModal({
   const [isProcessing, setIsProcessing] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const router = useRouter();
+  const { data: session } = useSession();
   // Razorpay checkout is loaded inside an isolated iframe (see
   // components/RazorpayCheckoutFrame.tsx) so this page can keep a strict CSP
   // without the eval-using checkout.js script.
@@ -52,11 +54,8 @@ export default function HostingRenewalModal({
   const loadRenewalInfo = async () => {
     setIsLoading(true);
     try {
-      const token = safeLocalStorage.getItem('token');
       const response = await fetch(`/api/v1/user/hosting/renew-info?domainName=${encodeURIComponent(domainName)}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -80,15 +79,11 @@ export default function HostingRenewalModal({
 
     setIsProcessing(true);
     try {
-      const token = safeLocalStorage.getItem('token');
-      
       // 1. Initiate renewal in backend to get Razorpay Order ID
       const response = await fetch('/api/v1/user/hosting/renew', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ domainName }),
       });
 
@@ -109,11 +104,7 @@ export default function HostingRenewalModal({
           name: 'AnuTech Hosting',
           description: `Renewal for ${domainName} (1 Year)`,
           order_id: data.razorpayOrderId,
-          prefill: {
-            email: safeLocalStorage.getItem('user')
-              ? JSON.parse(safeLocalStorage.getItem('user')!).email
-              : ''
-          },
+          prefill: { email: session?.user?.email || '' },
           theme: { color: '#2563eb' }
         });
       } catch (err: unknown) {
@@ -133,10 +124,8 @@ export default function HostingRenewalModal({
       try {
         const verifyRes = await fetch('/api/v1/payments/verify', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({
             razorpay_order_id: paymentResponse.razorpay_order_id,
             razorpay_payment_id: paymentResponse.razorpay_payment_id,

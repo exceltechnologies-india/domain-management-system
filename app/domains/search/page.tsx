@@ -6,7 +6,7 @@ import { Suspense, useState, useEffect } from 'react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import DomainSearch from '@/components/DomainSearch';
-import { safeLocalStorage } from '@/lib/storage';
+import { useSession } from 'next-auth/react';
 
 interface User {
   firstName: string;
@@ -18,29 +18,19 @@ function SearchContent() {
   const searchParams = useSearchParams();
   const query = searchParams.get('q') || '';
   const [user, setUser] = useState<User | null>(null);
+  const { data: session } = useSession();
 
   useEffect(() => {
-    // Check if user is logged in (client-side only)
-    if (typeof window !== 'undefined') {
-      const getCookieValue = (name: string) => {
-        const value = `; ${document.cookie}`;
-        const parts = value.split(`; ${name}=`);
-        if (parts.length === 2) return parts.pop()?.split(';').shift();
-        return null;
-      };
-
-      const token = getCookieValue('token') || safeLocalStorage.getItem('token');
-      const userData = safeLocalStorage.getItem('user');
-
-      if (token && userData) {
-        try {
-          setUser(JSON.parse(userData));
-        } catch (error) {
-          // Error parsing user data
-        }
-      }
+    if (session?.user) {
+      setUser({
+        firstName: session.user.name?.split(' ')[0] || '',
+        lastName: session.user.name?.split(' ').slice(1).join(' ') || '',
+        role: session.user.role || 'user',
+      });
+    } else {
+      setUser(null);
     }
-  }, []);
+  }, [session]);
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: 'var(--google-bg-secondary)' }}>

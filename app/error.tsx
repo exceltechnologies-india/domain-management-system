@@ -1,19 +1,12 @@
 'use client';
 
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import Link from 'next/link';
 import Button from '@/components/Button';
-import { safeLocalStorage } from '@/lib/storage';
 import { logger } from '@/lib/logger';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
-
-interface User {
-  firstName: string;
-  lastName: string;
-  role: string;
-}
 
 interface ErrorProps {
   error: Error & { digest?: string };
@@ -21,8 +14,6 @@ interface ErrorProps {
 }
 
 export default function Error({ error, reset }: ErrorProps) {
-  const [user, setUser] = useState<User | null>(null);
-
   useEffect(() => {
     // Custom error tracking
     fetch('/api/v1/admin/log-error', {
@@ -37,30 +28,11 @@ export default function Error({ error, reset }: ErrorProps) {
         metadata: { digest: error.digest }
       })
     }).catch(logger.error);
-
-    // Check if user is logged in
-    const getCookieValue = (name: string) => {
-      const value = `; ${document.cookie}`;
-      const parts = value.split(`; ${name}=`);
-      if (parts.length === 2) return parts.pop()?.split(';').shift();
-      return null;
-    };
-
-    const token = getCookieValue('token') || safeLocalStorage.getItem('token');
-    const userData = safeLocalStorage.getItem('user');
-
-    if (token && userData) {
-      try {
-        setUser(JSON.parse(userData));
-      } catch (error) {
-        // Error parsing user data
-      }
-    }
   }, [error]);
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navigation user={user} />
+      <Navigation />
 
       <div className="flex items-center justify-center min-h-[80vh] px-4 pt-24">
         <div className="text-center max-w-2xl mx-auto">

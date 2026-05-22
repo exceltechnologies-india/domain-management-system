@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useLogout } from '@/lib/logout';
-import { safeLocalStorage, safeSessionStorage } from '@/lib/storage';
+import { safeSessionStorage } from '@/lib/storage';
 import { ArrowLeft, CreditCard, Shield, ShieldCheck, ShoppingCart, Globe, Info, Check, Smartphone } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useCartStore } from '@/store/cartStore';
@@ -54,36 +54,12 @@ export default function CheckoutPage() {
     // Refresh user data from server to get latest profileCompleted status from DB
     const refreshUserData = async () => {
       try {
-        let response;
-        let userObj: User | null = null;
-
-        // Check if user is logged in via NextAuth (social login)
-        if (session?.user) {
-          // Social login - use NextAuth cookies
-          response = await fetch('/api/v1/auth/me', {
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            credentials: 'include', // Use NextAuth cookies
-          });
-        } else {
-          // Credential login - use JWT token
-          const token = safeLocalStorage.getItem('token');
-          const userData = safeLocalStorage.getItem('user');
-
-          if (!token || !userData) {
-            router.push('/login');
-            return;
-          }
-
-          userObj = JSON.parse(userData);
-          response = await fetch('/api/v1/auth/me', {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          });
-        }
+        const response = await fetch('/api/v1/auth/me', {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include', // Use NextAuth cookies
+        });
 
         if (response?.ok) {
           const data = await response.json();
@@ -93,13 +69,10 @@ export default function CheckoutPage() {
 
           // Server/DB is the source of truth - always use DB status
           const updatedUser = {
-            ...(userObj || session?.user || {}),
+            ...(session?.user || {}),
             ...data.user,
             profileCompleted: profileCompleted, // Always use strict boolean from DB
           };
-
-          // Update localStorage with latest status from DB
-          safeLocalStorage.setItem('user', JSON.stringify(updatedUser));
 
           // Redirect admin users to admin dashboard
           if (updatedUser.role === 'admin') {
@@ -118,53 +91,10 @@ export default function CheckoutPage() {
           setUser(updatedUser);
           void syncWithServer();
         } else {
-          // If API call fails, check localStorage for fallback
-          const userData = safeLocalStorage.getItem('user');
-          if (userData) {
-            try {
-              const localUser = JSON.parse(userData);
-
-              if (localUser.role === 'admin') {
-                router.push('/admin/dashboard');
-                return;
-              }
-
-              // Still check DB status even if API call fails
-              // For now, redirect to settings if profileCompleted is not explicitly true
-              if (localUser.profileCompleted !== true) {
-                toast.error('Please complete your profile before checkout');
-                router.push('/cart');
-                return;
-              }
-
-              setUser(localUser);
-              void syncWithServer();
-            } catch (e) {
-              router.push('/login');
-            }
-          } else {
-            router.push('/login');
-          }
-        }
-      } catch (error) {
-        // Fallback: check localStorage
-        const userData = safeLocalStorage.getItem('user');
-        if (userData) {
-          try {
-            const localUser = JSON.parse(userData);
-            if (localUser.profileCompleted !== true) {
-              toast.error('Please complete your profile before checkout');
-              router.push('/cart');
-              return;
-            }
-            setUser(localUser);
-            void syncWithServer();
-          } catch (e) {
-            router.push('/login');
-          }
-        } else {
           router.push('/login');
         }
+      } catch (error) {
+        router.push('/login');
       }
     };
 
@@ -203,8 +133,6 @@ export default function CheckoutPage() {
     setIsProcessing(true);
     setIsPaymentInProgress(true);
     try {
-      const token = safeLocalStorage.getItem('token');
-
       // Device fingerprint — used server-side for trial-abuse defenses.
       // Best-effort; absence is non-fatal for non-trial orders.
       const deviceFingerprint = await getDeviceFingerprint().catch(() => '');
@@ -215,7 +143,6 @@ export default function CheckoutPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           cartItems: cartItems,
@@ -249,7 +176,6 @@ export default function CheckoutPage() {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
             },
             body: JSON.stringify({
               razorpay_order_id: orderId,

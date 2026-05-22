@@ -1,15 +1,17 @@
-import { safeLocalStorage } from '@/lib/storage';
-
 /**
- * SWR fetcher — attaches the Bearer token from localStorage (credential login)
- * and sends cookies (NextAuth session). All dashboard useSWR calls use this.
+ * SWR fetcher — sends the NextAuth session cookie via credentials:"include".
+ * All dashboard useSWR calls use this.
+ *
+ * The previous shape also attached a Bearer token from
+ * safeLocalStorage.getItem("token"), but no auth path writes that key any
+ * more (credentials login goes through NextAuth, and the activate/register
+ * stub writes are themselves dead). The cookie carries auth on its own.
  */
 export async function fetcher<T = unknown>(url: string): Promise<T> {
-  const token = safeLocalStorage.getItem('token');
-  const headers: HeadersInit = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-
-  const res = await fetch(url, { headers, credentials: 'include' });
+  const res = await fetch(url, {
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+  });
 
   if (!res.ok) {
     const err = new Error('API request failed') as Error & { status: number; info: unknown };

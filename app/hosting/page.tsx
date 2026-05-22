@@ -12,7 +12,7 @@ import Section from '@/components/Section';
 import PricingCard from '@/components/PricingCard';
 import FAQItem from '@/components/FAQItem';
 import Footer from '@/components/Footer';
-import { safeLocalStorage } from '@/lib/storage';
+import { useSession } from 'next-auth/react';
 import { useCartStore } from '@/store/cartStore';
 import type { CartItem } from '@/lib/types';
 import { useRouter } from 'next/navigation';
@@ -44,6 +44,7 @@ interface TestPlan {
 export default function HostingPage() {
   const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
+  const { data: session } = useSession();
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('yearly');
   const { addItem, items: cartItems } = useCartStore();
   const [testPlan, setTestPlan] = useState<TestPlan | null>(null);
@@ -222,27 +223,16 @@ export default function HostingPage() {
   }, []);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const getCookieValue = (name: string) => {
-        const value = `; ${document.cookie}`;
-        const parts = value.split(`; ${name}=`);
-        if (parts.length === 2) return parts.pop()?.split(';').shift();
-        return null;
-      };
-
-      const token = getCookieValue('token') || safeLocalStorage.getItem('token');
-      const userData = safeLocalStorage.getItem('user');
-
-      if (token && userData) {
-        try {
-          setUser(JSON.parse(userData));
-        } catch (error) {
-          // Error parsing user data
-        }
-      }
-
+    if (session?.user) {
+      setUser({
+        firstName: session.user.name?.split(' ')[0] || '',
+        lastName: session.user.name?.split(' ').slice(1).join(' ') || '',
+        role: session.user.role || 'user',
+      });
+    } else {
+      setUser(null);
     }
-  }, []);
+  }, [session]);
 
   const hostingFeatures = [
     {

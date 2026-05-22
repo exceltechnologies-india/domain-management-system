@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Mail, MessageCircle, MapPin } from 'lucide-react';
 import Navigation from '@/components/Navigation';
@@ -10,43 +9,11 @@ import ContactForm from '@/components/ContactForm';
 import ContactInfo from '@/components/ContactInfo';
 import ContactMap from '@/components/ContactMap';
 import Footer from '@/components/Footer';
-import { safeLocalStorage } from '@/lib/storage';
-
-interface User {
-  firstName: string;
-  lastName: string;
-  role: string;
-}
 
 export default function ContactPage() {
-  const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => {
-    // Check if user is logged in (client-side only)
-    if (typeof window !== 'undefined') {
-      const getCookieValue = (name: string) => {
-        const value = `; ${document.cookie}`;
-        const parts = value.split(`; ${name}=`);
-        if (parts.length === 2) return parts.pop()?.split(';').shift();
-        return null;
-      };
-
-      const token = getCookieValue('token') || safeLocalStorage.getItem('token');
-      const userData = safeLocalStorage.getItem('user');
-
-      if (token && userData) {
-        try {
-          setUser(JSON.parse(userData));
-        } catch (error) {
-          // Error parsing user data
-        }
-      }
-    }
-  }, []);
-
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <Navigation user={user} />
+      <Navigation />
 
       <div className="pt-14 sm:pt-16">
       <HeroSection

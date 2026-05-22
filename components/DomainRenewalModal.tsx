@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { X, Calendar, CreditCard, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
 import { formatIndianDate, formatIndianCurrency } from '@/lib/dateUtils';
 import { toast } from 'react-hot-toast';
-import { safeLocalStorage } from '@/lib/storage';
 
 interface DomainRenewalModalProps {
   isOpen: boolean;
@@ -43,11 +42,8 @@ export default function DomainRenewalModal({
     setIsLoading(true);
     setIsLoading(true);
     try {
-      const token = safeLocalStorage.getItem('token');
       const response = await fetch(`/api/v1/domains/renew?domainName=${encodeURIComponent(domainName)}&years=${selectedYears}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -80,13 +76,10 @@ export default function DomainRenewalModal({
       // Create a mock payment ID for testing
       const paymentId = `renew_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      const token = safeLocalStorage.getItem('token');
       const response = await fetch('/api/v1/domains/renew', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           domainName,
           years: selectedYears,

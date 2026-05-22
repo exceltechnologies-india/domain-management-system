@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { Shield, Save, Eye, EyeOff, Settings, TestTube, Wifi, Plus, X, AlertCircle, CheckCircle, RefreshCw, Globe, Database, Lock, Download, FileJson, Loader2, CreditCard, ArrowLeftRight, FlaskConical } from 'lucide-react';
 import { Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
@@ -11,7 +12,6 @@ import { AdminLayoutSkeleton, AdminGenericPageSkeleton, AdminSettingsPageSkeleto
 import AdminPasswordReset from '@/components/AdminPasswordReset';
 import { performLogout } from '@/lib/logout';
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
-import { safeLocalStorage } from '@/lib/storage';
 import { logger } from '@/lib/logger';
 
 export default function AdminSettings() {
@@ -33,6 +33,7 @@ export default function AdminSettings() {
 
   const [activeTab, setActiveTab] = useState('security');
   const router = useRouter();
+  const { data: session, status: sessionStatus } = useSession();
 
   // Captcha settings state
   const [captchaEnabled, setCaptchaEnabled] = useState(true);
@@ -74,35 +75,36 @@ export default function AdminSettings() {
   const [showRazorpaySecrets, setShowRazorpaySecrets] = useState(false);
 
   useEffect(() => {
-    // Check for admin authentication
-    const getCookieValue = (name: string) => {
-      const value = `; ${document.cookie}`;
-      const parts = value.split(`; ${name}=`);
-      if (parts.length === 2) return parts.pop()?.split(';').shift();
-      return null;
-    };
+    if (sessionStatus === 'loading') return;
 
-    const token = getCookieValue('token') || safeLocalStorage.getItem('token');
-    const userData = safeLocalStorage.getItem('user');
+    if (session?.user) {
+      const sUser = session.user as { name?: string; email?: string; role?: string; _id?: string; id?: string };
+      const [firstName = '', ...rest] = (sUser.name ?? '').split(' ');
+      const userObj = {
+        firstName,
+        lastName: rest.join(' '),
+        role: sUser.role ?? 'user',
+        _id: sUser._id,
+        id: sUser.id,
+        email: sUser.email,
+      };
 
-    if (!token || !userData) {
-      router.push('/login');
+      if (userObj.role !== 'admin') {
+        router.push('/dashboard');
+        return;
+      }
+
+      setUser(userObj);
+      setIsAuthLoading(false);
+
+      // Trigger data loading after auth is confirmed
+      void loadSystemSettings();
       return;
     }
 
-    const userObj = JSON.parse(userData);
-    if (userObj.role !== 'admin') {
-      router.push('/dashboard');
-      return;
-    }
-
-    setUser(userObj);
-    setIsAuthLoading(false);
-
-    // Trigger data loading after auth is confirmed
-    void loadSystemSettings();
+    router.push('/login');
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router]);
+  }, [router, session, sessionStatus]);
 
   const loadSystemSettings = async () => {
     setIsDataLoading(true);
@@ -119,9 +121,7 @@ export default function AdminSettings() {
 
   const loadRazorpayMode = async () => {
     try {
-      const token = safeLocalStorage.getItem('token');
       const res = await fetch('/api/v1/admin/razorpay-mode', {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
         credentials: 'include',
       });
       if (res.ok) {
@@ -141,7 +141,6 @@ export default function AdminSettings() {
   const saveRazorpayKeys = async () => {
     setIsSavingRazorpayKeys(true);
     try {
-      const token = safeLocalStorage.getItem('token');
       const body: Record<string, string> = {};
       if (razorpayTestKeyId) body.testKeyId = razorpayTestKeyId;
       if (razorpayTestKeySecret) body.testKeySecret = razorpayTestKeySecret;
@@ -151,10 +150,7 @@ export default function AdminSettings() {
 
       const res = await fetch('/api/v1/admin/razorpay-mode', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ action: 'save_keys', ...body }),
       });
@@ -179,13 +175,9 @@ export default function AdminSettings() {
     setIsSwitchingRazorpayMode(true);
     setRazorpaySwitchMessage('');
     try {
-      const token = safeLocalStorage.getItem('token');
       const res = await fetch('/api/v1/admin/razorpay-mode', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ action: 'switch_mode', mode: targetMode }),
       });
@@ -206,14 +198,7 @@ export default function AdminSettings() {
   // Load IP whitelisting settings
   const loadIPWhitelistSettings = async () => {
     try {
-      const token = safeLocalStorage.getItem('token');
-      const headers: HeadersInit = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
       const response = await fetch('/api/v1/admin/settings', {
-        headers,
         credentials: 'include',
       });
 
@@ -225,20 +210,9 @@ export default function AdminSettings() {
         const enabledSetting = settings['admin_ip_whitelist_enabled'];
         setIpWhitelistEnabled(enabledSetting?.value === true || enabledSetting?.value === 'true');
 
-        // Get whitelisted IPs for this user
-        // We rely on user state being set or local storage, but inside async this can be tricky if called early
-        // Safe bet: re-read from storage or pass userObj if available. 
-        // Since loadSystemSettings is called after setUser, 'user' might be available in closure if depending on it, 
-        // but better to be safe.
-
-        let userId = '';
-        if (typeof window !== 'undefined') {
-          const storedUser = safeLocalStorage.getItem('user');
-          if (storedUser) {
-            const u = JSON.parse(storedUser);
-            userId = u._id || u.id;
-          }
-        }
+        // Get whitelisted IPs for this user from the NextAuth session
+        const sUser = session?.user as { _id?: string; id?: string } | undefined;
+        const userId = sUser?._id || sUser?.id || '';
 
         if (userId) {
           const whitelistKey = `admin_ip_whitelist_${userId}`;
@@ -262,14 +236,7 @@ export default function AdminSettings() {
   const fetchCurrentIP = async () => {
     setIsLoadingIP(true);
     try {
-      const token = safeLocalStorage.getItem('token');
-      const headers: HeadersInit = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
       const response = await fetch('/api/v1/admin/check-ip', {
-        headers,
         credentials: 'include',
       });
 
@@ -292,13 +259,9 @@ export default function AdminSettings() {
 
     setIsSavingWhitelist(true);
     try {
-      const token = safeLocalStorage.getItem('token');
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
       };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
 
       // Save enabled setting
       await fetch('/api/v1/admin/settings', {
@@ -365,12 +328,7 @@ export default function AdminSettings() {
   // Load captcha settings
   const loadCaptchaSettings = async () => {
     try {
-      const token = safeLocalStorage.getItem('token');
-      const headers: HeadersInit = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
       const response = await fetch('/api/v1/admin/settings', {
-        headers,
         credentials: 'include',
       });
 
@@ -391,13 +349,9 @@ export default function AdminSettings() {
   const saveCaptchaSettings = async () => {
     setIsSavingCaptcha(true);
     try {
-      const token = safeLocalStorage.getItem('token');
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
       await fetch('/api/v1/admin/settings', {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
           key: 'captcha_enabled',
@@ -419,14 +373,7 @@ export default function AdminSettings() {
   // Load CORS settings
   const loadCORSSettings = async () => {
     try {
-      const token = safeLocalStorage.getItem('token');
-      const headers: HeadersInit = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
       const response = await fetch('/api/v1/admin/settings', {
-        headers,
         credentials: 'include',
       });
 
@@ -465,13 +412,9 @@ export default function AdminSettings() {
   const saveCORSSettings = async () => {
     setIsSavingCors(true);
     try {
-      const token = safeLocalStorage.getItem('token');
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
       };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
 
       // Save enabled setting
       await fetch('/api/v1/admin/settings', {

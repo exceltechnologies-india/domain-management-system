@@ -12,7 +12,6 @@ import { useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/useUser';
 import { confirmDialog } from '@/lib/confirm-dialog';
 import UserLayout from '@/components/user/UserLayout';
-import { safeLocalStorage } from "@/lib/storage";
 import { performLogout } from '@/lib/logout';
 import { DashboardLayoutSkeleton, HostingPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import { clientLogger } from '@/lib/client-logger';
@@ -111,11 +110,10 @@ export default function HostingPage() {
   })();
 
   const handleSSOLogin = (username?: string) => {
-    const token = safeLocalStorage.getItem('token');
-    // Point to the correct custom API route, passing the JWT token for auth
+    // The SSO endpoint authenticates via the NextAuth session cookie
     const url = username
-      ? `/api/v1/user/hosting/sso?username=${username}&token=${token}`
-      : `/api/v1/user/hosting/sso?token=${token}`;
+      ? `/api/v1/user/hosting/sso?username=${username}`
+      : `/api/v1/user/hosting/sso`;
     window.open(url, '_blank');
   };
 

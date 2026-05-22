@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { CheckCircle, XCircle, ArrowRight, Home, CreditCard, AlertCircle, Clock, Loader2, ReceiptText, Mail } from 'lucide-react';
 import Navigation from '@/components/Navigation';
-import { safeLocalStorage, safeSessionStorage } from '@/lib/storage';
+import { safeSessionStorage } from '@/lib/storage';
 import Footer from '@/components/Footer';
 import { PaymentSuccessPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import Link from 'next/link';
@@ -50,36 +51,12 @@ interface PaymentResult {
 export default function PaymentResultPage() {
   const [result, setResult] = useState<PaymentResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [user, setUser] = useState<{
-    firstName: string;
-    lastName: string;
-    role: string;
-    email?: string;
-  } | null>(null);
+  const { data: session } = useSession();
+  const userEmail = session?.user?.email;
   const router = useRouter();
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    // Check if user is logged in
-    const getCookieValue = (name: string) => {
-      const value = `; ${document.cookie}`;
-      const parts = value.split(`; ${name}=`);
-      if (parts.length === 2) return parts.pop()?.split(';').shift();
-      return null;
-    };
-
-    const token = getCookieValue('token') || safeLocalStorage.getItem('token');
-    const userData = safeLocalStorage.getItem('user');
-
-    if (token && userData) {
-      try {
-        const userObj = JSON.parse(userData);
-        setUser(userObj);
-      } catch (error) {
-        logger.error('Error parsing user data:', error);
-      }
-    }
-
     // Get payment result from session storage (cleaner than URL parameters)
     const paymentResultData = safeSessionStorage.getItem('paymentResult');
 
@@ -166,7 +143,7 @@ export default function PaymentResultPage() {
   if (!result) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
-        <Navigation user={user} />
+        <Navigation />
         <div className="flex-1 max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16 flex items-center justify-center">
           <div className="text-center">
             <AlertCircle className="h-16 w-16 text-gray-400 mx-auto mb-4" />
@@ -203,7 +180,7 @@ export default function PaymentResultPage() {
 
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
-        <Navigation user={user} />
+        <Navigation />
         <div className="flex-1 max-w-2xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-10 sm:py-14 space-y-4">
 
           {/* ── Hero: Payment confirmed ── */}
@@ -220,10 +197,10 @@ export default function PaymentResultPage() {
             ) : (
               <h1 className="text-3xl font-bold text-gray-900 mb-4">Payment Successful</h1>
             )}
-            {(user?.email || result.guestEmail) && (
+            {(userEmail || result.guestEmail) && (
               <p className="text-sm text-gray-600">
                 Confirmation email sent to{' '}
-                <span className="font-semibold text-gray-800">{result.guestEmail ?? user?.email}</span>
+                <span className="font-semibold text-gray-800">{result.guestEmail ?? userEmail}</span>
               </p>
             )}
             {(result.orderId || result.invoiceNumber) && (
@@ -421,7 +398,7 @@ export default function PaymentResultPage() {
   // ── Failed / Error state ──────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <Navigation user={user} />
+      <Navigation />
       <div className="flex-1 max-w-2xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 sm:p-8">
           {/* Hero */}

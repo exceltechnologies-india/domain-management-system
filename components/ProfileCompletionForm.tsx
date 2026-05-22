@@ -41,8 +41,6 @@ export default function ProfileCompletionForm({ user, onComplete }: ProfileCompl
     setIsLoading(true);
 
     try {
-      const token = safeLocalStorage.getItem('token');
-
       // Ensure phoneCc and country are set for India-only service
       const profileData = {
         ...formData,
@@ -55,10 +53,8 @@ export default function ProfileCompletionForm({ user, onComplete }: ProfileCompl
 
       const response = await fetch('/api/v1/user/complete-profile', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(profileData),
       });
 

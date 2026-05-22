@@ -22,7 +22,6 @@ import AdminLayout from '@/components/admin/AdminLayout';
 import { AdminLayoutSkeleton, AdminPendingDomainsPageSkeleton, AdminTableRowsSkeleton } from '@/components/skeletons/PageSkeletons';
 import Modal from '@/components/Modal';
 import RefreshButton from '@/components/dashboard/RefreshButton';
-import { safeLocalStorage } from '@/lib/storage';
 import { performLogout } from '@/lib/logout';
 import { formatIndianDateTime } from '@/lib/dateUtils';
 import toast from 'react-hot-toast';
@@ -86,33 +85,15 @@ export default function AdminPendingHostingPage() {
       return;
     }
 
-    const token = safeLocalStorage.getItem('token');
-    const userData = safeLocalStorage.getItem('user');
-
-    if (!token || !userData) {
-      router.push('/login');
-      return;
-    }
-
-    const userObj = JSON.parse(userData);
-    if (userObj.role !== 'admin') {
-      router.push('/dashboard');
-      return;
-    }
-
-    setUser(userObj);
-    setIsLoading(false);
+    router.push('/login');
   }, [router, session, status]);
 
   // Fetch Pending Data
   const fetchPendingData = async () => {
     try {
       setIsLoadingData(true);
-      const token = safeLocalStorage.getItem('token');
-      const headers: HeadersInit = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch('/api/v1/admin/hosting/pending', { headers });
+      const res = await fetch('/api/v1/admin/hosting/pending', { credentials: 'include' });
       const data = await res.json();
 
       if (data.success) {
@@ -137,13 +118,10 @@ export default function AdminPendingHostingPage() {
   const handleRetry = async (id: string) => {
     try {
       setIsRetrying(id);
-      const token = safeLocalStorage.getItem('token');
 
       const res = await fetch(`/api/v1/admin/hosting/pending/${id}/retry`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        credentials: 'include'
       });
       const data = await res.json();
 
@@ -167,11 +145,10 @@ export default function AdminPendingHostingPage() {
     const id = pendingDeleteItem._id;
     try {
       setIsDeleting(id);
-      const token = safeLocalStorage.getItem('token');
 
       const res = await fetch(`/api/v1/admin/hosting/pending/${id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
+        credentials: 'include',
       });
 
       if (res.ok) {

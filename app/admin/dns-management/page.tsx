@@ -32,7 +32,6 @@ import AdminLayout from '@/components/admin/AdminLayout';
 import { AdminLayoutSkeleton, AdminGenericPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import { performLogout } from '@/lib/logout';
 import { confirmDialog } from '@/lib/confirm-dialog';
-import { safeLocalStorage } from '@/lib/storage';
 import { logger } from '@/lib/logger';
 
 interface Domain {
@@ -182,27 +181,7 @@ function AdminDNSManagementContent() {
       return;
     }
 
-    const token = safeLocalStorage.getItem('token');
-    const userData = safeLocalStorage.getItem('user');
-
-    if (!token || !userData) {
-      router.push('/login');
-      return;
-    }
-
-    try {
-      const parsedUser = JSON.parse(userData);
-      if (parsedUser.role !== 'admin') {
-        router.push('/dashboard');
-        return;
-      }
-      setUser(parsedUser);
-      setIsAuthLoading(false);
-      void loadAllDomains(false);
-    } catch (error) {
-      logger.error('Error parsing user data:', error);
-      router.push('/login');
-    }
+    router.push('/login');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, status, session?.user?.email]);
 
@@ -230,12 +209,7 @@ function AdminDNSManagementContent() {
   const loadAllDomains = async (refresh: boolean = true) => {
     if (refresh) setIsDataLoading(true);
     try {
-      let token = safeLocalStorage.getItem('token');
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
       const response = await fetch('/api/v1/admin/domains', {
-        headers,
         credentials: 'include'
       });
 
@@ -262,7 +236,6 @@ function AdminDNSManagementContent() {
     }
 
     try {
-      const token = safeLocalStorage.getItem('token');
       const domain = domains.find(d => d.id === domainId);
       if (!domain) {
         setDnsRecords([]);
@@ -270,7 +243,7 @@ function AdminDNSManagementContent() {
       }
 
       const response = await fetch(`/api/v1/admin/domains/dns?domainName=${encodeURIComponent(domain.name)}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -312,12 +285,11 @@ function AdminDNSManagementContent() {
     if (!domainId || domains.length === 0) return;
     setIsNameserverLoading(true);
     try {
-      const token = safeLocalStorage.getItem('token');
       const domain = domains.find(d => d.id === domainId);
       if (!domain) return;
 
       const response = await fetch(`/api/v1/domains/nameservers?domainName=${encodeURIComponent(domain.name)}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -362,13 +334,10 @@ function AdminDNSManagementContent() {
     const initialNsSnapshot = [...nameservers];
     setIsUpdatingNameservers(true);
     try {
-      const token = safeLocalStorage.getItem('token');
       const response = await fetch('/api/v1/admin/domains/nameservers', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ domainName: domain.name, method: 'default' }),
       });
       if (response.ok) {
@@ -409,13 +378,10 @@ function AdminDNSManagementContent() {
 
     setIsUpdatingNameservers(true);
     try {
-      const token = safeLocalStorage.getItem('token');
       const response = await fetch('/api/v1/admin/domains/nameservers', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ domainName: domain.name, method: 'custom', nameservers: list }),
       });
       if (response.ok) {
@@ -439,13 +405,10 @@ function AdminDNSManagementContent() {
 
     setIsActivating(true);
     try {
-      const token = safeLocalStorage.getItem('token');
       const response = await fetch('/api/v1/admin/domains/activate-dns', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ domainName: domain.name, force }),
       });
 
@@ -478,16 +441,13 @@ function AdminDNSManagementContent() {
     }
 
     try {
-      const token = safeLocalStorage.getItem('token');
       const domain = domains.find(d => d.id === selectedDomain);
       if (!domain) return;
 
       const response = await fetch('/api/v1/admin/domains/dns', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ domainName: domain.name, recordData: newRecord }),
       });
 
@@ -508,7 +468,6 @@ function AdminDNSManagementContent() {
   const handleDeleteRecord = async (recordId: string) => {
     if (!selectedDomain) return;
     try {
-      const token = safeLocalStorage.getItem('token');
       const domain = domains.find(d => d.id === selectedDomain);
       if (!domain) return;
 
@@ -517,10 +476,8 @@ function AdminDNSManagementContent() {
 
       const response = await fetch(`/api/v1/admin/domains/dns?domainName=${encodeURIComponent(domain.name)}&recordId=${encodeURIComponent(recordId)}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ recordData: record }),
       });
 
@@ -555,7 +512,6 @@ function AdminDNSManagementContent() {
     }
 
     try {
-      const token = safeLocalStorage.getItem('token');
       const domain = domains.find(d => d.id === selectedDomain);
       if (!domain) return;
 
@@ -569,10 +525,8 @@ function AdminDNSManagementContent() {
       // Delete old
       const deleteResponse = await fetch(`/api/v1/admin/domains/dns?domainName=${encodeURIComponent(domain.name)}&recordId=${encodeURIComponent(originalRecord.id)}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ recordData: originalRecord }),
       });
 
@@ -584,10 +538,8 @@ function AdminDNSManagementContent() {
       // Add new
       const addResponse = await fetch('/api/v1/admin/domains/dns', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ domainName: domain.name, recordData: editRecord }),
       });
 
