@@ -1,6 +1,10 @@
 import { NextRequest } from "next/server";
 import { AuthService } from "@/lib/auth";
-import { DirectAdminService } from "@/lib/directadmin";
+import {
+  suspendUser as daSuspendUser,
+  unsuspendUser as daUnsuspendUser,
+  deleteUser as daDeleteUser,
+} from "@/lib/integrations/directadmin";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 import { clearDirectAdminUsernameForAll } from "@/lib/services/users";
@@ -34,16 +38,41 @@ export async function POST(request: NextRequest) {
 
     let result;
 
-    // 3. Perform Action
+    // 3. Perform Action. Each typed-wrapper outcome is rolled up
+    // into the `result` field for the response. user_not_found is
+    // surfaced explicitly so admin knows the local row was orphaned
+    // (DA didn't know the user) vs the operation actually completing.
     switch (action) {
-      case 'suspend':
-        result = await DirectAdminService.suspendUser(username);
+      case 'suspend': {
+        const outcome = await daSuspendUser({ username });
+        if (outcome.kind === "da_unreachable" || outcome.kind === "hard_failure") {
+          return secureErrorResponse(
+            outcome.kind === "da_unreachable"
+              ? "DA temporarily unreachable — try again"
+              : "Suspend failed — see server logs",
+            outcome.kind === "da_unreachable" ? 503 : 500,
+            outcome.kind === "da_unreachable" ? "DA_UNREACHABLE" : "ACTION_FAILED"
+          );
+        }
+        result = { outcome: outcome.kind };
         break;
-      
-      case 'unsuspend':
-        result = await DirectAdminService.unsuspendUser(username);
+      }
+
+      case 'unsuspend': {
+        const outcome = await daUnsuspendUser({ username });
+        if (outcome.kind === "da_unreachable" || outcome.kind === "hard_failure") {
+          return secureErrorResponse(
+            outcome.kind === "da_unreachable"
+              ? "DA temporarily unreachable — try again"
+              : "Unsuspend failed — see server logs",
+            outcome.kind === "da_unreachable" ? 503 : 500,
+            outcome.kind === "da_unreachable" ? "DA_UNREACHABLE" : "ACTION_FAILED"
+          );
+        }
+        result = { outcome: outcome.kind };
         break;
-      
+      }
+
       case 'delete':
         // For delete, we also need to clear the local records
         // to keep states consistent (even if DA user is already gone).
@@ -79,14 +108,22 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // 4. Delete from DirectAdmin (External) - Make this resilient
+        // 4. Delete from DirectAdmin (External) - resilient: any
+        // outcome other than `deleted` / `user_not_found` is logged
+        // but doesn't fail the request, since local records are
+        // already cleaned up.
         if (username && username !== 'N/A') {
-          try {
-            result = await DirectAdminService.deleteUser(username);
-          } catch (daError: unknown) {
-            const message = daError instanceof Error ? daError.message : String(daError);
-            serverLogger.warn(`DirectAdmin deletion failed for ${username}, but proceeding with local cleanup: ${message}`);
-            result = { warning: `DA deletion failed: ${message}. Local records were cleared.` };
+          const outcome = await daDeleteUser({ username });
+          if (outcome.kind === "deleted" || outcome.kind === "user_not_found") {
+            result = { outcome: outcome.kind };
+          } else {
+            serverLogger.warn(
+              `DirectAdmin deletion ${outcome.kind} for ${username}, but proceeding with local cleanup`
+            );
+            result = {
+              warning: `DA deletion ${outcome.kind}. Local records were cleared.`,
+              outcome: outcome.kind,
+            };
           }
         }
         

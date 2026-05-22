@@ -10,10 +10,11 @@
  *   - suspendUser   → SuspendUserOutcome
  *   - unsuspendUser → UnsuspendUserOutcome
  *   - getUserConfig → GetUserConfigOutcome
+ *   - deleteUser    → DeleteUserOutcome
  *
  * To migrate next:
- *   - deleteUser, modifyDomain (updateDNSNameservers is permanently
- *     disabled — see lib/directadmin/dns.ts; skip)
+ *   - modifyDomain (updateDNSNameservers is permanently disabled — see
+ *     lib/directadmin/dns.ts; skip)
  */
 
 /**
@@ -109,6 +110,25 @@ export type UnsuspendUserOutcome =
  */
 export type GetUserConfigOutcome =
   | { kind: "found"; config: Record<string, string | undefined> }
+  | { kind: "user_not_found"; reason: string }
+  | { kind: "da_unreachable"; reason: string }
+  | { kind: "hard_failure"; reason: string };
+
+/**
+ * Outcome of a `deleteUser` call. The cleanup workflow (diag-da and
+ * admin actions) typically wants `user_not_found` to coalesce with
+ * success — if we asked DA to delete a user and they don't exist,
+ * the end state is what we wanted. Callers can opt into the
+ * idempotent reading by collapsing both branches at the callsite.
+ *
+ * - `deleted`         — DA accepted the delete.
+ * - `user_not_found`  — DA says the user wasn't there. For cleanup
+ *                        flows this is effectively success.
+ * - `da_unreachable`  — DA 503 / network. Caller should retry later.
+ * - `hard_failure`    — anything else (permission, etc.).
+ */
+export type DeleteUserOutcome =
+  | { kind: "deleted" }
   | { kind: "user_not_found"; reason: string }
   | { kind: "da_unreachable"; reason: string }
   | { kind: "hard_failure"; reason: string };

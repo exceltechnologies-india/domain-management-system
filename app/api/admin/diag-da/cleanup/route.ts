@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { AuthService } from "@/lib/auth";
-import { DirectAdminService } from "@/lib/directadmin";
+import { deleteUser as daDeleteUser } from "@/lib/integrations/directadmin";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 import connectDB from "@/lib/mongodb";
@@ -25,19 +25,37 @@ export async function POST(request: NextRequest) {
     const results: Array<{
       username: string;
       success: boolean;
-      daResult?: unknown;
+      outcome: string;
       error?: string;
     }> = [];
 
     for (const username of usernames) {
-      try {
-        serverLogger.info(`Cleanup: Attempting to delete ${username}`);
-        const daResult = await DirectAdminService.deleteUser(username);
-        results.push({ username, success: true, daResult });
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err);
-        serverLogger.error(`Cleanup: Failed to delete ${username}: ${message}`);
-        results.push({ username, success: false, error: message });
+      serverLogger.info(`Cleanup: Attempting to delete ${username}`);
+      // Coalesce `user_not_found` with `deleted` — for cleanup purposes
+      // the end state matches the intent. Other outcomes surface
+      // distinctly so admin can tell DA-down apart from real failures.
+      const outcome = await daDeleteUser({ username });
+      switch (outcome.kind) {
+        case "deleted":
+        case "user_not_found":
+          results.push({ username, success: true, outcome: outcome.kind });
+          break;
+        case "da_unreachable":
+          results.push({
+            username,
+            success: false,
+            outcome: outcome.kind,
+            error: "DA temporarily unreachable — try again",
+          });
+          break;
+        case "hard_failure":
+          results.push({
+            username,
+            success: false,
+            outcome: outcome.kind,
+            error: "Delete failed — see server logs",
+          });
+          break;
       }
     }
 

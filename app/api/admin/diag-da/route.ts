@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { DirectAdminService } from "@/lib/directadmin";
+import { deleteUser as daDeleteUser } from "@/lib/integrations/directadmin";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 import { listAllHostingsForDirectAdminDiag } from "@/lib/services/hostings";
@@ -28,12 +29,17 @@ export async function GET(request: NextRequest) {
     if (doCleanup) {
       const orphans = ["ttgr6jne", "ttgrgm6jme", "ttgrgm6jme1"];
       for (const username of orphans) {
-        try {
-          await DirectAdminService.deleteUser(username);
-          cleanupResults.push({ username, status: "deleted" });
-        } catch (e: unknown) {
-          const message = e instanceof Error ? e.message : String(e);
-          cleanupResults.push({ username, status: "failed/not found", error: message });
+        const outcome = await daDeleteUser({ username });
+        if (outcome.kind === "deleted" || outcome.kind === "user_not_found") {
+          cleanupResults.push({ username, status: outcome.kind });
+        } else {
+          cleanupResults.push({
+            username,
+            status: outcome.kind,
+            error: outcome.kind === "da_unreachable"
+              ? "DA unreachable"
+              : "delete failed — see server logs",
+          });
         }
       }
     }
