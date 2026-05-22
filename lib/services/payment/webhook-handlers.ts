@@ -1,10 +1,10 @@
-import Order from "@/models/Order";
 import type { IOrder } from "@/models/Order";
 import { getUserById } from "@/lib/services/users";
 import Hosting from "@/models/Hosting";
 import type { HydratedDocument } from "mongoose";
 import { getPlanByRazorpaySubscriptionPlanId } from "@/lib/services/hosting-plans";
 import { findUserHosting, getHostingById } from "@/lib/services/hostings";
+import { createRenewalOrder } from "@/lib/services/orders";
 import {
   attachOrderToRenewal,
   claimRenewalPayment,
@@ -246,56 +246,26 @@ export async function handleSubscriptionCharged(payload: RazorpayWebhookPayload)
   );
 
   // ── Step 8: Create Order record (audit trail) ─────────────────────────────
-  const orderId = `ORD-RNW-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
   let newOrder: HydratedDocument<IOrder> | null = null;
 
   try {
-    const order = new Order({
-      orderId,
-      userId: user._id,
-      userName: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
-      userEmail: user.email,
-      paymentId: payment.id,
-      razorpayOrderId: payment.order_id || subscription.id,
-      razorpayPaymentId: payment.id,
-      razorpaySignature: "webhook_verified",
-      amount: payment.amount / 100,
-      currency: payment.currency,
-      status: "completed",
-      orderType: "renewal",
-      domains: [
-        {
-          domainName,
-          price: payment.amount / 100,
-          currency: payment.currency,
-          registrationPeriod: isMonthly ? 1 : 12,
-          periodUnit: isMonthly ? "months" : "years",
-          status: "registered",
-          itemType: "hosting",
-          hostingPlan: hostingPlan
-            ? {
-                planId: hostingPlan.planId,
-                name: hostingPlan.name,
-                serverPackage: hostingPlan.directAdminPackage,
-              }
-            : undefined,
-        },
-      ],
-      successfulDomains: [domainName],
-      paymentVerification: {
-        verifiedAt: new Date(),
-        paymentStatus: "captured",
-        paymentAmount: payment.amount / 100,
-        paymentCurrency: payment.currency,
-        razorpayOrderId: payment.order_id || subscription.id,
-      },
+    newOrder = await createRenewalOrder({
+      user,
+      payment,
+      subscriptionId: subscription.id,
+      domainName,
+      isMonthly,
+      hostingPlan: hostingPlan
+        ? {
+            planId: hostingPlan.planId,
+            name: hostingPlan.name,
+            serverPackage: hostingPlan.directAdminPackage,
+          }
+        : undefined,
     });
 
-    await order.save();
-    newOrder = order;
-
     // Link orderId back to the RenewalPayment record for cross-referencing
-    await attachOrderToRenewal(razorpayPaymentId, String(order._id));
+    await attachOrderToRenewal(razorpayPaymentId, String(newOrder._id));
   } catch (orderErr: unknown) {
     // Order creation failure is non-critical — service is already renewed
     serverLogger.error(`[Webhook] Failed to create Order record: ${asErr(orderErr).message}`);

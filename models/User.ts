@@ -62,6 +62,11 @@ export interface IUser extends Document {
     price: number;
     currency: string;
     registrationPeriod: number;
+    // Aligned with the schema below — was missing from the interface.
+    // Without these, code reading them off `user.cart[i]` got `never` and
+    // had to widen via casts (or, more commonly, silently dropped them).
+    periodUnit?: "months" | "years" | "minutes" | "days";
+    linkedDomain?: string;
     itemType?: "domain" | "hosting";
     hostingPlan?: {
       name: string;

@@ -25,9 +25,15 @@ export default defineConfig({
     // per-test timeout so a slow CI cold-start doesn't false-fail.
     testTimeout: 30_000,
     hookTimeout: 60_000,
-    // Run serially — the in-memory Mongo is shared across files so parallel
-    // suites would step on each other's data. Cheap enough to serialize.
-    fileParallelism: false,
+    // File parallelism enabled — each test file runs in its own worker
+    // process (vitest's default isolation:"forks"), so mongoose state and
+    // the mongodb-memory-server instance are per-file. Suites can't step
+    // on each other's data. At the current 15-file count the boot cost
+    // roughly cancels the runtime savings (parallel ~35s vs serial ~33s on
+    // the dev box), but the architecture is correct for when the suite
+    // grows; raising the count to ~30 files should show real parallel
+    // savings.
+    fileParallelism: true,
   },
   resolve: {
     alias: {

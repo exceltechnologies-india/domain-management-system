@@ -195,7 +195,7 @@ export async function provisionPendingHosting(
   // DA / mail / Hosting model out of cold-start when callers only want
   // the lighter read/write helpers above.
   const { getUserById } = await import("@/lib/services/users");
-  const { DirectAdminService } = await import("@/lib/directadmin");
+  const { DirectAdminService, DA_SERVER_IP } = await import("@/lib/directadmin");
   const { EmailService } = await import("@/lib/email");
   const { serverLogger } = await import("@/lib/server-logger");
   const Hosting = (await import("@/models/Hosting")).default;
@@ -278,7 +278,7 @@ export async function provisionPendingHosting(
       {
         domainName: domain,
         packageName,
-        serverIp: process.env.DIRECTADMIN_IP || "136.115.64.54",
+        serverIp: DA_SERVER_IP,
         nameservers: DirectAdminService.NAMESERVERS,
       }
     );

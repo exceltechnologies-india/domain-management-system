@@ -73,6 +73,7 @@ vi.mock("@/lib/directadmin", () => ({
       if (mockDAState.updateDnsThrows) throw new Error("DNS API failed");
     }),
   },
+  DA_SERVER_IP: "127.0.0.1", // test placeholder for the centralized DA IP constant
 }));
 
 vi.mock("@/lib/email", () => ({

@@ -1,14 +1,8 @@
-export interface User {
-  _id: string;
-  email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
-  role: "admin" | "user";
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
+// `User`, `Payment`, and `DNSRecord` types previously declared here were
+// duplicates of the Mongoose `IUser`/`IPayment` interfaces (or the
+// long-deleted DNSRecord model) — zero importers. Removed to avoid drift.
+// Reach for `IUser` from `@/models/User` and `IPayment` from
+// `@/models/Payment` instead.
 
 export interface Domain {
   _id: string;
@@ -49,31 +43,6 @@ export interface CartItem {
   // Per-TLD attributes collected at checkout (e.g. .us Nexus category).
   // Empty/undefined for the common case where the TLD needs no extras.
   tldAttributes?: Record<string, string>;
-}
-
-export interface Payment {
-  _id: string;
-  userId: string;
-  orderId: string;
-  razorpayPaymentId: string;
-  amount: number;
-  currency: string;
-  status: "pending" | "completed" | "failed" | "refunded";
-  domainIds: string[];
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface DNSRecord {
-  _id: string;
-  domainId: string;
-  recordType: "A" | "AAAA" | "CNAME" | "MX" | "TXT" | "NS";
-  name: string;
-  value: string;
-  ttl: number;
-  priority?: number;
-  createdAt: Date;
-  updatedAt: Date;
 }
 
 export interface ResellerClubResponse {

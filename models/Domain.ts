@@ -139,14 +139,16 @@ DomainSchema.index(
   { domainName: 1 },
   { unique: true, partialFilterExpression: { deletedAt: null } }
 );
-DomainSchema.index({ userId: 1, status: 1 });
-DomainSchema.index({ next_action_at: 1 });
 // Daily-scheduler eligibility query — `next_action_at <= now AND processing_until
 // IS NULL OR < now`. Mirrors the Hosting schema's compound index so the
-// scheduler doesn't COLLSCAN the Domain side of the loop.
+// scheduler doesn't COLLSCAN the Domain side of the loop. Mongo plans
+// prefix-only queries against this compound, so a separate
+// `{ next_action_at: 1 }` index is redundant.
 DomainSchema.index({ next_action_at: 1, processing_until: 1 });
 
-// Compound indexes for high-frequency query patterns
+// Compound indexes for high-frequency query patterns. The renewal-queries
+// compound also covers `(userId, status)` lookups as a prefix, so the
+// standalone `{ userId: 1, status: 1 }` index is redundant.
 DomainSchema.index({ userId: 1, status: 1, expiresAt: 1 }); // renewal queries
 DomainSchema.index({ userId: 1, expiresAt: 1 });             // expiry notifications
 DomainSchema.index({ domainName: 'text' });                  // full-text search

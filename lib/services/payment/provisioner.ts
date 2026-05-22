@@ -15,6 +15,7 @@ import { serverLogger } from "@/lib/server-logger";
 import connectDB from "@/lib/mongodb";
 import { setUserResellerClubIds } from "@/lib/services/users";
 import { isHostingItem } from "@/lib/billing";
+import type { BookingStep } from "@/models/Order";
 
 import type { IUser } from "@/models/User";
 import type { CartItem } from "@/lib/types";
@@ -45,7 +46,7 @@ export interface OrderDomain {
   periodUnit?: string;
   status: string;
   dnsProvider: "resellerclub" | "directadmin";
-  bookingStatus: { step: string; message: string; timestamp: Date; progress: number }[];
+  bookingStatus: { step: BookingStep; message: string; timestamp: Date; progress: number }[];
   orderId?: string;
   resellerClubCustomerId?: number;
   resellerClubOrderId?: string;

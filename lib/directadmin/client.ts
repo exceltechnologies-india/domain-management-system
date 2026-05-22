@@ -15,6 +15,27 @@ export const ADMIN_USER = process.env.DIRECTADMIN_ADMIN_USER;
 export const API_KEY = process.env.DIRECTADMIN_API_KEY;
 
 /**
+ * The shared-server IP that DA accounts get bound to. Sourced from the
+ * DIRECTADMIN_IP env var; the literal fallback is the production server's IP
+ * (kept so that local-dev / first-boot smoke tests don't crash before the env
+ * is wired). Production deploys MUST set DIRECTADMIN_IP — a forgotten env in
+ * staging would otherwise silently provision new hosting accounts onto the
+ * prod DA box.
+ */
+const DA_FALLBACK_IP = "136.115.64.54";
+export const DA_SERVER_IP =
+  process.env.DIRECTADMIN_IP ||
+  (process.env.NODE_ENV === "production"
+    ? (() => {
+        // eslint-disable-next-line no-console
+        console.error(
+          "[directadmin] DIRECTADMIN_IP env var missing in production — falling back to literal. Fix the deploy config."
+        );
+        return DA_FALLBACK_IP;
+      })()
+    : DA_FALLBACK_IP);
+
+/**
  * DirectAdmin Service
  * Handles API interactions with the DirectAdmin control panel.
  *

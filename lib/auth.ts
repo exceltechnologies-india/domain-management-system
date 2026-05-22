@@ -151,9 +151,11 @@ export class AuthService {
         } else {
             serverLogger.warn('[AuthService] User not found or inactive via session:', sessionUser.email);
         }
-      } else {
-        serverLogger.warn('[AuthService] No session found via getServerSession');
       }
+      // No session — common path for guests / unauthenticated pre-login
+      // requests on protected routes. The route layer's own 401 is the
+      // signal; logging at warn level fires on every anonymous landing
+      // and floods Cloud Logging with non-actionable noise.
 
       return null;
     } catch (error) {

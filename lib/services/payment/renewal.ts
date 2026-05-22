@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { DirectAdminService } from "@/lib/directadmin";
+import { DirectAdminService, DA_SERVER_IP } from "@/lib/directadmin";
 import { ZohoBooksService } from "@/lib/zohobooks";
 import { EmailService } from "@/lib/email";
 import type { IOrder } from "@/models/Order";
@@ -218,8 +218,7 @@ export async function handleRenewalPayment(
                   domainName: hosting.domainName,
                   packageName: hosting.name || "Hosting Plan",
                   planName: hosting.name || "Hosting Plan",
-                  serverIp:
-                    process.env.DIRECTADMIN_IP || "136.115.64.54",
+                  serverIp: DA_SERVER_IP,
                   nameservers: DirectAdminService.NAMESERVERS,
                 }
               );
