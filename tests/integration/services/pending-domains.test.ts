@@ -128,3 +128,29 @@ describe("listAllPendingDomainNames", () => {
     expect(list.map((p) => p.domainName).sort()).toEqual(["one.test", "two.test"]);
   });
 });
+
+describe("PendingDomain uniqueness scope (domainName, userId)", () => {
+  // Two users failing to register the same name must produce two separate
+  // PendingDomain audit rows. The partial unique index is scoped to
+  // (domainName, userId) — if it were scoped to domainName alone, user B's
+  // upsert would throw E11000 or silently overwrite user A's row + userId.
+  it("allows two users to have a pending row for the same domain", async () => {
+    const userA = validUserId();
+    const userB = validUserId();
+    const sameDomain = "contested.test";
+
+    const rowA = await PendingDomain.create(
+      buildPendingPayload({ domainName: sameDomain, userId: userA })
+    );
+    const rowB = await PendingDomain.create(
+      buildPendingPayload({ domainName: sameDomain, userId: userB })
+    );
+
+    expect(String(rowA.userId)).toBe(String(userA));
+    expect(String(rowB.userId)).toBe(String(userB));
+    expect(String(rowA._id)).not.toBe(String(rowB._id));
+
+    const list = await listAllPendingDomainNames();
+    expect(list.filter((p) => p.domainName === sameDomain)).toHaveLength(2);
+  });
+});
