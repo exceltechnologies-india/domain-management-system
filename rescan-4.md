@@ -15,10 +15,13 @@ All four HIGH findings have been verified against the actual code, not just trus
 | Batch 7c | H3 — Bearer-token cleanup (38 files, −917 lines) | ✅ Closed | `6bdd43b` |
 | Batch 7d | H4 — Mongo `maxPoolSize` 10 → 50 + Cloud Run pairing | ✅ Closed | `9b60a9f` |
 | Batch 7e | M2 + M3 + M5 + M7 + M9 + M10 + M11 + M12 + M15 + L2 | ✅ Closed | `8aee422` |
+| Batch 7f | L3 + L4 + L5 + L6 + L7 + L9 + L10 + L11 | ✅ Closed | `5ee9c94` |
 
-**All four HIGHs + 9 MEDIUMs cleared.** Bonus catch in 7e: M3's tightened `BookingStep` type uncovered a real save-validation bug — `provisioner-hosting.ts:379` emits `step: "hosting_deferred"` but the schema enum didn't include it. Every DA-unreachable hosting save would have tripped Mongoose validation at runtime. Added to the canonical list.
+**All four HIGHs + 9 MEDIUMs + 9 LOWs cleared.** Bonus catches:
+- 7e: M3's tightened `BookingStep` type uncovered a real save-validation bug — `provisioner-hosting.ts:379` emits `step: "hosting_deferred"` but the schema enum didn't include it.
+- 7f: L6's `Redis | null` typing exposed 3 latent null-deref sites (rate-limit, razorpay webhook, tld-pricing-cache) — each guarded.
 
-Remaining work: 6 MEDIUMs (M1, M4, M6, M8, M13, M14 — all multi-day/-week or deferred for prod-data audit) + 11 LOWs + 3 architectural suggestions.
+Remaining work: 6 MEDIUMs (M1, M4, M6, M8, M13, M14 — all multi-day/-week or deferred) + 3 LOWs (L1 Razorpay wrapper, L8 React error boundaries, L12 a11y eslint) + 3 architectural suggestions.
 
 ---
 
@@ -150,25 +153,25 @@ Remaining work: 6 MEDIUMs (M1, M4, M6, M8, M13, M14 — all multi-day/-week or d
 **File:** [lib/types.ts:1-11](lib/types.ts) (`User` duplicates `IUser` and is wrong), `:65-76` (`Payment` — `IPayment` is used directly), `:69-78` (`DNSRecord` — model deleted in M4 batch).
 **Fix:** Delete all three; add ESLint rule to flag duplicate `I*`-name interfaces.
 
-### [L3] Magic numbers `=== 10`, `=== 12` for hosting billing cycle inference (5 sites)
+### ✅ [L3] Magic numbers `=== 10`, `=== 12` for hosting billing cycle inference (5 sites)
 **Files:** `lib/services/payment/post-tasks.ts:68`, `app/checkout/page.tsx:486`, `app/checkout/guest/page.tsx:446`, `app/api/payments/create-order/route.ts:182`, `store/cartStore.ts:44-47`
 **Fix:** `lib/billing.ts` exports `inferPeriodUnit(item: CartItem)` returning a strict enum.
 
-### [L4] `puppeteer` in `dependencies` but only used by test scripts
+### ✅ [L4] `puppeteer` in `dependencies` but only used by test scripts
 **File:** `package.json` (puppeteer ^24.28.0, used only in `tests/browser/`)
 **Problem:** Adds ~200MB to production node_modules + cold-start working set.
 **Fix:** Move to `devDependencies`.
 
-### [L5] Two parallel client-side loggers with different signatures
+### ✅ [L5] Two parallel client-side loggers with different signatures
 **Files:** `lib/logger.ts` (27 consumers, `(...args)` signature) and `lib/client-logger.ts` (2 consumers, `(message, details)` signature). Both POST to `/api/v1/log`.
 **Fix:** Pick one shape; migrate; delete the loser. ~2 hours.
 
-### [L6] `Redis = null as unknown as Redis` when REDIS_HOST is unset
+### ✅ [L6] `Redis = null as unknown as Redis` when REDIS_HOST is unset
 **File:** [lib/redis.ts:22](lib/redis.ts)
 **Problem:** Structural lie — every caller of `redis.foo()` will NPE. Currently OK because all callers are inside try/catch, but fragile.
 **Fix:** Export typed `Redis | null`; force callers to narrow.
 
-### [L7] `findUserOrder` still uses `$or` despite Batch 4 [L4] saying it was fixed
+### ✅ [L7] `findUserOrder` still uses `$or` despite Batch 4 [L4] saying it was fixed
 **File:** [lib/services/orders.ts:276-281](lib/services/orders.ts)
 **Problem:** Sibling `getOrderByIdOrOrderId` was correctly fixed with a single-filter branch; this one was missed. Behaviour fine due to `userId` scope, but description/code disagree.
 **Fix:** Mirror `getOrderByIdOrOrderId`. ~10 min.
@@ -177,16 +180,16 @@ Remaining work: 6 MEDIUMs (M1, M4, M6, M8, M13, M14 — all multi-day/-week or d
 **Problem:** A single React render error inside (say) the cart UI tears the whole page tree down to the root `error.tsx`. No mid-tree isolation.
 **Fix:** Add `<ErrorBoundary>` around cart, chat widget, floating cart count. ~3 hours.
 
-### [L9] `app/error.tsx` still reads the dead localStorage `token` for "Was user logged in" display
+### ✅ [L9] `app/error.tsx` still reads the dead localStorage `token` for "Was user logged in" display
 **File:** [app/error.tsx:49-50](app/error.tsx)
 **Fix:** Read from `useSession()` (client component, available).
 
-### [L10] `Order.paymentId` `required:true, unique:true` is write-only/fallback-only after H1 migration
+### ✅ [L10] `Order.paymentId` `required:true, unique:true` is write-only/fallback-only after H1 migration
 **File:** [models/Order.ts:14,16,122-126](models/Order.ts)
 **Problem:** Every renewal-webhook construction fabricates a unique `paymentId` (using Razorpay payment id) just to satisfy the index. `razorpayPaymentId` is the real source of truth and is already indexed.
 **Fix:** Drop `required` + `unique`; reads use `razorpayPaymentId ?? paymentId` defensively. ~30 min + migration.
 
-### [L11] `getUserByIdSafe` is functionally identical to `getUserById` after `password: select:false`
+### ✅ [L11] `getUserByIdSafe` is functionally identical to `getUserById` after `password: select:false`
 **File:** [lib/services/users.ts:22,33-37](lib/services/users.ts)
 **Problem:** Comment claims one is dangerous; in reality neither returns password without explicit `.select("+password")`. Misleads new contributors.
 **Fix:** Delete the duplicate; pick the surviving name. ~30 min.
@@ -231,10 +234,11 @@ Remaining work: 6 MEDIUMs (M1, M4, M6, M8, M13, M14 — all multi-day/-week or d
 - ~~**Batch 7c** — H3 (Bearer cleanup sweep, 38 files)~~ ✅ shipped `6bdd43b`
 - ~~**Batch 7d** — H4 (Mongo pool sizing)~~ ✅ shipped `9b60a9f`
 - ~~**Batch 7e** — M2 + M3 + M5 + M7 + M9 + M10 + M11 + M12 + M15 + L2~~ ✅ shipped `8aee422`
-- **Batch 7f** — LOW sweep (L1 + L3 + L4 + L5 + L6 + L7 + L9-verify + L10 + L11) — ~5h.
-- **Batch 7g** — M13 (typed PaymentError) — ~3.5h.
-- **Batch 7h** — M8 (PendingDomain._id ObjectId) — needs prod data audit.
-- **Batch 7i** — M14 (component test harness) + cart-store tests.
-- **Batch 7j** — L8 (React error boundaries) + L12 (a11y eslint + axe) — ~1 day.
-- **Batch 7k** — M4 + M6 (frontend decomposition) — multi-day, per page.
+- ~~**Batch 7f** — L3 + L4 + L5 + L6 + L7 + L9 + L10 + L11~~ ✅ shipped `5ee9c94`
+- **Batch 7g** — L1 (Razorpay client wrapper, 10 mechanical thin wrappers) — ~1h.
+- **Batch 7h** — M13 (typed PaymentError) — ~3.5h.
+- **Batch 7i** — M8 (PendingDomain._id ObjectId) — needs prod data audit.
+- **Batch 7j** — M14 (component test harness) + cart-store tests.
+- **Batch 7k** — L8 (React error boundaries) + L12 (a11y eslint + axe) — ~1 day.
+- **Batch 7l** — M4 + M6 (frontend decomposition) — multi-day, per page.
 - **Project 8** — anti-corruption layer (M1). Multi-week.
