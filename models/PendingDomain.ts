@@ -143,15 +143,18 @@ const PendingDomainSchema = new Schema<IPendingDomain>(
 // Indexes for efficient queries
 // Partial unique index scoped to (domainName, userId): keeps two users' failed
 // registrations for the same name as separate audit rows. The bulk-upsert in
-// lib/services/payment/provisioner-verification.ts:151-154 filters on
-// (domainName, userId) — when previously the unique index was scoped to
-// domainName alone, that filter wouldn't find user A's existing row, the
-// upsert tried to insert a new doc for user B, and the global unique threw
-// E11000. Archived rows are excluded so a soft-deleted record doesn't block
-// re-registration.
+// lib/services/payment/provisioner-verification.ts filters on
+// (domainName, userId). Archived rows are excluded so a soft-deleted record
+// doesn't block re-registration.
+//
+// `isArchived: false` (rather than `$ne: true`) because MongoDB partial-index
+// expressions only support $eq/$gt/$gte/$lt/$lte/$exists/$type/$and — the
+// previous `$ne: true` spec was silently rejected, so this unique index never
+// actually existed in prod. The schema field has `default: false` so new rows
+// always get the literal value.
 PendingDomainSchema.index(
   { domainName: 1, userId: 1 },
-  { unique: true, partialFilterExpression: { isArchived: { $ne: true } } }
+  { unique: true, partialFilterExpression: { isArchived: false } }
 );
 PendingDomainSchema.index({ userId: 1, status: 1 });
 PendingDomainSchema.index({ orderId: 1 });

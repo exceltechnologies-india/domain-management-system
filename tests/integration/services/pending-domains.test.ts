@@ -43,9 +43,13 @@ function buildPendingPayload(overrides: Record<string, unknown> = {}) {
 
 beforeAll(async () => {
   expect(mongoose.connection.readyState).toBe(1);
-  // Skip syncIndexes — PendingDomain's partial unique index uses $ne, which
-  // mongodb-memory-server's standalone Mongo refuses to build. The tests
-  // here don't depend on the unique-on-domainName index firing.
+  // Sync the (domainName, userId) partial unique index so the
+  // uniqueness-scope test below exercises the actual DB-level constraint.
+  // Rescan-4 H2 migration swapped the partial expression to
+  // `isArchived: false` (supported by Mongo partial-index ops), so
+  // syncIndexes now succeeds where the previous `$ne: true` form was
+  // silently rejected by both mongodb-memory-server and prod.
+  await PendingDomain.syncIndexes();
 });
 
 beforeEach(clearAllCollections);
@@ -152,5 +156,42 @@ describe("PendingDomain uniqueness scope (domainName, userId)", () => {
 
     const list = await listAllPendingDomainNames();
     expect(list.filter((p) => p.domainName === sameDomain)).toHaveLength(2);
+  });
+
+  // Same user, same domain, two non-archived rows — the unique should fire.
+  // (The bulkWrite upsert in provisioner-verification.ts uses
+  // updateOne+upsert which won't trip this; raw inserts will.)
+  it("rejects a second non-archived row for the same (domainName, userId)", async () => {
+    const owner = validUserId();
+    const sameDomain = "double-insert.test";
+
+    await PendingDomain.create(
+      buildPendingPayload({ domainName: sameDomain, userId: owner })
+    );
+    await expect(
+      PendingDomain.create(
+        buildPendingPayload({ domainName: sameDomain, userId: owner })
+      )
+    ).rejects.toThrow(/duplicate key|E11000/i);
+  });
+
+  // Archived rows are excluded from the partial unique, so a user can have
+  // an archived row + a fresh active row for the same name.
+  it("allows a new row when the prior one was archived", async () => {
+    const owner = validUserId();
+    const sameDomain = "reused.test";
+
+    await PendingDomain.create(
+      buildPendingPayload({
+        domainName: sameDomain,
+        userId: owner,
+        isArchived: true,
+      })
+    );
+    await expect(
+      PendingDomain.create(
+        buildPendingPayload({ domainName: sameDomain, userId: owner })
+      )
+    ).resolves.toBeDefined();
   });
 });
