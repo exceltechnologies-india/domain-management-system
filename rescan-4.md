@@ -29,14 +29,15 @@ All four HIGH findings have been verified against the actual code, not just trus
 | Batch 7q | M1 slice 11 — RC `getDNSRecords` (2 callsites, 9 new tests) | ✅ Closed | `a4b4422` |
 | Batch 7r | M1 slice 12 — DA `changePackage` + upgrade-flow + admin route (7 new tests) | ✅ Closed | `26d201f` |
 | Batch 7s | M13 partial — delete dead `error.message.includes` chain in verification-error.ts (-65 LOC) | ✅ Closed | `299f84c` |
+| Batch 7t | L1 — typed Razorpay SDK client (10 `as unknown as` casts → 1) | 🔄 In progress | pending |
 
-**All four HIGHs + 11 MEDIUMs + 9 LOWs cleared. Anti-corruption layer complete** — 13 vertical slices shipped across batches 7a–7s (6 RC ops + 6 DA ops + the vocab unification + the M13 verification-error.ts cleanup). Bonus catches:
+**All four HIGHs + 11 MEDIUMs + 10 LOWs cleared. Anti-corruption layer complete** — 14 vertical slices shipped across batches 7a–7t (6 RC ops + 6 DA ops + the vocab unification + the M13 verification-error.ts cleanup + the L1 Razorpay typed-client extraction). Bonus catches:
 - 7e: M3's tightened `BookingStep` type uncovered a real save-validation bug — `provisioner-hosting.ts:379` emits `step: "hosting_deferred"` but the schema enum didn't include it.
 - 7f: L6's `Redis | null` typing exposed 3 latent null-deref sites (rate-limit, razorpay webhook, tld-pricing-cache) — each guarded.
 - 7g–7r: M1 vertical slices establish the `lib/integrations/{resellerclub,directadmin}/` pattern. ~35 `toLowerCase().includes()` chains removed from app code (down from ~50); the inner/outer classification layers now share one fragment vocabulary; payment + admin + cron paths all branch on typed outcomes instead of message strings.
 - 7s: With the typed outcomes in place, the 7-arm `error.message.includes` chain in verification-error.ts turned out to be matching strings nobody throws — deleted (−65 LOC).
 
-Remaining work: 3 MEDIUMs (M4 1000+ line page components, M6 client-component ratio, M14 zero component/page/cart-store tests; M8 deferred pending prod data audit) + 3 LOWs (L1 Razorpay wrapper, L8 React error boundaries, L12 a11y eslint) + 3 architectural suggestions.
+Remaining work: 3 MEDIUMs (M4 1000+ line page components, M6 client-component ratio, M14 zero component/page/cart-store tests; M8 deferred pending prod data audit) + 2 LOWs (L8 React error boundaries, L12 a11y eslint) + 3 architectural suggestions.
 
 ---
 
@@ -161,9 +162,10 @@ Remaining work: 3 MEDIUMs (M4 1000+ line page components, M6 client-component ra
 
 ## Cleanups (LOW)
 
-### ⏸ [L1] Razorpay SDK escape-hatch casts repeated 10× — DEFERRED (10 mechanical thin wrappers, dedicated session)
+### ✅ [L1] Razorpay SDK escape-hatch casts repeated 10× — CLOSED in batch 7t
 **Files:** `lib/razorpay.ts:41,223,244,257,303,338,354`, `lib/razorpay-payments.ts:54,77,93`
 **Fix:** Wrap once in a typed `lib/razorpay-client.ts`; collapse the 10 casts to 1.
+**Resolution:** New `lib/razorpay-client.ts` constructs the SDK once, sets the 30s timeout, and exposes a strongly-typed `TypedRazorpayClient` facade (`orders` / `payments` / `subscriptions` / `plans` with our `RazorpayPaymentDetails` etc. on the return types). The single `as unknown as TypedRazorpayClient` cast at module scope is the only type-bridging cast left; all seven callsites in `razorpay.ts` and two of the three in `razorpay-payments.ts` are now clean. The third callsite (`getPaymentById`) had zero consumers and was deleted.
 
 ### ✅ [L2] Three orphan/duplicate types in `lib/types.ts`
 **File:** [lib/types.ts:1-11](lib/types.ts) (`User` duplicates `IUser` and is wrong), `:65-76` (`Payment` — `IPayment` is used directly), `:69-78` (`DNSRecord` — model deleted in M4 batch).

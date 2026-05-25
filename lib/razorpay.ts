@@ -1,6 +1,6 @@
-import Razorpay from "razorpay";
 import crypto from "crypto";
 import { serverLogger } from "@/lib/server-logger";
+import { razorpayClient, razorpay } from "@/lib/razorpay-client";
 import type {
   RazorpayPaymentDetails,
   RazorpayOrderDetails,
@@ -20,29 +20,7 @@ function asRzpErr(error: unknown): RazorpaySdkError {
   return { message: String(error) };
 }
 
-const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
-const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
-
-if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
-  throw new Error("Razorpay configuration is missing");
-}
-
-export const razorpay = new Razorpay({
-  key_id: RAZORPAY_KEY_ID,
-  key_secret: RAZORPAY_KEY_SECRET,
-});
-
-// 30s upper bound on every Razorpay HTTP call. The SDK's internal axios
-// client has no default timeout — a hung Razorpay slot would otherwise
-// stall payment-verify indefinitely (mirrors the resolved [H3] Zoho axios
-// timeout). Set on `api.defaults` because the SDK doesn't expose a
-// constructor `timeout` option in v2.x.
-{
-  const apiClient = (razorpay as unknown as { api?: { defaults?: { timeout?: number } } }).api;
-  if (apiClient?.defaults) {
-    apiClient.defaults.timeout = 30_000;
-  }
-}
+export { razorpay };
 
 export interface PaymentOrder {
   id: string;
@@ -131,8 +109,8 @@ export class RazorpayService {
         options.notes = notes;
       }
 
-      const order = await razorpay.orders.create(options);
-      return order as PaymentOrder;
+      const order = await razorpayClient.orders.create(options);
+      return order;
     } catch (error: unknown) {
       serverLogger.error("❌ [RAZORPAY] Order creation error:", error);
       const err = asRzpErr(error);
@@ -199,7 +177,7 @@ export class RazorpayService {
       }
 
       const expectedSignature = crypto
-        .createHmac("sha256", RAZORPAY_KEY_SECRET!)
+        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
         .update(body.toString())
         .digest("hex");
 
@@ -219,8 +197,7 @@ export class RazorpayService {
    */
   static async getPaymentDetails(paymentId: string): Promise<RazorpayPaymentDetails> {
     try {
-      const payment = await razorpay.payments.fetch(paymentId);
-      return payment as unknown as RazorpayPaymentDetails;
+      return await razorpayClient.payments.fetch(paymentId);
     } catch (error) {
       serverLogger.error("Razorpay payment fetch error:", error);
       throw new Error("Failed to fetch payment details");
@@ -240,8 +217,7 @@ export class RazorpayService {
         refundOptions.amount = amount * 100;
       }
 
-      const refund = await razorpay.payments.refund(paymentId, refundOptions);
-      return refund as unknown as RazorpayRefund;
+      return await razorpayClient.payments.refund(paymentId, refundOptions);
     } catch (error) {
       serverLogger.error("Razorpay refund error:", error);
       throw new Error("Failed to process refund");
@@ -253,8 +229,7 @@ export class RazorpayService {
    */
   static async getOrderDetails(orderId: string): Promise<RazorpayOrderDetails> {
     try {
-      const order = await razorpay.orders.fetch(orderId);
-      return order as unknown as RazorpayOrderDetails;
+      return await razorpayClient.orders.fetch(orderId);
     } catch (error) {
       serverLogger.error("Razorpay order fetch error:", error);
       throw new Error("Failed to fetch order details");
@@ -299,8 +274,7 @@ export class RazorpayService {
         options.start_at = startAt;
       }
 
-      const subscription = await razorpay.subscriptions.create(options);
-      return subscription as unknown as RazorpaySubscription;
+      return await razorpayClient.subscriptions.create(options);
     } catch (error: unknown) {
       serverLogger.error("❌ [RAZORPAY] Subscription creation error:", error);
       const err = asRzpErr(error);
@@ -323,7 +297,7 @@ export class RazorpayService {
     try {
       const amountInPaise = Math.round(amount * 100);
 
-      const plan = await razorpay.plans.create({
+      const plan = await razorpayClient.plans.create({
         period: period === 'monthly' ? 'monthly' : 'yearly',
         interval: 1,
         item: {
@@ -335,7 +309,7 @@ export class RazorpayService {
       });
 
       serverLogger.info(`✅ [RAZORPAY] Plan created: ${plan.id} for ${amount} ${period}`);
-      return plan as unknown as RazorpayPlan;
+      return plan;
     } catch (error: unknown) {
       serverLogger.error("❌ [RAZORPAY] Plan creation error:", error);
       const err = asRzpErr(error);
@@ -350,8 +324,7 @@ export class RazorpayService {
    */
   static async cancelSubscription(subscriptionId: string): Promise<RazorpaySubscription> {
     try {
-      const subscription = await razorpay.subscriptions.cancel(subscriptionId);
-      return subscription as unknown as RazorpaySubscription;
+      return await razorpayClient.subscriptions.cancel(subscriptionId);
     } catch (error: unknown) {
       serverLogger.error("❌ [RAZORPAY] Subscription cancellation error:", error);
       const err = asRzpErr(error);
