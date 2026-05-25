@@ -6,6 +6,12 @@ import {
   secureJsonResponse,
   secureErrorResponse,
 } from "@/lib/api-response-wrapper";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const verifyOtpSchema = z.object({
+  phone: z.string().trim().min(1).max(20),
+  code: z.string().regex(/^\d{6}$/, "Invalid code format"),
+});
 
 export const dynamic = "force-dynamic";
 
@@ -28,29 +34,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const { phone, code } = (await request.json()) as {
-      phone?: string;
-      code?: string;
-    };
-    if (!phone || !code) {
-      return secureErrorResponse(
-        "Phone and code are required",
-        400,
-        "VALIDATION_ERROR"
-      );
-    }
+    const validation = await validatedBody(request, verifyOtpSchema);
+    if (!validation.ok) return validation.response;
+    const { phone, code } = validation.data;
 
     const digits = phone.replace(/\D/g, "").replace(/^91/, "");
     if (digits.length !== 10) {
       return secureErrorResponse(
         "Invalid phone number",
-        400,
-        "VALIDATION_ERROR"
-      );
-    }
-    if (!/^\d{6}$/.test(code)) {
-      return secureErrorResponse(
-        "Invalid code format",
         400,
         "VALIDATION_ERROR"
       );

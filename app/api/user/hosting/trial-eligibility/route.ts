@@ -11,15 +11,18 @@ import {
   hashIp,
   isTrialOtpRequired,
 } from "@/lib/trial-abuse";
+import { validatedBody, z } from "@/lib/api-validation";
 
 export const dynamic = "force-dynamic";
 
-interface EligibilityBody {
-  planId?: string;
-  deviceFingerprint?: string;
-  recaptchaToken?: string;
-  otpToken?: string;
-}
+const eligibilitySchema = z.object({
+  planId: z.string().optional(),
+  deviceFingerprint: z.string().optional(),
+  recaptchaToken: z.string().optional(),
+  otpToken: z.string().optional(),
+});
+
+type EligibilityBody = z.infer<typeof eligibilitySchema>;
 
 /**
  * GET (legacy) / POST /api/user/hosting/trial-eligibility
@@ -106,8 +109,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as EligibilityBody;
-    return await runEligibility(request, body || {});
+    const validation = await validatedBody(request, eligibilitySchema);
+    if (!validation.ok) return validation.response;
+    return await runEligibility(request, validation.data);
   } catch (error: unknown) {
     serverLogger.error("Trial eligibility check error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
