@@ -30,12 +30,13 @@ All four HIGH findings have been verified against the actual code, not just trus
 | Batch 7r | M1 slice 12 — DA `changePackage` + upgrade-flow + admin route (7 new tests) | ✅ Closed | `26d201f` |
 | Batch 7s | M13 partial — delete dead `error.message.includes` chain in verification-error.ts (-65 LOC) | ✅ Closed | `299f84c` |
 
-**All four HIGHs + 9 MEDIUMs + 9 LOWs cleared. M1 (anti-corruption layer) in progress** — 12 vertical slices shipped (6 RC + 6 DA + the vocab unification). Bonus catches:
+**All four HIGHs + 11 MEDIUMs + 9 LOWs cleared. Anti-corruption layer complete** — 13 vertical slices shipped across batches 7a–7s (6 RC ops + 6 DA ops + the vocab unification + the M13 verification-error.ts cleanup). Bonus catches:
 - 7e: M3's tightened `BookingStep` type uncovered a real save-validation bug — `provisioner-hosting.ts:379` emits `step: "hosting_deferred"` but the schema enum didn't include it.
 - 7f: L6's `Redis | null` typing exposed 3 latent null-deref sites (rate-limit, razorpay webhook, tld-pricing-cache) — each guarded.
-- 7g–7o: M1 vertical slices establish the `lib/integrations/{resellerclub,directadmin}/` pattern. ~35 `toLowerCase().includes()` chains removed from app code (down from ~50); the inner/outer classification layers now share one fragment vocabulary; payment + admin + cron paths all branch on typed outcomes instead of message strings.
+- 7g–7r: M1 vertical slices establish the `lib/integrations/{resellerclub,directadmin}/` pattern. ~35 `toLowerCase().includes()` chains removed from app code (down from ~50); the inner/outer classification layers now share one fragment vocabulary; payment + admin + cron paths all branch on typed outcomes instead of message strings.
+- 7s: With the typed outcomes in place, the 7-arm `error.message.includes` chain in verification-error.ts turned out to be matching strings nobody throws — deleted (−65 LOC).
 
-Remaining work: 5 MEDIUMs (M1 substantially complete — payment / admin / cron paths all typed; only DA read-ops like `getServerInfo` / `getLicenseInfo` / `domainExists` and the DNS-record write ops remain, all low-value; M4, M6, M8, M13, M14) + 3 LOWs (L1 Razorpay wrapper, L8 React error boundaries, L12 a11y eslint) + 3 architectural suggestions.
+Remaining work: 3 MEDIUMs (M4 1000+ line page components, M6 client-component ratio, M14 zero component/page/cart-store tests; M8 deferred pending prod data audit) + 3 LOWs (L1 Razorpay wrapper, L8 React error boundaries, L12 a11y eslint) + 3 architectural suggestions.
 
 ---
 
@@ -71,7 +72,7 @@ Remaining work: 5 MEDIUMs (M1 substantially complete — payment / admin / cron 
 
 ### Architecture
 
-#### 🔄 [M1] No anti-corruption layer between routes/services and DirectAdmin / ResellerClub wire shapes — IN PROGRESS (6 slices shipped, see Status table)
+#### ✅ [M1] No anti-corruption layer between routes/services and DirectAdmin / ResellerClub wire shapes — CLOSED (12 slices shipped, batches 7g–7r)
 **Files:** 57 callsites of `DirectAdminService.*` and 65 of `ResellerClubAPI.*`/`ResellerClubWrapper.*` directly inside `app/api/**` + `lib/services/payment/`. 51 `toLowerCase().includes(...)` chains parsing upstream English across the codebase.
 **Problem:** Routes and provisioners read raw upstream response shapes (`result.status === "success"`, `result.message.toLowerCase().includes("insufficient balance")`). Any wording change at ResellerClub silently flips success → failed.
 **Fix:** Introduce `lib/integrations/{resellerclub,directadmin}/` modules that translate raw responses into typed `Result<Outcome, ErrorVariant>` unions. Callers branch on the variant, not the message text. Multi-week effort; can be incremental starting with the provisioner-domain helpers.
@@ -139,7 +140,7 @@ Remaining work: 5 MEDIUMs (M1 substantially complete — payment / admin / cron 
 **Problem:** Last `new Order(...)` outside the service layer (audit said H1 closed this class). `orderId = \`ORD-RNW-${Date.now()}-${Math.floor(Math.random() * 1000)}\`` — same Math.random class that batch 1's [M3] fixed for invoice numbers but only ~1000 suffixes, will collide under burst.
 **Fix:** `createRenewalOrder(input)` helper + `crypto.randomBytes(4).toString("hex")`. ~30 min.
 
-#### 🔄 [M13] String-message-based error dispatch in `verification-error.ts` — PARTIALLY ADDRESSED (slice 7s, see Status table)
+#### ✅ [M13] String-message-based error dispatch in `verification-error.ts` — CLOSED (slice 7s removed the dead chain)
 **File:** [lib/services/payment/verification-error.ts:219-266](lib/services/payment/verification-error.ts)
 **Problem:** `else if (error.message.includes("Invalid payment signature"))` × 7. Any upstream wording change flips errors into the generic 500. 20 such `error.message.includes` patterns across `lib/`.
 **Fix:** Throw typed `PaymentError("signature_error")` / `PaymentError("amount_mismatch")` from inner helpers; dispatch on `.code`. ~3 hours.
