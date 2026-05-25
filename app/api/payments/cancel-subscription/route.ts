@@ -3,6 +3,12 @@ import { AuthService } from "@/lib/auth";
 import { RazorpayService } from "@/lib/razorpay";
 import { findUserHostingById } from "@/lib/services/hostings";
 import { serverLogger } from "@/lib/server-logger";
+import { validatedBody, z } from "@/lib/api-validation";
+import { Schemas } from "@/lib/validation";
+
+const cancelSubscriptionSchema = z.object({
+  hostingId: Schemas.id,
+});
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
@@ -15,11 +21,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { hostingId } = await request.json();
-
-    if (!hostingId) {
-      return NextResponse.json({ error: "Hosting ID is required" }, { status: 400 });
-    }
+    const result = await validatedBody(request, cancelSubscriptionSchema);
+    if (!result.ok) return result.response;
+    const { hostingId } = result.data;
 
     // Find hosting
     const hosting = await findUserHostingById(hostingId, user.id);

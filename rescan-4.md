@@ -36,8 +36,9 @@ All four HIGH findings have been verified against the actual code, not just trus
 | Batch 7w.2 | L12 partial — enable `plugin:jsx-a11y/recommended` (lint surface, 144 warnings flagged) | ✅ Closed | `7c466b5` |
 | Batch 7x | M6 partial — demote 14 leaf components from `'use client'` to server | ✅ Closed | `0f35e5f` |
 | Batch 7y | S2 — pre-commit hooks (husky + lint-staged + tsc --noEmit) | ✅ Closed | `2660cfe` |
+| Batch 7z | S3 partial — `validatedBody` / `validatedQuery` helpers + 5-route sweep (10 new tests) | 🔄 In progress | pending |
 
-**All four HIGHs + 11 MEDIUMs + 11 LOWs + 1 architectural suggestion (S2) cleared, M14 / M6 / L12 in progress.** 20 vertical slices shipped across batches 7a–7y (6 RC ops + 6 DA ops + the vocab unification + the M13 cleanup + the L1 Razorpay typed-client + two M14 slices + L8 error boundaries + L12 jsx-a11y lint + M6 leaf demotion + S2 pre-commit hooks). Bonus catches:
+**All four HIGHs + 11 MEDIUMs + 11 LOWs + 1 architectural suggestion (S2) cleared, M14 / M6 / L12 / S3 in progress.** 21 vertical slices shipped across batches 7a–7z (6 RC ops + 6 DA ops + the vocab unification + the M13 cleanup + the L1 Razorpay typed-client + two M14 slices + L8 error boundaries + L12 jsx-a11y lint + M6 leaf demotion + S2 pre-commit hooks + S3 validatedBody helper). Bonus catches:
 - 7e: M3's tightened `BookingStep` type uncovered a real save-validation bug — `provisioner-hosting.ts:379` emits `step: "hosting_deferred"` but the schema enum didn't include it.
 - 7f: L6's `Redis | null` typing exposed 3 latent null-deref sites (rate-limit, razorpay webhook, tld-pricing-cache) — each guarded.
 - 7g–7r: M1 vertical slices establish the `lib/integrations/{resellerclub,directadmin}/` pattern. ~35 `toLowerCase().includes()` chains removed from app code (down from ~50); the inner/outer classification layers now share one fragment vocabulary; payment + admin + cron paths all branch on typed outcomes instead of message strings.
@@ -240,9 +241,10 @@ Remaining work: 3 MEDIUMs (M4 1000+ line page components, M6 client-component ra
 **Suggestion:** Husky + lint-staged running `tsc --noEmit` on staged files and `eslint --fix`. ~30 min.
 **Resolution:** `husky` + `lint-staged` installed as devDeps; `prepare` script wired so `npm install` auto-installs the git hook. `.husky/pre-commit` runs `npx lint-staged` (eslint --fix on staged `.ts/.tsx/.js/.jsx` per the `lint-staged` config in `package.json`) followed by `npx tsc --noEmit` (project-wide typecheck). Skipping with `--no-verify` is supported but discouraged — the same checks gate CI.
 
-### [S3] Most API routes parse JSON bodies with no validation; only 3 use Zod despite the dep being present
+### 🔄 [S3] Most API routes parse JSON bodies with no validation — PARTIALLY ADDRESSED (helper + 5-route sweep in batch 7z)
 **Files:** `app/api/admin/users/route.ts`, `app/api/domains/dns/route.ts`, `app/api/admin/users/reset-2fa/route.ts` use `Schemas.*.safeParse`. The other 130+ routes do `const { x, y } = await request.json()`.
 **Suggestion:** `validatedBody<T>(req, schema)` helper. Sweep highest-risk routes (user mutations, admin writes, payment webhooks) first. Helper ~30 min; sweep is route-by-route.
+**Slice 7z update:** Helper landed at `lib/api-validation.ts` — `validatedBody(req, schema)` + `validatedQuery(req, schema)`, both returning a `{ok: true, data} | {ok: false, response}` discriminated union with a uniform 400 + `code: "VALIDATION_ERROR"` / `code: "INVALID_JSON"` shape. 10 new tests pin the parse-fail + multi-issue join + coercion paths. 5 high-risk routes migrated: `payments/cancel-subscription` (hostingId required), `payments/create-order` (cart-items array shape), `user/domains/watch` (domain-name shape + length), `user/complete-profile` (nested address shape), `user/hosting/check-eligibility` (optional domainName). Total: 12 of ~73 routes now validate (7 pre-existing + 5 from this slice). Remaining ~61 routes pending — route-by-route as the audit notes.
 
 ---
 

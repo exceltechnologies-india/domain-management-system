@@ -2,6 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import { AuthService } from "@/lib/auth";
 import { serverLogger } from "@/lib/server-logger";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const completeProfileSchema = z.object({
+  phone: z.string().trim().min(1).max(20).optional(),
+  phoneCc: z.string().trim().min(1).max(8).optional(),
+  companyName: z.string().trim().min(1).max(200).optional(),
+  gstNumber: z.string().trim().max(50).optional(),
+  address: z
+    .object({
+      line1: z.string().trim().max(500).optional(),
+      city: z.string().trim().max(100).optional(),
+      state: z.string().trim().max(100).optional(),
+      country: z.string().trim().max(100).optional(),
+      zipcode: z.string().trim().max(20).optional(),
+    })
+    .optional(),
+});
 
 // Force dynamic rendering - required for API routes
 export const dynamic = 'force-dynamic';
@@ -52,8 +69,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { phone, phoneCc, companyName, gstNumber, address } = body;
+    const result = await validatedBody(request, completeProfileSchema);
+    if (!result.ok) return result.response;
+    const { phone, phoneCc, companyName, gstNumber, address } = result.data;
 
     // Update user profile
     if (phone) user.phone = phone;
