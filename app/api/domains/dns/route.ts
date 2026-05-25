@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
+import { getDNSRecords as rcGetDNSRecords } from "@/lib/integrations/resellerclub";
 import { AuthService } from "@/lib/auth";
 import { Schemas } from "@/lib/validation";
 import { SecurityValidator } from "@/lib/security";
@@ -50,21 +51,22 @@ export async function GET(request: NextRequest) {
       return secureErrorResponse("Domain configuration missing", 404, "NOT_FOUND");
     }
 
-    // 4. Get DNS records
-    const result = await ResellerClubWrapper.getDNSRecords(
+    const outcome = await rcGetDNSRecords({
       domainName,
-      domain.resellerClubCustomerId
-    );
+      customerId: domain.resellerClubCustomerId,
+    });
 
-    if (result.status === "error") {
-      const statusCode = result.message?.includes("404") ? 404 : 500;
-      return secureErrorResponse(result.message || "Failed to fetch DNS records", statusCode, "PROVISIONER_ERROR");
+    if (outcome.kind === "not_found") {
+      return secureErrorResponse(outcome.reason, 404, "PROVISIONER_ERROR");
+    }
+    if (outcome.kind === "hard_failure") {
+      return secureErrorResponse(outcome.reason, 500, "PROVISIONER_ERROR");
     }
 
     return secureJsonResponse({
       success: true,
       domainName,
-      records: result.data?.records || [],
+      records: outcome.records,
     });
   } catch (error) {
     return secureErrorResponse("DNS records fetch error", 500, "SERVER_ERROR", error);

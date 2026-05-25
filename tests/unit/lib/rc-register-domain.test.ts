@@ -10,6 +10,7 @@ import {
   classifyTransferDomainResponse,
   classifyGetDomainOrderIdResponse,
   classifyGetDomainDetailsResponse,
+  classifyGetDNSRecordsResponse,
 } from "@/lib/integrations/resellerclub/classify";
 import type { ResellerClubResponse } from "@/lib/types";
 
@@ -317,5 +318,72 @@ describe("classifyGetDomainDetailsResponse", () => {
       baseResponse({ status: "success", data: undefined })
     );
     expect(out.kind).toBe("hard_failure");
+  });
+});
+
+describe("classifyGetDNSRecordsResponse", () => {
+  it("status:success with records array → found", () => {
+    const records = [
+      { type: "A", value: "192.0.2.1", id: "1", ttl: 3600, name: "@" },
+      { type: "MX", value: "mail.example.com", id: "2", ttl: 3600, priority: 10 },
+    ];
+    const out = classifyGetDNSRecordsResponse(
+      baseResponse({ status: "success", data: { records, total: 2 } })
+    );
+    expect(out.kind).toBe("found");
+    if (out.kind === "found") {
+      expect(out.records).toHaveLength(2);
+      expect(out.records[0].type).toBe("A");
+    }
+  });
+
+  it("status:success with empty records → found (empty array, not not_found)", () => {
+    const out = classifyGetDNSRecordsResponse(
+      baseResponse({ status: "success", data: { records: [], total: 0 } })
+    );
+    expect(out.kind).toBe("found");
+    if (out.kind === "found") expect(out.records).toEqual([]);
+  });
+
+  it("status:success with malformed data (no records key) → found with empty array", () => {
+    // Belt-and-braces — keep the route handler crash-free even if the
+    // inner wrapper shape drifts upstream.
+    const out = classifyGetDNSRecordsResponse(
+      baseResponse({ status: "success", data: { total: 0 } })
+    );
+    expect(out.kind).toBe("found");
+    if (out.kind === "found") expect(out.records).toEqual([]);
+  });
+
+  it.each([
+    "Request failed with status code 404",
+    "Domain not found",
+    "no domain registered",
+    "does not exist",
+  ])("not-found fragment recognised: %s", (msg) => {
+    const out = classifyGetDNSRecordsResponse(
+      baseResponse({ status: "error", message: msg })
+    );
+    expect(out.kind).toBe("not_found");
+  });
+
+  it("unrelated error → hard_failure", () => {
+    const out = classifyGetDNSRecordsResponse(
+      baseResponse({ status: "error", message: "Failed to get DNS records" })
+    );
+    expect(out.kind).toBe("hard_failure");
+    if (out.kind === "hard_failure") {
+      expect(out.reason).toBe("Failed to get DNS records");
+    }
+  });
+
+  it("undefined message + error status → hard_failure with synthesised reason", () => {
+    const out = classifyGetDNSRecordsResponse(
+      baseResponse({ status: "error" })
+    );
+    expect(out.kind).toBe("hard_failure");
+    if (out.kind === "hard_failure") {
+      expect(out.reason).toMatch(/status=error/);
+    }
   });
 });
