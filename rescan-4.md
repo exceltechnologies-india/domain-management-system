@@ -33,8 +33,9 @@ All four HIGH findings have been verified against the actual code, not just trus
 | Batch 7u | M14 partial — extract pure cart-validation helpers + 21 unit tests | ✅ Closed | `0011477` |
 | Batch 7v | M14 continued — store-level cart tests (addItem/removeItem cascade, getters, syncWithServer) — 20 new tests | ✅ Closed | `12d2cbd` |
 | Batch 7w | L8 — React error boundaries (FloatingCart + ChatWidget + CartPage) | ✅ Closed | `2339a2a` |
+| Batch 7w.2 | L12 partial — enable `plugin:jsx-a11y/recommended` (lint surface, 144 warnings flagged) | 🔄 In progress | pending |
 
-**All four HIGHs + 11 MEDIUMs + 11 LOWs cleared, M14 in progress.** 17 vertical slices shipped across batches 7a–7w (6 RC ops + 6 DA ops + the vocab unification + the M13 verification-error.ts cleanup + the L1 Razorpay typed-client + two M14 slices + the L8 error-boundary islands). Bonus catches:
+**All four HIGHs + 11 MEDIUMs + 11 LOWs cleared, M14 and L12 in progress.** 18 vertical slices shipped across batches 7a–7w.2 (6 RC ops + 6 DA ops + the vocab unification + the M13 verification-error.ts cleanup + the L1 Razorpay typed-client + two M14 slices + the L8 error-boundary islands + the L12 jsx-a11y lint surface). Bonus catches:
 - 7e: M3's tightened `BookingStep` type uncovered a real save-validation bug — `provisioner-hosting.ts:379` emits `step: "hosting_deferred"` but the schema enum didn't include it.
 - 7f: L6's `Redis | null` typing exposed 3 latent null-deref sites (rate-limit, razorpay webhook, tld-pricing-cache) — each guarded.
 - 7g–7r: M1 vertical slices establish the `lib/integrations/{resellerclub,directadmin}/` pattern. ~35 `toLowerCase().includes()` chains removed from app code (down from ~50); the inner/outer classification layers now share one fragment vocabulary; payment + admin + cron paths all branch on typed outcomes instead of message strings.
@@ -219,9 +220,10 @@ Remaining work: 3 MEDIUMs (M4 1000+ line page components, M6 client-component ra
 **Problem:** Comment claims one is dangerous; in reality neither returns password without explicit `.select("+password")`. Misleads new contributors.
 **Fix:** Delete the duplicate; pick the surviving name. ~30 min.
 
-### [L12] Accessibility coverage is thin — 10/62 components carry any aria/role attribute
+### 🔄 [L12] Accessibility coverage is thin — 10/62 components carry any aria/role attribute — PARTIALLY ADDRESSED (lint setup landed in 7w.2)
 **Problem:** No keyboard navigation tests; modals likely lack focus traps + `aria-modal`.
 **Fix:** Add `eslint-plugin-jsx-a11y`; run axe-core in CI. ~1 day for lint setup; remediation per component.
+**Slice 7w.2 update:** `plugin:jsx-a11y/recommended` added to `.eslintrc.json` (the plugin was already installed transitively via `next/core-web-vitals`, but only 6 of the recommended ~30 rules were active). Enabling the full preset surfaced 144 issues across 7 rules: `label-has-associated-control` (105 — most form labels are wrapping `<input>` instead of using `htmlFor`), `no-static-element-interactions` (17 clickable `<div>`s), `click-events-have-key-events` (10 same family), `anchor-is-valid` (6), `no-autofocus` (4), `html-has-lang` (1), `heading-has-content` (1). Downgraded those 7 specific rules from the preset's `error` to `warn` so new code is flagged but existing patterns don't break the build; remediation is per-component as the audit notes. `npm run lint` still exits 0. Runtime axe-core in CI deferred — needs `@testing-library/react` first.
 
 ---
 
