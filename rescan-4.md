@@ -38,7 +38,7 @@ All four HIGH findings have been verified against the actual code, not just trus
 | Batch 7y | S2 — pre-commit hooks (husky + lint-staged + tsc --noEmit) | ✅ Closed | `2660cfe` |
 | Batch 7z | S3 partial — `validatedBody` / `validatedQuery` helpers + 5-route sweep (10 new tests) | ✅ Closed | `067da79` |
 | Batch 7z.2 | S3 continued — 6 more routes validated (payments/create-subscription, hosting/renew, hosting/cancel-trial, hosting/auto-renew, domains/nameservers, settings/change-email) | ✅ Closed | `e87ad6a` |
-| Batch 7z.3 | S3 continued — 5 more routes (admin/razorpay-mode discriminated-union, hosting/upgrade, contact, user/support, contact `.sanitized` typing fix) | 🔄 In progress | pending |
+| Batch 7z.3 | S3 continued — 5 more routes (admin/razorpay-mode discriminated-union, hosting/upgrade, contact, user/support, contact `.sanitized` typing fix) | ✅ Closed | `8b4aac3` |
 
 **All four HIGHs + 11 MEDIUMs + 11 LOWs + 1 architectural suggestion (S2) cleared, M14 / M6 / L12 / S3 in progress.** 23 vertical slices shipped across batches 7a–7z.3 (6 RC ops + 6 DA ops + vocab unification + M13 cleanup + L1 Razorpay typed-client + two M14 slices + L8 error boundaries + L12 jsx-a11y lint + M6 leaf demotion + S2 pre-commit hooks + three S3 sweeps). Bonus catches:
 - 7e: M3's tightened `BookingStep` type uncovered a real save-validation bug — `provisioner-hosting.ts:379` emits `step: "hosting_deferred"` but the schema enum didn't include it.
