@@ -488,16 +488,13 @@ export async function POST(request: NextRequest) {
     const errStack = error instanceof Error ? error.stack : undefined;
     serverLogger.error("[GuestCheckout] verify error:", errMessage, errStack);
 
-    // If payment was verified but provisioning failed, create a fallback pending
-    // order so admin can see it and retry manually (mirrors regular verify fallback)
-    const isPaymentError =
-      error instanceof Error &&
-      (error.message.includes("Invalid payment signature") ||
-        error.message.includes("Payment not captured") ||
-        error.message.includes("Payment amount mismatch") ||
-        error.message.includes("Order ID mismatch"));
-
-    if (!isPaymentError && guestUser && orderId && cartItems?.length) {
+    // Reaching here means signature/status/amount checks already passed
+    // (they return NextResponses inside the try, they don't throw). So any
+    // error landing in this catch is a provisioning-side failure → create
+    // a fallback pending order so admin can see it and retry manually.
+    // The earlier `isPaymentError` narrowing matched strings nobody throws
+    // in our codebase; dropped in rescan-4 M1 slice 13 (M13 partial).
+    if (guestUser && orderId && cartItems?.length) {
       try {
         // If orderId already points at a persisted Order (the pending-finalize
         // path completed, then a downstream task threw), don't recreate it.

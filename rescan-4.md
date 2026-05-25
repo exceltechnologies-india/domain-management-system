@@ -28,6 +28,7 @@ All four HIGH findings have been verified against the actual code, not just trus
 | Batch 7p | M1 slice 10 — RC `getDomainOrderId` + `getDomainDetails` (4 callsites, 18 new tests) | ✅ Closed | `c76ce35` |
 | Batch 7q | M1 slice 11 — RC `getDNSRecords` (2 callsites, 9 new tests) | ✅ Closed | `a4b4422` |
 | Batch 7r | M1 slice 12 — DA `changePackage` + upgrade-flow + admin route (7 new tests) | ✅ Closed | `26d201f` |
+| Batch 7s | M13 partial — delete dead `error.message.includes` chain in verification-error.ts (-65 LOC) | 🔄 In progress | pending |
 
 **All four HIGHs + 9 MEDIUMs + 9 LOWs cleared. M1 (anti-corruption layer) in progress** — 12 vertical slices shipped (6 RC + 6 DA + the vocab unification). Bonus catches:
 - 7e: M3's tightened `BookingStep` type uncovered a real save-validation bug — `provisioner-hosting.ts:379` emits `step: "hosting_deferred"` but the schema enum didn't include it.
@@ -138,10 +139,11 @@ Remaining work: 5 MEDIUMs (M1 substantially complete — payment / admin / cron 
 **Problem:** Last `new Order(...)` outside the service layer (audit said H1 closed this class). `orderId = \`ORD-RNW-${Date.now()}-${Math.floor(Math.random() * 1000)}\`` — same Math.random class that batch 1's [M3] fixed for invoice numbers but only ~1000 suffixes, will collide under burst.
 **Fix:** `createRenewalOrder(input)` helper + `crypto.randomBytes(4).toString("hex")`. ~30 min.
 
-#### ⏸ [M13] String-message-based error dispatch in `verification-error.ts` — DEFERRED (multi-site refactor, dedicated batch)
+#### 🔄 [M13] String-message-based error dispatch in `verification-error.ts` — PARTIALLY ADDRESSED (slice 7s, see Status table)
 **File:** [lib/services/payment/verification-error.ts:219-266](lib/services/payment/verification-error.ts)
 **Problem:** `else if (error.message.includes("Invalid payment signature"))` × 7. Any upstream wording change flips errors into the generic 500. 20 such `error.message.includes` patterns across `lib/`.
 **Fix:** Throw typed `PaymentError("signature_error")` / `PaymentError("amount_mismatch")` from inner helpers; dispatch on `.code`. ~3 hours.
+**Slice 7s update:** All seven `error.message.includes(...)` matchers in `verification-error.ts` (plus the mirrored `isPaymentError` narrowing in `guest/verify/route.ts`) were checking against strings nobody in the codebase throws — verification helpers return `NextResponse`s, RC/DA wrappers now return typed outcomes, the Razorpay SDK throws its own wording. The chain was dead defensive code. Removed (-65 LOC); kept a single generic 500 fallback for cases where the failure-state recording itself fails. The "typed PaymentError" rewrite is no longer needed since the surface to dispatch against doesn't exist.
 
 ### Testing
 
