@@ -31,7 +31,7 @@ All four HIGH findings have been verified against the actual code, not just trus
 | Batch 7s | M13 partial — delete dead `error.message.includes` chain in verification-error.ts (-65 LOC) | ✅ Closed | `299f84c` |
 | Batch 7t | L1 — typed Razorpay SDK client (10 `as unknown as` casts → 1) | ✅ Closed | `9b6d018` |
 | Batch 7u | M14 partial — extract pure cart-validation helpers + 21 unit tests | ✅ Closed | `0011477` |
-| Batch 7v | M14 continued — store-level cart tests (addItem/removeItem cascade, getters, syncWithServer) — 20 new tests | 🔄 In progress | pending |
+| Batch 7v | M14 continued — store-level cart tests (addItem/removeItem cascade, getters, syncWithServer) — 20 new tests | ✅ Closed | `12d2cbd` |
 
 **All four HIGHs + 11 MEDIUMs + 10 LOWs cleared, M14 in progress.** 16 vertical slices shipped across batches 7a–7v (6 RC ops + 6 DA ops + the vocab unification + the M13 verification-error.ts cleanup + the L1 Razorpay typed-client + two M14 slices — cart-validation extraction + store-level tests). Bonus catches:
 - 7e: M3's tightened `BookingStep` type uncovered a real save-validation bug — `provisioner-hosting.ts:379` emits `step: "hosting_deferred"` but the schema enum didn't include it.
