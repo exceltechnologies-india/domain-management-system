@@ -1,0 +1,14 @@
+# rescan-4 S2 (batch 7y) — pre-commit hook
+#
+# 1. lint-staged: runs eslint --fix on the staged .ts/.tsx/.js/.jsx files
+#    (configured in package.json#lint-staged). Catches the same warnings
+#    CI surfaces, but at commit time, on just the staged surface.
+#
+# 2. tsc --noEmit: runs the project-wide type check. Cheap (cached) on
+#    incremental edits; full pass when the dep graph is cold.
+#
+# Skipping with --no-verify is supported but discouraged — the same
+# checks gate CI, so skipping locally just defers the failure.
+
+npx lint-staged
+npx tsc --noEmit

@@ -34,7 +34,13 @@
     "audit:summary": "npm audit --summary",
     "deps:outdated": "npm outdated",
     "deps:check": "npm audit && npm outdated",
-    "deps:update": "npm update"
+    "deps:update": "npm update",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix"
+    ]
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.92.0",
@@ -80,7 +86,6 @@
   "devDependencies": {
     "@next/bundle-analyzer": "^16.2.4",
     "@playwright/test": "^1.59.1",
-    "puppeteer": "^24.28.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.9.1",
@@ -93,8 +98,11 @@
     "@vitest/coverage-v8": "^4.1.5",
     "eslint": "8.57.1",
     "eslint-config-next": "^15.5.15",
+    "husky": "^9.1.7",
     "jsdom": "^29.1.1",
+    "lint-staged": "^16.4.0",
     "mongodb-memory-server": "^11.1.0",
+    "puppeteer": "^24.28.0",
     "tsx": "^4.20.6",
     "vitest": "^4.1.5"
   },
