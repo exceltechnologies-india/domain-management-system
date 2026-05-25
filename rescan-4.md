@@ -298,5 +298,17 @@ Remaining work: 3 MEDIUMs (M4 1000+ line page components, M6 client-component ra
 - ~~**Batch 7v** — M14 continued: store-level cart tests (addItem/removeItem cascade, getters, syncWithServer happy path)~~ ✅ shipped `12d2cbd`
 - ~~**Batch 7w** — L8 (React error boundaries)~~ ✅ shipped `2339a2a`
 - ~~**Batch 7w.2** — L12 (jsx-a11y eslint surface)~~ ✅ shipped `7c466b5` (lint setup; runtime axe + per-component remediation deferred)
-- **Batch 7x** — M4 + M6 (frontend decomposition of 1000+ line page components) — multi-day, per page.
-- **Batch 7y** — ⏸ M8 (PendingDomain._id ObjectId) — deferred pending prod data audit.
+- ~~**Batch 7x** — M6 partial: 14 leaf components demoted from `'use client'` to server~~ ✅ shipped `0f35e5f`
+- ~~**Batch 7y** — S2: pre-commit hooks (husky + lint-staged + tsc --noEmit)~~ ✅ shipped `2660cfe`
+- ~~**Batch 7z** — S3 helper (`validatedBody` / `validatedQuery`) + 5-route sweep + 10 tests~~ ✅ shipped `067da79`
+- ~~**Batch 7z.2** — S3 continued: 6 more routes (payments/create-subscription, hosting/renew + cancel-trial + auto-renew, domains/nameservers, settings/change-email)~~ ✅ shipped `e87ad6a`
+- ~~**Batch 7z.3** — S3 continued: 5 more (admin/razorpay-mode discriminated-union, hosting/upgrade, contact, user/support, latent `.sanitized` typing fix)~~ ✅ shipped `8b4aac3`
+- ~~**Batch 7z.4** — S3 continued: 6 more (user/support/[id], admin/support-tickets/[id], trial-otp send + verify, trial-eligibility, chat)~~ ✅ shipped `1dfc073`
+- ~~**Batch 7z.5** — S3 continued: 6 admin write routes (hosting/change-package, hosting/actions discriminated-union + latent bug fix, hosting/assign, users/reactivate, users/reset-password, log-error)~~ ✅ shipped `a978849`
+- **Batch 7aa** — S3 sweep continued (~38 routes remain — payments/verify pair, workers, remaining admin writes, more user/admin endpoints).
+- **Batch 7ab** — M14 component-level tests (deferred — needs `@testing-library/react` installed first).
+- **Batch 7ac** — M4 (5 page components > 1000 lines, multi-day per page).
+- **Batch 7ad** — M6 continued: per-component review of the ~110 remaining client components.
+- **Batch 7ae** — S1: shared frontend API client (58 raw `fetch` callsites — multi-batch).
+- **Batch 7af** — Runtime axe-core in CI (depends on 7ab harness).
+- **Batch 7ag** — ⏸ M8 (PendingDomain._id ObjectId) — deferred pending prod data audit.
