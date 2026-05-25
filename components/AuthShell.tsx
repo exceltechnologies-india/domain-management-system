@@ -1,5 +1,3 @@
-'use client';
-
 import { ReactNode } from 'react';
 import Link from 'next/link';
 import { CheckCircle, Globe, Shield, Headphones, Sparkles, TrendingUp } from 'lucide-react';

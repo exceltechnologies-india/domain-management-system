@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * Internal skeleton primitives shared by the topical files alongside this one.
  * Not re-exported from the PageSkeletons barrel — these are implementation

@@ -1,5 +1,3 @@
-'use client';
-
 import React from 'react';
 
 export function SkeletonBar({ width = 'w-full', height = 'h-4' }: { width?: string; height?: string }) {

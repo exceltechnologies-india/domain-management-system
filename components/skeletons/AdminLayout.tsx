@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * Admin-route shared skeletons: inline table rows and the full admin shell.
  */

@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * Page-level skeleton barrel — backwards-compatible re-exports.
  * Implementation lives in the topical files alongside this one.

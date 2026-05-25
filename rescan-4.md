@@ -34,8 +34,9 @@ All four HIGH findings have been verified against the actual code, not just trus
 | Batch 7v | M14 continued — store-level cart tests (addItem/removeItem cascade, getters, syncWithServer) — 20 new tests | ✅ Closed | `12d2cbd` |
 | Batch 7w | L8 — React error boundaries (FloatingCart + ChatWidget + CartPage) | ✅ Closed | `2339a2a` |
 | Batch 7w.2 | L12 partial — enable `plugin:jsx-a11y/recommended` (lint surface, 144 warnings flagged) | ✅ Closed | `7c466b5` |
+| Batch 7x | M6 partial — demote 14 leaf components from `'use client'` to server | 🔄 In progress | pending |
 
-**All four HIGHs + 11 MEDIUMs + 11 LOWs cleared, M14 and L12 in progress.** 18 vertical slices shipped across batches 7a–7w.2 (6 RC ops + 6 DA ops + the vocab unification + the M13 verification-error.ts cleanup + the L1 Razorpay typed-client + two M14 slices + the L8 error-boundary islands + the L12 jsx-a11y lint surface). Bonus catches:
+**All four HIGHs + 11 MEDIUMs + 11 LOWs cleared, M14 / M6 / L12 in progress.** 19 vertical slices shipped across batches 7a–7x (6 RC ops + 6 DA ops + the vocab unification + the M13 cleanup + the L1 Razorpay typed-client + two M14 slices + L8 error boundaries + L12 jsx-a11y lint + M6 leaf demotion). Bonus catches:
 - 7e: M3's tightened `BookingStep` type uncovered a real save-validation bug — `provisioner-hosting.ts:379` emits `step: "hosting_deferred"` but the schema enum didn't include it.
 - 7f: L6's `Redis | null` typing exposed 3 latent null-deref sites (rate-limit, razorpay webhook, tld-pricing-cache) — each guarded.
 - 7g–7r: M1 vertical slices establish the `lib/integrations/{resellerclub,directadmin}/` pattern. ~35 `toLowerCase().includes()` chains removed from app code (down from ~50); the inner/outer classification layers now share one fragment vocabulary; payment + admin + cron paths all branch on typed outcomes instead of message strings.
@@ -104,9 +105,10 @@ Remaining work: 3 MEDIUMs (M4 1000+ line page components, M6 client-component ra
 **Problem:** Zero importers exist. 250-line dead component pulling 500KB of vendor code into any page that transitively touches `components/index.ts`. Same class as the M4 orphan-model deletion from rescan-1.
 **Fix:** Delete the file. If retained for future use, dynamic-import jsPDF/html2canvas only on click.
 
-#### [M6] 78% of components are `'use client'`
+#### 🔄 [M6] 78% of components are `'use client'` — PARTIALLY ADDRESSED (slice 7x demoted 14 leaves)
 **Problem:** 134 of 172 page/component .tsx files are client-rendered, defeating App Router's perf model. Navigation header, footer, FAQ-item, EmptyState, Card, StatsCard, Skeletons could mostly render on the server.
 **Fix:** Audit `components/*.tsx` for `'use client'` directives that don't actually need state/effects; demote the leaves. ~1 day.
+**Slice 7x update:** 14 leaf components demoted to server. Static-render targets identified by absence of `useState` / `useEffect` / `useRef` / `useContext` / event handlers / browser APIs / `framer-motion`: `Footer`, `HeroSection`, `Section`, `AuthShell`, `Header`, `ContactInfo`, `MessageAttachments`, and the seven skeleton modules (`PageSkeletons`, `_primitives`, `DashboardSkeletons`, `AdminLayout`, `AdminPages`, `UserDashboard`, `PaymentPages`). `SessionProvider` correctly kept as client (wraps NextAuth's client provider). `FeatureCard` + `StatsCard` kept as client (use `motion.*` from framer-motion). Verified with `next build` (all routes built clean) + full unit suite (580/580 green). Remaining: ~110 client components remain — further demotions need per-component review since some use less obvious client features (refs, context, or transitive imports).
 
 ### Database
 

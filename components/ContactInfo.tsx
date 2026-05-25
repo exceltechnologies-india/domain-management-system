@@ -1,5 +1,3 @@
-'use client';
-
 import { Mail, Phone, MapPin, Clock, MessageCircle } from 'lucide-react';
 import Card from './Card';
 

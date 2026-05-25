@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * User-dashboard skeletons (and shared detail-page shells).
  */
