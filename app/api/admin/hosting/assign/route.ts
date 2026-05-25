@@ -5,6 +5,14 @@ import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrap
 import { serverLogger } from "@/lib/server-logger";
 import { getUserById } from "@/lib/services/users";
 import connectDB from "@/lib/mongodb";
+import { validatedBody, z } from "@/lib/api-validation";
+import { Schemas } from "@/lib/validation";
+
+const assignSchema = z.object({
+  userId: Schemas.id,
+  package: z.string().trim().min(1).max(100),
+  domain: z.string().trim().toLowerCase().min(3).max(253),
+});
 
 /**
  * POST /api/admin/hosting/assign
@@ -20,13 +28,9 @@ export async function POST(request: NextRequest) {
       return secureErrorResponse("Unauthorized. Admin access required.", 403, "FORBIDDEN");
     }
 
-    // 2. Parse request body
-    const body = await request.json();
-    const { userId, package: packageName, domain } = body;
-
-    if (!userId || !packageName || !domain) {
-      return secureErrorResponse("Missing required fields: userId, package, domain", 400, "INVALID_INPUT");
-    }
+    const validation = await validatedBody(request, assignSchema);
+    if (!validation.ok) return validation.response;
+    const { userId, package: packageName, domain } = validation.data;
 
     await connectDB();
     const user = await getUserById(userId);
