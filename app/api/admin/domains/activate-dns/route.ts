@@ -3,6 +3,12 @@ import { AuthService } from "@/lib/auth";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 import { findOrderByDomain, findOrderDomain } from "@/lib/services/orders";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const activateDnsSchema = z.object({
+  domainName: z.string().trim().toLowerCase().min(3).max(253),
+  force: z.boolean().optional(),
+});
 
 // Force dynamic rendering - required for API routes
 export const dynamic = "force-dynamic";
@@ -14,14 +20,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { domainName, force } = await request.json();
-
-    if (!domainName) {
-      return NextResponse.json(
-        { error: "Domain name is required" },
-        { status: 400 }
-      );
-    }
+    const validation = await validatedBody(request, activateDnsSchema);
+    if (!validation.ok) return validation.response;
+    const { domainName, force } = validation.data;
 
     // Find the order containing this domain (admin can access any domain)
     const order = await findOrderByDomain(domainName);

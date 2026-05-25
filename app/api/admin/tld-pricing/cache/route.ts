@@ -4,6 +4,17 @@ import { tldPricingCache } from "@/lib/tld-pricing-cache";
 import { upsertSetting } from "@/lib/services/settings";
 import { connectToDatabase } from "@/lib/mongoose";
 import { serverLogger } from "@/lib/server-logger";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const cacheSettingsSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    ttlMinutes: z.number().int().positive().max(43_200).optional(),
+  })
+  .refine((d) => d.enabled !== undefined || d.ttlMinutes !== undefined, {
+    message: "At least one of `enabled` or `ttlMinutes` is required",
+    path: ["enabled"],
+  });
 
 // Force dynamic rendering - required for API routes
 export const dynamic = "force-dynamic";
@@ -86,8 +97,9 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { enabled, ttlMinutes } = body;
+    const validation = await validatedBody(request, cacheSettingsSchema);
+    if (!validation.ok) return validation.response;
+    const { enabled, ttlMinutes } = validation.data;
 
     // Update cache enabled setting
     if (enabled !== undefined) {

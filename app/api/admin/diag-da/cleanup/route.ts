@@ -4,6 +4,14 @@ import { deleteUser as daDeleteUser } from "@/lib/integrations/directadmin";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 import connectDB from "@/lib/mongodb";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const cleanupSchema = z.object({
+  usernames: z
+    .array(z.string().trim().min(1).max(100))
+    .min(1, "Array of usernames required")
+    .max(100, "Cannot clean up more than 100 users in a single request"),
+});
 
 export const dynamic = "force-dynamic";
 
@@ -14,11 +22,9 @@ export async function POST(request: NextRequest) {
       return secureErrorResponse("Unauthorized", 403, "FORBIDDEN");
     }
 
-    const { usernames } = await request.json();
-    
-    if (!usernames || !Array.isArray(usernames)) {
-        return secureErrorResponse("Array of usernames required", 400, "INVALID_INPUT");
-    }
+    const validation = await validatedBody(request, cleanupSchema);
+    if (!validation.ok) return validation.response;
+    const { usernames } = validation.data;
 
     await connectDB();
 
