@@ -273,7 +273,7 @@ Remaining work: 3 MEDIUMs (M4 1000+ line page components, M6 client-component ra
 - ~~**Batch 7s** — M13 (delete dead `error.message.includes` chain — typed PaymentError unnecessary, no callers throw those strings)~~ ✅ shipped `299f84c`
 - ~~**Batch 7t** — L1 (typed Razorpay SDK client, 10 casts → 1)~~ ✅ shipped `9b6d018`
 - ~~**Batch 7u** — M14 partial: pure cart-validation helpers + 21 unit tests~~ ✅ shipped `0011477`
-- **Batch 7v** — M14 continued: store-level cart tests (addItem/removeItem cascade, getters, syncWithServer happy path) — ~3h.
+- ~~**Batch 7v** — M14 continued: store-level cart tests (addItem/removeItem cascade, getters, syncWithServer happy path)~~ ✅ shipped `12d2cbd`
 - **Batch 7w** — L8 (React error boundaries around cart, chat widget, floating cart count) + L12 (a11y eslint + axe) — ~1 day.
 - **Batch 7x** — M4 + M6 (frontend decomposition of 1000+ line page components) — multi-day, per page.
 - **Batch 7y** — ⏸ M8 (PendingDomain._id ObjectId) — deferred pending prod data audit.
