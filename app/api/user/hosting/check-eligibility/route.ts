@@ -4,6 +4,11 @@ import { findUserHosting, userHasAnyHosting } from "@/lib/services/hostings";
 import { AuthService } from "@/lib/auth";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const checkEligibilitySchema = z.object({
+  domainName: z.string().trim().toLowerCase().min(3).max(253).optional(),
+});
 
 export const dynamic = 'force-dynamic';
 
@@ -79,8 +84,9 @@ export async function POST(request: NextRequest) {
     const user = await AuthService.getUserFromRequest(request);
     if (!user) return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
 
-    const body = await request.json();
-    const domainName = body.domainName?.toLowerCase() || null;
+    const validation = await validatedBody(request, checkEligibilitySchema);
+    if (!validation.ok) return validation.response;
+    const domainName = validation.data.domainName ?? null;
 
     const result = await performEligibilityCheck(
       String(user._id),

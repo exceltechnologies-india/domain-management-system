@@ -12,6 +12,40 @@ import {
   hashIp,
   recordTrialClaim,
 } from "@/lib/trial-abuse";
+import { validatedBody, z } from "@/lib/api-validation";
+
+// Per-route schema. Structural shape only — TLD-policy / trial-eligibility
+// checks are business logic that runs after the Zod gate.
+const cartItemSchema = z.object({
+  domainName: z.string().min(1),
+  price: z.number().nonnegative(),
+  currency: z.string().min(1),
+  registrationPeriod: z.number().int().positive().optional(),
+  itemType: z.enum(["domain", "hosting"]).optional(),
+  linkedDomain: z.string().optional(),
+  billingCycle: z.enum(["monthly", "yearly"]).optional(),
+  periodUnit: z.enum(["months", "years", "minutes", "days"]).optional(),
+  isTrial: z.boolean().optional(),
+  hostingPlan: z
+    .object({
+      id: z.string().optional(),
+      planId: z.string().optional(),
+      name: z.string().optional(),
+      period: z.number().optional(),
+      features: z.array(z.string()).optional(),
+      serverPackage: z.string().optional(),
+    })
+    .passthrough()
+    .optional(),
+  tldAttributes: z.record(z.string(), z.string()).optional(),
+}).passthrough();
+
+const createOrderSchema = z.object({
+  cartItems: z.array(cartItemSchema).min(1, "Cart is empty"),
+  deviceFingerprint: z.string().optional(),
+  recaptchaToken: z.string().optional(),
+  otpToken: z.string().optional(),
+});
 
 // Force dynamic rendering - required for API routes
 export const dynamic = 'force-dynamic';
@@ -25,27 +59,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { cartItems, deviceFingerprint, recaptchaToken, otpToken } = body as {
-      cartItems: CartItem[];
-      deviceFingerprint?: string;
-      recaptchaToken?: string;
-      otpToken?: string;
-    };
+    const validation = await validatedBody(request, createOrderSchema);
+    if (!validation.ok) return validation.response;
+    const { cartItems: rawCartItems, deviceFingerprint, recaptchaToken, otpToken } =
+      validation.data;
+    const cartItems = rawCartItems as CartItem[];
 
-    if (!cartItems || !Array.isArray(cartItems) || cartItems.length === 0) {
-      return NextResponse.json({ error: "Cart is empty" }, { status: 400 });
-    }
-
-    // Validate cart items
+    // Zod gates structural shape; the TLD policy check is business logic.
     for (const item of cartItems) {
-      if (!item.domainName || item.price === undefined || item.price === null || !item.currency) {
-        return NextResponse.json(
-          { error: "Invalid cart item data" },
-          { status: 400 }
-        );
-      }
-      // Skip TLD policy checks for non-domain items (e.g. hosting)
       if (!item.itemType || item.itemType === "domain") {
         const periodError = validateDomainPeriod(
           item.domainName,

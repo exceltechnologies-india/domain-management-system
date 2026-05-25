@@ -7,6 +7,16 @@ import {
   removeUserWatch,
   upsertUserWatch,
 } from "@/lib/services/domain-watches";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const addWatchSchema = z.object({
+  domainName: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .min(3, "Domain name must be at least 3 characters")
+    .max(253, "Domain name must be at most 253 characters"),
+});
 
 export const dynamic = "force-dynamic";
 
@@ -29,12 +39,9 @@ export async function POST(request: NextRequest) {
     const user = await AuthService.getUserFromRequest(request);
     if (!user) return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
 
-    const body = await request.json();
-    const domainName = typeof body.domainName === "string" ? body.domainName.trim().toLowerCase() : "";
-
-    if (!domainName || domainName.length < 3 || domainName.length > 253) {
-      return secureErrorResponse("Invalid domain name", 400, "INVALID_DOMAIN");
-    }
+    const result = await validatedBody(request, addWatchSchema);
+    if (!result.ok) return result.response;
+    const { domainName } = result.data;
 
     // Enforce per-user limit to prevent abuse
     const MAX_WATCHES = 20;
