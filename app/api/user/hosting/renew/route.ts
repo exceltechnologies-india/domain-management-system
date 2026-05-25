@@ -7,6 +7,11 @@ import { AuthService } from "@/lib/auth";
 import { RazorpayService } from "@/lib/razorpay";
 import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { serverLogger } from "@/lib/server-logger";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const renewSchema = z.object({
+  domainName: z.string().trim().toLowerCase().min(3).max(253),
+});
 
 export const dynamic = 'force-dynamic';
 
@@ -37,14 +42,12 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const { domainName } = await request.json();
-
-    if (!domainName) {
-      return secureErrorResponse("Domain name is required", 400, "INVALID_PARAM");
-    }
+    const validation = await validatedBody(request, renewSchema);
+    if (!validation.ok) return validation.response;
+    const { domainName } = validation.data;
 
     const hosting = await findUserHosting(String(user._id), {
-      domainName: domainName.toLowerCase(),
+      domainName,
     });
 
     if (!hosting) {

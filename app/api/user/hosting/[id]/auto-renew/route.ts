@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { findUserHostingById } from "@/lib/services/hostings";
 import { serverLogger } from "@/lib/server-logger";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const autoRenewSchema = z.object({
+  autoRenew: z.boolean(),
+});
 
 export const dynamic = "force-dynamic";
 
@@ -16,10 +21,9 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-    if (typeof body.autoRenew !== "boolean") {
-      return NextResponse.json({ error: "autoRenew must be a boolean" }, { status: 400 });
-    }
+    const validation = await validatedBody(request, autoRenewSchema);
+    if (!validation.ok) return validation.response;
+    const { autoRenew } = validation.data;
 
     const hosting = await findUserHostingById(id, user._id);
     if (!hosting) {
@@ -33,11 +37,11 @@ export async function PATCH(
       );
     }
 
-    hosting.autoRenew = body.autoRenew;
+    hosting.autoRenew = autoRenew;
     await hosting.save();
 
     serverLogger.info(
-      `[AutoRenew] ${user.email} set autoRenew=${body.autoRenew} for ${hosting.domainName}`
+      `[AutoRenew] ${user.email} set autoRenew=${autoRenew} for ${hosting.domainName}`
     );
 
     return NextResponse.json({
