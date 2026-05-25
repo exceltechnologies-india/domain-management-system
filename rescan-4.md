@@ -31,8 +31,9 @@ All four HIGH findings have been verified against the actual code, not just trus
 | Batch 7s | M13 partial — delete dead `error.message.includes` chain in verification-error.ts (-65 LOC) | ✅ Closed | `299f84c` |
 | Batch 7t | L1 — typed Razorpay SDK client (10 `as unknown as` casts → 1) | ✅ Closed | `9b6d018` |
 | Batch 7u | M14 partial — extract pure cart-validation helpers + 21 unit tests | ✅ Closed | `0011477` |
+| Batch 7v | M14 continued — store-level cart tests (addItem/removeItem cascade, getters, syncWithServer) — 20 new tests | 🔄 In progress | pending |
 
-**All four HIGHs + 11 MEDIUMs + 10 LOWs cleared, M14 in progress.** 15 vertical slices shipped across batches 7a–7u (6 RC ops + 6 DA ops + the vocab unification + the M13 verification-error.ts cleanup + the L1 Razorpay typed-client + the M14 cart-validation extraction). Bonus catches:
+**All four HIGHs + 11 MEDIUMs + 10 LOWs cleared, M14 in progress.** 16 vertical slices shipped across batches 7a–7v (6 RC ops + 6 DA ops + the vocab unification + the M13 verification-error.ts cleanup + the L1 Razorpay typed-client + two M14 slices — cart-validation extraction + store-level tests). Bonus catches:
 - 7e: M3's tightened `BookingStep` type uncovered a real save-validation bug — `provisioner-hosting.ts:379` emits `step: "hosting_deferred"` but the schema enum didn't include it.
 - 7f: L6's `Redis | null` typing exposed 3 latent null-deref sites (rate-limit, razorpay webhook, tld-pricing-cache) — each guarded.
 - 7g–7r: M1 vertical slices establish the `lib/integrations/{resellerclub,directadmin}/` pattern. ~35 `toLowerCase().includes()` chains removed from app code (down from ~50); the inner/outer classification layers now share one fragment vocabulary; payment + admin + cron paths all branch on typed outcomes instead of message strings.
@@ -153,7 +154,9 @@ Remaining work: 3 MEDIUMs (M4 1000+ line page components, M6 client-component ra
 #### 🔄 [M14] Zero component / page / cart-store tests — PARTIALLY ADDRESSED (slice 7u extracted + tested cart-validation helpers)
 **Problem:** 588 tests are all model/service/integration. 0 of 172 .tsx files have a sibling `.test.tsx`. 1500-line admin pages and the cart store (more complex than several services by line count) are entirely unverified.
 **Fix:** Start with the cart store (pure logic) and the checkout `useEffect` redirect logic. Vitest + @testing-library/react is already transitively available. ~3 hours harness + incremental tests.
-**Slice 7u update:** Pure cart-validation logic (`clampRegistrationPeriod` + `validateAndCorrectCartItems`) extracted from `store/cartStore.ts` into `store/cart-validation.ts` so it can be unit-tested without zustand / persistence / toast mocks. 21 new tests pin the clamping window (per-TLD min/max, hosting [1,60]), the legacy hosting-10 yearly back-fix, and the (domainName, itemType) dedup. Remaining surface (store-level addItem/removeItem cascade, getter functions, checkout useEffect redirect) deferred to subsequent slices.
+**Slice 7u update:** Pure cart-validation logic (`clampRegistrationPeriod` + `validateAndCorrectCartItems`) extracted from `store/cartStore.ts` into `store/cart-validation.ts` so it can be unit-tested without zustand / persistence / toast mocks. 21 new tests pin the clamping window (per-TLD min/max, hosting [1,60]), the legacy hosting-10 yearly back-fix, and the (domainName, itemType) dedup.
+
+**Slice 7v update:** Store-level cart tests landed — 20 cases covering the restricted-TLD gate on `addItem`, the linked-hosting cascade on domain removal (with the info-toast assertion), all five getters (`getTotalPrice` / `getSubtotalPrice` / `getItemCount` / `hasDomainItems` / `hasHostingItems`), `loadFromServer` (dropped-restricted-toast + 401 no-op + validation-on-load), and the three `syncWithServer` happy paths (local-only / server-only / merge-with-dedup) plus the `isInitialized` short-circuit. Uses `vi.hoisted` + jsdom + `global.fetch` stubs; mocks `react-hot-toast` + `@/lib/logger`. Remaining: the `<Cart>` / `<CartCount>` component tests + checkout `useEffect` redirect logic (deferred — separate slice).
 
 #### ✅ [M15] Integration test suite runs serially (`fileParallelism: false`)
 **File:** [vitest.integration.config.ts:30](vitest.integration.config.ts)
