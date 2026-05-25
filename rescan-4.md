@@ -26,7 +26,7 @@ All four HIGH findings have been verified against the actual code, not just trus
 | Batch 7n | M1 slice 8 — DA `getUserConfig` + sync-worker inline-parser removed | ✅ Closed | `23fda8e` |
 | Batch 7o | M1 slice 9 — DA `deleteUser` + admin/hosting/actions sweep | ✅ Closed | `ba451f2` |
 | Batch 7p | M1 slice 10 — RC `getDomainOrderId` + `getDomainDetails` (4 callsites, 18 new tests) | ✅ Closed | `c76ce35` |
-| Batch 7q | M1 slice 11 — RC `getDNSRecords` (2 callsites, 9 new tests) | 🔄 In progress | pending |
+| Batch 7q | M1 slice 11 — RC `getDNSRecords` (2 callsites, 9 new tests) | ✅ Closed | `a4b4422` |
 
 **All four HIGHs + 9 MEDIUMs + 9 LOWs cleared. M1 (anti-corruption layer) in progress** — 11 vertical slices shipped (6 RC + 5 DA + the vocab unification). Bonus catches:
 - 7e: M3's tightened `BookingStep` type uncovered a real save-validation bug — `provisioner-hosting.ts:379` emits `step: "hosting_deferred"` but the schema enum didn't include it.
