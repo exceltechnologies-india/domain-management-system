@@ -36,7 +36,7 @@ All four HIGH findings have been verified against the actual code, not just trus
 | Batch 7w.2 | L12 partial — enable `plugin:jsx-a11y/recommended` (lint surface, 144 warnings flagged) | ✅ Closed | `7c466b5` |
 | Batch 7x | M6 partial — demote 14 leaf components from `'use client'` to server | ✅ Closed | `0f35e5f` |
 | Batch 7y | S2 — pre-commit hooks (husky + lint-staged + tsc --noEmit) | ✅ Closed | `2660cfe` |
-| Batch 7z | S3 partial — `validatedBody` / `validatedQuery` helpers + 5-route sweep (10 new tests) | 🔄 In progress | pending |
+| Batch 7z | S3 partial — `validatedBody` / `validatedQuery` helpers + 5-route sweep (10 new tests) | ✅ Closed | `067da79` |
 
 **All four HIGHs + 11 MEDIUMs + 11 LOWs + 1 architectural suggestion (S2) cleared, M14 / M6 / L12 / S3 in progress.** 21 vertical slices shipped across batches 7a–7z (6 RC ops + 6 DA ops + the vocab unification + the M13 cleanup + the L1 Razorpay typed-client + two M14 slices + L8 error boundaries + L12 jsx-a11y lint + M6 leaf demotion + S2 pre-commit hooks + S3 validatedBody helper). Bonus catches:
 - 7e: M3's tightened `BookingStep` type uncovered a real save-validation bug — `provisioner-hosting.ts:379` emits `step: "hosting_deferred"` but the schema enum didn't include it.
