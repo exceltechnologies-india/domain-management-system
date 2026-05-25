@@ -2,10 +2,13 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { CartItem } from "@/lib/types";
 import { safeLocalStorage } from "@/lib/storage";
-import { getMinRegistrationPeriod } from "@/lib/tld-min-periods";
-import { isRestricted, getMaxYears } from "@/lib/tld-policies";
+import { isRestricted } from "@/lib/tld-policies";
 import toast from "react-hot-toast";
 import { logger } from "@/lib/logger";
+import {
+  validateAndCorrectCartItems,
+  clampRegistrationPeriod,
+} from "./cart-validation";
 
 // Debounce timer — batches rapid cart mutations into a single server sync
 let saveDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -14,57 +17,6 @@ const SAVE_DEBOUNCE_MS = 500;
 const debouncedSave = (saveFn: () => Promise<void>) => {
   if (saveDebounceTimer) clearTimeout(saveDebounceTimer);
   saveDebounceTimer = setTimeout(() => { saveFn(); }, SAVE_DEBOUNCE_MS);
-};
-
-// Helper function to validate and correct cart items
-const validateAndCorrectCartItems = (items: CartItem[]): CartItem[] => {
-  const seen = new Map<string, CartItem>();
-  const filteredItems = items;
-
-  filteredItems.forEach((item) => {
-    // Normalize itemType
-    const itemType = item.itemType || 'domain';
-    
-    // Validate period
-    let minPeriod = 1;
-    if (itemType === 'hosting') {
-      minPeriod = 1;
-    } else {
-      minPeriod = getMinRegistrationPeriod(item.domainName);
-    }
-    
-    let registrationPeriod = Math.max(item.registrationPeriod || 1, minPeriod);
-
-    // Back-fix legacy hosting carts: a previous clamp bug capped yearly
-    // hosting at 10 (10-year domain default leaked into the hosting branch).
-    // If we see a yearly-cycle hosting item still pinned to 10, snap it to 12.
-    if (
-      itemType === 'hosting' &&
-      item.billingCycle === 'yearly' &&
-      registrationPeriod === 10
-    ) {
-      registrationPeriod = 12;
-    }
-
-    let validatedItem = {
-      ...item,
-      itemType: itemType as 'domain' | 'hosting',
-      registrationPeriod,
-    };
-
-    
-    const key = `${validatedItem.domainName}-${itemType}`;
-    
-    if (seen.has(key)) {
-      // If duplicate found, merge it (preferring later properties for updates)
-      const existing = seen.get(key)!;
-      seen.set(key, { ...existing, ...validatedItem });
-    } else {
-      seen.set(key, validatedItem);
-    }
-  });
-
-  return Array.from(seen.values());
 };
 
 interface CartStore {
@@ -103,30 +55,18 @@ export const useCartStore = create<CartStore>()(
         }
 
         set((state) => {
-          // Validate and correct the new item — clamp into [min, max] for the TLD
-          let minPeriod = 1;
-          let maxPeriod = 10;
-
-            if (item.itemType === 'hosting') {
-              minPeriod = 1;
-              // Hosting periods use registrationPeriod as a unit-less count
-              // paired with periodUnit ('months' | 'days' | 'minutes'):
-              //   - monthly:  1  (months)
-              //   - yearly:  12  (months)
-              //   - trial:   15  (days)
-              //   - test:    10  (minutes)
-              // The 10-year domain cap doesn't apply here.
-              maxPeriod = 60;
-            } else {
-              minPeriod = getMinRegistrationPeriod(item.domainName);
-              maxPeriod = getMaxYears(item.domainName);
-            }
-            const clamped = Math.min(Math.max(item.registrationPeriod, minPeriod), maxPeriod);
-            let validatedItem = {
-              ...item,
-              itemType: (item.itemType || 'domain') as 'domain' | 'hosting',
-              registrationPeriod: clamped,
-            };
+          // Clamp the incoming period into the TLD-specific [min, max] window
+          // (or the hosting window when itemType === 'hosting').
+          const clamped = clampRegistrationPeriod({
+            domainName: item.domainName,
+            itemType: item.itemType,
+            registrationPeriod: item.registrationPeriod,
+          });
+          const validatedItem = {
+            ...item,
+            itemType: (item.itemType || 'domain') as 'domain' | 'hosting',
+            registrationPeriod: clamped,
+          };
 
 
           // Check for existence by domain AND type to prevent duplicates of same type
