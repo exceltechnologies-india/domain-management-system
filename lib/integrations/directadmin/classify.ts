@@ -29,6 +29,20 @@ export const USER_NOT_FOUND_FRAGMENTS = [
   "cannot find user",
 ] as const;
 
+/**
+ * DA error message fragments returned when changePackage targets a
+ * package name that doesn't exist on the server. This is a config /
+ * seeding error — caller should fail loudly, not retry.
+ */
+export const PACKAGE_NOT_FOUND_FRAGMENTS = [
+  "package does not exist",
+  "no such package",
+  "package not found",
+  "unable to find the package",
+  "cannot find package",
+  "invalid package",
+] as const;
+
 export function matchesAny(haystack: string | undefined, needles: readonly string[]): boolean {
   if (!haystack) return false;
   const lower = haystack.toLowerCase();
@@ -169,4 +183,39 @@ export function classifyDeleteUserError(
     return { kind: "unreachable", reason: errorMessage || "DA returned 503" };
   }
   return { kind: "hard", reason: errorMessage || "DA deleteUser failed" };
+}
+
+/**
+ * Classifier for changePackage errors. Adds the `package_not_found`
+ * branch on top of the standard user-op vocabulary. Order matters:
+ * USER_NOT_FOUND_FRAGMENTS is checked first (DA can return both
+ * fragments in the same response when the username is wrong), then
+ * the package-specific fragments.
+ */
+export type SingleChangePackageAttempt =
+  | { kind: "user_not_found"; reason: string }
+  | { kind: "package_not_found"; reason: string }
+  | { kind: "unreachable"; reason: string }
+  | { kind: "hard"; reason: string };
+
+export function classifyChangePackageError(
+  errorMessage: string | undefined,
+  daStatus: number | undefined
+): SingleChangePackageAttempt {
+  if (matchesAny(errorMessage, USER_NOT_FOUND_FRAGMENTS)) {
+    return {
+      kind: "user_not_found",
+      reason: errorMessage || "DA reported user not found",
+    };
+  }
+  if (matchesAny(errorMessage, PACKAGE_NOT_FOUND_FRAGMENTS)) {
+    return {
+      kind: "package_not_found",
+      reason: errorMessage || "DA reported package not found",
+    };
+  }
+  if (daStatus === 503) {
+    return { kind: "unreachable", reason: errorMessage || "DA returned 503" };
+  }
+  return { kind: "hard", reason: errorMessage || "DA changePackage failed" };
 }

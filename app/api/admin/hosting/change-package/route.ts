@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { AuthService } from "@/lib/auth";
-import { DirectAdminService } from "@/lib/directadmin";
+import { changePackage as daChangePackage } from "@/lib/integrations/directadmin";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 
@@ -26,21 +26,39 @@ export async function POST(request: NextRequest) {
       return secureErrorResponse("Username and new package are required.", 400, "INVALID_INPUT");
     }
 
-    // 3. Change package via DirectAdmin API
     serverLogger.info(`Admin changing package for user: ${username} to ${newPackage}`);
-    await DirectAdminService.changePackage(username, newPackage);
+    const outcome = await daChangePackage({ username, newPackage });
 
-    return secureJsonResponse({ 
-      success: true, 
-      message: `Package for user '${username}' changed to '${newPackage}' successfully.`
-    });
+    switch (outcome.kind) {
+      case "changed":
+        return secureJsonResponse({
+          success: true,
+          message: `Package for user '${username}' changed to '${newPackage}' successfully.`,
+        });
+      case "user_not_found":
+        return secureErrorResponse(
+          `DirectAdmin reports no such user: ${username}`,
+          404,
+          "USER_NOT_FOUND"
+        );
+      case "package_not_found":
+        return secureErrorResponse(
+          `DirectAdmin reports no such package: ${newPackage}`,
+          404,
+          "PACKAGE_NOT_FOUND"
+        );
+      case "da_unreachable":
+        return secureErrorResponse(
+          "DirectAdmin is temporarily unreachable. Please retry.",
+          503,
+          "DA_UNREACHABLE"
+        );
+      case "hard_failure":
+        return secureErrorResponse(outcome.reason, 500, "PACKAGE_CHANGE_FAILED");
+    }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Failed to change package";
     serverLogger.error(`Admin Change Package Route Error (${request.headers.get('x-user-email')}):`, message);
-    return secureErrorResponse(
-      message,
-      500,
-      "PACKAGE_CHANGE_FAILED"
-    );
+    return secureErrorResponse(message, 500, "PACKAGE_CHANGE_FAILED");
   }
 }

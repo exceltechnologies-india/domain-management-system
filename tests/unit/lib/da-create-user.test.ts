@@ -12,6 +12,7 @@ import {
   classifyUnsuspendUserError,
   classifyGetUserConfigError,
   classifyDeleteUserError,
+  classifyChangePackageError,
 } from "@/lib/integrations/directadmin/classify";
 
 describe("classifyCreateUserError", () => {
@@ -182,5 +183,56 @@ describe("classifyDeleteUserError", () => {
     const out = classifyDeleteUserError(undefined, undefined);
     expect(out.kind).toBe("hard");
     if (out.kind === "hard") expect(out.reason).toMatch(/deleteUser failed/);
+  });
+});
+
+describe("classifyChangePackageError", () => {
+  it("user_not_found fragment → user_not_found (even with 503)", () => {
+    const out = classifyChangePackageError("Unable to find user foo", 503);
+    expect(out.kind).toBe("user_not_found");
+  });
+
+  it.each([
+    "Package does not exist",
+    "no such package: foo",
+    "Package not found on server",
+    "Unable to find the package configured",
+    "Cannot find package abc",
+    "invalid package name",
+  ])("recognises package_not_found fragment: %s", (msg) => {
+    const out = classifyChangePackageError(msg, undefined);
+    expect(out.kind).toBe("package_not_found");
+  });
+
+  it("user_not_found takes precedence over package_not_found (both fragments in same msg)", () => {
+    // DA can return a compound message — order in classifier matters.
+    const out = classifyChangePackageError(
+      "Unable to find user foo. Package does not exist either.",
+      undefined
+    );
+    expect(out.kind).toBe("user_not_found");
+  });
+
+  it("package_not_found wins over 503 (config bug, not retryable)", () => {
+    const out = classifyChangePackageError("Package not found", 503);
+    expect(out.kind).toBe("package_not_found");
+  });
+
+  it("503 without recognised fragment → unreachable", () => {
+    const out = classifyChangePackageError("Backend timed out", 503);
+    expect(out.kind).toBe("unreachable");
+    if (out.kind === "unreachable") expect(out.reason).toBe("Backend timed out");
+  });
+
+  it("unrelated error → hard", () => {
+    const out = classifyChangePackageError("Permission denied", 200);
+    expect(out.kind).toBe("hard");
+    if (out.kind === "hard") expect(out.reason).toBe("Permission denied");
+  });
+
+  it("undefined message + undefined status → hard with changePackage-specific reason", () => {
+    const out = classifyChangePackageError(undefined, undefined);
+    expect(out.kind).toBe("hard");
+    if (out.kind === "hard") expect(out.reason).toMatch(/changePackage failed/);
   });
 });
