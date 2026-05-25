@@ -264,11 +264,13 @@ Remaining work: 3 MEDIUMs (M4 1000+ line page components, M6 client-component ra
 - ~~**Batch 7m** — M1 slice 7: RC transferDomain~~ 🔄 shipped `facfb87`
 - ~~**Batch 7n** — M1 slice 8: DA getUserConfig + sync-worker migration~~ 🔄 shipped `23fda8e`
 - ~~**Batch 7o** — M1 slice 9: DA deleteUser + admin/hosting/actions sweep~~ 🔄 shipped `ba451f2`
-- **Batch 7p** — M1 slice 10: RC getDomainOrderId / getDomainDetails — ~1.5h.
-- **Batch 7q** — M1 slice 11: DA modifyDomain (updateDNS is permanently disabled) — ~1h.
-- **Batch 7r** — L1 (Razorpay client wrapper, mechanical thin wrappers) — ~1h.
-- **Batch 7s** — M13 (typed PaymentError) — ~3.5h.
-- **Batch 7t** — M8 (PendingDomain._id ObjectId) — needs prod data audit.
-- **Batch 7u** — M14 (component test harness) + cart-store tests.
-- **Batch 7v** — L8 (React error boundaries) + L12 (a11y eslint + axe) — ~1 day.
-- **Batch 7w** — M4 + M6 (frontend decomposition) — multi-day, per page.
+- ~~**Batch 7p** — M1 slice 10: RC getDomainOrderId / getDomainDetails~~ ✅ shipped `c76ce35`
+- ~~**Batch 7q** — M1 slice 11: RC getDNSRecords~~ ✅ shipped `a4b4422` (DA modifyDomain dropped — no callers in codebase; updateDNS is permanently disabled)
+- ~~**Batch 7r** — M1 slice 12: DA changePackage + upgrade-flow + admin route~~ ✅ shipped `26d201f`
+- ~~**Batch 7s** — M13 (delete dead `error.message.includes` chain — typed PaymentError unnecessary, no callers throw those strings)~~ ✅ shipped `299f84c`
+- ~~**Batch 7t** — L1 (typed Razorpay SDK client, 10 casts → 1)~~ ✅ shipped `9b6d018`
+- ~~**Batch 7u** — M14 partial: pure cart-validation helpers + 21 unit tests~~ ✅ shipped `0011477`
+- **Batch 7v** — M14 continued: store-level cart tests (addItem/removeItem cascade, getters, syncWithServer happy path) — ~3h.
+- **Batch 7w** — L8 (React error boundaries around cart, chat widget, floating cart count) + L12 (a11y eslint + axe) — ~1 day.
+- **Batch 7x** — M4 + M6 (frontend decomposition of 1000+ line page components) — multi-day, per page.
+- **Batch 7y** — ⏸ M8 (PendingDomain._id ObjectId) — deferred pending prod data audit.
