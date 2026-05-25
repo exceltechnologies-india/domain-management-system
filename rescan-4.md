@@ -32,8 +32,9 @@ All four HIGH findings have been verified against the actual code, not just trus
 | Batch 7t | L1 — typed Razorpay SDK client (10 `as unknown as` casts → 1) | ✅ Closed | `9b6d018` |
 | Batch 7u | M14 partial — extract pure cart-validation helpers + 21 unit tests | ✅ Closed | `0011477` |
 | Batch 7v | M14 continued — store-level cart tests (addItem/removeItem cascade, getters, syncWithServer) — 20 new tests | ✅ Closed | `12d2cbd` |
+| Batch 7w | L8 — React error boundaries (FloatingCart + ChatWidget + CartPage) | 🔄 In progress | pending |
 
-**All four HIGHs + 11 MEDIUMs + 10 LOWs cleared, M14 in progress.** 16 vertical slices shipped across batches 7a–7v (6 RC ops + 6 DA ops + the vocab unification + the M13 verification-error.ts cleanup + the L1 Razorpay typed-client + two M14 slices — cart-validation extraction + store-level tests). Bonus catches:
+**All four HIGHs + 11 MEDIUMs + 11 LOWs cleared, M14 in progress.** 17 vertical slices shipped across batches 7a–7w (6 RC ops + 6 DA ops + the vocab unification + the M13 verification-error.ts cleanup + the L1 Razorpay typed-client + two M14 slices + the L8 error-boundary islands). Bonus catches:
 - 7e: M3's tightened `BookingStep` type uncovered a real save-validation bug — `provisioner-hosting.ts:379` emits `step: "hosting_deferred"` but the schema enum didn't include it.
 - 7f: L6's `Redis | null` typing exposed 3 latent null-deref sites (rate-limit, razorpay webhook, tld-pricing-cache) — each guarded.
 - 7g–7r: M1 vertical slices establish the `lib/integrations/{resellerclub,directadmin}/` pattern. ~35 `toLowerCase().includes()` chains removed from app code (down from ~50); the inner/outer classification layers now share one fragment vocabulary; payment + admin + cron paths all branch on typed outcomes instead of message strings.
@@ -199,9 +200,10 @@ Remaining work: 3 MEDIUMs (M4 1000+ line page components, M6 client-component ra
 **Problem:** Sibling `getOrderByIdOrOrderId` was correctly fixed with a single-filter branch; this one was missed. Behaviour fine due to `userId` scope, but description/code disagree.
 **Fix:** Mirror `getOrderByIdOrOrderId`. ~10 min.
 
-### [L8] React error boundaries — only Next's `error.tsx` files exist
+### ✅ [L8] React error boundaries — CLOSED in batch 7w
 **Problem:** A single React render error inside (say) the cart UI tears the whole page tree down to the root `error.tsx`. No mid-tree isolation.
 **Fix:** Add `<ErrorBoundary>` around cart, chat widget, floating cart count. ~3 hours.
+**Resolution:** Generic `<ErrorBoundary>` (class component, since React's error lifecycles only exist on class components) added at `components/ErrorBoundary.tsx`. Three integrations: `FloatingCart` in the root layout (fallback=null — silent failure preferred to a visible warning on every page), `ChatWidget` on the homepage (fallback=null), and the full cart-page body in `app/cart/page.tsx` (default fallback — the visible reload prompt, since the cart is the primary content). Navigation and Footer stay outside the boundary so a cart crash doesn't tear those down too.
 
 ### ✅ [L9] `app/error.tsx` still reads the dead localStorage `token` for "Was user logged in" display
 **File:** [app/error.tsx:49-50](app/error.tsx)

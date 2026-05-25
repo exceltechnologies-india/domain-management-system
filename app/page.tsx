@@ -14,6 +14,7 @@ import DomainSearch from '@/components/DomainSearch';
 import ClientOnly from '@/components/ClientOnly';
 import Footer from '@/components/Footer';
 import ChatWidget from '@/components/ChatWidget';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 export default function HomePage() {
   const [mounted, setMounted] = useState(false);
@@ -385,7 +386,9 @@ export default function HomePage() {
         <Footer />
       </motion.div>
 
-      <ChatWidget />
+      <ErrorBoundary label="ChatWidget" fallback={null}>
+        <ChatWidget />
+      </ErrorBoundary>
     </div>
   );
 }
