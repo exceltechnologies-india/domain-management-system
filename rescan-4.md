@@ -33,7 +33,7 @@ All four HIGH findings have been verified against the actual code, not just trus
 | Batch 7u | M14 partial — extract pure cart-validation helpers + 21 unit tests | ✅ Closed | `0011477` |
 | Batch 7v | M14 continued — store-level cart tests (addItem/removeItem cascade, getters, syncWithServer) — 20 new tests | ✅ Closed | `12d2cbd` |
 | Batch 7w | L8 — React error boundaries (FloatingCart + ChatWidget + CartPage) | ✅ Closed | `2339a2a` |
-| Batch 7w.2 | L12 partial — enable `plugin:jsx-a11y/recommended` (lint surface, 144 warnings flagged) | 🔄 In progress | pending |
+| Batch 7w.2 | L12 partial — enable `plugin:jsx-a11y/recommended` (lint surface, 144 warnings flagged) | ✅ Closed | `7c466b5` |
 
 **All four HIGHs + 11 MEDIUMs + 11 LOWs cleared, M14 and L12 in progress.** 18 vertical slices shipped across batches 7a–7w.2 (6 RC ops + 6 DA ops + the vocab unification + the M13 verification-error.ts cleanup + the L1 Razorpay typed-client + two M14 slices + the L8 error-boundary islands + the L12 jsx-a11y lint surface). Bonus catches:
 - 7e: M3's tightened `BookingStep` type uncovered a real save-validation bug — `provisioner-hosting.ts:379` emits `step: "hosting_deferred"` but the schema enum didn't include it.
@@ -278,7 +278,7 @@ Remaining work: 3 MEDIUMs (M4 1000+ line page components, M6 client-component ra
 - ~~**Batch 7t** — L1 (typed Razorpay SDK client, 10 casts → 1)~~ ✅ shipped `9b6d018`
 - ~~**Batch 7u** — M14 partial: pure cart-validation helpers + 21 unit tests~~ ✅ shipped `0011477`
 - ~~**Batch 7v** — M14 continued: store-level cart tests (addItem/removeItem cascade, getters, syncWithServer happy path)~~ ✅ shipped `12d2cbd`
-- 🔄 **Batch 7w** — L8 (React error boundaries) ✅ shipped `2339a2a` + L12 (a11y eslint + axe) — pending
-- **Batch 7w.2** — L12 (a11y eslint + axe) — ~3h.
+- ~~**Batch 7w** — L8 (React error boundaries)~~ ✅ shipped `2339a2a`
+- ~~**Batch 7w.2** — L12 (jsx-a11y eslint surface)~~ ✅ shipped `7c466b5` (lint setup; runtime axe + per-component remediation deferred)
 - **Batch 7x** — M4 + M6 (frontend decomposition of 1000+ line page components) — multi-day, per page.
 - **Batch 7y** — ⏸ M8 (PendingDomain._id ObjectId) — deferred pending prod data audit.
