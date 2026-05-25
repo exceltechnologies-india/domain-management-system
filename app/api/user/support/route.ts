@@ -6,6 +6,21 @@ import { EmailService } from "@/lib/email";
 import { validateAttachments } from "@/lib/support-attachments";
 import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { serverLogger } from "@/lib/server-logger";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const ATTACHMENT_SHAPE = z.object({
+  filename: z.string(),
+  mimeType: z.string(),
+  size: z.number().nonnegative(),
+  dataUrl: z.string(),
+});
+
+const createTicketSchema = z.object({
+  subject: z.string().trim().min(1, "Subject is required").max(200, "Subject too long (max 200 chars)"),
+  message: z.string().trim().min(1, "Message is required").max(5000, "Message too long (max 5000 chars)"),
+  category: z.enum(["domain", "hosting", "billing", "technical", "other"]).optional(),
+  attachments: z.array(ATTACHMENT_SHAPE).optional(),
+});
 
 const escapeHtml = (s: string) =>
   s
@@ -45,16 +60,11 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const body = await request.json();
-    const { subject, category, message, attachments } = body;
+    const validation = await validatedBody(request, createTicketSchema);
+    if (!validation.ok) return validation.response;
+    const { subject, category, message, attachments } = validation.data;
 
-    if (!subject?.trim()) return secureErrorResponse("Subject is required", 400, "VALIDATION_ERROR");
-    if (!message?.trim()) return secureErrorResponse("Message is required", 400, "VALIDATION_ERROR");
-    if (subject.length > 200) return secureErrorResponse("Subject too long (max 200 chars)", 400, "VALIDATION_ERROR");
-    if (message.length > 5000) return secureErrorResponse("Message too long (max 5000 chars)", 400, "VALIDATION_ERROR");
-
-    const validCategories = ["domain", "hosting", "billing", "technical", "other"];
-    const resolvedCategory = validCategories.includes(category) ? category : "other";
+    const resolvedCategory = category ?? "other";
 
     const attachmentResult = validateAttachments(attachments, {
       userId: userIdStr,

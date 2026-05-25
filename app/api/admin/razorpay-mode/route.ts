@@ -3,9 +3,26 @@ import { AuthService } from "@/lib/auth";
 import { getSettingsMap, upsertSetting } from "@/lib/services/settings";
 import { connectToDatabase } from "@/lib/mongoose";
 import { serverLogger } from "@/lib/server-logger";
+import { validatedBody, z } from "@/lib/api-validation";
 import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
+
+// Discriminated union — the body shape is action-dependent.
+const razorpayModeSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("save_keys"),
+    testKeyId: z.string().optional(),
+    testKeySecret: z.string().optional(),
+    liveKeyId: z.string().optional(),
+    liveKeySecret: z.string().optional(),
+    webhookSecret: z.string().optional(),
+  }),
+  z.object({
+    action: z.literal("switch_mode"),
+    mode: z.enum(["test", "live"]),
+  }),
+]);
 
 export const dynamic = "force-dynamic";
 
@@ -100,10 +117,12 @@ export async function POST(request: NextRequest) {
     const user = await getAdminUser(request);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const body = await request.json();
-    const { action, mode, testKeyId, testKeySecret, liveKeyId, liveKeySecret, webhookSecret } = body;
+    const validation = await validatedBody(request, razorpayModeSchema);
+    if (!validation.ok) return validation.response;
+    const body = validation.data;
 
-    if (action === "save_keys") {
+    if (body.action === "save_keys") {
+      const { testKeyId, testKeySecret, liveKeyId, liveKeySecret, webhookSecret } = body;
       // Persist keys to Settings (secrets stored encrypted-at-rest via MongoDB)
       const updates: Promise<void>[] = [];
       const opts = { category: "payment", updatedBy: String(user._id) };
@@ -123,15 +142,13 @@ export async function POST(request: NextRequest) {
         updates.push(upsertSetting("razorpay_webhook_secret", webhookSecret, { ...opts, description: "Razorpay webhook secret (shared between test and live)" }));
       }
       await Promise.all(updates);
-      serverLogger.info("Razorpay keys saved", { adminId: user._id, savedFields: Object.keys(body).filter(k => k !== 'action') });
+      const savedFields = Object.keys(body).filter((k) => k !== "action");
+      serverLogger.info("Razorpay keys saved", { adminId: user._id, savedFields });
       return NextResponse.json({ success: true, message: "Keys saved successfully" });
     }
 
-    if (action === "switch_mode") {
-      if (!["test", "live"].includes(mode)) {
-        return NextResponse.json({ error: "Invalid mode" }, { status: 400 });
-      }
-
+    if (body.action === "switch_mode") {
+      const { mode } = body;
       const keyIdKey = mode === "live" ? "razorpay_live_key_id" : "razorpay_test_key_id";
       const keySecretKey = mode === "live" ? "razorpay_live_key_secret" : "razorpay_test_key_secret";
 
