@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { RazorpayService } from "@/lib/razorpay";
 import { serverLogger } from "@/lib/server-logger";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const createSubscriptionSchema = z.object({
+  planId: z.string().min(1, "Plan ID is required"),
+  interval: z.enum(["monthly", "yearly"]).optional(),
+  domainName: z.string().trim().min(3).max(253),
+});
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
@@ -14,15 +21,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { planId, interval, domainName } = await request.json();
-
-    if (!planId) {
-      return NextResponse.json({ error: "Plan ID is required" }, { status: 400 });
-    }
-    
-    if (!domainName) {
-      return NextResponse.json({ error: "Domain Name is required" }, { status: 400 });
-    }
+    const validation = await validatedBody(request, createSubscriptionSchema);
+    if (!validation.ok) return validation.response;
+    const { planId, interval, domainName } = validation.data;
 
     serverLogger.info(`💰 [CREATE-SUBSCRIPTION] Creating subscription for plan: ${planId} (${interval}) for domain: ${domainName}`);
 

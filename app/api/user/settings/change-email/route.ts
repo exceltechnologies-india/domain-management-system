@@ -5,6 +5,13 @@ import { AuthService } from "@/lib/auth";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 import { sendEmail } from "@/lib/email/transporter";
+import { validatedBody, z } from "@/lib/api-validation";
+import { Schemas } from "@/lib/validation";
+
+const changeEmailSchema = z.object({
+  newEmail: Schemas.email,
+  currentPassword: z.string().min(1, "currentPassword is required").max(256),
+});
 
 export const dynamic = "force-dynamic";
 
@@ -36,22 +43,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    const { newEmail, currentPassword } = body;
-
-    if (!newEmail || typeof newEmail !== "string") {
-      return secureErrorResponse("newEmail is required", 400, "MISSING_FIELD");
-    }
-    if (!currentPassword || typeof currentPassword !== "string") {
-      return secureErrorResponse("currentPassword is required", 400, "MISSING_FIELD");
-    }
-
-    const normalizedEmail = newEmail.trim().toLowerCase();
-
-    // Basic email format check
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) || normalizedEmail.length > 254) {
-      return secureErrorResponse("Invalid email address", 400, "INVALID_EMAIL");
-    }
+    const validation = await validatedBody(request, changeEmailSchema);
+    if (!validation.ok) return validation.response;
+    // Schemas.email already lowercases + trims + format-checks.
+    const { newEmail: normalizedEmail, currentPassword } = validation.data;
 
     if (normalizedEmail === user.email.toLowerCase()) {
       return secureErrorResponse(

@@ -5,6 +5,12 @@ import { DirectAdminService } from "@/lib/directadmin";
 import { AuthService } from "@/lib/auth";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
+import { validatedBody, z } from "@/lib/api-validation";
+import { Schemas } from "@/lib/validation";
+
+const cancelTrialSchema = z.object({
+  hostingId: Schemas.id,
+});
 
 export const dynamic = "force-dynamic";
 
@@ -25,10 +31,9 @@ export async function POST(request: NextRequest) {
     const user = await AuthService.getUserFromRequest(request);
     if (!user) return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
 
-    const { hostingId } = await request.json();
-    if (!hostingId) {
-      return NextResponse.json({ error: "hostingId is required" }, { status: 400 });
-    }
+    const validation = await validatedBody(request, cancelTrialSchema);
+    if (!validation.ok) return validation.response;
+    const { hostingId } = validation.data;
 
     const hosting = await findUserHostingById(hostingId, user._id);
 
