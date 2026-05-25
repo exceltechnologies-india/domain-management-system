@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * Admin per-page skeletons.
  */

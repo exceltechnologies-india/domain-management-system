@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * Payment-flow skeletons (cart, checkout, success).
  */

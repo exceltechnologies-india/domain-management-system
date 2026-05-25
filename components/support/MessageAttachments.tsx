@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * Renders image attachments inside a support-ticket message bubble.
  * Click thumbnail to open the full image in a new tab.

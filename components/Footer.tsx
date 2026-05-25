@@ -1,5 +1,3 @@
-'use client';
-
 import Link from 'next/link';
 import { Mail, Phone, MapPin, Globe, Shield, CreditCard, Database, Server, Wifi } from 'lucide-react';
 
