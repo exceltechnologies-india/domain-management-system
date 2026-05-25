@@ -280,3 +280,26 @@ echo "   List revisions: gcloud run revisions list --service=$SERVICE --region=$
 
 log_deploy "success"
 echo "   Logged to: $DEPLOY_LOG"
+
+# ── Git tag the deploy ───────────────────────────────────────────────────────
+# Annotated tag per successful deploy: `deploy-<YYYYMMDD-HHMMSSZ>-<short-sha>`,
+# with the structured log line in the tag message. Browsable in GitHub's tags
+# UI; `git log deploy-X..deploy-Y` shows what shipped between releases.
+#
+# Skip if not in a git repo (e.g. running from a release tarball), if the
+# commit is "unknown" (we couldn't resolve HEAD earlier), or if `git tag` /
+# `git push` fails — the deploy already succeeded, tag noise is cosmetic.
+# Set `DEPLOY_SKIP_TAG=true` to opt out entirely.
+if [ "${DEPLOY_SKIP_TAG:-false}" != "true" ] && [ "$DEPLOY_HEAD_SHA" != "unknown" ]; then
+  TAG_NAME="deploy-$(date -u -d "$DEPLOY_START_TS" +%Y%m%d-%H%M%SZ 2>/dev/null || date -u +%Y%m%d-%H%M%SZ)-${DEPLOY_HEAD_SHA:0:8}"
+  TAG_MSG="status=success revision=$DEPLOY_REVISION actor=$DEPLOY_ACTOR duration_s=$(( SECONDS - DEPLOY_START_SEC )) branch=$DEPLOY_BRANCH commit=$DEPLOY_HEAD_SHA url=$URL"
+  if git tag -a "$TAG_NAME" -m "$TAG_MSG" "$DEPLOY_HEAD_SHA" 2>/dev/null; then
+    if git push origin "$TAG_NAME" >/dev/null 2>&1; then
+      echo "   Tagged:   $TAG_NAME (pushed to origin)"
+    else
+      echo "   Tagged:   $TAG_NAME (local only — push failed; run: git push origin $TAG_NAME)"
+    fi
+  else
+    echo "   ⚠️  Tag '$TAG_NAME' creation failed (already exists?) — skipping"
+  fi
+fi
