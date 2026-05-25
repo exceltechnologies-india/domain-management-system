@@ -12,7 +12,9 @@ import type {
   TransferDomainOutcome,
   GetDomainOrderIdOutcome,
   GetDomainDetailsOutcome,
+  GetDNSRecordsOutcome,
   DomainDetailsRecord,
+  DnsRecordEntry,
 } from "./types";
 
 /**
@@ -237,6 +239,38 @@ export function classifyGetDomainDetailsResponse(
     return {
       kind: "not_found",
       reason: res.message || "RC reports no such domain",
+    };
+  }
+  return {
+    kind: "hard_failure",
+    reason: res.message || `RC returned status=${res.status} with no message`,
+  };
+}
+
+/**
+ * Map a raw RC `getDNSRecords` response onto the typed outcome. The
+ * inner wrapper already normalises records into `data.records: [...]`
+ * (merging RC's per-type fan-out + aliasing recordid/timetolive/host),
+ * so the classifier just needs to surface the right `kind` and pull
+ * `records` onto the outcome.
+ *
+ * Empty records is `found` (no records present), not `not_found`
+ * (which is reserved for "domain isn't under DNS management here").
+ */
+export function classifyGetDNSRecordsResponse(
+  res: ResellerClubResponse
+): GetDNSRecordsOutcome {
+  if (res.status === "success" && res.data) {
+    const records = Array.isArray((res.data as { records?: unknown }).records)
+      ? ((res.data as { records: DnsRecordEntry[] }).records)
+      : [];
+    return { kind: "found", records };
+  }
+
+  if (matchesAny(res.message, READ_NOT_FOUND_FRAGMENTS)) {
+    return {
+      kind: "not_found",
+      reason: res.message || "RC reports no DNS-managed domain",
     };
   }
   return {

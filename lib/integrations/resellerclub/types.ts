@@ -19,10 +19,10 @@
  *   - transferDomain    → TransferDomainOutcome
  *   - getDomainOrderId  → GetDomainOrderIdOutcome
  *   - getDomainDetails  → GetDomainDetailsOutcome
+ *   - getDNSRecords     → GetDNSRecordsOutcome
  *
  * To migrate next (follow-up batches):
- *   - getDNSRecords;
- *     DirectAdmin: modifyDomain (updateDNSNameservers permanently disabled).
+ *   - DirectAdmin: modifyDomain (updateDNSNameservers permanently disabled).
  */
 
 /**
@@ -146,5 +146,35 @@ export interface DomainDetailsRecord {
  */
 export type GetDomainDetailsOutcome =
   | { kind: "found"; details: DomainDetailsRecord }
+  | { kind: "not_found"; reason: string }
+  | { kind: "hard_failure"; reason: string };
+
+/**
+ * Normalised DNS record shape callers see after the inner wrapper in
+ * `lib/resellerclub/dns.ts` has merged RC's various field aliases
+ * (recordid / recordId / record-id, timetolive / ttl, host / name).
+ * Keeps the underlying RC fields available via the index signature.
+ */
+export interface DnsRecordEntry {
+  type?: string;
+  value?: string;
+  id?: string;
+  ttl?: string | number;
+  name?: string;
+  priority?: string | number;
+  [k: string]: unknown;
+}
+
+/**
+ * Outcome of a `getDNSRecords` call (RC fans out one
+ * `/api/dns/manage/search-records.json` per record type and merges).
+ *
+ * - `found`         — RC returned records (possibly empty array).
+ * - `not_found`     — domain isn't under our DNS management /
+ *                      doesn't exist on RC. Callers map to a 404.
+ * - `hard_failure`  — network / RC error. Callers map to 500.
+ */
+export type GetDNSRecordsOutcome =
+  | { kind: "found"; records: DnsRecordEntry[] }
   | { kind: "not_found"; reason: string }
   | { kind: "hard_failure"; reason: string };

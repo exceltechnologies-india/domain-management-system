@@ -12,12 +12,15 @@ export { getDomainOrderId } from "./get-domain-order-id";
 export type { GetDomainOrderIdInput } from "./get-domain-order-id";
 export { getDomainDetails } from "./get-domain-details";
 export type { GetDomainDetailsInput } from "./get-domain-details";
+export { getDNSRecords } from "./get-dns-records";
+export type { GetDNSRecordsInput } from "./get-dns-records";
 export {
   classifyRegisterDomainResponse,
   classifyRenewDomainResponse,
   classifyTransferDomainResponse,
   classifyGetDomainOrderIdResponse,
   classifyGetDomainDetailsResponse,
+  classifyGetDNSRecordsResponse,
   matchesAny,
   BALANCE_PENDING_FRAGMENTS,
   PROCESSING_LOCK_FRAGMENTS,
@@ -31,5 +34,7 @@ export type {
   TransferDomainOutcome,
   GetDomainOrderIdOutcome,
   GetDomainDetailsOutcome,
+  GetDNSRecordsOutcome,
   DomainDetailsRecord,
+  DnsRecordEntry,
 } from "./types";

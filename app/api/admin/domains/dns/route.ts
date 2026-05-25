@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
+import { getDNSRecords as rcGetDNSRecords } from "@/lib/integrations/resellerclub";
 import { AuthService } from "@/lib/auth";
 import { serverLogger } from "@/lib/server-logger";
 import { findOrderByDomain, findOrderDomain } from "@/lib/services/orders";
@@ -43,27 +44,25 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get DNS records
-    const result = await ResellerClubWrapper.getDNSRecords(
+    const outcome = await rcGetDNSRecords({
       domainName,
-      domain.resellerClubCustomerId
-    );
+      customerId: domain.resellerClubCustomerId,
+    });
 
-    if (result.status === "error") {
-      // Check if it's a 404 error (domain not found in ResellerClub)
-      if (result.message && result.message.includes("404")) {
-        return NextResponse.json(
-          { error: "Domain not found in ResellerClub" },
-          { status: 404 }
-        );
-      }
-      return NextResponse.json({ error: result.message }, { status: 500 });
+    if (outcome.kind === "not_found") {
+      return NextResponse.json(
+        { error: "Domain not found in ResellerClub" },
+        { status: 404 }
+      );
+    }
+    if (outcome.kind === "hard_failure") {
+      return NextResponse.json({ error: outcome.reason }, { status: 500 });
     }
 
     return NextResponse.json({
       success: true,
       domainName,
-      records: result.data?.records || [],
+      records: outcome.records,
     });
   } catch (error: unknown) {
     serverLogger.error("Error in admin DNS GET:", error);
