@@ -8,6 +8,11 @@ import {
   secureJsonResponse,
   secureErrorResponse,
 } from "@/lib/api-response-wrapper";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const sendOtpSchema = z.object({
+  phone: z.string().trim().max(20).optional(),
+});
 
 export const dynamic = "force-dynamic";
 
@@ -30,8 +35,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const body = (await request.json().catch(() => ({}))) as { phone?: string };
-    let phone = body.phone?.toString().trim();
+    const validation = await validatedBody(request, sendOtpSchema);
+    if (!validation.ok) return validation.response;
+    let phone = validation.data.phone;
 
     if (!phone) {
       const user = await AuthService.getUserFromRequest(request);

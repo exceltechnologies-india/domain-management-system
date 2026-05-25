@@ -12,6 +12,24 @@ import {
   sumExistingAttachmentBytes,
   checkTicketTotalCap,
 } from "@/lib/support-attachments";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const ATTACHMENT_SHAPE = z.object({
+  filename: z.string(),
+  mimeType: z.string(),
+  size: z.number().nonnegative(),
+  dataUrl: z.string(),
+});
+
+const patchTicketAdminSchema = z.object({
+  status: z.enum(["open", "in_progress", "resolved", "closed"]).optional(),
+  priority: z.enum(["low", "medium", "high"]).optional(),
+});
+
+const replyTicketAdminSchema = z.object({
+  message: z.string().trim().min(1, "Message is required").max(5000, "Message too long"),
+  attachments: z.array(ATTACHMENT_SHAPE).optional(),
+});
 
 const escapeHtml = (s: string) =>
   s
@@ -51,22 +69,21 @@ export async function PATCH(
     if (!admin) return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
 
     const { id } = await params;
-    const body = await request.json();
-
-    const validStatuses = ["open", "in_progress", "resolved", "closed"];
-    const validPriorities = ["low", "medium", "high"];
+    const validation = await validatedBody(request, patchTicketAdminSchema);
+    if (!validation.ok) return validation.response;
+    const { status, priority } = validation.data;
 
     const update: Record<string, unknown> = {};
-    if (body.status && validStatuses.includes(body.status)) {
-      update.status = body.status;
-      if (body.status === "resolved" || body.status === "closed") {
+    if (status) {
+      update.status = status;
+      if (status === "resolved" || status === "closed") {
         update.resolvedAt = new Date();
-      } else if (body.status === "open" || body.status === "in_progress") {
+      } else {
         update.resolvedAt = null;
       }
     }
-    if (body.priority && validPriorities.includes(body.priority)) {
-      update.priority = body.priority;
+    if (priority) {
+      update.priority = priority;
     }
 
     const ticket = await updateTicketByIdAsAdmin(id, { $set: update });
@@ -88,10 +105,9 @@ export async function POST(
     if (!admin) return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
 
     const { id } = await params;
-    const { message, attachments } = await request.json();
-
-    if (!message?.trim()) return secureErrorResponse("Message is required", 400, "VALIDATION_ERROR");
-    if (message.length > 5000) return secureErrorResponse("Message too long", 400, "VALIDATION_ERROR");
+    const validation = await validatedBody(request, replyTicketAdminSchema);
+    if (!validation.ok) return validation.response;
+    const { message, attachments } = validation.data;
 
     const attachmentResult = validateAttachments(attachments, {
       userId: admin._id?.toString(),

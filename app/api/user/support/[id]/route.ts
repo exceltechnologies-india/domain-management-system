@@ -11,6 +11,25 @@ import {
 } from "@/lib/support-attachments";
 import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { serverLogger } from "@/lib/server-logger";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const ATTACHMENT_SHAPE = z.object({
+  filename: z.string(),
+  mimeType: z.string(),
+  size: z.number().nonnegative(),
+  dataUrl: z.string(),
+});
+
+const patchTicketSchema = z.object({
+  status: z.literal("closed", {
+    message: "Only closing your ticket is supported.",
+  }),
+});
+
+const replyTicketSchema = z.object({
+  message: z.string().trim().min(1, "Message is required").max(5000, "Message too long"),
+  attachments: z.array(ATTACHMENT_SHAPE).optional(),
+});
 
 const escapeHtml = (s: string) =>
   s
@@ -51,18 +70,11 @@ export async function PATCH(
     if (!user) return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
 
     const { id } = await params;
-    const body = await request.json();
-
+    const validation = await validatedBody(request, patchTicketSchema);
+    if (!validation.ok) return validation.response;
     // User can only close their own ticket. Reopening / priority / category
     // changes remain admin-only — once the user closes, the existing UX
     // already directs them to open a new ticket for further help.
-    if (body.status !== "closed") {
-      return secureErrorResponse(
-        "Only closing your ticket is supported.",
-        400,
-        "VALIDATION_ERROR"
-      );
-    }
 
     await connectDB();
 
@@ -116,10 +128,9 @@ export async function POST(
     }
 
     const { id } = await params;
-    const { message, attachments } = await request.json();
-
-    if (!message?.trim()) return secureErrorResponse("Message is required", 400, "VALIDATION_ERROR");
-    if (message.length > 5000) return secureErrorResponse("Message too long", 400, "VALIDATION_ERROR");
+    const validation = await validatedBody(request, replyTicketSchema);
+    if (!validation.ok) return validation.response;
+    const { message, attachments } = validation.data;
 
     const attachmentResult = validateAttachments(attachments, {
       userId: userIdStr,

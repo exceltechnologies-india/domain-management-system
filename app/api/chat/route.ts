@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
+import { validatedBody, z } from "@/lib/api-validation";
+
+// Zod gates: array shape + per-message role enum + bounded content length.
+// `.slice(-20)` below keeps the conversation history bounded for cost.
+const chatMessageSchema = z.object({
+  role: z.enum(["user", "assistant"]),
+  content: z.string().min(1).max(8000),
+});
+
+const chatSchema = z.object({
+  messages: z.array(chatMessageSchema).min(1, "Invalid messages"),
+});
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -31,31 +43,11 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const { messages } = await req.json();
-
-    if (!Array.isArray(messages) || messages.length === 0) {
-      return NextResponse.json({ error: "Invalid messages" }, { status: 400 });
-    }
-
-    const sanitized = messages
-      .filter(
-        (m: unknown) =>
-          m &&
-          typeof m === "object" &&
-          "role" in (m as object) &&
-          "content" in (m as object) &&
-          typeof (m as { role: unknown }).role === "string" &&
-          typeof (m as { content: unknown }).content === "string"
-      )
-      .slice(-20) // keep last 20 turns
-      .map((m: { role: string; content: string }) => ({
-        role: m.role as "user" | "assistant",
-        content: m.content,
-      }));
-
-    if (sanitized.length === 0) {
-      return NextResponse.json({ error: "No valid messages" }, { status: 400 });
-    }
+    const validation = await validatedBody(req, chatSchema);
+    if (!validation.ok) return validation.response;
+    // Keep the last 20 turns to bound token cost; Zod already guaranteed
+    // the role + content shapes, so no per-element filter is needed.
+    const sanitized = validation.data.messages.slice(-20);
 
     const stream = await client.messages.stream({
       // Pinned to the dated Haiku 4.5 release (2025-10-01) so a future alias
