@@ -30,6 +30,46 @@
 
 set -uo pipefail
 
+# ── Deployment log ────────────────────────────────────────────────────────────
+# Append one structured line per deploy attempt to `deployments.log` at the
+# repo root. Captures who triggered, what commit, which Cloud Run revision
+# (when reachable), final status, and total elapsed seconds. Override the
+# path via `DEPLOY_LOG=path ./scripts/deploy-cloud-run.sh`.
+#
+# Gitignored by default — per-machine history. Cloud Build + Cloud Run
+# logs already live in Cloud Logging; this file is the *summary index*:
+# "what shipped when, and what was the revision name for rollback."
+DEPLOY_LOG="${DEPLOY_LOG:-deployments.log}"
+DEPLOY_START_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+DEPLOY_START_SEC=$SECONDS
+DEPLOY_HEAD_SHA=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+DEPLOY_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+DEPLOY_ACTOR=$(gcloud auth list --filter=status:ACTIVE --format='value(account)' 2>/dev/null | head -1 || echo "unknown")
+DEPLOY_REVISION="unknown"
+DEPLOY_STAGE="init"
+DEPLOY_LOGGED=false
+
+log_deploy() {
+  local status="$1"
+  local duration=$(( SECONDS - DEPLOY_START_SEC ))
+  printf 'ts=%s commit=%s branch=%s actor=%s revision=%s status=%s stage=%s duration_s=%d\n' \
+    "$DEPLOY_START_TS" \
+    "${DEPLOY_HEAD_SHA:0:12}" \
+    "$DEPLOY_BRANCH" \
+    "$DEPLOY_ACTOR" \
+    "$DEPLOY_REVISION" \
+    "$status" \
+    "$DEPLOY_STAGE" \
+    "$duration" \
+    >> "$DEPLOY_LOG"
+  DEPLOY_LOGGED=true
+}
+
+# Catch every exit path — success writes its own line explicitly (below) and
+# sets DEPLOY_LOGGED=true; the trap fires on early-exit cases (CI gate fail,
+# build fail, smoke-test fail, etc.) so no deploy attempt is silently lost.
+trap 'rc=$?; if [ "$DEPLOY_LOGGED" = "false" ]; then log_deploy "failed_exit_${rc}"; fi' EXIT
+
 SKIP_BUILD=false
 SKIP_CI_CHECK=false
 while [[ $# -gt 0 ]]; do
@@ -127,6 +167,7 @@ check_ci_green() {
   esac
 }
 
+DEPLOY_STAGE="ci_gate"
 check_ci_green
 
 PROJECT=speedy-unison-453807-e9
@@ -152,6 +193,7 @@ $SKIP_BUILD && echo "  Mode:      --skip-build (deploying existing :latest)"
 echo "════════════════════════════════════════"
 
 # ── Step 1: build ─────────────────────────────────────────────────────────────
+DEPLOY_STAGE="build"
 if ! $SKIP_BUILD; then
   echo ""
   echo "📍 [1/2] Building image via Cloud Build (~4 min)..."
@@ -182,6 +224,7 @@ fi
 # The full --set-secrets and --set-env-vars are pulled from the generated file
 # from seed-secrets.sh, OR pasted inline (this is the inline form, easier to
 # read and version-control).
+DEPLOY_STAGE="deploy"
 echo ""
 echo "📍 [2/2] Deploying to Cloud Run..."
 
@@ -215,7 +258,9 @@ gcloud run deploy "$SERVICE" \
   --quiet 2>&1 | tail -5
 
 # ── Smoke test ────────────────────────────────────────────────────────────────
+DEPLOY_STAGE="smoke_test"
 URL=$(gcloud run services describe "$SERVICE" --region="$REGION" --format='value(status.url)')
+DEPLOY_REVISION=$(gcloud run services describe "$SERVICE" --region="$REGION" --format='value(status.latestReadyRevisionName)' 2>/dev/null || echo "unknown")
 echo ""
 echo "📍 Smoke test:"
 HTTP=$(curl -sS -o /dev/null -w "%{http_code}" "$URL/api/health")
@@ -229,5 +274,9 @@ fi
 
 echo ""
 echo "✅ Deployed: $URL"
+echo "   Revision: $DEPLOY_REVISION"
 echo "   Roll back with: gcloud run services update-traffic $SERVICE --region=$REGION --to-revisions=<previous-revision>=100"
 echo "   List revisions: gcloud run revisions list --service=$SERVICE --region=$REGION"
+
+log_deploy "success"
+echo "   Logged to: $DEPLOY_LOG"
