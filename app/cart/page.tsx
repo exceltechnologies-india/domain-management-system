@@ -20,6 +20,7 @@ import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { CartPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import { getMinRegistrationPeriod } from '@/lib/tld-min-periods';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 interface User {
   firstName: string;
@@ -200,6 +201,7 @@ export default function CartPage() {
       <Navigation user={user} onLogout={user ? handleLogout : undefined} />
 
       <div className="flex-1 w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-8 pt-24">
+        <ErrorBoundary label="CartPage">
         <ProfileCompletionWarning returnUrl="/cart" />
 
         {/* ── Header strip ── */}
@@ -346,6 +348,7 @@ export default function CartPage() {
             </div>
           </div>
         )}
+        </ErrorBoundary>
       </div>
 
       <Footer />

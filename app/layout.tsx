@@ -9,6 +9,7 @@ import FloatingCart from '@/components/FloatingCart';
 import ScrollToTop from '@/components/ScrollToTop';
 import CookieConsentBanner from '@/components/CookieConsentBanner';
 import { ConfirmDialogHost } from '@/lib/confirm-dialog';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { headers } from 'next/headers';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -36,7 +37,9 @@ export default async function RootLayout({
         <MotionProvider>
           <SessionProvider>
             {children}
-            <FloatingCart />
+            <ErrorBoundary label="FloatingCart" fallback={null}>
+              <FloatingCart />
+            </ErrorBoundary>
             <ScrollToTop />
             <CookieConsentBanner />
             <ConfirmDialogHost />
