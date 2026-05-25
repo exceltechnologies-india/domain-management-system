@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserById, reactivateUser } from "@/lib/services/users";
 import { AuthService } from "@/lib/auth";
 import { serverLogger } from "@/lib/server-logger";
+import { validatedBody, z } from "@/lib/api-validation";
+import { Schemas } from "@/lib/validation";
+
+const reactivateSchema = z.object({
+  userId: Schemas.id,
+});
 
 // Force dynamic rendering - required for API routes
 export const dynamic = 'force-dynamic';
@@ -14,14 +20,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { userId } = await request.json();
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: "User ID is required" },
-        { status: 400 }
-      );
-    }
+    const validation = await validatedBody(request, reactivateSchema);
+    if (!validation.ok) return validation.response;
+    const { userId } = validation.data;
 
     // Find the user
     const targetUser = await getUserById(userId);

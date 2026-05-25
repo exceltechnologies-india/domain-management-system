@@ -3,6 +3,12 @@ import { AuthService } from "@/lib/auth";
 import { changePackage as daChangePackage } from "@/lib/integrations/directadmin";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const changePackageSchema = z.object({
+  username: z.string().trim().min(1, "Username is required").max(100),
+  newPackage: z.string().trim().min(1, "New package is required").max(100),
+});
 
 /**
  * POST /api/admin/hosting/change-package
@@ -18,13 +24,9 @@ export async function POST(request: NextRequest) {
       return secureErrorResponse("Unauthorized. Admin access required.", 403, "FORBIDDEN");
     }
 
-    // 2. Parse request body
-    const body = await request.json();
-    const { username, newPackage } = body;
-
-    if (!username || !newPackage) {
-      return secureErrorResponse("Username and new package are required.", 400, "INVALID_INPUT");
-    }
+    const validation = await validatedBody(request, changePackageSchema);
+    if (!validation.ok) return validation.response;
+    const { username, newPackage } = validation.data;
 
     serverLogger.info(`Admin changing package for user: ${username} to ${newPackage}`);
     const outcome = await daChangePackage({ username, newPackage });

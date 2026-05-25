@@ -6,6 +6,14 @@ import bcrypt from "bcryptjs";
 import { EmailService } from "@/lib/email";
 import { requireReAuth } from "@/lib/admin-security";
 import { serverLogger } from "@/lib/server-logger";
+import { validatedBody, z } from "@/lib/api-validation";
+import { Schemas } from "@/lib/validation";
+
+const adminResetPasswordSchema = z.object({
+  userId: Schemas.id,
+  newPassword: z.string().min(6, "Password must be at least 6 characters long").max(256),
+  sendEmail: z.boolean().optional().default(true),
+});
 
 // Force dynamic rendering - required for API routes
 export const dynamic = 'force-dynamic';
@@ -29,21 +37,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { userId, newPassword, sendEmail = true } = await request.json();
-
-    if (!userId || !newPassword) {
-      return NextResponse.json(
-        { error: "User ID and new password are required" },
-        { status: 400 }
-      );
-    }
-
-    if (newPassword.length < 6) {
-      return NextResponse.json(
-        { error: "Password must be at least 6 characters long" },
-        { status: 400 }
-      );
-    }
+    const validation = await validatedBody(request, adminResetPasswordSchema);
+    if (!validation.ok) return validation.response;
+    const { userId, newPassword, sendEmail } = validation.data;
 
     // Find the target user
     const targetUser = await getUserById(userId);

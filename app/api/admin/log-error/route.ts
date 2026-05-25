@@ -3,10 +3,26 @@ import { recordSystemLog } from "@/lib/services/system-logs";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { authorizeCronRequest } from "@/lib/cron-auth";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const logErrorSchema = z.object({
+  message: z.string().min(1).max(10_000),
+  source: z.string().max(200).optional(),
+  url: z.string().max(2000).optional(),
+  stack: z.string().max(20_000).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  service: z.string().max(200).optional(),
+  requestId: z.string().max(200).optional(),
+  statusCode: z.number().int().optional(),
+  ip: z.string().max(64).optional(),
+});
 
 export async function POST(req: NextRequest) {
   try {
-    const { message, source, url, stack, metadata, service, requestId, statusCode, ip: bodyIp } = await req.json();
+    const validation = await validatedBody(req, logErrorSchema);
+    if (!validation.ok) return validation.response;
+    const { message, source, url, stack, metadata, service, requestId, statusCode, ip: bodyIp } =
+      validation.data;
 
     const origin = req.headers.get("origin") || req.headers.get("referer");
     const ip = bodyIp || req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown";

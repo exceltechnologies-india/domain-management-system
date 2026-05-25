@@ -10,6 +10,35 @@ import { serverLogger } from "@/lib/server-logger";
 import { clearDirectAdminUsernameForAll } from "@/lib/services/users";
 import { deleteHostingsByIdOrUsername } from "@/lib/services/hostings";
 import { RazorpayService } from "@/lib/razorpay";
+import { validatedBody, z } from "@/lib/api-validation";
+
+// Discriminated union per action. suspend/unsuspend require username
+// (the typed DA wrappers can't operate without it — the previous
+// `any`-typed body silently passed `username: undefined` and crashed
+// at the wrapper boundary). delete accepts either username or hostingId
+// since the local row can be resolved by either.
+const hostingActionSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("suspend"),
+    username: z.string().trim().min(1).max(100),
+    hostingId: z.string().trim().min(1).optional(),
+  }),
+  z.object({
+    action: z.literal("unsuspend"),
+    username: z.string().trim().min(1).max(100),
+    hostingId: z.string().trim().min(1).optional(),
+  }),
+  z
+    .object({
+      action: z.literal("delete"),
+      username: z.string().trim().min(1).max(100).optional(),
+      hostingId: z.string().trim().min(1).optional(),
+    })
+    .refine((d) => Boolean(d.username || d.hostingId), {
+      message: "Either username or hostingId is required for delete",
+      path: ["username"],
+    }),
+]);
 
 export const dynamic = 'force-dynamic';
 
@@ -26,13 +55,9 @@ export async function POST(request: NextRequest) {
       return secureErrorResponse("Unauthorized. Admin access required.", 403, "FORBIDDEN");
     }
 
-    // 2. Parse payload
-    const body = await request.json();
-    const { action, username, hostingId } = body;
-
-    if (!action || (!username && !hostingId)) {
-      return secureErrorResponse("Missing action, username or hostingId", 400, "INVALID_PAYLOAD");
-    }
+    const validation = await validatedBody(request, hostingActionSchema);
+    if (!validation.ok) return validation.response;
+    const { action, username, hostingId } = validation.data;
 
     serverLogger.info(`Admin performing '${action}' on DA user: ${username || 'N/A'} (Hosting ID: ${hostingId || 'N/A'})`);
 
