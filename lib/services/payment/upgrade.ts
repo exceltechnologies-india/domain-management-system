@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { DirectAdminService } from "@/lib/directadmin";
+import { changePackage as daChangePackage } from "@/lib/integrations/directadmin";
 import { RazorpayService } from "@/lib/razorpay";
 import { getOrderByRazorpayOrderId } from "@/lib/services/orders";
 import { getHostingById } from "@/lib/services/hostings";
@@ -90,23 +90,24 @@ export async function handleUpgradePayment(
     hosting.autoRenew = false;
   }
 
-  // Apply the new package on DirectAdmin
-  try {
-    await DirectAdminService.changePackage(hosting.directAdminUsername, newPlan.directAdminPackage);
-    serverLogger.info(`[UPGRADE] DA package changed to ${newPlan.directAdminPackage} for ${hosting.directAdminUsername}`);
-  } catch (daErr: unknown) {
-    const message = daErr instanceof Error ? daErr.message : String(daErr);
-    serverLogger.error(`[UPGRADE] DirectAdmin changePackage failed for ${hosting.directAdminUsername}: ${message}`);
-    // Mark the order for admin review and return an error.
+  const daOutcome = await daChangePackage({
+    username: hosting.directAdminUsername,
+    newPackage: newPlan.directAdminPackage,
+  });
+
+  if (daOutcome.kind !== "changed") {
     // `paid` isn't in IOrder['status']'s enum (the schema accepts it but the
     // type doesn't surface it); narrow at the assignment to avoid widening
     // the model just for this rare path.
     order.status = "paid" as IOrder["status"];
     if (order.domains?.[0]) {
       order.domains[0].status = "failed";
-      order.domains[0].error = `DA package change failed: ${message}`;
+      order.domains[0].error = `DA package change ${daOutcome.kind}: ${daOutcome.reason}`;
     }
     await order.save();
+    serverLogger.error(
+      `[UPGRADE] changePackage ${daOutcome.kind} for ${hosting.directAdminUsername}: ${daOutcome.reason}`
+    );
     return NextResponse.json(
       {
         success: false,
@@ -116,6 +117,9 @@ export async function handleUpgradePayment(
       { status: 500 }
     );
   }
+  serverLogger.info(
+    `[UPGRADE] DA package changed to ${newPlan.directAdminPackage} for ${hosting.directAdminUsername}`
+  );
 
   // Update Hosting document
   hosting.planId = newPlan.planId;

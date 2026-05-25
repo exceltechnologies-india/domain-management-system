@@ -12,12 +12,15 @@ export { getUserConfig } from "./get-user-config";
 export type { GetUserConfigInput } from "./get-user-config";
 export { deleteUser } from "./delete-user";
 export type { DeleteUserInput } from "./delete-user";
+export { changePackage } from "./change-package";
+export type { ChangePackageInput } from "./change-package";
 export type {
   CreateUserOutcome,
   SuspendUserOutcome,
   UnsuspendUserOutcome,
   GetUserConfigOutcome,
   DeleteUserOutcome,
+  ChangePackageOutcome,
 } from "./types";
 export {
   classifyCreateUserError,
@@ -25,8 +28,10 @@ export {
   classifyUnsuspendUserError,
   classifyGetUserConfigError,
   classifyDeleteUserError,
+  classifyChangePackageError,
   USERNAME_COLLISION_FRAGMENTS,
   USER_NOT_FOUND_FRAGMENTS,
+  PACKAGE_NOT_FOUND_FRAGMENTS,
   matchesAny,
 } from "./classify";
 export type {
@@ -35,4 +40,5 @@ export type {
   SingleUnsuspendUserAttempt,
   SingleGetUserConfigAttempt,
   SingleDeleteUserAttempt,
+  SingleChangePackageAttempt,
 } from "./classify";

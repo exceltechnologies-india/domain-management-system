@@ -11,10 +11,11 @@
  *   - unsuspendUser → UnsuspendUserOutcome
  *   - getUserConfig → GetUserConfigOutcome
  *   - deleteUser    → DeleteUserOutcome
+ *   - changePackage → ChangePackageOutcome
  *
- * To migrate next:
- *   - modifyDomain (updateDNSNameservers is permanently disabled — see
- *     lib/directadmin/dns.ts; skip)
+ * Skipped (permanently disabled or not used):
+ *   - updateDNSNameservers — disabled in lib/directadmin/dns.ts
+ *   - modifyDomain — no callers in the codebase
  */
 
 /**
@@ -130,5 +131,31 @@ export type GetUserConfigOutcome =
 export type DeleteUserOutcome =
   | { kind: "deleted" }
   | { kind: "user_not_found"; reason: string }
+  | { kind: "da_unreachable"; reason: string }
+  | { kind: "hard_failure"; reason: string };
+
+/**
+ * Outcome of a `changePackage` call (DA's CMD_API_MODIFY_USER with
+ * action=package). High-stakes write — payment is already captured by
+ * the time we hit DA for the upgrade flow, so distinguishing "DA blip,
+ * retry later" from "wrong package id, fail loudly" matters.
+ *
+ * - `changed`            — DA accepted the package change.
+ * - `user_not_found`     — DA reports no such username. Means the
+ *                           Hosting row points at a deleted/never-
+ *                           created DA account.
+ * - `package_not_found`  — DA reports the target package doesn't exist
+ *                           on the server. Almost always a config /
+ *                           seeding bug; caller should fail loudly so
+ *                           ops can re-seed packages.
+ * - `da_unreachable`     — 503 / network. Payment caller usually acks
+ *                           the payment + queues for retry; admin
+ *                           caller surfaces 503.
+ * - `hard_failure`       — anything else (permission, validation).
+ */
+export type ChangePackageOutcome =
+  | { kind: "changed" }
+  | { kind: "user_not_found"; reason: string }
+  | { kind: "package_not_found"; reason: string }
   | { kind: "da_unreachable"; reason: string }
   | { kind: "hard_failure"; reason: string };
