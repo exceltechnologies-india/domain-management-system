@@ -29,7 +29,7 @@ All four HIGH findings have been verified against the actual code, not just trus
 | Batch 7q | M1 slice 11 — RC `getDNSRecords` (2 callsites, 9 new tests) | ✅ Closed | `a4b4422` |
 | Batch 7r | M1 slice 12 — DA `changePackage` + upgrade-flow + admin route (7 new tests) | ✅ Closed | `26d201f` |
 | Batch 7s | M13 partial — delete dead `error.message.includes` chain in verification-error.ts (-65 LOC) | ✅ Closed | `299f84c` |
-| Batch 7t | L1 — typed Razorpay SDK client (10 `as unknown as` casts → 1) | 🔄 In progress | pending |
+| Batch 7t | L1 — typed Razorpay SDK client (10 `as unknown as` casts → 1) | ✅ Closed | `9b6d018` |
 
 **All four HIGHs + 11 MEDIUMs + 10 LOWs cleared. Anti-corruption layer complete** — 14 vertical slices shipped across batches 7a–7t (6 RC ops + 6 DA ops + the vocab unification + the M13 verification-error.ts cleanup + the L1 Razorpay typed-client extraction). Bonus catches:
 - 7e: M3's tightened `BookingStep` type uncovered a real save-validation bug — `provisioner-hosting.ts:379` emits `step: "hosting_deferred"` but the schema enum didn't include it.
