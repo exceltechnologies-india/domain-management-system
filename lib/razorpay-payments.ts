@@ -1,42 +1,15 @@
-import Razorpay from "razorpay";
 import { serverLogger } from "@/lib/server-logger";
+import {
+  razorpayClient,
+  type RazorpayPayment,
+  type RazorpayPaymentListResponse,
+} from "@/lib/razorpay-client";
 
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID!,
-  key_secret: process.env.RAZORPAY_KEY_SECRET!,
-});
-
-export interface RazorpayPayment {
-  id: string;
-  entity: string;
-  amount: number;
-  currency: string;
-  status: string;
-  method: string;
-  description?: string;
-  amount_refunded: number;
-  refund_status?: string;
-  captured: boolean;
-  email: string;
-  contact?: string;
-  notes: Record<string, any>;
-  fee?: number;
-  tax?: number;
-  error_code?: string;
-  error_description?: string;
-  error_source?: string;
-  error_step?: string;
-  error_reason?: string;
-  acquirer_data?: Record<string, any>;
-  created_at: number;
-  updated_at: number;
-}
-
-export interface RazorpayPaymentListResponse {
-  entity: string;
-  count: number;
-  items: RazorpayPayment[];
-}
+// Re-export the SDK record shapes so existing consumers
+// (`import { RazorpayPayment } from "@/lib/razorpay-payments"`) keep
+// working — definitions live in razorpay-client.ts now to avoid the
+// circular import that would otherwise arise.
+export type { RazorpayPayment, RazorpayPaymentListResponse };
 
 export class RazorpayPaymentsService {
   /**
@@ -47,11 +20,10 @@ export class RazorpayPaymentsService {
     skip: number = 0
   ): Promise<RazorpayPaymentListResponse> {
     try {
-      const response = await razorpay.payments.all({
+      return await razorpayClient.payments.all({
         count: limit,
         skip: skip,
       });
-      return response as unknown as RazorpayPaymentListResponse;
     } catch (error) {
       serverLogger.error("Error fetching payments from Razorpay:", error);
       throw error;
@@ -68,31 +40,17 @@ export class RazorpayPaymentsService {
     skip: number = 0
   ): Promise<RazorpayPaymentListResponse> {
     try {
-      const response = await razorpay.payments.all({
+      return await razorpayClient.payments.all({
         count: limit,
         skip: skip,
         from: Math.floor(from.getTime() / 1000),
         to: Math.floor(to.getTime() / 1000),
       });
-      return response as unknown as RazorpayPaymentListResponse;
     } catch (error) {
       serverLogger.error(
         "Error fetching payments by date range from Razorpay:",
         error
       );
-      throw error;
-    }
-  }
-
-  /**
-   * Fetch a specific payment by ID
-   */
-  static async getPaymentById(paymentId: string): Promise<RazorpayPayment> {
-    try {
-      const response = await razorpay.payments.fetch(paymentId);
-      return response as unknown as RazorpayPayment;
-    } catch (error) {
-      serverLogger.error("Error fetching payment from Razorpay:", error);
       throw error;
     }
   }
@@ -156,13 +114,13 @@ export class RazorpayPaymentsService {
     }
 
     if (payment.notes) {
-      orderId = orderId || payment.notes.orderId;
+      orderId = orderId || (payment.notes.orderId as string | undefined);
       domainNames =
-        payment.notes.domainNames ||
-        (payment.notes.domainName ? [payment.notes.domainName] : []) ||
-        (payment.notes.domains ? payment.notes.domains : []);
-      customerName = payment.notes.customerName;
-      customerEmail = payment.notes.customerEmail;
+        (payment.notes.domainNames as string[] | undefined) ||
+        (payment.notes.domainName ? [payment.notes.domainName as string] : []) ||
+        ((payment.notes.domains as string[] | undefined) ?? []);
+      customerName = payment.notes.customerName as string | undefined;
+      customerEmail = payment.notes.customerEmail as string | undefined;
     }
 
     // Use payment email if no customer email found
