@@ -4,6 +4,17 @@ import bcrypt from "bcryptjs";
 import { verifyAdminAuth } from "@/lib/admin-auth";
 import { requireReAuth } from "@/lib/admin-security";
 import { serverLogger } from "@/lib/server-logger";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const adminSelfResetSchema = z
+  .object({
+    newPassword: z.string().min(8, "Password must be at least 8 characters long").max(256),
+    confirmPassword: z.string().min(1, "Confirmation is required"),
+  })
+  .refine((d) => d.newPassword === d.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
 
 // Force dynamic rendering - required for API routes
 export const dynamic = 'force-dynamic';
@@ -25,28 +36,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { newPassword, confirmPassword } = await request.json();
-
-    if (!newPassword || !confirmPassword) {
-      return NextResponse.json(
-        { error: "New password and confirmation are required" },
-        { status: 400 }
-      );
-    }
-
-    if (newPassword !== confirmPassword) {
-      return NextResponse.json(
-        { error: "Passwords do not match" },
-        { status: 400 }
-      );
-    }
-
-    if (newPassword.length < 8) {
-      return NextResponse.json(
-        { error: "Password must be at least 8 characters long" },
-        { status: 400 }
-      );
-    }
+    const validation = await validatedBody(request, adminSelfResetSchema);
+    if (!validation.ok) return validation.response;
+    const { newPassword } = validation.data;
 
     // Find admin user
     const adminUser = await findAnyAdmin();
