@@ -33,32 +33,41 @@ import { validatedBody, z } from "@/lib/api-validation";
 // CartItem via `as CartItem`, and the downstream `validateNoRestrictedDomains`
 // + price-verification flows narrow further. passthrough() keeps the
 // underlying fields (linkedDomain, tldAttributes, etc.) flowing through
-// unchanged.
+// unchanged. currency is optional — real clients sometimes omit it and
+// the route defaults to INR via the existing CartItem normaliser.
 const verifyCartItemSchema = z.object({
   domainName: z.string().min(1),
   price: z.number().nonnegative(),
-  currency: z.string().min(1),
+  currency: z.string().min(1).optional(),
   registrationPeriod: z.number().int().positive().optional(),
   itemType: z.enum(["domain", "hosting"]).optional(),
 }).passthrough();
 
 // Payment verification: either an order_id (one-time charge) or a
 // subscription_id (recurring) must be present, plus payment_id +
-// signature. The refine encodes the order-XOR-subscription constraint
-// at the schema layer instead of a post-destructure check.
+// signature. cartItems is optional at the field layer + refined at the
+// schema layer so the error message is "Cart items are required"
+// whether the field is missing or empty.
 const verifyPaymentSchema = z
   .object({
     razorpay_order_id: z.string().optional(),
     razorpay_subscription_id: z.string().optional(),
     razorpay_payment_id: z.string().min(1, "Payment verification data is required"),
     razorpay_signature: z.string().min(1, "Payment verification data is required"),
-    cartItems: z.array(verifyCartItemSchema).min(1, "Cart items are required"),
+    cartItems: z.array(verifyCartItemSchema).optional(),
   })
   .refine(
     (d) => Boolean(d.razorpay_order_id || d.razorpay_subscription_id),
     {
       message: "Payment verification data is required",
       path: ["razorpay_order_id"],
+    }
+  )
+  .refine(
+    (d) => Array.isArray(d.cartItems) && d.cartItems.length > 0,
+    {
+      message: "Cart items are required",
+      path: ["cartItems"],
     }
   );
 
@@ -93,7 +102,8 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
       razorpay_signature,
       cartItems: validatedCartItems,
     } = validation.data;
-    cartItems = validatedCartItems as CartItem[];
+    // Refine guarantees `validatedCartItems` is a non-empty array here.
+    cartItems = (validatedCartItems ?? []) as CartItem[];
 
     // Mirror to outer-scope refs so the catch handler can pass real
     // Razorpay identifiers + the existing pending Order to
