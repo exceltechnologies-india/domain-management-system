@@ -10,6 +10,16 @@ import type { IOrder } from "@/models/Order";
 import Domain from "@/models/Domain";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import { getDomainOrderId as rcGetDomainOrderId } from "@/lib/integrations/resellerclub";
+import { validatedBody, z } from "@/lib/api-validation";
+
+// Status enum mirrors the PendingDomain model's allowed values (the
+// "registered" value present in the legacy code path doesn't exist on
+// the model and would have been rejected at save time anyway).
+const updatePendingDomainSchema = z.object({
+  status: z.enum(["pending", "processing", "failed", "completed"]).optional(),
+  adminNotes: z.string().max(5000).optional(),
+  reason: z.string().max(2000).optional(),
+});
 
 // Force dynamic rendering - required for API routes
 export const dynamic = "force-dynamic";
@@ -62,8 +72,9 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { status, adminNotes, reason } = body;
+    const validation = await validatedBody(request, updatePendingDomainSchema);
+    if (!validation.ok) return validation.response;
+    const { status, adminNotes, reason } = validation.data;
 
     const pendingDomain = await getPendingDomainById(id);
 
@@ -100,9 +111,13 @@ export async function PUT(
           );
 
           if (domainIndex !== -1) {
-            // Map pending domain status to order domain status
-            const domainStatus =
-              status === "registered" ? "registered" : "failed";
+            // Map PendingDomain status → Order domain status.
+            // The PendingDomain model only accepts pending|processing|completed|failed;
+            // legacy code here compared against "registered", which never matched, so
+            // every sync silently fell through to "failed" — even when admin marked
+            // the pending as `completed`. Fixed in rescan-4 slice 31 (S3 sweep).
+            const isSuccess = status === "completed";
+            const domainStatus = isSuccess ? "registered" : "failed";
 
             order.domains[domainIndex].status = domainStatus;
 
@@ -115,14 +130,12 @@ export async function PUT(
             order.domains[domainIndex].bookingStatus =
               order.domains[domainIndex].bookingStatus || [];
             order.domains[domainIndex].bookingStatus.push({
-              step:
-                status === "registered" ? "domain_registered" : "domain_failed",
-              message:
-                status === "registered"
-                  ? "Domain registered by admin"
-                  : `Domain registration failed: ${reason || "Unknown reason"}`,
+              step: isSuccess ? "domain_registered" : "domain_failed",
+              message: isSuccess
+                ? "Domain registered by admin"
+                : `Domain registration failed: ${reason || "Unknown reason"}`,
               timestamp: new Date(),
-              progress: status === "registered" ? 100 : 0,
+              progress: isSuccess ? 100 : 0,
             });
 
             await order.save();

@@ -10,6 +10,15 @@ import type { HydratedDocument } from "mongoose";
 import { getHostingById } from "@/lib/services/hostings";
 import { getDomainById } from "@/lib/services/domains";
 import { AUTOMATION_CONFIG } from "@/config/automation";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const automationTriggerSchema = z.object({
+  serviceId: z.string().optional(),
+  serviceType: z.enum(["hosting", "domain"]).optional(),
+  // ISO timestamp passed to TimeService and forwarded as the
+  // x-simulated-time header; the cron-runner downstream parses it.
+  now: z.string().optional(),
+});
 
 /**
  * POST /api/test/automation/trigger
@@ -29,8 +38,9 @@ export async function POST(request: NextRequest) {
       return secureErrorResponse("Time simulation is disabled", 403, "DISABLED");
     }
 
-    const body = await request.json();
-    const { serviceId, serviceType, now } = body;
+    const validation = await validatedBody(request, automationTriggerSchema);
+    if (!validation.ok) return validation.response;
+    const { serviceId, serviceType, now } = validation.data;
 
     // 2. If serviceId is provided, we can either:
     //    a) Force its next_action_at to 'now' and then call daily-scheduler

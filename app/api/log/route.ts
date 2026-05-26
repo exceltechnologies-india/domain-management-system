@@ -1,5 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { serverLogger } from "@/lib/server-logger";
+import { validatedBody, z } from "@/lib/api-validation";
+
+// Client logger payload. `details` is the same arbitrary-JSON blob the
+// client passes — kept as z.unknown() so server-side loggers receive the
+// raw shape (objects, stack-trace strings, etc.).
+const clientLogSchema = z.object({
+  level: z.enum(["info", "warn", "error"]).optional(),
+  message: z.string().max(8000),
+  details: z.unknown().optional(),
+  url: z.string().max(2000).optional(),
+  timestamp: z.string().max(50).optional(),
+});
 
 /**
  * POST /api/log
@@ -7,8 +19,9 @@ import { serverLogger } from "@/lib/server-logger";
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { level, message, details, url, timestamp } = body;
+    const validation = await validatedBody(request, clientLogSchema);
+    if (!validation.ok) return validation.response;
+    const { level, message, details, url, timestamp } = validation.data;
 
     const logMessage = `[Client] [${timestamp}] [${url}] ${message}`;
 
