@@ -6,22 +6,48 @@ import {
   findOrderDomain,
   getOrderByOrderId,
 } from "@/lib/services/orders";
+import { validatedBody, validatedQuery, z } from "@/lib/api-validation";
+
+const bookingStatusQuerySchema = z
+  .object({
+    orderId: z.string().optional(),
+    domainName: z.string().trim().toLowerCase().min(3).max(253).optional(),
+  })
+  .refine((d) => Boolean(d.orderId || d.domainName), {
+    message: "Order ID or domain name is required",
+    path: ["orderId"],
+  });
+
+// step is a fixed enum at the model layer (Order.domains.bookingStatus.step).
+// Mirror it here so the model save doesn't reject a free-form string later.
+const bookingStepSchema = z.enum([
+  "dns_activated",
+  "payment_verified",
+  "customer_created",
+  "contact_created",
+  "domain_registering",
+  "domain_pending",
+  "domain_registered",
+  "domain_failed",
+  "hosting_deferred",
+]);
+
+const bookingStatusPostSchema = z.object({
+  orderId: z.string().min(1),
+  domainName: z.string().trim().toLowerCase().min(3).max(253),
+  step: bookingStepSchema,
+  message: z.string().min(1).max(2000),
+  progress: z.number().int().min(0).max(100),
+});
 
 // Force dynamic rendering - required for API routes
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const orderId = searchParams.get("orderId");
-    const domainName = searchParams.get("domainName");
-
-    if (!orderId && !domainName) {
-      return NextResponse.json(
-        { error: "Order ID or domain name is required" },
-        { status: 400 }
-      );
-    }
+    const validation = validatedQuery(request, bookingStatusQuerySchema);
+    if (!validation.ok) return validation.response;
+    const { orderId, domainName } = validation.data;
 
     const populate = { path: "userId", select: "email firstName lastName" };
     // orderId wins when both are supplied — matches the prior findOne behavior
@@ -62,21 +88,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { orderId, domainName, step, message, progress } =
-      await request.json();
-
-    if (
-      !orderId ||
-      !domainName ||
-      !step ||
-      !message ||
-      progress === undefined
-    ) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
-    }
+    const validation = await validatedBody(request, bookingStatusPostSchema);
+    if (!validation.ok) return validation.response;
+    const { orderId, domainName, step, message, progress } = validation.data;
 
     const order = await getOrderByOrderId(orderId);
     if (!order) {

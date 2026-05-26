@@ -9,6 +9,20 @@ import { SuggestionGenerator } from "@/lib/suggestion-generator";
 import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { serverLogger } from "@/lib/server-logger";
 import type { DomainSearchResult } from "@/lib/types";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const domainSearchSchema = z.object({
+  domain: z.string().trim().min(1, "Domain name is required").max(253),
+  // Accept either an array (canonical) or a comma-separated string
+  // (legacy clients) — the route handles both forms downstream.
+  tlds: z
+    .union([
+      z.array(z.string().trim().min(1).max(20)).max(100),
+      z.string().max(2000),
+    ])
+    .optional(),
+  quick: z.boolean().optional(),
+});
 
 // Force dynamic rendering - required for API routes
 export const dynamic = "force-dynamic";
@@ -26,19 +40,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const { domain, tlds, quick } = await request.json();
-
-    // Basic validation: ensure a domain string is provided
-    if (!domain || typeof domain !== "string") {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Domain name is required",
-          requestId,
-        },
-        { status: 400 }
-      );
-    }
+    const validation = await validatedBody(request, domainSearchSchema);
+    if (!validation.ok) return validation.response;
+    const { domain, tlds, quick } = validation.data;
 
     serverLogger.info(`📝 [API-${requestId}] Received domain search request:`, {
       domain,
