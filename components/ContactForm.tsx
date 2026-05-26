@@ -9,6 +9,7 @@ import Card from './Card';
 import toast from 'react-hot-toast';
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
 import GoogleRecaptcha from './GoogleRecaptcha';
+import { apiClient } from '@/lib/api-client';
 
 interface ContactFormProps {
   className?: string;
@@ -29,43 +30,30 @@ export default function ContactForm({ className = '' }: ContactFormProps) {
     e.preventDefault();
     setIsSubmitting(true);
 
-    try {
-      // Check if reCAPTCHA is configured
-      const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
-      const isRecaptchaConfigured = recaptchaSiteKey && recaptchaSiteKey !== 'your-recaptcha-site-key';
-      
-      // Only require reCAPTCHA token if reCAPTCHA is configured
-      if (isRecaptchaConfigured && !recaptchaToken) {
-        showErrorToast('Please complete the security verification');
-        setIsSubmitting(false);
-        return;
-      }
+    // Check if reCAPTCHA is configured
+    const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+    const isRecaptchaConfigured = recaptchaSiteKey && recaptchaSiteKey !== 'your-recaptcha-site-key';
 
-      const response = await fetch('/api/v1/contact', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...formData,
-          recaptchaToken: recaptchaToken,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setIsSubmitted(true);
-        showSuccessToast('Message sent successfully!');
-        setFormData({ name: '', email: '', subject: '', message: '' });
-      } else {
-        showErrorToast(data.error || 'Failed to send message');
-      }
-    } catch (error) {
-      showErrorToast('An error occurred. Please try again.');
-    } finally {
+    // Only require reCAPTCHA token if reCAPTCHA is configured
+    if (isRecaptchaConfigured && !recaptchaToken) {
+      showErrorToast('Please complete the security verification');
       setIsSubmitting(false);
+      return;
     }
+
+    const result = await apiClient.post('/api/v1/contact', {
+      ...formData,
+      recaptchaToken: recaptchaToken,
+    });
+
+    if (result.ok) {
+      setIsSubmitted(true);
+      showSuccessToast('Message sent successfully!');
+      setFormData({ name: '', email: '', subject: '', message: '' });
+    } else {
+      showErrorToast(result.error.message || 'Failed to send message');
+    }
+    setIsSubmitting(false);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {

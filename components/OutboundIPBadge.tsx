@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { formatIndianDateTime } from '@/lib/dateUtils';
+import { apiClient } from '@/lib/api-client';
 
 interface IPData {
   success: boolean;
@@ -23,23 +24,20 @@ export default function OutboundIPBadge() {
 
   useEffect(() => {
     const fetchIP = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+      setLoading(true);
+      setError(null);
 
-        const response = await fetch('/api/v1/check-ip');
-        const data = await response.json();
-
-        if (data.success) {
-          setIpData(data);
+      const result = await apiClient.get<IPData>('/api/v1/check-ip');
+      if (result.ok) {
+        if (result.data.success) {
+          setIpData(result.data);
         } else {
-          setError(data.message || 'Failed to fetch IP');
+          setError(result.data.message || 'Failed to fetch IP');
         }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unknown error');
-      } finally {
-        setLoading(false);
+      } else {
+        setError(result.error.message);
       }
+      setLoading(false);
     };
 
     void fetchIP();
