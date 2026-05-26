@@ -3,6 +3,11 @@ import { findUserByActivationToken } from "@/lib/services/users";
 import { AuthService } from "@/lib/auth";
 import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { serverLogger } from "@/lib/server-logger";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const activateSchema = z.object({
+  token: z.string().trim().min(1, "Activation token is required").max(256),
+});
 
 // Force dynamic rendering - required for API routes
 export const dynamic = "force-dynamic";
@@ -17,14 +22,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const { token } = await request.json();
-
-    if (!token) {
-      return NextResponse.json(
-        { error: "Activation token is required" },
-        { status: 400 }
-      );
-    }
+    const validation = await validatedBody(request, activateSchema);
+    if (!validation.ok) return validation.response;
+    const { token } = validation.data;
 
     // Find user with the activation token
     const user = await findUserByActivationToken(token);

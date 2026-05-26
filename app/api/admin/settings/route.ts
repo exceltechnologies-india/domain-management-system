@@ -4,6 +4,17 @@ import { listSettings, upsertSetting, getSetting } from "@/lib/services/settings
 import { connectToDatabase } from "@/lib/mongoose";
 import { requireReAuth } from "@/lib/admin-security";
 import { serverLogger } from "@/lib/server-logger";
+import { validatedBody, z } from "@/lib/api-validation";
+
+// value: settings store arbitrary JSON-ish values (strings, numbers, bools,
+// nested objects for some keys). z.unknown() preserves that shape — the
+// downstream upsertSetting + per-key consumers handle the contract.
+const updateSettingSchema = z.object({
+  key: z.string().trim().min(1, "Key is required").max(100),
+  value: z.unknown().refine((v) => v !== undefined, "Value is required"),
+  description: z.string().max(500).optional(),
+  category: z.string().max(100).optional(),
+});
 
 // Force dynamic rendering - required for API routes
 export const dynamic = 'force-dynamic';
@@ -92,14 +103,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { key, value, description, category } = await request.json();
-
-    if (!key || value === undefined) {
-      return NextResponse.json(
-        { error: "Key and value are required" },
-        { status: 400 }
-      );
-    }
+    const validation = await validatedBody(request, updateSettingSchema);
+    if (!validation.ok) return validation.response;
+    const { key, value, description, category } = validation.data;
 
     // Step-up auth: gate on the stored category + key allowlist, NOT the
     // body-supplied `category` field. The body field was previously the

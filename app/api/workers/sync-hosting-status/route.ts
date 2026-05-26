@@ -4,6 +4,11 @@ import { authorizeCronRequest } from "@/lib/cron-auth";
 import { listHostingsForUser } from "@/lib/services/hostings";
 import { DirectAdminService } from "@/lib/directadmin";
 import { getUserConfig as daGetUserConfig } from "@/lib/integrations/directadmin";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const syncHostingStatusSchema = z.object({
+  userId: z.string().min(1, "userId is required"),
+});
 
 export const dynamic = 'force-dynamic';
 
@@ -15,11 +20,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { userId } = await request.json();
-
-    if (!userId) {
-      return NextResponse.json({ error: "userId is required" }, { status: 400 });
-    }
+    const validation = await validatedBody(request, syncHostingStatusSchema);
+    if (!validation.ok) return validation.response;
+    const { userId } = validation.data;
 
     // 2. Fetch Hostings — sync path needs every hosting, no truncation.
     const hostings = await listHostingsForUser(userId, { limit: 0 });

@@ -12,6 +12,11 @@ import { HOSTING_PLANS } from "@/config/hosting-plans";
 // ZohoBooksService is intentionally NOT imported here.
 // Zoho invoices are created only after successful payment (in /api/payments/verify).
 import { EmailService } from "@/lib/email";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const processHostingExpirySchema = z.object({
+  hostingId: z.string().min(1, "Missing hostingId"),
+});
 
 export const dynamic = 'force-dynamic';
 
@@ -22,12 +27,9 @@ export async function POST(request: NextRequest) {
         return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
     }
 
-    const body = await request.json();
-    const { hostingId } = body;
-
-    if (!hostingId) {
-        return secureErrorResponse("Missing hostingId", 400, "BAD_REQUEST");
-    }
+    const validation = await validatedBody(request, processHostingExpirySchema);
+    if (!validation.ok) return validation.response;
+    const { hostingId } = validation.data;
 
     // 2. Fetch Hosting and Verify Status (Idempotency Check)
     const hosting = await getHostingById(hostingId);
