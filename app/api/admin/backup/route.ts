@@ -7,6 +7,11 @@ import zlib from "node:zlib";
 import { Readable } from "node:stream";
 import { serverLogger } from "@/lib/server-logger";
 import { logAdminAction } from "@/lib/audit-log";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const backupSchema = z.object({
+  password: z.string().min(1, "Password is required").max(256),
+});
 
 // Fields that must never appear in backup exports.
 // Keys are MongoDB collection names (lowercase-plural Mongoose default).
@@ -45,26 +50,13 @@ export async function POST(request: NextRequest) {
     const adminAuthUser = authResult.user;
     serverLogger.info(`[Backup] Admin authenticated. User: ${adminAuthUser.id}, RequestId: ${requestId}`);
 
-    // 2. Parse Body for Password
-    let body;
-    try {
-      body = await request.json();
-    } catch (e) {
-      serverLogger.warn(`[Backup] Invalid JSON body. RequestId: ${requestId}`);
-      return NextResponse.json(
-        { error: "Invalid request body" },
-        { status: 400 }
-      );
+    // 2. Validate Body
+    const validation = await validatedBody(request, backupSchema);
+    if (!validation.ok) {
+      serverLogger.warn(`[Backup] Body validation failed. RequestId: ${requestId}`);
+      return validation.response;
     }
-
-    const { password } = body;
-    if (!password) {
-      serverLogger.warn(`[Backup] Missing password. RequestId: ${requestId}`);
-      return NextResponse.json(
-        { error: "Password is required" },
-        { status: 400 }
-      );
-    }
+    const { password } = validation.data;
 
     // 3. Verify Password
     // Refetch with +password explicitly (the field is select:false on the

@@ -4,6 +4,14 @@ import connectDB from "@/lib/mongodb";
 import PendingDomain from "@/models/PendingDomain";
 import { DomainVerificationService } from "@/lib/domain-verification";
 import { serverLogger } from "@/lib/server-logger";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const verifyPendingDomainsSchema = z.object({
+  domainIds: z
+    .array(z.string().min(1))
+    .min(1, "Domain IDs array is required")
+    .max(100, "Cannot verify more than 100 pending domains in a single request"),
+});
 
 // Force dynamic rendering - required for API routes
 export const dynamic = 'force-dynamic';
@@ -17,15 +25,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { domainIds } = body;
-
-    if (!domainIds || !Array.isArray(domainIds)) {
-      return NextResponse.json(
-        { error: "Domain IDs array is required" },
-        { status: 400 }
-      );
-    }
+    const validation = await validatedBody(request, verifyPendingDomainsSchema);
+    if (!validation.ok) return validation.response;
+    const { domainIds } = validation.data;
 
     // Get pending domains
     const pendingDomains = await PendingDomain.find({

@@ -8,6 +8,16 @@ import {
   applyUserPatch,
   softDeleteUser,
 } from "@/lib/services/users";
+import { validatedBody, z } from "@/lib/api-validation";
+import { Schemas } from "@/lib/validation";
+
+const updateUserSchema = z.object({
+  firstName: z.string().trim().max(100).optional(),
+  lastName: z.string().trim().max(100).optional(),
+  email: Schemas.email.optional(),
+  role: z.enum(["user", "admin"]).optional(),
+  isActive: z.boolean().optional(),
+});
 
 // Force dynamic rendering - required for API routes
 export const dynamic = "force-dynamic";
@@ -56,7 +66,9 @@ export async function PUT(
       return NextResponse.json({ error: authResult.error }, { status: 401 });
     }
 
-    const { firstName, lastName, email, role, isActive } = await request.json();
+    const validation = await validatedBody(request, updateUserSchema);
+    if (!validation.ok) return validation.response;
+    const { firstName, lastName, email, role, isActive } = validation.data;
 
     // Prevent admin from deactivating themselves
     if (id === authResult.user?.id && isActive === false) {

@@ -10,6 +10,18 @@ import { createOrder } from "@/lib/services/orders";
 import { createPendingHosting } from "@/lib/services/pending-hostings";
 import { createHosting } from "@/lib/services/hostings";
 import { calculateHostingDates } from "@/lib/hosting-dates";
+import { validatedBody, z } from "@/lib/api-validation";
+import { Schemas } from "@/lib/validation";
+
+const provisionSchema = z.object({
+  userId: Schemas.id,
+  domain: z.string().trim().toLowerCase().min(3).max(253),
+  packageName: z.string().trim().min(1).max(100),
+  daUsername: z.string().trim().min(1).max(14),
+  validityPeriod: z.number().int().positive().optional(),
+  price: z.number().nonnegative().optional(),
+  periodUnit: z.enum(["months", "days", "minutes"]).optional(),
+});
 
 /**
  * POST /api/admin/hosting/provision
@@ -18,17 +30,12 @@ import { calculateHostingDates } from "@/lib/hosting-dates";
  */
 export async function POST(request: NextRequest) {
   // Parse body once at the top so the error handler can reference it too.
-  interface ProvisionBody {
-    userId?: string;
-    domain?: string;
-    packageName?: string;
-    daUsername?: string;
-    validityPeriod?: number;
-    price?: number;
-    periodUnit?: 'months' | 'days' | 'minutes';
-  }
-  let body: ProvisionBody = {};
-  try { body = await request.json(); } catch {}
+  // Validation failure falls through to the per-field handling below (which
+  // would itself return a 400) — we keep the early-parse fallback in place
+  // because the outer catch references `body` if provisioning errors later.
+  const validation = await validatedBody(request, provisionSchema);
+  if (!validation.ok) return validation.response;
+  const body = validation.data;
 
   try {
     // 1. Authenticate and check Admin role
@@ -37,12 +44,8 @@ export async function POST(request: NextRequest) {
       return secureErrorResponse("Unauthorized. Admin access required.", 403, "FORBIDDEN");
     }
 
-    // 2. Destructure already-parsed body
+    // 2. Destructure validated body
     const { userId, domain, packageName, daUsername, validityPeriod, price: manualPrice } = body;
-
-    if (!userId || !domain || !packageName || !daUsername) {
-      return secureErrorResponse("User ID, domain, package name, and DA username are required.", 400, "INVALID_INPUT");
-    }
 
     // Validate and default validity period (defaults to 12 months if not 1)
     const period = validityPeriod === 1 ? 1 : 12;
