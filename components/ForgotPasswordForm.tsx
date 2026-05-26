@@ -9,6 +9,7 @@ import Card from './Card';
 import Logo from './Logo';
 import toast from 'react-hot-toast';
 import GoogleRecaptcha from './GoogleRecaptcha';
+import { apiClient } from '@/lib/api-client';
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
@@ -50,46 +51,33 @@ export default function ForgotPasswordForm({ className = '', isSetup = false, pr
     setIsLoading(true);
     setError(''); // Clear previous errors
 
-    try {
-      // Check if reCAPTCHA is configured
-      const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
-      const isRecaptchaConfigured = recaptchaSiteKey && recaptchaSiteKey !== 'your-recaptcha-site-key';
-      
-      // Only require reCAPTCHA token if reCAPTCHA is configured
-      if (isRecaptchaConfigured && !recaptchaToken) {
-        setError('Please complete the security verification');
-        toast.error('Please complete the security verification');
-        setIsLoading(false);
-        return;
-      }
+    // Check if reCAPTCHA is configured
+    const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+    const isRecaptchaConfigured = recaptchaSiteKey && recaptchaSiteKey !== 'your-recaptcha-site-key';
 
-      const response = await fetch('/api/v1/auth/forgot-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, recaptchaToken: recaptchaToken }),
-      });
+    // Only require reCAPTCHA token if reCAPTCHA is configured
+    if (isRecaptchaConfigured && !recaptchaToken) {
+      setError('Please complete the security verification');
+      toast.error('Please complete the security verification');
+      setIsLoading(false);
+      return;
+    }
 
-      const data = await response.json();
+    const result = await apiClient.post('/api/v1/auth/forgot-password', {
+      email,
+      recaptchaToken: recaptchaToken,
+    });
 
-      if (response.ok) {
-        setIsSubmitted(true);
-        setCooldownEnd(Date.now() + RESEND_COOLDOWN_SECONDS * 1000);
-        toast.success(isSetup ? 'Setup link sent — check your email!' : 'Password reset email sent!');
-      } else {
-        // Set error state and show toast
-        const errorMessage = data.message || data.error || 'Failed to send reset email';
-        setError(errorMessage);
-        toast.error(errorMessage);
-      }
-    } catch (error) {
-      const errorMessage = 'An error occurred. Please try again.';
+    if (result.ok) {
+      setIsSubmitted(true);
+      setCooldownEnd(Date.now() + RESEND_COOLDOWN_SECONDS * 1000);
+      toast.success(isSetup ? 'Setup link sent — check your email!' : 'Password reset email sent!');
+    } else {
+      const errorMessage = result.error.message || 'Failed to send reset email';
       setError(errorMessage);
       toast.error(errorMessage);
-    } finally {
-      setIsLoading(false);
     }
+    setIsLoading(false);
   };
 
   if (isSubmitted) {
