@@ -16,6 +16,41 @@ import { createUser, getUserByEmail } from "@/lib/services/users";
 import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { randomBytes } from "crypto";
 import type { CartItem } from "@/lib/types";
+import { validatedBody, z } from "@/lib/api-validation";
+
+// Envelope-only schema. The route has two modes:
+//   - With `guestToken`: signed token is source of truth for registrant
+//     details; body's registrant fields are ignored.
+//   - Without token: route does deeper per-field validation (phone
+//     regex, zipcode regex, length caps) downstream.
+// Zod gates the structural shape; conditional rules stay in the route.
+// CartItem requires registrationPeriod — mirror that here so downstream
+// .map(item => ...) signatures line up without needing a coercion cast.
+const guestCartItemSchema = z.object({
+  domainName: z.string().min(1),
+  price: z.number().nonnegative(),
+  currency: z.string().min(1),
+  registrationPeriod: z.number().int().positive(),
+  itemType: z.enum(["domain", "hosting"]).optional(),
+  isTrial: z.boolean().optional(),
+}).passthrough();
+
+const guestCreateOrderSchema = z.object({
+  cartItems: z.array(guestCartItemSchema).min(1),
+  email: z.string().max(254).optional(),
+  guestToken: z.string().optional(),
+  deviceFingerprint: z.string().max(2000).optional(),
+  // Optional registrant fields used only when no guestToken is provided.
+  // Per-field validation (length caps, phone regex) runs inside the
+  // route body to keep its rejection-reason strings.
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  phone: z.string().optional(),
+  addressLine1: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  zipcode: z.string().optional(),
+}).passthrough();
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +84,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const body = await request.json();
+    const validation = await validatedBody(request, guestCreateOrderSchema);
+    if (!validation.ok) return validation.response;
+    const body = validation.data;
     const {
       email,
       cartItems,
