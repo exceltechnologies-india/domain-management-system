@@ -26,10 +26,12 @@ import { validatedBody, z } from "@/lib/api-validation";
 // Zod gates the structural shape; conditional rules stay in the route.
 // CartItem requires registrationPeriod — mirror that here so downstream
 // .map(item => ...) signatures line up without needing a coercion cast.
+// currency defaults to "INR" so the inferred output type stays required
+// (CartItem.currency is `string`, not `string | undefined`).
 const guestCartItemSchema = z.object({
   domainName: z.string().min(1),
   price: z.number().nonnegative(),
-  currency: z.string().min(1),
+  currency: z.string().min(1).default("INR"),
   registrationPeriod: z.number().int().positive(),
   itemType: z.enum(["domain", "hosting"]).optional(),
   isTrial: z.boolean().optional(),
