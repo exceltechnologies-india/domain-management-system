@@ -42,7 +42,7 @@ All four HIGH findings have been verified against the actual code, not just trus
 | Batch 7z.4 | S3 continued — 6 more routes (user/support/[id], admin/support-tickets/[id], trial-otp send + verify, trial-eligibility, chat) | ✅ Closed | `1dfc073` |
 | Batch 7z.5 | S3 continued — 6 admin write routes (hosting/change-package, hosting/actions discriminated-union, hosting/assign, users/reactivate, users/reset-password, log-error) | ✅ Closed | `a978849` |
 | Batch 7z.6 | S3 continued — 6 more admin write routes (domains/nameservers, domains/activate-dns, domains/sync, diag-da/cleanup, reset-password, tld-pricing/cache) | ✅ Closed | `60cf32f` |
-| Batch 7z.7 | S3 continued — 6 admin routes (hosting/test-plan, hosting/packages POST + PATCH, hosting/provision, backup, users/[id] PUT, pending-domains/verify) | 🔄 In progress | pending |
+| Batch 7z.7 | S3 continued — 6 admin routes (hosting/test-plan, hosting/packages POST + PATCH, hosting/provision, backup, users/[id] PUT, pending-domains/verify) | ✅ Closed | `ba4f8d5` |
 
 **All four HIGHs + 11 MEDIUMs + 11 LOWs + 1 architectural suggestion (S2) cleared, M14 / M6 / L12 / S3 in progress.** 27 vertical slices shipped across batches 7a–7z.7 (6 RC ops + 6 DA ops + vocab unification + M13 cleanup + L1 Razorpay typed-client + two M14 slices + L8 error boundaries + L12 jsx-a11y lint + M6 leaf demotion + S2 pre-commit hooks + seven S3 sweeps). Bonus catches:
 - 7e: M3's tightened `BookingStep` type uncovered a real save-validation bug — `provisioner-hosting.ts:379` emits `step: "hosting_deferred"` but the schema enum didn't include it.
