@@ -3,6 +3,23 @@ import { AuthService } from "@/lib/auth";
 import { clearUserCart, getUserCart, setUserCart } from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
 import { getMinYears, getMaxYears, isRestricted } from "@/lib/tld-policies";
+import { validatedBody, z } from "@/lib/api-validation";
+
+// Server-side cart sync: keep the schema loose with `.passthrough()` —
+// the route already runs `validateAndCorrectCartItems` to drop restricted
+// TLDs + clamp periods. We just need to gate the envelope (array of
+// objects with at minimum the domainName/itemType/registrationPeriod
+// shape) so a malformed body fails fast instead of feeding `cart` into
+// the validator as an arbitrary value.
+const cartItemSchema = z.object({
+  domainName: z.string().min(1).max(253).optional(),
+  itemType: z.enum(["domain", "hosting"]).optional(),
+  registrationPeriod: z.number().int().positive().max(120).optional(),
+}).passthrough();
+
+const cartSyncSchema = z.object({
+  cart: z.array(cartItemSchema).max(50),
+});
 
 // Force dynamic rendering - required for API routes
 export const dynamic = 'force-dynamic';
@@ -94,11 +111,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { cart } = await request.json();
-
-    if (!Array.isArray(cart)) {
-      return NextResponse.json({ error: "Invalid cart data" }, { status: 400 });
-    }
+    const validation = await validatedBody(request, cartSyncSchema);
+    if (!validation.ok) return validation.response;
+    const { cart } = validation.data;
 
     // Validate and correct cart items before saving
     const { cart: validatedCart, dropped } = validateAndCorrectCartItems(cart);

@@ -3,10 +3,20 @@ import { ResellerClubAPI } from "@/lib/resellerclub";
 import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { serverLogger } from "@/lib/server-logger";
 import { isRestrictedTLD } from "@/lib/domainRequirements";
+import { validatedBody, z } from "@/lib/api-validation";
 
 export const dynamic = "force-dynamic";
 
 const MAX_DOMAINS = 20;
+
+const bulkSearchSchema = z.object({
+  // Cap at MAX_DOMAINS × 3 so a client that sends dupes (which the route
+  // dedupes downstream) still falls within Zod limits.
+  domains: z
+    .array(z.string().max(253))
+    .min(1, "Provide a list of domain names to search.")
+    .max(MAX_DOMAINS * 3),
+});
 
 export interface BulkSearchResult {
   domainName: string;
@@ -29,21 +39,15 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const body = await request.json();
-    const { domains } = body;
+    const validation = await validatedBody(request, bulkSearchSchema);
+    if (!validation.ok) return validation.response;
+    const { domains } = validation.data;
 
-    if (!Array.isArray(domains) || domains.length === 0) {
-      return NextResponse.json(
-        { success: false, error: "Provide a list of domain names to search." },
-        { status: 400 }
-      );
-    }
-
-    // Sanitise and deduplicate
+    // Sanitise and deduplicate (Zod guarantees each element is a string)
     const cleaned = [
       ...new Set(
         domains
-          .map((d: unknown) => (typeof d === "string" ? d.trim().toLowerCase() : ""))
+          .map((d) => d.trim().toLowerCase())
           .filter((d) => d.length > 0 && d.includes("."))
       ),
     ].slice(0, MAX_DOMAINS);

@@ -6,6 +6,29 @@ import Domain from "@/models/Domain";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 import { findOrderByDomainForUser, findOrderDomain } from "@/lib/services/orders";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const domainNameRegex =
+  /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?\.([a-zA-Z]{2,}|[a-zA-Z]{2,}\.[a-zA-Z]{2,})$/;
+const nameserverRegex = /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+const nameserversPostSchema = z
+  .object({
+    domainName: z.string().trim().regex(domainNameRegex, "Invalid domain name format"),
+    method: z.enum(["default", "custom"]),
+    nameservers: z
+      .array(z.string().trim().toLowerCase().regex(nameserverRegex, "Invalid nameserver format"))
+      .min(2, "At least two nameservers are required")
+      .optional(),
+  })
+  .refine(
+    (d) =>
+      d.method === "default" || (d.nameservers !== undefined && d.nameservers.length >= 2),
+    {
+      message: "At least two nameservers are required for custom method",
+      path: ["nameservers"],
+    }
+  );
 
 // Force dynamic rendering - required for API routes
 export const dynamic = 'force-dynamic';
@@ -318,16 +341,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { domainName, method, nameservers } = await request.json();
-
-    if (!domainName || !method) {
-      return NextResponse.json({ error: "Domain name and method are required" }, { status: 400 });
-    }
-
-    const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?\.([a-zA-Z]{2,}|[a-zA-Z]{2,}\.[a-zA-Z]{2,})$/;
-    if (!domainRegex.test(domainName)) {
-      return NextResponse.json({ error: "Invalid domain name format" }, { status: 400 });
-    }
+    const validation = await validatedBody(request, nameserversPostSchema);
+    if (!validation.ok) return validation.response;
+    const { domainName, method, nameservers } = validation.data;
 
     const order = await findOrderByDomainForUser(user._id, domainName);
     if (!order) {
@@ -345,47 +361,35 @@ export async function POST(request: NextRequest) {
 
     const orderId = domain.resellerClubOrderId;
 
+    // Shape guaranteed by the Zod refine: method=custom ⇒ ≥2 valid NSs.
+    // We still do a live DNS resolution check for custom — the route's
+    // historical guarantee is "every nameserver we hand to RC actually
+    // resolves at submit time."
     let apiResult;
     if (method === "default") {
       apiResult = await ResellerClubWrapper.setDefaultNameservers(orderId);
-    } else if (method === "custom") {
-      if (!Array.isArray(nameservers) || nameservers.length < 2) {
-        return NextResponse.json({ error: "At least two nameservers are required" }, { status: 400 });
-      }
-      const normalized = nameservers
-        .map((ns) => String(ns).toLowerCase().trim())
-        .filter((ns) => ns.length > 0);
-      if (normalized.length < 2) {
-        return NextResponse.json({ error: "At least two nameservers are required" }, { status: 400 });
-      }
-      const nsRegex = /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-      for (const ns of normalized) {
-        if (!nsRegex.test(ns)) {
-          return NextResponse.json({ error: "Invalid nameserver format" }, { status: 400 });
-        }
-      }
+    } else {
       const resolve4 = promisify(dns.resolve4);
-      for (const ns of normalized) {
+      for (const ns of nameservers!) {
         try {
           await resolve4(ns);
         } catch (e) {
           return NextResponse.json({ error: `Nameserver does not resolve: ${ns}` }, { status: 400 });
         }
       }
-      apiResult = await ResellerClubWrapper.setCustomNameservers(orderId, normalized);
-    } else {
-      return NextResponse.json({ error: "Invalid method" }, { status: 400 });
+      apiResult = await ResellerClubWrapper.setCustomNameservers(orderId, nameservers!);
     }
 
     if (apiResult.status !== "success") {
       return NextResponse.json({ error: apiResult.message || "Failed to update nameservers" }, { status: 502 });
     }
 
-    // Persist the effective nameservers to the Domain record so DB stays in sync with the registrar
+    // Persist the effective nameservers to the Domain record so DB stays in sync with the registrar.
+    // Zod refine guarantees `nameservers` is defined when method === "custom".
     const effectiveNameservers =
       method === "default"
         ? ["ns1.registrar-servers.com", "ns2.registrar-servers.com"]
-        : nameservers.map((ns: string) => String(ns).toLowerCase().trim());
+        : nameservers!;
 
     try {
       await Domain.updateOne(
