@@ -48,8 +48,9 @@ All four HIGH findings have been verified against the actual code, not just trus
 | Batch 7z.10 | S3 continued — 6 user-facing domain routes (search, activate-dns, renew GET + POST, booking-status GET + POST, verify-status, transfer) | ✅ Closed | `993272a` |
 | Batch 7z.11 | S3 continued — 6 routes (log, domains/bulk-search, domains/nameservers, cart, test/automation/trigger, admin/pending-domains/[id]) + latent bug fix | ✅ Closed | `a9317ec` |
 | Batch 7z.12 | S3 complete — 3 payment routes (verify, guest/verify, guest/create-order) — **73/73 routes validated** | ✅ Closed | `5355331` |
+| Batch 7aa | S1 partial — typed frontend `apiClient` (`ApiResult<T, ApiError>` + Zod-aware) + 3 migrated callsites + 12 new tests | ✅ Closed | `bd4edbf` |
 
-**All four HIGHs + 11 MEDIUMs + 11 LOWs + 2 architectural suggestions (S2 + S3) cleared, M14 / M6 / L12 in progress.** 32 vertical slices shipped across batches 7a–7z.12 (6 RC ops + 6 DA ops + vocab unification + M13 cleanup + L1 Razorpay typed-client + two M14 slices + L8 error boundaries + L12 jsx-a11y lint + M6 leaf demotion + S2 pre-commit hooks + S3 complete twelve-slice sweep). Bonus catches:
+**All four HIGHs + 11 MEDIUMs + 11 LOWs + 2 architectural suggestions (S2 + S3) cleared, M14 / M6 / L12 / S1 in progress.** 33 vertical slices shipped across batches 7a–7aa (6 RC ops + 6 DA ops + vocab unification + M13 cleanup + L1 Razorpay typed-client + two M14 slices + L8 error boundaries + L12 jsx-a11y lint + M6 leaf demotion + S2 pre-commit hooks + S3 complete twelve-slice sweep + S1 frontend apiClient). Bonus catches:
 - 7e: M3's tightened `BookingStep` type uncovered a real save-validation bug — `provisioner-hosting.ts:379` emits `step: "hosting_deferred"` but the schema enum didn't include it.
 - 7f: L6's `Redis | null` typing exposed 3 latent null-deref sites (rate-limit, razorpay webhook, tld-pricing-cache) — each guarded.
 - 7g–7r: M1 vertical slices establish the `lib/integrations/{resellerclub,directadmin}/` pattern. ~35 `toLowerCase().includes()` chains removed from app code (down from ~50); the inner/outer classification layers now share one fragment vocabulary; payment + admin + cron paths all branch on typed outcomes instead of message strings.
@@ -244,9 +245,10 @@ Remaining work: 3 MEDIUMs (M4 1000+ line page components, M6 client-component ra
 
 ## Architectural Suggestions (no current bug, structural improvement)
 
-### [S1] No shared API client in the frontend — 58 files do raw `fetch("/api/...")`
+### 🔄 [S1] No shared API client in the frontend — 58 files do raw `fetch("/api/...")` — PARTIALLY ADDRESSED (helper + 3-route sweep in batch 7aa)
 **Problem:** Only 8 files use `lib/fetcher.ts`; the rest hand-roll. Every endpoint addition touches N callsites; response error handling is per-file; no central place to attach request-id / tracing.
 **Suggestion:** Thin typed `apiClient.get(url, schema)` returning a `Result<T, ApiError>`. Migrate incrementally; pair with Zod schemas at the boundary.
+**Slice 7aa update:** Helper landed at `lib/api-client.ts` — `apiClient.{get, post, put, patch, delete}` returning `ApiResult<T> = {ok: true; data} | {ok: false; error: ApiError}`. ApiError normalises to `{status, message, code?, body?}` and pulls the route-side `error` + `code` fields (matched pair with the slice 21–32 `validatedBody` helper). Optional Zod schema parses the response body and surfaces "Response schema mismatch" on failure. Network errors (fetch threw) surface as `status=0`. `credentials: "include"` is automatic. 12 new tests pin the 200/4xx/network/schema-mismatch/method-routing paths. 3 representative callsites migrated to validate the API: `OutboundIPBadge` (GET typed against IPData), `ContactForm` (POST), `ForgotPasswordForm` (POST). Remaining: ~55 frontend files still on raw `fetch` — route-by-route follow-up.
 
 ### ✅ [S2] No pre-commit hooks (husky/lefthook); CI is the only gate — CLOSED in batch 7y
 **Suggestion:** Husky + lint-staged running `tsc --noEmit` on staged files and `eslint --fix`. ~30 min.
