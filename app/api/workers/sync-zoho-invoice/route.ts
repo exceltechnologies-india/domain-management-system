@@ -14,6 +14,19 @@ import {
 import { getUserById } from "@/lib/services/users";
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import { ZohoBooksService } from "@/lib/zohobooks";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const syncZohoInvoiceSchema = z.object({
+  orderId: z.string().min(1),
+  userId: z.string().min(1),
+  serviceType: z.enum(["hosting", "domain"]),
+  domainName: z.string().min(1),
+  hostingPlanId: z.string().optional(),
+  amount: z.number().nonnegative(),
+  currency: z.string().min(1).max(8),
+  razorpayPaymentId: z.string().min(1),
+  durationMonths: z.number().int().positive(),
+});
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +61,8 @@ export async function POST(request: NextRequest) {
       return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
     }
 
-    const body = await request.json();
+    const validation = await validatedBody(request, syncZohoInvoiceSchema);
+    if (!validation.ok) return validation.response;
     const {
       orderId,
       userId,
@@ -59,15 +73,7 @@ export async function POST(request: NextRequest) {
       currency,
       razorpayPaymentId,
       durationMonths,
-    } = body;
-
-    if (!orderId || !userId || !serviceType || !domainName) {
-      return secureErrorResponse(
-        "Invalid payload — missing required fields",
-        400,
-        "INVALID_PAYLOAD"
-      );
-    }
+    } = validation.data;
 
     // 1. Check if Zoho invoice already exists (idempotency guard)
     const order = await getOrderById(orderId);

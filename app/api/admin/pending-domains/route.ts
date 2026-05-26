@@ -5,6 +5,24 @@ import PendingDomain from "@/models/PendingDomain";
 import { getPendingDomainByName } from "@/lib/services/pending-domains";
 import { listOrdersWithInFlightDomains } from "@/lib/services/orders";
 import { serverLogger } from "@/lib/server-logger";
+import { validatedBody, z } from "@/lib/api-validation";
+import { Schemas } from "@/lib/validation";
+
+const createPendingDomainSchema = z.object({
+  domainName: z.string().trim().toLowerCase().min(3).max(253),
+  price: z.number().nonnegative(),
+  currency: z.string().max(8).optional(),
+  registrationPeriod: z.number().int().positive().optional(),
+  userId: Schemas.id,
+  orderId: z.string().min(1),
+  customerId: z.number().or(z.string()),
+  contactId: z.number().or(z.string()),
+  nameServers: z.array(z.string()).optional(),
+  adminContactId: z.number().or(z.string()).optional(),
+  techContactId: z.number().or(z.string()).optional(),
+  billingContactId: z.number().or(z.string()).optional(),
+  reason: z.string().max(2000).optional(),
+});
 
 // Force dynamic rendering - required for API routes
 export const dynamic = "force-dynamic";
@@ -231,7 +249,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
+    const validation = await validatedBody(request, createPendingDomainSchema);
+    if (!validation.ok) return validation.response;
     const {
       domainName,
       price,
@@ -246,22 +265,7 @@ export async function POST(request: NextRequest) {
       techContactId,
       billingContactId,
       reason,
-    } = body;
-
-    // Validate required fields
-    if (
-      !domainName ||
-      !price ||
-      !userId ||
-      !orderId ||
-      !customerId ||
-      !contactId
-    ) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
-    }
+    } = validation.data;
 
     // Check if domain already exists in pending domains
     const existingPending = await getPendingDomainByName(domainName);
