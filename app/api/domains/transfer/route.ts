@@ -7,6 +7,14 @@ import connectDB from "@/lib/mongodb";
 import Domain from "@/models/Domain";
 import { appendUserDomain, getUserById } from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const transferDomainSchema = z.object({
+  domainName: z.string().trim().toLowerCase().min(3).max(253),
+  // EPP/auth codes are vendor-specific in length; common range is 6..64
+  // alphanumeric. Don't pin a regex — some registries use punctuation.
+  authCode: z.string().trim().min(1, "Auth Code (EPP) is required").max(128),
+});
 
 export const dynamic = 'force-dynamic';
 
@@ -26,14 +34,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { domainName, authCode } = await request.json();
-
-    if (!domainName || !authCode) {
-      return NextResponse.json(
-        { error: "Domain name and Auth Code (EPP) are required" },
-        { status: 400 }
-      );
-    }
+    const validation = await validatedBody(request, transferDomainSchema);
+    if (!validation.ok) return validation.response;
+    const { domainName, authCode } = validation.data;
 
     // Connect to database
     await connectDB();

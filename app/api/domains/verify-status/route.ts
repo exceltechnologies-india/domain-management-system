@@ -3,6 +3,11 @@ import { AuthService } from "@/lib/auth";
 import { getDomainDetails as rcGetDomainDetails } from "@/lib/integrations/resellerclub";
 import { serverLogger } from "@/lib/server-logger";
 import { findOrderByDomainForUser, findOrderDomain } from "@/lib/services/orders";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const verifyStatusSchema = z.object({
+  domainName: z.string().trim().toLowerCase().min(3).max(253),
+});
 
 // Force dynamic rendering - required for API routes
 export const dynamic = 'force-dynamic';
@@ -15,14 +20,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { domainName } = await request.json();
-
-    if (!domainName) {
-      return NextResponse.json(
-        { error: "Domain name is required" },
-        { status: 400 }
-      );
-    }
+    const validation = await validatedBody(request, verifyStatusSchema);
+    if (!validation.ok) return validation.response;
+    const { domainName } = validation.data;
 
     const order = await findOrderByDomainForUser(user._id, domainName);
 

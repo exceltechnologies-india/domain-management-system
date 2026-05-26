@@ -5,6 +5,18 @@ import { AuthService } from "@/lib/auth";
 import { createOrder } from "@/lib/services/orders";
 import { appendUserDomain } from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
+import { validatedBody, validatedQuery, z } from "@/lib/api-validation";
+
+const domainRenewQuerySchema = z.object({
+  domainName: z.string().trim().toLowerCase().min(3).max(253),
+  years: z.coerce.number().int().positive().max(10).default(1),
+});
+
+const domainRenewBodySchema = z.object({
+  domainName: z.string().trim().toLowerCase().min(3).max(253),
+  years: z.number().int().positive().max(10),
+  paymentId: z.string().min(1, "Payment ID is required"),
+});
 
 // Force dynamic rendering - required for API routes
 export const dynamic = 'force-dynamic';
@@ -17,16 +29,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const domainName = searchParams.get("domainName");
-    const years = parseInt(searchParams.get("years") || "1");
-
-    if (!domainName) {
-      return NextResponse.json(
-        { error: "Domain name is required" },
-        { status: 400 }
-      );
-    }
+    const validation = validatedQuery(request, domainRenewQuerySchema);
+    if (!validation.ok) return validation.response;
+    const { domainName, years } = validation.data;
 
     // Get renewal pricing
     const pricingResult = await ResellerClubAPI.getRenewalPricing(
@@ -68,14 +73,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { domainName, years, paymentId } = await request.json();
-
-    if (!domainName || !years || !paymentId) {
-      return NextResponse.json(
-        { error: "Domain name, years, and payment ID are required" },
-        { status: 400 }
-      );
-    }
+    const validation = await validatedBody(request, domainRenewBodySchema);
+    if (!validation.ok) return validation.response;
+    const { domainName, years, paymentId } = validation.data;
 
     // Renew domain via the typed wrapper. Outcomes:
     //   renewed         — happy path, carry through orderId + price
