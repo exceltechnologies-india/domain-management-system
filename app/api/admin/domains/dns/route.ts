@@ -1,6 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import { getDNSRecords as rcGetDNSRecords } from "@/lib/integrations/resellerclub";
+import { validatedBody, z } from "@/lib/api-validation";
+
+// DNS record contents vary wildly by type (A/AAAA value strings, MX
+// priority+host pairs, TXT free-text). The fields required at the RC
+// wire boundary are type/name/value/ttl; passthrough() lets extra
+// per-type fields (priority, weight, …) flow through unchanged.
+const dnsRecordDataSchema = z.object({
+  type: z.string().min(1),
+  name: z.string(),
+  value: z.string(),
+  ttl: z.number(),
+  priority: z.number().optional(),
+}).passthrough();
+
+const adminDnsPostSchema = z.object({
+  domainName: z.string().trim().toLowerCase().min(3).max(253),
+  recordData: dnsRecordDataSchema,
+});
+
+const adminDnsDeleteSchema = z.object({
+  recordData: dnsRecordDataSchema,
+});
 import { AuthService } from "@/lib/auth";
 import { serverLogger } from "@/lib/server-logger";
 import { findOrderByDomain, findOrderDomain } from "@/lib/services/orders";
@@ -83,14 +105,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { domainName, recordData } = await request.json();
-
-    if (!domainName || !recordData) {
-      return NextResponse.json(
-        { error: "Domain name and record data are required" },
-        { status: 400 }
-      );
-    }
+    const validation = await validatedBody(request, adminDnsPostSchema);
+    if (!validation.ok) return validation.response;
+    const { domainName, recordData } = validation.data;
 
     // Find the domain in the database (admin can access any domain)
     const order = await findOrderByDomain(domainName);
@@ -158,15 +175,12 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Get record data from request body
-    const { recordData } = await request.json().catch(() => ({}));
-
-    if (!recordData) {
-      return NextResponse.json(
-        { error: "Record data is required for deletion" },
-        { status: 400 }
-      );
-    }
+    // Get record data from request body — DELETE expects the same record
+    // envelope as POST (RC needs the full record to identify which one to
+    // remove, since it doesn't accept a bare id for some types).
+    const validation = await validatedBody(request, adminDnsDeleteSchema);
+    if (!validation.ok) return validation.response;
+    const { recordData } = validation.data;
 
     // Find the domain in the database (admin can access any domain)
     const order = await findOrderByDomain(domainName);

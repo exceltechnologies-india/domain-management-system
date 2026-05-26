@@ -1,22 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserByEmail } from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
+import { validatedBody } from "@/lib/api-validation";
+import { Schemas } from "@/lib/validation";
+import { z } from "zod";
+
+const checkAccountStatusSchema = z.object({
+  email: Schemas.email,
+});
 
 // Force dynamic rendering
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const { email } = await request.json();
+    const validation = await validatedBody(request, checkAccountStatusSchema);
+    if (!validation.ok) return validation.response;
+    const { email } = validation.data;
 
-    if (!email || typeof email !== "string") {
-      return NextResponse.json(
-        { error: "Email is required" },
-        { status: 400 }
-      );
-    }
-
-    const user = await getUserByEmail(email.toLowerCase().trim());
+    const user = await getUserByEmail(email);
 
     if (!user) {
       return NextResponse.json(
