@@ -6,6 +6,31 @@ import { serverLogger } from "@/lib/server-logger";
 import HostingPlan from "@/models/HostingPlan";
 import { connectToDatabase } from "@/lib/mongoose";
 import { HOSTING_PLANS } from "@/config/hosting-plans";
+import { validatedBody, z } from "@/lib/api-validation";
+import { Schemas } from "@/lib/validation";
+
+// POST: create package. Most DA options pass through via .passthrough()
+// since the underlying createPackage accepts arbitrary k/v for DA flags.
+const createPackageSchema = z
+  .object({
+    packageName: z.string().trim().min(1, "Package name is required").max(100),
+    quota: z.union([z.string(), z.number()]).optional(),
+    bandwidth: z.union([z.string(), z.number()]).optional(),
+    price: z.number().nonnegative().optional(),
+    description: z.string().max(2000).optional(),
+    features: z.array(z.string()).optional(),
+  })
+  .passthrough();
+
+const patchPackageSchema = z.object({
+  id: Schemas.id,
+  name: z.string().trim().max(200).optional(),
+  description: z.string().max(2000).optional(),
+  price: z.number().nonnegative().optional(),
+  renewalPrice: z.number().nonnegative().optional(),
+  features: z.array(z.string()).optional(),
+  isActive: z.boolean().optional(),
+});
 
 /**
  * GET /api/admin/hosting/packages
@@ -149,27 +174,27 @@ export async function POST(request: NextRequest) {
 
     await connectToDatabase();
 
-    // 2. Parse request body
-    const body = await request.json();
-    const { 
-      packageName, 
-      quota, 
-      bandwidth, 
+    const validation = await validatedBody(request, createPackageSchema);
+    if (!validation.ok) return validation.response;
+    const {
+      packageName,
+      quota,
+      bandwidth,
       price,
       description,
       features,
-      ...otherOptions 
-    } = body;
-
-    if (!packageName) {
-      return secureErrorResponse("Package name is required.", 400, "INVALID_INPUT");
-    }
+      ...otherOptions
+    } = validation.data;
 
     // 3. Create package via DirectAdmin API
     serverLogger.info(`Admin starting package creation: ${packageName}`);
+    // DA accepts quota / bandwidth as either string or number; coerce both to
+    // string at the boundary so the call signature stays narrow.
+    const quotaStr = quota !== undefined ? String(quota) : undefined;
+    const bandwidthStr = bandwidth !== undefined ? String(bandwidth) : undefined;
     const daResult = await DirectAdminService.createPackage(packageName, {
-      quota,
-      bandwidth,
+      quota: quotaStr,
+      bandwidth: bandwidthStr,
       ...otherOptions
     });
 
@@ -182,8 +207,8 @@ export async function POST(request: NextRequest) {
       currency: "INR", // Default
       features: features || [],
       directAdminPackage: packageName,
-      quota: parseInt(quota) || 0,
-      bandwidth: parseInt(bandwidth) || 0,
+      quota: quotaStr ? parseInt(quotaStr) || 0 : 0,
+      bandwidth: bandwidthStr ? parseInt(bandwidthStr) || 0 : 0,
       isActive: true
     });
 
@@ -217,11 +242,9 @@ export async function PATCH(request: NextRequest) {
     }
 
     await connectToDatabase();
-    const { id, name, description, price, renewalPrice, features, isActive } = await request.json();
-
-    if (!id) {
-      return secureErrorResponse("Package ID is required.", 400, "INVALID_INPUT");
-    }
+    const validation = await validatedBody(request, patchPackageSchema);
+    if (!validation.ok) return validation.response;
+    const { id, name, description, price, renewalPrice, features, isActive } = validation.data;
 
     const plan = await HostingPlan.findById(id);
     if (!plan) {

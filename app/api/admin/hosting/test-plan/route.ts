@@ -10,6 +10,12 @@ import {
   upsertPlanByPlanId,
 } from "@/lib/services/hosting-plans";
 import { serverLogger } from "@/lib/server-logger";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const testPlanSchema = z.object({
+  action: z.enum(["enable", "disable"]),
+  razorpayPlanMonthly: z.string().trim().optional(),
+});
 
 export const dynamic = "force-dynamic";
 
@@ -44,12 +50,9 @@ export async function POST(request: NextRequest) {
     if (!admin) return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
 
     const adminName = `${admin.firstName} ${admin.lastName}`.trim() || "admin";
-    const body = await request.json();
-    const { action, razorpayPlanMonthly } = body;
-
-    if (!["enable", "disable"].includes(action)) {
-      return secureErrorResponse("action must be 'enable' or 'disable'", 400, "VALIDATION_ERROR");
-    }
+    const validation = await validatedBody(request, testPlanSchema);
+    if (!validation.ok) return validation.response;
+    const { action, razorpayPlanMonthly } = validation.data;
 
     if (action === "disable") {
       await setPlanActive(TEST_PLAN_ID, false);
