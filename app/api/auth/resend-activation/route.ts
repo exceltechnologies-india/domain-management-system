@@ -4,6 +4,13 @@ import { EmailService } from "@/lib/email";
 import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import crypto from "crypto";
 import { serverLogger } from "@/lib/server-logger";
+import { validatedBody } from "@/lib/api-validation";
+import { Schemas } from "@/lib/validation";
+import { z } from "zod";
+
+const resendActivationSchema = z.object({
+  email: Schemas.email,
+});
 
 // Force dynamic rendering - required for API routes
 export const dynamic = 'force-dynamic';
@@ -15,13 +22,11 @@ export async function POST(request: NextRequest) {
       return rateLimitResponse(rateLimit, { limit: 3 });
     }
 
-    const { email } = await request.json();
+    const validation = await validatedBody(request, resendActivationSchema);
+    if (!validation.ok) return validation.response;
+    const { email } = validation.data;
 
-    if (!email) {
-      return NextResponse.json({ error: "Email is required" }, { status: 400 });
-    }
-
-    const user = await getUserByEmail(email.toLowerCase());
+    const user = await getUserByEmail(email);
 
     // Return the same response whether the user exists or not (prevents enumeration)
     if (!user || user.isActivated) {

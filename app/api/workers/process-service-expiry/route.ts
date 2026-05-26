@@ -12,6 +12,15 @@ import { WhatsAppService } from "@/lib/whatsapp";
 import { suspendUser as daSuspendUser } from "@/lib/integrations/directadmin";
 import { TimeService } from "@/lib/time-service";
 import { AUTOMATION_CONFIG } from "@/config/automation";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const processServiceExpirySchema = z.object({
+  serviceId: z.string().min(1),
+  serviceType: z.enum(["hosting", "domain"]),
+  // Optional escape hatch used by the test-automation route to fast-forward.
+  // ISO string only — TimeService.parse accepts string or Date, not raw ms.
+  simulatedTime: z.string().optional(),
+});
 
 export const dynamic = "force-dynamic";
 
@@ -94,13 +103,10 @@ export async function POST(request: NextRequest) {
       return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
     }
 
-    const body = await request.json();
-    const { serviceId, serviceType: sType, simulatedTime } = body;
+    const validation = await validatedBody(request, processServiceExpirySchema);
+    if (!validation.ok) return validation.response;
+    const { serviceId, serviceType: sType, simulatedTime } = validation.data;
     serviceType = sType;
-
-    if (!serviceId || !serviceType) {
-      return secureErrorResponse("Invalid payload", 400, "INVALID_PAYLOAD");
-    }
 
     if (serviceType === "hosting") {
       service = (await getHostingById(serviceId, { populateUser: true })) as unknown as ServiceLike | null;

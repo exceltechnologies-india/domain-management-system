@@ -9,6 +9,14 @@ import {
   generateBackupCodes,
   hashBackupCode,
 } from "@/lib/totp";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const totpConfirmSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6,8}$/, "Authenticator code is required"),
+});
 
 export const dynamic = "force-dynamic";
 
@@ -23,14 +31,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
-  const { code } = body;
-  if (!code || typeof code !== "string") {
-    return NextResponse.json(
-      { error: "Authenticator code is required" },
-      { status: 400 }
-    );
-  }
+  const validation = await validatedBody(request, totpConfirmSchema);
+  if (!validation.ok) return validation.response;
+  const { code } = validation.data;
 
   const dbUser = await getUserWithPendingTOTP(String(user._id));
   if (!dbUser) {

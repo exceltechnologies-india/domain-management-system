@@ -5,6 +5,14 @@ import {
   getUserWithTOTPSecrets,
 } from "@/lib/services/users";
 import { verifyTotpCode, verifyBackupCode } from "@/lib/totp";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const totpDisableSchema = z.object({
+  // Allow TOTP (6 digits) or backup code (longer alphanumeric). The
+  // route verifies against both shapes downstream.
+  code: z.string().trim().min(6).max(64),
+  password: z.string().min(1, "Password is required").max(256),
+});
 
 export const dynamic = "force-dynamic";
 
@@ -18,14 +26,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
-  const { code, password } = body;
-  if (!code || !password) {
-    return NextResponse.json(
-      { error: "Authenticator code and password are required" },
-      { status: 400 }
-    );
-  }
+  const validation = await validatedBody(request, totpDisableSchema);
+  if (!validation.ok) return validation.response;
+  const { code, password } = validation.data;
 
   const dbUser = await getUserWithTOTPSecrets(String(user._id));
   if (!dbUser) {
