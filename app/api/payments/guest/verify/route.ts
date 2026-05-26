@@ -21,6 +21,24 @@ import { isDomainSupported, requiresAdditionalDetails } from "@/lib/domainRequir
 import { EmailService } from "@/lib/email";
 import type { CartItem, RazorpayPaymentDetails } from "@/lib/types";
 import { randomBytes } from "crypto";
+import { validatedBody, z } from "@/lib/api-validation";
+
+const guestVerifyCartItemSchema = z.object({
+  domainName: z.string().min(1),
+  price: z.number().nonnegative(),
+  currency: z.string().min(1),
+  registrationPeriod: z.number().int().positive().optional(),
+  itemType: z.enum(["domain", "hosting"]).optional(),
+  isTrial: z.boolean().optional(),
+}).passthrough();
+
+const guestVerifyPaymentSchema = z.object({
+  guestToken: z.string().min(1, "Guest token required"),
+  razorpay_order_id: z.string().min(1, "Payment verification data is required"),
+  razorpay_payment_id: z.string().min(1, "Payment verification data is required"),
+  razorpay_signature: z.string().min(1, "Payment verification data is required"),
+  cartItems: z.array(guestVerifyCartItemSchema).min(1, "Cart items required"),
+});
 
 export const dynamic = "force-dynamic";
 
@@ -48,24 +66,15 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const body = await request.json();
-    const parsed: {
-      guestToken: string;
-      razorpay_order_id: string;
-      razorpay_payment_id: string;
-      razorpay_signature: string;
-      cartItems: CartItem[];
-    } = body;
-    razorpay_order_id = parsed.razorpay_order_id;
-    razorpay_payment_id = parsed.razorpay_payment_id;
-    razorpay_signature = parsed.razorpay_signature;
-    cartItems = parsed.cartItems;
-    const guestToken = parsed.guestToken;
+    const validation = await validatedBody(request, guestVerifyPaymentSchema);
+    if (!validation.ok) return validation.response;
+    razorpay_order_id = validation.data.razorpay_order_id;
+    razorpay_payment_id = validation.data.razorpay_payment_id;
+    razorpay_signature = validation.data.razorpay_signature;
+    cartItems = validation.data.cartItems as CartItem[];
+    const guestToken = validation.data.guestToken;
 
     // ── Validate guest token ─────────────────────────────────────────────────
-    if (!guestToken) {
-      return NextResponse.json({ error: "Guest token required" }, { status: 401 });
-    }
     const tokenPayload = verifyGuestToken(guestToken);
     if (!tokenPayload) {
       return NextResponse.json(
@@ -74,18 +83,6 @@ export async function POST(request: NextRequest) {
       );
     }
     guestEmail = tokenPayload.email;
-
-    // ── Validate payment fields ──────────────────────────────────────────────
-    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-      return NextResponse.json(
-        { error: "Payment verification data is required" },
-        { status: 400 }
-      );
-    }
-
-    if (!cartItems || !Array.isArray(cartItems) || cartItems.length === 0) {
-      return NextResponse.json({ error: "Cart items required" }, { status: 400 });
-    }
 
     // Trials still require a login (1-per-user-lifetime eligibility); paid
     // hosting + domains are fine for guest checkout.

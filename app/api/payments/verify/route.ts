@@ -27,6 +27,40 @@ import { recordSystemLog } from "@/lib/services/system-logs";
 import { withRequestLogContext } from "@/lib/request-context";
 import type { IUser } from "@/models/User";
 import type { CartItem } from "@/lib/types";
+import { validatedBody, z } from "@/lib/api-validation";
+
+// Cart-item shape is loose by design — every callsite already coerces to
+// CartItem via `as CartItem`, and the downstream `validateNoRestrictedDomains`
+// + price-verification flows narrow further. passthrough() keeps the
+// underlying fields (linkedDomain, tldAttributes, etc.) flowing through
+// unchanged.
+const verifyCartItemSchema = z.object({
+  domainName: z.string().min(1),
+  price: z.number().nonnegative(),
+  currency: z.string().min(1),
+  registrationPeriod: z.number().int().positive().optional(),
+  itemType: z.enum(["domain", "hosting"]).optional(),
+}).passthrough();
+
+// Payment verification: either an order_id (one-time charge) or a
+// subscription_id (recurring) must be present, plus payment_id +
+// signature. The refine encodes the order-XOR-subscription constraint
+// at the schema layer instead of a post-destructure check.
+const verifyPaymentSchema = z
+  .object({
+    razorpay_order_id: z.string().optional(),
+    razorpay_subscription_id: z.string().optional(),
+    razorpay_payment_id: z.string().min(1, "Payment verification data is required"),
+    razorpay_signature: z.string().min(1, "Payment verification data is required"),
+    cartItems: z.array(verifyCartItemSchema).min(1, "Cart items are required"),
+  })
+  .refine(
+    (d) => Boolean(d.razorpay_order_id || d.razorpay_subscription_id),
+    {
+      message: "Payment verification data is required",
+      path: ["razorpay_order_id"],
+    }
+  );
 
 export const dynamic = "force-dynamic";
 
@@ -50,30 +84,16 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
+    const validation = await validatedBody(request, verifyPaymentSchema);
+    if (!validation.ok) return validation.response;
     const {
       razorpay_order_id,
       razorpay_subscription_id,
       razorpay_payment_id,
       razorpay_signature,
-    } = body as {
-      razorpay_order_id?: string;
-      razorpay_subscription_id?: string;
-      razorpay_payment_id?: string;
-      razorpay_signature?: string;
-    };
-    cartItems = body.cartItems;
-
-    if (
-      (!razorpay_order_id && !razorpay_subscription_id) ||
-      !razorpay_payment_id ||
-      !razorpay_signature
-    ) {
-      return NextResponse.json(
-        { error: "Payment verification data is required" },
-        { status: 400 }
-      );
-    }
+      cartItems: validatedCartItems,
+    } = validation.data;
+    cartItems = validatedCartItems as CartItem[];
 
     // Mirror to outer-scope refs so the catch handler can pass real
     // Razorpay identifiers + the existing pending Order to
@@ -81,13 +101,6 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
     // creating a duplicate fallback).
     razorpayOrderIdOuter = razorpay_order_id;
     razorpayPaymentIdOuter = razorpay_payment_id;
-
-    if (!cartItems || !Array.isArray(cartItems) || cartItems.length === 0) {
-      return NextResponse.json(
-        { error: "Cart items are required" },
-        { status: 400 }
-      );
-    }
 
     // 1) Verify signature + status + order/subscription match
     const verifyResult = await verifyRazorpayPayment({
