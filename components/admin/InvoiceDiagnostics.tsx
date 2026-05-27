@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { CheckCircle2, RefreshCw } from 'lucide-react';
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
 import { confirmDialog } from '@/lib/confirm-dialog';
+import { apiClient } from '@/lib/api-client';
 import DiagnosticsHeader from './invoice-diagnostics/DiagnosticsHeader';
 import ConflictsTable from './invoice-diagnostics/ConflictsTable';
 import StuckOrdersTable from './invoice-diagnostics/StuckOrdersTable';
@@ -21,21 +22,17 @@ export default function InvoiceDiagnostics() {
 
   const fetchDiagnostics = useCallback(async () => {
     setIsLoading(true);
-    try {
-      const res = await fetch('/api/v1/admin/orders/invoice-conflicts');
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Failed to load diagnostics');
-      setData(json);
+    const result = await apiClient.get<DiagnosticsResponse>('/api/v1/admin/orders/invoice-conflicts');
+    if (result.ok) {
+      setData(result.data);
       // Auto-expand if there is something to act on
-      if ((json.summary?.conflictGroups || 0) > 0 || (json.summary?.stuckOrders || 0) > 0) {
+      if ((result.data.summary?.conflictGroups || 0) > 0 || (result.data.summary?.stuckOrders || 0) > 0) {
         setIsOpen(true);
       }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to load invoice diagnostics';
-      showErrorToast(message);
-    } finally {
-      setIsLoading(false);
+    } else {
+      showErrorToast(result.error.message || 'Failed to load invoice diagnostics');
     }
+    setIsLoading(false);
   }, []);
 
   useEffect(() => {
@@ -52,39 +49,33 @@ export default function InvoiceDiagnostics() {
       tone: 'warning',
     });
     if (!ok) return;
-    try {
-      setPendingId(orderId);
-      const res = await fetch(`/api/v1/admin/orders/${encodeURIComponent(orderId)}/clear-invoice-number`, {
-        method: 'POST',
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Failed');
-      showSuccessToast(json.message || 'Invoice number cleared');
+    setPendingId(orderId);
+    const result = await apiClient.post<{ message?: string }>(
+      `/api/v1/admin/orders/${encodeURIComponent(orderId)}/clear-invoice-number`,
+      undefined
+    );
+    if (result.ok) {
+      showSuccessToast(result.data.message || 'Invoice number cleared');
       await fetchDiagnostics();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Action failed';
-      showErrorToast(message);
-    } finally {
-      setPendingId(null);
+    } else {
+      showErrorToast(result.error.message || 'Action failed');
     }
+    setPendingId(null);
   };
 
   const handleResync = async (orderId: string) => {
-    try {
-      setPendingId(orderId);
-      const res = await fetch(`/api/v1/admin/orders/${encodeURIComponent(orderId)}/re-sync-invoice`, {
-        method: 'POST',
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.message || json.error || 'Re-sync failed');
-      showSuccessToast(json.message || 'Invoice re-synced');
+    setPendingId(orderId);
+    const result = await apiClient.post<{ message?: string }>(
+      `/api/v1/admin/orders/${encodeURIComponent(orderId)}/re-sync-invoice`,
+      undefined
+    );
+    if (result.ok) {
+      showSuccessToast(result.data.message || 'Invoice re-synced');
       await fetchDiagnostics();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Re-sync failed';
-      showErrorToast(message);
-    } finally {
-      setPendingId(null);
+    } else {
+      showErrorToast(result.error.message || 'Re-sync failed');
     }
+    setPendingId(null);
   };
 
   const handleResyncAll = async () => {
@@ -105,18 +96,13 @@ export default function InvoiceDiagnostics() {
     // Sequential to avoid hammering Zoho. Each call is best-effort.
     for (let i = 0; i < orders.length; i++) {
       const o = orders[i];
-      try {
-        const res = await fetch(
-          `/api/v1/admin/orders/${encodeURIComponent(o.orderId)}/re-sync-invoice`,
-          { method: 'POST' }
-        );
-        const json = await res.json().catch(() => ({}));
-        if (res.ok && json?.success !== false) {
-          success++;
-        } else {
-          failed++;
-        }
-      } catch {
+      const result = await apiClient.post<{ success?: boolean }>(
+        `/api/v1/admin/orders/${encodeURIComponent(o.orderId)}/re-sync-invoice`,
+        undefined
+      );
+      if (result.ok && result.data?.success !== false) {
+        success++;
+      } else {
         failed++;
       }
       setBulkProgress({ total: orders.length, done: i + 1, success, failed });
