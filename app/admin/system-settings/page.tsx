@@ -13,6 +13,7 @@ import AdminPasswordReset from '@/components/AdminPasswordReset';
 import { performLogout } from '@/lib/logout';
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
 import { logger } from '@/lib/logger';
+import { apiClient } from '@/lib/api-client';
 
 export default function AdminSettings() {
   // Loosely-typed user blob — comes from JWT /auth/me payload or NextAuth
@@ -120,137 +121,101 @@ export default function AdminSettings() {
   };
 
   const loadRazorpayMode = async () => {
-    try {
-      const res = await fetch('/api/v1/admin/razorpay-mode', {
-        credentials: 'include',
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setRazorpayMode(data.mode);
-        setRazorpayCurrentKeyId(data.currentKeyId || '');
-        setRazorpayHasTestKeys(data.hasTestKeys);
-        setRazorpayHasLiveKeys(data.hasLiveKeys);
-        setRazorpayTestKeyId(data.testKeyId || '');
-        setRazorpayLiveKeyId(data.liveKeyId || '');
-      }
-    } catch (e) {
-      logger.error('Failed to load Razorpay mode', e);
+    const result = await apiClient.get<{
+      mode?: 'test' | 'live'; currentKeyId?: string; hasTestKeys?: boolean;
+      hasLiveKeys?: boolean; testKeyId?: string; liveKeyId?: string;
+    }>('/api/v1/admin/razorpay-mode');
+    if (result.ok) {
+      const data = result.data;
+      if (data.mode) setRazorpayMode(data.mode);
+      setRazorpayCurrentKeyId(data.currentKeyId || '');
+      setRazorpayHasTestKeys(!!data.hasTestKeys);
+      setRazorpayHasLiveKeys(!!data.hasLiveKeys);
+      setRazorpayTestKeyId(data.testKeyId || '');
+      setRazorpayLiveKeyId(data.liveKeyId || '');
+    } else {
+      logger.error('Failed to load Razorpay mode', result.error.message);
     }
   };
 
   const saveRazorpayKeys = async () => {
     setIsSavingRazorpayKeys(true);
-    try {
-      const body: Record<string, string> = {};
-      if (razorpayTestKeyId) body.testKeyId = razorpayTestKeyId;
-      if (razorpayTestKeySecret) body.testKeySecret = razorpayTestKeySecret;
-      if (razorpayLiveKeyId) body.liveKeyId = razorpayLiveKeyId;
-      if (razorpayLiveKeySecret) body.liveKeySecret = razorpayLiveKeySecret;
-      if (razorpayWebhookSecret) body.webhookSecret = razorpayWebhookSecret;
+    const body: Record<string, string> = {};
+    if (razorpayTestKeyId) body.testKeyId = razorpayTestKeyId;
+    if (razorpayTestKeySecret) body.testKeySecret = razorpayTestKeySecret;
+    if (razorpayLiveKeyId) body.liveKeyId = razorpayLiveKeyId;
+    if (razorpayLiveKeySecret) body.liveKeySecret = razorpayLiveKeySecret;
+    if (razorpayWebhookSecret) body.webhookSecret = razorpayWebhookSecret;
 
-      const res = await fetch('/api/v1/admin/razorpay-mode', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ action: 'save_keys', ...body }),
-      });
-      if (res.ok) {
-        showSuccessToast('Keys saved successfully');
-        setRazorpayTestKeySecret('');
-        setRazorpayLiveKeySecret('');
-        setRazorpayWebhookSecret('');
-        await loadRazorpayMode();
-      } else {
-        const err = await res.json();
-        showErrorToast(err.error || 'Failed to save keys');
-      }
-    } catch (e) {
-      showErrorToast('Failed to save keys');
-    } finally {
-      setIsSavingRazorpayKeys(false);
+    const result = await apiClient.post('/api/v1/admin/razorpay-mode', { action: 'save_keys', ...body });
+    if (result.ok) {
+      showSuccessToast('Keys saved successfully');
+      setRazorpayTestKeySecret('');
+      setRazorpayLiveKeySecret('');
+      setRazorpayWebhookSecret('');
+      await loadRazorpayMode();
+    } else {
+      showErrorToast(result.error.message || 'Failed to save keys');
     }
+    setIsSavingRazorpayKeys(false);
   };
 
   const switchRazorpayMode = async (targetMode: 'test' | 'live') => {
     setIsSwitchingRazorpayMode(true);
     setRazorpaySwitchMessage('');
-    try {
-      const res = await fetch('/api/v1/admin/razorpay-mode', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ action: 'switch_mode', mode: targetMode }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setRazorpaySwitchMessage(data.message || `Switched to ${targetMode} mode`);
-        setRazorpayMode(targetMode);
-      } else {
-        showErrorToast(data.error || 'Failed to switch mode');
-      }
-    } catch (e) {
-      showErrorToast('Failed to switch mode');
-    } finally {
-      setIsSwitchingRazorpayMode(false);
+    const result = await apiClient.post<{ message?: string }>('/api/v1/admin/razorpay-mode', { action: 'switch_mode', mode: targetMode });
+    if (result.ok) {
+      setRazorpaySwitchMessage(result.data.message || `Switched to ${targetMode} mode`);
+      setRazorpayMode(targetMode);
+    } else {
+      showErrorToast(result.error.message || 'Failed to switch mode');
     }
+    setIsSwitchingRazorpayMode(false);
   };
 
   // Load IP whitelisting settings
   const loadIPWhitelistSettings = async () => {
-    try {
-      const response = await fetch('/api/v1/admin/settings', {
-        credentials: 'include',
-      });
+    const result = await apiClient.get<{ settings?: Record<string, { value?: unknown }> }>('/api/v1/admin/settings');
+    if (!result.ok) {
+      logger.error('Error loading IP whitelist settings:', result.error.message);
+      return;
+    }
+    const settings = result.data.settings || {};
 
-      if (response.ok) {
-        const data = await response.json();
-        const settings = data.settings || {};
+    // Check if IP whitelisting is enabled
+    const enabledSetting = settings['admin_ip_whitelist_enabled'];
+    setIpWhitelistEnabled(enabledSetting?.value === true || enabledSetting?.value === 'true');
 
-        // Check if IP whitelisting is enabled
-        const enabledSetting = settings['admin_ip_whitelist_enabled'];
-        setIpWhitelistEnabled(enabledSetting?.value === true || enabledSetting?.value === 'true');
+    // Get whitelisted IPs for this user from the NextAuth session
+    const sUser = session?.user as { _id?: string; id?: string } | undefined;
+    const userId = sUser?._id || sUser?.id || '';
 
-        // Get whitelisted IPs for this user from the NextAuth session
-        const sUser = session?.user as { _id?: string; id?: string } | undefined;
-        const userId = sUser?._id || sUser?.id || '';
-
-        if (userId) {
-          const whitelistKey = `admin_ip_whitelist_${userId}`;
-          const whitelistSetting = settings[whitelistKey];
-          if (whitelistSetting?.value) {
-            const ips = Array.isArray(whitelistSetting.value)
-              ? whitelistSetting.value
-              : typeof whitelistSetting.value === 'string'
-                ? whitelistSetting.value.split(',').map((ip: string) => ip.trim())
-                : [];
-            setWhitelistedIPs(ips);
-          }
-        }
+    if (userId) {
+      const whitelistKey = `admin_ip_whitelist_${userId}`;
+      const whitelistSetting = settings[whitelistKey];
+      if (whitelistSetting?.value) {
+        const ips = Array.isArray(whitelistSetting.value)
+          ? whitelistSetting.value
+          : typeof whitelistSetting.value === 'string'
+            ? whitelistSetting.value.split(',').map((ip: string) => ip.trim())
+            : [];
+        setWhitelistedIPs(ips);
       }
-    } catch (error) {
-      logger.error('Error loading IP whitelist settings:', error);
     }
   };
 
   // Fetch current IP address
   const fetchCurrentIP = async () => {
     setIsLoadingIP(true);
-    try {
-      const response = await fetch('/api/v1/admin/check-ip', {
-        credentials: 'include',
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.data?.primaryIP) {
-          setCurrentIP(data.data.primaryIP);
-        }
+    const result = await apiClient.get<{ success?: boolean; data?: { primaryIP?: string } }>('/api/v1/admin/check-ip');
+    if (result.ok) {
+      if (result.data.success && result.data.data?.primaryIP) {
+        setCurrentIP(result.data.data.primaryIP);
       }
-    } catch (error) {
-      logger.error('Error fetching current IP:', error);
-    } finally {
-      setIsLoadingIP(false);
+    } else {
+      logger.error('Error fetching current IP:', result.error.message);
     }
+    setIsLoadingIP(false);
   };
 
   // Save IP whitelisting settings
@@ -258,45 +223,32 @@ export default function AdminSettings() {
     if (!user) return;
 
     setIsSavingWhitelist(true);
-    try {
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
 
-      // Save enabled setting
-      await fetch('/api/v1/admin/settings', {
-        method: 'POST',
-        headers,
-        credentials: 'include',
-        body: JSON.stringify({
-          key: 'admin_ip_whitelist_enabled',
-          value: ipWhitelistEnabled,
-          description: 'Enable IP whitelisting for admin APIs',
-          category: 'security',
-        }),
-      });
+    // Save enabled setting
+    const enabledResult = await apiClient.post('/api/v1/admin/settings', {
+      key: 'admin_ip_whitelist_enabled',
+      value: ipWhitelistEnabled,
+      description: 'Enable IP whitelisting for admin APIs',
+      category: 'security',
+    });
 
-      // Save whitelisted IPs
-      const whitelistKey = `admin_ip_whitelist_${user._id || user.id}`;
-      await fetch('/api/v1/admin/settings', {
-        method: 'POST',
-        headers,
-        credentials: 'include',
-        body: JSON.stringify({
-          key: whitelistKey,
-          value: whitelistedIPs,
-          description: 'Whitelisted IP addresses for admin access',
-          category: 'security',
-        }),
-      });
+    // Save whitelisted IPs
+    const whitelistKey = `admin_ip_whitelist_${user._id || user.id}`;
+    const ipsResult = await apiClient.post('/api/v1/admin/settings', {
+      key: whitelistKey,
+      value: whitelistedIPs,
+      description: 'Whitelisted IP addresses for admin access',
+      category: 'security',
+    });
 
+    if (enabledResult.ok && ipsResult.ok) {
       showSuccessToast('IP whitelist settings saved successfully');
-    } catch (error) {
-      logger.error('Error saving IP whitelist settings:', error);
+    } else {
+      const errMsg = !enabledResult.ok ? enabledResult.error.message : !ipsResult.ok ? ipsResult.error.message : undefined;
+      logger.error('Error saving IP whitelist settings:', errMsg);
       showErrorToast('Failed to save IP whitelist settings');
-    } finally {
-      setIsSavingWhitelist(false);
     }
+    setIsSavingWhitelist(false);
   };
 
   // Add IP to whitelist
@@ -327,77 +279,58 @@ export default function AdminSettings() {
 
   // Load captcha settings
   const loadCaptchaSettings = async () => {
-    try {
-      const response = await fetch('/api/v1/admin/settings', {
-        credentials: 'include',
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const settings = data.settings || {};
-        const setting = settings['captcha_enabled'];
-        if (setting !== undefined) {
-          setCaptchaEnabled(setting.value === true || setting.value === 'true');
-        }
-      }
-    } catch (error) {
-      logger.error('Error loading captcha settings:', error);
+    const result = await apiClient.get<{ settings?: Record<string, { value?: unknown }> }>('/api/v1/admin/settings');
+    if (!result.ok) {
+      logger.error('Error loading captcha settings:', result.error.message);
+      return;
+    }
+    const settings = result.data.settings || {};
+    const setting = settings['captcha_enabled'];
+    if (setting !== undefined) {
+      setCaptchaEnabled(setting.value === true || setting.value === 'true');
     }
   };
 
   // Save captcha settings
   const saveCaptchaSettings = async () => {
     setIsSavingCaptcha(true);
-    try {
-      await fetch('/api/v1/admin/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          key: 'captcha_enabled',
-          value: captchaEnabled,
-          description: 'Enable or disable Google reCAPTCHA across all public forms',
-          category: 'security',
-        }),
-      });
-
+    const result = await apiClient.post('/api/v1/admin/settings', {
+      key: 'captcha_enabled',
+      value: captchaEnabled,
+      description: 'Enable or disable Google reCAPTCHA across all public forms',
+      category: 'security',
+    });
+    if (result.ok) {
       showSuccessToast(`Captcha ${captchaEnabled ? 'enabled' : 'disabled'} successfully`);
-    } catch (error) {
-      logger.error('Error saving captcha settings:', error);
+    } else {
+      logger.error('Error saving captcha settings:', result.error.message);
       showErrorToast('Failed to save captcha settings');
-    } finally {
-      setIsSavingCaptcha(false);
     }
+    setIsSavingCaptcha(false);
   };
 
   // Load CORS settings
   const loadCORSSettings = async () => {
-    try {
-      const response = await fetch('/api/v1/admin/settings', {
-        credentials: 'include',
-      });
+    const result = await apiClient.get<{ settings?: Record<string, { value?: unknown }> }>('/api/v1/admin/settings');
+    if (!result.ok) {
+      logger.error('Error loading CORS settings:', result.error.message);
+      return;
+    }
+    const settings = result.data.settings || {};
 
-      if (response.ok) {
-        const data = await response.json();
-        const settings = data.settings || {};
+    // Check if CORS protection is enabled
+    const enabledSetting = settings['cors_protection_enabled'];
+    setCorsProtectionEnabled(enabledSetting?.value === true || enabledSetting?.value === 'true');
 
-        // Check if CORS protection is enabled
-        const enabledSetting = settings['cors_protection_enabled'];
-        setCorsProtectionEnabled(enabledSetting?.value === true || enabledSetting?.value === 'true');
-
-        // Get allowed origins
-        const originsSetting = settings['cors_allowed_origins'];
-        if (originsSetting?.value) {
-          const origins = Array.isArray(originsSetting.value)
-            ? originsSetting.value
-            : typeof originsSetting.value === 'string'
-              ? originsSetting.value.split(',').map((o: string) => o.trim())
-              : [];
-          setAllowedOrigins(origins);
-        }
-      }
-    } catch (error) {
-      logger.error('Error loading CORS settings:', error);
+    // Get allowed origins
+    const originsSetting = settings['cors_allowed_origins'];
+    if (originsSetting?.value) {
+      const origins = Array.isArray(originsSetting.value)
+        ? originsSetting.value
+        : typeof originsSetting.value === 'string'
+          ? originsSetting.value.split(',').map((o: string) => o.trim())
+          : [];
+      setAllowedOrigins(origins);
     }
   };
 
@@ -411,44 +344,31 @@ export default function AdminSettings() {
   // Save CORS settings
   const saveCORSSettings = async () => {
     setIsSavingCors(true);
-    try {
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
 
-      // Save enabled setting
-      await fetch('/api/v1/admin/settings', {
-        method: 'POST',
-        headers,
-        credentials: 'include',
-        body: JSON.stringify({
-          key: 'cors_protection_enabled',
-          value: corsProtectionEnabled,
-          description: 'Enable CORS protection for API routes',
-          category: 'security',
-        }),
-      });
+    // Save enabled setting
+    const enabledResult = await apiClient.post('/api/v1/admin/settings', {
+      key: 'cors_protection_enabled',
+      value: corsProtectionEnabled,
+      description: 'Enable CORS protection for API routes',
+      category: 'security',
+    });
 
-      // Save allowed origins
-      await fetch('/api/v1/admin/settings', {
-        method: 'POST',
-        headers,
-        credentials: 'include',
-        body: JSON.stringify({
-          key: 'cors_allowed_origins',
-          value: allowedOrigins,
-          description: 'Allowed origins for CORS requests',
-          category: 'security',
-        }),
-      });
+    // Save allowed origins
+    const originsResult = await apiClient.post('/api/v1/admin/settings', {
+      key: 'cors_allowed_origins',
+      value: allowedOrigins,
+      description: 'Allowed origins for CORS requests',
+      category: 'security',
+    });
 
+    if (enabledResult.ok && originsResult.ok) {
       showSuccessToast('CORS settings saved successfully');
-    } catch (error) {
-      logger.error('Error saving CORS settings:', error);
+    } else {
+      const errMsg = !enabledResult.ok ? enabledResult.error.message : !originsResult.ok ? originsResult.error.message : undefined;
+      logger.error('Error saving CORS settings:', errMsg);
       showErrorToast('Failed to save CORS settings');
-    } finally {
-      setIsSavingCors(false);
     }
+    setIsSavingCors(false);
   };
 
   // Add origin to whitelist
