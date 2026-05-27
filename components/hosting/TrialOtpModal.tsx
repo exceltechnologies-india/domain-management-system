@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Phone, Loader2, X, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { apiClient } from '@/lib/api-client';
 
 interface TrialOtpModalProps {
   isOpen: boolean;
@@ -66,13 +67,8 @@ export default function TrialOtpModal({
     }
     setSending(true);
     try {
-      const res = await fetch('/api/v1/user/hosting/trial-otp/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not send OTP');
+      const result = await apiClient.post('/api/v1/user/hosting/trial-otp/send', { phone });
+      if (!result.ok) throw new Error(result.error.message || 'Could not send OTP');
       toast.success('OTP sent. Check your phone.');
       setStage('code');
       setCooldownEnd(Date.now() + 60_000);
@@ -90,14 +86,14 @@ export default function TrialOtpModal({
     }
     setVerifying(true);
     try {
-      const res = await fetch('/api/v1/user/hosting/trial-otp/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, code }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.token) throw new Error(data.error || 'Verification failed');
-      sessionStorage.setItem('trial-otp-token', data.token);
+      const result = await apiClient.post<{ token?: string }>(
+        '/api/v1/user/hosting/trial-otp/verify',
+        { phone, code }
+      );
+      if (!result.ok || !result.data.token) {
+        throw new Error(result.ok ? 'Verification failed' : result.error.message || 'Verification failed');
+      }
+      sessionStorage.setItem('trial-otp-token', result.data.token);
       toast.success('Phone verified!');
       onVerified();
     } catch (err: unknown) {

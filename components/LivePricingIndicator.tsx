@@ -3,6 +3,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, TrendingUp, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 import { formatIndianDate } from '@/lib/dateUtils';
+import { apiClient } from '@/lib/api-client';
+
+interface PricingResponse {
+  success?: boolean;
+  data?: Record<string, { customer?: { addnewdomain?: Record<string, string> } }>;
+}
 
 interface LivePricingIndicatorProps {
   domainName: string;
@@ -20,31 +26,26 @@ export default function LivePricingIndicator({ domainName, tld, onPriceUpdate }:
     setIsLoading(true);
     setError(null);
 
-    try {
-      const response = await fetch(`/api/v1/domains/pricing?tlds=${tld}`);
-      const data = await response.json();
+    const result = await apiClient.get<PricingResponse>(`/api/v1/domains/pricing?tlds=${tld}`);
 
-      if (data.success && data.data[tld]) {
-        const pricing = data.data[tld];
-        const registrationPrice = pricing.customer?.addnewdomain?.["1"];
+    if (result.ok && result.data.success && result.data.data?.[tld]) {
+      const pricing = result.data.data[tld];
+      const registrationPrice = pricing.customer?.addnewdomain?.["1"];
 
-        if (registrationPrice) {
-          const price = parseFloat(registrationPrice);
-          const priceData = { price, currency: "INR" };
+      if (registrationPrice) {
+        const price = parseFloat(registrationPrice);
+        const priceData = { price, currency: "INR" };
 
-          setLivePrice(priceData);
-          setLastUpdated(new Date());
-          onPriceUpdate?.(price, "INR");
-        }
-      } else {
-        setError("Live pricing not available");
+        setLivePrice(priceData);
+        setLastUpdated(new Date());
+        onPriceUpdate?.(price, "INR");
       }
-    } catch (err) {
-      // Failed to fetch live pricing
+    } else if (result.ok) {
+      setError("Live pricing not available");
+    } else {
       setError("Failed to fetch live pricing");
-    } finally {
-      setIsLoading(false);
     }
+    setIsLoading(false);
   }, [tld, onPriceUpdate]);
 
   useEffect(() => {
