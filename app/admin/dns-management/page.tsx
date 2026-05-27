@@ -32,7 +32,7 @@ import AdminLayout from '@/components/admin/AdminLayout';
 import { AdminLayoutSkeleton, AdminGenericPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import { performLogout } from '@/lib/logout';
 import { confirmDialog } from '@/lib/confirm-dialog';
-import { logger } from '@/lib/logger';
+import { apiClient } from '@/lib/api-client';
 
 interface Domain {
   id: string;
@@ -208,23 +208,13 @@ function AdminDNSManagementContent() {
 
   const loadAllDomains = async (refresh: boolean = true) => {
     if (refresh) setIsDataLoading(true);
-    try {
-      const response = await fetch('/api/v1/admin/domains', {
-        credentials: 'include'
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setDomains(data.domains || []);
-      } else {
-        toast.error('Failed to load domains');
-      }
-    } catch (error) {
-      logger.error('Error loading domains:', error);
+    const result = await apiClient.get<{ domains?: Domain[] }>('/api/v1/admin/domains');
+    if (result.ok) {
+      setDomains(result.data.domains || []);
+    } else {
       toast.error('Failed to load domains');
-    } finally {
-      setIsDataLoading(false);
     }
+    setIsDataLoading(false);
   };
 
   const loadDNSRecords = async (domainId: string, isRetry: boolean = false) => {
@@ -235,91 +225,74 @@ function AdminDNSManagementContent() {
       setDnsPropagationStatus('checking');
     }
 
-    try {
-      const domain = domains.find(d => d.id === domainId);
-      if (!domain) {
-        setDnsRecords([]);
-        return;
-      }
+    const domain = domains.find(d => d.id === domainId);
+    if (!domain) {
+      setDnsRecords([]);
+      setIsDNSLoading(false);
+      return;
+    }
 
-      const response = await fetch(`/api/v1/admin/domains/dns?domainName=${encodeURIComponent(domain.name)}`, {
-        credentials: 'include',
-      });
+    const result = await apiClient.get<{ records?: DNSRecord[] }>(`/api/v1/admin/domains/dns?domainName=${encodeURIComponent(domain.name)}`);
 
-      if (response.ok) {
-        const data = await response.json();
-        setDnsRecords(data.records || []);
-        setDnsPropagationStatus('ready');
-        setPropagationRetryCount(0);
+    if (result.ok) {
+      setDnsRecords(result.data.records || []);
+      setDnsPropagationStatus('ready');
+      setPropagationRetryCount(0);
+    } else if (result.error.status === 404) {
+      setDnsRecords([]);
+      if (propagationRetryCount < 3) {
+        setDnsPropagationStatus('propagating');
+        setPropagationRetryCount(prev => prev + 1);
+        setTimeout(() => {
+          void loadDNSRecords(domainId, true);
+        }, 30000);
+        toast(`DNS zone is still propagating. Retrying in 30 seconds... (Attempt ${propagationRetryCount + 1}/3)`);
       } else {
-        const errorData = await response.json().catch(() => ({}));
-
-        if (response.status === 404) {
-          setDnsRecords([]);
-          if (propagationRetryCount < 3) {
-            setDnsPropagationStatus('propagating');
-            setPropagationRetryCount(prev => prev + 1);
-            setTimeout(() => {
-              void loadDNSRecords(domainId, true);
-            }, 30000);
-            toast(`DNS zone is still propagating. Retrying in 30 seconds... (Attempt ${propagationRetryCount + 1}/3)`);
-          } else {
-            setDnsPropagationStatus('error');
-            toast.error('DNS management API is currently unavailable.');
-          }
-        } else {
-          setDnsRecords([]);
-          setDnsPropagationStatus('error');
-          toast.error('Failed to load DNS records');
-        }
+        setDnsPropagationStatus('error');
+        toast.error('DNS management API is currently unavailable.');
       }
-    } catch (error) {
+    } else {
+      setDnsRecords([]);
       setDnsPropagationStatus('error');
       toast.error('Failed to load DNS records');
-    } finally {
-      setIsDNSLoading(false);
     }
+    setIsDNSLoading(false);
   };
 
   const loadNameservers = async (domainId: string) => {
     if (!domainId || domains.length === 0) return;
     setIsNameserverLoading(true);
-    try {
-      const domain = domains.find(d => d.id === domainId);
-      if (!domain) return;
-
-      const response = await fetch(`/api/v1/domains/nameservers?domainName=${encodeURIComponent(domain.name)}`, {
-        credentials: 'include',
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const loadedNameservers = data.nameservers || [];
-        setNameservers(loadedNameservers);
-
-        // Auto-detect mode
-        const isDefaultNs = loadedNameservers.every((ns: string) =>
-          ns.toLowerCase().includes('deepak1299294') && ns.toLowerCase().includes('orderbox-dns.com')
-        );
-
-        if (isDefaultNs && loadedNameservers.length > 0) {
-          setNsMode('default');
-          setNs1(''); setNs2(''); setNs3(''); setNs4('');
-        } else if (loadedNameservers.length > 0) {
-          setNsMode('custom');
-          setNs1(loadedNameservers[0] || '');
-          setNs2(loadedNameservers[1] || '');
-          setNs3(loadedNameservers[2] || '');
-          setNs4(loadedNameservers[3] || '');
-        }
-      } else {
-        setNameservers([]);
-      }
-    } catch (error) {
-      setNameservers([]);
-    } finally {
+    const domain = domains.find(d => d.id === domainId);
+    if (!domain) {
       setIsNameserverLoading(false);
+      return;
     }
+
+    const result = await apiClient.get<{ nameservers?: string[] }>(`/api/v1/domains/nameservers?domainName=${encodeURIComponent(domain.name)}`);
+
+    if (result.ok) {
+      const loadedNameservers = result.data.nameservers || [];
+      setNameservers(loadedNameservers);
+
+      // Auto-detect mode
+      const isDefaultNs = loadedNameservers.every((ns: string) =>
+        ns.toLowerCase().includes('deepak1299294') && ns.toLowerCase().includes('orderbox-dns.com')
+      );
+
+      if (isDefaultNs && loadedNameservers.length > 0) {
+        setNsMode('default');
+        setNs1(''); setNs2(''); setNs3(''); setNs4('');
+      } else if (loadedNameservers.length > 0) {
+        setNsMode('custom');
+        setNs1(loadedNameservers[0] || '');
+        setNs2(loadedNameservers[1] || '');
+        setNs3(loadedNameservers[2] || '');
+        setNs4(loadedNameservers[3] || '');
+      }
+    } else {
+      setNameservers([]);
+    }
+    setIsNameserverLoading(false);
   };
 
   const handleDomainClick = (domainId: string) => {
@@ -331,37 +304,25 @@ function AdminDNSManagementContent() {
     const domain = domains.find(d => d.id === selectedDomain);
     if (!domain) return;
 
-    const initialNsSnapshot = [...nameservers];
     setIsUpdatingNameservers(true);
-    try {
-      const response = await fetch('/api/v1/admin/domains/nameservers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ domainName: domain.name, method: 'default' }),
-      });
-      if (response.ok) {
-        toast.success('Nameservers set to default');
-        setNameserverPropagationStatus('awaiting');
-        setTargetNs([]);
-        setNsPropagationAttempts(0);
-        // Start polling
-        const poll = async () => {
-          await loadNameservers(selectedDomain);
-          // Check if changed
-          // This is a simplistic check, real world might need better diffing
-          // But for now we rely on the logic passing
-        };
-        setTimeout(poll, 1000);
-      } else {
-        const error = await response.json().catch(() => ({}));
-        toast.error(error.error || 'Failed to set default nameservers');
-      }
-    } catch (e) {
-      toast.error('Failed to set default nameservers');
-    } finally {
-      setIsUpdatingNameservers(false);
+    const result = await apiClient.post('/api/v1/admin/domains/nameservers', { domainName: domain.name, method: 'default' });
+    if (result.ok) {
+      toast.success('Nameservers set to default');
+      setNameserverPropagationStatus('awaiting');
+      setTargetNs([]);
+      setNsPropagationAttempts(0);
+      // Start polling
+      const poll = async () => {
+        await loadNameservers(selectedDomain);
+        // Check if changed
+        // This is a simplistic check, real world might need better diffing
+        // But for now we rely on the logic passing
+      };
+      setTimeout(poll, 1000);
+    } else {
+      toast.error(result.error.message || 'Failed to set default nameservers');
     }
+    setIsUpdatingNameservers(false);
   };
 
   const handleSetCustomNameservers = async () => {
@@ -377,26 +338,16 @@ function AdminDNSManagementContent() {
     }
 
     setIsUpdatingNameservers(true);
-    try {
-      const response = await fetch('/api/v1/admin/domains/nameservers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ domainName: domain.name, method: 'custom', nameservers: list }),
-      });
-      if (response.ok) {
-        toast.success('Nameservers updated');
-        setNameserverPropagationStatus('awaiting');
-        setTargetNs(list);
-        setNsPropagationAttempts(0);
-      } else {
-        toast.error('Failed to update nameservers');
-      }
-    } catch (e) {
+    const result = await apiClient.post('/api/v1/admin/domains/nameservers', { domainName: domain.name, method: 'custom', nameservers: list });
+    if (result.ok) {
+      toast.success('Nameservers updated');
+      setNameserverPropagationStatus('awaiting');
+      setTargetNs(list);
+      setNsPropagationAttempts(0);
+    } else {
       toast.error('Failed to update nameservers');
-    } finally {
-      setIsUpdatingNameservers(false);
     }
+    setIsUpdatingNameservers(false);
   };
 
   const handleActivateDNS = async (domainId: string, force: boolean = false) => {
@@ -404,26 +355,15 @@ function AdminDNSManagementContent() {
     if (!domain) return;
 
     setIsActivating(true);
-    try {
-      const response = await fetch('/api/v1/admin/domains/activate-dns', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ domainName: domain.name, force }),
-      });
-
-      if (response.ok) {
-        toast.success(force ? 'DNS services synced' : 'DNS management activated');
-        void loadAllDomains();
-        if (selectedDomain === domainId) void loadDNSRecords(domainId);
-      } else {
-        toast.error('Failed to activate DNS management');
-      }
-    } catch (error) {
+    const result = await apiClient.post('/api/v1/admin/domains/activate-dns', { domainName: domain.name, force });
+    if (result.ok) {
+      toast.success(force ? 'DNS services synced' : 'DNS management activated');
+      void loadAllDomains();
+      if (selectedDomain === domainId) void loadDNSRecords(domainId);
+    } else {
       toast.error('Failed to activate DNS management');
-    } finally {
-      setIsActivating(false);
     }
+    setIsActivating(false);
   };
 
   const handleAddRecord = async () => {
@@ -440,54 +380,33 @@ function AdminDNSManagementContent() {
       return;
     }
 
-    try {
-      const domain = domains.find(d => d.id === selectedDomain);
-      if (!domain) return;
+    const domain = domains.find(d => d.id === selectedDomain);
+    if (!domain) return;
 
-      const response = await fetch('/api/v1/admin/domains/dns', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ domainName: domain.name, recordData: newRecord }),
-      });
-
-      if (response.ok) {
-        toast.success('DNS record added');
-        setNewRecord({ type: 'A', name: '', value: '', ttl: 3600, priority: undefined });
-        setShowAddRecord(false);
-        void loadDNSRecords(selectedDomain);
-      } else {
-        const error = await response.json();
-        toast.error(error.error || 'Failed to add record');
-      }
-    } catch (error) {
-      toast.error('Failed to add DNS record');
+    const result = await apiClient.post('/api/v1/admin/domains/dns', { domainName: domain.name, recordData: newRecord });
+    if (result.ok) {
+      toast.success('DNS record added');
+      setNewRecord({ type: 'A', name: '', value: '', ttl: 3600, priority: undefined });
+      setShowAddRecord(false);
+      void loadDNSRecords(selectedDomain);
+    } else {
+      toast.error(result.error.status === 0 ? 'Failed to add DNS record' : result.error.message || 'Failed to add record');
     }
   };
 
   const handleDeleteRecord = async (recordId: string) => {
     if (!selectedDomain) return;
-    try {
-      const domain = domains.find(d => d.id === selectedDomain);
-      if (!domain) return;
+    const domain = domains.find(d => d.id === selectedDomain);
+    if (!domain) return;
 
-      const record = dnsRecords.find(r => r.id === recordId);
-      if (!record) return;
+    const record = dnsRecords.find(r => r.id === recordId);
+    if (!record) return;
 
-      const response = await fetch(`/api/v1/admin/domains/dns?domainName=${encodeURIComponent(domain.name)}&recordId=${encodeURIComponent(recordId)}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ recordData: record }),
-      });
-
-      if (response.ok) {
-        toast.success('DNS record deleted');
-        void loadDNSRecords(selectedDomain);
-      } else {
-        toast.error('Failed to delete DNS record');
-      }
-    } catch (error) {
+    const result = await apiClient.delete(`/api/v1/admin/domains/dns?domainName=${encodeURIComponent(domain.name)}&recordId=${encodeURIComponent(recordId)}`, { recordData: record });
+    if (result.ok) {
+      toast.success('DNS record deleted');
+      void loadDNSRecords(selectedDomain);
+    } else {
       toast.error('Failed to delete DNS record');
     }
   };
@@ -511,47 +430,31 @@ function AdminDNSManagementContent() {
       return;
     }
 
-    try {
-      const domain = domains.find(d => d.id === selectedDomain);
-      if (!domain) return;
+    const domain = domains.find(d => d.id === selectedDomain);
+    if (!domain) return;
 
-      const originalRecord = dnsRecords.find(r => {
-        const uniqueId = `${r.type}-${r.id}-${r.name}-${r.value}`;
-        return uniqueId === editingRecord;
-      });
+    const originalRecord = dnsRecords.find(r => {
+      const uniqueId = `${r.type}-${r.id}-${r.name}-${r.value}`;
+      return uniqueId === editingRecord;
+    });
 
-      if (!originalRecord) return;
+    if (!originalRecord) return;
 
-      // Delete old
-      const deleteResponse = await fetch(`/api/v1/admin/domains/dns?domainName=${encodeURIComponent(domain.name)}&recordId=${encodeURIComponent(originalRecord.id)}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ recordData: originalRecord }),
-      });
+    // Delete old
+    const deleteResult = await apiClient.delete(`/api/v1/admin/domains/dns?domainName=${encodeURIComponent(domain.name)}&recordId=${encodeURIComponent(originalRecord.id)}`, { recordData: originalRecord });
+    if (!deleteResult.ok) {
+      toast.error('Failed to update record (delete step)');
+      return;
+    }
 
-      if (!deleteResponse.ok) {
-        toast.error('Failed to update record (delete step)');
-        return;
-      }
-
-      // Add new
-      const addResponse = await fetch('/api/v1/admin/domains/dns', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ domainName: domain.name, recordData: editRecord }),
-      });
-
-      if (addResponse.ok) {
-        toast.success('DNS record updated');
-        setEditingRecord(null);
-        void loadDNSRecords(selectedDomain);
-      } else {
-        toast.error('Failed to update record (add step)');
-      }
-    } catch (error) {
-      toast.error('Failed to update DNS record');
+    // Add new
+    const addResult = await apiClient.post('/api/v1/admin/domains/dns', { domainName: domain.name, recordData: editRecord });
+    if (addResult.ok) {
+      toast.success('DNS record updated');
+      setEditingRecord(null);
+      void loadDNSRecords(selectedDomain);
+    } else {
+      toast.error('Failed to update record (add step)');
     }
   };
 
