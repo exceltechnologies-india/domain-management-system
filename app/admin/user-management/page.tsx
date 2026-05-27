@@ -14,6 +14,7 @@ import { formatIndianDate, formatIndianLongDateTime, formatIndianDateTime } from
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
 import { performLogout } from '@/lib/logout';
 import { logger } from '@/lib/logger';
+import { apiClient } from '@/lib/api-client';
 
 interface User {
   _id: string;
@@ -136,53 +137,23 @@ export default function AdminUsers() {
 
   const loadUsers = async () => {
     setIsDataLoading(true);
-    try {
-      // NextAuth cookie is shipped via credentials:'include'; no Bearer
-      // token to forward (the localStorage `token` was never written).
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json'
-      };
+    // NextAuth cookie is shipped via credentials:'include' (automatic in apiClient);
+    // no Bearer token to forward (the localStorage `token` was never written).
+    const [activeResult, deactivatedResult, servicesResult] = await Promise.all([
+      apiClient.get<{ users?: User[] }>('/api/v1/admin/users'),
+      apiClient.get<{ users?: User[] }>('/api/v1/admin/users/deactivated'),
+      apiClient.get<{ users?: User[] }>('/api/v1/admin/users/services'),
+    ]);
 
-      // Fetch all data in parallel
-      const [activeResult, deactivatedResult, servicesResult] = await Promise.allSettled([
-        fetch('/api/v1/admin/users', { method: 'GET', headers, credentials: 'include' }),
-        fetch('/api/v1/admin/users/deactivated', { method: 'GET', headers, credentials: 'include' }),
-        fetch('/api/v1/admin/users/services', { method: 'GET', headers, credentials: 'include' })
-      ]);
-
-      // Handle Active Users
-      if (activeResult.status === 'fulfilled' && activeResult.value.ok) {
-        const activeData = await activeResult.value.json();
-        setUsers(activeData.users || []);
-      } else {
-        setUsers([]);
-      }
-
-      // Handle Deactivated Users
-      if (deactivatedResult.status === 'fulfilled' && deactivatedResult.value.ok) {
-        const deactivatedData = await deactivatedResult.value.json();
-        setDeactivatedUsers(deactivatedData.users || []);
-      } else {
-        setDeactivatedUsers([]);
-      }
-
-      // Handle Service Users
-      if (servicesResult.status === 'fulfilled' && servicesResult.value.ok) {
-        const servicesData = await servicesResult.value.json();
-        setServiceUsers(servicesData.users || []);
-      } else {
-        const errorMsg = servicesResult.status === 'fulfilled' ? servicesResult.value.statusText : 'Network Error';
-        logger.warn('Failed to fetch service users:', errorMsg);
-        setServiceUsers([]);
-      }
-    } catch (error) {
-      logger.error('Error loading users:', error);
-      setUsers([]);
-      setDeactivatedUsers([]);
+    setUsers(activeResult.ok ? (activeResult.data.users ?? []) : []);
+    setDeactivatedUsers(deactivatedResult.ok ? (deactivatedResult.data.users ?? []) : []);
+    if (servicesResult.ok) {
+      setServiceUsers(servicesResult.data.users ?? []);
+    } else {
+      logger.warn('Failed to fetch service users:', servicesResult.error.message);
       setServiceUsers([]);
-    } finally {
-      setIsDataLoading(false);
     }
+    setIsDataLoading(false);
   };
 
   const handleLogout = () => {
@@ -231,41 +202,24 @@ export default function AdminUsers() {
 
     setIsResettingPassword(true);
 
-    try {
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
+    const result = await apiClient.post<{ emailSent?: boolean }>('/api/v1/admin/users/reset-password', {
+      userId: passwordResetUser._id,
+      newPassword,
+      sendEmail: sendEmailNotification,
+    });
 
-      const response = await fetch('/api/v1/admin/users/reset-password', {
-        method: 'POST',
-        headers,
-        credentials: 'include',
-        body: JSON.stringify({
-          userId: passwordResetUser._id,
-          newPassword,
-          sendEmail: sendEmailNotification,
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        showSuccessToast(
-          `Password reset successfully. ${data.emailSent ? 'Email sent to user.' : 'Email notification was not sent.'}`
-        );
-        setIsPasswordResetModalOpen(false);
-        setPasswordResetUser(null);
-        setNewPassword('');
-        setConfirmPassword('');
-      } else {
-        const error = await response.json();
-        showErrorToast(`Failed to reset password: ${error.error || 'Unknown error'}`);
-      }
-    } catch (error) {
-      // console.error('Error resetting password:', error);
-      showErrorToast('Failed to reset password');
-    } finally {
-      setIsResettingPassword(false);
+    if (result.ok) {
+      showSuccessToast(
+        `Password reset successfully. ${result.data.emailSent ? 'Email sent to user.' : 'Email notification was not sent.'}`
+      );
+      setIsPasswordResetModalOpen(false);
+      setPasswordResetUser(null);
+      setNewPassword('');
+      setConfirmPassword('');
+    } else {
+      showErrorToast(result.error.status === 0 ? 'Failed to reset password' : `Failed to reset password: ${result.error.message || 'Unknown error'}`);
     }
+    setIsResettingPassword(false);
   };
 
   const handlePasswordResetCancel = () => {
@@ -287,53 +241,34 @@ export default function AdminUsers() {
   const confirmDeactivateUser = async () => {
     if (!userToDeactivate) return;
 
-    try {
-      setIsDeactivating(true);
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json'
+    setIsDeactivating(true);
+    const result = await apiClient.delete<{ message?: string }>('/api/v1/admin/users', { userId: userToDeactivate._id });
+
+    if (result.ok) {
+      // Update the user object with isActive: false
+      const updatedUser: User = {
+        ...userToDeactivate,
+        isActive: false, // Explicitly set to false
       };
 
-      const response = await fetch('/api/v1/admin/users', {
-        method: 'DELETE',
-        headers,
-        credentials: 'include',
-        body: JSON.stringify({ userId: userToDeactivate._id }),
-      });
+      // Remove the user from active users and services, add to deactivated users with updated status
+      setUsers(users.filter(user => user._id !== userToDeactivate._id));
+      setServiceUsers(serviceUsers.filter(user => user._id !== userToDeactivate._id));
+      setDeactivatedUsers([updatedUser, ...deactivatedUsers]);
 
-      if (response.ok) {
-        const data = await response.json();
+      // Switch to deactivated users tab to show the deactivated user
+      setActiveTab('deactivated');
 
-        // Update the user object with isActive: false
-        const updatedUser: User = {
-          ...userToDeactivate,
-          isActive: false, // Explicitly set to false
-        };
+      // Close the modal
+      setIsDeactivateModalOpen(false);
+      setUserToDeactivate(null);
 
-        // Remove the user from active users and services, add to deactivated users with updated status
-        setUsers(users.filter(user => user._id !== userToDeactivate._id));
-        setServiceUsers(serviceUsers.filter(user => user._id !== userToDeactivate._id));
-        setDeactivatedUsers([updatedUser, ...deactivatedUsers]);
-
-        // Switch to deactivated users tab to show the deactivated user
-        setActiveTab('deactivated');
-
-        // Close the modal
-        setIsDeactivateModalOpen(false);
-        setUserToDeactivate(null);
-
-        // Show success message
-        showSuccessToast(data.message || 'User deactivated successfully');
-      } else {
-        const error = await response.json();
-        // console.error('Failed to deactivate user:', error);
-        showErrorToast(error.error || 'Failed to deactivate user');
-      }
-    } catch (error) {
-      // console.error('Error deactivating user:', error);
-      showErrorToast('An error occurred while deactivating the user');
-    } finally {
-      setIsDeactivating(false);
+      // Show success message
+      showSuccessToast(result.data.message || 'User deactivated successfully');
+    } else {
+      showErrorToast(result.error.status === 0 ? 'An error occurred while deactivating the user' : result.error.message || 'Failed to deactivate user');
     }
+    setIsDeactivating(false);
   };
 
   const cancelDeactivateUser = () => {
@@ -349,52 +284,37 @@ export default function AdminUsers() {
   const confirmReactivateUser = async () => {
     if (!userToReactivate) return;
 
-    try {
-      setIsReactivating(true);
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json'
+    setIsReactivating(true);
+    const result = await apiClient.post<{ user?: { firstName?: string; lastName?: string; email?: string } }>(
+      '/api/v1/admin/users/reactivate',
+      { userId: userToReactivate._id }
+    );
+
+    if (result.ok) {
+      // Update the user object with the response data (which includes isActive: true)
+      const updatedUser: User = {
+        ...userToReactivate,
+        isActive: true, // Explicitly set to true
+        firstName: result.data.user?.firstName || userToReactivate.firstName,
+        lastName: result.data.user?.lastName || userToReactivate.lastName,
+        email: result.data.user?.email || userToReactivate.email,
       };
 
-      const response = await fetch('/api/v1/admin/users/reactivate', {
-        method: 'POST',
-        headers,
-        credentials: 'include',
-        body: JSON.stringify({ userId: userToReactivate._id }),
-      });
+      // Remove the user from deactivated users and services (to be safe), add to active users with updated status
+      setDeactivatedUsers(deactivatedUsers.filter(user => user._id !== userToReactivate._id));
+      setServiceUsers(serviceUsers.filter(user => user._id !== userToReactivate._id));
+      setUsers([updatedUser, ...users]);
 
-      if (response.ok) {
-        const data = await response.json();
+      // Show success toast
+      showSuccessToast('User reactivated successfully');
 
-        // Update the user object with the response data (which includes isActive: true)
-        const updatedUser: User = {
-          ...userToReactivate,
-          isActive: true, // Explicitly set to true
-          firstName: data.user?.firstName || userToReactivate.firstName,
-          lastName: data.user?.lastName || userToReactivate.lastName,
-          email: data.user?.email || userToReactivate.email,
-        };
-
-        // Remove the user from deactivated users and services (to be safe), add to active users with updated status
-        setDeactivatedUsers(deactivatedUsers.filter(user => user._id !== userToReactivate._id));
-        setServiceUsers(serviceUsers.filter(user => user._id !== userToReactivate._id));
-        setUsers([updatedUser, ...users]);
-
-        // Show success toast
-        showSuccessToast('User reactivated successfully');
-
-        // Close the modal
-        setIsReactivateModalOpen(false);
-        setUserToReactivate(null);
-      } else {
-        const error = await response.json();
-        // console.error('Failed to reactivate user:', error);
-        showErrorToast(error.error || 'Failed to reactivate user');
-      }
-    } catch (error) {
-      // console.error('Error reactivating user:', error);
-    } finally {
-      setIsReactivating(false);
+      // Close the modal
+      setIsReactivateModalOpen(false);
+      setUserToReactivate(null);
+    } else {
+      showErrorToast(result.error.message || 'Failed to reactivate user');
     }
+    setIsReactivating(false);
   };
 
   const cancelReactivateUser = () => {
@@ -410,42 +330,25 @@ export default function AdminUsers() {
   const confirmPermanentDeleteUser = async () => {
     if (!userToPermanentlyDelete) return;
 
-    try {
-      setIsPermanentlyDeleting(true);
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json'
-      };
+    setIsPermanentlyDeleting(true);
+    const result = await apiClient.delete<{ message?: string }>(`/api/v1/admin/users?permanent=true`, { userId: userToPermanentlyDelete._id });
 
-      const response = await fetch(`/api/v1/admin/users?permanent=true`, {
-        method: 'DELETE',
-        headers,
-        credentials: 'include',
-        body: JSON.stringify({ userId: userToPermanentlyDelete._id }),
-      });
+    if (result.ok) {
+      // Remove the user from all lists
+      setDeactivatedUsers(deactivatedUsers.filter(user => user._id !== userToPermanentlyDelete._id));
+      setUsers(users.filter(user => user._id !== userToPermanentlyDelete._id));
+      setServiceUsers(serviceUsers.filter(user => user._id !== userToPermanentlyDelete._id));
 
-      if (response.ok) {
-        const data = await response.json();
+      // Close the modal
+      setIsPermanentDeleteModalOpen(false);
+      setUserToPermanentlyDelete(null);
 
-        // Remove the user from all lists
-        setDeactivatedUsers(deactivatedUsers.filter(user => user._id !== userToPermanentlyDelete._id));
-        setUsers(users.filter(user => user._id !== userToPermanentlyDelete._id));
-        setServiceUsers(serviceUsers.filter(user => user._id !== userToPermanentlyDelete._id));
-        
-        // Close the modal
-        setIsPermanentDeleteModalOpen(false);
-        setUserToPermanentlyDelete(null);
-
-        // Show success message
-        showSuccessToast(data.message || 'User permanently deleted successfully');
-      } else {
-        const error = await response.json();
-        showErrorToast(error.error || 'Failed to delete user');
-      }
-    } catch (error) {
-      showErrorToast('An error occurred while deleting the user');
-    } finally {
-      setIsPermanentlyDeleting(false);
+      // Show success message
+      showSuccessToast(result.data.message || 'User permanently deleted successfully');
+    } else {
+      showErrorToast(result.error.status === 0 ? 'An error occurred while deleting the user' : result.error.message || 'Failed to delete user');
     }
+    setIsPermanentlyDeleting(false);
   };
 
   const cancelPermanentDeleteUser = () => {
@@ -461,34 +364,21 @@ export default function AdminUsers() {
   const confirm2FAReset = async () => {
     if (!userToReset2FA) return;
     setIsResetting2FA(true);
-    try {
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+    const result = await apiClient.post<{ message?: string }>('/api/v1/admin/users/reset-2fa', { userId: userToReset2FA._id });
 
-      const response = await fetch('/api/v1/admin/users/reset-2fa', {
-        method: 'POST',
-        headers,
-        credentials: 'include',
-        body: JSON.stringify({ userId: userToReset2FA._id }),
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        // Update local state so badge disappears immediately
-        const patch = (list: User[]) =>
-          list.map(u => u._id === userToReset2FA._id ? { ...u, totpEnabled: false } : u);
-        setUsers(patch);
-        setServiceUsers(patch);
-        showSuccessToast(data.message || '2FA reset successfully');
-        setIs2FAResetModalOpen(false);
-        setUserToReset2FA(null);
-      } else {
-        showErrorToast(data.error || 'Failed to reset 2FA');
-      }
-    } catch {
-      showErrorToast('An error occurred while resetting 2FA');
-    } finally {
-      setIsResetting2FA(false);
+    if (result.ok) {
+      // Update local state so badge disappears immediately
+      const patch = (list: User[]) =>
+        list.map(u => u._id === userToReset2FA._id ? { ...u, totpEnabled: false } : u);
+      setUsers(patch);
+      setServiceUsers(patch);
+      showSuccessToast(result.data.message || '2FA reset successfully');
+      setIs2FAResetModalOpen(false);
+      setUserToReset2FA(null);
+    } else {
+      showErrorToast(result.error.status === 0 ? 'An error occurred while resetting 2FA' : result.error.message || 'Failed to reset 2FA');
     }
+    setIsResetting2FA(false);
   };
 
   const cancel2FAReset = () => {
