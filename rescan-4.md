@@ -49,7 +49,7 @@ All four HIGH findings have been verified against the actual code, not just trus
 | Batch 7z.11 | S3 continued — 6 routes (log, domains/bulk-search, domains/nameservers, cart, test/automation/trigger, admin/pending-domains/[id]) + latent bug fix | ✅ Closed | `a9317ec` |
 | Batch 7z.12 | S3 complete — 3 payment routes (verify, guest/verify, guest/create-order) — **73/73 routes validated** | ✅ Closed | `5355331` |
 | Batch 7aa | S1 partial — typed frontend `apiClient` (`ApiResult<T, ApiError>` + Zod-aware) + 3 migrated callsites + 12 new tests | ✅ Closed | `bd4edbf` |
-| Batch 7ab | S1 continued — 5 more frontend callsites migrated to `apiClient` (AdminPasswordReset, ProfileCompletionForm, DomainBookingProgress, DomainCrossSell, GoogleRecaptcha) | 🔄 In progress | pending |
+| Batch 7ab | S1 continued — 5 more frontend callsites migrated to `apiClient` (AdminPasswordReset, ProfileCompletionForm, DomainBookingProgress, DomainCrossSell, GoogleRecaptcha) | ✅ Closed | `6d6b714` |
 
 **All four HIGHs + 11 MEDIUMs + 11 LOWs + 2 architectural suggestions (S2 + S3) cleared, M14 / M6 / L12 / S1 in progress.** 34 vertical slices shipped across batches 7a–7ab (6 RC ops + 6 DA ops + vocab unification + M13 cleanup + L1 Razorpay typed-client + two M14 slices + L8 error boundaries + L12 jsx-a11y lint + M6 leaf demotion + S2 pre-commit hooks + S3 complete twelve-slice sweep + two S1 frontend-apiClient slices). Bonus catches:
 - 7e: M3's tightened `BookingStep` type uncovered a real save-validation bug — `provisioner-hosting.ts:379` emits `step: "hosting_deferred"` but the schema enum didn't include it.
