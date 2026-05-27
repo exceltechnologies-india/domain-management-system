@@ -8,7 +8,13 @@ import Logo from '@/components/Logo';
 import Button from '@/components/Button';
 import toast from 'react-hot-toast';
 import { safeLocalStorage } from '@/lib/storage';
-import { logger } from '@/lib/logger';
+import { apiClient } from '@/lib/api-client';
+
+interface AuthUser {
+  email?: string;
+  isActivated?: boolean;
+  [k: string]: unknown;
+}
 
 export default function ActivatePage() {
   const [isLoading, setIsLoading] = useState(true);
@@ -61,22 +67,15 @@ export default function ActivatePage() {
       }
 
       // Make fresh API call to get current user status
-      const response = await fetch('/api/v1/auth/me', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
+      const result = await apiClient.get<{ user?: AuthUser }>('/api/v1/auth/me', undefined, {
+        headers: { Authorization: `Bearer ${token}` },
       });
 
-      const data = await response.json();
-
-      if (response.ok && data.user) {
+      if (result.ok && result.data.user) {
         // Update localStorage with fresh data
-        safeLocalStorage.setItem('user', JSON.stringify(data.user));
+        safeLocalStorage.setItem('user', JSON.stringify(result.data.user));
 
-        if (data.user.isActivated) {
+        if (result.data.user.isActivated) {
           // User is already activated, redirect to dashboard
           setActivationStatus('success');
           setMessage('Your account is already activated! Redirecting to dashboard...');
@@ -92,70 +91,55 @@ export default function ActivatePage() {
         // API call failed, redirect to login
         router.push('/login?message=Please log in to activate your account.');
       }
-    } catch (error) {
-      logger.error('Check activation status error:', error);
-      // If there's an error checking status, redirect to login
-      router.push('/login?message=Unable to check activation status. Please log in.');
     } finally {
       setIsLoading(false);
     }
   };
 
   const activateAccount = async (activationToken: string) => {
-    try {
-      setIsActivating(true);
-      const response = await fetch('/api/v1/auth/activate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ token: activationToken }),
-      });
+    setIsActivating(true);
+    const result = await apiClient.post<{ message?: string; token?: string; user?: AuthUser }>(
+      '/api/v1/auth/activate',
+      { token: activationToken }
+    );
 
-      const data = await response.json();
+    if (result.ok) {
+      setActivationStatus('success');
+      setMessage(result.data.message || 'Account activated.');
+      setUserEmail(result.data.user?.email || '');
 
-      if (response.ok) {
-        setActivationStatus('success');
-        setMessage(data.message);
-        setUserEmail(data.user?.email || '');
+      // Store token and user data in localStorage for immediate login
+      if (result.data.token && result.data.user) {
+        safeLocalStorage.setItem('token', result.data.token);
+        safeLocalStorage.setItem('user', JSON.stringify(result.data.user));
 
-        // Store token and user data in localStorage for immediate login
-        if (data.token && data.user) {
-          safeLocalStorage.setItem('token', data.token);
-          safeLocalStorage.setItem('user', JSON.stringify(data.user));
-
-          // Store token in cookie for server-side access.
-          // HttpOnly cannot be set here (client-side write); JS reads this cookie for
-          // Authorization headers. SameSite=Lax blocks cross-site form submissions;
-          // Secure ensures the cookie is only sent over HTTPS in production.
-          const secure = window.location.protocol === 'https:' ? '; Secure' : '';
-          document.cookie = `token=${data.token}; path=/; max-age=${24 * 60 * 60}; SameSite=Lax${secure}`;
-        }
-
-        // Redirect to dashboard after 2 seconds
-        setTimeout(() => {
-          router.push('/dashboard');
-        }, 2000);
-      } else {
-        if (data.error === 'Token expired') {
-          setActivationStatus('expired');
-          setMessage('Your activation link has expired. Please request a new one.');
-        } else if (data.error === 'Invalid token') {
-          setActivationStatus('invalid');
-          setMessage('Invalid activation link. Please check your email and try again.');
-        } else {
-          setActivationStatus('error');
-          setMessage(data.error || 'Activation failed. Please try again.');
-        }
+        // Store token in cookie for server-side access.
+        // HttpOnly cannot be set here (client-side write); JS reads this cookie for
+        // Authorization headers. SameSite=Lax blocks cross-site form submissions;
+        // Secure ensures the cookie is only sent over HTTPS in production.
+        const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+        document.cookie = `token=${result.data.token}; path=/; max-age=${24 * 60 * 60}; SameSite=Lax${secure}`;
       }
-    } catch (error) {
-      logger.error('Activation error:', error);
+
+      // Redirect to dashboard after 2 seconds
+      setTimeout(() => {
+        router.push('/dashboard');
+      }, 2000);
+    } else if (result.error.status === 0) {
       setActivationStatus('error');
       setMessage('Network error. Please check your connection and try again.');
-    } finally {
-      setIsLoading(false);
-      setIsActivating(false);
+    } else if (result.error.message === 'Token expired') {
+      setActivationStatus('expired');
+      setMessage('Your activation link has expired. Please request a new one.');
+    } else if (result.error.message === 'Invalid token') {
+      setActivationStatus('invalid');
+      setMessage('Invalid activation link. Please check your email and try again.');
+    } else {
+      setActivationStatus('error');
+      setMessage(result.error.message || 'Activation failed. Please try again.');
     }
+    setIsLoading(false);
+    setIsActivating(false);
   };
 
   const resendActivationEmail = async () => {
@@ -164,30 +148,18 @@ export default function ActivatePage() {
       return;
     }
 
-    try {
-      setIsActivating(true);
-      const response = await fetch('/api/v1/auth/resend-activation', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email: userEmail }),
-      });
+    setIsActivating(true);
+    const result = await apiClient.post('/api/v1/auth/resend-activation', { email: userEmail });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        toast.success('Activation email sent! Please check your inbox.');
-        setMessage('A new activation email has been sent to your email address.');
-      } else {
-        toast.error(data.error || 'Failed to send activation email.');
-      }
-    } catch (error) {
-      logger.error('Resend activation error:', error);
+    if (result.ok) {
+      toast.success('Activation email sent! Please check your inbox.');
+      setMessage('A new activation email has been sent to your email address.');
+    } else if (result.error.status === 0) {
       toast.error('Network error. Please try again.');
-    } finally {
-      setIsActivating(false);
+    } else {
+      toast.error(result.error.message || 'Failed to send activation email.');
     }
+    setIsActivating(false);
   };
 
   const getStatusIcon = () => {
