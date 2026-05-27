@@ -16,6 +16,7 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import { AdminLayoutSkeleton, TicketDetailPageSkeleton } from "@/components/skeletons/PageSkeletons";
 import { performLogout } from "@/lib/logout";
 import { formatIndianDateTime } from "@/lib/dateUtils";
+import { apiClient } from "@/lib/api-client";
 import AttachmentPicker, { PickedAttachment } from "@/components/support/AttachmentPicker";
 import MessageAttachments from "@/components/support/MessageAttachments";
 
@@ -112,32 +113,26 @@ export default function AdminTicketDetailPage() {
   useEffect(() => {
     if (status === "loading") return;
     const checkAuth = async () => {
-      try {
-        const res = await fetch("/api/v1/auth/me", { method: "GET", credentials: "include" });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.user?.role === "admin") { setUser(data.user); setIsAuthLoading(false); }
-          else { toast.error("Access denied"); router.push("/dashboard"); }
-        } else if (session?.user && session.user.role === "admin") {
-          const sUser = session.user;
-          const [firstName = "", ...rest] = (sUser.name ?? "").split(" ");
-          setUser({ firstName, lastName: rest.join(" "), role: sUser.role ?? "admin" });
-          setIsAuthLoading(false);
-        } else { router.push("/login"); }
-      } catch { router.push("/login"); }
+      const result = await apiClient.get<{ user?: { firstName: string; lastName: string; role: string } }>("/api/v1/auth/me");
+      if (result.ok && result.data.user) {
+        if (result.data.user.role === "admin") { setUser(result.data.user); setIsAuthLoading(false); }
+        else { toast.error("Access denied"); router.push("/dashboard"); }
+      } else if (session?.user && session.user.role === "admin") {
+        const sUser = session.user;
+        const [firstName = "", ...rest] = (sUser.name ?? "").split(" ");
+        setUser({ firstName, lastName: rest.join(" "), role: sUser.role ?? "admin" });
+        setIsAuthLoading(false);
+      } else { router.push("/login"); }
     };
     void checkAuth();
   }, [status, router, session?.user]);
 
   const fetchTicket = useCallback(async () => {
     setLoading(true);
-    try {
-      const res = await fetch(`/api/v1/admin/support-tickets/${params.id}`, { credentials: "include" });
-      const data = await res.json();
-      if (res.ok) setTicket(data.ticket);
-      else toast.error(data.error ?? "Failed to load ticket");
-    } catch { toast.error("Network error"); }
-    finally { setLoading(false); }
+    const result = await apiClient.get<{ ticket?: Ticket }>(`/api/v1/admin/support-tickets/${params.id}`);
+    if (result.ok) setTicket(result.data.ticket ?? null);
+    else toast.error(result.error.status === 0 ? "Network error" : result.error.message || "Failed to load ticket");
+    setLoading(false);
   }, [params.id]);
 
   useEffect(() => {
@@ -152,53 +147,33 @@ export default function AdminTicketDetailPage() {
     e.preventDefault();
     if (!reply.trim()) return;
     setSending(true);
-    try {
-      const res = await fetch(`/api/v1/admin/support-tickets/${params.id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ message: reply.trim(), attachments }),
-      });
-      const data = await res.json();
-      if (!res.ok) { toast.error(data.error ?? "Failed to send reply"); return; }
-      setTicket(data.ticket);
-      setReply("");
-      setAttachments([]);
-      toast.success("Reply sent to customer");
-    } catch { toast.error("Network error"); }
-    finally { setSending(false); }
+    const result = await apiClient.post<{ ticket?: Ticket }>(`/api/v1/admin/support-tickets/${params.id}`, { message: reply.trim(), attachments });
+    if (!result.ok) {
+      toast.error(result.error.status === 0 ? "Network error" : result.error.message || "Failed to send reply");
+      setSending(false);
+      return;
+    }
+    setTicket(result.data.ticket ?? null);
+    setReply("");
+    setAttachments([]);
+    toast.success("Reply sent to customer");
+    setSending(false);
   };
 
   const handleStatusChange = async (newStatus: string) => {
     if (ticket?.status === newStatus) return;
     setUpdatingStatus(true);
-    try {
-      const res = await fetch(`/api/v1/admin/support-tickets/${params.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ status: newStatus }),
-      });
-      const data = await res.json();
-      if (res.ok) { setTicket(data.ticket); toast.success(`Status → ${STATUS_CFG[newStatus]?.label}`); }
-      else toast.error(data.error ?? "Failed to update status");
-    } catch { toast.error("Network error"); }
-    finally { setUpdatingStatus(false); }
+    const result = await apiClient.patch<{ ticket?: Ticket }>(`/api/v1/admin/support-tickets/${params.id}`, { status: newStatus });
+    if (result.ok) { setTicket(result.data.ticket ?? null); toast.success(`Status → ${STATUS_CFG[newStatus]?.label}`); }
+    else toast.error(result.error.status === 0 ? "Network error" : result.error.message || "Failed to update status");
+    setUpdatingStatus(false);
   };
 
   const handlePriorityChange = async (newPriority: string) => {
     if (ticket?.priority === newPriority) return;
-    try {
-      const res = await fetch(`/api/v1/admin/support-tickets/${params.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ priority: newPriority }),
-      });
-      const data = await res.json();
-      if (res.ok) { setTicket(data.ticket); toast.success(`Priority → ${PRIORITY_CFG[newPriority]?.label}`); }
-      else toast.error(data.error ?? "Failed to update priority");
-    } catch { toast.error("Network error"); }
+    const result = await apiClient.patch<{ ticket?: Ticket }>(`/api/v1/admin/support-tickets/${params.id}`, { priority: newPriority });
+    if (result.ok) { setTicket(result.data.ticket ?? null); toast.success(`Priority → ${PRIORITY_CFG[newPriority]?.label}`); }
+    else toast.error(result.error.status === 0 ? "Network error" : result.error.message || "Failed to update priority");
   };
 
   if (isAuthLoading || loading) {
