@@ -13,6 +13,7 @@ import {
   Loader2, SquareCheckBig, Square, ChevronRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { apiClient } from '@/lib/api-client';
 
 interface BulkResult {
   domainName: string;
@@ -89,30 +90,25 @@ function BulkSearchContent() {
     setLoading(true);
     setResults([]);
     setSelected(new Set());
-    try {
-      const res = await fetch('/api/v1/domains/bulk-search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domains: validDomains.slice(0, MAX_DOMAINS) }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error ?? 'Search failed. Please try again.');
-        return;
-      }
-      setResults(data.results ?? []);
-      // Pre-select available, unrestricted domains
-      const avail = new Set<string>(
-        (data.results as BulkResult[])
-          .filter((r) => r.available && !r.restricted && !r.error)
-          .map((r) => r.domainName)
+    const result = await apiClient.post<{ results?: BulkResult[] }>(
+      '/api/v1/domains/bulk-search',
+      { domains: validDomains.slice(0, MAX_DOMAINS) }
+    );
+    if (!result.ok) {
+      toast.error(
+        result.error.status === 0 ? 'Network error. Please try again.' : result.error.message || 'Search failed. Please try again.'
       );
-      setSelected(avail);
-    } catch {
-      toast.error('Network error. Please try again.');
-    } finally {
       setLoading(false);
+      return;
     }
+    const rows = result.data.results ?? [];
+    setResults(rows);
+    // Pre-select available, unrestricted domains
+    const avail = new Set<string>(
+      rows.filter((r) => r.available && !r.restricted && !r.error).map((r) => r.domainName)
+    );
+    setSelected(avail);
+    setLoading(false);
   };
 
   const toggleSelect = (domainName: string) => {
