@@ -332,10 +332,17 @@ Remaining work: 3 MEDIUMs (M4 1000+ line page components, M6 client-component ra
 - ~~**Batch 7z.4** — S3 continued: 6 more (user/support/[id], admin/support-tickets/[id], trial-otp send + verify, trial-eligibility, chat)~~ ✅ shipped `1dfc073`
 - ~~**Batch 7z.5** — S3 continued: 6 admin write routes (hosting/change-package, hosting/actions discriminated-union + latent bug fix, hosting/assign, users/reactivate, users/reset-password, log-error)~~ ✅ shipped `a978849`
 - ~~**Batch 7z.6** — S3 continued: 6 more admin write routes (domains/nameservers, domains/activate-dns, domains/sync, diag-da/cleanup, reset-password, tld-pricing/cache)~~ ✅ shipped `60cf32f`
-- **Batch 7aa** — S3 sweep continued (~32 routes remain — payments/verify pair, workers, remaining admin writes, auth endpoints).
-- **Batch 7ab** — M14 component-level tests (deferred — needs `@testing-library/react` installed first).
-- **Batch 7ac** — M4 (5 page components > 1000 lines, multi-day per page).
-- **Batch 7ad** — M6 continued: per-component review of the ~110 remaining client components.
-- **Batch 7ae** — S1: shared frontend API client (58 raw `fetch` callsites — multi-batch).
-- **Batch 7af** — Runtime axe-core in CI (depends on 7ab harness).
-- **Batch 7ag** — ⏸ M8 (PendingDomain._id ObjectId) — deferred pending prod data audit.
+- ~~**Batch 7z.7** — S3 continued: 6 admin routes (hosting/test-plan, hosting/packages POST + PATCH, hosting/provision, backup, users/[id] PUT, pending-domains/verify) + latent quota-NaN fix~~ ✅ shipped `ba4f8d5`
+- ~~**Batch 7z.8** — S3 continued: 6 routes (admin/settings, admin/pending-domains POST, auth/activate, 3 workers)~~ ✅ shipped `d524fd9`
+- ~~**Batch 7z.9** — S3 continued: 6 routes (process-service-expiry, auth/check-account-status, totp/confirm + disable, resend-activation, admin/domains/dns POST + DELETE)~~ ✅ shipped `33ee8ff`
+- ~~**Batch 7z.10** — S3 continued: 6 user-facing domain routes (search, activate-dns, renew, booking-status, verify-status, transfer)~~ ✅ shipped `993272a`
+- ~~**Batch 7z.11** — S3 continued: 6 routes (log, bulk-search, nameservers, cart, test-automation, pending-domains/[id]) + latent pending-domain status bug fix~~ ✅ shipped `a9317ec`
+- ~~**Batch 7z.12** — S3 COMPLETE: 3 payment routes (verify, guest/verify, guest/create-order) — **73/73 routes validated**~~ ✅ shipped `5355331` (+ follow-up fix `d7cd9cb`)
+- ~~**Batch 7aa** — S1: typed frontend `apiClient` (`ApiResult<T, ApiError>` + Zod-aware) + 3 callsites + 12 tests~~ ✅ shipped `bd4edbf`
+- ~~**Batch 7ab** — S1 continued: 5 more frontend callsites migrated to `apiClient`~~ ✅ shipped `6d6b714`
+- **Batch 7ac** — S1 continued: migrate the remaining ~50 frontend `fetch` callsites — incremental.
+- **Batch 7ad** — M14 component-level tests (needs `@testing-library/react` installed first).
+- **Batch 7ae** — M4 (5 page components > 1000 lines, multi-day per page).
+- **Batch 7af** — M6 continued: per-component review of the ~110 remaining client components.
+- **Batch 7ag** — Runtime axe-core in CI (depends on the 7ad test harness).
+- **Batch 7ah** — ⏸ M8 (PendingDomain._id ObjectId) — deferred pending prod data audit.
