@@ -358,9 +358,17 @@ Remaining work: 3 MEDIUMs (M4 1000+ line page components, M6 client-component ra
 - ~~**Batch 7z.12** — S3 COMPLETE: 3 payment routes (verify, guest/verify, guest/create-order) — **73/73 routes validated**~~ ✅ shipped `5355331` (+ follow-up fix `d7cd9cb`)
 - ~~**Batch 7aa** — S1: typed frontend `apiClient` (`ApiResult<T, ApiError>` + Zod-aware) + 3 callsites + 12 tests~~ ✅ shipped `bd4edbf`
 - ~~**Batch 7ab** — S1 continued: 5 more frontend callsites migrated to `apiClient`~~ ✅ shipped `6d6b714`
-- **Batch 7ac** — S1 continued: migrate the remaining ~50 frontend `fetch` callsites — incremental.
-- **Batch 7ad** — M14 component-level tests (needs `@testing-library/react` installed first).
-- **Batch 7ae** — M4 (5 page components > 1000 lines, multi-day per page).
-- **Batch 7af** — M6 continued: per-component review of the ~110 remaining client components.
-- **Batch 7ag** — Runtime axe-core in CI (depends on the 7ad test harness).
-- **Batch 7ah** — ⏸ M8 (PendingDomain._id ObjectId) — deferred pending prod data audit.
+- ~~**Batch 7ac** — S1 continued: 4 callsites (ResetPasswordForm, LivePricingIndicator, TrialOtpModal ×2, DomainSetup)~~ ✅ shipped `e9c5458`
+- ~~**Batch 7ad** — S1 continued: 3 components / 6 fetches (MultiStageRegisterForm, DomainSearch watch, InvoiceDiagnostics ×4)~~ ✅ shipped `ba0602c`
+- ~~**Batch 7ae** — S1 continued: first app/ pages (maintenance, activate ×3) + `cache` option on apiClient~~ ✅ shipped `cbe3301`
+- ~~**Batch 7af** — S1 continued: 2 admin pages (invoices list-GET, pricing-management GET + DELETE)~~ ✅ shipped `02b2d7f`
+- ~~**Batch 7ag** — S1 continued: 3 pages (domains/transfer, bulk-search, admin/domains GET + sync POST)~~ ✅ shipped `d390f38`
+- ~~**Batch 7ah** — S1 continued: dashboard support pages (create-ticket POST, close PATCH, reply POST)~~ ✅ shipped `9bd22ea`
+
+### Remaining open work (no batch numbers assigned yet)
+- **S1 continued** — ~34 frontend `fetch` callsites still to migrate to `apiClient` (admin hosting/orders/users/settings pages, dashboard pages, cart/checkout). Blob/stream + payment-handler fetches stay on raw `fetch` by design.
+- **M14** — component-level tests (needs `@testing-library/react` installed first).
+- **M4** — 5 page components > 1000 lines (multi-day per page).
+- **M6 continued** — per-component review of the ~110 remaining client components.
+- **axe-core in CI** — runtime accessibility checks (depends on the M14 test harness).
+- ⏸ **M8** (PendingDomain._id ObjectId) — deferred pending prod data audit.
