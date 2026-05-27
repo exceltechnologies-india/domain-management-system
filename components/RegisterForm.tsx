@@ -9,6 +9,7 @@ import Logo from './Logo';
 import SocialLoginButtons from './SocialLoginButtons';
 import toast from 'react-hot-toast';
 import { safeLocalStorage } from '@/lib/storage';
+import { apiClient } from '@/lib/api-client';
 import GoogleRecaptcha from './GoogleRecaptcha';
 import PersonalInfoSection from './register/PersonalInfoSection';
 import AddressSection from './register/AddressSection';
@@ -140,67 +141,54 @@ export default function RegisterForm({ className = '' }: RegisterFormProps) {
       return;
     }
 
-    try {
-      // Check if reCAPTCHA is configured
-      const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
-      const isRecaptchaConfigured = recaptchaSiteKey && recaptchaSiteKey !== 'your-recaptcha-site-key';
+    // Check if reCAPTCHA is configured
+    const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+    const isRecaptchaConfigured = recaptchaSiteKey && recaptchaSiteKey !== 'your-recaptcha-site-key';
 
-      // Only require reCAPTCHA token if reCAPTCHA is configured
-      if (isRecaptchaConfigured && !recaptchaToken) {
-        toast.error('Please complete the security verification');
-        setIsLoading(false);
-        return;
-      }
-
-      const response = await fetch('/api/v1/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
-          password: formData.password,
-          phone: formData.phone,
-          phoneCc: formData.phoneCc,
-          companyName: formData.companyName,
-          address: formData.address,
-          recaptchaToken: recaptchaToken,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        // Store token in localStorage
-        safeLocalStorage.setItem('token', data.token);
-        safeLocalStorage.setItem('user', JSON.stringify(data.user));
-
-        // Store token in cookie for server-side access.
-        // HttpOnly cannot be set here (client-side write); JS reads this cookie for
-        // Authorization headers. SameSite=Lax blocks cross-site form submissions;
-        // Secure ensures the cookie is only sent over HTTPS in production.
-        const secure = window.location.protocol === 'https:' ? '; Secure' : '';
-        document.cookie = `token=${data.token}; path=/; max-age=${24 * 60 * 60}; SameSite=Lax${secure}`;
-
-        // Clear saved form data on successful registration
-        safeLocalStorage.removeItem('registerFormData');
-
-        toast.success('Registration successful!');
-
-        // Small delay to ensure cookie is set
-        setTimeout(() => {
-          router.push('/dashboard');
-        }, 100);
-      } else {
-        toast.error(data.error || 'Registration failed');
-      }
-    } catch (_error) {
-      toast.error('An error occurred. Please try again.');
-    } finally {
+    // Only require reCAPTCHA token if reCAPTCHA is configured
+    if (isRecaptchaConfigured && !recaptchaToken) {
+      toast.error('Please complete the security verification');
       setIsLoading(false);
+      return;
     }
+
+    const result = await apiClient.post<{ token?: string; user?: unknown; error?: string }>('/api/v1/auth/register', {
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      email: formData.email,
+      password: formData.password,
+      phone: formData.phone,
+      phoneCc: formData.phoneCc,
+      companyName: formData.companyName,
+      address: formData.address,
+      recaptchaToken: recaptchaToken,
+    });
+
+    if (result.ok) {
+      // Store token in localStorage
+      safeLocalStorage.setItem('token', result.data.token ?? '');
+      safeLocalStorage.setItem('user', JSON.stringify(result.data.user));
+
+      // Store token in cookie for server-side access.
+      // HttpOnly cannot be set here (client-side write); JS reads this cookie for
+      // Authorization headers. SameSite=Lax blocks cross-site form submissions;
+      // Secure ensures the cookie is only sent over HTTPS in production.
+      const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+      document.cookie = `token=${result.data.token}; path=/; max-age=${24 * 60 * 60}; SameSite=Lax${secure}`;
+
+      // Clear saved form data on successful registration
+      safeLocalStorage.removeItem('registerFormData');
+
+      toast.success('Registration successful!');
+
+      // Small delay to ensure cookie is set
+      setTimeout(() => {
+        router.push('/dashboard');
+      }, 100);
+    } else {
+      toast.error(result.error.status === 0 ? 'An error occurred. Please try again.' : result.error.message || 'Registration failed');
+    }
+    setIsLoading(false);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
