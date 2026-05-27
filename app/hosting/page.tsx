@@ -23,6 +23,7 @@ import { HOSTING_PLANS, CUSTOM_PLAN_FEATURES } from '@/config/hosting-plans';
 import { getDeviceFingerprint } from '@/lib/device-fingerprint';
 import TrialOtpModal from '@/components/hosting/TrialOtpModal';
 import { logger } from '@/lib/logger';
+import { apiClient } from '@/lib/api-client';
 
 interface User {
   firstName: string;
@@ -55,45 +56,43 @@ export default function HostingPage() {
       return;
     }
 
-    try {
-      const deviceFingerprint = await getDeviceFingerprint().catch(() => '');
-      // Pull a previously-issued OTP token from this tab's session storage.
-      // Absent unless the admin has flipped on `hosting_trial_otp_required`
-      // and the user has just completed the OTP modal.
-      const otpToken =
-        typeof window !== 'undefined'
-          ? sessionStorage.getItem('trial-otp-token') || undefined
-          : undefined;
+    const deviceFingerprint = await getDeviceFingerprint().catch(() => '');
+    // Pull a previously-issued OTP token from this tab's session storage.
+    // Absent unless the admin has flipped on `hosting_trial_otp_required`
+    // and the user has just completed the OTP modal.
+    const otpToken =
+      typeof window !== 'undefined'
+        ? sessionStorage.getItem('trial-otp-token') || undefined
+        : undefined;
 
-      const res = await fetch('/api/v1/user/hosting/trial-eligibility', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ planId: plan.id, deviceFingerprint, otpToken }),
-      });
-      const data = await res.json();
+    const result = await apiClient.post<{ eligible?: boolean; code?: string; reason?: string; otpRequired?: boolean }>(
+      '/api/v1/user/hosting/trial-eligibility',
+      { planId: plan.id, deviceFingerprint, otpToken }
+    );
 
-      if (!data.eligible) {
-        // When the OTP gate is active and the user hasn't verified yet,
-        // open the OTP modal instead of toasting an error.
-        if (data.code === 'OTP_REQUIRED') {
-          setPendingTrialPlan(plan);
-          setIsOtpModalOpen(true);
-          return;
-        }
-        toast.error(data.reason || 'You are not eligible for a free trial');
-        return;
-      }
+    if (!result.ok) {
+      toast.error('Unable to check trial eligibility. Please try again.');
+      return;
+    }
+    const data = result.data;
 
-      // Eligibility endpoint may also flag a future OTP requirement without
-      // blocking outright — present the modal proactively if so.
-      if (data.otpRequired && !otpToken) {
+    if (!data.eligible) {
+      // When the OTP gate is active and the user hasn't verified yet,
+      // open the OTP modal instead of toasting an error.
+      if (data.code === 'OTP_REQUIRED') {
         setPendingTrialPlan(plan);
         setIsOtpModalOpen(true);
         return;
       }
-    } catch {
-      toast.error('Unable to check trial eligibility. Please try again.');
+      toast.error(data.reason || 'You are not eligible for a free trial');
+      return;
+    }
+
+    // Eligibility endpoint may also flag a future OTP requirement without
+    // blocking outright — present the modal proactively if so.
+    if (data.otpRequired && !otpToken) {
+      setPendingTrialPlan(plan);
+      setIsOtpModalOpen(true);
       return;
     }
 
@@ -216,10 +215,10 @@ export default function HostingPage() {
 
   // Fetch ₹1 test plan status (public endpoint, no auth required)
   useEffect(() => {
-    fetch('/api/v1/public/hosting-test-plan')
-      .then(r => r.json())
-      .then(data => { if (data.enabled && data.plan) setTestPlan(data.plan); })
-      .catch(() => {});
+    void (async () => {
+      const result = await apiClient.get<{ enabled?: boolean; plan?: TestPlan }>('/api/v1/public/hosting-test-plan');
+      if (result.ok && result.data.enabled && result.data.plan) setTestPlan(result.data.plan);
+    })();
   }, []);
 
   useEffect(() => {

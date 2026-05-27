@@ -17,6 +17,7 @@ import { safeLocalStorage, safeSessionStorage } from '@/lib/storage';
 import { performLogout } from '@/lib/logout';
 import { logger } from '@/lib/logger';
 import { fetcher } from '@/lib/fetcher';
+import { apiClient } from '@/lib/api-client';
 import { useUser } from '@/hooks/useUser';
 import UserLayout from '@/components/user/UserLayout';
 import { DashboardLayoutSkeleton, DashboardHomeSkeleton } from '@/components/skeletons/PageSkeletons';
@@ -184,85 +185,47 @@ export default function UserDashboard() {
     setIsSyncing(true);
     const loadingToast = silent ? null : toast.loading('Syncing your domains...');
 
-    try {
-      const response = await fetch('/api/v1/domains/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include'
-      });
+    const result = await apiClient.post<{ success?: boolean; imported?: number; skipped?: number; message?: string; error?: string; code?: string }>('/api/v1/domains/sync', undefined);
 
-      // Try to parse response
-      let data;
-      try {
-        data = await response.json();
-      } catch (parseError) {
-        // Silent handling - malformed response
-        if (!silent && loadingToast) {
-          toast.error('Unexpected response from server', { id: loadingToast });
-        }
-        return;
+    if (result.ok && result.data?.success) {
+      const data = result.data;
+      if (!silent && loadingToast) {
+        toast.success(
+          `Successfully imported ${data.imported} domain(s)! ${(data.skipped ?? 0) > 0 ? `Skipped ${data.skipped} existing domain(s).` : ''}`,
+          { id: loadingToast }
+        );
+      } else if (silent && (data.imported ?? 0) > 0) {
+        // Show success for auto-sync only if domains were actually imported
+        toast.success(`Automatically imported ${data.imported} domain(s)!`);
       }
+      // Reload dashboard data to show newly synced domains
+      await mutateDashboard();
+    } else if (!result.ok && result.error.status === 0) {
+      // Network error
+      if (!silent && loadingToast) {
+        toast.error('Network error. Please check your connection.', { id: loadingToast });
+      }
+    } else {
+      // 200-with-success:false OR an HTTP error carrying a body — same handling
+      const body = (result.ok ? result.data : (result.error.body as { message?: string; error?: string; code?: string } | undefined)) || {};
+      const errorMessage = body.message || body.error || 'Failed to sync domains';
+      const errorCode = body.code;
 
-      if (response.ok && data.success) {
+      // Check if user doesn't have a domain provider account (expected for new users)
+      if (errorCode === 'NO_LINKED_ACCOUNT' ||
+          errorMessage.includes('No ResellerClub customer') ||
+          errorMessage.includes('not linked to a ResellerClub')) {
         if (!silent && loadingToast) {
-          toast.success(
-            `Successfully imported ${data.imported} domain(s)! ${data.skipped > 0 ? `Skipped ${data.skipped} existing domain(s).` : ''}`,
-            { id: loadingToast }
-          );
-        } else if (silent && data.imported > 0) {
-          // Show success for auto-sync only if domains were actually imported
-          toast.success(
-            `Automatically imported ${data.imported} domain(s)!`
-          );
+          toast.error('No domains found. Register your first domain to get started.', { id: loadingToast });
         }
+      } else if (!silent && loadingToast) {
+        toast.error(errorMessage, { id: loadingToast });
+      }
+    }
 
-        // Reload dashboard data to show newly synced domains
-        await mutateDashboard();
-      } else {
-        // Handle specific error cases
-        const errorMessage = data.message || data.error || 'Failed to sync domains';
-        const errorCode = data.code;
-
-        // Check if user doesn't have a domain provider account
-        if (errorCode === 'NO_LINKED_ACCOUNT' || 
-            errorMessage.includes('No ResellerClub customer') ||
-            errorMessage.includes('not linked to a ResellerClub')) {
-          // This is expected for new users - don't show error in silent mode
-          if (!silent && loadingToast) {
-            toast.error(
-              'No domains found. Register your first domain to get started.',
-              { id: loadingToast }
-            );
-          } else {
-            // Just log in silent mode
-            // console.log('User does not have any domains yet - this is normal for new users');
-          }
-        } else {
-          // Other errors - show them
-          if (!silent && loadingToast) {
-            toast.error(errorMessage, { id: loadingToast });
-          }
-          // Log to server-side only, not browser console
-        }
-      }
-    } catch (error) {
-      // Silent handling - network or other errors
-      // Check if it's a network error
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        if (!silent && loadingToast) {
-          toast.error('Network error. Please check your connection.', { id: loadingToast });
-        }
-      } else {
-        if (!silent && loadingToast) {
-          toast.error('Failed to sync domains', { id: loadingToast });
-        }
-      }
-    } finally {
-      setIsSyncing(false);
-      // Dismiss loading toast if it exists
-      if (loadingToast) {
-        toast.dismiss(loadingToast);
-      }
+    setIsSyncing(false);
+    if (loadingToast) {
+      toast.dismiss(loadingToast);
     }
   };
 
