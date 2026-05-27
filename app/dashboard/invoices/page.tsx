@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import useSWR from 'swr';
 import { fetcher } from '@/lib/fetcher';
+import { apiClient } from '@/lib/api-client';
 import { useUser } from '@/hooks/useUser';
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
 import UserLayout from '@/components/user/UserLayout';
@@ -130,29 +131,26 @@ export default function InvoicesPage() {
   };
 
   const handleSyncNow = async () => {
-    try {
-      setIsSyncing(true);
-      const res = await fetch('/api/v1/user/invoices/sync', { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Sync failed');
-
-      if (data.recovered > 0) {
-        showSuccessToast(`Invoice${data.recovered > 1 ? 's' : ''} ready — refreshing.`);
-      } else if (data.failed > 0) {
-        const firstError = (data.results as Array<{ error?: string }> | undefined)?.find((r) => r.error)?.error;
-        showErrorToast(firstError || 'Could not generate invoice — please contact support.');
-      } else if (data.total === 0) {
-        showSuccessToast('Nothing to sync.');
-      } else {
-        showSuccessToast('Sync requested — refreshing.');
-      }
-      await mutate();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Sync failed';
-      showErrorToast(message);
-    } finally {
+    setIsSyncing(true);
+    const result = await apiClient.post<{ recovered?: number; failed?: number; total?: number; results?: Array<{ error?: string }> }>('/api/v1/user/invoices/sync', undefined);
+    if (!result.ok) {
+      showErrorToast(result.error.message || 'Sync failed');
       setIsSyncing(false);
+      return;
     }
+    const data = result.data;
+    if ((data.recovered ?? 0) > 0) {
+      showSuccessToast(`Invoice${(data.recovered ?? 0) > 1 ? 's' : ''} ready — refreshing.`);
+    } else if ((data.failed ?? 0) > 0) {
+      const firstError = data.results?.find((r) => r.error)?.error;
+      showErrorToast(firstError || 'Could not generate invoice — please contact support.');
+    } else if (data.total === 0) {
+      showSuccessToast('Nothing to sync.');
+    } else {
+      showSuccessToast('Sync requested — refreshing.');
+    }
+    await mutate();
+    setIsSyncing(false);
   };
 
   const handleDownload = async (invoiceId: string, invoiceNumber: string) => {
