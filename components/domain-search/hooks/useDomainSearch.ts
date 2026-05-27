@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { safeLocalStorage } from '@/lib/storage';
 import { isRestrictedTLD } from '@/lib/domainRequirements';
+import { apiClient } from '@/lib/api-client';
 import { TOP_TLDS } from '../data/tlds';
 
 export interface SearchResult {
@@ -192,34 +193,27 @@ export function useDomainSearch({
     }
 
     // ── Phase 1: quick domain availability (no suggestions) ──────────────────
-    try {
-      const res = await fetch('/api/v1/domains/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(quickBody),
-      });
-      const data = await res.json();
+    const quickResult = await apiClient.post<{ success?: boolean; results?: SearchResult[]; error?: string; message?: string }>('/api/v1/domains/search', quickBody);
 
-      if (thisGen !== searchGenRef.current) return; // Search was superseded
+    if (thisGen !== searchGenRef.current) return; // Search was superseded
 
-      if (res.ok && data.success) {
-        setResults(data.results || []);
-        setError(null);
+    if (quickResult.ok && quickResult.data.success) {
+      setResults(quickResult.data.results || []);
+      setError(null);
+    } else if (quickResult.ok) {
+      const data = quickResult.data;
+      setResults([]);
+      setSuggestions([]);
+      if (data.error === 'restricted_tld' || data.error === 'all_tlds_restricted') {
+        setError(data.message ?? null);
+        toast.error(data.message ?? '', { duration: 8000, style: { background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' } });
       } else {
-        setResults([]);
-        setSuggestions([]);
-        if (data.error === 'restricted_tld' || data.error === 'all_tlds_restricted') {
-          setError(data.message);
-          toast.error(data.message, { duration: 8000, style: { background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' } });
-        } else {
-          setError(data.error || 'Failed to search domain. Please try again.');
-          toast.error(data.error || 'Failed to search domain. Please try again.');
-        }
-        setIsSearching(false);
-        return;
+        setError(data.error || 'Failed to search domain. Please try again.');
+        toast.error(data.error || 'Failed to search domain. Please try again.');
       }
-    } catch {
-      if (thisGen !== searchGenRef.current) return;
+      setIsSearching(false);
+      return;
+    } else {
       setResults([]);
       setSuggestions([]);
       setError('Network error. Please check your connection and try again.');
@@ -233,24 +227,16 @@ export function useDomainSearch({
     setIsLoadingSuggestions(true);
 
     // ── Phase 2: suggestions + hosting check in background ───────────────────
-    fetch('/api/v1/domains/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(fullBody),
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (thisGen !== searchGenRef.current) return;
-        if (data.success) {
-          setSuggestions(data.suggestions || []);
-          setHostingExists(data.hostingExists || false);
-        }
-      })
-      .catch(() => { /* suggestions are non-critical; keep showing results */ })
-      .finally(() => {
-        if (thisGen !== searchGenRef.current) return;
-        setIsLoadingSuggestions(false);
-      });
+    void (async () => {
+      const result = await apiClient.post<{ success?: boolean; suggestions?: SearchResult[]; hostingExists?: boolean }>('/api/v1/domains/search', fullBody);
+      if (thisGen !== searchGenRef.current) return;
+      if (result.ok && result.data.success) {
+        setSuggestions(result.data.suggestions || []);
+        setHostingExists(result.data.hostingExists || false);
+      }
+      // suggestions are non-critical; keep showing results on failure
+      setIsLoadingSuggestions(false);
+    })();
   };
 
   const handleLoadMoreSuggestions = async () => {
@@ -258,48 +244,34 @@ export function useDomainSearch({
 
     setIsLoadingMore(true);
 
-    try {
-      const allTlds = getSuggestedTlds(baseDomain);
-      const remainingTlds = allTlds.filter(tld => !searchedTlds.includes(tld));
-      const tldsToSearch = remainingTlds.slice(0, 6);
+    const allTlds = getSuggestedTlds(baseDomain);
+    const remainingTlds = allTlds.filter(tld => !searchedTlds.includes(tld));
+    const tldsToSearch = remainingTlds.slice(0, 6);
 
-      if (tldsToSearch.length === 0) {
-        setCanLoadMore(false);
-        toast('No more TLD suggestions available', {
-          icon: 'ℹ️',
-        });
-        return;
-      }
-
-      const response = await fetch('/api/v1/domains/search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          domain: baseDomain,
-          tlds: tldsToSearch
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        setResults(prevResults => [...prevResults, ...(data.results || [])]);
-        setSearchedTlds(prev => [...prev, ...tldsToSearch]);
-
-        const newRemainingTlds = remainingTlds.slice(tldsToSearch.length);
-        setCanLoadMore(newRemainingTlds.length > 0);
-
-        toast.success(`Found ${data.results?.length || 0} more suggestions`);
-      } else {
-        toast.error(data.error || 'Failed to load more suggestions');
-      }
-    } catch (error) {
-      toast.error('Failed to load more suggestions. Please try again.');
-    } finally {
+    if (tldsToSearch.length === 0) {
+      setCanLoadMore(false);
+      toast('No more TLD suggestions available', { icon: 'ℹ️' });
       setIsLoadingMore(false);
+      return;
     }
+
+    const result = await apiClient.post<{ success?: boolean; results?: SearchResult[]; error?: string }>('/api/v1/domains/search', { domain: baseDomain, tlds: tldsToSearch });
+
+    if (result.ok && result.data.success) {
+      const data = result.data;
+      setResults(prevResults => [...prevResults, ...(data.results || [])]);
+      setSearchedTlds(prev => [...prev, ...tldsToSearch]);
+
+      const newRemainingTlds = remainingTlds.slice(tldsToSearch.length);
+      setCanLoadMore(newRemainingTlds.length > 0);
+
+      toast.success(`Found ${data.results?.length || 0} more suggestions`);
+    } else if (result.ok) {
+      toast.error(result.data.error || 'Failed to load more suggestions');
+    } else {
+      toast.error(result.error.status === 0 ? 'Failed to load more suggestions. Please try again.' : result.error.message || 'Failed to load more suggestions');
+    }
+    setIsLoadingMore(false);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
