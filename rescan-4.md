@@ -70,8 +70,8 @@ All four HIGH findings have been verified against the actual code, not just trus
 | Batch 7at | S1 continued — admin settings (22 fetches: 9 GET loaders incl. paired cache load, cache PUT + DELETE, 2 check-ip GETs, 8 settings save POSTs, test-plan POST; removed dead authHeaders helper) | ✅ Closed | `547ab37` |
 | Batch 7au | S1 continued — dashboard hosting (cancel-trial POST, auto-renew PATCH) + dashboard domains/[id] (services-status + domains + nameservers GETs, NS update POST) | ✅ Closed | `0e8b093` |
 | Batch 7av | S1 continued — public hosting page (trial-eligibility POST, test-plan GET) + dashboard home (domains/sync POST) + dashboard invoices (invoices/sync POST) | ✅ Closed | `ac60d54` |
-| Batch 7aw | S1 continued — useDomainSearch hook (3 search POSTs: Phase-1 quick, Phase-2 fire-and-forget suggestions, load-more) — one of the two 7ad-deferred items | 🔄 Committed, deploy pending | `036f161` |
-| Batch 7ax | S1 continued — RegisterForm register POST (the last 7ad-deferred holdout; its 3 cross-origin geocoding fetches stay raw by design) | 🔄 Committed, deploy pending | — |
+| Batch 7aw | S1 continued — useDomainSearch hook (3 search POSTs: Phase-1 quick, Phase-2 fire-and-forget suggestions, load-more) — one of the two 7ad-deferred items | ✅ Closed | `036f161` |
+| Batch 7ax | S1 continued — RegisterForm register POST (the last 7ad-deferred holdout; its 3 cross-origin geocoding fetches stay raw by design) | ✅ Closed | `4d3ac2c` |
 
 **All four HIGHs + 11 MEDIUMs + 11 LOWs + 2 architectural suggestions (S2 + S3) cleared, M14 / M6 / L12 / S1 in progress.** 56 vertical slices shipped across batches 7a–7ax (6 RC ops + 6 DA ops + vocab unification + M13 cleanup + L1 Razorpay typed-client + two M14 slices + L8 error boundaries + L12 jsx-a11y lint + M6 leaf demotion + S2 pre-commit hooks + S3 complete twelve-slice sweep + twenty-four S1 frontend-apiClient slices). Bonus catches:
 - 7e: M3's tightened `BookingStep` type uncovered a real save-validation bug — `provisioner-hosting.ts:379` emits `step: "hosting_deferred"` but the schema enum didn't include it.
