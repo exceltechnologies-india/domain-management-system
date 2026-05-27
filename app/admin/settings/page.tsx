@@ -17,6 +17,7 @@ import { performLogout } from "@/lib/logout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
+import { apiClient } from "@/lib/api-client";
 
 interface IPData {
   success: boolean;
@@ -216,8 +217,6 @@ export default function AdminSettings() {
   }, [router, status, session?.user?.email]);
 
   // ── Data loading ──────────────────────────────────────────────────────────
-  const authHeaders = (extra: Record<string, string> = {}): HeadersInit => extra;
-
   const loadAllSettings = async () => {
     setIsDataLoading(true);
     await Promise.all([loadSavedIPData(), loadCacheSettings(), loadIPWhitelistSettings(), loadCORSSettings(), loadCaptchaSettings(), loadHostingTrialSettings(), loadTestPlanSettings(), loadMaintenanceSettings()]);
@@ -226,129 +225,109 @@ export default function AdminSettings() {
   };
 
   const loadSavedIPData = async () => {
-    try {
-      const res = await fetch("/api/v1/admin/ip-status", { headers: authHeaders(), credentials: "include" });
-      if (res.ok) { const d = await res.json(); setIpData(d); if (d.lastChecked) setLastChecked(new Date(d.lastChecked)); }
-    } catch {}
+    const result = await apiClient.get<IPData>("/api/v1/admin/ip-status");
+    if (result.ok) { setIpData(result.data); if (result.data.lastChecked) setLastChecked(new Date(result.data.lastChecked)); }
   };
 
   const loadCacheSettings = async () => {
-    try {
-      const [sr, cr] = await Promise.all([
-        fetch("/api/v1/admin/tld-pricing/cache", { headers: authHeaders(), credentials: "include" }),
-        fetch("/api/v1/admin/settings", { headers: authHeaders(), credentials: "include" }),
-      ]);
-      if (sr.ok) { const d = await sr.json(); setCacheStatus(d.cache); setCacheTTL(d.ttl || 60); }
-      if (cr.ok) {
-        const d = await cr.json(); const s = d.settings || {};
-        if (s.tld_pricing_cache_enabled !== undefined) setCacheEnabled(s.tld_pricing_cache_enabled.value !== false);
-        if (s.tld_pricing_cache_ttl !== undefined) setCacheTTL(parseInt(s.tld_pricing_cache_ttl.value) || 60);
-      }
-    } catch {}
+    const [sr, cr] = await Promise.all([
+      apiClient.get<{ cache?: { hasData?: boolean; itemCount?: number; lastUpdated?: string | Date | null }; ttl?: number }>("/api/v1/admin/tld-pricing/cache"),
+      apiClient.get<{ settings?: Record<string, { value?: unknown }> }>("/api/v1/admin/settings"),
+    ]);
+    if (sr.ok) { setCacheStatus(sr.data.cache ?? null); setCacheTTL(sr.data.ttl || 60); }
+    if (cr.ok) {
+      const s = cr.data.settings || {};
+      if (s.tld_pricing_cache_enabled !== undefined) setCacheEnabled(s.tld_pricing_cache_enabled.value !== false);
+      if (s.tld_pricing_cache_ttl !== undefined) setCacheTTL(parseInt(String(s.tld_pricing_cache_ttl.value)) || 60);
+    }
   };
 
   const loadIPWhitelistSettings = async () => {
-    try {
-      const res = await fetch("/api/v1/admin/settings", { headers: authHeaders(), credentials: "include" });
-      if (!res.ok) return;
-      const d = await res.json(); const s = d.settings || {};
-      const en = s["admin_ip_whitelist_enabled"];
-      setIpWhitelistEnabled(en?.value === true || en?.value === "true");
-      const sessionUser = session?.user as { _id?: string; id?: string } | undefined;
-      const userId = sessionUser?._id || sessionUser?.id || "";
-      if (userId) {
-        const ws = s[`admin_ip_whitelist_${userId}`];
-        if (ws?.value) setWhitelistedIPs(Array.isArray(ws.value) ? ws.value : typeof ws.value === "string" ? ws.value.split(",").map((i: string) => i.trim()) : []);
-      }
-    } catch {}
+    const result = await apiClient.get<{ settings?: Record<string, { value?: unknown }> }>("/api/v1/admin/settings");
+    if (!result.ok) return;
+    const s = result.data.settings || {};
+    const en = s["admin_ip_whitelist_enabled"];
+    setIpWhitelistEnabled(en?.value === true || en?.value === "true");
+    const sessionUser = session?.user as { _id?: string; id?: string } | undefined;
+    const userId = sessionUser?._id || sessionUser?.id || "";
+    if (userId) {
+      const ws = s[`admin_ip_whitelist_${userId}`];
+      if (ws?.value) setWhitelistedIPs(Array.isArray(ws.value) ? ws.value : typeof ws.value === "string" ? ws.value.split(",").map((i: string) => i.trim()) : []);
+    }
   };
 
   const loadCORSSettings = async () => {
-    try {
-      const res = await fetch("/api/v1/admin/settings", { headers: authHeaders(), credentials: "include" });
-      if (!res.ok) return;
-      const d = await res.json(); const s = d.settings || {};
-      const en = s["cors_protection_enabled"];
-      setCorsProtectionEnabled(en?.value === true || en?.value === "true");
-      const os = s["cors_allowed_origins"];
-      if (os?.value) setAllowedOrigins(Array.isArray(os.value) ? os.value : typeof os.value === "string" ? os.value.split(",").map((o: string) => o.trim()) : []);
-    } catch {}
+    const result = await apiClient.get<{ settings?: Record<string, { value?: unknown }> }>("/api/v1/admin/settings");
+    if (!result.ok) return;
+    const s = result.data.settings || {};
+    const en = s["cors_protection_enabled"];
+    setCorsProtectionEnabled(en?.value === true || en?.value === "true");
+    const os = s["cors_allowed_origins"];
+    if (os?.value) setAllowedOrigins(Array.isArray(os.value) ? os.value : typeof os.value === "string" ? os.value.split(",").map((o: string) => o.trim()) : []);
   };
 
   const loadCaptchaSettings = async () => {
-    try {
-      const res = await fetch("/api/v1/admin/settings", { headers: authHeaders(), credentials: "include" });
-      if (!res.ok) return;
-      const d = await res.json(); const s = d.settings?.captcha_enabled;
-      if (s !== undefined) setCaptchaEnabled(s.value === true || s.value === "true");
-    } catch {}
+    const result = await apiClient.get<{ settings?: Record<string, { value?: unknown }> }>("/api/v1/admin/settings");
+    if (!result.ok) return;
+    const s = result.data.settings?.captcha_enabled;
+    if (s !== undefined) setCaptchaEnabled(s.value === true || s.value === "true");
   };
 
   const loadHostingTrialSettings = async () => {
-    try {
-      const res = await fetch("/api/v1/admin/settings", { headers: authHeaders(), credentials: "include" });
-      if (!res.ok) return;
-      const d = await res.json();
-      const s = d.settings?.hosting_trial_enabled;
-      if (s !== undefined) setHostingTrialEnabled(s.value !== false);
-      const otp = d.settings?.hosting_trial_otp_required;
-      if (otp !== undefined) setTrialOtpRequired(otp.value === true || otp.value === "true");
-    } catch {}
+    const result = await apiClient.get<{ settings?: Record<string, { value?: unknown }> }>("/api/v1/admin/settings");
+    if (!result.ok) return;
+    const s = result.data.settings?.hosting_trial_enabled;
+    if (s !== undefined) setHostingTrialEnabled(s.value !== false);
+    const otp = result.data.settings?.hosting_trial_otp_required;
+    if (otp !== undefined) setTrialOtpRequired(otp.value === true || otp.value === "true");
   };
 
   const loadTestPlanSettings = async () => {
     setIsLoadingTestPlan(true);
-    try {
-      const res = await fetch("/api/v1/admin/hosting/test-plan", { headers: authHeaders(), credentials: "include" });
-      if (res.ok) { const d = await res.json(); setTestPlanEnabled(d.enabled === true); const id = d.plan?.razorpayPlans?.monthly || ""; setTestPlanRazorpayId(id); setTestPlanRazorpayInput(id); }
-    } catch {} finally { setIsLoadingTestPlan(false); }
+    const result = await apiClient.get<{ enabled?: boolean; plan?: { razorpayPlans?: { monthly?: string } } }>("/api/v1/admin/hosting/test-plan");
+    if (result.ok) { setTestPlanEnabled(result.data.enabled === true); const id = result.data.plan?.razorpayPlans?.monthly || ""; setTestPlanRazorpayId(id); setTestPlanRazorpayInput(id); }
+    setIsLoadingTestPlan(false);
   };
 
   const loadMaintenanceSettings = async () => {
-    try {
-      const res = await fetch("/api/v1/admin/settings", { headers: authHeaders(), credentials: "include" });
-      if (!res.ok) return;
-      const d = await res.json(); const setting = (d.settings || {})["maintenance_mode"];
-      if (setting?.value) {
-        setMaintenanceEnabled(!!setting.value.enabled);
-        setMaintenanceMessage(setting.value.message || "");
-        if (setting.value.scheduledEnd) { const local = new Date(setting.value.scheduledEnd); local.setMinutes(local.getMinutes() - local.getTimezoneOffset()); setMaintenanceScheduledEnd(local.toISOString().slice(0, 16)); }
-      }
-    } catch {}
+    const result = await apiClient.get<{ settings?: Record<string, { value?: { enabled?: boolean; message?: string; scheduledEnd?: string } }> }>("/api/v1/admin/settings");
+    if (!result.ok) return;
+    const setting = (result.data.settings || {})["maintenance_mode"];
+    if (setting?.value) {
+      setMaintenanceEnabled(!!setting.value.enabled);
+      setMaintenanceMessage(setting.value.message || "");
+      if (setting.value.scheduledEnd) { const local = new Date(setting.value.scheduledEnd); local.setMinutes(local.getMinutes() - local.getTimezoneOffset()); setMaintenanceScheduledEnd(local.toISOString().slice(0, 16)); }
+    }
   };
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const updateCacheSettings = async () => {
     setCacheLoading(true);
-    try {
-      const res = await fetch("/api/v1/admin/tld-pricing/cache", { method: "PUT", headers: authHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ enabled: cacheEnabled, ttlMinutes: cacheTTL }) });
-      if ((await res.json()).success) { showSuccessToast("Cache settings updated"); await loadCacheSettings(); } else showErrorToast("Failed to update cache settings");
-    } catch { showErrorToast("Failed to update cache settings"); } finally { setCacheLoading(false); }
+    const result = await apiClient.put<{ success?: boolean }>("/api/v1/admin/tld-pricing/cache", { enabled: cacheEnabled, ttlMinutes: cacheTTL });
+    if (result.ok && result.data.success) { showSuccessToast("Cache settings updated"); await loadCacheSettings(); } else showErrorToast("Failed to update cache settings");
+    setCacheLoading(false);
   };
 
   const purgeCache = async () => {
     setCacheLoading(true);
-    try {
-      const res = await fetch("/api/v1/admin/tld-pricing/cache", { method: "DELETE", headers: authHeaders(), credentials: "include" });
-      if ((await res.json()).success) { showSuccessToast("Cache purged"); await loadCacheSettings(); } else showErrorToast("Failed to purge cache");
-    } catch { showErrorToast("Failed to purge cache"); } finally { setCacheLoading(false); }
+    const result = await apiClient.delete<{ success?: boolean }>("/api/v1/admin/tld-pricing/cache");
+    if (result.ok && result.data.success) { showSuccessToast("Cache purged"); await loadCacheSettings(); } else showErrorToast("Failed to purge cache");
+    setCacheLoading(false);
   };
 
   const fetchOutboundIP = async () => {
     setIsLoading(true);
-    try {
-      const res = await fetch("/api/v1/admin/check-ip", { headers: authHeaders(), credentials: "include" });
-      const d = await res.json(); setIpData(d); setLastChecked(new Date());
-      if (d.success) showSuccessToast("Outbound IP refreshed"); else showErrorToast("Failed to check outbound IP");
-    } catch { showErrorToast("Network error"); } finally { setIsLoading(false); }
+    const result = await apiClient.get<IPData>("/api/v1/admin/check-ip");
+    if (result.ok) { setIpData(result.data); setLastChecked(new Date()); if (result.data.success) showSuccessToast("Outbound IP refreshed"); else showErrorToast("Failed to check outbound IP"); }
+    else showErrorToast("Network error");
+    setIsLoading(false);
   };
 
   const fetchCurrentIP = async () => {
     setIsLoadingIP(true);
-    try {
-      const res = await fetch("/api/v1/admin/check-ip", { headers: authHeaders(), credentials: "include" });
-      if (res.ok) { const d = await res.json(); if (d.success && d.data?.primaryIP) setCurrentIP(d.data.primaryIP); }
-    } catch {} finally { setIsLoadingIP(false); }
+    const result = await apiClient.get<{ success?: boolean; data?: { primaryIP?: string } }>("/api/v1/admin/check-ip");
+    if (result.ok && result.data.success && result.data.data?.primaryIP) setCurrentIP(result.data.data.primaryIP);
+    setIsLoadingIP(false);
   };
 
   useEffect(() => { if (ipData?.data?.primaryIP) setCurrentIP(ipData.data.primaryIP); }, [ipData]);
@@ -359,11 +338,14 @@ export default function AdminSettings() {
     try {
       const userObj = (session?.user || {}) as { _id?: string; id?: string };
       const userId = userObj._id || userObj.id || "";
-      if (!userId) { showErrorToast("User ID not found"); return; }
-      await fetch("/api/v1/admin/settings", { method: "POST", headers: authHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ key: "admin_ip_whitelist_enabled", value: ipWhitelistEnabled, description: "Enable IP whitelisting for admin APIs", category: "security" }) });
-      await fetch("/api/v1/admin/settings", { method: "POST", headers: authHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ key: `admin_ip_whitelist_${userId}`, value: whitelistedIPs, description: "Whitelisted IP addresses for admin access", category: "security" }) });
-      showSuccessToast("IP whitelist settings saved");
-    } catch { showErrorToast("Failed to save IP whitelist settings"); } finally { setIsSavingWhitelist(false); }
+      if (!userId) { showErrorToast("User ID not found"); setIsSavingWhitelist(false); return; }
+      const [r1, r2] = await Promise.all([
+        apiClient.post("/api/v1/admin/settings", { key: "admin_ip_whitelist_enabled", value: ipWhitelistEnabled, description: "Enable IP whitelisting for admin APIs", category: "security" }),
+        apiClient.post("/api/v1/admin/settings", { key: `admin_ip_whitelist_${userId}`, value: whitelistedIPs, description: "Whitelisted IP addresses for admin access", category: "security" }),
+      ]);
+      if (r1.ok && r2.ok) showSuccessToast("IP whitelist settings saved");
+      else showErrorToast("Failed to save IP whitelist settings");
+    } finally { setIsSavingWhitelist(false); }
   };
 
   const addIPToWhitelist = (ip: string) => {
@@ -374,11 +356,13 @@ export default function AdminSettings() {
 
   const saveCORSSettings = async () => {
     setIsSavingCors(true);
-    try {
-      await fetch("/api/v1/admin/settings", { method: "POST", headers: authHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ key: "cors_protection_enabled", value: corsProtectionEnabled, description: "Enable CORS protection", category: "security" }) });
-      await fetch("/api/v1/admin/settings", { method: "POST", headers: authHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ key: "cors_allowed_origins", value: allowedOrigins, description: "Allowed origins for CORS", category: "security" }) });
-      showSuccessToast("CORS settings saved");
-    } catch { showErrorToast("Failed to save CORS settings"); } finally { setIsSavingCors(false); }
+    const [r1, r2] = await Promise.all([
+      apiClient.post("/api/v1/admin/settings", { key: "cors_protection_enabled", value: corsProtectionEnabled, description: "Enable CORS protection", category: "security" }),
+      apiClient.post("/api/v1/admin/settings", { key: "cors_allowed_origins", value: allowedOrigins, description: "Allowed origins for CORS", category: "security" }),
+    ]);
+    if (r1.ok && r2.ok) showSuccessToast("CORS settings saved");
+    else showErrorToast("Failed to save CORS settings");
+    setIsSavingCors(false);
   };
 
   const addOriginToWhitelist = (origin: string) => {
@@ -389,62 +373,55 @@ export default function AdminSettings() {
 
   const saveCaptchaSettings = async () => {
     setIsSavingCaptcha(true);
-    try {
-      await fetch("/api/v1/admin/settings", { method: "POST", headers: authHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ key: "captcha_enabled", value: captchaEnabled, description: "Enable Google reCAPTCHA on public forms", category: "security" }) });
-      showSuccessToast(`Captcha ${captchaEnabled ? "enabled" : "disabled"}`);
-    } catch { showErrorToast("Failed to save captcha settings"); } finally { setIsSavingCaptcha(false); }
+    const result = await apiClient.post("/api/v1/admin/settings", { key: "captcha_enabled", value: captchaEnabled, description: "Enable Google reCAPTCHA on public forms", category: "security" });
+    if (result.ok) showSuccessToast(`Captcha ${captchaEnabled ? "enabled" : "disabled"}`);
+    else showErrorToast("Failed to save captcha settings");
+    setIsSavingCaptcha(false);
   };
 
   const saveHostingTrialSettings = async () => {
     setIsSavingTrial(true);
-    try {
-      const res = await fetch("/api/v1/admin/settings", { method: "POST", headers: authHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ key: "hosting_trial_enabled", value: hostingTrialEnabled, description: "15-day free trial for yearly hosting", category: "promotions" }) });
-      if (!res.ok) throw new Error((await res.json()).error || "Failed");
-      showSuccessToast(`Hosting trial ${hostingTrialEnabled ? "enabled" : "disabled"}`);
-    } catch { showErrorToast("Failed to save trial settings"); } finally { setIsSavingTrial(false); }
+    const result = await apiClient.post("/api/v1/admin/settings", { key: "hosting_trial_enabled", value: hostingTrialEnabled, description: "15-day free trial for yearly hosting", category: "promotions" });
+    if (result.ok) showSuccessToast(`Hosting trial ${hostingTrialEnabled ? "enabled" : "disabled"}`);
+    else showErrorToast("Failed to save trial settings");
+    setIsSavingTrial(false);
   };
 
   const saveTrialOtpSettings = async () => {
     setIsSavingTrialOtp(true);
-    try {
-      const res = await fetch("/api/v1/admin/settings", {
-        method: "POST",
-        headers: authHeaders({ "Content-Type": "application/json" }),
-        credentials: "include",
-        body: JSON.stringify({
-          key: "hosting_trial_otp_required",
-          value: trialOtpRequired,
-          description: "Require phone OTP verification before claiming the hosting free trial",
-          category: "security",
-        }),
-      });
-      if (!res.ok) throw new Error((await res.json()).error || "Failed");
-      showSuccessToast(`Trial phone-OTP gate ${trialOtpRequired ? "enabled" : "disabled"}`);
-    } catch { showErrorToast("Failed to save trial OTP settings"); } finally { setIsSavingTrialOtp(false); }
+    const result = await apiClient.post("/api/v1/admin/settings", {
+      key: "hosting_trial_otp_required",
+      value: trialOtpRequired,
+      description: "Require phone OTP verification before claiming the hosting free trial",
+      category: "security",
+    });
+    if (result.ok) showSuccessToast(`Trial phone-OTP gate ${trialOtpRequired ? "enabled" : "disabled"}`);
+    else showErrorToast("Failed to save trial OTP settings");
+    setIsSavingTrialOtp(false);
   };
 
   const saveTestPlan = async (action: "enable" | "disable") => {
     setIsSavingTestPlan(true);
-    try {
-      const body: Record<string, string> = { action };
-      if (action === "enable" && testPlanRazorpayInput.trim()) body.razorpayPlanMonthly = testPlanRazorpayInput.trim();
-      const res = await fetch("/api/v1/admin/hosting/test-plan", { method: "POST", headers: authHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify(body) });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || `Failed (${res.status})`);
-      setTestPlanEnabled(d.enabled);
-      if (d.razorpayPlanMonthly) { setTestPlanRazorpayId(d.razorpayPlanMonthly); setTestPlanRazorpayInput(d.razorpayPlanMonthly); }
+    const body: Record<string, string> = { action };
+    if (action === "enable" && testPlanRazorpayInput.trim()) body.razorpayPlanMonthly = testPlanRazorpayInput.trim();
+    const result = await apiClient.post<{ enabled?: boolean; razorpayPlanMonthly?: string }>("/api/v1/admin/hosting/test-plan", body);
+    if (result.ok) {
+      setTestPlanEnabled(!!result.data.enabled);
+      if (result.data.razorpayPlanMonthly) { setTestPlanRazorpayId(result.data.razorpayPlanMonthly); setTestPlanRazorpayInput(result.data.razorpayPlanMonthly); }
       showSuccessToast(action === "enable" ? "₹1 test plan enabled" : "₹1 test plan disabled");
-    } catch (e: unknown) { showErrorToast(e instanceof Error ? e.message : "Failed"); } finally { setIsSavingTestPlan(false); }
+    } else {
+      showErrorToast(result.error.message || "Failed");
+    }
+    setIsSavingTestPlan(false);
   };
 
   const saveMaintenanceSettings = async () => {
     setIsSavingMaintenance(true);
-    try {
-      const scheduledEnd = maintenanceScheduledEnd ? new Date(maintenanceScheduledEnd).toISOString() : null;
-      const res = await fetch("/api/v1/admin/settings", { method: "POST", headers: authHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ key: "maintenance_mode", value: { enabled: maintenanceEnabled, message: maintenanceMessage.trim(), scheduledEnd }, description: "Site-wide maintenance mode", category: "general" }) });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Failed (${res.status})`);
-      showSuccessToast(maintenanceEnabled ? "Maintenance mode enabled" : "Site is live");
-    } catch { showErrorToast("Failed to save maintenance settings"); } finally { setIsSavingMaintenance(false); }
+    const scheduledEnd = maintenanceScheduledEnd ? new Date(maintenanceScheduledEnd).toISOString() : null;
+    const result = await apiClient.post("/api/v1/admin/settings", { key: "maintenance_mode", value: { enabled: maintenanceEnabled, message: maintenanceMessage.trim(), scheduledEnd }, description: "Site-wide maintenance mode", category: "general" });
+    if (result.ok) showSuccessToast(maintenanceEnabled ? "Maintenance mode enabled" : "Site is live");
+    else showErrorToast("Failed to save maintenance settings");
+    setIsSavingMaintenance(false);
   };
 
   const getStatusColor = () => { if (isLoading) return "bg-yellow-500"; if (!ipData?.success) return "bg-red-500"; if (ipData?.data?.allIPs && ipData.data.allIPs.length > 1) return "bg-orange-500"; return "bg-green-500"; };
