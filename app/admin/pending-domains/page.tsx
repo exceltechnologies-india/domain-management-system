@@ -29,6 +29,7 @@ import { formatIndianDateTime } from '@/lib/dateUtils';
 import AdminLayout from "@/components/admin/AdminLayout";
 import { AdminLayoutSkeleton, AdminGenericPageSkeleton, AdminTableRowsSkeleton } from "@/components/skeletons/PageSkeletons";
 import { performLogout } from "@/lib/logout";
+import { apiClient } from "@/lib/api-client";
 
 interface PendingDomain {
   _id: string;
@@ -154,21 +155,17 @@ export default function AdminPendingDomainsPage() {
   const [domainToMarkResolved, setDomainToMarkResolved] = useState<PendingDomain | null>(null);
 
   const fetchBalance = async () => {
-    try {
-      setIsBalanceLoading(true);
-      setBalanceError(null);
-      const res = await fetch('/api/v1/admin/resellerclub/balance', { credentials: 'include' });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setRcAccount(data.account);
-      } else {
-        setBalanceError(data.error || "Failed to fetch account details");
-      }
-    } catch {
-      setBalanceError("Unable to fetch balance");
-    } finally {
-      setIsBalanceLoading(false);
+    setIsBalanceLoading(true);
+    setBalanceError(null);
+    const result = await apiClient.get<{ success?: boolean; account?: NonNullable<typeof rcAccount>; error?: string }>('/api/v1/admin/resellerclub/balance');
+    if (result.ok && result.data.success) {
+      setRcAccount(result.data.account ?? null);
+    } else if (result.ok) {
+      setBalanceError(result.data.error || "Failed to fetch account details");
+    } else {
+      setBalanceError(result.error.status === 0 ? "Unable to fetch balance" : result.error.message || "Failed to fetch account details");
     }
+    setIsBalanceLoading(false);
   };
 
   // Auth Effect
@@ -176,41 +173,30 @@ export default function AdminPendingDomainsPage() {
     const checkAuth = async () => {
       if (status === 'loading') return;
 
-      try {
-        const response = await fetch('/api/v1/auth/me', {
-          method: 'GET',
-          credentials: 'include',
-        });
+      const result = await apiClient.get<{ user?: NonNullable<typeof user> }>('/api/v1/auth/me');
 
-        if (response.ok) {
-          const data = await response.json();
-          if (data.user?.role === 'admin') {
-            setUser(data.user);
-            setIsAuthLoading(false);
-          } else {
-            toast.error("Access denied. Admin privileges required.");
-            setTimeout(() => router.push('/dashboard'), 2000);
-          }
+      if (result.ok && result.data.user) {
+        if (result.data.user.role === 'admin') {
+          setUser(result.data.user);
+          setIsAuthLoading(false);
         } else {
-          // Fallback to NextAuth session if API fails or returns 401 but we have session
-          if (session?.user && session.user.role === 'admin') {
-            const sUser = session.user;
-            const [firstName = "", ...rest] = (sUser.name ?? "").split(" ");
-            setUser({
-              id: sUser.id,
-              email: sUser.email ?? undefined,
-              role: sUser.role ?? "admin",
-              firstName,
-              lastName: rest.join(" "),
-            });
-            setIsAuthLoading(false);
-          } else {
-            toast.error("Session expired. Please login again.");
-            router.push('/login');
-          }
+          toast.error("Access denied. Admin privileges required.");
+          setTimeout(() => router.push('/dashboard'), 2000);
         }
-      } catch (error) {
-        toast.error("Authentication failed");
+      } else if (session?.user && session.user.role === 'admin') {
+        // Fallback to NextAuth session if API fails or returns 401 but we have session
+        const sUser = session.user;
+        const [firstName = "", ...rest] = (sUser.name ?? "").split(" ");
+        setUser({
+          id: sUser.id,
+          email: sUser.email ?? undefined,
+          role: sUser.role ?? "admin",
+          firstName,
+          lastName: rest.join(" "),
+        });
+        setIsAuthLoading(false);
+      } else {
+        toast.error("Session expired. Please login again.");
         router.push('/login');
       }
     };
@@ -235,40 +221,35 @@ export default function AdminPendingDomainsPage() {
   }, [isAuthLoading, user, pagination.page, selectedStatus, searchTerm, activeTab]);
 
   const fetchPendingDomains = async () => {
-    try {
-      setIsDataLoading(true);
-      const params = new URLSearchParams({
-        page: pagination.page.toString(),
-        limit: pagination.limit.toString(),
-        ...(selectedStatus !== "all" && { status: selectedStatus }),
-        ...(searchTerm && { search: searchTerm }),
-        ...(activeTab === "archived" && { archived: "true" }),
-      });
+    setIsDataLoading(true);
+    const params = new URLSearchParams({
+      page: pagination.page.toString(),
+      limit: pagination.limit.toString(),
+      ...(selectedStatus !== "all" && { status: selectedStatus }),
+      ...(searchTerm && { search: searchTerm }),
+      ...(activeTab === "archived" && { archived: "true" }),
+    });
 
-      const response = await fetch(`/api/v1/admin/pending-domains?${params}`, {
-        credentials: 'include'
-      });
+    const result = await apiClient.get<{ success?: boolean; pendingDomains?: PendingDomain[]; pagination?: Pagination; error?: string }>(
+      `/api/v1/admin/pending-domains?${params}`
+    );
 
-      const data = await response.json();
+    if (result.ok && result.data.success) {
+      setPendingDomains(result.data.pendingDomains ?? []);
+      if (result.data.pagination) setPagination(result.data.pagination);
 
-      if (response.ok && data.success) {
-        setPendingDomains(data.pendingDomains);
-        setPagination(data.pagination);
-
-        // Update counts
-        if (activeTab === 'active') {
-          setActiveCount(data.pagination?.total || 0);
-        } else {
-          setArchivedCount(data.pagination?.total || 0);
-        }
+      // Update counts
+      if (activeTab === 'active') {
+        setActiveCount(result.data.pagination?.total || 0);
       } else {
-        toast.error(data.error || "Failed to fetch pending domains");
+        setArchivedCount(result.data.pagination?.total || 0);
       }
-    } catch (error) {
-      toast.error("Unable to load pending domains.");
-    } finally {
-      setIsDataLoading(false);
+    } else if (result.ok) {
+      toast.error(result.data.error || "Failed to fetch pending domains");
+    } else {
+      toast.error(result.error.status === 0 ? "Unable to load pending domains." : result.error.message || "Failed to fetch pending domains");
     }
+    setIsDataLoading(false);
   };
 
   // Initial Count Fetch
@@ -292,54 +273,40 @@ export default function AdminPendingDomainsPage() {
 
   const handleRegisterDomain = async () => {
     if (!domainToRegister) return;
-    try {
-      setActionLoading(`register:${domainToRegister._id}`);
-      setShowRegisterConfirm(false);
+    setActionLoading(`register:${domainToRegister._id}`);
+    setShowRegisterConfirm(false);
 
-      const response = await fetch(`/api/v1/admin/pending-domains/${domainToRegister._id}/register`, {
-        method: "POST",
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      });
-      const data = await response.json();
+    const result = await apiClient.post<{ success?: boolean; message?: string }>(`/api/v1/admin/pending-domains/${domainToRegister._id}/register`, undefined);
 
-      if (response.ok && data.success) {
-        toast.success(`Domain ${domainToRegister.domainName} registered successfully`);
-        void fetchPendingDomains();
-      } else {
-        toast.error(data.message || "Failed to register domain");
-      }
-    } catch (error) {
-      toast.error("Unable to register domain");
-    } finally {
-      setActionLoading(null);
-      setDomainToRegister(null);
+    if (result.ok && result.data.success) {
+      toast.success(`Domain ${domainToRegister.domainName} registered successfully`);
+      void fetchPendingDomains();
+    } else if (result.ok) {
+      toast.error(result.data.message || "Failed to register domain");
+    } else {
+      toast.error(result.error.status === 0 ? "Unable to register domain" : result.error.message || "Failed to register domain");
     }
+    setActionLoading(null);
+    setDomainToRegister(null);
   };
 
   const handleVerifyDomains = async (domainIds: string[]) => {
-    try {
-      setActionLoading("verify");
+    setActionLoading("verify");
 
-      const response = await fetch("/api/v1/admin/pending-domains/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: 'include',
-        body: JSON.stringify({ domainIds }),
-      });
-      const data = await response.json();
+    const result = await apiClient.post<{ success?: boolean; summary?: { total: number }; error?: string }>(
+      "/api/v1/admin/pending-domains/verify",
+      { domainIds }
+    );
 
-      if (response.ok && data.success) {
-        toast.success(`Verified ${data.summary.total} domains`);
-        void fetchPendingDomains();
-      } else {
-        toast.error(data.error || "Failed to verify domains");
-      }
-    } catch (error) {
-      toast.error("Unable to verify domains");
-    } finally {
-      setActionLoading(null);
+    if (result.ok && result.data.success) {
+      toast.success(`Verified ${result.data.summary?.total ?? 0} domains`);
+      void fetchPendingDomains();
+    } else if (result.ok) {
+      toast.error(result.data.error || "Failed to verify domains");
+    } else {
+      toast.error(result.error.status === 0 ? "Unable to verify domains" : result.error.message || "Failed to verify domains");
     }
+    setActionLoading(null);
   };
 
   const handleArchiveClick = (domain: PendingDomain) => {
@@ -350,29 +317,21 @@ export default function AdminPendingDomainsPage() {
   const handleArchiveDomain = async () => {
     if (!domainToArchive) return;
 
-    try {
-      setActionLoading(`archive:${domainToArchive._id}`);
-      setShowArchiveConfirm(false);
+    setActionLoading(`archive:${domainToArchive._id}`);
+    setShowArchiveConfirm(false);
 
-      const response = await fetch(`/api/v1/admin/pending-domains/${domainToArchive._id}`, {
-        method: "DELETE",
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      });
-      const data = await response.json();
+    const result = await apiClient.delete<{ success?: boolean; error?: string }>(`/api/v1/admin/pending-domains/${domainToArchive._id}`);
 
-      if (response.ok && data.success) {
-        toast.success("Domain archived successfully");
-        void fetchPendingDomains();
-      } else {
-        toast.error(data.error || "Failed to archive domain");
-      }
-    } catch (error) {
-      toast.error("Unable to archive domain");
-    } finally {
-      setActionLoading(null);
-      setDomainToArchive(null);
+    if (result.ok && result.data.success) {
+      toast.success("Domain archived successfully");
+      void fetchPendingDomains();
+    } else if (result.ok) {
+      toast.error(result.data.error || "Failed to archive domain");
+    } else {
+      toast.error(result.error.status === 0 ? "Unable to archive domain" : result.error.message || "Failed to archive domain");
     }
+    setActionLoading(null);
+    setDomainToArchive(null);
   };
 
   const handleMarkResolvedClick = (domain: PendingDomain) => {
@@ -382,64 +341,47 @@ export default function AdminPendingDomainsPage() {
 
   const handleMarkResolved = async () => {
     if (!domainToMarkResolved) return;
-    try {
-      setActionLoading(`resolve:${domainToMarkResolved._id}`);
-      setShowMarkResolvedConfirm(false);
-      const response = await fetch(`/api/v1/admin/pending-domains/${domainToMarkResolved._id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ status: "completed", reason: "Manually resolved by admin" }),
-      });
-      const data = await response.json();
-      if (response.ok && data.success) {
-        toast.success(`${domainToMarkResolved.domainName} marked as resolved`);
-        void fetchPendingDomains();
-      } else {
-        toast.error(data.error || "Failed to mark as resolved");
-      }
-    } catch {
-      toast.error("Unable to update domain status");
-    } finally {
-      setActionLoading(null);
-      setDomainToMarkResolved(null);
+    setActionLoading(`resolve:${domainToMarkResolved._id}`);
+    setShowMarkResolvedConfirm(false);
+
+    const result = await apiClient.put<{ success?: boolean; error?: string }>(
+      `/api/v1/admin/pending-domains/${domainToMarkResolved._id}`,
+      { status: "completed", reason: "Manually resolved by admin" }
+    );
+
+    if (result.ok && result.data.success) {
+      toast.success(`${domainToMarkResolved.domainName} marked as resolved`);
+      void fetchPendingDomains();
+    } else if (result.ok) {
+      toast.error(result.data.error || "Failed to mark as resolved");
+    } else {
+      toast.error(result.error.status === 0 ? "Unable to update domain status" : result.error.message || "Failed to mark as resolved");
     }
+    setActionLoading(null);
+    setDomainToMarkResolved(null);
   };
 
   const handleRetryFailed = async (domain: PendingDomain) => {
     // Reset to pending first, then register
-    try {
-      setActionLoading(`retry:${domain._id}`);
-      const headers: HeadersInit = { "Content-Type": "application/json" };
+    setActionLoading(`retry:${domain._id}`);
 
-      const resetRes = await fetch(`/api/v1/admin/pending-domains/${domain._id}`, {
-        method: "PUT",
-        headers,
-        credentials: "include",
-        body: JSON.stringify({ status: "pending", reason: "Retry initiated by admin" }),
-      });
-      if (!resetRes.ok) {
-        toast.error("Failed to reset domain status for retry");
-        return;
-      }
-
-      const registerRes = await fetch(`/api/v1/admin/pending-domains/${domain._id}/register`, {
-        method: "POST",
-        headers,
-        credentials: "include",
-      });
-      const registerData = await registerRes.json();
-      if (registerRes.ok && registerData.success) {
-        toast.success(`${domain.domainName} registration retried successfully`);
-      } else {
-        toast.error(registerData.message || "Retry failed — check failure reason");
-      }
-      void fetchPendingDomains();
-    } catch {
-      toast.error("Retry failed");
-    } finally {
+    const resetResult = await apiClient.put(`/api/v1/admin/pending-domains/${domain._id}`, { status: "pending", reason: "Retry initiated by admin" });
+    if (!resetResult.ok) {
+      toast.error("Failed to reset domain status for retry");
       setActionLoading(null);
+      return;
     }
+
+    const registerResult = await apiClient.post<{ success?: boolean; message?: string }>(`/api/v1/admin/pending-domains/${domain._id}/register`, undefined);
+    if (registerResult.ok && registerResult.data.success) {
+      toast.success(`${domain.domainName} registration retried successfully`);
+    } else if (registerResult.ok) {
+      toast.error(registerResult.data.message || "Retry failed — check failure reason");
+    } else {
+      toast.error(registerResult.error.status === 0 ? "Retry failed" : registerResult.error.message || "Retry failed — check failure reason");
+    }
+    void fetchPendingDomains();
+    setActionLoading(null);
   };
 
   const handleDeleteClick = (domain: PendingDomain) => {
@@ -449,31 +391,22 @@ export default function AdminPendingDomainsPage() {
 
   const handleDeletePermanently = async () => {
     if (!domainToDelete) return;
+    setActionLoading(`delete:${domainToDelete._id}`);
+    setShowDeleteConfirm(false);
 
-    try {
-      setActionLoading(`delete:${domainToDelete._id}`);
-      setShowDeleteConfirm(false);
+    // Call API with permanent=true query param
+    const result = await apiClient.delete<{ success?: boolean; error?: string }>(`/api/v1/admin/pending-domains/${domainToDelete._id}?permanent=true`);
 
-      // Call API with permanent=true query param
-      const response = await fetch(`/api/v1/admin/pending-domains/${domainToDelete._id}?permanent=true`, {
-        method: "DELETE",
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      });
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        toast.success("Domain permanently deleted");
-        void fetchPendingDomains();
-      } else {
-        toast.error(data.error || "Failed to delete domain");
-      }
-    } catch (error) {
-      toast.error("Unable to delete domain");
-    } finally {
-      setActionLoading(null);
-      setDomainToDelete(null);
+    if (result.ok && result.data.success) {
+      toast.success("Domain permanently deleted");
+      void fetchPendingDomains();
+    } else if (result.ok) {
+      toast.error(result.data.error || "Failed to delete domain");
+    } else {
+      toast.error(result.error.status === 0 ? "Unable to delete domain" : result.error.message || "Failed to delete domain");
     }
+    setActionLoading(null);
+    setDomainToDelete(null);
   };
 
   const getStatusIcon = (status: string) => {
