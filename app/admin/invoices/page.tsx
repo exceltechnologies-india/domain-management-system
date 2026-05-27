@@ -27,6 +27,7 @@ import { performLogout } from '@/lib/logout';
 import AdminDataTable from '@/components/admin/AdminDataTable';
 import InvoiceDiagnostics from '@/components/admin/InvoiceDiagnostics';
 import { logger } from '@/lib/logger';
+import { apiClient } from '@/lib/api-client';
 
 interface Invoice {
   invoice_id: string;
@@ -102,12 +103,13 @@ export default function AdminInvoicesPage() {
       if (!isBackground) setIsDataLoading(true);
       fetchingPages.current.add(targetPage);
 
-      const response = await fetch(`/api/v1/admin/invoices?page=${targetPage}&per_page=10`);
+      const result = await apiClient.get<{ invoices?: Invoice[]; page_context?: { has_more_page?: boolean } }>(
+        `/api/v1/admin/invoices?page=${targetPage}&per_page=10`
+      );
 
-      if (response.ok) {
-        const data = await response.json();
-        const newInvoices = data.invoices || [];
-        const hasMorePage = data.page_context?.has_more_page || false;
+      if (result.ok) {
+        const newInvoices = result.data.invoices || [];
+        const hasMorePage = result.data.page_context?.has_more_page || false;
 
         invoicesCache.current[targetPage] = { data: newInvoices, hasMore: hasMorePage };
 
@@ -119,8 +121,6 @@ export default function AdminInvoicesPage() {
       } else if (!isBackground) {
         showErrorToast('Failed to fetch invoices');
       }
-    } catch (error) {
-      logger.error('Error fetching invoices:', error);
     } finally {
       fetchingPages.current.delete(targetPage);
       if (!isBackground) setIsDataLoading(false);
