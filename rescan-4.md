@@ -55,7 +55,7 @@ All four HIGH findings have been verified against the actual code, not just trus
 | Batch 7ae | S1 continued — first app/ pages (maintenance, activate ×3) + `cache` option added to apiClient | ✅ Closed | `cbe3301` |
 | Batch 7af | S1 continued — 2 admin pages (invoices list-GET, pricing-management GET + DELETE) | ✅ Closed | `02b2d7f` |
 | Batch 7ag | S1 continued — 3 pages (domains/transfer, domains/bulk-search, admin/domains GET + sync POST) | ✅ Closed | `d390f38` |
-| Batch 7ah | S1 continued — dashboard support pages (create-ticket POST, ticket close PATCH + reply POST) | 🔄 In progress | — |
+| Batch 7ah | S1 continued — dashboard support pages (create-ticket POST, ticket close PATCH + reply POST) | ✅ Closed | `9bd22ea` |
 
 **All four HIGHs + 11 MEDIUMs + 11 LOWs + 2 architectural suggestions (S2 + S3) cleared, M14 / M6 / L12 / S1 in progress.** 40 vertical slices shipped across batches 7a–7ah (6 RC ops + 6 DA ops + vocab unification + M13 cleanup + L1 Razorpay typed-client + two M14 slices + L8 error boundaries + L12 jsx-a11y lint + M6 leaf demotion + S2 pre-commit hooks + S3 complete twelve-slice sweep + eight S1 frontend-apiClient slices). Bonus catches:
 - 7e: M3's tightened `BookingStep` type uncovered a real save-validation bug — `provisioner-hosting.ts:379` emits `step: "hosting_deferred"` but the schema enum didn't include it.
