@@ -139,7 +139,7 @@ export const apiClient = {
   patch<T = unknown>(url: string, body: unknown, schema?: ZodSchema<T>, opts: RequestOptions = {}) {
     return request<T>("PATCH", url, body, schema, opts);
   },
-  delete<T = unknown>(url: string, schema?: ZodSchema<T>, opts: RequestOptions = {}) {
-    return request<T>("DELETE", url, undefined, schema, opts);
+  delete<T = unknown>(url: string, body?: unknown, schema?: ZodSchema<T>, opts: RequestOptions = {}) {
+    return request<T>("DELETE", url, body, schema, opts);
   },
 };
