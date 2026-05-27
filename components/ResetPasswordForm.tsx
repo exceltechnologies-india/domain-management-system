@@ -9,6 +9,7 @@ import Card from './Card';
 import Logo from './Logo';
 import toast from 'react-hot-toast';
 import GoogleRecaptcha from './GoogleRecaptcha';
+import { apiClient } from '@/lib/api-client';
 
 interface ResetPasswordFormProps {
   token: string;
@@ -56,21 +57,13 @@ export default function ResetPasswordForm({ token, className = '', isSetup = fal
         return;
       }
 
-      const response = await fetch('/api/v1/auth/reset-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          token,
-          password: formData.password,
-          recaptchaToken: recaptchaToken,
-        }),
+      const result = await apiClient.post('/api/v1/auth/reset-password', {
+        token,
+        password: formData.password,
+        recaptchaToken: recaptchaToken,
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
+      if (result.ok) {
         setIsSuccess(true);
         toast.success(isSetup ? 'Password set — your account is ready!' : 'Password has been reset successfully');
         // Redirect to login after a short delay
@@ -78,10 +71,8 @@ export default function ResetPasswordForm({ token, className = '', isSetup = fal
           router.push('/login');
         }, 3000);
       } else {
-        toast.error(data.error || (isSetup ? 'Failed to set password' : 'Failed to reset password'));
+        toast.error(result.error.message || (isSetup ? 'Failed to set password' : 'Failed to reset password'));
       }
-    } catch (error) {
-      toast.error('An error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
