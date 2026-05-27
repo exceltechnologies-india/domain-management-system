@@ -24,8 +24,8 @@ import Modal from '@/components/Modal';
 import RefreshButton from '@/components/dashboard/RefreshButton';
 import { performLogout } from '@/lib/logout';
 import { formatIndianDateTime } from '@/lib/dateUtils';
+import { apiClient } from '@/lib/api-client';
 import toast from 'react-hot-toast';
-import { logger } from '@/lib/logger';
 
 interface User {
   firstName: string;
@@ -90,23 +90,14 @@ export default function AdminPendingHostingPage() {
 
   // Fetch Pending Data
   const fetchPendingData = async () => {
-    try {
-      setIsLoadingData(true);
-
-      const res = await fetch('/api/v1/admin/hosting/pending', { credentials: 'include' });
-      const data = await res.json();
-
-      if (data.success) {
-        setPendingItems(data.data);
-      } else {
-        toast.error('Failed to fetch pending hosting data');
-      }
-    } catch (error) {
-      logger.error('Error fetching pending data:', error);
-      toast.error('Error loading pending data');
-    } finally {
-      setIsLoadingData(false);
+    setIsLoadingData(true);
+    const result = await apiClient.get<{ success?: boolean; data?: PendingHostingItem[] }>('/api/v1/admin/hosting/pending');
+    if (result.ok && result.data.success) {
+      setPendingItems(result.data.data ?? []);
+    } else {
+      toast.error(result.ok ? 'Failed to fetch pending hosting data' : 'Error loading pending data');
     }
+    setIsLoadingData(false);
   };
 
   useEffect(() => {
@@ -116,53 +107,32 @@ export default function AdminPendingHostingPage() {
   }, [user]);
 
   const handleRetry = async (id: string) => {
-    try {
-      setIsRetrying(id);
-
-      const res = await fetch(`/api/v1/admin/hosting/pending/${id}/retry`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-      const data = await res.json();
-
-      if (data.success) {
-        toast.success(data.message || 'Provisioning retried successfully');
-        void fetchPendingData(); // Refresh list to remove the item
-      } else {
-        toast.error(data.message || 'Retry failed');
-        // Refresh to show updated error
-        void fetchPendingData();
-      }
-    } catch (error) {
-      toast.error("An error occurred during retry");
-    } finally {
+    setIsRetrying(id);
+    const result = await apiClient.post<{ success?: boolean; message?: string }>(`/api/v1/admin/hosting/pending/${id}/retry`, undefined);
+    if (!result.ok) {
+      toast.error('An error occurred during retry');
       setIsRetrying(null);
+      return;
     }
+    if (result.data.success) toast.success(result.data.message || 'Provisioning retried successfully');
+    else toast.error(result.data.message || 'Retry failed');
+    void fetchPendingData(); // Refresh list either way
+    setIsRetrying(null);
   };
 
   const confirmDelete = async () => {
     if (!pendingDeleteItem) return;
     const id = pendingDeleteItem._id;
-    try {
-      setIsDeleting(id);
-
-      const res = await fetch(`/api/v1/admin/hosting/pending/${id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-
-      if (res.ok) {
-        toast.success('Entry removed');
-        setPendingItems(prev => prev.filter(item => item._id !== id));
-        setPendingDeleteItem(null);
-      } else {
-        toast.error('Failed to delete entry');
-      }
-    } catch (error) {
-      toast.error('Error deleting entry');
-    } finally {
-      setIsDeleting(null);
+    setIsDeleting(id);
+    const result = await apiClient.delete(`/api/v1/admin/hosting/pending/${id}`);
+    if (result.ok) {
+      toast.success('Entry removed');
+      setPendingItems(prev => prev.filter(item => item._id !== id));
+      setPendingDeleteItem(null);
+    } else {
+      toast.error(result.error.status === 0 ? 'Error deleting entry' : 'Failed to delete entry');
     }
+    setIsDeleting(null);
   };
 
   if (isLoading || !user) {
