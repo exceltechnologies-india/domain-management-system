@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
+import { apiClient } from "@/lib/api-client";
 
 type Step = "status" | "scan" | "verify" | "backup" | "disable";
 
@@ -48,26 +49,23 @@ export default function AdminSecurityPage() {
   const [showDisablePassword, setShowDisablePassword] = useState(false);
 
   useEffect(() => {
-    fetch("/api/v1/auth/totp/setup")
-      .then((r) => r.json())
-      .then((d) => setTotpEnabled(d.totpEnabled ?? false))
-      .catch(() => setTotpEnabled(false));
+    void (async () => {
+      const result = await apiClient.get<{ totpEnabled?: boolean }>("/api/v1/auth/totp/setup");
+      setTotpEnabled(result.ok ? (result.data.totpEnabled ?? false) : false);
+    })();
   }, []);
 
   async function handleStartSetup() {
     setIsLoading(true);
-    try {
-      const res = await fetch("/api/v1/auth/totp/setup", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Setup failed");
-      setQrCodeDataUrl(data.qrCodeDataUrl);
-      setManualKey(data.manualKey);
+    const result = await apiClient.post<{ qrCodeDataUrl?: string; manualKey?: string }>("/api/v1/auth/totp/setup", undefined);
+    if (result.ok) {
+      setQrCodeDataUrl(result.data.qrCodeDataUrl ?? "");
+      setManualKey(result.data.manualKey ?? "");
       setStep("scan");
-    } catch (e: unknown) {
-      showErrorToast(e instanceof Error ? e.message : String(e));
-    } finally {
-      setIsLoading(false);
+    } else {
+      showErrorToast(result.error.message || "Setup failed");
     }
+    setIsLoading(false);
   }
 
   async function handleConfirm() {
@@ -76,23 +74,16 @@ export default function AdminSecurityPage() {
       return;
     }
     setIsLoading(true);
-    try {
-      const res = await fetch("/api/v1/auth/totp/confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: verifyCode }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Verification failed");
-      setBackupCodes(data.backupCodes);
+    const result = await apiClient.post<{ backupCodes?: string[] }>("/api/v1/auth/totp/confirm", { code: verifyCode });
+    if (result.ok) {
+      setBackupCodes(result.data.backupCodes ?? []);
       setTotpEnabled(true);
       setStep("backup");
-    } catch (e: unknown) {
-      showErrorToast(e instanceof Error ? e.message : String(e));
+    } else {
+      showErrorToast(result.error.message || "Verification failed");
       setVerifyCode("");
-    } finally {
-      setIsLoading(false);
     }
+    setIsLoading(false);
   }
 
   async function handleDisable() {
@@ -101,24 +92,17 @@ export default function AdminSecurityPage() {
       return;
     }
     setIsLoading(true);
-    try {
-      const res = await fetch("/api/v1/auth/totp/disable", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: disableCode, password: disablePassword }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not disable 2FA");
+    const result = await apiClient.post("/api/v1/auth/totp/disable", { code: disableCode, password: disablePassword });
+    if (result.ok) {
       setTotpEnabled(false);
       setStep("status");
       setDisableCode("");
       setDisablePassword("");
       showSuccessToast("Two-factor authentication disabled");
-    } catch (e: unknown) {
-      showErrorToast(e instanceof Error ? e.message : String(e));
-    } finally {
-      setIsLoading(false);
+    } else {
+      showErrorToast(result.error.message || "Could not disable 2FA");
     }
+    setIsLoading(false);
   }
 
   function copyToClipboard(text: string) {
