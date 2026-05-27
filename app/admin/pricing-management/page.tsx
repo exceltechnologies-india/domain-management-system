@@ -30,6 +30,7 @@ import AdminDataTable from '@/components/admin/AdminDataTable';
 import { formatIndianCurrency, formatIndianNumber, formatIndianDateTime } from '@/lib/dateUtils';
 import { performLogout } from '@/lib/logout';
 import { logger } from '@/lib/logger';
+import { apiClient } from '@/lib/api-client';
 
 /**
  * TLD Pricing Interface
@@ -132,57 +133,35 @@ export default function AdminTLDPricing() {
   }, [router, status, session?.user?.email]);
 
   const loadTLDPricing = async () => {
-    try {
-      setIsDataLoading(true);
-
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json'
-      };
-
-      const response = await fetch('/api/v1/admin/tld-pricing', {
-        headers,
-        credentials: 'include'
-      });
-
-      if (response.ok) {
-        const data: TLDPricingResponse & { cached?: boolean; cachedAt?: string } = await response.json();
-        setTldPricing(data.tldPricing || []);
-        setLastUpdated(data.lastUpdated || '');
-        setPricingSource(data.pricingSource || '');
-        setIsCached(data.cached || false);
-        setCachedAt(data.cachedAt || '');
-      } else {
-        logger.error('Failed to load TLD pricing:', response.statusText);
-        setTldPricing([]);
-      }
-    } catch (error) {
-      logger.error('Failed to load TLD pricing:', error);
+    setIsDataLoading(true);
+    const result = await apiClient.get<TLDPricingResponse & { cached?: boolean; cachedAt?: string }>(
+      '/api/v1/admin/tld-pricing'
+    );
+    if (result.ok) {
+      const data = result.data;
+      setTldPricing(data.tldPricing || []);
+      setLastUpdated(data.lastUpdated || '');
+      setPricingSource(data.pricingSource || '');
+      setIsCached(data.cached || false);
+      setCachedAt(data.cachedAt || '');
+    } else {
+      logger.error('Failed to load TLD pricing:', result.error.message);
       setTldPricing([]);
-    } finally {
-      setIsDataLoading(false);
     }
+    setIsDataLoading(false);
   };
 
   const purgeCache = async () => {
     setIsPurgingCache(true);
-    try {
-      const response = await fetch('/api/v1/admin/tld-pricing/cache', {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-
-      if (response.ok) {
-        logger.log('Cache purged successfully');
-        // Reload pricing data (cache is already cleared, so will fetch fresh from API)
-        await loadTLDPricing();
-      } else {
-        logger.error('Failed to purge cache');
-      }
-    } catch (error) {
-      logger.error('Error purging cache:', error);
-    } finally {
-      setIsPurgingCache(false);
+    const result = await apiClient.delete('/api/v1/admin/tld-pricing/cache');
+    if (result.ok) {
+      logger.log('Cache purged successfully');
+      // Reload pricing data (cache is already cleared, so will fetch fresh from API)
+      await loadTLDPricing();
+    } else {
+      logger.error('Failed to purge cache');
     }
+    setIsPurgingCache(false);
   };
 
   const handleLogout = () => {
