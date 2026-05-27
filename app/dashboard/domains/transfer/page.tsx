@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import toast from 'react-hot-toast';
+import { apiClient } from '@/lib/api-client';
 import { ArrowLeft, RefreshCw, Loader2, Globe, ShieldCheck } from 'lucide-react';
 import UserLayout from '@/components/user/UserLayout';
 import ClientOnly from '@/components/ClientOnly';
@@ -26,29 +27,20 @@ export default function TransferDomainPage() {
 
     setIsSubmitting(true);
 
-    try {
-      const response = await fetch('/api/v1/domains/transfer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          domainName: domainName.trim(),
-          authCode: authCode.trim()
-        }),
-      });
+    const result = await apiClient.post<{ success?: boolean; message?: string }>(
+      '/api/v1/domains/transfer',
+      { domainName: domainName.trim(), authCode: authCode.trim() }
+    );
 
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        toast.success(data.message || 'Domain transfer initiated successfully');
-        router.push('/dashboard/domains');
-      } else {
-        toast.error(data.error || 'Failed to initiate domain transfer');
-      }
-    } catch (error) {
-      toast.error('An unexpected error occurred during transfer');
-    } finally {
-      setIsSubmitting(false);
+    if (result.ok && result.data.success) {
+      toast.success(result.data.message || 'Domain transfer initiated successfully');
+      router.push('/dashboard/domains');
+    } else if (result.ok) {
+      toast.error('Failed to initiate domain transfer');
+    } else {
+      toast.error(result.error.message || 'Failed to initiate domain transfer');
     }
+    setIsSubmitting(false);
   };
 
   // NextAuth session.user has { name?, email? } — UserLayout wants

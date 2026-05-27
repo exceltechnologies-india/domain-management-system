@@ -27,7 +27,7 @@ import ActionMenu from '@/components/admin/ActionMenu';
 import { performLogout } from '@/lib/logout';
 import toast from 'react-hot-toast';
 import { formatIndianDateTime } from '@/lib/dateUtils';
-import { logger } from '@/lib/logger';
+import { apiClient } from '@/lib/api-client';
 
 interface Domain {
   id: string;
@@ -111,22 +111,16 @@ export default function AdminDomainsPage() {
   }, [router, session, sessionStatus]);
 
   const fetchDomains = async () => {
-    try {
-      setIsLoading(true);
-      const res = await fetch('/api/v1/admin/domains', { credentials: 'include' });
-      const data = await res.json();
-
-      if (data.success) {
-        setDomains(data.domains || []);
-      } else {
-        toast.error('Failed to fetch domains');
-      }
-    } catch (error) {
-      logger.error('Error fetching domains:', error);
+    setIsLoading(true);
+    const result = await apiClient.get<{ success?: boolean; domains?: Domain[] }>('/api/v1/admin/domains');
+    if (result.ok && result.data.success) {
+      setDomains(result.data.domains || []);
+    } else if (result.ok) {
+      toast.error('Failed to fetch domains');
+    } else {
       toast.error('Error loading data');
-    } finally {
-      setIsLoading(false);
     }
+    setIsLoading(false);
   };
 
   const filteredDomains = domains.filter(domain => {
@@ -163,26 +157,22 @@ export default function AdminDomainsPage() {
   };
 
   const handleSync = async (domain: Domain) => {
-    try {
-      toast.loading(`Syncing ${domain.name} with registrar...`, { id: `sync-${domain.id}` });
-      const res = await fetch('/api/v1/admin/domains/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ domainName: domain.name })
-      });
+    toast.loading(`Syncing ${domain.name} with registrar...`, { id: `sync-${domain.id}` });
+    const result = await apiClient.post<{ success?: boolean }>('/api/v1/admin/domains/sync', {
+      domainName: domain.name,
+    });
 
-      const data = await res.json();
-
-      if (data.success) {
+    if (result.ok) {
+      if (result.data.success) {
         toast.success(`${domain.name} synced successfully`, { id: `sync-${domain.id}` });
         void fetchDomains(); // Refresh the list
       } else {
-        toast.error(data.error || 'Sync failed', { id: `sync-${domain.id}` });
+        toast.error('Sync failed', { id: `sync-${domain.id}` });
       }
-    } catch (error) {
-      logger.error('Sync error:', error);
+    } else if (result.error.status === 0) {
       toast.error('Network error during sync', { id: `sync-${domain.id}` });
+    } else {
+      toast.error(result.error.message || 'Sync failed', { id: `sync-${domain.id}` });
     }
   };
 
