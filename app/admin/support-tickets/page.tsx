@@ -14,6 +14,7 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import { AdminLayoutSkeleton, AdminSupportPageSkeleton } from "@/components/skeletons/PageSkeletons";
 import { performLogout } from "@/lib/logout";
 import { formatIndianDateTime } from "@/lib/dateUtils";
+import { apiClient } from "@/lib/api-client";
 
 const STATUS_TABS = ["all", "open", "in_progress", "resolved", "closed"] as const;
 type StatusTab = typeof STATUS_TABS[number];
@@ -92,32 +93,26 @@ export default function AdminSupportTicketsPage() {
   useEffect(() => {
     if (status === "loading") return;
     const checkAuth = async () => {
-      try {
-        const res = await fetch("/api/v1/auth/me", { method: "GET", credentials: "include" });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.user?.role === "admin") { setUser(data.user); setIsAuthLoading(false); }
-          else { toast.error("Access denied"); setTimeout(() => router.push("/dashboard"), 2000); }
-        } else if (session?.user && session.user.role === "admin") {
-          const sUser = session.user;
-          const [firstName = "", ...rest] = (sUser.name ?? "").split(" ");
-          setUser({ firstName, lastName: rest.join(" "), role: sUser.role ?? "admin" });
-          setIsAuthLoading(false);
-        } else { router.push("/login"); }
-      } catch { router.push("/login"); }
+      const result = await apiClient.get<{ user?: { firstName: string; lastName: string; role: string } }>("/api/v1/auth/me");
+      if (result.ok && result.data.user) {
+        if (result.data.user.role === "admin") { setUser(result.data.user); setIsAuthLoading(false); }
+        else { toast.error("Access denied"); setTimeout(() => router.push("/dashboard"), 2000); }
+      } else if (session?.user && session.user.role === "admin") {
+        const sUser = session.user;
+        const [firstName = "", ...rest] = (sUser.name ?? "").split(" ");
+        setUser({ firstName, lastName: rest.join(" "), role: sUser.role ?? "admin" });
+        setIsAuthLoading(false);
+      } else { router.push("/login"); }
     };
     void checkAuth();
   }, [status, router, session?.user]);
 
   const fetchTickets = useCallback(async () => {
     setLoading(true);
-    try {
-      const res = await fetch(`/api/v1/admin/support-tickets?status=${activeTab}`, { credentials: "include" });
-      const data = await res.json();
-      if (res.ok) setTickets(data.tickets ?? []);
-      else toast.error(data.error ?? "Failed to load tickets");
-    } catch { toast.error("Network error"); }
-    finally { setLoading(false); }
+    const result = await apiClient.get<{ tickets?: Ticket[] }>(`/api/v1/admin/support-tickets?status=${activeTab}`);
+    if (result.ok) setTickets(result.data.tickets ?? []);
+    else toast.error(result.error.status === 0 ? "Network error" : result.error.message || "Failed to load tickets");
+    setLoading(false);
   }, [activeTab]);
 
   useEffect(() => {
