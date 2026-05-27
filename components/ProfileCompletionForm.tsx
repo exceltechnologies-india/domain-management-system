@@ -8,6 +8,7 @@ import Input from './Input';
 import Card from './Card';
 import toast from 'react-hot-toast';
 import { safeLocalStorage } from '@/lib/storage';
+import { apiClient } from '@/lib/api-client';
 
 interface ProfileCompletionFormProps {
   user: {
@@ -40,54 +41,41 @@ export default function ProfileCompletionForm({ user, onComplete }: ProfileCompl
     e.preventDefault();
     setIsLoading(true);
 
-    try {
-      // Ensure phoneCc and country are set for India-only service
-      const profileData = {
-        ...formData,
-        phoneCc: '+91', // Always set to India
-        address: {
-          ...formData.address,
-          country: 'IN' // Always set to India
-        }
-      };
-
-      const response = await fetch('/api/v1/user/complete-profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(profileData),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        // Update localStorage with the updated user data
-        const updatedUserData = {
-          ...JSON.parse(safeLocalStorage.getItem('user') || '{}'),
-          ...data.user
-        };
-        safeLocalStorage.setItem('user', JSON.stringify(updatedUserData));
-
-        // Trigger a custom event to notify other components of profile update
-        window.dispatchEvent(new CustomEvent('profileUpdated', {
-          detail: { user: updatedUserData, isComplete: true }
-        }));
-
-        toast.success('Profile completed successfully!');
-        onComplete?.();
-        // Redirect to checkout or dashboard
-        const urlParams = new URLSearchParams(window.location.search);
-        const returnUrl = urlParams.get('returnUrl');
-        router.push(returnUrl || '/dashboard');
-      } else {
-        toast.error(data.error || 'Failed to complete profile');
+    // Ensure phoneCc and country are set for India-only service
+    const profileData = {
+      ...formData,
+      phoneCc: '+91', // Always set to India
+      address: {
+        ...formData.address,
+        country: 'IN' // Always set to India
       }
-    } catch (error) {
-      // Profile completion error
-      toast.error('An error occurred. Please try again.');
-    } finally {
-      setIsLoading(false);
+    };
+
+    const result = await apiClient.post<{ user: Record<string, unknown> }>(
+      '/api/v1/user/complete-profile',
+      profileData
+    );
+
+    if (result.ok) {
+      const updatedUserData = {
+        ...JSON.parse(safeLocalStorage.getItem('user') || '{}'),
+        ...result.data.user,
+      };
+      safeLocalStorage.setItem('user', JSON.stringify(updatedUserData));
+
+      window.dispatchEvent(new CustomEvent('profileUpdated', {
+        detail: { user: updatedUserData, isComplete: true }
+      }));
+
+      toast.success('Profile completed successfully!');
+      onComplete?.();
+      const urlParams = new URLSearchParams(window.location.search);
+      const returnUrl = urlParams.get('returnUrl');
+      router.push(returnUrl || '/dashboard');
+    } else {
+      toast.error(result.error.message || 'Failed to complete profile');
     }
+    setIsLoading(false);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {

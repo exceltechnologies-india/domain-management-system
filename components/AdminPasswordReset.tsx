@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import toast from 'react-hot-toast';
+import { apiClient } from '@/lib/api-client';
 
 export default function AdminPasswordReset() {
   const [newPassword, setNewPassword] = useState('');
@@ -23,33 +24,19 @@ export default function AdminPasswordReset() {
 
     setIsLoading(true);
 
-    try {
-      const response = await fetch('/api/v1/admin/reset-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          newPassword,
-          confirmPassword,
-        }),
-      });
+    const result = await apiClient.post('/api/v1/admin/reset-password', {
+      newPassword,
+      confirmPassword,
+    });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        toast.success('Admin password updated successfully!');
-        setNewPassword('');
-        setConfirmPassword('');
-      } else {
-        toast.error(data.error || 'Failed to update password');
-      }
-    } catch (error) {
-      // Password reset error
-      toast.error('An error occurred. Please try again.');
-    } finally {
-      setIsLoading(false);
+    if (result.ok) {
+      toast.success('Admin password updated successfully!');
+      setNewPassword('');
+      setConfirmPassword('');
+    } else {
+      toast.error(result.error.message || 'Failed to update password');
     }
+    setIsLoading(false);
   };
 
   return (

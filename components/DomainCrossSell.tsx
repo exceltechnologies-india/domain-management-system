@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Globe, Search, ArrowRight, Loader2, Check, X, ShoppingCart } from 'lucide-react';
 import { useCartStore } from '@/store/cartStore';
 import toast from 'react-hot-toast';
+import { apiClient } from '@/lib/api-client';
 
 interface SearchResult {
   domainName: string;
@@ -33,35 +34,26 @@ export default function DomainCrossSell() {
       searchTerm += '.com'; // Default to .com if no TLD
     }
 
-    try {
-      const response = await fetch('/api/v1/domains/search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          domain: searchTerm
-        }),
+    const result = await apiClient.post<{ success?: boolean; results?: SearchResult[]; error?: string }>(
+      '/api/v1/domains/search',
+      { domain: searchTerm }
+    );
+
+    if (result.ok && result.data.success && result.data.results && result.data.results.length > 0) {
+      // Find the exact match or the first available result
+      const exactMatch =
+        result.data.results.find((r: SearchResult) => r.domainName === searchTerm) || result.data.results[0];
+      setResult(exactMatch);
+    } else if (result.ok) {
+      setResult({
+        domainName: searchTerm,
+        available: false,
+        error: result.data.error || 'Domain not available',
       });
-
-      const data = await response.json();
-
-      if (response.ok && data.success && data.results && data.results.length > 0) {
-        // Find the exact match or the first available result
-        const exactMatch = data.results.find((r: SearchResult) => r.domainName === searchTerm) || data.results[0];
-        setResult(exactMatch);
-      } else {
-        setResult({
-          domainName: searchTerm,
-          available: false,
-          error: data.error || 'Domain not available'
-        });
-      }
-    } catch (error) {
+    } else {
       toast.error('Failed to search domain');
-    } finally {
-      setIsSearching(false);
     }
+    setIsSearching(false);
   };
 
   const handleAddToCart = () => {
