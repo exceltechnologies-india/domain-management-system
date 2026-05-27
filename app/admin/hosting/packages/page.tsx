@@ -17,6 +17,7 @@ import {
 import AdminLayout from '@/components/admin/AdminLayout';
 import { AdminLayoutSkeleton, AdminHostingPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import { performLogout } from '@/lib/logout';
+import { apiClient } from '@/lib/api-client';
 import toast from 'react-hot-toast';
 
 interface User {
@@ -85,29 +86,28 @@ export default function AdminPackagesPage() {
   const [isServerDown, setIsServerDown] = useState(false);
 
   const fetchPackages = async () => {
-    try {
-      setIsLoadingData(true);
-      setIsServerDown(false);
-
-      const res = await fetch('/api/v1/admin/hosting/packages', { credentials: 'include' });
-      const data = await res.json();
-
-      if (res.status === 503 || data?.code === 'DA_SERVER_DOWN') {
+    setIsLoadingData(true);
+    setIsServerDown(false);
+    const result = await apiClient.get<{ success?: boolean; data?: HostingOnePackage[]; message?: string; code?: string }>('/api/v1/admin/hosting/packages');
+    if (!result.ok) {
+      if (result.error.status === 503 || result.error.code === 'DA_SERVER_DOWN') {
         setIsServerDown(true);
         setPackages([]);
-        return;
-      }
-
-      if (data.success) {
-        setPackages(data.data || []);
       } else {
-        toast.error(data.message || 'Failed to fetch packages');
+        toast.error(result.error.status === 0 ? 'Error loading package data' : result.error.message || 'Failed to fetch packages');
       }
-    } catch (error) {
-      toast.error('Error loading package data');
-    } finally {
       setIsLoadingData(false);
+      return;
     }
+    if (result.data.code === 'DA_SERVER_DOWN') {
+      setIsServerDown(true);
+      setPackages([]);
+    } else if (result.data.success) {
+      setPackages(result.data.data || []);
+    } else {
+      toast.error(result.data.message || 'Failed to fetch packages');
+    }
+    setIsLoadingData(false);
   };
 
   useEffect(() => {
@@ -118,33 +118,23 @@ export default function AdminPackagesPage() {
     e.preventDefault();
     if (!editingPkg?._id) return;
 
-    try {
-      setIsUpdating(true);
-      const res = await fetch('/api/v1/admin/hosting/packages', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          id: editingPkg._id,
-          name: editingPkg.name,
-          price: editingPkg.price,
-          renewalPrice: editingPkg.renewalPrice,
-        })
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        toast.success('Package updated successfully');
-        setIsEditModalOpen(false);
-        void fetchPackages();
-      } else {
-        toast.error(data.message || 'Update failed');
-      }
-    } catch (err) {
-      toast.error('Error updating package');
-    } finally {
-      setIsUpdating(false);
+    setIsUpdating(true);
+    const result = await apiClient.patch<{ success?: boolean; message?: string }>('/api/v1/admin/hosting/packages', {
+      id: editingPkg._id,
+      name: editingPkg.name,
+      price: editingPkg.price,
+      renewalPrice: editingPkg.renewalPrice,
+    });
+    if (result.ok && result.data.success) {
+      toast.success('Package updated successfully');
+      setIsEditModalOpen(false);
+      void fetchPackages();
+    } else if (result.ok) {
+      toast.error(result.data.message || 'Update failed');
+    } else {
+      toast.error(result.error.status === 0 ? 'Error updating package' : result.error.message || 'Update failed');
     }
+    setIsUpdating(false);
   };
 
   const formatUnit = (mb: number) => {
