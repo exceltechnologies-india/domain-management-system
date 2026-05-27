@@ -62,10 +62,10 @@ All four HIGH findings have been verified against the actual code, not just trus
 | Batch 7al | S1 continued — admin settings/security 2FA page (totp setup GET + POST, confirm POST, disable POST) | ✅ Closed | `525f521` |
 | Batch 7am | S1 continued — admin hosting main page (stats GET, provision-deps 2×GET, provision/actions/change-package POSTs, details GET) | ✅ Closed | `ccbef5e` |
 | Batch 7an | S1 continued — admin user-management (3×GET parallel, reset-pw/reactivate/reset-2fa POSTs, deactivate + permanent-delete) + apiClient.delete body support | ✅ Closed | `bdd905f` |
-| Batch 7ao | S1 continued — admin pending-domains (balance GET, auth/me GET, list GET, register/verify POSTs, archive + permanent DELETEs, resolve + retry PUTs) | 🔄 Committed, deploy pending | `a8f5b17` |
-| Batch 7ap | S1 continued — admin system-settings (12 fetches: razorpay-mode GET/POST×2, settings GET×3 + POST×4, check-ip GET; backup blob stays raw) | 🔄 Committed, deploy pending | `c2646f5` |
-| Batch 7aq | S1 continued — dashboard settings (8 fetches: user-settings GET + PUT×2, auth/me GET, totp setup GET/POST + confirm/disable POST; nominatim geocode stays raw) | 🔄 Committed, deploy pending | `bb55a93` |
-| Batch 7ar | S1 continued — admin dns-management (10 fetches: domains/dns/nameservers GETs, NS default/custom POSTs, activate-dns POST, record add POST, delete + edit DELETEs-with-body) | 🔄 Committed, deploy pending | — |
+| Batch 7ao | S1 continued — admin pending-domains (balance GET, auth/me GET, list GET, register/verify POSTs, archive + permanent DELETEs, resolve + retry PUTs) | ✅ Closed | `a8f5b17` |
+| Batch 7ap | S1 continued — admin system-settings (12 fetches: razorpay-mode GET/POST×2, settings GET×3 + POST×4, check-ip GET; backup blob stays raw) | ✅ Closed | `c2646f5` |
+| Batch 7aq | S1 continued — dashboard settings (8 fetches: user-settings GET + PUT×2, auth/me GET, totp setup GET/POST + confirm/disable POST; nominatim geocode stays raw) | ✅ Closed | `bb55a93` |
+| Batch 7ar | S1 continued — admin dns-management (10 fetches: domains/dns/nameservers GETs, NS default/custom POSTs, activate-dns POST, record add POST, delete + edit DELETEs-with-body) | ✅ Closed | `702c9a8` |
 
 **All four HIGHs + 11 MEDIUMs + 11 LOWs + 2 architectural suggestions (S2 + S3) cleared, M14 / M6 / L12 / S1 in progress.** 50 vertical slices shipped across batches 7a–7ar (6 RC ops + 6 DA ops + vocab unification + M13 cleanup + L1 Razorpay typed-client + two M14 slices + L8 error boundaries + L12 jsx-a11y lint + M6 leaf demotion + S2 pre-commit hooks + S3 complete twelve-slice sweep + eighteen S1 frontend-apiClient slices). Bonus catches:
 - 7e: M3's tightened `BookingStep` type uncovered a real save-validation bug — `provisioner-hosting.ts:379` emits `step: "hosting_deferred"` but the schema enum didn't include it.
