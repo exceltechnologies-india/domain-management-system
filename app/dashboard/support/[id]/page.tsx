@@ -13,6 +13,7 @@ import Link from 'next/link';
 import toast from 'react-hot-toast';
 import useSWR from 'swr';
 import { fetcher } from '@/lib/fetcher';
+import { apiClient } from '@/lib/api-client';
 import { confirmDialog } from '@/lib/confirm-dialog';
 import { useUser } from '@/hooks/useUser';
 import { performLogout } from '@/lib/logout';
@@ -112,38 +113,32 @@ export default function SupportTicketDetailPage() {
     });
     if (!ok) return;
     setClosing(true);
-    try {
-      const res = await fetch(`/api/v1/user/support/${params.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'closed' }),
-      });
-      const json = await res.json();
-      if (!res.ok) { toast.error(json.error ?? 'Failed to close ticket'); return; }
-      void mutate();
-      toast.success('Ticket closed');
-    } catch { toast.error('Network error'); }
-    finally { setClosing(false); }
+    const result = await apiClient.patch(`/api/v1/user/support/${params.id}`, { status: 'closed' });
+    if (!result.ok) {
+      toast.error(result.error.status === 0 ? 'Network error' : result.error.message || 'Failed to close ticket');
+      setClosing(false);
+      return;
+    }
+    void mutate();
+    toast.success('Ticket closed');
+    setClosing(false);
   };
 
   const handleReply = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reply.trim()) return;
     setSending(true);
-    try {
-      const res = await fetch(`/api/v1/user/support/${params.id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: reply.trim(), attachments }),
-      });
-      const json = await res.json();
-      if (!res.ok) { toast.error(json.error ?? 'Failed to send reply'); return; }
-      setReply('');
-      setAttachments([]);
-      void mutate();
-      toast.success('Reply sent');
-    } catch { toast.error('Network error'); }
-    finally { setSending(false); }
+    const result = await apiClient.post(`/api/v1/user/support/${params.id}`, { message: reply.trim(), attachments });
+    if (!result.ok) {
+      toast.error(result.error.status === 0 ? 'Network error' : result.error.message || 'Failed to send reply');
+      setSending(false);
+      return;
+    }
+    setReply('');
+    setAttachments([]);
+    void mutate();
+    toast.success('Reply sent');
+    setSending(false);
   };
 
   if (isAuthLoading || isLoading) {

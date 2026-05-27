@@ -11,6 +11,7 @@ import Link from 'next/link';
 import toast from 'react-hot-toast';
 import useSWR from 'swr';
 import { fetcher } from '@/lib/fetcher';
+import { apiClient } from '@/lib/api-client';
 import { useUser } from '@/hooks/useUser';
 import { performLogout } from '@/lib/logout';
 import { formatIndianDateTime } from '@/lib/dateUtils';
@@ -76,23 +77,20 @@ function NewTicketForm({ onCreated, onCancel }: { onCreated: () => void; onCance
     e.preventDefault();
     if (!subject.trim() || !message.trim()) { toast.error('Subject and message are required'); return; }
     setSaving(true);
-    try {
-      const res = await fetch('/api/v1/user/support', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          subject: subject.trim(),
-          category,
-          message: message.trim(),
-          attachments,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) { toast.error(data.error ?? 'Failed to create ticket'); return; }
-      toast.success(`Ticket ${data.ticket.ticketNumber} created!`);
-      onCreated();
-    } catch { toast.error('Network error'); }
-    finally { setSaving(false); }
+    const result = await apiClient.post<{ ticket: { ticketNumber: string } }>('/api/v1/user/support', {
+      subject: subject.trim(),
+      category,
+      message: message.trim(),
+      attachments,
+    });
+    if (!result.ok) {
+      toast.error(result.error.status === 0 ? 'Network error' : result.error.message || 'Failed to create ticket');
+      setSaving(false);
+      return;
+    }
+    toast.success(`Ticket ${result.data.ticket.ticketNumber} created!`);
+    onCreated();
+    setSaving(false);
   };
 
   return (
