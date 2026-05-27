@@ -3,12 +3,19 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle, Clock, AlertCircle, RefreshCw, Globe, User, CreditCard, Loader2 } from 'lucide-react';
+import { apiClient } from '@/lib/api-client';
 
 interface BookingStatus {
   step: "payment_verified" | "customer_created" | "contact_created" | "domain_registering" | "domain_registered" | "domain_failed";
   message: string;
   timestamp: Date;
   progress: number;
+}
+
+interface BookingStatusResponse {
+  domains?: {
+    bookingStatus?: BookingStatus[];
+  };
 }
 
 interface DomainBookingProgressProps {
@@ -48,30 +55,25 @@ export default function DomainBookingProgress({
   const [currentProgress, setCurrentProgress] = useState(0);
 
   const fetchBookingStatus = async () => {
-    try {
-      const response = await fetch(
-        `/api/v1/domains/booking-status?orderId=${orderId}&domainName=${domainName}`
-      );
+    const result = await apiClient.get<BookingStatusResponse>(
+      `/api/v1/domains/booking-status?orderId=${orderId}&domainName=${domainName}`
+    );
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.domains && data.domains.bookingStatus) {
-          setBookingStatus(data.domains.bookingStatus);
-          setCurrentProgress(data.domains.bookingStatus[data.domains.bookingStatus.length - 1]?.progress || 0);
+    if (result.ok) {
+      const steps = result.data.domains?.bookingStatus;
+      if (steps) {
+        setBookingStatus(steps);
+        setCurrentProgress(steps[steps.length - 1]?.progress || 0);
 
-          // Check if domain is fully registered
-          const lastStep = data.domains.bookingStatus[data.domains.bookingStatus.length - 1];
-          if (lastStep?.step === "domain_registered") {
-            setIsComplete(true);
-            onComplete?.();
-          }
+        // Check if domain is fully registered
+        const lastStep = steps[steps.length - 1];
+        if (lastStep?.step === "domain_registered") {
+          setIsComplete(true);
+          onComplete?.();
         }
       }
-    } catch (error) {
-      // Error fetching booking status
-    } finally {
-      setIsLoading(false);
     }
+    setIsLoading(false);
   };
 
   useEffect(() => {

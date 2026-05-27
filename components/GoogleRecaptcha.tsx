@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { RecaptchaClient } from '@/lib/recaptcha';
 import { logger } from '@/lib/logger';
+import { apiClient } from '@/lib/api-client';
 
 interface GoogleRecaptchaProps {
   onSuccess?: (token: string) => void;
@@ -43,23 +44,23 @@ export default function GoogleRecaptcha({
       try {
         setError(null); // Clear previous error
 
-        // Check if captcha has been administratively disabled
-        try {
-          const res = await fetch('/api/v1/settings/captcha-status');
-          if (res.ok) {
-            const data = await res.json();
-            if (!data.enabled) {
-              if (handlersRef.current.onSuccess) {
-                handlersRef.current.onSuccess('captcha-disabled');
-              }
-              return;
+        // Check if captcha has been administratively disabled.
+        // Any non-success outcome (non-ok response OR network error,
+        // both surfaced as result.ok=false) is treated as "enabled" to
+        // preserve security — we only skip the captcha on an explicit
+        // {enabled:false} from the server.
+        const statusResult = await apiClient.get<{ enabled?: boolean }>(
+          '/api/v1/settings/captcha-status'
+        );
+        if (statusResult.ok) {
+          if (!statusResult.data.enabled) {
+            if (handlersRef.current.onSuccess) {
+              handlersRef.current.onSuccess('captcha-disabled');
             }
-          } else {
-            // Non-ok response (e.g. 401, 500) — treat as "enabled" to preserve security
-            logger.warn('[GoogleRecaptcha] captcha-status returned', res.status, '— showing captcha');
+            return;
           }
-        } catch {
-          // Network error — treat as enabled to preserve security
+        } else if (statusResult.error.status > 0) {
+          logger.warn('[GoogleRecaptcha] captcha-status returned', statusResult.error.status, '— showing captcha');
         }
 
         const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
