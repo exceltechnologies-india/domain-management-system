@@ -45,6 +45,8 @@ export interface RequestOptions {
   signal?: AbortSignal;
   /** Additional headers — merged on top of the defaults. */
   headers?: Record<string, string>;
+  /** Fetch cache mode — e.g. "no-store" for always-fresh polling reads. */
+  cache?: RequestCache;
 }
 
 async function request<T>(
@@ -68,6 +70,7 @@ async function request<T>(
       credentials: "include",
       body: hasBody ? JSON.stringify(body) : undefined,
       signal: opts.signal,
+      ...(opts.cache ? { cache: opts.cache } : {}),
     });
   } catch (err) {
     // fetch threw — network error, CORS, abort, etc. Surface as status=0

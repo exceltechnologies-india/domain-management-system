@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Wrench, RefreshCw, Clock, Shield } from 'lucide-react';
 import Link from 'next/link';
+import { apiClient } from '@/lib/api-client';
 
 interface MaintenanceStatus {
   enabled: boolean;
@@ -41,11 +42,15 @@ export default function MaintenancePage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const fetchStatus = async () => {
-    try {
-      const res = await fetch('/api/v1/public/maintenance-status', { cache: 'no-store' });
-      const data = await res.json();
-      setStatus(data);
-    } catch {
+    const result = await apiClient.get<MaintenanceStatus>(
+      '/api/v1/public/maintenance-status',
+      undefined,
+      { cache: 'no-store' }
+    );
+    if (result.ok) {
+      setStatus(result.data);
+    } else {
+      // Fail closed — if we can't confirm status, assume maintenance is on.
       setStatus({ enabled: true, message: '', scheduledEnd: null });
     }
   };
@@ -54,17 +59,19 @@ export default function MaintenancePage() {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    try {
-      const res = await fetch('/api/v1/public/maintenance-status', { cache: 'no-store' });
-      const data = await res.json();
-      setStatus(data);
-      if (!data.enabled) {
+    const result = await apiClient.get<MaintenanceStatus>(
+      '/api/v1/public/maintenance-status',
+      undefined,
+      { cache: 'no-store' }
+    );
+    if (result.ok) {
+      setStatus(result.data);
+      if (!result.data.enabled) {
         window.location.href = '/';
         return;
       }
-    } catch {
-      // keep showing maintenance
     }
+    // On error: keep showing maintenance.
     setIsRefreshing(false);
   };
 
