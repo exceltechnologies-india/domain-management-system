@@ -36,6 +36,7 @@ import toast from 'react-hot-toast';
 import { formatBytes } from '@/lib/format-utils';
 import { getRelativeTime, formatIndianDateTime } from '@/lib/dateUtils';
 import { logger } from '@/lib/logger';
+import { apiClient } from '@/lib/api-client';
 
 interface User {
   firstName: string;
@@ -211,95 +212,101 @@ export default function AdminHostingPage() {
 
   // Fetch Hosting Data
   const fetchHostingData = async () => {
-    try {
-      setIsDataLoading(true);
-      setIsServerDown(false); // Reset
+    setIsDataLoading(true);
+    setIsServerDown(false); // Reset
 
-      const res = await fetch(`/api/v1/admin/hosting/stats?t=${Date.now()}`, { credentials: 'include' });
-      // Check for non-JSON response (e.g., 502/503 HTML from Nginx/Next.js)
-      const contentType = res.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        setIsServerDown(true);
-        setDaError('Server returned an invalid response (non-JSON)');
-        setHostingData([]);
-        return;
-      }
+    const result = await apiClient.get<{
+      success?: boolean;
+      data?: HostingData[];
+      daMode?: string;
+      isDaConnected?: boolean;
+      daError?: string;
+      message?: string;
+      error?: string;
+      code?: string;
+    }>(`/api/v1/admin/hosting/stats?t=${Date.now()}`);
 
-      const data = await res.json();
-
-      if (res.status === 503 || data.error === 'DA_SERVER_DOWN' || data.code === 'DA_SERVER_DOWN') {
-        setIsServerDown(true);
-        setDaError(data.message || 'DirectAdmin server is unreachable');
-        setHostingData([]);
-        return;
-      }
-
-      if (data.success) {
-        // Deduplicate data by ID to prevent key warnings
-        const incoming = data.data as HostingData[];
-        const uniqueData = Array.from(new Map(incoming.map((item) => [item.id, item])).values());
-        setHostingData(uniqueData);
-        if (data.daMode) setDaMode(data.daMode); // Update mode from API
-        
-        // Update connection status
-        setIsServerDown(!data.isDaConnected);
-        setDaError(data.daError || null);
-      } else {
-        toast.error('Failed to fetch hosting data');
-        setDaError(data.message || 'Unknown API error');
-      }
-    } catch (error) {
-      // If we catch an error here, it might be a network error or JSON parse error
-      // Assume server down if it's likely a connection issue
+    if (!result.ok) {
+      // 503 / DA_SERVER_DOWN / network failure → treat as server down (silent),
+      // any other server error → server down + visible toast
       setIsServerDown(true);
-      setDaError(error instanceof Error ? error.message : 'Network error or system failure');
-      toast.error('Error loading hosting data');
-    } finally {
+      if (result.error.status === 503 || result.error.code === 'DA_SERVER_DOWN' || result.error.status === 0) {
+        setDaError(result.error.message || 'DirectAdmin server is unreachable');
+      } else {
+        setDaError(result.error.message || 'Network error or system failure');
+        toast.error('Error loading hosting data');
+      }
+      setHostingData([]);
       setIsDataLoading(false);
+      return;
     }
+
+    const data = result.data;
+    // 200 but non-JSON / empty body — the old content-type guard
+    if (!data) {
+      setIsServerDown(true);
+      setDaError('Server returned an invalid response (non-JSON)');
+      setHostingData([]);
+      setIsDataLoading(false);
+      return;
+    }
+    // 200 JSON that still signals DA unreachable
+    if (data.error === 'DA_SERVER_DOWN' || data.code === 'DA_SERVER_DOWN') {
+      setIsServerDown(true);
+      setDaError(data.message || 'DirectAdmin server is unreachable');
+      setHostingData([]);
+      setIsDataLoading(false);
+      return;
+    }
+
+    if (data.success) {
+      // Deduplicate data by ID to prevent key warnings
+      const incoming = data.data ?? [];
+      const uniqueData = Array.from(new Map(incoming.map((item) => [item.id, item])).values());
+      setHostingData(uniqueData);
+      if (data.daMode) setDaMode(data.daMode); // Update mode from API
+
+      // Update connection status
+      setIsServerDown(!data.isDaConnected);
+      setDaError(data.daError || null);
+    } else {
+      toast.error('Failed to fetch hosting data');
+      setDaError(data.message || 'Unknown API error');
+    }
+    setIsDataLoading(false);
   };
 
   const fetchProvisionDeps = async () => {
-    try {
-      setIsLoadingProvisionDeps(true);
+    setIsLoadingProvisionDeps(true);
 
-      const pkgRes = await fetch('/api/v1/admin/hosting/packages', { credentials: 'include' });
-      const userRes = await fetch('/api/v1/admin/users/no-hosting', { credentials: 'include' });
+    const [pkgResult, userResult] = await Promise.all([
+      apiClient.get<{ success?: boolean; data?: HostingPackage[]; error?: string; code?: string }>('/api/v1/admin/hosting/packages'),
+      apiClient.get<{ success?: boolean; data?: PickerUser[] }>('/api/v1/admin/users/no-hosting'),
+    ]);
 
-      // Check for non-JSON response
-      const pkgContentType = pkgRes.headers.get("content-type");
-      if (!pkgContentType || !pkgContentType.includes("application/json")) {
-        throw new Error("Invalid response from server");
-      }
+    // DirectAdmin unreachable — surfaced either as a 503/DA_SERVER_DOWN error or inside a 200 body
+    const pkgDaDown =
+      (!pkgResult.ok && (pkgResult.error.status === 503 || pkgResult.error.code === 'DA_SERVER_DOWN')) ||
+      (pkgResult.ok && (pkgResult.data?.error === 'DA_SERVER_DOWN' || pkgResult.data?.code === 'DA_SERVER_DOWN'));
+    if (pkgDaDown) {
+      setShowProvisionModal(false);
+      toast.error("DirectAdmin Server is unreachable. Cannot provision new accounts.");
+      setIsServerDown(true); // Ensure banner is visible
+      setIsLoadingProvisionDeps(false);
+      return;
+    }
 
-      const pkgData = await pkgRes.json();
-
-      // Handle user response safely
-      let userData = { success: false, data: [] };
-      const userContentType = userRes.headers.get("content-type");
-      if (userContentType && userContentType.includes("application/json")) {
-        userData = await userRes.json();
-      }
-
-      // Check for Server Down
-      if (pkgRes.status === 503 || pkgData.error === 'DA_SERVER_DOWN' || pkgData.code === 'DA_SERVER_DOWN') {
-        setShowProvisionModal(false);
-        toast.error("DirectAdmin Server is unreachable. Cannot provision new accounts.");
-        setIsServerDown(true); // Ensure banner is visible
-        return;
-      }
-
-      if (pkgData.success) {
-        setAvailablePackages(pkgData.data);
-      }
-      if (userData.success) setUsersNoHosting(userData.data);
-    } catch (error) {
-      logger.error('Error fetching provision deps:', error);
+    if (!pkgResult.ok) {
+      logger.error('Error fetching provision deps:', pkgResult.error.message);
       toast.error('Failed to load packages or users');
       setShowProvisionModal(false);
-    } finally {
       setIsLoadingProvisionDeps(false);
+      return;
     }
+
+    if (pkgResult.data?.success) setAvailablePackages(pkgResult.data.data ?? []);
+    if (userResult.ok && userResult.data?.success) setUsersNoHosting(userResult.data.data ?? []);
+    setIsLoadingProvisionDeps(false);
   };
 
   useEffect(() => {
@@ -313,43 +320,33 @@ export default function AdminHostingPage() {
     e.preventDefault();
     setIsProvisioning(true);
 
-    try {
-      const res = await fetch('/api/v1/admin/hosting/provision', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          userId: selectedUserId,
-          domain: provisionDomain,
-          packageName: selectedPackage,
-          daUsername,
-          validityPeriod,
-          validityUnit,
-          price: provisionPrice
-        })
-      });
+    const result = await apiClient.post<{ success?: boolean; message?: string }>('/api/v1/admin/hosting/provision', {
+      userId: selectedUserId,
+      domain: provisionDomain,
+      packageName: selectedPackage,
+      daUsername,
+      validityPeriod,
+      validityUnit,
+      price: provisionPrice,
+    });
 
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        toast.success(`Hosting for ${provisionDomain} provisioned successfully!`);
-        setShowProvisionModal(false);
-        // Reset states
-        setSelectedUserId('');
-        setProvisionDomain('');
-        setSelectedPackage('');
-        setDaUsername('');
-        setValidityPeriod(12); // Reset to default
-        // Refresh hosting list
-        void fetchHostingData();
-      } else {
-        toast.error(data.message || 'Failed to provision hosting');
-      }
-    } catch (error) {
-      toast.error('Something went wrong');
-    } finally {
-      setIsProvisioning(false);
+    if (result.ok && result.data.success) {
+      toast.success(`Hosting for ${provisionDomain} provisioned successfully!`);
+      setShowProvisionModal(false);
+      // Reset states
+      setSelectedUserId('');
+      setProvisionDomain('');
+      setSelectedPackage('');
+      setDaUsername('');
+      setValidityPeriod(12); // Reset to default
+      // Refresh hosting list
+      void fetchHostingData();
+    } else if (result.ok) {
+      toast.error(result.data.message || 'Failed to provision hosting');
+    } else {
+      toast.error(result.error.status === 0 ? 'Something went wrong' : result.error.message || 'Failed to provision hosting');
     }
+    setIsProvisioning(false);
   };
 
   /* State for Actions Menu */
@@ -383,62 +380,47 @@ export default function AdminHostingPage() {
   };
 
   const performHostingAction = async (action: string, username: string, hostingId?: string) => {
-    try {
-      const toastId = toast.loading(`${action === 'delete' ? 'Terminating' : 'Performing ' + action}...`);
+    const toastId = toast.loading(`${action === 'delete' ? 'Terminating' : 'Performing ' + action}...`);
+    if (action === 'delete') setIsDeleting(true);
 
-      if (action === 'delete') setIsDeleting(true);
+    const result = await apiClient.post<{ success?: boolean; message?: string }>('/api/v1/admin/hosting/actions', { action, username, hostingId });
+    toast.dismiss(toastId);
 
-      const res = await fetch('/api/v1/admin/hosting/actions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ action, username, hostingId })
-      });
-
-      const data = await res.json();
-      toast.dismiss(toastId);
-
-      if (data.success) {
-        const actionPastTense = action === 'delete' ? 'terminated' : action + 'ed';
-        toast.success(`Account ${actionPastTense} successfully`);
-        setDeleteModal({ show: false, username: '', domain: '', hostingId: '' });
-        void fetchHostingData(); // Refresh list
-      } else {
-        toast.error(data.message || `Failed to ${action} user`);
-      }
-    } catch (error) {
-      toast.error("An error occurred");
-      logger.error(error);
-    } finally {
-      setIsDeleting(false);
-      setActiveMenuId(null);
+    if (result.ok && result.data.success) {
+      const actionPastTense = action === 'delete' ? 'terminated' : action + 'ed';
+      toast.success(`Account ${actionPastTense} successfully`);
+      setDeleteModal({ show: false, username: '', domain: '', hostingId: '' });
+      void fetchHostingData(); // Refresh list
+    } else if (result.ok) {
+      toast.error(result.data.message || `Failed to ${action} user`);
+    } else {
+      toast.error(result.error.status === 0 ? 'An error occurred' : result.error.message || `Failed to ${action} user`);
+      logger.error(result.error.message);
     }
+    setIsDeleting(false);
+    setActiveMenuId(null);
   };
 
   const handleViewDetails = async (username: string) => {
-    try {
-      setIsLoadingDetails(true);
-      setShowDetailsModal(true);
-      setSelectedDetails(null); // Clear previous details
-      setActiveMenuId(null);
+    setIsLoadingDetails(true);
+    setShowDetailsModal(true);
+    setSelectedDetails(null); // Clear previous details
+    setActiveMenuId(null);
 
-      const res = await fetch(`/api/v1/admin/hosting/details?username=${username}`, {
-        credentials: 'include'
-      });
-      const data = await res.json();
+    const result = await apiClient.get<{ success?: boolean; data?: HostingDetails; message?: string }>(
+      `/api/v1/admin/hosting/details?username=${username}`
+    );
 
-      if (data.success) {
-        setSelectedDetails(data.data);
-      } else {
-        toast.error(data.message || 'Failed to fetch details');
-        setShowDetailsModal(false);
-      }
-    } catch (error) {
-      toast.error('Error loading hosting details');
+    if (result.ok && result.data.success) {
+      setSelectedDetails(result.data.data ?? null);
+    } else if (result.ok) {
+      toast.error(result.data.message || 'Failed to fetch details');
       setShowDetailsModal(false);
-    } finally {
-      setIsLoadingDetails(false);
+    } else {
+      toast.error(result.error.status === 0 ? 'Error loading hosting details' : result.error.message || 'Failed to fetch details');
+      setShowDetailsModal(false);
     }
+    setIsLoadingDetails(false);
   };
 
   const handleChangePackageClick = (username: string, currentPackage: string) => {
@@ -458,34 +440,24 @@ export default function AdminHostingPage() {
     if (!changePackageUser || !newPackage) return;
 
     setIsChangingPackage(true);
-    try {
-      const res = await fetch('/api/v1/admin/hosting/change-package', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          username: changePackageUser.username,
-          newPackage: newPackage
-        })
-      });
+    const result = await apiClient.post<{ success?: boolean; message?: string }>('/api/v1/admin/hosting/change-package', {
+      username: changePackageUser.username,
+      newPackage: newPackage,
+    });
 
-      const data = await res.json();
-
-      if (data.success) {
-        toast.success(`Package changed successfully to ${newPackage}`);
-        setShowChangePackageModal(false);
-        setChangePackageUser(null);
-        setNewPackage('');
-        void fetchHostingData(); // Refresh list
-      } else {
-        toast.error(data.message || 'Failed to change package');
-      }
-    } catch (error) {
-      toast.error('An error occurred while changing package');
-      logger.error(error);
-    } finally {
-      setIsChangingPackage(false);
+    if (result.ok && result.data.success) {
+      toast.success(`Package changed successfully to ${newPackage}`);
+      setShowChangePackageModal(false);
+      setChangePackageUser(null);
+      setNewPackage('');
+      void fetchHostingData(); // Refresh list
+    } else if (result.ok) {
+      toast.error(result.data.message || 'Failed to change package');
+    } else {
+      toast.error(result.error.status === 0 ? 'An error occurred while changing package' : result.error.message || 'Failed to change package');
+      logger.error(result.error.message);
     }
+    setIsChangingPackage(false);
   };
 
   const toggleMenu = (e: React.MouseEvent, id: string) => {
