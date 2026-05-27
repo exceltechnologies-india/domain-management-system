@@ -10,7 +10,7 @@ import { DashboardLayoutSkeleton, DetailPageSkeleton } from '@/components/skelet
 import ClientOnly from '@/components/ClientOnly';
 import { performLogout } from '@/lib/logout';
 import { formatIndianDateTime } from '@/lib/dateUtils';
-import { logger } from '@/lib/logger';
+import { apiClient } from '@/lib/api-client';
 
 interface User {
   id: string;
@@ -67,112 +67,72 @@ export default function ManageDomain() {
   }, [router, session, status, params.id]);
 
   const loadDomainDetails = async (userObj: User) => {
-    try {
-      setIsLoading(true);
+    setIsLoading(true);
 
-      // 1. Check services to see which domains are hosted
-      const statusRes = await fetch('/api/v1/user/services/status', { credentials: 'include' });
-      let hostedDomains: string[] = [];
-      if (statusRes.ok) {
-        const statusData = await statusRes.json();
-        hostedDomains = statusData.hostedDomains || [];
-      }
+    // 1. Check services to see which domains are hosted
+    const statusResult = await apiClient.get<{ hostedDomains?: string[] }>('/api/v1/user/services/status');
+    const hostedDomains: string[] = statusResult.ok ? (statusResult.data.hostedDomains || []) : [];
 
-      // Fetch all domains and find the one matching the ID
-      // Ideally we should have a single domain endpoint, but this works for now
-      const response = await fetch('/api/v1/user/domains', {
-        credentials: 'include'
-      });
+    // Fetch all domains and find the one matching the ID
+    // Ideally we should have a single domain endpoint, but this works for now
+    const result = await apiClient.get<{ domains: Domain[] }>('/api/v1/user/domains');
+    if (result.ok) {
+      const foundDomain = result.data.domains.find((d: Domain) => d.id === params.id);
 
-      if (response.ok) {
-        const data = await response.json();
-        const foundDomain = data.domains.find((d: Domain) => d.id === params.id);
+      if (foundDomain) {
+        setDomain(foundDomain);
 
-        if (foundDomain) {
-          setDomain(foundDomain);
+        // Check if this specific domain is hosted
+        const isHosted = hostedDomains.includes(foundDomain.name);
+        setIsHostedDomain(isHosted);
 
-          // Check if this specific domain is hosted
-          const isHosted = hostedDomains.includes(foundDomain.name);
-          setIsHostedDomain(isHosted);
-
-          void loadNameservers(foundDomain.name);
-        } else {
-          toast.error('Domain not found');
-          router.push('/dashboard/domains');
-        }
+        void loadNameservers(foundDomain.name);
       } else {
-        toast.error('Failed to load domain details');
+        toast.error('Domain not found');
+        router.push('/dashboard/domains');
       }
-    } catch (error) {
-      logger.error('Error loading domain:', error);
+    } else {
       toast.error('Failed to load domain details');
-    } finally {
-      setIsLoading(false);
     }
+    setIsLoading(false);
   };
 
   const loadNameservers = async (domainName: string) => {
-    try {
-      setIsNameserverLoading(true);
+    setIsNameserverLoading(true);
+    const result = await apiClient.get<{ nameservers?: string[] }>(`/api/v1/domains/nameservers?domainName=${encodeURIComponent(domainName)}`);
+    if (result.ok) {
+      const currentNs = result.data.nameservers || [];
+      setNameservers(currentNs);
 
-      const response = await fetch(`/api/v1/domains/nameservers?domainName=${encodeURIComponent(domainName)}`, {
-        credentials: 'include'
-      });
+      // Determine if using default or custom
+      const isDefault = currentNs.some((ns: string) => ns.toLowerCase().includes('orderbox-dns.com'));
+      setNsMethod(isDefault ? 'default' : 'custom');
 
-      if (response.ok) {
-        const data = await response.json();
-        const currentNs = data.nameservers || [];
-        setNameservers(currentNs);
-
-        // Determine if using default or custom
-        const isDefault = currentNs.some((ns: string) => ns.toLowerCase().includes('orderbox-dns.com'));
-        setNsMethod(isDefault ? 'default' : 'custom');
-
-        if (!isDefault && currentNs.length > 0) {
-          const paddedNs = [...currentNs, '', '', '', ''].slice(0, 4);
-          setCustomNs(paddedNs);
-        }
+      if (!isDefault && currentNs.length > 0) {
+        const paddedNs = [...currentNs, '', '', '', ''].slice(0, 4);
+        setCustomNs(paddedNs);
       }
-    } catch (error) {
-      logger.error('Error loading nameservers:', error);
-    } finally {
-      setIsNameserverLoading(false);
     }
+    setIsNameserverLoading(false);
   };
 
   const handleUpdateNameservers = async () => {
     if (!domain) return;
+    setIsUpdating(true);
 
-    try {
-      setIsUpdating(true);
+    const result = await apiClient.post('/api/v1/user/domains/nameservers', {
+      domainName: domain.name,
+      method: nsMethod,
+      nameservers: nsMethod === 'custom' ? customNs.filter(ns => ns.trim()) : undefined,
+    });
 
-      const payload = {
-        domainName: domain.name,
-        method: nsMethod,
-        nameservers: nsMethod === 'custom' ? customNs.filter(ns => ns.trim()) : undefined
-      };
-
-      const response = await fetch('/api/v1/user/domains/nameservers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(payload)
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        toast.success('Nameservers updated successfully');
-        void loadNameservers(domain.name);
-      } else {
-        toast.error(data.error || 'Failed to update nameservers');
-      }
-    } catch (error) {
-      logger.error('Error updating nameservers:', error);
-      toast.error('Failed to update nameservers');
-    } finally {
-      setIsUpdating(false);
+    if (result.ok) {
+      toast.success('Nameservers updated successfully');
+      void loadNameservers(domain.name);
+    } else {
+      toast.error(result.error.message || 'Failed to update nameservers');
     }
+    setIsUpdating(false);
   };
 
   if (!user || isLoading) {

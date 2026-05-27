@@ -6,6 +6,7 @@ import { Server, Plus, RefreshCw, CheckCircle, AlertTriangle, Clock, Shield, Har
 import toast from 'react-hot-toast';
 import useSWR from 'swr';
 import { fetcher } from '@/lib/fetcher';
+import { apiClient } from '@/lib/api-client';
 import { formatBytes } from '@/lib/format-utils';
 import { getRelativeTime, formatIndianDateTime, isWithinRenewalWindow } from '@/lib/dateUtils';
 import { useRouter } from 'next/navigation';
@@ -143,44 +144,28 @@ export default function HostingPage() {
     });
     if (!ok) return;
     setIsCancellingTrial(true);
-    try {
-      const res = await fetch('/api/v1/user/hosting/cancel-trial', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ hostingId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to cancel trial');
+    const result = await apiClient.post('/api/v1/user/hosting/cancel-trial', { hostingId });
+    if (result.ok) {
       toast.success('Free trial cancelled. Your hosting has been terminated.');
       void mutate();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Failed to cancel trial');
-    } finally {
-      setIsCancellingTrial(false);
+    } else {
+      toast.error(result.error.message || 'Failed to cancel trial');
     }
+    setIsCancellingTrial(false);
   };
 
   const handleAutoRenewToggle = async (hostingStats: HostingStats, newValue: boolean) => {
     if (!hostingStats.hostingId) return;
     const key = hostingStats.domain;
     setAutoRenewLoading(prev => ({ ...prev, [key]: true }));
-    try {
-      const res = await fetch(`/api/v1/user/hosting/${hostingStats.hostingId}/auto-renew`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ autoRenew: newValue }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to update');
+    const result = await apiClient.patch(`/api/v1/user/hosting/${hostingStats.hostingId}/auto-renew`, { autoRenew: newValue });
+    if (result.ok) {
       toast.success(newValue ? 'Auto-renewal enabled' : 'Auto-renewal disabled');
       void mutate();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update auto-renewal');
-    } finally {
-      setAutoRenewLoading(prev => ({ ...prev, [key]: false }));
+    } else {
+      toast.error(result.error.message || 'Failed to update auto-renewal');
     }
+    setAutoRenewLoading(prev => ({ ...prev, [key]: false }));
   };
 
   if (!user || isAuthLoading) {
