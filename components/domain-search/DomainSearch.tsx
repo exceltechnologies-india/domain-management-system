@@ -22,6 +22,7 @@ import { Bell, LogIn, UserPlus, X } from 'lucide-react';
 
 import { useDomainSearch } from './hooks/useDomainSearch';
 import type { SearchResult } from './hooks/useDomainSearch';
+import { apiClient } from '@/lib/api-client';
 import SearchInput from './SearchInput';
 import SearchResults from './SearchResults';
 
@@ -110,29 +111,24 @@ export default function DomainSearch({
   };
 
   const handleWatch = async (domainName: string) => {
-    try {
-      const res = await fetch("/api/v1/user/domains/watch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ domainName }),
-      });
-      if (res.status === 401) {
+    const result = await apiClient.post("/api/v1/user/domains/watch", { domainName });
+    if (result.ok) {
+      showSuccessToast(`We'll email you when ${domainName} becomes available`);
+      return;
+    }
+    // Branch on the normalised status — same codes the route returns.
+    switch (result.error.status) {
+      case 401:
         setWatchSignInDomain(domainName);
         return;
-      }
-      if (res.status === 409) {
+      case 409:
         showErrorToast(`Already watching ${domainName}`);
         return;
-      }
-      if (res.status === 400) {
-        const data = await res.json().catch(() => ({}));
-        showErrorToast((data as { message?: string })?.message ?? "Could not add watch");
+      case 400:
+        showErrorToast(result.error.message ?? "Could not add watch");
         return;
-      }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      showSuccessToast(`We'll email you when ${domainName} becomes available`);
-    } catch {
-      showErrorToast("Failed to watch domain — please try again");
+      default:
+        showErrorToast("Failed to watch domain — please try again");
     }
   };
 

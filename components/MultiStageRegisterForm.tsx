@@ -8,6 +8,7 @@ import Button from './Button';
 import Input from './Input';
 import SocialLoginButtons from './SocialLoginButtons';
 import toast from 'react-hot-toast';
+import { apiClient } from '@/lib/api-client';
 import { InputValidator } from '@/lib/validation';
 import AuthShell from './AuthShell';
 
@@ -69,56 +70,50 @@ export default function MultiStageRegisterForm({ className = '' }: RegisterFormP
     if (!validate()) return;
 
     setIsLoading(true);
-    try {
-      const response = await fetch('/api/v1/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
-          password: formData.password,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        if (data.requiresActivation) {
-          toast.success('Account created! Check your email to activate it.');
-          router.push(
-            `/login?message=${encodeURIComponent('Account created. Please check your email to activate your account.')}${returnUrl ? `&returnUrl=${encodeURIComponent(returnUrl)}` : ''}`
-          );
-        } else {
-          toast.success('Account created successfully!');
-          router.push(`/login${returnUrl ? `?returnUrl=${encodeURIComponent(returnUrl)}` : ''}`);
-        }
-      } else {
-        // Map server-side field errors back onto the form if present
-        if (data.details) {
-          const fieldErrors: Record<string, string> = {};
-          const processErrors = (obj: Record<string, unknown>, prefix = '') => {
-            Object.keys(obj).forEach((key) => {
-              if (key === '_errors') {
-                const errs = obj[key] as string[];
-                if (errs.length > 0 && prefix) {
-                  fieldErrors[prefix.replace(/\.$/, '')] = errs[0];
-                }
-              } else {
-                processErrors(obj[key] as Record<string, unknown>, `${prefix}${key}.`);
-              }
-            });
-          };
-          processErrors(data.details);
-          setErrors(fieldErrors);
-        }
-        toast.error(data.error || 'Registration failed. Please try again.');
+    const result = await apiClient.post<{ requiresActivation?: boolean }>(
+      '/api/v1/auth/register',
+      {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        password: formData.password,
       }
-    } catch {
-      toast.error('An error occurred. Please try again.');
-    } finally {
-      setIsLoading(false);
+    );
+
+    if (result.ok) {
+      if (result.data.requiresActivation) {
+        toast.success('Account created! Check your email to activate it.');
+        router.push(
+          `/login?message=${encodeURIComponent('Account created. Please check your email to activate your account.')}${returnUrl ? `&returnUrl=${encodeURIComponent(returnUrl)}` : ''}`
+        );
+      } else {
+        toast.success('Account created successfully!');
+        router.push(`/login${returnUrl ? `?returnUrl=${encodeURIComponent(returnUrl)}` : ''}`);
+      }
+    } else {
+      // Map server-side field errors back onto the form if present.
+      // The route returns Zod's `details` tree on the error body.
+      const errBody = result.error.body as { details?: Record<string, unknown> } | undefined;
+      if (errBody?.details) {
+        const fieldErrors: Record<string, string> = {};
+        const processErrors = (obj: Record<string, unknown>, prefix = '') => {
+          Object.keys(obj).forEach((key) => {
+            if (key === '_errors') {
+              const errs = obj[key] as string[];
+              if (errs.length > 0 && prefix) {
+                fieldErrors[prefix.replace(/\.$/, '')] = errs[0];
+              }
+            } else {
+              processErrors(obj[key] as Record<string, unknown>, `${prefix}${key}.`);
+            }
+          });
+        };
+        processErrors(errBody.details);
+        setErrors(fieldErrors);
+      }
+      toast.error(result.error.message || 'Registration failed. Please try again.');
     }
+    setIsLoading(false);
   };
 
   return (
