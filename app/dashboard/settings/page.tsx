@@ -14,6 +14,7 @@ import {
 import toast from 'react-hot-toast';
 import { INDIAN_STATES } from '@/lib/constants';
 import { InputValidator } from '@/lib/validation';
+import { apiClient } from '@/lib/api-client';
 import UserLayout from '@/components/user/UserLayout';
 import { DashboardLayoutSkeleton, SettingsPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import ClientOnly from '@/components/ClientOnly';
@@ -185,50 +186,47 @@ export default function UserSettings() {
       isLoadingSettings.current = true;
       setIsLoading(true);
 
-      try {
-        const res = await fetch('/api/v1/user/settings', { credentials: 'include' });
-        if (res.ok) {
-          const data = await res.json();
-          setSettings(data);
-          if (data.profile) {
-            setUser(prev => prev ? {
-              ...prev,
-              firstName: data.profile.firstName || prev.firstName,
-              lastName: data.profile.lastName || prev.lastName,
-              email: data.profile.email || prev.email,
-              phone: data.profile.phone || prev.phone,
-              phoneCc: data.profile.phoneCc || prev.phoneCc || '+91',
-              whatsappNumber: data.profile.whatsappNumber ?? prev.whatsappNumber ?? '',
-              companyName: data.profile.company || prev.companyName,
-              gstNumber: data.profile.gstNumber || prev.gstNumber || '',
-              address: {
-                line1: data.profile.address || prev.address?.line1 || '',
-                city: data.profile.city || prev.address?.city || '',
-                state: data.profile.state || prev.address?.state || '',
-                country: data.profile.country || prev.address?.country || 'IN',
-                zipcode: data.profile.zipCode || prev.address?.zipcode || '',
-              },
-            } : null);
-          }
-        } else {
-          setSettings({ security: {} });
+      const settingsResult = await apiClient.get<UserSettings & { profile?: Record<string, string> }>('/api/v1/user/settings');
+      if (settingsResult.ok) {
+        const data = settingsResult.data;
+        setSettings(data);
+        if (data.profile) {
+          const profile = data.profile;
+          setUser(prev => prev ? {
+            ...prev,
+            firstName: profile.firstName || prev.firstName,
+            lastName: profile.lastName || prev.lastName,
+            email: profile.email || prev.email,
+            phone: profile.phone || prev.phone,
+            phoneCc: profile.phoneCc || prev.phoneCc || '+91',
+            whatsappNumber: profile.whatsappNumber ?? prev.whatsappNumber ?? '',
+            companyName: profile.company || prev.companyName,
+            gstNumber: profile.gstNumber || prev.gstNumber || '',
+            address: {
+              line1: profile.address || prev.address?.line1 || '',
+              city: profile.city || prev.address?.city || '',
+              state: profile.state || prev.address?.state || '',
+              country: profile.country || prev.address?.country || 'IN',
+              zipcode: profile.zipCode || prev.address?.zipcode || '',
+            },
+          } : null);
         }
-      } catch { setSettings({ security: {} }); }
+      } else {
+        setSettings({ security: {} });
+      }
 
-      const meRes = await fetch('/api/v1/auth/me', { credentials: 'include' });
-      if (meRes.ok) {
-        const meData = await meRes.json();
-        setHasExistingPassword(meData.user?.password === true);
-        if (meData.user) {
-          setUser(prev => ({ ...prev, ...meData.user, id: meData.user.id || prev?.id }));
-          try {
-            const existing = safeLocalStorage.getItem('user');
-            if (existing) {
-              const parsed = JSON.parse(existing);
-              safeLocalStorage.setItem('user', JSON.stringify({ ...parsed, provider: meData.user.provider, profileCompleted: meData.user.profileCompleted }));
-            }
-          } catch {}
-        }
+      const meResult = await apiClient.get<{ user?: Record<string, unknown> & { id?: string; password?: boolean; provider?: string; profileCompleted?: boolean } }>('/api/v1/auth/me');
+      if (meResult.ok && meResult.data.user) {
+        const meUser = meResult.data.user;
+        setHasExistingPassword(meUser.password === true);
+        setUser(prev => ({ ...prev, ...meUser, id: meUser.id || prev?.id } as User));
+        try {
+          const existing = safeLocalStorage.getItem('user');
+          if (existing) {
+            const parsed = JSON.parse(existing);
+            safeLocalStorage.setItem('user', JSON.stringify({ ...parsed, provider: meUser.provider, profileCompleted: meUser.profileCompleted }));
+          }
+        } catch {}
       }
     } catch { toast.error('Failed to load settings'); }
     finally { setIsLoading(false); isLoadingSettings.current = false; hasLoadedOnce.current = true; }
@@ -262,49 +260,52 @@ export default function UserSettings() {
 
   useEffect(() => {
     if (activeSection !== 'security' || totpEnabled !== null) return;
-    fetch('/api/v1/auth/totp/setup', { credentials: 'include' })
-      .then(r => r.json()).then(d => setTotpEnabled(d.totpEnabled ?? false)).catch(() => setTotpEnabled(false));
+    void (async () => {
+      const result = await apiClient.get<{ totpEnabled?: boolean }>('/api/v1/auth/totp/setup');
+      setTotpEnabled(result.ok ? (result.data.totpEnabled ?? false) : false);
+    })();
   }, [activeSection, totpEnabled]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────
   const handleTotpStartSetup = async () => {
     setTotpIsLoading(true);
-    try {
-      const res = await fetch('/api/v1/auth/totp/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Setup failed');
-      setTotpQrUrl(data.qrCodeDataUrl);
-      setTotpManualKey(data.manualKey);
+    const result = await apiClient.post<{ qrCodeDataUrl?: string; manualKey?: string }>('/api/v1/auth/totp/setup', undefined);
+    if (result.ok) {
+      setTotpQrUrl(result.data.qrCodeDataUrl ?? '');
+      setTotpManualKey(result.data.manualKey ?? '');
       setTotpStep('scan');
-    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : String(e)); }
-    finally { setTotpIsLoading(false); }
+    } else {
+      toast.error(result.error.message || 'Setup failed');
+    }
+    setTotpIsLoading(false);
   };
 
   const handleTotpConfirm = async () => {
     if (totpVerifyCode.length !== 6) { toast.error('Enter the 6-digit code from your authenticator app'); return; }
     setTotpIsLoading(true);
-    try {
-      const res = await fetch('/api/v1/auth/totp/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ code: totpVerifyCode }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Verification failed');
-      setTotpBackupCodes(data.backupCodes);
+    const result = await apiClient.post<{ backupCodes?: string[] }>('/api/v1/auth/totp/confirm', { code: totpVerifyCode });
+    if (result.ok) {
+      setTotpBackupCodes(result.data.backupCodes ?? []);
       setTotpEnabled(true);
       setTotpStep('backup');
-    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : String(e)); setTotpVerifyCode(''); }
-    finally { setTotpIsLoading(false); }
+    } else {
+      toast.error(result.error.message || 'Verification failed');
+      setTotpVerifyCode('');
+    }
+    setTotpIsLoading(false);
   };
 
   const handleTotpDisable = async () => {
     if (!totpDisableCode || !totpDisablePassword) { toast.error('Both fields are required'); return; }
     setTotpIsLoading(true);
-    try {
-      const res = await fetch('/api/v1/auth/totp/disable', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ code: totpDisableCode, password: totpDisablePassword }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not disable 2FA');
+    const result = await apiClient.post('/api/v1/auth/totp/disable', { code: totpDisableCode, password: totpDisablePassword });
+    if (result.ok) {
       setTotpEnabled(false); setTotpStep('status'); setTotpDisableCode(''); setTotpDisablePassword('');
       toast.success('Two-factor authentication disabled');
-    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : String(e)); }
-    finally { setTotpIsLoading(false); }
+    } else {
+      toast.error(result.error.message || 'Could not disable 2FA');
+    }
+    setTotpIsLoading(false);
   };
 
   const copyToClipboard = (text: string) => navigator.clipboard.writeText(text).then(() => toast.success('Copied to clipboard'));
@@ -324,24 +325,23 @@ export default function UserSettings() {
     if (hasExistingPassword && passwordData.currentPassword === passwordData.newPassword) { toast.error('New password must be different from your current password'); return; }
     if (passwordData.newPassword !== passwordData.confirmPassword) { toast.error('Passwords do not match'); return; }
     setIsSaving(true);
-    try {
-      const res = await fetch('/api/v1/user/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ password: { currentPassword: hasExistingPassword ? passwordData.currentPassword : undefined, newPassword: passwordData.newPassword } }) });
-      if (res.ok) {
-        toast.success(hasExistingPassword ? 'Password changed successfully' : 'Password set successfully!');
-        setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' }); setHasExistingPassword(true);
-      } else { const d = await res.json(); toast.error(d.error || 'Failed to update password'); }
-    } catch { toast.error('Failed to update password'); }
-    finally { setIsSaving(false); }
+    const result = await apiClient.put('/api/v1/user/settings', { password: { currentPassword: hasExistingPassword ? passwordData.currentPassword : undefined, newPassword: passwordData.newPassword } });
+    if (result.ok) {
+      toast.success(hasExistingPassword ? 'Password changed successfully' : 'Password set successfully!');
+      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' }); setHasExistingPassword(true);
+    } else {
+      toast.error(result.error.message || 'Failed to update password');
+    }
+    setIsSaving(false);
   };
 
   const handleUpdateProfile = async (updatedUser: Partial<User>) => {
     try {
       setIsSaving(true);
       const profileData = { ...updatedUser, phoneCc: '+91', address: { ...updatedUser.address, country: 'IN' } };
-      const res = await fetch('/api/v1/user/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ profile: profileData }) });
-      if (res.ok) {
-        const rd = await res.json();
-        const serverUser = rd.user;
+      const result = await apiClient.put<{ user?: Record<string, unknown> & { profileCompleted?: boolean } }>('/api/v1/user/settings', { profile: profileData });
+      if (result.ok) {
+        const serverUser = result.data.user;
         const isComplete = serverUser?.profileCompleted ?? false;
         const updated = { ...user, ...profileData, ...(serverUser || {}), profileCompleted: isComplete, email: profileData.email || user?.email || '', firstName: profileData.firstName || user?.firstName || '', lastName: profileData.lastName || user?.lastName || '' };
         setUser(updated); savedUserRef.current = JSON.stringify(updated); setIsDirty(false);
@@ -349,7 +349,9 @@ export default function UserSettings() {
         window.dispatchEvent(new CustomEvent('profileUpdated', { detail: { user: updated, isComplete } }));
         toast.success(isComplete ? 'Profile completed!' : 'Profile updated successfully');
         setTimeout(() => router.push('/dashboard'), 1500);
-      } else { const d = await res.json(); toast.error(d.error || 'Failed to update profile'); }
+      } else {
+        toast.error(result.error.message || 'Failed to update profile');
+      }
     } catch { toast.error('Failed to update profile'); }
     finally { setIsSaving(false); }
   };
