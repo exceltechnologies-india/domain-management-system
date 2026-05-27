@@ -13,7 +13,7 @@ import Modal from '@/components/Modal';
 import { formatIndianDate, formatIndianDateTime } from '@/lib/dateUtils';
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
 import { performLogout } from '@/lib/logout';
-import { logger } from '@/lib/logger';
+import { apiClient } from '@/lib/api-client';
 
 interface Order {
   _id: string;
@@ -194,45 +194,34 @@ export default function AdminOrders() {
 
     if (fetching.current.has(targetPage)) return;
 
-    try {
-      if (!isBackground) setIsDataLoading(true);
-      fetching.current.add(targetPage);
+    if (!isBackground) setIsDataLoading(true);
+    fetching.current.add(targetPage);
 
-      const archivedParam = tab === 'archived' ? 'true' : 'false';
+    const archivedParam = tab === 'archived' ? 'true' : 'false';
+    const result = await apiClient.get<{ orders?: Order[]; page_context?: { has_more_page?: boolean } }>(
+      `/api/v1/admin/orders?page=${targetPage}&per_page=10&archived=${archivedParam}`
+    );
 
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+    if (result.ok) {
+      const newOrders = result.data.orders || [];
+      const hasMorePage = result.data.page_context?.has_more_page || false;
 
-      const response = await fetch(`/api/v1/admin/orders?page=${targetPage}&per_page=10&archived=${archivedParam}`, {
-        method: 'GET',
-        headers,
-        credentials: 'include'
-      });
+      cache.current[targetPage] = { data: newOrders, hasMore: hasMorePage };
 
-      if (response.ok) {
-        const data = await response.json();
-        const newOrders = data.orders || [];
-        // Extract has_more_page safely 
-        const hasMorePage = data.page_context?.has_more_page || false;
-
-        cache.current[targetPage] = { data: newOrders, hasMore: hasMorePage };
-
-        if (!isBackground) {
-          if (tab === 'active') {
-            setOrders(newOrders);
-            setActiveHasMore(hasMorePage);
-          } else {
-            setArchivedOrders(newOrders);
-            setArchivedHasMore(hasMorePage);
-          }
-          prefetchAdjacent(tab, targetPage, hasMorePage);
+      if (!isBackground) {
+        if (tab === 'active') {
+          setOrders(newOrders);
+          setActiveHasMore(hasMorePage);
+        } else {
+          setArchivedOrders(newOrders);
+          setArchivedHasMore(hasMorePage);
         }
+        prefetchAdjacent(tab, targetPage, hasMorePage);
       }
-    } catch (error) {
-      logger.error('Error loading orders:', error);
-    } finally {
-      fetching.current.delete(targetPage);
-      if (!isBackground) setIsDataLoading(false);
     }
+
+    fetching.current.delete(targetPage);
+    if (!isBackground) setIsDataLoading(false);
   };
 
   const prefetchAdjacent = (tab: 'active' | 'archived', currentPage: number, currentHasMore: boolean) => {
@@ -269,49 +258,32 @@ export default function AdminOrders() {
   const confirmDeleteOrder = async () => {
     if (!orderToDelete) return;
 
-    try {
-      setIsDeleting(true);
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json'
-      };
+    setIsDeleting(true);
+    const url = `/api/v1/admin/orders/${orderToDelete._id}${activeTab === 'archived' ? '?permanent=true' : ''}`;
+    const result = await apiClient.delete(url);
 
-      const url = `/api/v1/admin/orders/${orderToDelete._id}${activeTab === 'archived' ? '?permanent=true' : ''}`;
-
-      const response = await fetch(url, {
-        method: 'DELETE',
-        headers,
-        credentials: 'include',
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-
-        if (activeTab === 'active') {
-          // Move from active to archived
-          const archivedOrder = { ...orderToDelete, isArchived: true };
-          setOrders(orders.filter(o => o._id !== orderToDelete._id));
-          setArchivedOrders([archivedOrder, ...archivedOrders]);
-          showSuccessToast('Order archived successfully');
-        } else {
-          // Permanently deleted
-          setArchivedOrders(archivedOrders.filter(o => o._id !== orderToDelete._id));
-          showSuccessToast('Order deleted permanently');
-        }
-
-        activeCache.current = {};
-        archivedCache.current = {};
-
-        setIsDeleteModalOpen(false);
-        setOrderToDelete(null);
+    if (result.ok) {
+      if (activeTab === 'active') {
+        // Move from active to archived
+        const archivedOrder = { ...orderToDelete, isArchived: true };
+        setOrders(orders.filter(o => o._id !== orderToDelete._id));
+        setArchivedOrders([archivedOrder, ...archivedOrders]);
+        showSuccessToast('Order archived successfully');
       } else {
-        const error = await response.json();
-        showErrorToast(error.error || 'Failed to delete order');
+        // Permanently deleted
+        setArchivedOrders(archivedOrders.filter(o => o._id !== orderToDelete._id));
+        showSuccessToast('Order deleted permanently');
       }
-    } catch (error) {
-      showErrorToast('An error occurred while deleting the order');
-    } finally {
-      setIsDeleting(false);
+
+      activeCache.current = {};
+      archivedCache.current = {};
+
+      setIsDeleteModalOpen(false);
+      setOrderToDelete(null);
+    } else {
+      showErrorToast(result.error.status === 0 ? 'An error occurred while deleting the order' : result.error.message || 'Failed to delete order');
     }
+    setIsDeleting(false);
   };
 
   const cancelDeleteOrder = () => {
@@ -327,39 +299,25 @@ export default function AdminOrders() {
   const confirmUnarchiveOrder = async () => {
     if (!orderToUnarchive) return;
 
-    try {
-      setIsUnarchiving(true);
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json'
-      };
+    setIsUnarchiving(true);
+    const result = await apiClient.patch(`/api/v1/admin/orders/${orderToUnarchive._id}`, undefined);
 
-      const response = await fetch(`/api/v1/admin/orders/${orderToUnarchive._id}`, {
-        method: 'PATCH',
-        headers,
-        credentials: 'include',
-      });
+    if (result.ok) {
+      // Move from archived to active
+      const activeOrder = { ...orderToUnarchive, isArchived: false };
+      setArchivedOrders(archivedOrders.filter(o => o._id !== orderToUnarchive._id));
+      setOrders([activeOrder, ...orders]);
 
-      if (response.ok) {
-        // Move from archived to active
-        const activeOrder = { ...orderToUnarchive, isArchived: false };
-        setArchivedOrders(archivedOrders.filter(o => o._id !== orderToUnarchive._id));
-        setOrders([activeOrder, ...orders]);
+      activeCache.current = {};
+      archivedCache.current = {};
 
-        activeCache.current = {};
-        archivedCache.current = {};
-
-        setIsUnarchiveModalOpen(false);
-        setOrderToUnarchive(null);
-        showSuccessToast('Order un-archived successfully');
-      } else {
-        const error = await response.json();
-        showErrorToast(error.error || 'Failed to un-archive order');
-      }
-    } catch (error) {
-      showErrorToast('An error occurred while un-archiving the order');
-    } finally {
-      setIsUnarchiving(false);
+      setIsUnarchiveModalOpen(false);
+      setOrderToUnarchive(null);
+      showSuccessToast('Order un-archived successfully');
+    } else {
+      showErrorToast(result.error.status === 0 ? 'An error occurred while un-archiving the order' : result.error.message || 'Failed to un-archive order');
     }
+    setIsUnarchiving(false);
   };
 
   const cancelUnarchiveOrder = () => {

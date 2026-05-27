@@ -11,6 +11,7 @@ import AdminDataTable from '@/components/admin/AdminDataTable';
 import { formatIndianDate, formatIndianTime, formatIndianDateTime, formatIndianCurrency } from '@/lib/dateUtils';
 import { performLogout } from '@/lib/logout';
 import { logger } from '@/lib/logger';
+import { apiClient } from '@/lib/api-client';
 
 interface Payment {
   id: string;
@@ -98,35 +99,18 @@ export default function AdminPayments() {
   }, [router, status, session?.user?.email]);
 
   const loadPayments = async (page: number = currentPage, search: string = searchTerm) => {
-    try {
-      setIsDataLoading(true);
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json'
-      };
-
-      // Always fetch only the latest 5 transactions (no pagination)
-      const response = await fetch(`/api/v1/admin/payments?limit=5&skip=0`, {
-        headers,
-        credentials: 'include'
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setPayments(data.payments || []);
-        setTotalItems(data.total || 0);
-        // Payments loaded successfully
-      } else {
-        logger.error('Failed to load payments:', response.statusText);
-        setPayments([]);
-        setTotalItems(0);
-      }
-    } catch (error) {
-      logger.error('Failed to load payments:', error);
+    setIsDataLoading(true);
+    // Always fetch only the latest 5 transactions (no pagination)
+    const result = await apiClient.get<{ payments?: Payment[]; total?: number }>(`/api/v1/admin/payments?limit=5&skip=0`);
+    if (result.ok) {
+      setPayments(result.data.payments || []);
+      setTotalItems(result.data.total || 0);
+    } else {
+      logger.error('Failed to load payments:', result.error.message);
       setPayments([]);
       setTotalItems(0);
-    } finally {
-      setIsDataLoading(false);
     }
+    setIsDataLoading(false);
   };
 
   const handleLogout = () => {
