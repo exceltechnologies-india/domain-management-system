@@ -72,7 +72,7 @@ All four HIGH findings have been verified against the actual code, not just trus
 | Batch 7av | S1 continued — public hosting page (trial-eligibility POST, test-plan GET) + dashboard home (domains/sync POST) + dashboard invoices (invoices/sync POST) | ✅ Closed | `ac60d54` |
 | Batch 7aw | S1 continued — useDomainSearch hook (3 search POSTs: Phase-1 quick, Phase-2 fire-and-forget suggestions, load-more) — one of the two 7ad-deferred items | ✅ Closed | `036f161` |
 | Batch 7ax | S1 continued — RegisterForm register POST (the last 7ad-deferred holdout; its 3 cross-origin geocoding fetches stay raw by design) | ✅ Closed | `4d3ac2c` |
-| Batch 7ay | M14 continued — first React component tests: `@testing-library/react` harness + `<EmptyCart>` (2) + `<CartOrderSummary>` (10) | 🔄 Committed, deploy pending | — |
+| Batch 7ay | M14 continued — first React component tests: `@testing-library/react` harness + `<EmptyCart>` (2) + `<CartOrderSummary>` (10) | ✅ Closed | `f3a3cf9` |
 
 **All four HIGHs + 11 MEDIUMs + 11 LOWs + 2 architectural suggestions (S2 + S3) cleared, M6 / L12 / M14 in progress; S1 effectively closed.** 57 vertical slices shipped across batches 7a–7ay (6 RC ops + 6 DA ops + vocab unification + M13 cleanup + L1 Razorpay typed-client + three M14 slices + L8 error boundaries + L12 jsx-a11y lint + M6 leaf demotion + S2 pre-commit hooks + S3 complete twelve-slice sweep + twenty-four S1 frontend-apiClient slices). Bonus catches:
 - 7e: M3's tightened `BookingStep` type uncovered a real save-validation bug — `provisioner-hosting.ts:379` emits `step: "hosting_deferred"` but the schema enum didn't include it.
