@@ -96,7 +96,7 @@ All four HIGH findings have been verified against the actual code, not just trus
 - 7g–7r: M1 vertical slices establish the `lib/integrations/{resellerclub,directadmin}/` pattern. ~35 `toLowerCase().includes()` chains removed from app code (down from ~50); the inner/outer classification layers now share one fragment vocabulary; payment + admin + cron paths all branch on typed outcomes instead of message strings.
 - 7s: With the typed outcomes in place, the 7-arm `error.message.includes` chain in verification-error.ts turned out to be matching strings nobody throws — deleted (−65 LOC).
 
-Remaining work: 3 MEDIUMs (M4 1000+ line page components, M6 client-component ratio, M14 zero component/page/cart-store tests; M8 deferred pending prod data audit) + 2 LOWs (L8 React error boundaries, L12 a11y eslint) + 3 architectural suggestions.
+Remaining work: 2 MEDIUMs (M4 1000+ line page components, M6 deeper client-component refactors; M8 deferred pending prod data audit). **S1 effectively closed** (46/~58 frontend files on `apiClient`; rest is by-design raw fetch). **M14 substantially addressed** — cart-validation helpers + cartStore + 14 component/page suites across the cart-page subtree, checkout redirect gating, admin invoice-diagnostics triage, auth password-reset forms, public-facing forms, operational status badges, profile-completion form, and the full domain-search subtree (775 tests across 48 files); remaining gaps are the large multi-step `MultiStageRegisterForm`, the admin/dashboard layout shells, and the deliberately-out-of-scope payment-handler / SSE flows.
 
 ---
 
@@ -209,7 +209,7 @@ Remaining work: 3 MEDIUMs (M4 1000+ line page components, M6 client-component ra
 
 ### Testing
 
-#### 🔄 [M14] Zero component / page / cart-store tests — PARTIALLY ADDRESSED (slice 7u extracted + tested cart-validation helpers)
+#### 🔄 [M14] Zero component / page / cart-store tests — SUBSTANTIALLY ADDRESSED (775 tests / 48 files: cart-validation + cartStore + 14 component suites incl. the full domain-search subtree, cart-page subtree, admin invoice-diagnostics, auth/public forms, status badges; remaining: MultiStageRegisterForm + layout shells)
 **Problem:** 588 tests are all model/service/integration. 0 of 172 .tsx files have a sibling `.test.tsx`. 1500-line admin pages and the cart store (more complex than several services by line count) are entirely unverified.
 **Fix:** Start with the cart store (pure logic) and the checkout `useEffect` redirect logic. Vitest + @testing-library/react is already transitively available. ~3 hours harness + incremental tests.
 **Slice 7u update:** Pure cart-validation logic (`clampRegistrationPeriod` + `validateAndCorrectCartItems`) extracted from `store/cartStore.ts` into `store/cart-validation.ts` so it can be unit-tested without zustand / persistence / toast mocks. 21 new tests pin the clamping window (per-TLD min/max, hosting [1,60]), the legacy hosting-10 yearly back-fix, and the (domainName, itemType) dedup.
@@ -463,11 +463,12 @@ Remaining work: 3 MEDIUMs (M4 1000+ line page components, M6 client-component ra
 - ~~**Batch 7af** — S1 continued: 2 admin pages (invoices list-GET, pricing-management GET + DELETE)~~ ✅ shipped `02b2d7f`
 - ~~**Batch 7ag** — S1 continued: 3 pages (domains/transfer, bulk-search, admin/domains GET + sync POST)~~ ✅ shipped `d390f38`
 - ~~**Batch 7ah** — S1 continued: dashboard support pages (create-ticket POST, close PATCH, reply POST)~~ ✅ shipped `9bd22ea`
+- ~~**Batches 7ai–7ax** — S1 sweep through admin + dashboard pages + 7ad-deferred holdouts (useDomainSearch, RegisterForm). 16 slices closing the S1 architectural suggestion: 46/~58 frontend files on `apiClient`; remainder is by-design raw `fetch` (payment-handler POSTs, blob downloads, ChatWidget SSE, cross-origin geocoding, JWT-branch error boundaries). Helper enhancement: `apiClient.delete` now accepts an optional body.~~ ✅ shipped through `4d3ac2c`
+- ~~**Batches 7ay–7bo** — M14 component-test sweep. `@testing-library/react` + jest-dom installed (audit's "transitively available" note was stale). 17 slices building 775 tests across 48 files: the cart-page subtree (EmptyCart / CartOrderSummary / CartItemCard / HostingUpsell / DomainCrossSell / DomainSetup / ProfileCompletionWarning), CheckoutPage redirect gating, admin invoice-diagnostics triage (DiagnosticsHeader / ConflictsTable / StuckOrdersTable), auth password-reset forms (AdminPasswordReset / ResetPasswordForm), public-facing forms (ContactForm / ForgotPasswordForm), status leaves (LivePricingIndicator / TrialOtpModal / OutboundIPBadge / DomainBookingProgress), ProfileCompletionForm, and the full domain-search subtree (SearchInput / SearchResults / DomainCard hero+compact).~~ ✅ shipped through `ab35b6c`
 
 ### Remaining open work (no batch numbers assigned yet)
-- **S1 continued** — ~34 frontend `fetch` callsites still to migrate to `apiClient` (admin hosting/orders/users/settings pages, dashboard pages, cart/checkout). Blob/stream + payment-handler fetches stay on raw `fetch` by design.
-- **M14** — component-level tests (needs `@testing-library/react` installed first).
+- **M14 remaining** — `MultiStageRegisterForm` (multi-step + Zod field-error tree), admin/dashboard layout shells (UserLayout / AdminLayout / DashboardSidebar — mostly presentational), and the deliberately-out-of-scope payment-handler / SSE / cross-origin / JWT-boundary flows that stay un-tested by design.
 - **M4** — 5 page components > 1000 lines (multi-day per page).
-- **M6 continued** — per-component review of the ~110 remaining client components.
-- **axe-core in CI** — runtime accessibility checks (depends on the M14 test harness).
+- **M6 deeper** — per-component refactors to extract interactive bits so static shells can render on the server. The easy leaf demotions landed in 7x; the remaining ~110 client components genuinely need client features (framer-motion, event-handler props, forwardRef with refs, Radix), so further M6 progress requires component-splitting refactors, not one-shot demotions.
+- **axe-core in CI** — runtime accessibility checks (now unblocked — the M14 harness is in place).
 - **M8** (PendingDomain._id ObjectId) — deferred pending prod data audit.
