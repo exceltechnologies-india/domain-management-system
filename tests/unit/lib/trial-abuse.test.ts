@@ -1,0 +1,328 @@
+/**
+ * Tests for `@/lib/trial-abuse` (rescan-4 slice 7fj). Anti-abuse helpers
+ * for the hosting free-trial flow. Pins:
+ *  - **getClientIp precedence**: x-forwarded-for (first comma-split,
+ *    trimmed) > x-real-ip > 'unknown'
+ *  - **hashIp**: HMAC-SHA256 with AUTH_SECRET fallback → NEXTAUTH_SECRET
+ *    → literal 'trial-abuse-fallback'; empty/'unknown' IP → ''
+ *    (no raw IP ever persisted — DB-leak resilience)
+ *  - **evaluateTrialAbuse 5-step pipeline** in order (cheapest first):
+ *    1. Disposable email → DISPOSABLE_EMAIL
+ *    2. reCAPTCHA (only if token supplied) — failure → RECAPTCHA;
+ *       v3 score < 0.5 also → RECAPTCHA; verify THROW (Google
+ *       unreachable) → swallowed, proceed
+ *    3. IP throttle: 30-day window TrialClaim.exists({ipHash}) hit → IP_THROTTLE
+ *    4. Device fingerprint throttle: same 30-day window → DEVICE_THROTTLE
+ *    5. Phone OTP: only when isTrialOtpRequired() returns true;
+ *       missing otpToken → OTP_REQUIRED; verifyOtpToken invalid → OTP_REQUIRED
+ *  - All-clear → {allowed:true}
+ *  - **recordTrialClaim E11000 (duplicate-key race) is SWALLOWED**
+ *    (the prior insert already records the claim; this attempt is a
+ *    coordinated double-claim — log + return, don't throw because user
+ *    paid the ₹1 trial fee already); non-E11000 → also swallowed (logged)
+ *  - **isTrialOtpRequired**: settings value true OR string 'true' → true;
+ *    everything else → false
+ */
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+const isDisposableEmail = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/disposable-emails", () => ({ isDisposableEmail }));
+
+const recaptchaVerifyToken = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/recaptcha", () => ({
+  RecaptchaServer: { verifyToken: recaptchaVerifyToken },
+}));
+
+const getSettingValue = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/services/settings", () => ({ getSettingValue }));
+
+const verifyOtpToken = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/trial-otp", () => ({ verifyOtpToken }));
+
+const trialClaimExists = vi.hoisted(() => vi.fn());
+const trialClaimCreate = vi.hoisted(() => vi.fn());
+vi.mock("@/models/TrialClaim", () => ({
+  default: { exists: trialClaimExists, create: trialClaimCreate },
+}));
+
+vi.mock("@/lib/server-logger", () => ({
+  serverLogger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
+}));
+
+import {
+  getClientIp,
+  hashIp,
+  evaluateTrialAbuse,
+  recordTrialClaim,
+  isTrialOtpRequired,
+} from "@/lib/trial-abuse";
+
+function mockReq(headers: Record<string, string> = {}): never {
+  return { headers: new Headers(headers) } as never;
+}
+
+beforeEach(() => {
+  isDisposableEmail.mockReset();
+  isDisposableEmail.mockReturnValue(false);
+  recaptchaVerifyToken.mockReset();
+  recaptchaVerifyToken.mockResolvedValue({ success: true });
+  getSettingValue.mockReset();
+  getSettingValue.mockResolvedValue(false); // OTP off by default
+  verifyOtpToken.mockReset();
+  trialClaimExists.mockReset();
+  trialClaimExists.mockResolvedValue(null);
+  trialClaimCreate.mockReset();
+  vi.stubEnv("AUTH_SECRET", "test-auth-secret");
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
+describe("getClientIp — proxy-header precedence", () => {
+  it("x-forwarded-for wins (first comma-split + trimmed)", () => {
+    expect(
+      getClientIp(
+        mockReq({
+          "x-forwarded-for": "  1.1.1.1  , 2.2.2.2",
+          "x-real-ip": "3.3.3.3",
+        })
+      )
+    ).toBe("1.1.1.1");
+  });
+
+  it("no XFF → x-real-ip", () => {
+    expect(getClientIp(mockReq({ "x-real-ip": "3.3.3.3" }))).toBe("3.3.3.3");
+  });
+
+  it("nothing set → 'unknown' literal", () => {
+    expect(getClientIp(mockReq({}))).toBe("unknown");
+  });
+});
+
+describe("hashIp — HMAC-SHA256 with secret fallback", () => {
+  it("empty IP → empty string (no raw IP ever persisted)", () => {
+    expect(hashIp("")).toBe("");
+  });
+
+  it("'unknown' IP → empty string", () => {
+    expect(hashIp("unknown")).toBe("");
+  });
+
+  it("real IP → 64-char hex (SHA256 length)", () => {
+    expect(hashIp("1.2.3.4")).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it("same IP → same hash (deterministic)", () => {
+    expect(hashIp("1.2.3.4")).toBe(hashIp("1.2.3.4"));
+  });
+
+  it("different secret → different hash for same IP", () => {
+    const h1 = hashIp("1.2.3.4");
+    vi.stubEnv("AUTH_SECRET", "rotated-secret");
+    const h2 = hashIp("1.2.3.4");
+    expect(h1).not.toBe(h2);
+  });
+});
+
+describe("evaluateTrialAbuse — 5-step pipeline (cheapest first)", () => {
+  it("step 1: disposable email → DISPOSABLE_EMAIL (instant, no other checks run)", async () => {
+    isDisposableEmail.mockReturnValueOnce(true);
+    const result = await evaluateTrialAbuse(
+      { email: "trash@10minutemail.com", ipHash: "abc" },
+      { recaptchaToken: "tok" }
+    );
+    expect(result).toEqual({
+      allowed: false,
+      code: "DISPOSABLE_EMAIL",
+      reason: expect.stringMatching(/temporary or disposable/i),
+    });
+    // No reCAPTCHA / DB call needed.
+    expect(recaptchaVerifyToken).not.toHaveBeenCalled();
+    expect(trialClaimExists).not.toHaveBeenCalled();
+  });
+
+  it("step 2: reCAPTCHA failure → RECAPTCHA code", async () => {
+    recaptchaVerifyToken.mockResolvedValueOnce({ success: false });
+    const result = await evaluateTrialAbuse(
+      { email: "u@x.test", ipHash: "abc" },
+      { recaptchaToken: "tok" }
+    );
+    expect(result.allowed).toBe(false);
+    expect(result.code).toBe("RECAPTCHA");
+  });
+
+  it("step 2: reCAPTCHA v3 score < 0.5 → RECAPTCHA (bot defence)", async () => {
+    recaptchaVerifyToken.mockResolvedValueOnce({ success: true, score: 0.3 });
+    const result = await evaluateTrialAbuse(
+      { email: "u@x.test" },
+      { recaptchaToken: "tok" }
+    );
+    expect(result.code).toBe("RECAPTCHA");
+  });
+
+  it("step 2: reCAPTCHA v2 (no score) success → passes through", async () => {
+    recaptchaVerifyToken.mockResolvedValueOnce({ success: true });
+    const result = await evaluateTrialAbuse(
+      { email: "u@x.test" },
+      { recaptchaToken: "tok" }
+    );
+    expect(result.allowed).toBe(true);
+  });
+
+  it("step 2: reCAPTCHA verify THROW (Google unreachable) is SWALLOWED (don't hard-fail on Google outage)", async () => {
+    recaptchaVerifyToken.mockRejectedValueOnce(new Error("ENOTFOUND"));
+    const result = await evaluateTrialAbuse(
+      { email: "u@x.test" },
+      { recaptchaToken: "tok" }
+    );
+    expect(result.allowed).toBe(true);
+  });
+
+  it("recaptchaToken NOT supplied → reCAPTCHA step skipped entirely", async () => {
+    const result = await evaluateTrialAbuse({ email: "u@x.test" });
+    expect(recaptchaVerifyToken).not.toHaveBeenCalled();
+    expect(result.allowed).toBe(true);
+  });
+
+  it("step 3: IP throttle hit within 30-day window → IP_THROTTLE", async () => {
+    trialClaimExists.mockResolvedValueOnce({ _id: "X" });
+    const result = await evaluateTrialAbuse({ ipHash: "abc123" });
+    expect(result.code).toBe("IP_THROTTLE");
+    expect(trialClaimExists).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ipHash: "abc123",
+        createdAt: expect.objectContaining({ $gte: expect.any(Date) }),
+      })
+    );
+  });
+
+  it("step 4: device fingerprint hit → DEVICE_THROTTLE (only after IP check passes)", async () => {
+    trialClaimExists
+      .mockResolvedValueOnce(null) // IP check passes
+      .mockResolvedValueOnce({ _id: "X" }); // device check hits
+    const result = await evaluateTrialAbuse({
+      ipHash: "abc",
+      deviceFingerprint: "fp_xyz",
+    });
+    expect(result.code).toBe("DEVICE_THROTTLE");
+  });
+
+  it("step 5: OTP required + missing otpToken → OTP_REQUIRED", async () => {
+    getSettingValue.mockResolvedValueOnce(true);
+    const result = await evaluateTrialAbuse({});
+    expect(result.code).toBe("OTP_REQUIRED");
+    expect(result.reason).toMatch(/verify your phone/i);
+  });
+
+  it("step 5: OTP required + invalid otpToken → OTP_REQUIRED with verifier reason", async () => {
+    getSettingValue.mockResolvedValueOnce(true);
+    verifyOtpToken.mockReturnValueOnce({
+      valid: false,
+      reason: "OTP expired",
+    });
+    const result = await evaluateTrialAbuse({
+      otpToken: "stale",
+      phone: "+919999",
+    });
+    expect(result.code).toBe("OTP_REQUIRED");
+    expect(result.reason).toBe("OTP expired");
+  });
+
+  it("step 5: OTP required + valid token → passes", async () => {
+    getSettingValue.mockResolvedValueOnce(true);
+    verifyOtpToken.mockReturnValueOnce({ valid: true });
+    const result = await evaluateTrialAbuse({
+      otpToken: "good",
+      phone: "+919999",
+    });
+    expect(result.allowed).toBe(true);
+  });
+
+  it("OTP disabled (default) → OTP step skipped entirely", async () => {
+    // verifyOtpToken not called
+    const result = await evaluateTrialAbuse({});
+    expect(result.allowed).toBe(true);
+    expect(verifyOtpToken).not.toHaveBeenCalled();
+  });
+
+  it("all-clear: returns {allowed:true} only", async () => {
+    const result = await evaluateTrialAbuse({
+      email: "u@x.test",
+      ipHash: "abc",
+      deviceFingerprint: "fp",
+    });
+    expect(result).toEqual({ allowed: true });
+  });
+});
+
+describe("recordTrialClaim — E11000 race tolerance", () => {
+  it("happy path: create called with normalised lowercase email + optional fields", async () => {
+    trialClaimCreate.mockResolvedValueOnce({});
+    await recordTrialClaim({
+      userId: "U1",
+      userEmail: "Alice@X.TEST",
+      ipHash: "abc",
+      deviceFingerprint: "fp",
+      planId: "starter",
+    });
+    expect(trialClaimCreate).toHaveBeenCalledWith({
+      userId: "U1",
+      userEmail: "alice@x.test", // lowercased
+      ipHash: "abc",
+      deviceFingerprint: "fp",
+      planId: "starter",
+    });
+  });
+
+  it("E11000 duplicate-key race → swallowed (prior insert already records the claim)", async () => {
+    const dup: { code: number; message: string } & Error = Object.assign(
+      new Error("dup"),
+      { code: 11000 }
+    );
+    trialClaimCreate.mockRejectedValueOnce(dup);
+    await expect(
+      recordTrialClaim({ userId: "U1", userEmail: "u@x.test", ipHash: "abc" })
+    ).resolves.toBeUndefined();
+  });
+
+  it("non-E11000 error → also swallowed (best-effort persistence; logged)", async () => {
+    trialClaimCreate.mockRejectedValueOnce(new Error("DB connection lost"));
+    await expect(
+      recordTrialClaim({ userId: "U1", userEmail: "u@x.test" })
+    ).resolves.toBeUndefined();
+  });
+
+  it("empty ipHash → undefined (don't persist empty string)", async () => {
+    trialClaimCreate.mockResolvedValueOnce({});
+    await recordTrialClaim({
+      userId: "U1",
+      userEmail: "u@x.test",
+      ipHash: "",
+    });
+    const [payload] = trialClaimCreate.mock.calls[0];
+    expect(payload.ipHash).toBeUndefined();
+  });
+});
+
+describe("isTrialOtpRequired", () => {
+  it("setting value === true → returns true", async () => {
+    getSettingValue.mockResolvedValueOnce(true);
+    expect(await isTrialOtpRequired()).toBe(true);
+  });
+
+  it("setting value === 'true' (string) → returns true", async () => {
+    getSettingValue.mockResolvedValueOnce("true");
+    expect(await isTrialOtpRequired()).toBe(true);
+  });
+
+  it("setting value false → false", async () => {
+    getSettingValue.mockResolvedValueOnce(false);
+    expect(await isTrialOtpRequired()).toBe(false);
+  });
+
+  it("setting unset / undefined → false (default-off)", async () => {
+    getSettingValue.mockResolvedValueOnce(undefined);
+    expect(await isTrialOtpRequired()).toBe(false);
+  });
+});
