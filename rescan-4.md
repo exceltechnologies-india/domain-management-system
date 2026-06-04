@@ -6,6 +6,40 @@ All four HIGH findings have been verified against the actual code, not just trus
 
 ---
 
+## 🎯 In-flight & open work
+
+Surfaced at the top so the active surface is visible without scrolling through the ~200-row history table below.
+
+### 🔄 Pending deploy
+
+Live revision: **`dms-00096-tqc`** at https://dms-5itdvlx2va-ew.a.run.app
+
+Committed slices NOT yet in the live revision:
+
+| Slice | Hash | What's pinned |
+|---|---|---|
+| 7g5 | `2aadf77` | Admin TLD-pricing dashboard route (34 tests) — cache + price-shape tolerance + anti-cache-pollution refusal-to-store-empty |
+
+_(empty when fully deployed)_
+
+### 🎯 Currently working on
+
+- **Active focus**: app-route security/contract pins. Continuing into admin-hosting routes next (`/admin/hosting/stats`, `/admin/hosting/provision`, `/admin/hosting/packages`, `/admin/pending-domains` LIST).
+- **Pattern**: read source → mock all dependencies → pin security gates (auth, schema, anti-mass-assignment, idempotency) + error mapping + DB-write side effects + outer catch → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
+
+### 📋 Backlog (no batch numbers yet)
+
+| Item | Effort | Why open |
+|---|---|---|
+| **M4** — 5 page components > 1000 lines | multi-day per page | Refactor work; risk-vs-reward of splitting large pages |
+| **M6 deeper** — ~110 client components | per-component refactor | Easy leaf demotions shipped in 7x; remaining genuinely need client features (framer-motion, event-handler props, forwardRef, Radix) |
+| **M8** (PendingDomain._id ObjectId) | 1 slice + migration | Deferred pending prod data audit |
+| **axe-core in CI** — runtime a11y | 1 slice | Unblocked now that M14 harness exists |
+| **M14 remaining** — `MultiStageRegisterForm`, admin/dashboard layout shells | 2-3 slices | Multi-step Zod-field-error tree + presentational shells; payment-handler/SSE/JWT flows stay un-tested by design |
+| **Route slices remaining (no batch yet)** | ongoing | `/admin/hosting/*` (stats, provision, packages), `/admin/pending-domains` (LIST), `/admin/order-management`, `/api/domains/tlds`, other untested route handlers as discovered |
+
+---
+
 ## Status
 
 | Batch | Findings | Status | Commit(s) |
