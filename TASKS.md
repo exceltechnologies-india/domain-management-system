@@ -4,12 +4,13 @@
 
 ## In Flight
 
-- [x] **Reorganize this task tracker** so it reads in plain English for the senior reviewer (technical details moved to `docs/AUDIT-TECHNICAL.md`)
-- [ ] **Admin can manually provision a hosting account from the dashboard** — safety checks added so a slow hosting server doesn't lock up the form, and failed attempts are queued for retry instead of vanishing
-- [ ] **Admin can create / list / edit hosting packages** — package price changes now automatically sync with the payment provider for renewals
+(nothing in flight)
 
 ## Recently Shipped — user-visible improvements
 
+- [x] **Reorganized this task tracker** so it reads in plain English for the senior reviewer (technical details moved to `docs/AUDIT-TECHNICAL.md`)
+- [x] **Admin can manually provision a hosting account from the dashboard** — safety checks added so a slow hosting server doesn't lock up the form, and failed attempts are queued for retry instead of vanishing
+- [x] **Admin can create / list / edit hosting packages** — package price changes now automatically sync with the payment provider for renewals
 - [x] **Customer payments now go through stricter security checks** so the system can't be tricked into accepting underpayment, or sneaking unpaid items past the verification gate
 - [x] **Guest checkout (no account needed) is hardened** against email-claim attacks where someone tries to bind a paid purchase to another customer's account
 - [x] **Domain search is faster on repeat queries** thanks to caching, and won't lock up if the upstream registry is slow
