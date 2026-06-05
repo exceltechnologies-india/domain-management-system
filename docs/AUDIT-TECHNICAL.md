@@ -12,18 +12,13 @@ Surfaced at the top so the active surface is visible without scrolling through t
 
 ### 🔄 Pending deploy
 
-Live revision: **`dms-00097-r6f`** at https://dms-5itdvlx2va-ew.a.run.app
+Live revision: **`dms-00099-9mw`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-04 12:28Z, includes 7g5–7g8 + TASKS.md split)
 
-Committed slices NOT yet in the live revision:
-
-| Slice | Hash | What's pinned |
-|---|---|---|
-| 7g7 | `70d6219` | Admin hosting-provision POST route (40 tests) — schema-FIRST + admin gate + user lookup + period clamping + DA-package-lowercase + DNS-update-best-effort + CAS-style user.directAdminUsername first-set + Order/Zoho/Hosting/email all-swallowed bookkeeping + DA-server-down → 503 + generic fail → PendingHosting save → 200-savedToPending → terminal-fallback 500 PROVISION_FAILED |
-| 7g8 | `pending` | Admin hosting-packages GET+POST+PATCH route (40 tests) — DA-list with 5s timeout + DB fallback / per-package config-recovery / 'unlimited' → -1 sentinel + DA create with passthrough flags + Razorpay monthly+yearly rotation on renewalPrice-change (yearly = renewalPrice × 12) + razorpay-failure-swallowed (plan still saved) |
+_(all caught up — no slices pending deploy)_
 
 ### 🎯 Currently working on
 
-- **Active focus**: app-route security/contract pins. Continuing into admin-hosting routes next (`/admin/hosting/stats`, `/admin/hosting/provision`, `/admin/hosting/packages`, `/admin/pending-domains` LIST).
+- **Active slice**: `7g9` — `app/api/admin/pending-domains/route.ts` GET (LIST). Admin pending-domains list view; pins auth gate + query-param schema + filter pagination + sort + DB error fallback.
 - **Pattern**: read source → mock all dependencies → pin security gates (auth, schema, anti-mass-assignment, idempotency) + error mapping + DB-write side effects + outer catch → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
 
 ### 📋 Backlog (with assigned batch numbers)
