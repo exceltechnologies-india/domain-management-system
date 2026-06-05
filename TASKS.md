@@ -4,11 +4,11 @@
 
 ## In Flight
 
-- [ ] **Admin pending-domains list page** — add automated safety checks so the page handles invalid filters, big page sizes, and broken date inputs without crashing
 - [ ] **Admin order-management page** — add automated safety checks for the order list, archive, and unarchive flows
 
 ## Recently Shipped — user-visible improvements
 
+- [x] **Admin pending-domains list page** — added automated safety checks so the page handles invalid filters, big page sizes, and broken inputs without crashing
 - [x] **Reorganized this task tracker** so it reads in plain English for the senior reviewer (technical details moved to `docs/AUDIT-TECHNICAL.md`)
 - [x] **Admin can manually provision a hosting account from the dashboard** — safety checks added so a slow hosting server doesn't lock up the form, and failed attempts are queued for retry instead of vanishing
 - [x] **Admin can create / list / edit hosting packages** — package price changes now automatically sync with the payment provider for renewals
