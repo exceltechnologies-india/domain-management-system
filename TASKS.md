@@ -5,6 +5,7 @@
 ## In Flight
 
 - [ ] **Admin pending-domains list page** — add automated safety checks so the page handles invalid filters, big page sizes, and broken date inputs without crashing
+- [ ] **Admin order-management page** — add automated safety checks for the order list, archive, and unarchive flows
 
 ## Recently Shipped — user-visible improvements
 
@@ -25,8 +26,6 @@
 
 ## Backlog
 
-- [ ] **Admin pending-domains list page** — add automated safety checks
-- [ ] **Admin order-management page** — add automated safety checks
 - [ ] **Public TLD pricing display page** — add automated safety checks
 - [ ] **User hosting-stats page** (the user-facing mirror of the admin hosting dashboard) — add automated safety checks
 - [ ] **Split the largest admin pages** (User Management, DNS Management, Hosting, System Settings) into smaller pieces so they're easier to maintain
