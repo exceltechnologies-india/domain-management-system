@@ -4,7 +4,7 @@
 
 ## In Flight
 
-(nothing in flight)
+- [ ] **Admin pending-domains list page** — add automated safety checks so the page handles invalid filters, big page sizes, and broken date inputs without crashing
 
 ## Recently Shipped — user-visible improvements
 
