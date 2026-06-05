@@ -14,11 +14,15 @@ Surfaced at the top so the active surface is visible without scrolling through t
 
 Live revision: **`dms-00099-9mw`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-04 12:28Z, includes 7g5–7g8 + TASKS.md split)
 
-_(all caught up — no slices pending deploy)_
+Committed slices NOT yet in the live revision:
+
+| Slice | Hash | What's pinned |
+|---|---|---|
+| 7g9 | `b4f1155` | Admin pending-domains LIST + POST CREATE route (32 tests) — admin gate / archived-flag fork (skip Order-merge when archived) / hard-cap 1000 (anti-OOM) / Order-source merge with itemType=hosting skip + case-insensitive name dedup + filter mirroring / pagination math + statusSummary known-status counts only / generic 500 anti-info-leak (never exposes Mongoose/stack) + POST schema validation + duplicate-domain guard + 'INR'/period 1/'pending'/0 defaults |
 
 ### 🎯 Currently working on
 
-- **Active slice**: `7g9` — `app/api/admin/pending-domains/route.ts` GET (LIST). Admin pending-domains list view; pins auth gate + query-param schema + filter pagination + sort + DB error fallback.
+- **Active slice**: `7ga` — `app/api/admin/order-management/...` (admin order-list / archive / unarchive flow). Next in the 7g* sequence after 7g9 lands.
 - **Pattern**: read source → mock all dependencies → pin security gates (auth, schema, anti-mass-assignment, idempotency) + error mapping + DB-write side effects + outer catch → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
 
 ### 📋 Backlog (with assigned batch numbers)
