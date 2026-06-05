@@ -12,13 +12,9 @@ Surfaced at the top so the active surface is visible without scrolling through t
 
 ### 🔄 Pending deploy
 
-Live revision: **`dms-00099-9mw`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-04 12:28Z, includes 7g5–7g8 + TASKS.md split)
+Live revision: **`dms-00100-tfj`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-05 07:47Z, includes slice 7g9 — admin pending-domains LIST + POST CREATE)
 
-Committed slices NOT yet in the live revision:
-
-| Slice | Hash | What's pinned |
-|---|---|---|
-| 7g9 | `b4f1155` | Admin pending-domains LIST + POST CREATE route (32 tests) — admin gate / archived-flag fork (skip Order-merge when archived) / hard-cap 1000 (anti-OOM) / Order-source merge with itemType=hosting skip + case-insensitive name dedup + filter mirroring / pagination math + statusSummary known-status counts only / generic 500 anti-info-leak (never exposes Mongoose/stack) + POST schema validation + duplicate-domain guard + 'INR'/period 1/'pending'/0 defaults |
+_(all caught up — no slices pending deploy)_
 
 ### 🎯 Currently working on
 
