@@ -12,7 +12,7 @@ Surfaced at the top so the active surface is visible without scrolling through t
 
 ### 🔄 Pending deploy
 
-Live revision: **`dms-00107-fgm`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-08 12:06Z, includes slices 7gl + 7gm)
+Live revision: **`dms-00108-f9s`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-08, includes slices 7ga–7gm — same code as `dms-00107-fgm`, only an audit-docs flip bumped the revision)
 
 Committed slices NOT yet in the live revision:
 
@@ -20,7 +20,7 @@ _(none — fully caught up)_
 
 ### 🎯 Currently working on
 
-- **Fully caught up through `7gm`** (live at `dms-00107-fgm`). 13 rescan-4 route-handler slices `7ga–7gm` shipped 2026-06-08.
+- **Fully caught up through `7gm`** (live at `dms-00108-f9s`). 13 rescan-4 route-handler slices `7ga–7gm` shipped 2026-06-08.
 - **Pattern**: read source → mock all dependencies → pin security gates (rate-limit, cache contract, fallback paths) + error mapping → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
 
 ### 📋 Backlog (with assigned batch numbers)
