@@ -16,11 +16,13 @@ Live revision: **`dms-00106-fw8`** at https://dms-5itdvlx2va-ew.a.run.app (deplo
 
 Committed slices NOT yet in the live revision:
 
-_(none — fully caught up)_
+| Slice | Hash | What's pinned |
+|---|---|---|
+| 7gl | `pending` | Customer support tickets `/api/user/support` GET + POST (22 tests). **GET (list)**: auth gate FIRST → 401 UNAUTHORIZED; listTicketsForUserSummary scoped on String(user._id) (no cross-user reads); response `{ tickets }`; service throw → 500 SERVER_ERROR. **POST (create)**: auth gate FIRST → 401 (NO rate-limit check); **per-user rate-limit BEFORE body parsing** keyed `support_create:${user._id}` against the supportCreate limiter — over limit → rateLimitResponse with "You've created too many tickets recently" message (NO body parse, NO ticket create, NO email, NO attachment validation); zod schema (subject 1-200 / message 1-5000 / category enum optional / attachments optional); category defaults to 'other' when omitted; **validateAttachments runs BEFORE createSupportTicket** — its failure → 400 VALIDATION_ERROR with its own error message (NO ticket created in DB); createSupportTicket call shape pinned (userId / userEmail / userName trimmed / subject trimmed / category / messages[0] with content trimmed + authorRole 'user' + validated attachments). **Anti-stored-XSS in admin email**: escapeHtml applied to subject + userName + userEmail + message BEFORE HTML interpolation — test injects `<script>`, `<img onerror>`, `<b>` and asserts the raw tags are absent from the rendered HTML, escaped forms present (`&lt;script&gt;`, `&lt;img onerror=alert(1)&gt;`, `&amp;`, `&#39;`); newlines in message become `<br>` AFTER escaping; admin email failure SWALLOWED via `.catch(()=>{})` — ticket create still returns 201 (mailserver outage must not roll back a successful ticket); admin recipient from ADMIN_EMAIL env; ticket number in email subject; admin-panel link includes ticket._id; attachment count surfaced when > 0, section omitted when 0. 201 on success with `{ ticket }`. Outer catch → 500 SERVER_ERROR |
 
 ### 🎯 Currently working on
 
-- **Fully caught up through `7gk`** (live at `dms-00106-fw8`). 11 rescan-4 route-handler slices `7ga–7gk` shipped 2026-06-08.
+- **Next active slice** TBD — `7gl` queued for next deploy.
 - **Pattern**: read source → mock all dependencies → pin security gates (rate-limit, cache contract, fallback paths) + error mapping → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
 
 ### 📋 Backlog (with assigned batch numbers)
@@ -43,7 +45,8 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7gi** — Customer dashboard `/api/user/dashboard` GET (aggregation feed; auth dual-path, IDOR scope, sync cooldown, stats math)~~ ✅ live `dms-00104-7qx`
 - [x] ~~**Batch 7gj** — Subscription create + cancel pair (`/api/payments/create-subscription` + `/api/payments/cancel-subscription`) — IDOR scope + Razorpay error masking~~ ✅ live `dms-00105-8mw`
 - [x] ~~**Batch 7gk** — Customer DNS-management list `/api/user/domains/dns` GET (registered-only filter + cross-order dedupe + IDOR scope)~~ ✅ live `dms-00106-fw8`
-- [ ] **Batch 7gl** — More untested route handlers (sweep continues: support / domains-watch-runner / other payment routes)
+- [x] ~~**Batch 7gl** — Customer support tickets `/api/user/support` GET + POST (rate-limit + anti-XSS admin email + attachment validation order)~~ ✅ committed `pending`, queued for deploy
+- [ ] **Batch 7gm** — More untested route handlers (sweep continues: domains-watch-runner / invoices / other payment routes)
 
 #### 🔄 M14 component-test remainders
 
