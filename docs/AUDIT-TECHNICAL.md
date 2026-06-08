@@ -20,7 +20,7 @@ _(none — fully caught up)_
 
 ### 🎯 Currently working on
 
-- **Next active slice** TBD — `7gj` queued for next deploy.
+- **Fully caught up through `7gj`** (live at `dms-00105-8mw`). 10 rescan-4 route-handler slices `7ga–7gj` shipped 2026-06-08. Next pick from the sweep is `7gk`.
 - **Pattern**: read source → mock all dependencies → pin security gates (rate-limit, cache contract, fallback paths) + error mapping → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
 
 ### 📋 Backlog (with assigned batch numbers)
