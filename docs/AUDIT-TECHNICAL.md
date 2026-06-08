@@ -12,13 +12,11 @@ Surfaced at the top so the active surface is visible without scrolling through t
 
 ### 🔄 Pending deploy
 
-Live revision: **`dms-00103-dmg`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-08 07:10Z, includes slices 7ge + 7gf + 7gg + 7gh)
+Live revision: **`dms-00104-7qx`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-08 07:28Z, includes slice 7gi)
 
 Committed slices NOT yet in the live revision:
 
-| Slice | Hash | What's pinned |
-|---|---|---|
-| 7gi | `pending` | Customer dashboard `/api/user/dashboard` GET (23 tests). Aggregation feed for the customer landing page. **Auth dual-path**: AuthService first; if null, getToken (with explicit cookieName fallback to default); after getToken, getUserById confirms the row exists AND isActive — deactivated account with valid JWT → 401 UNAUTHORIZED_USER_INVALID (NO data fetch). **IDOR**: all 4 list calls (listOrdersForUser / listDomainsForUser / listActivePendingDomainsForUser / listHostingsForUser) scoped by resolved user._id. **Stats**: totalDomains = registered + pending; activeDomains = status==='registered' count; pendingDomains = pending collection length only; totalOrders = full count (not capped); recentOrders = top 5, shaped {orderId, domains(count), amount, status, date}. **recentDomains**: merged from domains + pending + hostings; 'terminated' filtered out; sorted desc by registeredDate; capped 5. **upcomingRenewals**: strict (0, 30] day window from now; boundary at 30 included, 31 excluded, expired excluded; registered domains + active hostings; sorted asc by daysLeft; capped 5. **activeHostings**: dedup by domainName (first wins); only status==='active'. **Background sync** (5-min cooldown): any hosting older than 5min OR no lastSyncedAt → createHttpTask enqueued + touchHostingsLastSyncedForUser stamped; fresh-all → no task; zero hostings → no task; createHttpTask throw SWALLOWED (dashboard renders). **serviceStatus**: hasDomains / hasHosting boolean flags. **Outer catch**: 500 DASHBOARD_LOAD_FAILED |
+_(none — fully caught up)_
 
 ### 🎯 Currently working on
 
