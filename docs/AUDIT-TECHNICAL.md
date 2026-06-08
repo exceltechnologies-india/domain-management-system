@@ -20,10 +20,12 @@ Committed slices NOT yet in the live revision:
 |---|---|---|
 | 7ge | `pending` | Customer nameserver-change `/api/user/domains/nameservers` POST (17 tests). Auth dual-path (AuthService first, then next-auth JWT fallback so JWT-only mobile clients still work) / zod body validation (domain regex, method enum default\|custom, nameserver regex, ≥2 NS for custom) / **IDOR guard** via `findOrderByDomainForUser(user._id, domainName)` with intentionally ambiguous 404 'Domain not found or unauthorized' (anti-enumeration) / order found but findOrderDomain returns null → 404 'Domain not found in order' / missing resellerClubOrderId → 400 / default method calls setDefaultNameservers; custom calls setCustomNameservers with lowercased+trimmed NS list (schema normalises) / RC failure (status !== 'success') surfaces RC message to client (so user sees real reason); falls back to generic 'Failed to update nameservers' / outer catch 500 generic (no SDK internals leaked) |
 | 7gf | `pending` | Public contact form `/api/contact` POST (18 tests). Public endpoint, no auth — multi-layer defense. zod body validation FIRST (5 required fields, trim+min+max bounds) / **client-IP discovery chain**: x-forwarded-for first value (comma-split[0]) → x-real-ip → 'unknown' fallback; IP passed to RecaptchaServer.verifyToken for risk scoring / **reCAPTCHA gate** (failure → 403, NO email, NO validator chain) / InputValidator chain (validateName / validateEmail / validateMessage×2) — any field error → 400 with ALL errors joined by ', ' (so client surfaces all four at once) / admin notification gets the SANITIZED fields (not raw input) — if EmailService.sendAdminNotification returns false, route 500s with 'Failed to send message' (do NOT 200 when admin silently drops the lead) / **user-confirmation email**: InputValidator.sanitizeHtml applied to name / subject / message BEFORE HTML interpolation (anti-XSS in user inbox) / pinned that confirmation-mail throw lands in outer catch as 500 (explicit policy — if behavior changes to best-effort, this test fails and forces review) / outer catch → 500 generic 'Internal server error' (no stack leak) |
+| 7gg | `pending` | Customer domain-watch `/api/user/domains/watch` GET + POST + DELETE (20 tests). All three operations: auth gate FIRST → 401 UNAUTHORIZED; user._id scoped queries (no cross-user reads/writes). **GET**: listWatchesForUser(String(user._id)) → `{ watches }`; service throw → 500 SERVER_ERROR. **POST**: zod schema (trim+lowercase, 3-253 chars); per-user cap of 20 (count >= 20 → 400 WATCH_LIMIT_EXCEEDED, upsert NOT called); upsertUserWatch with normalised domain → 201 `{ watch }`; **E11000 race**: duplicate-key from the unique index → 409 ALREADY_WATCHING (race-safe — index is source of truth, count is advisory); non-E11000 throw → 500. **DELETE**: ?domain trimmed+lowercased; missing/whitespace-only → 400 MISSING_DOMAIN; removeUserWatch(user._id, domain) — falsy return → 404 NOT_FOUND (this IS the IDOR check; non-owner sees 404, not silent 200); throw → 500 |
 
 ### 🎯 Currently working on
 
-- **Next active slice** TBD — `7ge` + `7gf` queued for next deploy.
+- **Active slice**: `7gh` — `app/api/webhooks/razorpay/route.ts` POST. Payment webhook security: 5-layer defense (HMAC signature, 24h max-age replay window, Redis nonce dedup, MongoDB processed-flag backstop in handler, always-200 once verified).
+- **Previous slices** `7ge` + `7gf` + `7gg` queued for next deploy.
 - **Pattern**: read source → mock all dependencies → pin security gates (rate-limit, cache contract, fallback paths) + error mapping → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
 
 ### 📋 Backlog (with assigned batch numbers)
@@ -41,7 +43,9 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7gd** — Email-change flow (POST request + GET confirm) — account-takeover surface~~ ✅ committed `pending`, queued for deploy
 - [x] ~~**Batch 7ge** — Customer nameserver-change `/api/user/domains/nameservers` POST (authz / IDOR guard)~~ ✅ committed `pending`, queued for deploy
 - [x] ~~**Batch 7gf** — Public contact form `/api/contact` POST (reCAPTCHA + anti-XSS sanitization)~~ ✅ committed `pending`, queued for deploy
-- [ ] **Batch 7gg** — More untested route handlers (sweep continues: payments / webhooks / dashboard / domains-watch / domains-dns)
+- [x] ~~**Batch 7gg** — Customer domain-watch `/api/user/domains/watch` (GET+POST+DELETE)~~ ✅ committed `pending`, queued for deploy
+- [ ] **Batch 7gh** — Razorpay webhook `/api/webhooks/razorpay` POST — 5-layer defense (HMAC + replay window + Redis nonce)
+- [ ] **Batch 7gi** — More untested route handlers (sweep continues: dashboard / domains-dns / payments / support)
 
 #### 🔄 M14 component-test remainders
 

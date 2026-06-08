@@ -8,6 +8,7 @@
 
 ## Recently Shipped — user-visible improvements
 
+- [x] **Customer domain-watch list (add / list / remove)** — added automated safety checks: per-customer cap (20 domains) to prevent abuse; duplicate-add attempts return a clean "already watching" message instead of a crash; one customer can't see or remove another customer's watches (queued for next deploy)
 - [x] **Public contact form** — added automated safety checks: bots are filtered by reCAPTCHA before any email is sent; user-supplied HTML is stripped before being rendered into the admin email and the user's confirmation email (anti-XSS); validation errors are surfaced cleanly to the user (queued for next deploy)
 - [x] **Customer nameserver-change endpoint** — added automated safety checks so customers can't change nameservers for domains they don't own, and malformed nameservers are rejected before being sent to the registrar (queued for next deploy)
 - [x] **Email-change flow (request + confirm)** — added automated safety checks: password is re-verified before a change is started; social-login accounts (e.g. Google) can't bypass that check; the confirmation link expires after 1 hour, signs the user out on every device, and is safe against email-enumeration probes (deploy `dms-00102-7q5` live)
