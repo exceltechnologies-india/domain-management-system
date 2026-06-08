@@ -12,18 +12,17 @@ Surfaced at the top so the active surface is visible without scrolling through t
 
 ### 🔄 Pending deploy
 
-Live revision: **`dms-00100-tfj`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-05 07:47Z, includes slice 7g9)
+Live revision: **`dms-00101-xr2`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-08 05:26Z, includes slices 7ga + 7gb)
 
 Committed slices NOT yet in the live revision:
 
 | Slice | Hash | What's pinned |
 |---|---|---|
-| 7ga | `pending` | Admin orders LIST + DELETE + PATCH route (17 tests) — admin gate / archived-flag fork / page+per_page parsing / soft-vs-permanent DELETE via ?permanent=true literal / unarchive PATCH / 404 on not-found / 500 on service throw |
-| 7gb | `pending` | Public TLD pricing `/api/domains/pricing` GET (19 tests) — rate-limit FIRST (30/min) / `?tlds=X,Y` live bypass with trim / settings-driven cache toggle (`tld_pricing_cache_enabled` + `tld_pricing_cache_ttl`) / settings + connectToDatabase throw SWALLOWED (default enabled=true) / cache HIT returns customerPricing+resellerPricing+timestamp / cache MISS populates raw cache only when both pricings present (anti-cache-pollution) / timestamp fallback to `new Date().toISOString()` / cacheEnabled=false skips both getRaw + setRaw / 500 with error.message echoed verbatim for ops triage |
+| 7gc | `pending` | Customer hosting stats `/api/user/hosting/stats` GET (34 tests) — auth gate (401) / per-user rate-limit keyed `stats:${user._id}` (limit 100) / fast-path on linked daUsername (skips email scan) / email-discovery fallback only when no linked username AND user has email / **MAX_SCAN=200 anti-fan-out cap** (>200 → scan skipped + warn) / per-user getUserConfig error in scan swallowed (best-effort discovery) / per-account detail-fetch failure isolated (null → filtered) / status 3-term contract (active/pending/suspended) with billing-override on past-expiry / 3-tier hosting-record match (exact daUsername > active > first) / local 'terminated'/'suspended' overrides DA 'active' ONLY when daUsername matches (anti-leak guard) / nameservers from DNS NS records (deduped, filter self-domain) with default fallback / PHP resolution chain (php_version → php1_select → serverInfo.php → 'Default') / 'unlimited' → 'Unlimited' case-insensitive / DB sync + HostingPlan failures swallowed / error mapping: status:503 / code:DA_SERVER_DOWN / ECONNREFUSED / ETIMEDOUT / 'status code 503'/'502' → 503; else 500 STATS_FETCH_FAILED |
 
 ### 🎯 Currently working on
 
-- **Next active slice** TBD — `7ga` + `7gb` queued for deploy together.
+- **Next active slice** TBD — `7gc` queued for next deploy.
 - **Pattern**: read source → mock all dependencies → pin security gates (rate-limit, cache contract, fallback paths) + error mapping → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
 
 ### 📋 Backlog (with assigned batch numbers)
@@ -37,7 +36,7 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [ ] **Batch 7g9** — `/api/admin/pending-domains` GET (LIST) — 324 lines
 - [x] ~~**Batch 7ga** — `/api/admin/order-management` route — large admin surface~~ ✅ committed `f2d6416`, queued for deploy
 - [x] ~~**Batch 7gb** — `/api/domains/pricing` route (customer-facing, RC cache + per-TLD live bypass)~~ ✅ committed `pending`, queued for deploy
-- [ ] **Batch 7gc** — `/api/user/hosting/stats` route — 365 lines, user-facing mirror of 7g6
+- [x] ~~**Batch 7gc** — `/api/user/hosting/stats` route — 365 lines, user-facing mirror of 7g6~~ ✅ committed `pending`, queued for deploy
 - [ ] **Batch 7gd** — Other untested route handlers as discovered (sweep)
 
 #### 🔄 M14 component-test remainders
