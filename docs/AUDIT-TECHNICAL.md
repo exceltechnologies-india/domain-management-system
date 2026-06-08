@@ -12,17 +12,15 @@ Surfaced at the top so the active surface is visible without scrolling through t
 
 ### 🔄 Pending deploy
 
-Live revision: **`dms-00105-8mw`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-08 10:40Z, includes slice 7gj)
+Live revision: **`dms-00106-fw8`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-08 11:16Z, includes slice 7gk)
 
 Committed slices NOT yet in the live revision:
 
-| Slice | Hash | What's pinned |
-|---|---|---|
-| 7gk | `pending` | Customer DNS-management list `/api/user/domains/dns` GET (20 tests). Auth gate FIRST → 401 (NO order/domain queries). **IDOR**: both list calls scoped on String(user._id); listOrdersForUser called with `limit: 0` (DNS view flattens domains across every order — default 50-row cap would silently hide some). **Registered-only filter**: tested across pending/processing/failed/cancelled/registering/expired — ALL skipped; only 'registered' passes through. (Mid-purchase domains have no DNS yet; failed/cancelled ones must not appear as editable.) **Cross-order dedupe by domainName**: same domain on multiple orders → ONE row (registered-status wins over earlier non-registered). **Domain.id resolution**: from listDomainsForUser map by domainName (string-converted); fallback to `${order._id}_${domainName}` when Domain row missing — fallback path explicitly pinned so a future refactor that drops it fails this test. **Date formatting**: registrationDate from order.createdAt.toISOString().split('T')[0] (YYYY-MM-DD), expiryDate same when set else null. **Field defaults**: dnsActivated → false, dnsProvider → 'resellerclub' (when undefined). **Response shape**: `{ success, domains, total }`. **Outer catch**: 500 'Internal server error' (no internals leaked) |
+_(none — fully caught up)_
 
 ### 🎯 Currently working on
 
-- **Next active slice** TBD — `7gk` queued for next deploy.
+- **Fully caught up through `7gk`** (live at `dms-00106-fw8`). 11 rescan-4 route-handler slices `7ga–7gk` shipped 2026-06-08.
 - **Pattern**: read source → mock all dependencies → pin security gates (rate-limit, cache contract, fallback paths) + error mapping → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
 
 ### 📋 Backlog (with assigned batch numbers)
@@ -44,7 +42,7 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7gh** — Razorpay webhook `/api/webhooks/razorpay` POST — 5-layer defense (HMAC + replay window + Redis nonce)~~ ✅ live `dms-00103-dmg`
 - [x] ~~**Batch 7gi** — Customer dashboard `/api/user/dashboard` GET (aggregation feed; auth dual-path, IDOR scope, sync cooldown, stats math)~~ ✅ live `dms-00104-7qx`
 - [x] ~~**Batch 7gj** — Subscription create + cancel pair (`/api/payments/create-subscription` + `/api/payments/cancel-subscription`) — IDOR scope + Razorpay error masking~~ ✅ live `dms-00105-8mw`
-- [x] ~~**Batch 7gk** — Customer DNS-management list `/api/user/domains/dns` GET (registered-only filter + cross-order dedupe + IDOR scope)~~ ✅ committed `pending`, queued for deploy
+- [x] ~~**Batch 7gk** — Customer DNS-management list `/api/user/domains/dns` GET (registered-only filter + cross-order dedupe + IDOR scope)~~ ✅ live `dms-00106-fw8`
 - [ ] **Batch 7gl** — More untested route handlers (sweep continues: support / domains-watch-runner / other payment routes)
 
 #### 🔄 M14 component-test remainders
