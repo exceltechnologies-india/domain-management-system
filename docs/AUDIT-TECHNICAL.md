@@ -12,18 +12,15 @@ Surfaced at the top so the active surface is visible without scrolling through t
 
 ### 🔄 Pending deploy
 
-Live revision: **`dms-00106-fw8`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-08 11:16Z, includes slice 7gk)
+Live revision: **`dms-00107-fgm`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-08 12:06Z, includes slices 7gl + 7gm)
 
 Committed slices NOT yet in the live revision:
 
-| Slice | Hash | What's pinned |
-|---|---|---|
-| 7gl | `pending` | Customer support tickets `/api/user/support` GET + POST (22 tests). **GET (list)**: auth gate FIRST → 401 UNAUTHORIZED; listTicketsForUserSummary scoped on String(user._id) (no cross-user reads); response `{ tickets }`; service throw → 500 SERVER_ERROR. **POST (create)**: auth gate FIRST → 401 (NO rate-limit check); **per-user rate-limit BEFORE body parsing** keyed `support_create:${user._id}` against the supportCreate limiter — over limit → rateLimitResponse with "You've created too many tickets recently" message (NO body parse, NO ticket create, NO email, NO attachment validation); zod schema (subject 1-200 / message 1-5000 / category enum optional / attachments optional); category defaults to 'other' when omitted; **validateAttachments runs BEFORE createSupportTicket** — its failure → 400 VALIDATION_ERROR with its own error message (NO ticket created in DB); createSupportTicket call shape pinned (userId / userEmail / userName trimmed / subject trimmed / category / messages[0] with content trimmed + authorRole 'user' + validated attachments). **Anti-stored-XSS in admin email**: escapeHtml applied to subject + userName + userEmail + message BEFORE HTML interpolation — test injects `<script>`, `<img onerror>`, `<b>` and asserts the raw tags are absent from the rendered HTML, escaped forms present (`&lt;script&gt;`, `&lt;img onerror=alert(1)&gt;`, `&amp;`, `&#39;`); newlines in message become `<br>` AFTER escaping; admin email failure SWALLOWED via `.catch(()=>{})` — ticket create still returns 201 (mailserver outage must not roll back a successful ticket); admin recipient from ADMIN_EMAIL env; ticket number in email subject; admin-panel link includes ticket._id; attachment count surfaced when > 0, section omitted when 0. 201 on success with `{ ticket }`. Outer catch → 500 SERVER_ERROR |
-| 7gm | `pending` | Public status endpoints — 4-route bundle (28 tests across 4 files). **`/api/health` GET (3 tests)**: 200 with `{ status:'ok', timestamp:<ISO> }`; no auth, no DB, no upstream deps (test runs without any mock setup; if handler reached DB it would crash — pins the fast-probe contract for Cloud Run liveness/readiness). **`/api/public/maintenance-status` GET (7 tests)**: setting null → default-off shape; active mode passes through (enabled+message+scheduledEnd preserved when future); undefined message → '' (anti-null-check on FE); **auto-expire** when scheduledEnd <= now (upsertSetting flips to false, response also false); **fail-open** on connectToDatabase OR getSettingValue throw → returns enabled:false (anti-lockout — a DB blip must NOT lock the entire site behind a maintenance banner). **`/api/settings/captcha-status` GET (6 tests)**: getSetting called with `('captcha_enabled', true)` — **default arg pinned as TRUE**; lenient parsing (boolean true / string 'true' both → enabled:true); boolean false / string 'false' / 'yes' → enabled:false; **fail-CLOSED on throw → enabled:true** (anti-bypass; captcha must NOT silently turn off when settings break). **`/api/auth/check-account-status` POST (10 tests)**: zod email; bad email → 400 NO DB lookup; email lowercased before lookup (whitespace REJECTED by `.email()` before `.trim()` — pinned because Zod transforms run AFTER refinements, so a future schema reorder fails this test); not-found → `{exists:false, isActive:false}` only (NO role exposed); found → `{exists, isActive, isDeactivated, role}` — **admin role IS exposed** (pinned with explicit warning that this is intentional enumeration, used by login UI for role-aware redirect); both responses are status 200 (FE branches on JSON not status); throw → 500 'Internal server error' no stack leak |
+_(none — fully caught up)_
 
 ### 🎯 Currently working on
 
-- **Next active slice** TBD — `7gl` + `7gm` queued for next deploy.
+- **Fully caught up through `7gm`** (live at `dms-00107-fgm`). 13 rescan-4 route-handler slices `7ga–7gm` shipped 2026-06-08.
 - **Pattern**: read source → mock all dependencies → pin security gates (rate-limit, cache contract, fallback paths) + error mapping → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
 
 ### 📋 Backlog (with assigned batch numbers)
@@ -46,8 +43,8 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7gi** — Customer dashboard `/api/user/dashboard` GET (aggregation feed; auth dual-path, IDOR scope, sync cooldown, stats math)~~ ✅ live `dms-00104-7qx`
 - [x] ~~**Batch 7gj** — Subscription create + cancel pair (`/api/payments/create-subscription` + `/api/payments/cancel-subscription`) — IDOR scope + Razorpay error masking~~ ✅ live `dms-00105-8mw`
 - [x] ~~**Batch 7gk** — Customer DNS-management list `/api/user/domains/dns` GET (registered-only filter + cross-order dedupe + IDOR scope)~~ ✅ live `dms-00106-fw8`
-- [x] ~~**Batch 7gl** — Customer support tickets `/api/user/support` GET + POST (rate-limit + anti-XSS admin email + attachment validation order)~~ ✅ committed `pending`, queued for deploy
-- [x] ~~**Batch 7gm** — Public status endpoints 4-route bundle: health, maintenance, captcha, account-status (fail-open vs fail-closed + auto-expire + deliberate-enumeration)~~ ✅ committed `pending`, queued for deploy
+- [x] ~~**Batch 7gl** — Customer support tickets `/api/user/support` GET + POST (rate-limit + anti-XSS admin email + attachment validation order)~~ ✅ live `dms-00107-fgm`
+- [x] ~~**Batch 7gm** — Public status endpoints 4-route bundle: health, maintenance, captcha, account-status (fail-open vs fail-closed + auto-expire + deliberate-enumeration)~~ ✅ live `dms-00107-fgm`
 - [ ] **Batch 7gn** — More untested route handlers (sweep continues: invoices / log / orders / public-hosting-test-plan)
 
 #### 🔄 M14 component-test remainders
