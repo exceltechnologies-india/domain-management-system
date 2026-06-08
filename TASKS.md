@@ -8,6 +8,7 @@
 
 ## Recently Shipped — user-visible improvements
 
+- [x] **Customer dashboard page** — added automated safety checks for the dashboard data feed: one customer can never see another's orders or hosting; a deactivated account holding a still-valid login token can't reach the data; broken background-sync jobs don't blank the dashboard; the upcoming-renewal list only shows real registered items inside a 30-day window (queued for next deploy)
 - [x] **Payment provider webhook (Razorpay)** — added automated safety checks to the webhook endpoint that receives payment-status updates from the provider: only requests cryptographically signed by the provider are accepted; messages older than 24 hours are rejected (anti-replay); duplicate deliveries within a 15-minute window are deduplicated at the cache layer; the database is the long-term safety net (queued for next deploy)
 - [x] **Customer domain-watch list (add / list / remove)** — added automated safety checks: per-customer cap (20 domains) to prevent abuse; duplicate-add attempts return a clean "already watching" message instead of a crash; one customer can't see or remove another customer's watches (queued for next deploy)
 - [x] **Public contact form** — added automated safety checks: bots are filtered by reCAPTCHA before any email is sent; user-supplied HTML is stripped before being rendered into the admin email and the user's confirmation email (anti-XSS); validation errors are surfaced cleanly to the user (queued for next deploy)
