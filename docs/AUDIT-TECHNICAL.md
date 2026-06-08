@@ -12,13 +12,11 @@ Surfaced at the top so the active surface is visible without scrolling through t
 
 ### 🔄 Pending deploy
 
-Live revision: **`dms-00104-7qx`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-08 07:28Z, includes slice 7gi)
+Live revision: **`dms-00105-8mw`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-08 10:40Z, includes slice 7gj)
 
 Committed slices NOT yet in the live revision:
 
-| Slice | Hash | What's pinned |
-|---|---|---|
-| 7gj | `pending` | Subscription lifecycle pair (20 tests across 2 files). **Create** (`/api/payments/create-subscription` POST, 10 tests): auth gate FIRST → 401 (NO Razorpay call — subscriptions cost $$); zod (planId req / interval enum optional / domainName trim 3-253); **createSubscription called with (planId, user.id, domainName) — exact arg order pinned** (regression that swaps args silently misroutes subscriptions); Razorpay throw → 500 with GENERIC message "Failed to create subscription. Please try again or contact support." — NO raw error fragment in client body (test asserts account_id / acc_ strings absent); outer catch → 500 'Internal server error'. **Cancel** (`/api/payments/cancel-subscription` POST, 10 tests): auth → 401; zod hostingId via Schemas.id (ObjectId-shaped); **IDOR guard** via findUserHostingById(hostingId, user.id) — non-owner → 404 'Hosting service not found' (ambiguous anti-enumeration); no-subscription guard (hosting exists but subscriptionId absent → 400, NO Razorpay call); happy path → cancel(hosting.subscriptionId) + hosting.autoRenew=false + hosting.save(), status UNTOUCHED (user keeps service until term ends); success message includes "end of the current term" (correct UX expectation); Razorpay throw → 500 GENERIC (raw sub_ / acc_ strings NOT leaked); **on Razorpay throw, hosting.save() NOT called** (no partial state — autoRenew unchanged); outer catch → 500 'Internal server error' |
+_(none — fully caught up)_
 
 ### 🎯 Currently working on
 
@@ -43,7 +41,7 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7gg** — Customer domain-watch `/api/user/domains/watch` (GET+POST+DELETE)~~ ✅ live `dms-00103-dmg`
 - [x] ~~**Batch 7gh** — Razorpay webhook `/api/webhooks/razorpay` POST — 5-layer defense (HMAC + replay window + Redis nonce)~~ ✅ live `dms-00103-dmg`
 - [x] ~~**Batch 7gi** — Customer dashboard `/api/user/dashboard` GET (aggregation feed; auth dual-path, IDOR scope, sync cooldown, stats math)~~ ✅ live `dms-00104-7qx`
-- [x] ~~**Batch 7gj** — Subscription create + cancel pair (`/api/payments/create-subscription` + `/api/payments/cancel-subscription`) — IDOR scope + Razorpay error masking~~ ✅ committed `pending`, queued for deploy
+- [x] ~~**Batch 7gj** — Subscription create + cancel pair (`/api/payments/create-subscription` + `/api/payments/cancel-subscription`) — IDOR scope + Razorpay error masking~~ ✅ live `dms-00105-8mw`
 - [ ] **Batch 7gk** — More untested route handlers (sweep continues: domains-dns / support / other payment routes)
 
 #### 🔄 M14 component-test remainders
