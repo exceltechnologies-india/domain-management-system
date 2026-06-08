@@ -27,7 +27,6 @@
 - [x] **Profile edits are locked down** so a regular user can't accidentally (or intentionally) promote themselves to admin
 - [x] **Set-password flow works correctly for users who originally signed in with Google** (previously it asked them for a "current password" they never had)
 - [x] **Admin hosting-stats page degrades gracefully when DirectAdmin is slow** — shows cached data instead of a blank page after 5 seconds
-- [x] **Users can no longer change nameservers for domains they don't own**; broken nameservers are rejected before being sent to the registrar
 - [x] **Admin TLD-pricing dashboard** loads faster (cached), and refuses to cache an empty result so a brief upstream outage can't make it look like "no TLDs available"
 - [x] **Admin can mark pending domains as completed / failed / cancelled**, with proper sync back to the customer's order and the registrar
 - [x] **Payment confirmation and renewal-reminder emails** (and WhatsApp messages) verified end-to-end
@@ -35,7 +34,6 @@
 
 ## Backlog
 
-- [ ] **User hosting-stats page** (the user-facing mirror of the admin hosting dashboard) — add automated safety checks
 - [ ] **Split the largest admin pages** (User Management, DNS Management, Hosting, System Settings) into smaller pieces so they're easier to maintain
 - [ ] **Run accessibility checks automatically in the build pipeline** so the site stays usable for screen-reader users
 - [ ] **Tighten one legacy database field** (pending-domain identifier) — needs a one-time data audit before the change
