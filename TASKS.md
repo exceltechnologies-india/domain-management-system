@@ -1,6 +1,6 @@
 # Domain Management Portal — Tasks
 
-**Last updated:** 04 Jun 2026
+**Last updated:** 08 Jun 2026
 
 ## In Flight
 
@@ -8,6 +8,7 @@
 
 ## Recently Shipped — user-visible improvements
 
+- [x] **Public TLD pricing display page** — added automated safety checks so the live pricing API stays fast (cached), and a specific-TLD lookup always gets a fresh price (uncached) (queued for next deploy)
 - [x] **Admin order-management page** — added automated safety checks for the order list, archive, and unarchive flows (queued for next deploy)
 - [x] **Admin pending-domains list page** — added automated safety checks so the page handles invalid filters, big page sizes, and broken inputs without crashing
 - [x] **Reorganized this task tracker** so it reads in plain English for the senior reviewer (technical details moved to `docs/AUDIT-TECHNICAL.md`)
@@ -27,7 +28,6 @@
 
 ## Backlog
 
-- [ ] **Public TLD pricing display page** — add automated safety checks
 - [ ] **User hosting-stats page** (the user-facing mirror of the admin hosting dashboard) — add automated safety checks
 - [ ] **Split the largest admin pages** (User Management, DNS Management, Hosting, System Settings) into smaller pieces so they're easier to maintain
 - [ ] **Run accessibility checks automatically in the build pipeline** so the site stays usable for screen-reader users
