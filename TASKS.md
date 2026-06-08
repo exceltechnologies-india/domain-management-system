@@ -8,6 +8,7 @@
 
 ## Recently Shipped — user-visible improvements
 
+- [x] **Email-change flow (request + confirm)** — added automated safety checks: password is re-verified before a change is started; social-login accounts (e.g. Google) can't bypass that check; the confirmation link expires after 1 hour, signs the user out on every device, and is safe against email-enumeration probes (queued for next deploy)
 - [x] **Customer hosting-stats page** — added automated safety checks for the customer-facing hosting dashboard, mirroring the admin version (per-customer rate limit, slow DirectAdmin server handled gracefully) (queued for next deploy)
 - [x] **Public TLD pricing display page** — added automated safety checks so the live pricing API stays fast (cached), and a specific-TLD lookup always gets a fresh price (uncached) (deploy `dms-00101-xr2` live)
 - [x] **Admin order-management page** — added automated safety checks for the order list, archive, and unarchive flows (deploy `dms-00101-xr2` live)
