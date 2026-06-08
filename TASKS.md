@@ -4,10 +4,11 @@
 
 ## In Flight
 
-- [ ] **Admin order-management page** — add automated safety checks for the order list, archive, and unarchive flows
+(nothing in flight)
 
 ## Recently Shipped — user-visible improvements
 
+- [x] **Admin order-management page** — added automated safety checks for the order list, archive, and unarchive flows (queued for next deploy)
 - [x] **Admin pending-domains list page** — added automated safety checks so the page handles invalid filters, big page sizes, and broken inputs without crashing
 - [x] **Reorganized this task tracker** so it reads in plain English for the senior reviewer (technical details moved to `docs/AUDIT-TECHNICAL.md`)
 - [x] **Admin can manually provision a hosting account from the dashboard** — safety checks added so a slow hosting server doesn't lock up the form, and failed attempts are queued for retry instead of vanishing

@@ -12,14 +12,17 @@ Surfaced at the top so the active surface is visible without scrolling through t
 
 ### 🔄 Pending deploy
 
-Live revision: **`dms-00100-tfj`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-05 07:47Z, includes slice 7g9 — admin pending-domains LIST + POST CREATE)
+Live revision: **`dms-00100-tfj`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-05 07:47Z, includes slice 7g9)
 
-_(all caught up — no slices pending deploy)_
+Committed slices NOT yet in the live revision:
+
+| Slice | Hash | What's pinned |
+|---|---|---|
+| 7ga | `pending` | Admin orders LIST + DELETE + PATCH route (17 tests) — admin gate / archived-flag fork / page+per_page parsing / soft-vs-permanent DELETE via ?permanent=true literal / unarchive PATCH / 404 on not-found / 500 on service throw |
 
 ### 🎯 Currently working on
 
-- **Active slice**: `7ga` — `app/api/admin/order-management/...` (admin order-list / archive / unarchive flow). Next in the 7g* sequence after 7g9 lands.
-- **Pattern**: read source → mock all dependencies → pin security gates (auth, schema, anti-mass-assignment, idempotency) + error mapping + DB-write side effects + outer catch → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
+(nothing actively in progress — backlog next-up: Public TLD pricing display, User hosting-stats page, etc.)
 
 ### 📋 Backlog (with assigned batch numbers)
 
