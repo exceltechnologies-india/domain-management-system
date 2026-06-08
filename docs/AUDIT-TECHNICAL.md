@@ -12,18 +12,17 @@ Surfaced at the top so the active surface is visible without scrolling through t
 
 ### 🔄 Pending deploy
 
-Live revision: **`dms-00101-xr2`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-08 05:26Z, includes slices 7ga + 7gb)
+Live revision: **`dms-00102-7q5`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-08 06:01Z, includes slices 7gc + 7gd)
 
 Committed slices NOT yet in the live revision:
 
 | Slice | Hash | What's pinned |
 |---|---|---|
-| 7gc | `pending` | Customer hosting stats `/api/user/hosting/stats` GET (34 tests) — auth gate (401) / per-user rate-limit keyed `stats:${user._id}` (limit 100) / fast-path on linked daUsername (skips email scan) / email-discovery fallback only when no linked username AND user has email / **MAX_SCAN=200 anti-fan-out cap** (>200 → scan skipped + warn) / per-user getUserConfig error in scan swallowed (best-effort discovery) / per-account detail-fetch failure isolated (null → filtered) / status 3-term contract (active/pending/suspended) with billing-override on past-expiry / 3-tier hosting-record match (exact daUsername > active > first) / local 'terminated'/'suspended' overrides DA 'active' ONLY when daUsername matches (anti-leak guard) / nameservers from DNS NS records (deduped, filter self-domain) with default fallback / PHP resolution chain (php_version → php1_select → serverInfo.php → 'Default') / 'unlimited' → 'Unlimited' case-insensitive / DB sync + HostingPlan failures swallowed / error mapping: status:503 / code:DA_SERVER_DOWN / ECONNREFUSED / ETIMEDOUT / 'status code 503'/'502' → 503; else 500 STATS_FETCH_FAILED |
-| 7gd | `pending` | Email-change flow `/api/user/settings/change-email` POST + `/api/user/settings/verify-email-change` GET (31 tests across 2 files). **Request half**: auth gate (401 UNAUTHORIZED) / social-login lockout (provider !== 'credentials' → 400 SOCIAL_ACCOUNT) / zod body validation / same-email guard (400 SAME_EMAIL, case-insensitive via lowercase schema) / NO_PASSWORD safeguard when user record missing or password absent / **password re-prompt via comparePassword** (wrong → 401 INVALID_PASSWORD, ATO defence) / **email-enumeration prevention** (existing email → identical generic success message, no token issued, no emails sent) / token: `crypto.randomBytes(32).toString('hex')` raw, SHA-256 hash stored on user / **1hr TTL** / TWO emails (confirmation link to NEW addr + security alert to OLD addr) / generic 500 INTERNAL_ERROR on outer throw. **Confirm half**: token-shape gate FIRST (length !== 64 → invalid redirect, no DB lookup) / token resolved via sha256 hash lookup (raw never stored) / unknown token → invalid redirect / TTL-window race protection (different account claimed pendingEmail → clear pending fields + ?email_change=taken) / atomic swap (email, clear pending, sessionInvalidatedAt set, ONE save() call) / **session invalidation forces re-login with new addr** / old-addr notification failure SWALLOWED (best-effort audit trail) / catastrophic throw → ?email_change=error redirect (never 500 JSON, endpoint is publicly reachable from email links) |
+| 7ge | `pending` | Customer nameserver-change `/api/user/domains/nameservers` POST (17 tests). Auth dual-path (AuthService first, then next-auth JWT fallback so JWT-only mobile clients still work) / zod body validation (domain regex, method enum default\|custom, nameserver regex, ≥2 NS for custom) / **IDOR guard** via `findOrderByDomainForUser(user._id, domainName)` with intentionally ambiguous 404 'Domain not found or unauthorized' (anti-enumeration) / order found but findOrderDomain returns null → 404 'Domain not found in order' / missing resellerClubOrderId → 400 / default method calls setDefaultNameservers; custom calls setCustomNameservers with lowercased+trimmed NS list (schema normalises) / RC failure (status !== 'success') surfaces RC message to client (so user sees real reason); falls back to generic 'Failed to update nameservers' / outer catch 500 generic (no SDK internals leaked) |
 
 ### 🎯 Currently working on
 
-- **Next active slice** TBD — `7gc` + `7gd` queued for next deploy.
+- **Next active slice** TBD — `7ge` queued for next deploy.
 - **Pattern**: read source → mock all dependencies → pin security gates (rate-limit, cache contract, fallback paths) + error mapping → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
 
 ### 📋 Backlog (with assigned batch numbers)
@@ -39,7 +38,8 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7gb** — `/api/domains/pricing` route (customer-facing, RC cache + per-TLD live bypass)~~ ✅ committed `pending`, queued for deploy
 - [x] ~~**Batch 7gc** — `/api/user/hosting/stats` route — 365 lines, user-facing mirror of 7g6~~ ✅ committed `pending`, queued for deploy
 - [x] ~~**Batch 7gd** — Email-change flow (POST request + GET confirm) — account-takeover surface~~ ✅ committed `pending`, queued for deploy
-- [ ] **Batch 7ge** — More untested route handlers (sweep continues: payments / webhooks / domains-nameservers / dashboard / contact)
+- [x] ~~**Batch 7ge** — Customer nameserver-change `/api/user/domains/nameservers` POST (authz / IDOR guard)~~ ✅ committed `pending`, queued for deploy
+- [ ] **Batch 7gf** — More untested route handlers (sweep continues: payments / webhooks / dashboard / contact / domains-watch)
 
 #### 🔄 M14 component-test remainders
 
