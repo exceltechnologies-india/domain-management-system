@@ -16,11 +16,13 @@ Live revision: **`dms-00111-d6x`** at https://dms-5itdvlx2va-ew.a.run.app (deplo
 
 Committed slices NOT yet in the live revision:
 
-_(none — fully caught up)_
+| Slice | Hash | What's pinned |
+|---|---|---|
+| 7gq | `pending` | 3-route bundle (26 tests across 3 files). **`/api/admin/users/no-hosting` GET (4 tests)** — eligible-user picker (legacy route name): admin gate via isAdmin → 403 FORBIDDEN with explicit 'Admin access required'; listEligibleUsersForAdminPicker called with NO args; response shapes each user as `{id, name: '${firstName} ${lastName}', email}` ONLY. **NEGATIVE leak guard**: test injects role / isActive / password / hostingExpiresAt / phone fields on the source rows and asserts none appear in the response JSON. Outer catch → 500 USERS_FETCH_FAILED 'Failed to fetch users' generic. **`/api/public/hosting-test-plan` GET (13 tests)** — public ₹1 test-plan feature flag (high-risk: heavily-discounted offering must not leak by accident): getSettingValue called with `('hosting_test_plan_enabled', false)` — **default arg FALSE, fail-closed**; **strict boolean true gate** — false/undefined/null/string 'true'/number 1 all → `{enabled:false}` with NO plan lookup (only literal `true` enables; pinned because the settings UI often coerces booleans to strings); plan filter pins `{planId:'test_1rs', isActive:true}` so an admin toggling isActive=false immediately disables the public flag; plan not found → `{enabled:false}` fail-closed; happy path flattens `directAdminPackage → serverPackage`, `razorpayPlans.monthly → razorpayPlanMonthly`. **Outer catch SWALLOWS all errors → `{enabled:false}`** (NOT 500 — anti-misconfig-leak); connectDB / getSettingValue / findOne throws all covered. **`/api/admin/invoices` GET (9 tests)** — Zoho Books passthrough: connectDB BEFORE auth (current order pinned); admin gate via getAdminFromRequest → 401; page/per_page parseInt defaults (1/20); **`?page=abc&per_page=xyz` NaN quirk pinned** (paired with 7go support-tickets — same parseInt-without-Number.isFinite hazard, NaN reaches Zoho); ZohoBooksService.getInstance().getAllInvoices(page, perPage); response passes through Zoho's page_context shape verbatim; outer catch → 500 'Failed to fetch invoices' generic (Zoho org-id strings stripped) |
 
 ### 🎯 Currently working on
 
-- **Fully caught up through `7gp`** (live at `dms-00111-d6x`). 16 rescan-4 route-handler slices `7ga–7gp` shipped 2026-06-08 + 2026-06-10 across 10 deploys.
+- **Next active slice** TBD — `7gq` queued for next deploy.
 - **Pattern**: read source → mock all dependencies → pin security gates (rate-limit, cache contract, fallback paths) + error mapping → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
 
 ### 📋 Backlog (with assigned batch numbers)
@@ -48,7 +50,8 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7gn** — Customer order endpoints 3-route bundle: `/api/orders` list + `/api/orders/[id]` + `/api/user/orders/[id]` (auth dual-path + IDOR scope + customer-safe field allow-list)~~ ✅ live `dms-00109-tjv`
 - [x] ~~**Batch 7go** — Admin list endpoints 3-route bundle: `/api/admin/users/deactivated` + `/api/admin/support-tickets` + `/api/admin/hosting/pending` (admin-gate variants + page clamp quirk + error-leak inconsistency pinned)~~ ✅ live `dms-00110-k29`
 - [x] ~~**Batch 7gp** — Client log-forwarder `/api/log` POST + admin IP-status `/api/admin/ip-status` GET (anti-DoS bounds + anti-logging-loop silent fail + connectDB ordering quirk)~~ ✅ live `dms-00111-d6x`
-- [ ] **Batch 7gq** — More untested route handlers (sweep continues: invoices / orders create / public-hosting-test-plan / admin-users-no-hosting)
+- [x] ~~**Batch 7gq** — 3-route bundle: `/api/admin/users/no-hosting` + `/api/public/hosting-test-plan` + `/api/admin/invoices` (PII leak guard + strict-boolean feature flag + NaN-quirk pair)~~ ✅ committed `pending`, queued for deploy
+- [ ] **Batch 7gr** — More untested route handlers (sweep continues: orders create / admin-hosting-pending-id / user-invoices-sync / admin-invoices-pdf)
 
 #### 🔄 M14 component-test remainders
 
