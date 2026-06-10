@@ -16,11 +16,13 @@ Live revision: **`dms-00110-k29`** at https://dms-5itdvlx2va-ew.a.run.app (deplo
 
 Committed slices NOT yet in the live revision:
 
-_(none — fully caught up)_
+| Slice | Hash | What's pinned |
+|---|---|---|
+| 7gp | `pending` | 2-route bundle (22 tests across 2 files). **`/api/log` POST (12 tests)** — public unauthenticated client-log forwarder, threat model = log-flooding + logging-loops: zod size bounds (message ≤ 8000, url ≤ 2000, timestamp ≤ 50) — oversize → 400; level enum whitelist {info,warn,error} optional, default → info; level dispatch pinned (error → serverLogger.error, etc.); log-line interpolation contract `[Client] [<timestamp>] [<url>] <message>` pinned VERBATIM (front-end greps for the [Client] prefix); details passthrough as second arg to logger (raw shape — z.unknown()); details omitted → empty string second arg (NOT undefined); **outer-catch ANTI-LOGGING-LOOP**: serverLogger throw → 500 with `{success:false}` ONLY — no error message, no stack — pinned so a future "add helpful error message" refactor doesn't reintroduce the loop hazard. **`/api/admin/ip-status` GET (10 tests)** — admin IP-whitelist status read: connectDB ordering pinned (runs BEFORE auth gate — current behaviour, called even when gate fails); admin gate via getAdminFromRequest → 401 'Unauthorized' (matches 7g6 / 7go-deactivated style — NOT 403); **no-data response**: getLatestIPCheck null → 200 with stable `{success:false, message, data:null, lastChecked:null, checkedBy:null}` shape (dashboard widget must NOT error on first-run / fresh DB); found-data passthrough with `checkedAt` renamed to `lastChecked`; failed-check passthrough (success:false + error field surfaced); outer catch → 500 generic 'Internal server error' (no leak) |
 
 ### 🎯 Currently working on
 
-- **Fully caught up through `7go`** (live at `dms-00110-k29`). 15 rescan-4 route-handler slices `7ga–7go` shipped.
+- **Next active slice** TBD — `7gp` queued for next deploy.
 - **Pattern**: read source → mock all dependencies → pin security gates (rate-limit, cache contract, fallback paths) + error mapping → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
 
 ### 📋 Backlog (with assigned batch numbers)
@@ -47,7 +49,8 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7gm** — Public status endpoints 4-route bundle: health, maintenance, captcha, account-status (fail-open vs fail-closed + auto-expire + deliberate-enumeration)~~ ✅ live `dms-00107-fgm`
 - [x] ~~**Batch 7gn** — Customer order endpoints 3-route bundle: `/api/orders` list + `/api/orders/[id]` + `/api/user/orders/[id]` (auth dual-path + IDOR scope + customer-safe field allow-list)~~ ✅ live `dms-00109-tjv`
 - [x] ~~**Batch 7go** — Admin list endpoints 3-route bundle: `/api/admin/users/deactivated` + `/api/admin/support-tickets` + `/api/admin/hosting/pending` (admin-gate variants + page clamp quirk + error-leak inconsistency pinned)~~ ✅ live `dms-00110-k29`
-- [ ] **Batch 7gp** — More untested route handlers (sweep continues: invoices / log / orders create / admin-ip-status)
+- [x] ~~**Batch 7gp** — Client log-forwarder `/api/log` POST + admin IP-status `/api/admin/ip-status` GET (anti-DoS bounds + anti-logging-loop silent fail + connectDB ordering quirk)~~ ✅ committed `pending`, queued for deploy
+- [ ] **Batch 7gq** — More untested route handlers (sweep continues: invoices / orders create / public-hosting-test-plan / admin-users-no-hosting)
 
 #### 🔄 M14 component-test remainders
 
