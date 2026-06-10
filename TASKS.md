@@ -1,8 +1,8 @@
 # Domain Management Portal — Tasks
 
-**Last updated:** 10 Jun 2026
+**Last updated:** 10 Jun 2026 09:43Z
 **Currently live in production:** revision `dms-00114-hh6` (deployed 2026-06-10 09:31Z)
-**Most-recent batch:** 20 customer-safety + admin-safety improvements shipped 8–10 Jun via 13 production deploys (every item below tagged with its live revision)
+**Most-recent batch:** 20 customer-safety + admin-safety improvements shipped 8–10 Jun via 13 production deploys (every item below tagged with its live revision; pending-deploy queue is empty)
 
 ## In Flight
 
