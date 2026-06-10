@@ -12,7 +12,7 @@ Surfaced at the top so the active surface is visible without scrolling through t
 
 ### 🔄 Pending deploy
 
-Live revision: **`dms-00113-tkg`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-10 08:06Z, includes slices 7gr + 7gs)
+Live revision: **`dms-00114-hh6`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-10 09:31Z, includes slice 7gt)
 
 Committed slices NOT yet in the live revision:
 
@@ -20,11 +20,7 @@ _(none — fully caught up)_
 
 ### 🎯 Currently working on
 
-- **Next active slice** TBD — `7gt` queued for next deploy.
-
-| Slice | Hash | What's pinned |
-|---|---|---|
-| 7gt | `pending` | Admin invoice-PDF + clear-invoice-number maintenance pair (15 tests across 2 files). **`/api/admin/invoices/[id]/pdf` GET (7 tests)** — admin downloads a customer invoice PDF (binary response, not JSON): **id gate is cheapest, runs FIRST** (empty id → 400 'Invoice ID required' BEFORE connectDB or auth — pinned for the ordering); connectDB BEFORE auth; admin gate via getAdminFromRequest → 401; ZohoBooksService.getInstance().getInvoicePdf(invoiceId); null buffer → 404 'Failed to fetch PDF from Zoho'. **Binary response shape pinned**: Content-Type `application/pdf`, Content-Disposition `attachment; filename="Invoice-${invoiceId}.pdf"` (invoiceId interpolated into filename), body is raw Buffer (test reads arrayBuffer and asserts `%PDF-` magic). Outer catch → 500 'Failed to download invoice' (no leak; test asserts `zoho_oauth_` / `access_token` fragments stripped). **`/api/admin/orders/[id]/clear-invoice-number` POST (8 tests)** — collision-recovery: admin gate via getAdminFromRequest → 401; getOrderByIdOrOrderId called with `{select:'_id orderId invoiceNumber'}` field allow-list pinned (this admin tool must NOT pull payment details / personal data); not found → 404. **Idempotent no-op**: order with no invoiceNumber OR empty-string invoiceNumber → 200 'Order already has no invoiceNumber' WITHOUT calling clearOrderInvoiceNumber (calling on an already-cleared order doesn't error). Happy path: clearOrderInvoiceNumber called with order._id (internal DB id, NOT the route param id which may be the user-facing orderId); response includes previousInvoiceNumber + "the value is now free for another Order to claim" message. **Error-leak pinned**: outer catch Error → 500 with raw err.message (matches 7gr/7go family for the coordinated future-hardening pass); non-Error → 'Action failed' fallback |
+- **Fully caught up through `7gt`** (live at `dms-00114-hh6`). 20 rescan-4 route-handler slices `7ga–7gt` shipped 2026-06-08 + 2026-06-10 across 13 deploys.
 - **Pattern**: read source → mock all dependencies → pin security gates (rate-limit, cache contract, fallback paths) + error mapping → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
 
 ### 📋 Backlog (with assigned batch numbers)
@@ -55,7 +51,7 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7gq** — 3-route bundle: `/api/admin/users/no-hosting` + `/api/public/hosting-test-plan` + `/api/admin/invoices` (PII leak guard + strict-boolean feature flag + NaN-quirk pair)~~ ✅ live `dms-00112-6x7`
 - [x] ~~**Batch 7gr** — Pending-hosting admin actions pair: `/api/admin/hosting/pending/[id]` DELETE + `/api/admin/hosting/pending/[id]/retry` POST (cron-path argshape lock + dropped vs provisioned message branch + error-leak pattern)~~ ✅ live `dms-00113-tkg`
 - [x] ~~**Batch 7gs** — 2-route bundle: `/api/admin/resellerclub/balance` GET + `/api/user/invoices/sync` POST (Prepaid/NoBilling branch + secret-leak guards on RC + Zoho error paths)~~ ✅ live `dms-00113-tkg`
-- [x] ~~**Batch 7gt** — Admin invoice-PDF + clear-invoice-number pair (binary PDF response shape + idempotent no-op contract)~~ ✅ committed `pending`, queued for deploy
+- [x] ~~**Batch 7gt** — Admin invoice-PDF + clear-invoice-number pair (binary PDF response shape + idempotent no-op contract)~~ ✅ live `dms-00114-hh6`
 - [ ] **Batch 7gu** — More untested route handlers (sweep continues: orders create / admin-domains-sync / admin-hosting-change-package / user-hosting-renew-info)
 
 #### 🔄 M14 component-test remainders
