@@ -1,8 +1,8 @@
 # Domain Management Portal — Tasks
 
 **Last updated:** 10 Jun 2026
-**Currently live in production:** revision `dms-00111-d6x` (deployed 2026-06-10 06:25Z)
-**Most-recent batch:** 16 customer-safety + admin-safety improvements shipped 8–10 Jun via 10 production deploys (every item below tagged with its live revision)
+**Currently live in production:** revision `dms-00112-6x7` (deployed 2026-06-10 07:03Z)
+**Most-recent batch:** 17 customer-safety + admin-safety improvements shipped 8–10 Jun via 11 production deploys (every item below tagged with its live revision)
 
 ## In Flight
 
@@ -10,7 +10,7 @@
 
 ## Recently Shipped — user-visible improvements
 
-- [x] **Three more admin / public endpoints (eligible-user picker, ₹1 test-plan feature flag, admin invoices)** — added automated safety checks: non-admin users can't reach the eligible-user picker or admin invoices; the public ₹1 test plan stays disabled until BOTH the feature flag AND the active plan record exist (strict boolean check, fail-closed on any error); the eligible-user picker returns only the customer's name and email (no internal fields like phone, role, or password hash) (queued for next deploy)
+- [x] **Three more admin / public endpoints (eligible-user picker, ₹1 test-plan feature flag, admin invoices)** — added automated safety checks: non-admin users can't reach the eligible-user picker or admin invoices; the public ₹1 test plan stays disabled until BOTH the feature flag AND the active plan record exist (strict boolean check, fail-closed on any error); the eligible-user picker returns only the customer's name and email (no internal fields like phone, role, or password hash) (deploy `dms-00112-6x7` live)
 - [x] **Client log-forwarder + admin IP-whitelist status endpoints** — added automated safety checks: the public log-forwarder caps message / URL / timestamp sizes so it can't be abused as a free log writer; logger failure stays silent (no error body sent back) to prevent client-side logging loops; the admin IP-whitelist status check is admin-only and returns a stable empty-state shape so the dashboard widget doesn't break on first run (deploy `dms-00111-d6x` live)
 - [x] **Three admin list endpoints (deactivated users, support tickets, pending hostings)** — added automated safety checks so non-admin users can't reach any of the three lists; page numbers in the support-tickets list are clamped to a safe minimum; the test pinned one current quirk where a garbled page parameter still leaks through (flagged for a future hardening pass) (deploy `dms-00110-k29` live)
 - [x] **Customer order list + order lookup endpoints** — added automated safety checks for the three customer order endpoints (list all orders, fetch one by ID, customer-safe order detail): one customer can never read another's order (the lookup is keyed on the logged-in customer); the user-facing endpoint applies a field allow-list so internal admin notes and raw payment-provider responses never reach the customer (deploy `dms-00109-tjv` live)
