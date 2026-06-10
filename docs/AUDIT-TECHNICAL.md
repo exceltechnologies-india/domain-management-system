@@ -20,8 +20,11 @@ _(none — fully caught up)_
 
 ### 🎯 Currently working on
 
-- **Fully caught up through `7gy`** (live at `dms-00115-xbl`). 25 rescan-4 route-handler slices `7ga–7gy` shipped 2026-06-08 + 2026-06-10 across 14 deploys.
+- **Next active slice** TBD — `7gz` queued for next deploy.
 
+| Slice | Hash | What's pinned |
+|---|---|---|
+| 7gz | `pending` | Customer-facing pair (30 tests across 2 files). **`/api/auth/me` GET (13 tests)** — "who am I" status endpoint: connectDB BEFORE auth; dual-auth (AuthService primary; getToken+getUserById fallback; deactivated user with valid JWT → 401, NO data); both-empty → 401 'Not authenticated'. **CRITICAL — password field is BOOLEAN not hash**: userHasPassword(user._id) called server-side; the boolean return value lands in response.password. Negative leak guard: test injects a fake `$2a$12$BCRYPT_HASH_LEAK` on the source user object and asserts the hash never appears in the response JSON (just the boolean true). profileCompleted strict-true normalisation (tested across false / undefined / null / number 1 / string 'true' — all → false; only literal `true` → true). **Curated response field set** pinned: id/email/firstName/lastName/role/isActivated/isActive/profileCompleted/provider/password/phone/phoneCc/companyName/address. Test injects totpSecret / hostingExpiresAt / sessionInvalidatedAt / directAdminUsername / pendingEmail and asserts none appear. Outer catch → 500 INTERNAL_ERROR. **`/api/user/invoices/[id]/pdf` GET (17 tests)** — customer downloads own invoice PDF: auth → 401 (NO rate-limit check). **Per-user rate limit** keyed `pdf_invoice:${user._id}` against the pdfInvoice limiter (10/min); over-limit → rateLimitResponse with limit:10 + 'Too many requests' (NO DB lookup, NO Zoho call). **Sentinel-id guard**: ids 'pending_creation' and 'creation_failed' → 404 'Invoice not available'; NO DB lookup, NO Zoho call (these are placeholder Zoho IDs from the creation flow — refusing to even try the lookup saves a Zoho round-trip). **IDOR via findOrderByZohoInvoiceForUser(user._id, id, {select:'_id'})** — MongoDB ownership check BEFORE the Zoho call; minimal `select:'_id'` projection pinned (no order data needed for the gate). Non-owner → **403 'Forbidden: You do not have access to this invoice'** (NOT 404 — distinct from sentinel-id 404 because the invoice DOES exist, the user just doesn't own it; a security-warn log line records the attempt). Zoho null buffer → 500 'Failed to generate PDF'. **Binary PDF with INLINE disposition pinned**: Content-Type application/pdf, Content-Disposition `inline; filename="Invoice-${id}.pdf"` (NOT `attachment` — renders in browser, doesn't force download); body is raw Buffer (test reads arrayBuffer and asserts `%PDF-` magic). Outer catch → 500 'Internal Server Error' generic (Mongo / Zoho fragments stripped) |
 - **Pattern**: read source → mock all dependencies → pin security gates (rate-limit, cache contract, fallback paths) + error mapping → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
 
 ### 📋 Backlog (with assigned batch numbers)
@@ -58,7 +61,8 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7gw** — Cron-hosting-expiry + admin-log-error (dual/triple auth + per-item failure isolation + anti-recursive-log-storm console-on-fail)~~ ✅ live `dms-00115-xbl`
 - [x] ~~**Batch 7gx** — Admin reset-password (step-up re-auth + bcrypt) + admin domains-sync (single-vs-batch + 100-cap + 500ms anti-rate-limit pause)~~ ✅ live `dms-00115-xbl`
 - [x] ~~**Batch 7gy** — TOTP setup (GET status + POST enrollment) + user hosting auto-renew PATCH (already-enabled guard + pending-secret pattern + active-only precondition)~~ ✅ live `dms-00115-xbl`
-- [ ] **Batch 7gz** — More untested route handlers (sweep continues: orders create / admin-domains-nameservers / auth-resend-activation / auth-me / user-invoices-pdf)
+- [x] ~~**Batch 7gz** — Auth-me (boolean has-password, no hash leak) + user-invoice-PDF (10/min rate, sentinel-id guard, MongoDB-before-Zoho IDOR, inline disposition)~~ ✅ committed `pending`, queued for deploy
+- [ ] **Batch 7ha** — More untested route handlers (sweep continues: auth-resend-activation / admin-domains-nameservers / orders create / user-invoices list / user-hosting-cancel-trial)
 
 #### 🔄 M14 component-test remainders
 
