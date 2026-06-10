@@ -20,7 +20,11 @@ _(none — fully caught up)_
 
 ### 🎯 Currently working on
 
-- **Next active slice** TBD — `7gu` queued for next deploy.
+- **Next active slice** TBD — `7gu` + `7gv` queued for next deploy.
+
+| Slice | Hash | What's pinned |
+|---|---|---|
+| 7gv | `pending` | Admin user-management pair (20 tests across 2 files). **`/api/admin/users/reset-2fa` POST (10 tests)** — admin disables 2FA for a non-admin user: admin gate via getAdminFromRequest → 401; zod userId min:1; **two-step lookup ordering pinned** (findUserRoleById runs FIRST — cheap role projection; getUserById runs only after the admin-protection guard passes; a refactor that collapses to one query fails the call-order test); user not found → 404. **CRITICAL: admin-protection guard** — target role === 'admin' → 403 'Cannot modify admin accounts via this endpoint' (closes privilege-downgrade vector where one admin wipes another's 2FA via a customer-service flow); only role === 'user' proceeds past the guard. totpEnabled precondition (target.totpEnabled falsy → 400 'does not have 2FA enabled'; resetUser2FA NOT called); getUserById null also hits the same branch via optional chain; happy path → resetUser2FA(userId) + 200 with firstName+lastName in message. Outer catch → 500 SERVER_ERROR generic. **`/api/admin/users/reactivate` POST (10 tests)** — admin reactivates a deactivated user: admin gate → 401; zod via Schemas.id (ObjectId-shaped); user not found → 404. **isDeleted precondition pinned**: target.isDeleted FALSY OR undefined → 400 'User is not deactivated' with NO reactivateUser call (prevents misleading audit-log entries). Race-window guard: reactivateUser returns null after precheck passed → 404 (user deleted between findById and reactivate). **Response curation**: returns `{id, email, firstName, lastName, isActive}` ONLY. Test injects password / hostingExpiresAt / sessionInvalidatedAt / totpSecret / role / directAdminUsername on the source record and asserts none appear in response JSON (secret-leak guard on the most sensitive admin endpoint). Outer catch → 500 'Failed to reactivate user' generic |
 
 | Slice | Hash | What's pinned |
 |---|---|---|
@@ -57,7 +61,8 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7gs** — 2-route bundle: `/api/admin/resellerclub/balance` GET + `/api/user/invoices/sync` POST (Prepaid/NoBilling branch + secret-leak guards on RC + Zoho error paths)~~ ✅ live `dms-00113-tkg`
 - [x] ~~**Batch 7gt** — Admin invoice-PDF + clear-invoice-number pair (binary PDF response shape + idempotent no-op contract)~~ ✅ live `dms-00114-hh6`
 - [x] ~~**Batch 7gu** — Admin change-package + customer renew-info (DA typed-outcome 5-branch dispatch + 1-year-only renewal pricing rule + response-curation leak guard)~~ ✅ committed `pending`, queued for deploy
-- [ ] **Batch 7gv** — More untested route handlers (sweep continues: orders create / admin-domains-sync / cron-check-hosting-expiry / admin-log-error)
+- [x] ~~**Batch 7gv** — Admin user-management pair: `/api/admin/users/reset-2fa` POST + `/api/admin/users/reactivate` POST (admin-protection guard + isDeleted precondition + TOTP-secret leak guard)~~ ✅ committed `pending`, queued for deploy
+- [ ] **Batch 7gw** — More untested route handlers (sweep continues: orders create / admin-domains-sync / cron-check-hosting-expiry / admin-log-error)
 
 #### 🔄 M14 component-test remainders
 
