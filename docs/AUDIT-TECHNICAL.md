@@ -20,7 +20,11 @@ _(none — fully caught up)_
 
 ### 🎯 Currently working on
 
-- **Next active slice** TBD — `7gz` queued for next deploy.
+- **Next active slice** TBD — `7gz` + `7ha` queued for next deploy.
+
+| Slice | Hash | What's pinned |
+|---|---|---|
+| 7ha | `pending` | Public anti-spam + admin nameserver pair (23 tests across 2 files). **`/api/auth/resend-activation` POST (10 tests)** — public unauthenticated: **rate-limit BEFORE body parsing** via resendActivation limiter (3/IP); over-limit → rateLimitResponse with limit:3 (NO body parse, NO DB lookup, NO email send); zod email schema; **anti-enumeration**: `getUserByEmail null` OR `user.isActivated === true` BOTH → SAME generic 'If that email has a pending activation, we've resent the link.' (indistinguishable from happy path); happy path: 32-byte hex token (`crypto.randomBytes(32).toString('hex')`) + 24h expiry, user.save(), sendActivationEmail(email, fullName, token); same generic message on success; sendActivationEmail returning false → 500 'Failed to send activation email' (only path that distinguishes from generic — but only reachable after the email-existence check has passed, so no enumeration leak); outer catch → 500 'Internal server error' generic. **`/api/admin/domains/nameservers` POST (13 tests)** — admin-scoped variant of 7ge customer nameserver-change: admin gate via getAdminFromRequest → **403 'Admin access required'** (NOT 401 — pinned distinct from 7ge customer variant); same zod schema (domain regex + method enum + ≥2 NS for custom + lowercased+trimmed via schema). **Order lookup uses findOrderByDomain (NOT findOrderByDomainForUser)** — admin reaches any customer's domain; pinned to catch a regression that locks admins back into user scope. Not found → 404 'Domain not found' (distinct from 7ge's intentionally-ambiguous 'Domain not found or unauthorized' — admin wants the unambiguous signal). findOrderDomain null → 404 'Domain not found in order' (defensive). Missing resellerClubOrderId → 400 'does not have a ResellerClub Order ID'. Default method calls setDefaultNameservers; custom calls setCustomNameservers with lowercased+trimmed NS list. RC failure status !== 'success' → 500 with `RC.message` surfaced (admin debugging); fallback 'Failed to update nameservers' when RC returns no message. Outer catch → 500 generic |
 
 | Slice | Hash | What's pinned |
 |---|---|---|
@@ -62,7 +66,8 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7gx** — Admin reset-password (step-up re-auth + bcrypt) + admin domains-sync (single-vs-batch + 100-cap + 500ms anti-rate-limit pause)~~ ✅ live `dms-00115-xbl`
 - [x] ~~**Batch 7gy** — TOTP setup (GET status + POST enrollment) + user hosting auto-renew PATCH (already-enabled guard + pending-secret pattern + active-only precondition)~~ ✅ live `dms-00115-xbl`
 - [x] ~~**Batch 7gz** — Auth-me (boolean has-password, no hash leak) + user-invoice-PDF (10/min rate, sentinel-id guard, MongoDB-before-Zoho IDOR, inline disposition)~~ ✅ committed `pending`, queued for deploy
-- [ ] **Batch 7ha** — More untested route handlers (sweep continues: auth-resend-activation / admin-domains-nameservers / orders create / user-invoices list / user-hosting-cancel-trial)
+- [x] ~~**Batch 7ha** — Public resend-activation (rate-limit-first + anti-enumeration) + admin nameserver-change (admin-scope variant of 7ge)~~ ✅ committed `pending`, queued for deploy
+- [ ] **Batch 7hb** — More untested route handlers (sweep continues: orders create / user-invoices list / user-hosting-cancel-trial / auth-totp-confirm / auth-totp-disable)
 
 #### 🔄 M14 component-test remainders
 
