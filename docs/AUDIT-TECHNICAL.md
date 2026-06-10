@@ -12,17 +12,15 @@ Surfaced at the top so the active surface is visible without scrolling through t
 
 ### 🔄 Pending deploy
 
-Live revision: **`dms-00108-f9s`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-08, includes slices 7ga–7gm — same code as `dms-00107-fgm`, only an audit-docs flip bumped the revision)
+Live revision: **`dms-00109-tjv`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-10 05:11Z, includes slice 7gn)
 
 Committed slices NOT yet in the live revision:
 
-| Slice | Hash | What's pinned |
-|---|---|---|
-| 7gn | `pending` | Customer order endpoints — 3-route bundle (21 tests across 3 files). **`/api/orders` GET (list, 7 tests)**: auth dual-path (AuthService → getToken w/ AUTH_SECRET → getUserById + isActive check; deactivated account with valid JWT → 401, NO data fetch); listOrdersForUser called with `(String(user._id), { limit: 50 })`; response `{ success:true, orders }`; service throw → 500 'Failed to fetch orders' (no leak). **`/api/orders/[id]` GET (6 tests)**: auth gate FIRST → 401 NO order lookup; **IDOR** via findUserOrder(id, String(user._id \|\| user.id)) — second arg is the resolved auth user (legacy user.id shape supported); not-found / non-owner → 404 'Order not found' (ambiguous); 200 with `{ success:true, order }`; throw → 500 'Failed to fetch order'. **`/api/user/orders/[id]` GET (8 tests)**: auth → 401 UNAUTHORIZED via secureErrorResponse; missing id → 400 MISSING_ID (defensive); **field-selection allow-list pinned VERBATIM** — findUserOrder called with `{ select: '<customer-safe-fields>' }` (orderId, purchaseOrderNumber, amount, currency, status, orderType, domains, successfulDomains, invoiceNumber, zohoInvoiceId, createdAt, updatedAt, paymentVerification). **Sanity guard**: test asserts the select string does NOT contain any of adminNotes / internalNotes / refundAuditLog / internalReason / rawRazorpayResponse / rawZohoResponse / razorpayKeyId — a future refactor that adds an admin field to the select string fails this test before merge. IDOR: not-found → 404 NOT_FOUND; throw → 500 SERVER_ERROR |
+_(none — fully caught up)_
 
 ### 🎯 Currently working on
 
-- **Next active slice** TBD — `7gn` queued for next deploy.
+- **Fully caught up through `7gn`** (live at `dms-00109-tjv`). 14 rescan-4 route-handler slices `7ga–7gn` shipped.
 - **Pattern**: read source → mock all dependencies → pin security gates (rate-limit, cache contract, fallback paths) + error mapping → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
 
 ### 📋 Backlog (with assigned batch numbers)
@@ -47,7 +45,7 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7gk** — Customer DNS-management list `/api/user/domains/dns` GET (registered-only filter + cross-order dedupe + IDOR scope)~~ ✅ live `dms-00106-fw8`
 - [x] ~~**Batch 7gl** — Customer support tickets `/api/user/support` GET + POST (rate-limit + anti-XSS admin email + attachment validation order)~~ ✅ live `dms-00107-fgm`
 - [x] ~~**Batch 7gm** — Public status endpoints 4-route bundle: health, maintenance, captcha, account-status (fail-open vs fail-closed + auto-expire + deliberate-enumeration)~~ ✅ live `dms-00107-fgm`
-- [x] ~~**Batch 7gn** — Customer order endpoints 3-route bundle: `/api/orders` list + `/api/orders/[id]` + `/api/user/orders/[id]` (auth dual-path + IDOR scope + customer-safe field allow-list)~~ ✅ committed `pending`, queued for deploy
+- [x] ~~**Batch 7gn** — Customer order endpoints 3-route bundle: `/api/orders` list + `/api/orders/[id]` + `/api/user/orders/[id]` (auth dual-path + IDOR scope + customer-safe field allow-list)~~ ✅ live `dms-00109-tjv`
 - [ ] **Batch 7go** — More untested route handlers (sweep continues: invoices / log / admin-deactivated-users / admin-support-tickets)
 
 #### 🔄 M14 component-test remainders
