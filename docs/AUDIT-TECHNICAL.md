@@ -20,7 +20,11 @@ _(none — fully caught up)_
 
 ### 🎯 Currently working on
 
-- **Fully caught up through `7gt`** (live at `dms-00114-hh6`). 20 rescan-4 route-handler slices `7ga–7gt` shipped 2026-06-08 + 2026-06-10 across 13 deploys.
+- **Next active slice** TBD — `7gu` queued for next deploy.
+
+| Slice | Hash | What's pinned |
+|---|---|---|
+| 7gu | `pending` | 2-route hosting bundle (21 tests across 2 files). **`/api/admin/hosting/change-package` POST (12 tests)** — admin changes customer DA package: admin gate via isAdmin → 403 'Admin access required'; zod schema (username trim+1-100, newPackage trim+1-100; whitespace trim normalises before DA call). **Typed-outcome dispatch (5 branches each mapped to distinct HTTP)**: 'changed' → 200 with username+newPackage interpolated in message; 'user_not_found' → 404 USER_NOT_FOUND (username in message); 'package_not_found' → 404 PACKAGE_NOT_FOUND (package name in message); 'da_unreachable' → **503 DA_UNREACHABLE** (NOT 500 — upstream-outage signal, matches 7g6/7gc DA convention); 'hard_failure' → 500 PACKAGE_CHANGE_FAILED with outcome.reason surfaced (admin needs the real reason for debugging). Outer catch → 500 with raw err.message (matches 7gr/7gt error-leak family for coordinated future hardening); non-Error → 'Failed to change package' fallback. **`/api/user/hosting/renew-info` GET (9 tests)** — customer renewal pricing card: auth gate FIRST → 401; missing ?domainName → 400 INVALID_PARAM (NO hosting lookup). **IDOR via findUserHosting(String(user._id), {domainName})** — domainName LOWERCASED before lookup; non-owner / not found → 404 NOT_FOUND. Plan defensive guard: getPlanByPlanId null → 404 PLAN_NOT_FOUND (hosting references deleted plan). **1-year-only business rule pinned VERBATIM**: price = plan.price × 12, periodMonths=12, periodYears=1 — a refactor that exposes a periodMonths URL param fails this test before merge. Currency defaults to 'INR' when plan.currency missing. **Response curation**: response includes only domainName/currentStatus/currentExpiry/planName/renewalPricing — test asserts H_INTERNAL_ID / razorpayPlans / directAdminPackage / autoRenew / da-username never leak through. Outer catch → 500 INTERNAL_ERROR generic 'Failed to get renewal info' |
 - **Pattern**: read source → mock all dependencies → pin security gates (rate-limit, cache contract, fallback paths) + error mapping → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
 
 ### 📋 Backlog (with assigned batch numbers)
@@ -52,7 +56,8 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7gr** — Pending-hosting admin actions pair: `/api/admin/hosting/pending/[id]` DELETE + `/api/admin/hosting/pending/[id]/retry` POST (cron-path argshape lock + dropped vs provisioned message branch + error-leak pattern)~~ ✅ live `dms-00113-tkg`
 - [x] ~~**Batch 7gs** — 2-route bundle: `/api/admin/resellerclub/balance` GET + `/api/user/invoices/sync` POST (Prepaid/NoBilling branch + secret-leak guards on RC + Zoho error paths)~~ ✅ live `dms-00113-tkg`
 - [x] ~~**Batch 7gt** — Admin invoice-PDF + clear-invoice-number pair (binary PDF response shape + idempotent no-op contract)~~ ✅ live `dms-00114-hh6`
-- [ ] **Batch 7gu** — More untested route handlers (sweep continues: orders create / admin-domains-sync / admin-hosting-change-package / user-hosting-renew-info)
+- [x] ~~**Batch 7gu** — Admin change-package + customer renew-info (DA typed-outcome 5-branch dispatch + 1-year-only renewal pricing rule + response-curation leak guard)~~ ✅ committed `pending`, queued for deploy
+- [ ] **Batch 7gv** — More untested route handlers (sweep continues: orders create / admin-domains-sync / cron-check-hosting-expiry / admin-log-error)
 
 #### 🔄 M14 component-test remainders
 
