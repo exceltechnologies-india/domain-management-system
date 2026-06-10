@@ -16,11 +16,13 @@ Live revision: **`dms-00109-tjv`** at https://dms-5itdvlx2va-ew.a.run.app (deplo
 
 Committed slices NOT yet in the live revision:
 
-_(none — fully caught up)_
+| Slice | Hash | What's pinned |
+|---|---|---|
+| 7go | `pending` | Admin list endpoints — 3-route bundle (16 tests across 3 files). **`/api/admin/users/deactivated` GET (3 tests)**: admin gate via getAdminFromRequest → **401 'Unauthorized'** on null (note: uses 401 not 403 — pinned alongside the others for harmony audit); listDeactivatedUsers called with NO args; response `{ success, users }`; throw → 500 'Failed to fetch deactivated users' (generic, no leak). **`/api/admin/support-tickets` GET (8 tests)**: admin gate via isAdmin → 403 FORBIDDEN; ?status passes through; ?page default 1, **clamped to min 1 via Math.max** (-5 → 1, 0 → 1); perPage HARD-CODED at 25 (no per_page query param — pinned for future DoS-impact review); **`?page=garbage` quirk pinned**: parseInt('abc') → NaN, then Math.max(1, NaN) === NaN (since NaN comparisons are false), so NaN reaches the service. Current behaviour explicitly pinned — a hardening pass that adds Number.isFinite() guard will change page to 1 and fail this test. Response `{ tickets, total, page, pages }`. **`/api/admin/hosting/pending` GET (5 tests)**: admin gate via isAdmin → 403; listPendingHostingsForAdmin no args; response `{ success, data }`. **Error-leak inconsistency pinned**: on service throw with Error instance, this route surfaces the RAW `error.message` to the client (NOT generic like the other two). Test pins current behaviour explicitly so a future hardening pass that masks the message has a known signal. Non-Error throw → 'Server error' fallback |
 
 ### 🎯 Currently working on
 
-- **Fully caught up through `7gn`** (live at `dms-00109-tjv`). 14 rescan-4 route-handler slices `7ga–7gn` shipped.
+- **Next active slice** TBD — `7go` queued for next deploy.
 - **Pattern**: read source → mock all dependencies → pin security gates (rate-limit, cache contract, fallback paths) + error mapping → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
 
 ### 📋 Backlog (with assigned batch numbers)
@@ -46,7 +48,8 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7gl** — Customer support tickets `/api/user/support` GET + POST (rate-limit + anti-XSS admin email + attachment validation order)~~ ✅ live `dms-00107-fgm`
 - [x] ~~**Batch 7gm** — Public status endpoints 4-route bundle: health, maintenance, captcha, account-status (fail-open vs fail-closed + auto-expire + deliberate-enumeration)~~ ✅ live `dms-00107-fgm`
 - [x] ~~**Batch 7gn** — Customer order endpoints 3-route bundle: `/api/orders` list + `/api/orders/[id]` + `/api/user/orders/[id]` (auth dual-path + IDOR scope + customer-safe field allow-list)~~ ✅ live `dms-00109-tjv`
-- [ ] **Batch 7go** — More untested route handlers (sweep continues: invoices / log / admin-deactivated-users / admin-support-tickets)
+- [x] ~~**Batch 7go** — Admin list endpoints 3-route bundle: `/api/admin/users/deactivated` + `/api/admin/support-tickets` + `/api/admin/hosting/pending` (admin-gate variants + page clamp quirk + error-leak inconsistency pinned)~~ ✅ committed `pending`, queued for deploy
+- [ ] **Batch 7gp** — More untested route handlers (sweep continues: invoices / log / orders create / admin-ip-status)
 
 #### 🔄 M14 component-test remainders
 
