@@ -16,11 +16,13 @@ Live revision: **`dms-00112-6x7`** at https://dms-5itdvlx2va-ew.a.run.app (deplo
 
 Committed slices NOT yet in the live revision:
 
-_(none — fully caught up)_
+| Slice | Hash | What's pinned |
+|---|---|---|
+| 7gr | `pending` | Pending-hosting admin actions pair (15 tests across 2 files). **`/api/admin/hosting/pending/[id]` DELETE (6 tests)**: admin gate via isAdmin → 403 FORBIDDEN; deletePendingHostingById(id) is the only side effect; falsy return → 404 NOT_FOUND 'Entry not found'; success → 200 with `{success, message:'Pending hosting entry deleted successfully'}`. **Error-leak pinned**: outer-catch Error → 500 with raw `error.message` to client (matches the 7go pending-LIST quirk in the same file family — pinned for coordinated future hardening); non-Error → 'Server error' fallback. **`/api/admin/hosting/pending/[id]/retry` POST (9 tests)**: admin gate via isAdmin → 403 'Admin access required'; getPendingHostingById null → 404; **provisionPendingHosting called with the FULL pending entry** (not just id) — same arg shape as the cron path, pinned so admin retries can't drift from cron retries. `result.ok === false` → 500 PROVISION_RETRY_FAILED + result.error (fallback 'Retry failed'). **`result.dropped` branch**: success message "User already had hosting elsewhere — pending entry cleared." (no provisioning happened); `!dropped` → "Hosting provisioned for ${domain}. Pending entry removed." (domain interpolated). Outer catch → 500 PROVISION_RETRY_FAILED with raw error.message (matches sibling DELETE) |
 
 ### 🎯 Currently working on
 
-- **Fully caught up through `7gq`** (live at `dms-00112-6x7`). 17 rescan-4 route-handler slices `7ga–7gq` shipped 2026-06-08 + 2026-06-10 across 11 deploys.
+- **Next active slice** TBD — `7gr` queued for next deploy.
 - **Pattern**: read source → mock all dependencies → pin security gates (rate-limit, cache contract, fallback paths) + error mapping → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
 
 ### 📋 Backlog (with assigned batch numbers)
@@ -49,7 +51,8 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7go** — Admin list endpoints 3-route bundle: `/api/admin/users/deactivated` + `/api/admin/support-tickets` + `/api/admin/hosting/pending` (admin-gate variants + page clamp quirk + error-leak inconsistency pinned)~~ ✅ live `dms-00110-k29`
 - [x] ~~**Batch 7gp** — Client log-forwarder `/api/log` POST + admin IP-status `/api/admin/ip-status` GET (anti-DoS bounds + anti-logging-loop silent fail + connectDB ordering quirk)~~ ✅ live `dms-00111-d6x`
 - [x] ~~**Batch 7gq** — 3-route bundle: `/api/admin/users/no-hosting` + `/api/public/hosting-test-plan` + `/api/admin/invoices` (PII leak guard + strict-boolean feature flag + NaN-quirk pair)~~ ✅ live `dms-00112-6x7`
-- [ ] **Batch 7gr** — More untested route handlers (sweep continues: orders create / admin-hosting-pending-id / user-invoices-sync / admin-invoices-pdf)
+- [x] ~~**Batch 7gr** — Pending-hosting admin actions pair: `/api/admin/hosting/pending/[id]` DELETE + `/api/admin/hosting/pending/[id]/retry` POST (cron-path argshape lock + dropped vs provisioned message branch + error-leak pattern)~~ ✅ committed `pending`, queued for deploy
+- [ ] **Batch 7gs** — More untested route handlers (sweep continues: orders create / user-invoices-sync / admin-invoices-pdf / admin-resellerclub-balance)
 
 #### 🔄 M14 component-test remainders
 
