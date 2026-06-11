@@ -20,7 +20,11 @@ _(none — fully caught up)_
 
 ### 🎯 Currently working on
 
-- **Next active slice** TBD — `7hc` queued for next deploy.
+- **Next active slice** TBD — `7hc` + `7hd` queued for next deploy.
+
+| Slice | Hash | What's pinned |
+|---|---|---|
+| 7hd | `pending` | Activation + domain-status pair (29 tests across 2 files). **`/api/auth/activate` POST (15 tests)** — completes signup from the activation-email link: **rate-limit BEFORE body parse** via activation limiter (10/IP); over-limit → rateLimitResponse with limit:10 + 'Too many activation attempts' (NO body parse, NO DB lookup, NO JWT). zod token: 1-256 chars. **Expired-vs-unknown branch pinned**: findUserByActivationToken(token) null → second call with `{onlyExpired:true}` to distinguish; expired-row found → 400 'Token expired' (so customer knows to request fresh); no row at all → 400 'Invalid token'. Second lookup gated on first being null (NO extra DB hit on happy path — pinned with single-call assertion). Lookup arg shapes pinned: `(token)` first, `(token, {onlyExpired:true})` second. **Already-activated guard**: user.isActivated → 400 'Account is already activated'; NO token clear, NO JWT (closes anti-repeat-activation vector — a stale activation link must not re-issue a fresh JWT). **Token clearing**: activationToken AND activationTokenExpiry both set to undefined before save (used token cannot be replayed). JWT issued via AuthService.generateToken({userId, email, role}); response carries token + curated user fields. **NEGATIVE leak guard**: response must NOT carry activationToken / password / totpSecret / sessionInvalidatedAt (test injects all four and asserts none appear). Outer catch → 500 generic. **`/api/domains/verify-status` POST (14 tests)** — customer checks domain-registration status at RC: auth → 401; zod domainName trim+lowercase+3-253; IDOR via findOrderByDomainForUser; non-owner → 404 'Domain not found'; missing resellerClubCustomerId OR findOrderDomain null → 404 'Registrar customer reference not found'. **RC typed-outcome dispatch (3 branches)**: 'not_found' → 200 with status:'pending' + "likely pending registration" message; 'hard_failure' → 200 with success:false + outcome.reason surfaced; default success → **STRICT case-sensitive `domainstatus === 'Active'` check** (lowercase 'active', uppercase 'ACTIVE', 'Inactive', 'Suspended', 'Pending' all → 'pending' status; only literal 'Active' → 'registered'). Missing domainstatus → 'unknown' fallback. Outer catch → 500 'Internal server error' generic |
 
 | Slice | Hash | What's pinned |
 |---|---|---|
@@ -65,7 +69,8 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7ha** — Public resend-activation (rate-limit-first + anti-enumeration) + admin nameserver-change (admin-scope variant of 7ge)~~ ✅ live `dms-00116-blx`
 - [x] ~~**Batch 7hb** — TOTP confirm (8 backup codes, plaintext-once + hashed-at-rest) + TOTP disable (password-FIRST step-up + TOTP-or-backup-code)~~ ✅ live `dms-00116-blx`
 - [x] ~~**Batch 7hc** — User invoices list (self-heal inline-retry) + cancel-trial (3-step termination with failure isolation; one-trial-per-user policy preserved)~~ ✅ committed `pending`, queued for deploy
-- [ ] **Batch 7hd** — More untested route handlers (sweep continues: orders create / domains-verify-status / admin-orders-[id] / user-invoices-[id]-pay / auth-activate)
+- [x] ~~**Batch 7hd** — Auth-activate (rate-limit-first + expired-vs-unknown branch + token-clear-before-JWT) + domain-verify-status (RC typed-outcome 3-branch dispatch + strict 'Active' match)~~ ✅ committed `pending`, queued for deploy
+- [ ] **Batch 7he** — More untested route handlers (sweep continues: orders create / admin-orders-[id] / user-invoices-[id]-pay / admin-users-services / admin-orders-re-sync-invoice)
 
 #### 🔄 M14 component-test remainders
 
