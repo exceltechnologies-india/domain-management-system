@@ -20,7 +20,11 @@ _(none — fully caught up)_
 
 ### 🎯 Currently working on
 
-- **Next active slice** TBD — `7hg` queued for next deploy.
+- **Next active slice** TBD — `7hg` + `7hh` queued for next deploy.
+
+| Slice | Hash | What's pinned |
+|---|---|---|
+| 7hh | `pending` | Admin operations pair (25 tests across 2 files). **`/api/admin/users/services` GET (12 tests)** — admin overview of all users with services: **session-based auth** via NextAuth getServerSession with role==='admin' check (NOT AuthService.isAdmin — this route uses the dashboard session-cookie path); non-admin/no session → 401 'Unauthorized access'. **Aggregation primary**: listUsersWithServicesAggregation returns every user with ≥1 Domain or Hosting. **Fallback merge** with Set-based dedup O(n+m): listServiceUserCandidates catches users with a directAdminUsername but no Hosting row; user already in aggregation NOT re-added; missed users appended with **synthetic 'Pending Sync' hosting entry** constructed from User fields. **No live DA call — pinned by deliberate omission**: test runs WITHOUT mocking DirectAdminService at all; if a refactor re-introduces live DA verification on the list view, the test crashes on import. Response: `{success, users, count}` with count===users.length. Outer catch → 500 with error.message (matches 7gr/7gt family quirk; non-Error → 'Failed to fetch service users' fallback). **`/api/admin/pending-domains/verify` POST (13 tests)** — bulk verify pending domains: connectDB BEFORE auth; admin gate via getAdminFromRequest → 401. zod: domainIds array, min:1, **max:100 anti-DoS cap pinned** (boundary 100 accepted, 101 rejected). **Pending-only query**: `{_id:{$in:domainIds}, status:'pending'}` — already-completed / failed rows NOT touched. Empty result → 404 'No pending domains found'. **3-branch outcome mapping per result**: 'success' → status:'completed' + 'Domain verification successful - registration completed' reason; 'pending' → status STAYS 'pending', reason updated only when new one provided (no-new-reason keeps old); else → status:'failed', reason:result.reason (or 'Verification failed' fallback). verificationAttempts incremented + lastVerifiedAt stamped on each. Response: `{success, message, verificationResults, updatedDomains, summary}`. Outer catch → 500 'Failed to verify domains' generic (no leak) |
 
 | Slice | Hash | What's pinned |
 |---|---|---|
@@ -69,7 +73,8 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7he** — Invoice-pay (IDOR with anti-enumeration 404 + anti-double-pay) + admin re-sync-invoice (stuck-status reset + Zoho soft-failure path)~~ ✅ live `dms-00118-m5v`
 - [x] ~~**Batch 7hf** — Auth-reset-password (5-layer defense incl. CRITICAL admin-block) + hosting-check-eligibility (GET+POST shared helper + one-trial-per-user via 2 sources)~~ ✅ live `dms-00118-m5v`
 - [x] ~~**Batch 7hg** — Trial-OTP send (rate-limit + phone normalisation + 502 SMS-provider signal) + verify (single-use consume + signed token, NOT raw OTP)~~ ✅ committed `pending`, queued for deploy
-- [ ] **Batch 7hh** — More untested route handlers (sweep continues: admin-users-services / admin-diag-da / admin-diag-da-cleanup / health-deep / admin-pending-domains-verify)
+- [x] ~~**Batch 7hh** — Admin service-users overview (session-auth + aggregation+fallback dedup + no-live-DA) + pending-domains bulk verify (100-cap + 3-branch outcome dispatch)~~ ✅ committed `pending`, queued for deploy
+- [ ] **Batch 7hi** — More untested route handlers (sweep continues: admin-diag-da / admin-diag-da-cleanup / health-deep / test-automation-status / test-automation-trigger)
 
 #### 🔄 M14 component-test remainders
 
