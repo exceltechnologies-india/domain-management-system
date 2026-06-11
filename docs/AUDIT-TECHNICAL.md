@@ -20,7 +20,11 @@ _(none — fully caught up)_
 
 ### 🎯 Currently working on
 
-- **Next active slice** TBD — `7hg` + `7hh` queued for next deploy.
+- **Next active slice** TBD — `7hg` + `7hh` + `7hi` queued for next deploy.
+
+| Slice | Hash | What's pinned |
+|---|---|---|
+| 7hi | `pending` | Admin DA diagnostics pair (26 tests across 2 files). **`/api/admin/diag-da` GET (12 tests)** — admin diagnostics page: admin gate via isAdmin → 403 FORBIDDEN (NOT 401, matches 7gp/7go family). **Promise.allSettled fan-out** for 4 DA reads (listUsers, listResellers, getLicenseInfo, getServerInfo) — one source failing wraps as `{error: <message>}` (non-Error rejections coerced via String() — pinned to confirm no crash on weird throws); page still 200 even with ALL 4 DA sources failing. listAllHostingsForDirectAdminDiag always called (DB lookup gated by neither flag nor DA state). **Optional inline cleanup via `?cleanup=true` strict equality** (`?cleanup=yes` does NOT trigger); cleanup orphan list HARDCODED `[ttgr6jne, ttgrgm6jme, ttgrgm6jme1]` pinned — a refactor that changes the list requires explicit review (these were the originally-stuck DA accounts the tool was built for). Cleanup outcome map: 'deleted'/'user_not_found' → no error; 'da_unreachable' → 'DA unreachable'; else → 'delete failed — see server logs'. Outer catch → 500 DIAG_FAILED with raw error.message (matches 7gr/7gt family). **`/api/admin/diag-da/cleanup` POST (14 tests)** — bulk DA-user delete: admin gate → 403 FORBIDDEN; zod schema (usernames array, each trim+1-100, **min:1, max:100 anti-DoS cap pinned** with boundary tests; oversize single username also 400). connectDB AFTER auth+validation (no DB hit on bad reqs). **Typed-outcome dispatch — 4 branches**: 'deleted' → success:true, outcome:'deleted'; 'user_not_found' → **success:true (coalesced with deleted)** outcome:'user_not_found' (operationally identical end state); 'da_unreachable' → success:false + 'DA temporarily unreachable — try again' retryable signal; 'hard_failure' → success:false + 'Delete failed — see server logs'. **Per-username failure isolation**: one da_unreachable / hard_failure in the middle does NOT abort the loop — subsequent usernames still processed (tested with mixed-success batches). Outer catch → 500 CLEANUP_FAILED with error.message (matches family leak); non-Error → 'Cleanup failed' fallback |
 
 | Slice | Hash | What's pinned |
 |---|---|---|
@@ -74,7 +78,8 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7hf** — Auth-reset-password (5-layer defense incl. CRITICAL admin-block) + hosting-check-eligibility (GET+POST shared helper + one-trial-per-user via 2 sources)~~ ✅ live `dms-00118-m5v`
 - [x] ~~**Batch 7hg** — Trial-OTP send (rate-limit + phone normalisation + 502 SMS-provider signal) + verify (single-use consume + signed token, NOT raw OTP)~~ ✅ committed `pending`, queued for deploy
 - [x] ~~**Batch 7hh** — Admin service-users overview (session-auth + aggregation+fallback dedup + no-live-DA) + pending-domains bulk verify (100-cap + 3-branch outcome dispatch)~~ ✅ committed `pending`, queued for deploy
-- [ ] **Batch 7hi** — More untested route handlers (sweep continues: admin-diag-da / admin-diag-da-cleanup / health-deep / test-automation-status / test-automation-trigger)
+- [x] ~~**Batch 7hi** — Admin DA diagnostics (Promise.allSettled fan-out + optional cleanup) + bulk DA-cleanup (typed-outcome 4-branch + 100-cap + failure isolation)~~ ✅ committed `pending`, queued for deploy
+- [ ] **Batch 7hj** — More untested route handlers (sweep continues: health-deep / test-automation-status / test-automation-trigger / cron other-routes)
 
 #### 🔄 M14 component-test remainders
 
