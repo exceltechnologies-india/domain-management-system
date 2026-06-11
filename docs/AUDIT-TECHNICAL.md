@@ -20,7 +20,11 @@ _(none — fully caught up)_
 
 ### 🎯 Currently working on
 
-- **Fully caught up through `7hj`** (live at `dms-00120-4j5`). 36 rescan-4 route-handler slices `7ga–7hj` shipped 2026-06-08 + 2026-06-10 + 2026-06-11 across 19 deploys.
+- **Next active slice** TBD — `7hk` queued for next deploy.
+
+| Slice | Hash | What's pinned |
+|---|---|---|
+| 7hk | `pending` | Hosting self-service pair (33 tests across 2 files). **`/api/user/hosting/sso` GET (15 tests)** — one-click SSO to DA panel: auth → 401 (browser → themed redirect via Accept text/html sniff; API → JSON). **Ownership verify via getUserConfig**: `?username=` triggers DA-side email check (case-insensitive); match → proceed; mismatch BUT `targetUsername === user.directAdminUsername` → still proceed (legacy unlinked-data tolerance); otherwise → 403 OWNERSHIP_VERIFICATION_FAILED (cross-tenant SSO closed). getUserConfig throw on verify → 400 VERIFICATION_ERROR. No-linked-account guard: no `?username` AND no user.directAdminUsername → 404 HOSTING_NOT_FOUND. **Suspension guard**: getUserConfig second call; suspended==='yes' → 403 ACCOUNT_SUSPENDED. Suspension-check throw SWALLOWED (defensive — proceeds to SSO anyway). getOneTimeLoginUrl → 302 redirect to the DA URL. **Browser/JSON dual response**: Accept text/html → redirect to `/hosting/error?code=&message=` (x-forwarded-host + x-forwarded-proto pinned for proxy-aware URL); else → JSON via secureErrorResponse. Outer catch → 500 SSO_FAILED with generic 'Failed to initiate DirectAdmin session' (DA secret-leak guard). **`/api/user/hosting/upgrade-info` GET (18 tests)** — upgrade plans + prorated charges: auth → 401; missing ?domainName → 400 INVALID_PARAM; IDOR via findUserHosting (domainName lowercased); non-owner → 404 NOT_FOUND. **Active-only guard**: status !== 'active' (suspended/pending/terminated) → 400 NOT_ELIGIBLE. **Expired-hosting guard**: remainingDays ≤ 0 → 400 HOSTING_EXPIRED 'Please renew before upgrading.' getPlanByPlanId null → 404 PLAN_NOT_FOUND. **Upgrades-only filter**: eligiblePlans = plans where price > currentPlan.price (strict > not >=; same-price plan excluded — pinned). **Prorated pricing formula pinned VERBATIM**: `chargeAmount = Math.max(100, Math.round((target - current) * remainingDays / 30))`. **₹100 minimum floor** pinned with a 100-rupee-gap × 3-day-remainder case (would compute to 10, bumped to 100 — anti-gateway-fee-trap). Math.round NOT Math.floor/Math.ceil — pinned with a 966.66...→967 case. Currency defaults to 'INR' when missing. Response carries currentPlan / eligiblePlans / remainingDays / hasSubscription / expiryDate. Outer catch → 500 INTERNAL_ERROR generic |
 - **Pattern**: read source → mock all dependencies → pin security gates (rate-limit, cache contract, fallback paths) + error mapping → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
 
 ### 📋 Backlog (with assigned batch numbers)
@@ -68,7 +72,8 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7hh** — Admin service-users overview (session-auth + aggregation+fallback dedup + no-live-DA) + pending-domains bulk verify (100-cap + 3-branch outcome dispatch)~~ ✅ live `dms-00119-6z5`
 - [x] ~~**Batch 7hi** — Admin DA diagnostics (Promise.allSettled fan-out + optional cleanup) + bulk DA-cleanup (typed-outcome 4-branch + 100-cap + failure isolation)~~ ✅ live `dms-00119-6z5`
 - [x] ~~**Batch 7hj** — Deep health-check (Mongo+Redis 3s-bounded + 503-on-fail) + test-automation status (env-gated admin + service-type+expiry-field branch + simulated-now)~~ ✅ live `dms-00120-4j5`
-- [ ] **Batch 7hk** — More untested route handlers (sweep continues: test-automation-trigger / cron-check-unprovisioned / user-hosting-sso / user-hosting-upgrade-info / chat)
+- [x] ~~**Batch 7hk** — Hosting SSO (cross-tenant guard + suspension block + browser/JSON dual response) + upgrade-info (upgrades-only filter + prorated ₹100-floor formula + expired guard)~~ ✅ committed `pending`, queued for deploy
+- [ ] **Batch 7hl** — More untested route handlers (sweep continues: test-automation-trigger / cron-check-unprovisioned / chat / admin-hosting-assign / admin-domains-activate-dns)
 
 #### 🔄 M14 component-test remainders
 
