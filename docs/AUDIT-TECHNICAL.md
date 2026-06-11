@@ -16,11 +16,13 @@ Live revision: **`dms-00121-fh2`** at https://dms-5itdvlx2va-ew.a.run.app (deplo
 
 Committed slices NOT yet in the live revision:
 
-_(none — fully caught up)_
+| Slice | Subject | Tests added | Status |
+|---|---|---|---|
+| 7hl | admin-hosting-assign + cron-check-unprovisioned | 32 | ✅ committed pending, queued for deploy |
 
 ### 🎯 Currently working on
 
-- **Fully caught up through `7hk`** (live at `dms-00121-fh2`). 37 rescan-4 route-handler slices `7ga–7hk` shipped 2026-06-08 + 2026-06-10 + 2026-06-11 across 20 deploys.
+- **Fully caught up through `7hl`** (committed locally; pending deploy on top of `dms-00121-fh2`). 38 rescan-4 route-handler slices `7ga–7hl` shipped 2026-06-08 + 2026-06-10 + 2026-06-11 across 20 deploys + 1 queued.
 - **Pattern**: read source → mock all dependencies → pin security gates (rate-limit, cache contract, fallback paths) + error mapping → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
 
 ### 📋 Backlog (with assigned batch numbers)
@@ -69,7 +71,8 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7hi** — Admin DA diagnostics (Promise.allSettled fan-out + optional cleanup) + bulk DA-cleanup (typed-outcome 4-branch + 100-cap + failure isolation)~~ ✅ live `dms-00119-6z5`
 - [x] ~~**Batch 7hj** — Deep health-check (Mongo+Redis 3s-bounded + 503-on-fail) + test-automation status (env-gated admin + service-type+expiry-field branch + simulated-now)~~ ✅ live `dms-00120-4j5`
 - [x] ~~**Batch 7hk** — Hosting SSO (cross-tenant guard + suspension block + browser/JSON dual response) + upgrade-info (upgrades-only filter + prorated ₹100-floor formula + expired guard)~~ ✅ live `dms-00121-fh2`
-- [ ] **Batch 7hl** — More untested route handlers (sweep continues: test-automation-trigger / cron-check-unprovisioned / chat / admin-hosting-assign / admin-domains-activate-dns)
+- [x] ~~**Batch 7hl** — Admin manual hosting-assign (admin-gate first + DA username gen 8+4 base36 ≤14 + DNS update best-effort swallow + `already exists` 409) + cron-check-unprovisioned (dual auth + CONCURRENCY=5 chunked retry fan-out via `Promise.allSettled` + 30-min stuck-orders watchdog + email-send swallow)~~ ✅ committed pending, queued for deploy
+- [ ] **Batch 7hm** — More untested route handlers (sweep continues: test-automation-trigger / chat / admin-domains-activate-dns)
 
 #### 🔄 M14 component-test remainders
 
