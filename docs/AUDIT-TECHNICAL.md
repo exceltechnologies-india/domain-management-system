@@ -20,7 +20,11 @@ _(none — fully caught up)_
 
 ### 🎯 Currently working on
 
-- **Next active slice** TBD — `7gz` + `7ha` queued for next deploy.
+- **Next active slice** TBD — `7gz` + `7ha` + `7hb` queued for next deploy.
+
+| Slice | Hash | What's pinned |
+|---|---|---|
+| 7hb | `pending` | TOTP lifecycle pair — completes the 2FA flow started in 7gy (setup) (28 tests across 2 files). **`/api/auth/totp/confirm` POST (13 tests)** — user confirms initial 2FA enrollment: auth → 401; zod code regex `^\d{6,8}$` (6-8 digits, non-numeric/wrong-length all 400); getUserWithPendingTOTP null → 404. **Already-enabled guard**: dbUser.totpEnabled → 409 '2FA is already enabled' (anti-double-activation; NO side-effects). **No-pending-secret guard**: missing totpSecretPending → 400 'No pending 2FA setup found. Please start setup again.' (covers calling /confirm without prior /setup). verifyTotpCode(pendingSecret, code) false → 422 'Invalid code' (422 = well-formed but semantically wrong, distinct from 400). **Happy path**: generateBackupCodes(8) → 8 plaintext; hashBackupCode called on EACH; activateTOTPForUser called with `(user._id, { secret: pendingSecret, hashedBackupCodes })`; response carries the **PLAINTEXT codes** only (shown once, hashed in DB). **NEGATIVE leak guard**: test injects `JBSWY3DPEHPK3PXP` secret and `HASH_OF_…_LEAK_ME` hashes and asserts neither appears in the response JSON. **`/api/auth/totp/disable` POST (15 tests)** — user disables 2FA with step-up auth: auth → 401; zod (code 6-64 chars covers TOTP + backup; password 1-256; oversize → 400 anti-DoS); getUserWithTOTPSecrets null → 404. **Not-enabled guard**: totpEnabled falsy → 400 '2FA is not enabled' (no disable side-effect possible). **CRITICAL — password FIRST**: comparePassword false → 422 'Incorrect password'; TOTP / backup code NOT checked (a stolen TOTP code alone can't probe whether disable succeeded). TOTP path: verifyTotpCode(totpSecret, code) true → disableTOTPForUser + 200; backup-code path: when TOTP fails OR totpSecret undefined, iterate totpBackupCodes calling verifyBackupCode(code, hash) — first match wins, loop stops; none match → 422 'Invalid authenticator code'; empty backup-codes array also → 422. Happy disable → 200 `{ success: true }` |
 
 | Slice | Hash | What's pinned |
 |---|---|---|
@@ -67,7 +71,8 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7gy** — TOTP setup (GET status + POST enrollment) + user hosting auto-renew PATCH (already-enabled guard + pending-secret pattern + active-only precondition)~~ ✅ live `dms-00115-xbl`
 - [x] ~~**Batch 7gz** — Auth-me (boolean has-password, no hash leak) + user-invoice-PDF (10/min rate, sentinel-id guard, MongoDB-before-Zoho IDOR, inline disposition)~~ ✅ committed `pending`, queued for deploy
 - [x] ~~**Batch 7ha** — Public resend-activation (rate-limit-first + anti-enumeration) + admin nameserver-change (admin-scope variant of 7ge)~~ ✅ committed `pending`, queued for deploy
-- [ ] **Batch 7hb** — More untested route handlers (sweep continues: orders create / user-invoices list / user-hosting-cancel-trial / auth-totp-confirm / auth-totp-disable)
+- [x] ~~**Batch 7hb** — TOTP confirm (8 backup codes, plaintext-once + hashed-at-rest) + TOTP disable (password-FIRST step-up + TOTP-or-backup-code)~~ ✅ committed `pending`, queued for deploy
+- [ ] **Batch 7hc** — More untested route handlers (sweep continues: orders create / user-invoices list / user-hosting-cancel-trial / domains-verify-status / admin-orders-[id])
 
 #### 🔄 M14 component-test remainders
 
