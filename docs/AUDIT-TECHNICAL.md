@@ -20,7 +20,11 @@ _(none — fully caught up)_
 
 ### 🎯 Currently working on
 
-- **Next active slice** TBD — `7he` queued for next deploy.
+- **Next active slice** TBD — `7he` + `7hf` queued for next deploy.
+
+| Slice | Hash | What's pinned |
+|---|---|---|
+| 7hf | `pending` | Customer-facing pair (34 tests across 2 files). **`/api/auth/reset-password` POST (15 tests)** — public "forgot my password" completion with **defense-in-depth: 5 layers in order**: (1) CSRF via SecurityValidator.validateCSRF → 403 CSRF_ERROR with validator's message (fallback 'CSRF Validation Failed'); (2) zod via Schemas.resetPassword.safeParse → 400 VALIDATION_ERROR; (3) reCAPTCHA via RecaptchaServer.verifyToken with **IP discovery chain** (x-forwarded-for first comma-split[0] → x-real-ip → 'unknown') → 403 SECURITY_CHECK_FAILED on failure; (4) findUserByResetToken null → 400 INVALID_TOKEN 'Invalid or expired reset token'; (5) **CRITICAL — admin block**: user.role === 'admin' → 403 UNAUTHORIZED 'Admin password reset is not allowed through this method' (closes vector where admins could skip the step-up password re-auth required by /api/admin/reset-password). Each layer's failure short-circuits — NO downstream layer runs. **Token clearing on success**: user.password set + resetToken AND resetTokenExpiry both undefined BEFORE save (used link cannot be replayed; pinned via save() capture). Audit email via EmailService.sendPasswordChangeNotificationEmail(email, fullName, false); fullName falls back to email when first+last missing. **Email failure SWALLOWED** via `.catch` — password reset still succeeds 200 (mail-server hiccup can't roll back the change). Outer catch → 500 SERVER_ERROR 'Reset password failed'. **`/api/user/hosting/check-eligibility` GET + POST (19 tests)** — trial-gate logic shared across both verbs via `performEligibilityCheck` helper. Auth → 401 on both verbs. **Three eligibility checks in order, all short-circuiting**: (1) userHasAnyHosting(userId) → ineligible "already have an active or previous hosting account" (blocks active + terminated); (2) findPriorHostingOrderForUser(userId, email) → ineligible "associated with a previous hosting purchase" (covers order-history evidence even when hosting row was deleted — second layer of one-trial-per-user enforcement); (3) findUserHosting(userId, {domainName}) → ineligible "domain already has hosting under your account" (user-scoped — cross-tenant lookups would leak existence). Domain check SKIPPED when domainName absent. Eligible → `{ eligible: true }` only. GET: ?domainName lowercased; POST: zod with trim+lowercase. Outer catch → 500 on both verbs |
 
 | Slice | Hash | What's pinned |
 |---|---|---|
@@ -67,7 +71,8 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7hc** — User invoices list (self-heal inline-retry) + cancel-trial (3-step termination with failure isolation; one-trial-per-user policy preserved)~~ ✅ live `dms-00117-f7f`
 - [x] ~~**Batch 7hd** — Auth-activate (rate-limit-first + expired-vs-unknown branch + token-clear-before-JWT) + domain-verify-status (RC typed-outcome 3-branch dispatch + strict 'Active' match)~~ ✅ live `dms-00117-f7f`
 - [x] ~~**Batch 7he** — Invoice-pay (IDOR with anti-enumeration 404 + anti-double-pay) + admin re-sync-invoice (stuck-status reset + Zoho soft-failure path)~~ ✅ committed `pending`, queued for deploy
-- [ ] **Batch 7hf** — More untested route handlers (sweep continues: admin-users-services / admin-diag-da / health-deep / auth-reset-password / user-hosting-trial-otp-send)
+- [x] ~~**Batch 7hf** — Auth-reset-password (5-layer defense incl. CRITICAL admin-block) + hosting-check-eligibility (GET+POST shared helper + one-trial-per-user via 2 sources)~~ ✅ committed `pending`, queued for deploy
+- [ ] **Batch 7hg** — More untested route handlers (sweep continues: admin-users-services / admin-diag-da / health-deep / user-hosting-trial-otp-send + verify)
 
 #### 🔄 M14 component-test remainders
 
