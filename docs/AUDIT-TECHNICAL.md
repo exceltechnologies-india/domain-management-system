@@ -20,7 +20,11 @@ _(none — fully caught up)_
 
 ### 🎯 Currently working on
 
-- **Fully caught up through `7hd`** (live at `dms-00117-f7f`). 30 rescan-4 route-handler slices `7ga–7hd` shipped 2026-06-08 + 2026-06-10 + 2026-06-11 across 16 deploys.
+- **Next active slice** TBD — `7he` queued for next deploy.
+
+| Slice | Hash | What's pinned |
+|---|---|---|
+| 7he | `pending` | Invoice-payment pair (27 tests across 2 files). **`/api/user/invoices/[id]/pay` POST (13 tests)** — customer initiates invoice payment (renewal flow): auth → 401; missing id → 400 'Invoice ID is required'. **IDOR via findOrderByZohoInvoiceForUser(user._id, id, {select:'_id zohoInvoiceId'})** — minimal projection pinned; runs BEFORE any Zoho/Razorpay call. **Non-owner → 404 'Invoice not found' (NOT 403)** — pinned deliberate parity with the "no such invoice" case so the invoice id can't be enumerated across tenants. Security-warn log line records the attempt. getInvoiceById null → 404 (same shape). **Balance gate (anti-double-pay)**: invoice.balance ≤ 0 → 400 'Invoice is already paid'; NO Razorpay call (tested with balance=0 AND balance=-10 to cover refund/credit balances). **Receipt id pinned**: `rnw_${invoiceId}_${Date.now()}`. Razorpay createOrder call shape: `(balance, currency_code OR 'INR', receiptId, notes:{type:'invoice_payment', invoice_id, user_id, email})`. Currency defaults to 'INR' when missing. Response: `{success, razorpayOrderId, amount, currency, invoiceNumber, orderId}`. Outer catch → 500 'Failed to initiate payment' — Razorpay `key_id=rzp_test_LEAK` secret-leak guard pinned. **`/api/admin/orders/[id]/re-sync-invoice` POST (14 tests)** — admin manually re-runs Zoho invoice creation for a stuck order: admin gate → 401; getOrderByIdOrOrderId accepts either DB _id OR orderId (caller convenience); order not found → 404; getUserById null → 404 'Associated user not found'. **Stuck-status reset**: order.zohoInvoiceId === 'pending_creation' is cleared to undefined BEFORE the Zoho retry — pinned with a mock that captures the value AT the createInvoice call and asserts it's undefined (not the stale sentinel). Non-sentinel ids left alone mid-flight. **Item mapping defaults**: itemType→'domain', registrationPeriod→1, periodUnit→'years' for non-hosting / 'months' for hosting. Zoho createInvoice call shape pinned: (order/user/items/'Razorpay'/paid=true). razorpayPaymentId preferred over paymentId in payload (fallback chain pinned). Success: order.zohoInvoiceId + invoiceNumber written, save() called. **Zoho soft-failure** (null result OR missing invoice_id) → 500 success:false 'Failed to generate invoice' (NOT thrown — order NOT saved). **Outer catch leaks error.message** (matches 7gr/7gt/7gu family quirk for coordinated future hardening pass) |
 - **Pattern**: read source → mock all dependencies → pin security gates (rate-limit, cache contract, fallback paths) + error mapping → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
 
 ### 📋 Backlog (with assigned batch numbers)
@@ -62,7 +66,8 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7hb** — TOTP confirm (8 backup codes, plaintext-once + hashed-at-rest) + TOTP disable (password-FIRST step-up + TOTP-or-backup-code)~~ ✅ live `dms-00116-blx`
 - [x] ~~**Batch 7hc** — User invoices list (self-heal inline-retry) + cancel-trial (3-step termination with failure isolation; one-trial-per-user policy preserved)~~ ✅ live `dms-00117-f7f`
 - [x] ~~**Batch 7hd** — Auth-activate (rate-limit-first + expired-vs-unknown branch + token-clear-before-JWT) + domain-verify-status (RC typed-outcome 3-branch dispatch + strict 'Active' match)~~ ✅ live `dms-00117-f7f`
-- [ ] **Batch 7he** — More untested route handlers (sweep continues: orders create / admin-orders-[id] / user-invoices-[id]-pay / admin-users-services / admin-orders-re-sync-invoice)
+- [x] ~~**Batch 7he** — Invoice-pay (IDOR with anti-enumeration 404 + anti-double-pay) + admin re-sync-invoice (stuck-status reset + Zoho soft-failure path)~~ ✅ committed `pending`, queued for deploy
+- [ ] **Batch 7hf** — More untested route handlers (sweep continues: admin-users-services / admin-diag-da / health-deep / auth-reset-password / user-hosting-trial-otp-send)
 
 #### 🔄 M14 component-test remainders
 
