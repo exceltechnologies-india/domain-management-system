@@ -20,7 +20,11 @@ _(none — fully caught up)_
 
 ### 🎯 Currently working on
 
-- **Fully caught up through `7hi`** (live at `dms-00119-6z5`). 35 rescan-4 route-handler slices `7ga–7hi` shipped 2026-06-08 + 2026-06-10 + 2026-06-11 across 18 deploys.
+- **Next active slice** TBD — `7hj` queued for next deploy.
+
+| Slice | Hash | What's pinned |
+|---|---|---|
+| 7hj | `pending` | Deep health + test-automation status (29 tests across 2 files). **`/api/health/deep` GET (15 tests)** — Cloud Run readiness probe (distinct from /api/health which stays light for liveness): Promise.all parallel probes for Mongo + Redis; **3-second per-check timeout** (CHECK_TIMEOUT_MS=3000) — a hanging dep is killed and reports `timed out after 3000ms`; Mongo probe = connectDB + admin().ping() (throws cascade through to ok:false with error message); Redis probe handles **null-shaped client** (when REDIS_HOST unset → 'redis client not configured' error), missing `.ping` method, non-PONG reply (`redis ping returned X`), and async throws. Each check carries `{name, ok, latencyMs, error?}`. **Status code semantics**: ALL ok → 200 status:'ok'; ANY fail → 503 status:'degraded' (Cloud Run pulls traffic). Tested across partial-fail (one dep down) and full-fail (both down) — both 503; partial keeps the healthy dep's ok:true. **`/api/test/automation/status` GET (14 tests)** — QA inspection endpoint for service automation state: **env-gated admin check** — `NODE_ENV==='production'` requires admin (401 otherwise); ANY OTHER env (dev/test/staging) allows anonymous access (QA-suite convenience — pinned with explicit dev-mode test). Required `serviceId` + `serviceType` query params → 400 INVALID_PARAMS when missing. **Service-type branch**: 'hosting' → getHostingById(id, {lean:true}); else → getDomainById(id). Hosting uses `expiryDate` field, domain uses `expiresAt` — projects the structural union (pinned with cross-field injection to confirm correct field chosen per service type). Not-found → 404 NOT_FOUND; no expiry → 400 NO_EXPIRY. **Simulated-now**: `?now=<ISO>` passed to TimeService.now (overrides real clock for deterministic date-based test replays); missing → TimeService.now(null, undefined). Outer catch → 500 INTERNAL_ERROR with error.message |
 - **Pattern**: read source → mock all dependencies → pin security gates (rate-limit, cache contract, fallback paths) + error mapping → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
 
 ### 📋 Backlog (with assigned batch numbers)
@@ -67,7 +71,8 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7hg** — Trial-OTP send (rate-limit + phone normalisation + 502 SMS-provider signal) + verify (single-use consume + signed token, NOT raw OTP)~~ ✅ live `dms-00119-6z5`
 - [x] ~~**Batch 7hh** — Admin service-users overview (session-auth + aggregation+fallback dedup + no-live-DA) + pending-domains bulk verify (100-cap + 3-branch outcome dispatch)~~ ✅ live `dms-00119-6z5`
 - [x] ~~**Batch 7hi** — Admin DA diagnostics (Promise.allSettled fan-out + optional cleanup) + bulk DA-cleanup (typed-outcome 4-branch + 100-cap + failure isolation)~~ ✅ live `dms-00119-6z5`
-- [ ] **Batch 7hj** — More untested route handlers (sweep continues: health-deep / test-automation-status / test-automation-trigger / cron other-routes)
+- [x] ~~**Batch 7hj** — Deep health-check (Mongo+Redis 3s-bounded + 503-on-fail) + test-automation status (env-gated admin + service-type+expiry-field branch + simulated-now)~~ ✅ committed `pending`, queued for deploy
+- [ ] **Batch 7hk** — More untested route handlers (sweep continues: test-automation-trigger / cron-check-unprovisioned / user-hosting-sso / user-hosting-upgrade-info / chat)
 
 #### 🔄 M14 component-test remainders
 
