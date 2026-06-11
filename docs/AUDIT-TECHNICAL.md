@@ -20,7 +20,11 @@ _(none — fully caught up)_
 
 ### 🎯 Currently working on
 
-- **Fully caught up through `7hf`** (live at `dms-00118-m5v`). 32 rescan-4 route-handler slices `7ga–7hf` shipped 2026-06-08 + 2026-06-10 + 2026-06-11 across 17 deploys.
+- **Next active slice** TBD — `7hg` queued for next deploy.
+
+| Slice | Hash | What's pinned |
+|---|---|---|
+| 7hg | `pending` | Trial-OTP send + verify pair (27 tests across 2 files). **`/api/user/hosting/trial-otp/send` POST (15 tests)** — first step of phone verification: **rate-limit BEFORE body parse** via trialOtpSend limiter (3/IP — strict because SMS costs money + customer-facing SMS-bomb vector); over-limit → rateLimitResponse with limit:3 + 'Too many OTP requests' (NO body parse, NO SMS, NO storeOtp). zod (phone optional, max 20). **Phone resolution chain**: body.phone wins over user.phone; falls back to AuthService.getUserFromRequest's user.phone when body empty; neither → 400 'Phone number is required'. **Phone normalisation** (Indian 10-digit): strip non-digits, strip leading '91' (country code); 9 or 11 digits after normalisation → 400 'valid 10-digit Indian mobile'. generateOtp called once; storeOtp(digits, code); sendSms with `{to:digits, template:'trial_otp', variables:{otp:code, var1:code}}`. **SMS provider failure → 502 SMS_PROVIDER_ERROR** (NOT 500 — distinguishes upstream SMS outage from local logic bug). Outer catch → 500 SERVER_ERROR. **`/api/user/hosting/trial-otp/verify` POST (12 tests)** — second step + token issuance: **rate-limit BEFORE body parse** via trialOtpVerify limiter (10/IP — looser than send because legitimate typos happen); zod (phone 1-20, code `^\d{6}$` regex — non-numeric / 5-digit / 7-digit all 400); phone normalisation parity with send (10-digit Indian). **consumeOtp is single-use**: result.ok false → 400 INVALID_OTP with `result.reason` surfaced (or 'Verification failed' fallback). **Signed token issuance**: on success signOtpToken(digits) is what reaches the client — NOT the raw OTP code (test explicitly asserts token !== '123456'). Response: `{ success, message, token }`. Outer catch → 500 SERVER_ERROR |
 - **Pattern**: read source → mock all dependencies → pin security gates (rate-limit, cache contract, fallback paths) + error mapping → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
 
 ### 📋 Backlog (with assigned batch numbers)
@@ -64,7 +68,8 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7hd** — Auth-activate (rate-limit-first + expired-vs-unknown branch + token-clear-before-JWT) + domain-verify-status (RC typed-outcome 3-branch dispatch + strict 'Active' match)~~ ✅ live `dms-00117-f7f`
 - [x] ~~**Batch 7he** — Invoice-pay (IDOR with anti-enumeration 404 + anti-double-pay) + admin re-sync-invoice (stuck-status reset + Zoho soft-failure path)~~ ✅ live `dms-00118-m5v`
 - [x] ~~**Batch 7hf** — Auth-reset-password (5-layer defense incl. CRITICAL admin-block) + hosting-check-eligibility (GET+POST shared helper + one-trial-per-user via 2 sources)~~ ✅ live `dms-00118-m5v`
-- [ ] **Batch 7hg** — More untested route handlers (sweep continues: admin-users-services / admin-diag-da / health-deep / user-hosting-trial-otp-send + verify)
+- [x] ~~**Batch 7hg** — Trial-OTP send (rate-limit + phone normalisation + 502 SMS-provider signal) + verify (single-use consume + signed token, NOT raw OTP)~~ ✅ committed `pending`, queued for deploy
+- [ ] **Batch 7hh** — More untested route handlers (sweep continues: admin-users-services / admin-diag-da / admin-diag-da-cleanup / health-deep / admin-pending-domains-verify)
 
 #### 🔄 M14 component-test remainders
 
