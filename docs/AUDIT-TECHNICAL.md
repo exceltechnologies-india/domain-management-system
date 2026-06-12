@@ -12,17 +12,15 @@ Surfaced at the top so the active surface is visible without scrolling through t
 
 ### 🔄 Pending deploy
 
-Live revision: **`dms-00123-kp2`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-12 06:20Z, includes slice 7hm + grpc-js 1.14.4 audit-fix bump)
+Live revision: **`dms-00124-bjk`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-12 07:25Z, includes slice 7hn)
 
 Committed slices NOT yet in the live revision:
 
-| Slice | Subject | Tests added | Status |
-|---|---|---|---|
-| 7hn | auth/forgot-password + check-ip | 30 | ✅ committed pending, queued for deploy |
+_(none — fully caught up)_
 
 ### 🎯 Currently working on
 
-- **Fully caught up through `7hn`** (committed locally; pending deploy on top of `dms-00123-kp2`). 40 rescan-4 route-handler slices `7ga–7hn` shipped 2026-06-08 + 2026-06-10 + 2026-06-11 + 2026-06-12 across 22 deploys + 1 queued.
+- **Fully caught up through `7hn`** (live at `dms-00124-bjk`). 40 rescan-4 route-handler slices `7ga–7hn` shipped 2026-06-08 + 2026-06-10 + 2026-06-11 + 2026-06-12 across 23 deploys.
 - **Pattern**: read source → mock all dependencies → pin security gates (rate-limit, cache contract, fallback paths) + error mapping → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
 
 ### 📋 Backlog (with assigned batch numbers)
@@ -73,7 +71,7 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7hk** — Hosting SSO (cross-tenant guard + suspension block + browser/JSON dual response) + upgrade-info (upgrades-only filter + prorated ₹100-floor formula + expired guard)~~ ✅ live `dms-00121-fh2`
 - [x] ~~**Batch 7hl** — Admin manual hosting-assign (admin-gate first + DA username gen 8+4 base36 ≤14 + DNS update best-effort swallow + `already exists` 409) + cron-check-unprovisioned (dual auth + CONCURRENCY=5 chunked retry fan-out via `Promise.allSettled` + 30-min stuck-orders watchdog + email-send swallow)~~ ✅ live `dms-00122-x8p`
 - [x] ~~**Batch 7hm** — Admin DNS-activate (admin gate + status='registered' guard + already-active 400 with `force=true` override + RC `activateDNSManagement` failure swallow + local-mark survives RC throw + no-resellerOrderId warn-and-skip + legacy top-level RC orderId fallback) + test-automation-trigger (admin-OR-non-prod auth + `ENABLE_TIME_SIMULATION` 403 + zod-enum service-type guard + hosting/domain fan-out + force-eligible mutation + scheduler fetch w/ `x-cron-secret` + `x-simulated-time` headers; family-quirk raw-msg leak pinned)~~ ✅ live `dms-00123-kp2`
-- [x] ~~**Batch 7hn** — Auth-forgot-password (7-layer defense: CSRF → rate-limit-BEFORE-body-parse → zod → reCAPTCHA w/ clientIP fallback chain → anti-enumeration triple-indistinguishable response → admin-via-public-flow block → `crypto.randomBytes(32).toString('hex')` 1h token + `isFirstTimeSetup = user.isGuest === true` strict-truth branch; token-saved-BEFORE-email pinned for reissue path) + check-ip (4-service hard-coded fan-out + JSON/text dispatch + per-service try/catch failure isolation + all-fail null-fallback + 4-field server-info echo lock with cookie/auth negative leak guard; FAMILY-QUIRK: dedup-before-vote means "most common" picks last-distinct-IP)~~ ✅ committed pending, queued for deploy
+- [x] ~~**Batch 7hn** — Auth-forgot-password (7-layer defense: CSRF → rate-limit-BEFORE-body-parse → zod → reCAPTCHA w/ clientIP fallback chain → anti-enumeration triple-indistinguishable response → admin-via-public-flow block → `crypto.randomBytes(32).toString('hex')` 1h token + `isFirstTimeSetup = user.isGuest === true` strict-truth branch; token-saved-BEFORE-email pinned for reissue path) + check-ip (4-service hard-coded fan-out + JSON/text dispatch + per-service try/catch failure isolation + all-fail null-fallback + 4-field server-info echo lock with cookie/auth negative leak guard; FAMILY-QUIRK: dedup-before-vote means "most common" picks last-distinct-IP)~~ ✅ live `dms-00124-bjk`
 - [ ] **Batch 7ho** — More untested route handlers (sweep continues: chat / register / complete-profile / domains/* / etc.)
 
 #### 🔄 M14 component-test remainders
