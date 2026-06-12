@@ -12,17 +12,15 @@ Surfaced at the top so the active surface is visible without scrolling through t
 
 ### 🔄 Pending deploy
 
-Live revision: **`dms-00122-x8p`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-11 12:55Z, includes slice 7hl)
+Live revision: **`dms-00123-kp2`** at https://dms-5itdvlx2va-ew.a.run.app (deployed 2026-06-12 06:20Z, includes slice 7hm + grpc-js 1.14.4 audit-fix bump)
 
 Committed slices NOT yet in the live revision:
 
-| Slice | Subject | Tests added | Status |
-|---|---|---|---|
-| 7hm | admin-domains-activate-dns + test-automation-trigger | 31 | ✅ committed pending, queued for deploy |
+_(none — fully caught up)_
 
 ### 🎯 Currently working on
 
-- **Fully caught up through `7hm`** (committed locally; pending deploy on top of `dms-00122-x8p`). 39 rescan-4 route-handler slices `7ga–7hm` shipped 2026-06-08 + 2026-06-10 + 2026-06-11 + 2026-06-12 across 21 deploys + 1 queued.
+- **Fully caught up through `7hm`** (live at `dms-00123-kp2`). 39 rescan-4 route-handler slices `7ga–7hm` shipped 2026-06-08 + 2026-06-10 + 2026-06-11 + 2026-06-12 across 22 deploys.
 - **Pattern**: read source → mock all dependencies → pin security gates (rate-limit, cache contract, fallback paths) + error mapping → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
 
 ### 📋 Backlog (with assigned batch numbers)
@@ -72,7 +70,7 @@ Each item below has a tentative batch number from the next-available sequence (a
 - [x] ~~**Batch 7hj** — Deep health-check (Mongo+Redis 3s-bounded + 503-on-fail) + test-automation status (env-gated admin + service-type+expiry-field branch + simulated-now)~~ ✅ live `dms-00120-4j5`
 - [x] ~~**Batch 7hk** — Hosting SSO (cross-tenant guard + suspension block + browser/JSON dual response) + upgrade-info (upgrades-only filter + prorated ₹100-floor formula + expired guard)~~ ✅ live `dms-00121-fh2`
 - [x] ~~**Batch 7hl** — Admin manual hosting-assign (admin-gate first + DA username gen 8+4 base36 ≤14 + DNS update best-effort swallow + `already exists` 409) + cron-check-unprovisioned (dual auth + CONCURRENCY=5 chunked retry fan-out via `Promise.allSettled` + 30-min stuck-orders watchdog + email-send swallow)~~ ✅ live `dms-00122-x8p`
-- [x] ~~**Batch 7hm** — Admin DNS-activate (admin gate + status='registered' guard + already-active 400 with `force=true` override + RC `activateDNSManagement` failure swallow + local-mark survives RC throw + no-resellerOrderId warn-and-skip + legacy top-level RC orderId fallback) + test-automation-trigger (admin-OR-non-prod auth + `ENABLE_TIME_SIMULATION` 403 + zod-enum service-type guard + hosting/domain fan-out + force-eligible mutation + scheduler fetch w/ `x-cron-secret` + `x-simulated-time` headers; family-quirk raw-msg leak pinned)~~ ✅ committed pending, queued for deploy
+- [x] ~~**Batch 7hm** — Admin DNS-activate (admin gate + status='registered' guard + already-active 400 with `force=true` override + RC `activateDNSManagement` failure swallow + local-mark survives RC throw + no-resellerOrderId warn-and-skip + legacy top-level RC orderId fallback) + test-automation-trigger (admin-OR-non-prod auth + `ENABLE_TIME_SIMULATION` 403 + zod-enum service-type guard + hosting/domain fan-out + force-eligible mutation + scheduler fetch w/ `x-cron-secret` + `x-simulated-time` headers; family-quirk raw-msg leak pinned)~~ ✅ live `dms-00123-kp2`
 - [ ] **Batch 7hn** — More untested route handlers (sweep continues: chat / other route stragglers)
 
 #### 🔄 M14 component-test remainders
