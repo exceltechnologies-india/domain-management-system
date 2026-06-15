@@ -7,7 +7,7 @@
 
 ## In Flight
 
-(nothing in flight)
+- [ ] **Public TLD-list endpoint** — adding automated safety checks for the public-facing TLD list used by the domain search UI (queued for next deploy)
 
 ## Recently Shipped — user-visible improvements
 
