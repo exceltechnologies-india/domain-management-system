@@ -7,7 +7,7 @@
 
 ## In Flight
 
-(nothing in flight)
+- [ ] **Customer DNS records CRUD + admin DNS records CRUD** — adding automated safety checks for the two paired DNS-record management endpoints (queued for next deploy)
 
 ## Recently Shipped — user-visible improvements
 
