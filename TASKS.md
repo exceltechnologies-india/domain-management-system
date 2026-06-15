@@ -1,8 +1,9 @@
 # Domain Management Portal — Tasks
 
-**Last updated:** 15 Jun 2026 05:30Z
+**Last updated:** 15 Jun 2026 06:00Z
 **Currently live in production:** revision `dms-00140-9qd` (deployed 2026-06-15 05:30Z; includes slice 7i3)
 **Most-recent batch:** 56 customer-safety + admin-safety improvements shipped 8–15 Jun via 39 production deploys (pending-deploy queue is empty); every item below tagged with its live revision
+**Today (2026-06-15) shipped:** 2 vertical slices live — slice 7i3 (customer hosting renewal + admin user CRUD) + slice 7i2 docs-flip carry-over from late 2026-06-13 ; 45 new tests this session; suite at 5462/5462
 
 ## In Flight
 
