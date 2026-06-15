@@ -7,7 +7,7 @@
 
 ## In Flight
 
-(nothing in flight)
+- [ ] **Customer invoice PDF + admin invoice PDF download** — adding automated safety checks for the two invoice-download endpoints (queued for next deploy)
 
 ## Recently Shipped — user-visible improvements
 
