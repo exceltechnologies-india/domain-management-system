@@ -7,7 +7,7 @@
 
 ## In Flight
 
-(nothing in flight)
+- [ ] **Customer "import all my registrar domains" sync + daily service-expiry worker** — adding automated safety checks for the customer domain-sync POST endpoint and the daily hosting/domain expiry reminder + suspension worker (queued for next deploy)
 
 ## Recently Shipped — user-visible improvements
 
