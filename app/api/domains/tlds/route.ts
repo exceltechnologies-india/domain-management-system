@@ -250,7 +250,10 @@ export async function GET(request: NextRequest) {
         "circle",
       ];
 
-      const availableTlds = staticTlds.map((tld) => ({
+      // Dedupe — the curated lists historically had `shop`/`store`
+      // listed twice (once under new-gTLDs, once under the shopping
+      // section), which made them appear twice in the search dropdown.
+      const availableTlds = [...new Set(staticTlds)].map((tld) => ({
         name: tld,
         displayName: `.${tld}`,
         available: true,
@@ -509,7 +512,8 @@ export async function GET(request: NextRequest) {
 
     // Return the comprehensive TLD list directly — the pricing API structure is
     // not keyed by TLD name at the top level, so we use our curated list.
-    const availableTlds = comprehensiveTlds.map((tld) => ({
+    // Dedupe — same duplicate-shop/store hazard as the testing-mode branch.
+    const availableTlds = [...new Set(comprehensiveTlds)].map((tld) => ({
       name: tld,
       displayName: `.${tld}`,
       available: true,
