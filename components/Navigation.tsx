@@ -76,6 +76,38 @@ export default function Navigation({
     return pathname.startsWith(path);
   };
 
+  // Build the Login button's href so that a customer who clicks Login from
+  // (e.g.) the cart page lands back on the cart after authenticating, instead
+  // of the default /dashboard. Returns `/login` plainly when the current
+  // pathname is one of: the homepage, an auth route the customer can't
+  // possibly want to return to (login / register / activate / reset-password),
+  // a public-marketing page that doesn't carry session state worth preserving,
+  // or anything that doesn't look like a normal app path. The login form
+  // already has an open-redirect guard, but we double-check here so the URL
+  // bar reads cleanly when a customer is on /, /about, /privacy, etc.
+  const buildLoginHref = (): string => {
+    if (!pathname || pathname === '/') return '/login';
+    const noReturnPrefixes = [
+      '/login',
+      '/register',
+      '/activate',
+      '/reset-password',
+      '/forgot-password',
+      '/maintenance',
+      '/403',
+    ];
+    if (noReturnPrefixes.some((p) => pathname === p || pathname.startsWith(p + '/'))) {
+      return '/login';
+    }
+    // Same-origin safety net: pathname must start with a single forward
+    // slash followed by a non-slash character. usePathname() should always
+    // satisfy this, but the explicit check keeps the URL builder robust
+    // against any future refactor.
+    if (!/^\/[^/]/.test(pathname)) return '/login';
+    return `/login?returnUrl=${encodeURIComponent(pathname)}`;
+  };
+  const loginHref = buildLoginHref();
+
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
   };
@@ -218,7 +250,7 @@ export default function Navigation({
               </Link>
             ) : (
               <Link
-                href="/login"
+                href={loginHref}
                 className="px-4 py-2 rounded-lg font-medium text-white transition-all duration-200 shadow-sm hover:shadow-md"
                 style={{
                   backgroundColor: 'var(--google-blue)',
@@ -333,7 +365,7 @@ export default function Navigation({
                 </Link>
               ) : (
                 <Link
-                  href="/login"
+                  href={loginHref}
                   onClick={closeMobileMenu}
                   className="px-4 py-2 rounded-lg font-medium text-white transition-all duration-200 shadow-sm hover:shadow-md text-center"
                   style={{
