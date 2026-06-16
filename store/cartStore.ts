@@ -233,7 +233,7 @@ export const useCartStore = create<CartStore>()(
           // /api/cart, which falls through the `response.ok` branch as
           // a no-op — fail-soft. The previous Bearer-token gate was a
           // dead pre-NextAuth path.
-          const response = await fetch("/api/v1/cart", {
+          const response = await fetch("/api/cart", {
             method: "GET",
             credentials: "include",
           });
@@ -262,7 +262,7 @@ export const useCartStore = create<CartStore>()(
         try {
           const { items } = get();
 
-          const response = await fetch("/api/v1/cart", {
+          const response = await fetch("/api/cart", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -290,7 +290,7 @@ export const useCartStore = create<CartStore>()(
 
           // Load server cart via the NextAuth session cookie. 401 falls
           // through as no-op (fail-soft for guests).
-          const response = await fetch("/api/v1/cart", {
+          const response = await fetch("/api/cart", {
             method: "GET",
             credentials: "include",
           });
