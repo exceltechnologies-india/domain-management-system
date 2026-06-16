@@ -32,8 +32,8 @@ export default async function RootLayout({
   await headers();
 
   return (
-    <html lang="en">
-      <body className={inter.className}>
+    <html lang="en" suppressHydrationWarning>
+      <body className={inter.className} suppressHydrationWarning>
         <MotionProvider>
           <SessionProvider>
             {children}
