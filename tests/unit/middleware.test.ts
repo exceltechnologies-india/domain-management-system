@@ -471,6 +471,8 @@ describe("Public routes / public APIs — no token fetch", () => {
     "/api/health",
     "/api/status",
     "/api/log",
+    "/api/chat",
+    "/api/v1/chat",
     "/api/domains/search",
     "/api/domains/tlds",
     "/api/check-ip",
