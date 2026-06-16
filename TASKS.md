@@ -7,7 +7,7 @@
 
 ## In Flight
 
-(nothing in flight)
+- [ ] **Razorpay payment-captured + refund webhook** — adding automated safety checks for the production payment-capture webhook (this was an untested critical endpoint sitting at `/razorpay/webhook`, separate from the already-tested subscription-events webhook at `/api/webhooks/razorpay`) (queued for next deploy)
 
 ## Recently Shipped — user-visible improvements
 
