@@ -1,37 +1,46 @@
 /**
- * Tests for `app/api/chat/route.ts` (slice 7i2, part 1).
+ * Tests for `app/api/chat/route.ts` (slice 7i2 → migrated to Gemini).
  *
- * Public AI chat widget. Anonymous, rate-limited, SSE-streamed
- * Anthropic Haiku 4.5 conversations.
+ * Public AI chat widget. Anonymous, rate-limited, SSE-streamed.
+ * Originally Anthropic Claude Haiku; switched to Google Gemini 2.5
+ * Flash on 2026-06-16 (free-tier API key, project "anutech-hosting").
  *
  * Threat model:
  *  - **Budget-drain abuse**: a single hostile IP could otherwise
- *    flood the Anthropic API and drain the team's quota. Pinned:
+ *    flood the upstream and drain the free-tier quota. Pinned:
  *    10 requests per IP per minute BEFORE body parse (so a hostile
  *    large body can't even reach the JSON parser when throttled).
- *  - **Model-alias re-point cost shift**: a future Anthropic alias
- *    redirect (e.g. claude-haiku-* → a more expensive tier) would
- *    silently change the per-conversation cost. Pinned to the
- *    dated release `claude-haiku-4-5-20251001`.
- *  - **Conversation-history token bomb**: a refactor that drops
- *    the `.slice(-20)` cost-bound would let clients send 1000-turn
- *    histories and burn tokens. Pinned with a 25-message probe
- *    asserting only 20 reach the SDK.
+ *  - **Model-alias re-point cost shift**: a future Google alias
+ *    redirect (e.g. `gemini-2.5-flash` → a paid tier) would silently
+ *    change the per-conversation cost. Pinned to the exact model
+ *    name in the request URL.
+ *  - **Conversation-history token bomb**: a refactor that drops the
+ *    `.slice(-20)` cost-bound would let clients send 1000-turn
+ *    histories and burn quota. Pinned with a 25-message probe
+ *    asserting only the last 20 reach the upstream.
+ *  - **API-key leak via response error**: a refactor that bubbled
+ *    Gemini's raw error body into our JSON response would leak the
+ *    key. Pinned: outer-catch returns the generic message only.
  *
  * Other pins:
  *  - Rate-limit BEFORE body parse
  *  - zod: messages array min:1; role enum 'user'|'assistant';
  *    content 1-8000 chars
  *  - SSE Content-Type / Cache-Control: no-cache / Connection: keep-alive
- *  - text_delta events → `data: {text}\n\n` chunks
- *  - non-text-delta events filtered out
+ *  - Gemini SSE `data:` frames → our `data: {text}\n\n` chunks
+ *  - Non-text candidate parts filtered out
  *  - `data: [DONE]\n\n` sentinel at end
- *  - System prompt array w/ cache_control: ephemeral pinned
- *  - max_tokens: 1024 pinned
- *  - Anthropic error mapping: AuthenticationError → 401;
- *    RateLimitError → 429; other → 500
+ *  - System prompt sent via `systemInstruction.parts[0].text`
+ *  - Generation config max_output_tokens: 1024 pinned
+ *  - Role mapping: our 'assistant' → Gemini's 'model'
+ *  - Gemini error mapping: 401/403 → 401 'API key invalid'; 429 →
+ *    429 'Too many requests'; other → 500 'Internal server error'
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+
+vi.hoisted(() => {
+  process.env.GEMINI_API_KEY = "test_gemini_key_xyz";
+});
 
 const isAllowed = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/rate-limit", async () => {
@@ -43,19 +52,6 @@ vi.mock("@/lib/rate-limit", async () => {
     rateLimiters: { chat: { isAllowed } },
   };
 });
-
-const stream = vi.hoisted(() => vi.fn());
-const AnthropicMock = vi.hoisted(() => {
-  class AuthenticationError extends Error {}
-  class RateLimitError extends Error {}
-  class Anthropic {
-    messages = { stream };
-    static AuthenticationError = AuthenticationError;
-    static RateLimitError = RateLimitError;
-  }
-  return Anthropic;
-});
-vi.mock("@anthropic-ai/sdk", () => ({ default: AnthropicMock }));
 
 vi.unmock("next/server");
 const { NextRequest, NextResponse } = await vi.importActual<
@@ -73,22 +69,54 @@ function makeReq(body: unknown) {
   });
 }
 
-/** Async iterable producing the Anthropic SDK event stream. */
-function makeEventStream(
-  events: Array<Record<string, unknown>>
-): AsyncIterable<unknown> {
-  return {
-    [Symbol.asyncIterator]: async function* () {
-      for (const e of events) yield e;
+/**
+ * Build a fake upstream Gemini SSE response. Each frame is one
+ * candidate-content blob; the route should parse them into our
+ * `data: {text}\n\n` chunks. We use a TransformStream-style
+ * ReadableStream so the route's reader.read() loop sees the bytes.
+ */
+function makeGeminiStream(frames: string[], status = 200): Response {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      for (const frame of frames) {
+        controller.enqueue(encoder.encode(frame));
+      }
+      controller.close();
     },
-  };
+  });
+  return new Response(stream, {
+    status,
+    headers: { "Content-Type": "text/event-stream" },
+  });
 }
 
-function textDelta(text: string) {
-  return {
-    type: "content_block_delta",
-    delta: { type: "text_delta", text },
-  };
+/** Build the SSE frame body that wraps a single text chunk. */
+function textCandidate(text: string): string {
+  return `data: ${JSON.stringify({
+    candidates: [{ content: { role: "model", parts: [{ text }] } }],
+  })}\n\n`;
+}
+
+/** Build a frame with a non-text part (should be skipped). */
+function nonTextCandidate(): string {
+  return `data: ${JSON.stringify({
+    candidates: [
+      {
+        content: {
+          role: "model",
+          parts: [{ functionCall: { name: "lookup", args: {} } }],
+        },
+      },
+    ],
+  })}\n\n`;
+}
+
+function jsonErrorResponse(status: number, message = "Upstream error"): Response {
+  return new Response(JSON.stringify({ error: { code: status, message } }), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 async function readSSEChunks(res: Response): Promise<string[]> {
@@ -112,13 +140,19 @@ async function readSSEChunks(res: Response): Promise<string[]> {
 
 const VALID = { messages: [{ role: "user", content: "Hello" }] };
 
+const fetchMock = vi.fn();
+
 beforeEach(() => {
   isAllowed.mockReset().mockResolvedValue({ allowed: true, remaining: 10 });
-  stream.mockReset();
+  fetchMock.mockReset();
+  vi.stubGlobal("fetch", fetchMock);
 });
 
+// ═══════════════════════════════════════════════════════════════════
+// Rate limit BEFORE body parse
+// ═══════════════════════════════════════════════════════════════════
 describe("Rate-limit BEFORE body parse (anti-budget-drain)", () => {
-  it("denied → 429; body NEVER parsed; SDK NEVER called", async () => {
+  it("denied → 429; body NEVER parsed; upstream NEVER called", async () => {
     isAllowed.mockResolvedValueOnce({
       allowed: false,
       remaining: 0,
@@ -127,15 +161,18 @@ describe("Rate-limit BEFORE body parse (anti-budget-drain)", () => {
     // Hostile body bytes — if rate-limit ran after parse, this would 400.
     const res = await POST(makeReq("{not-json"));
     expect(res.status).toBe(429);
-    expect(stream).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
+// ═══════════════════════════════════════════════════════════════════
+// zod schema validation
+// ═══════════════════════════════════════════════════════════════════
 describe("Zod schema", () => {
   it("empty messages array → 400 (min:1)", async () => {
     const res = await POST(makeReq({ messages: [] }));
     expect(res.status).toBe(400);
-    expect(stream).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("missing messages → 400", async () => {
@@ -167,24 +204,27 @@ describe("Zod schema", () => {
   });
 });
 
+// ═══════════════════════════════════════════════════════════════════
+// Conversation history cost-bound
+// ═══════════════════════════════════════════════════════════════════
 describe("Conversation history cost-bound (.slice(-20))", () => {
-  it("25 messages sent → only last 20 reach the SDK", async () => {
-    stream.mockResolvedValueOnce(makeEventStream([]));
+  it("25 messages sent → only last 20 reach the upstream", async () => {
+    fetchMock.mockResolvedValueOnce(makeGeminiStream([]));
     const messages = Array.from({ length: 25 }, (_, i) => ({
       role: i % 2 === 0 ? "user" : "assistant",
       content: `msg-${i}`,
     }));
     await POST(makeReq({ messages }));
-    expect(stream).toHaveBeenCalledTimes(1);
-    const sdkCall = stream.mock.calls[0][0];
-    expect(sdkCall.messages).toHaveLength(20);
-    // First message in sdk call should be msg-5 (oldest of the last 20)
-    expect(sdkCall.messages[0].content).toBe("msg-5");
-    expect(sdkCall.messages[19].content).toBe("msg-24");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.contents).toHaveLength(20);
+    // Oldest of the last 20 = msg-5
+    expect(body.contents[0].parts[0].text).toBe("msg-5");
+    expect(body.contents[19].parts[0].text).toBe("msg-24");
   });
 
-  it("3 messages → all 3 reach the SDK (no truncation)", async () => {
-    stream.mockResolvedValueOnce(makeEventStream([]));
+  it("3 messages → all 3 reach the upstream (no truncation)", async () => {
+    fetchMock.mockResolvedValueOnce(makeGeminiStream([]));
     await POST(
       makeReq({
         messages: [
@@ -194,41 +234,97 @@ describe("Conversation history cost-bound (.slice(-20))", () => {
         ],
       })
     );
-    expect(stream.mock.calls[0][0].messages).toHaveLength(3);
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.contents).toHaveLength(3);
   });
 });
 
-describe("Anthropic SDK call shape", () => {
-  it("**model pinned to dated release `claude-haiku-4-5-20251001`**", async () => {
-    stream.mockResolvedValueOnce(makeEventStream([]));
+// ═══════════════════════════════════════════════════════════════════
+// Gemini upstream call shape
+// ═══════════════════════════════════════════════════════════════════
+describe("Gemini upstream call shape", () => {
+  it("**model pinned to `gemini-2.5-flash` in the URL** (anti-alias-repoint)", async () => {
+    fetchMock.mockResolvedValueOnce(makeGeminiStream([]));
     await POST(makeReq(VALID));
-    expect(stream.mock.calls[0][0].model).toBe("claude-haiku-4-5-20251001");
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url).toContain("/models/gemini-2.5-flash:streamGenerateContent");
   });
 
-  it("max_tokens: 1024 pinned", async () => {
-    stream.mockResolvedValueOnce(makeEventStream([]));
+  it("URL carries `alt=sse` for standard SSE framing", async () => {
+    fetchMock.mockResolvedValueOnce(makeGeminiStream([]));
     await POST(makeReq(VALID));
-    expect(stream.mock.calls[0][0].max_tokens).toBe(1024);
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url).toContain("alt=sse");
   });
 
-  it("system prompt is an array w/ cache_control: ephemeral", async () => {
-    stream.mockResolvedValueOnce(makeEventStream([]));
+  it("API key passed via `key=` query param", async () => {
+    fetchMock.mockResolvedValueOnce(makeGeminiStream([]));
     await POST(makeReq(VALID));
-    const system = stream.mock.calls[0][0].system;
-    expect(Array.isArray(system)).toBe(true);
-    expect(system[0]).toEqual(
-      expect.objectContaining({
-        type: "text",
-        cache_control: { type: "ephemeral" },
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url).toContain("key=test_gemini_key_xyz");
+  });
+
+  it("missing GEMINI_API_KEY env var → 401 'API key invalid' (NO upstream call)", async () => {
+    const saved = process.env.GEMINI_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+    try {
+      const res = await POST(makeReq(VALID));
+      expect(res.status).toBe(401);
+      const body = await res.json();
+      expect(body.error).toBe("API key invalid");
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      process.env.GEMINI_API_KEY = saved;
+    }
+  });
+
+  it("max_output_tokens: 1024 pinned", async () => {
+    fetchMock.mockResolvedValueOnce(makeGeminiStream([]));
+    await POST(makeReq(VALID));
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.generationConfig.maxOutputTokens).toBe(1024);
+  });
+
+  it("system prompt sent via systemInstruction.parts[0].text + contains 'Anutech'", async () => {
+    fetchMock.mockResolvedValueOnce(makeGeminiStream([]));
+    await POST(makeReq(VALID));
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.systemInstruction.parts[0].text).toContain("Anutech");
+  });
+
+  it("role mapping: our 'assistant' → Gemini's 'model'; 'user' stays 'user'", async () => {
+    fetchMock.mockResolvedValueOnce(makeGeminiStream([]));
+    await POST(
+      makeReq({
+        messages: [
+          { role: "user", content: "hi" },
+          { role: "assistant", content: "yo" },
+          { role: "user", content: "again" },
+        ],
       })
     );
-    expect(system[0].text).toContain("Anutech");
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.contents.map((c: { role: string }) => c.role)).toEqual([
+      "user",
+      "model",
+      "user",
+    ]);
+  });
+
+  it("Content-Type request header set to application/json", async () => {
+    fetchMock.mockResolvedValueOnce(makeGeminiStream([]));
+    await POST(makeReq(VALID));
+    const init = fetchMock.mock.calls[0][1];
+    expect(init.headers["Content-Type"]).toBe("application/json");
   });
 });
 
+// ═══════════════════════════════════════════════════════════════════
+// SSE streaming response
+// ═══════════════════════════════════════════════════════════════════
 describe("SSE streaming response", () => {
   it("Content-Type: text/event-stream + Cache-Control: no-cache + Connection: keep-alive", async () => {
-    stream.mockResolvedValueOnce(makeEventStream([]));
+    fetchMock.mockResolvedValueOnce(makeGeminiStream([]));
     const res = await POST(makeReq(VALID));
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("text/event-stream");
@@ -236,19 +332,12 @@ describe("SSE streaming response", () => {
     expect(res.headers.get("connection")).toBe("keep-alive");
   });
 
-  it("text_delta events → `data: {text}\\n\\n` chunks; non-text events filtered", async () => {
-    stream.mockResolvedValueOnce(
-      makeEventStream([
-        { type: "message_start" }, // filtered
-        textDelta("Hello "),
-        { type: "ping" }, // filtered
-        textDelta("world!"),
-        { type: "message_stop" }, // filtered
-      ])
+  it("Gemini text chunks → `data: {text}\\n\\n` chunks; ends with `[DONE]`", async () => {
+    fetchMock.mockResolvedValueOnce(
+      makeGeminiStream([textCandidate("Hello "), textCandidate("world!")])
     );
     const res = await POST(makeReq(VALID));
     const chunks = await readSSEChunks(res);
-    // 2 text-delta chunks + 1 [DONE] sentinel
     const data = chunks.filter((c) => c.startsWith("data: "));
     expect(data).toHaveLength(3);
     expect(JSON.parse(data[0].slice(6))).toEqual({ text: "Hello " });
@@ -256,15 +345,9 @@ describe("SSE streaming response", () => {
     expect(data[2]).toBe("data: [DONE]");
   });
 
-  it("non-text_delta content_block_delta (e.g. tool-use delta) filtered out", async () => {
-    stream.mockResolvedValueOnce(
-      makeEventStream([
-        {
-          type: "content_block_delta",
-          delta: { type: "input_json_delta", partial_json: "{}" },
-        },
-        textDelta("real text"),
-      ])
+  it("non-text parts (e.g. functionCall) filtered out — never emitted as text chunks", async () => {
+    fetchMock.mockResolvedValueOnce(
+      makeGeminiStream([nonTextCandidate(), textCandidate("real text")])
     );
     const res = await POST(makeReq(VALID));
     const chunks = await readSSEChunks(res);
@@ -274,23 +357,84 @@ describe("SSE streaming response", () => {
   });
 
   it("empty stream → only the `[DONE]` sentinel emitted", async () => {
-    stream.mockResolvedValueOnce(makeEventStream([]));
+    fetchMock.mockResolvedValueOnce(makeGeminiStream([]));
     const res = await POST(makeReq(VALID));
     const chunks = await readSSEChunks(res);
     const data = chunks.filter((c) => c.startsWith("data: "));
     expect(data).toEqual(["data: [DONE]"]);
   });
+
+  it("upstream `[DONE]` sentinel is consumed (not re-emitted as text)", async () => {
+    fetchMock.mockResolvedValueOnce(
+      makeGeminiStream([textCandidate("hi"), "data: [DONE]\n\n"])
+    );
+    const res = await POST(makeReq(VALID));
+    const chunks = await readSSEChunks(res);
+    const data = chunks.filter((c) => c.startsWith("data: "));
+    // One real text + our own [DONE] sentinel = 2
+    expect(data).toHaveLength(2);
+    expect(JSON.parse(data[0].slice(6))).toEqual({ text: "hi" });
+    expect(data[1]).toBe("data: [DONE]");
+  });
+
+  it("malformed upstream JSON in a frame → chunk skipped, stream continues", async () => {
+    fetchMock.mockResolvedValueOnce(
+      makeGeminiStream([
+        textCandidate("good "),
+        "data: {NOT-VALID-JSON\n\n",
+        textCandidate("more good"),
+      ])
+    );
+    const res = await POST(makeReq(VALID));
+    const chunks = await readSSEChunks(res);
+    const data = chunks.filter((c) => c.startsWith("data: "));
+    expect(data).toHaveLength(3);
+    expect(JSON.parse(data[0].slice(6))).toEqual({ text: "good " });
+    expect(JSON.parse(data[1].slice(6))).toEqual({ text: "more good" });
+    expect(data[2]).toBe("data: [DONE]");
+  });
+
+  it("split frame across reader.read() boundaries reassembles correctly", async () => {
+    // Slice a single SSE frame in the middle so the buffer-join code is exercised.
+    const frame = textCandidate("hello world");
+    const mid = Math.floor(frame.length / 2);
+    fetchMock.mockResolvedValueOnce(
+      makeGeminiStream([frame.slice(0, mid), frame.slice(mid)])
+    );
+    const res = await POST(makeReq(VALID));
+    const chunks = await readSSEChunks(res);
+    const data = chunks.filter((c) => c.startsWith("data: "));
+    expect(JSON.parse(data[0].slice(6))).toEqual({ text: "hello world" });
+  });
 });
 
+// ═══════════════════════════════════════════════════════════════════
+// Stream error mid-flight
+// ═══════════════════════════════════════════════════════════════════
 describe("Stream error mid-flight", () => {
-  it("iterator throws → emits `data: {error: 'Stream error'}` then closes", async () => {
-    const errorStream = {
-      [Symbol.asyncIterator]: async function* () {
-        yield textDelta("partial");
-        throw new Error("network blip mid-stream");
+  it("reader throws → emits `data: {error: 'Stream error'}` then closes", async () => {
+    // Use `pull` so the consumer's read() returns the queued chunk
+    // BEFORE we error the stream on the next pull cycle. With a single
+    // `start()` that enqueues + errors immediately, the consumer can
+    // miss the queued chunk depending on scheduler timing.
+    let pulls = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        const encoder = new TextEncoder();
+        if (pulls === 0) {
+          pulls++;
+          controller.enqueue(encoder.encode(textCandidate("partial")));
+          return;
+        }
+        controller.error(new Error("network blip mid-stream"));
       },
-    };
-    stream.mockResolvedValueOnce(errorStream);
+    });
+    fetchMock.mockResolvedValueOnce(
+      new Response(stream, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      })
+    );
     const res = await POST(makeReq(VALID));
     const chunks = await readSSEChunks(res);
     const data = chunks.filter((c) => c.startsWith("data: "));
@@ -302,9 +446,12 @@ describe("Stream error mid-flight", () => {
   });
 });
 
-describe("Anthropic SDK error mapping", () => {
-  it("AuthenticationError → 401 'API key invalid' (JSON, not SSE)", async () => {
-    stream.mockRejectedValueOnce(new AnthropicMock.AuthenticationError("bad key"));
+// ═══════════════════════════════════════════════════════════════════
+// Upstream error mapping
+// ═══════════════════════════════════════════════════════════════════
+describe("Gemini upstream error mapping", () => {
+  it("upstream 401 → 401 'API key invalid' (JSON, not SSE)", async () => {
+    fetchMock.mockResolvedValueOnce(jsonErrorResponse(401, "INVALID_ARGUMENT"));
     const res = await POST(makeReq(VALID));
     expect(res.status).toBe(401);
     expect(res.headers.get("content-type")).toContain("application/json");
@@ -312,16 +459,32 @@ describe("Anthropic SDK error mapping", () => {
     expect(body.error).toBe("API key invalid");
   });
 
-  it("RateLimitError → 429 'Too many requests'", async () => {
-    stream.mockRejectedValueOnce(new AnthropicMock.RateLimitError("rate"));
+  it("upstream 403 → 401 'API key invalid' (anti-permission-disclosure)", async () => {
+    fetchMock.mockResolvedValueOnce(jsonErrorResponse(403, "PERMISSION_DENIED"));
+    const res = await POST(makeReq(VALID));
+    expect(res.status).toBe(401);
+    const body = await res.json();
+    expect(body.error).toBe("API key invalid");
+  });
+
+  it("upstream 429 → 429 'Too many requests'", async () => {
+    fetchMock.mockResolvedValueOnce(jsonErrorResponse(429, "RESOURCE_EXHAUSTED"));
     const res = await POST(makeReq(VALID));
     expect(res.status).toBe(429);
     const body = await res.json();
     expect(body.error).toBe("Too many requests");
   });
 
-  it("any other SDK error → 500 'Internal server error'; sentinel NOT leaked", async () => {
-    stream.mockRejectedValueOnce(
+  it("upstream 500 → 500 'Internal server error'", async () => {
+    fetchMock.mockResolvedValueOnce(jsonErrorResponse(500, "INTERNAL"));
+    const res = await POST(makeReq(VALID));
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe("Internal server error");
+  });
+
+  it("fetch throw (network down) → 500 'Internal server error'; sentinel NOT leaked", async () => {
+    fetchMock.mockRejectedValueOnce(
       new Error("Network down — sa_key_LEAK_ME_PLEASE")
     );
     const res = await POST(makeReq(VALID));
@@ -329,5 +492,28 @@ describe("Anthropic SDK error mapping", () => {
     const body = await res.json();
     expect(body.error).toBe("Internal server error");
     expect(JSON.stringify(body)).not.toContain("sa_key_LEAK_ME_PLEASE");
+  });
+
+  it("upstream with no body → 500 generic", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(null, { status: 200, headers: { "Content-Type": "text/event-stream" } })
+    );
+    const res = await POST(makeReq(VALID));
+    expect(res.status).toBe(500);
+  });
+
+  it("upstream error body NOT leaked into the response (sentinel-leak guard)", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          error: { message: "API key AQ.LEAK_ME_PLEASE is revoked" },
+        }),
+        { status: 401, headers: { "Content-Type": "application/json" } }
+      )
+    );
+    const res = await POST(makeReq(VALID));
+    const body = await res.json();
+    expect(JSON.stringify(body)).not.toContain("LEAK_ME_PLEASE");
+    expect(JSON.stringify(body)).not.toContain("AQ.");
   });
 });
