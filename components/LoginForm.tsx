@@ -219,7 +219,8 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
       panelTitle="Pick up where you left off"
     >
       <>
-          {searchParams.get('returnUrl') === '/checkout' && (
+          {(searchParams.get('returnUrl') === '/cart' ||
+            searchParams.get('returnUrl') === '/checkout') && (
             <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex items-center">
                 <ShieldCheck className="h-5 w-5 text-blue-600 mr-2 shrink-0" />

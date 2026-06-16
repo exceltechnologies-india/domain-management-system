@@ -671,7 +671,7 @@ function GuestCheckoutInner() {
             {/* Sign in CTA */}
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
               <strong>Have an account?</strong>{' '}
-              <Link href={`/login?returnUrl=${encodeURIComponent('/checkout')}`} className="underline font-medium">
+              <Link href={`/login?returnUrl=${encodeURIComponent('/cart')}`} className="underline font-medium">
                 Sign in
               </Link>{' '}
               for order history, DNS management, and auto-renewal.

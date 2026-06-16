@@ -132,13 +132,20 @@ export default function CartPage() {
     if (cartItems.length === 0) return;
 
     if (!user) {
-      router.push(`/login?returnUrl=${encodeURIComponent('/checkout')}`);
+      // Send the customer back to /cart (NOT /checkout) after login. A guest
+      // browsing the cart has their items in localStorage, but the server-
+      // side cart is empty; if we redirected straight to /checkout, the
+      // empty-cart guard there would immediately bounce them to /dashboard
+      // (cart-merge happens client-side AFTER /cart loads). Landing back on
+      // /cart lets the merge complete, then the customer can click the
+      // now-blue "Proceed to Checkout" button to continue.
+      router.push(`/login?returnUrl=${encodeURIComponent('/cart')}`);
       return;
     }
 
     // Always re-verify profile status from the server before allowing checkout
     if (!session?.user) {
-      router.push(`/login?returnUrl=${encodeURIComponent('/checkout')}`);
+      router.push(`/login?returnUrl=${encodeURIComponent('/cart')}`);
       return;
     }
 
@@ -345,7 +352,7 @@ export default function CartPage() {
                 totalPrice={getTotalPrice()}
                 onCheckout={handleCheckout}
                 onClearCart={clearCart}
-                returnUrl="/checkout"
+                returnUrl="/cart"
                 allowsGuestCheckout={hasDomainItems() || hasHostingItems()}
               />
             </div>
