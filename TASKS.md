@@ -1,9 +1,13 @@
 # Domain Management Portal — Tasks
 
-**Last updated:** 16 Jun 2026 05:35Z
+**Last updated:** 16 Jun 2026 06:05Z
 **Currently live in production:** revision `dms-00149-tgq` (deployed 2026-06-16 05:35Z; includes slice 7iC + 4 HIGH-severity dependency security patches)
 **Most-recent batch:** 65 customer-safety + admin-safety improvements shipped 8–16 Jun via 48 production deploys (pending-deploy queue is empty); every item below tagged with its live revision
 **Today (2026-06-16) shipped:** 1 vertical slice live — 7iC (Razorpay payment-capture webhook); 42 new tests + 4 HIGH-severity npm-audit vulnerabilities patched along the way; suite at 5941/5941
+
+## 🏁 Rescan-4 audit cycle: CLOSED 16 Jun 2026
+
+Eight days of focused safety-check additions are complete. Every production-facing route the system exposes — customer-side, admin-side, public, and machine-only (cron / payment-provider webhooks) — now has automated safety checks that run on every code change and would catch a regression before it can reach customers. 65 vertical slices shipped via 48 production deploys; 5,941 automated checks now run on every commit (up from ~1,300 at the start of the cycle); 4 HIGH-severity dependency vulnerabilities patched along the way. The audit found and fixed real bugs in production along the way (notably the duplicate-TLD display issue in slice 7iB). Nothing currently in flight; ready for the next initiative.
 
 ## In Flight
 
