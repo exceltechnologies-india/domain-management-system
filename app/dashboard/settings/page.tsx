@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { safeLocalStorage } from '@/lib/storage';
 import { performLogout } from '@/lib/logout';
@@ -174,6 +174,15 @@ export default function UserSettings() {
   const [isDirty, setIsDirty] = useState(false);
 
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // After a successful profile save, bounce the customer back to the page
+  // that sent them here (cart, checkout, etc.). Only same-origin paths are
+  // honoured — anything else (absolute URL, // protocol-relative, javascript:,
+  // etc.) falls back to the default /dashboard destination as an
+  // open-redirect guard.
+  const rawReturnUrl = searchParams?.get('returnUrl') ?? null;
+  const postSaveDestination =
+    rawReturnUrl && /^\/[^/]/.test(rawReturnUrl) ? rawReturnUrl : '/dashboard';
   const { data: session, status } = useSession();
   const isLoadingSettings = useRef(false);
   const hasLoadedOnce = useRef(false);
@@ -347,8 +356,19 @@ export default function UserSettings() {
         setUser(updated); savedUserRef.current = JSON.stringify(updated); setIsDirty(false);
         safeLocalStorage.setItem('user', JSON.stringify(updated));
         window.dispatchEvent(new CustomEvent('profileUpdated', { detail: { user: updated, isComplete } }));
-        toast.success(isComplete ? 'Profile completed!' : 'Profile updated successfully');
-        setTimeout(() => router.push('/dashboard'), 1500);
+        // When the customer was bounced here from the cart (or another flow)
+        // with a returnUrl query param, redirect them back there after a
+        // successful save — but only if the profile is now actually complete.
+        // An incomplete save just lands on /dashboard like before.
+        const dest = isComplete ? postSaveDestination : '/dashboard';
+        toast.success(
+          isComplete && dest !== '/dashboard'
+            ? 'Profile completed! Taking you back to your cart...'
+            : isComplete
+            ? 'Profile completed!'
+            : 'Profile updated successfully'
+        );
+        setTimeout(() => router.push(dest), 1500);
       } else {
         toast.error(result.error.message || 'Failed to update profile');
       }
