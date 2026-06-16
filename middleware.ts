@@ -66,6 +66,11 @@ const PUBLIC_API_PREFIXES = [
   "/api/status",
   "/api/metrics",
   "/api/log",
+  // Public chatbot: the homepage chat widget is anonymous-friendly by
+  // design (pre-sales visitors haven't logged in yet). Auth-free + rate-
+  // limited at the route layer (10 req/min/IP); content-screened by
+  // the three-layer guard rails in app/api/chat/route.ts.
+  "/api/chat",
   "/api/domains/search",
   "/api/domains/bulk-search",
   "/api/domains/pricing",
