@@ -6,6 +6,28 @@ All four HIGH findings have been verified against the actual code, not just trus
 
 ---
 
+## 🏁 Rescan-4 — CLOSED 2026-06-16
+
+**Last live:** `dms-00149-tgq` (deployed 2026-06-16 05:35Z, slice 7iC + dependency security patches). Pending-deploy queue is empty.
+
+**Cycle totals:**
+- **65 vertical slices shipped** (`7ga` → `7iC`) over 8 working days (2026-06-08 → 2026-06-16)
+- **48 production deploys** (`dms-00100-tfj` → `dms-00149-tgq`) with each slice ↔ revision recorded in the table below
+- **+4,600 vitest contract tests added** (suite: ~1,300 → 5,941); test surface area now covers every route handler the system exposes, every service module under `lib/services/`, every integration wrapper under `lib/integrations/`, and the in-tree middleware
+- **4 HIGH-severity transitive-dep CVEs patched** during the deploy gate on slice 7iC (form-data CRLF injection, protobufjs prototype-pollution + DoS, vite path-traversal bypass + launch-editor NTLM disclosure, ws memory-exhaustion DoS) — plus 3 moderate (dompurify, js-yaml, nodemailer). Audit reports 0 outstanding at any severity
+- **Real bugs found and fixed in production** along the way (most notably: slice 7iB caught a duplicate-TLD issue in the search dropdown — `shop` / `store` were listed twice — fixed via Set-dedup at the boundary)
+
+**Untested route-handler surface remaining:** `app/api/auth/[...nextauth]/route.ts` only — a 9-line NextAuth proxy with no testable surface.
+
+**Untested non-route surface remaining:**
+- `middleware/admin-api-security.ts` (`withAdminSecurity` wrapper) — **dead code**: defined but no admin route calls it. Either wire up or delete in a follow-up.
+- `lib/confirm-dialog.tsx` (220-line React component) — UI surface; would need React Testing Library, different test mode from this cycle.
+- Mongoose models (pure schemas), config data files, QA / migration scripts — not worth contract tests.
+
+**Working pattern that worked** (preserved for future audit cycles): read source → mock all dependencies → pin security gates (auth, rate-limit, CSRF, anti-IDOR, anti-enumeration) + error mapping + sentinel-leak guards → focused vitest → full suite + tsc → commit + audit MD row in bullet format → deploy via `scripts/deploy-cloud-run.sh` → flip TASKS.md + AUDIT-TECHNICAL.md to `live <revision>` → docs-only commit gets `[skip ci]` to conserve GitHub Actions quota.
+
+---
+
 ## 🎯 In-flight & open work
 
 Surfaced at the top so the active surface is visible without scrolling through the ~200-row history table below.
@@ -20,9 +42,7 @@ _(none — fully caught up)_
 
 ### 🎯 Currently working on
 
-- **Fully caught up through `7iC`** (live at `dms-00149-tgq`). 65 rescan-4 route-handler slices `7ga–7iC` shipped 2026-06-08 + 2026-06-10 + 2026-06-11 + 2026-06-12 + 2026-06-13 + 2026-06-15 + 2026-06-16 across 48 deploys.
-- **Route-handler test sweep is COMPLETE**: every route handler under `app/` now has a corresponding test file. Only `app/api/auth/[...nextauth]/route.ts` (a 9-line NextAuth proxy) is uncovered — no testable surface. Slice `7iC` closed an out-of-tree gap (`app/razorpay/webhook` — production payment-capture webhook sitting outside `app/api/`).
-- **Pattern**: read source → mock all dependencies → pin security gates (rate-limit, cache contract, fallback paths) + error mapping → focused vitest → full suite + tsc → commit + audit MD row in bullet format.
+- **Rescan-4 audit cycle is CLOSED** — see the 🏁 summary above. Nothing currently in flight; ready for the next initiative.
 
 ### 📋 Backlog (with assigned batch numbers)
 
