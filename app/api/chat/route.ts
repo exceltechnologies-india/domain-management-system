@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { validatedBody, z } from "@/lib/api-validation";
 
@@ -14,8 +13,6 @@ const chatSchema = z.object({
   messages: z.array(chatMessageSchema).min(1, "Invalid messages"),
 });
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
 const SYSTEM_PROMPT = `You are a helpful assistant for Anutech Digital Private Limited, a domain registration and web hosting company in India.
 
 You help customers with:
@@ -29,11 +26,18 @@ Keep responses concise and friendly. For complex issues, suggest contacting supp
 Do not make up specific pricing — tell users to check the website for current pricing.
 Do not handle payments or access account data directly.`;
 
+// Pinned to gemini-2.5-flash (Google AI Studio free-tier model). The model
+// name itself is the stable identifier — Google's "-latest" aliases are
+// what we'd want to avoid. Bump deliberately when the next Flash tier
+// ships and is verified compatible.
+const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
+
 export async function POST(req: NextRequest) {
   try {
     // SECURITY: cap per-IP usage so a single abuser can't drain the
-    // Anthropic budget. 10 req/min/IP keeps the endpoint usable for
-    // legitimate pre-sales visitors. Anonymous-friendly intentionally —
+    // Gemini free-tier quota. 10 req/min/IP keeps the endpoint usable
+    // for legitimate pre-sales visitors. Anonymous-friendly intentionally —
     // no auth requirement.
     const rl = await rateLimiters.chat.isAllowed(req);
     if (!rl.allowed) {
@@ -49,35 +53,92 @@ export async function POST(req: NextRequest) {
     // the role + content shapes, so no per-element filter is needed.
     const sanitized = validation.data.messages.slice(-20);
 
-    const stream = await client.messages.stream({
-      // Pinned to the dated Haiku 4.5 release (2025-10-01) so a future alias
-      // re-point doesn't change the chat persona or token-spend profile.
-      // Bump deliberately when the next Haiku tier ships.
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 1024,
-      system: [
-        {
-          type: "text",
-          text: SYSTEM_PROMPT,
-          // Cache the system prompt — it never changes between requests
-          cache_control: { type: "ephemeral" },
-        },
-      ],
-      messages: sanitized,
-    });
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: "API key invalid" }, { status: 401 });
+    }
+
+    // Map our schema (user|assistant) to Gemini's contents shape (user|model).
+    const contents = sanitized.map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }],
+    }));
+
+    // `alt=sse` makes Gemini emit standard `data: {...}\n\n` SSE frames
+    // we can stream-parse without an SDK dependency.
+    const upstream = await fetch(
+      `${GEMINI_BASE}/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse&key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+          contents,
+          generationConfig: { maxOutputTokens: 1024 },
+        }),
+      }
+    );
+
+    if (!upstream.ok) {
+      // 401/403 from Gemini means the API key isn't valid for this project.
+      // 429 means we've hit the free-tier rate / token quota.
+      if (upstream.status === 401 || upstream.status === 403) {
+        return NextResponse.json({ error: "API key invalid" }, { status: 401 });
+      }
+      if (upstream.status === 429) {
+        return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+      }
+      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    }
+
+    if (!upstream.body) {
+      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    }
 
     const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
+    const reader = upstream.body.getReader();
+
     const readable = new ReadableStream({
       async start(controller) {
+        let buffer = "";
         try {
-          for await (const event of stream) {
-            if (
-              event.type === "content_block_delta" &&
-              event.delta.type === "text_delta"
-            ) {
-              controller.enqueue(
-                encoder.encode(`data: ${JSON.stringify({ text: event.delta.text })}\n\n`)
-              );
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            // SSE frames are separated by a blank line (double newline).
+            let nl;
+            while ((nl = buffer.indexOf("\n\n")) !== -1) {
+              const frame = buffer.slice(0, nl);
+              buffer = buffer.slice(nl + 2);
+              for (const line of frame.split("\n")) {
+                if (!line.startsWith("data:")) continue;
+                const payload = line.slice(5).trim();
+                if (!payload || payload === "[DONE]") continue;
+                let obj: unknown;
+                try {
+                  obj = JSON.parse(payload);
+                } catch {
+                  // Malformed payload from Gemini — skip the chunk
+                  continue;
+                }
+                const parts =
+                  (obj as {
+                    candidates?: Array<{
+                      content?: { parts?: Array<{ text?: string }> };
+                    }>;
+                  })?.candidates?.[0]?.content?.parts ?? [];
+                for (const part of parts) {
+                  if (typeof part?.text === "string" && part.text.length > 0) {
+                    controller.enqueue(
+                      encoder.encode(
+                        `data: ${JSON.stringify({ text: part.text })}\n\n`
+                      )
+                    );
+                  }
+                }
+              }
             }
           }
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
@@ -98,13 +159,7 @@ export async function POST(req: NextRequest) {
         Connection: "keep-alive",
       },
     });
-  } catch (error) {
-    if (error instanceof Anthropic.AuthenticationError) {
-      return NextResponse.json({ error: "API key invalid" }, { status: 401 });
-    }
-    if (error instanceof Anthropic.RateLimitError) {
-      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
-    }
+  } catch {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
