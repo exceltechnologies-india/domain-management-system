@@ -150,8 +150,11 @@ export default function CartPage() {
     }
 
     if (latestProfileCompleted !== true) {
+      // Send the customer to the profile/settings page with a returnUrl so
+      // the page can bounce them back to the cart after a successful save.
+      // The toast is still shown to explain *why* they're being redirected.
       toast.error('Please complete your profile before proceeding to checkout');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      router.push(`/dashboard/settings?returnUrl=${encodeURIComponent('/cart')}`);
       return;
     }
 
