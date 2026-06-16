@@ -211,57 +211,78 @@ export async function POST(req: NextRequest) {
         let assistantOutput = "";
         let leakDetected = false;
 
+        // Process one SSE frame (the substring between two blank lines,
+        // OR the trailing content after the stream closes without a
+        // closing delimiter). Sets `leakDetected = true` and returns
+        // early if a sensitive pattern is matched.
+        const processFrame = (frame: string) => {
+          for (const line of frame.split("\n")) {
+            if (!line.startsWith("data:")) continue;
+            const payload = line.slice(5).trim();
+            if (!payload || payload === "[DONE]") continue;
+            let obj: unknown;
+            try {
+              obj = JSON.parse(payload);
+            } catch {
+              // Malformed payload from Gemini — skip the chunk
+              continue;
+            }
+            const parts =
+              (obj as {
+                candidates?: Array<{
+                  content?: { parts?: Array<{ text?: string }> };
+                }>;
+              })?.candidates?.[0]?.content?.parts ?? [];
+            for (const part of parts) {
+              if (typeof part?.text === "string" && part.text.length > 0) {
+                // GUARD 2 (output-side): check the cumulative output
+                // BEFORE forwarding this chunk. If a sensitive pattern
+                // appears, we drop this chunk and stop streaming — the
+                // refusal replaces everything from this point on.
+                const candidate = assistantOutput + part.text;
+                if (SENSITIVE_OUTPUT_PATTERNS.some((p) => p.test(candidate))) {
+                  leakDetected = true;
+                  return;
+                }
+                assistantOutput = candidate;
+                controller.enqueue(
+                  encoder.encode(
+                    `data: ${JSON.stringify({ text: part.text })}\n\n`
+                  )
+                );
+              }
+            }
+          }
+        };
+
         try {
           while (true) {
             const { value, done } = await reader.read();
             if (done) break;
-            buffer += decoder.decode(value, { stream: true });
+            // Normalise CRLF → LF so SSE-frame detection works whether
+            // the upstream uses Unix-style or Windows-style line endings.
+            buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
             // SSE frames are separated by a blank line (double newline).
             let nl;
             while ((nl = buffer.indexOf("\n\n")) !== -1) {
               const frame = buffer.slice(0, nl);
               buffer = buffer.slice(nl + 2);
-              for (const line of frame.split("\n")) {
-                if (!line.startsWith("data:")) continue;
-                const payload = line.slice(5).trim();
-                if (!payload || payload === "[DONE]") continue;
-                let obj: unknown;
-                try {
-                  obj = JSON.parse(payload);
-                } catch {
-                  // Malformed payload from Gemini — skip the chunk
-                  continue;
-                }
-                const parts =
-                  (obj as {
-                    candidates?: Array<{
-                      content?: { parts?: Array<{ text?: string }> };
-                    }>;
-                  })?.candidates?.[0]?.content?.parts ?? [];
-                for (const part of parts) {
-                  if (typeof part?.text === "string" && part.text.length > 0) {
-                    // GUARD 2 (output-side): check the cumulative output
-                    // BEFORE forwarding this chunk. If a sensitive pattern
-                    // appears, we drop this chunk and stop streaming — the
-                    // refusal replaces everything from this point on.
-                    const candidate = assistantOutput + part.text;
-                    if (SENSITIVE_OUTPUT_PATTERNS.some((p) => p.test(candidate))) {
-                      leakDetected = true;
-                      break;
-                    }
-                    assistantOutput = candidate;
-                    controller.enqueue(
-                      encoder.encode(
-                        `data: ${JSON.stringify({ text: part.text })}\n\n`
-                      )
-                    );
-                  }
-                }
-                if (leakDetected) break;
-              }
+              processFrame(frame);
               if (leakDetected) break;
             }
             if (leakDetected) break;
+          }
+
+          // Flush any trailing content the upstream sent without a
+          // closing blank line. Gemini's `streamGenerateContent?alt=sse`
+          // normally terminates each frame with \n\n, but for short
+          // single-chunk responses some intermediate proxies strip the
+          // trailing delimiter — leaving the entire payload in `buffer`
+          // when the read loop exits. Without this flush the response
+          // silently degrades to just `data: [DONE]\n\n`.
+          if (!leakDetected && buffer.length > 0) {
+            processFrame(buffer);
+            buffer = "";
           }
 
           if (leakDetected) {

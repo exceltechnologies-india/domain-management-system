@@ -98,6 +98,100 @@ describe("<Navigation> default variant (public site)", () => {
   });
 });
 
+// ═══════════════════════════════════════════════════════════════════
+// Login button — context-aware returnUrl
+// ═══════════════════════════════════════════════════════════════════
+describe("<Navigation> Login button — returnUrl carries the current path", () => {
+  /** Return the first href of the desktop or mobile Login link. */
+  function loginHrefFromRender(): string {
+    const links = screen.getAllByRole("link", { name: /^login$/i });
+    return links[0].getAttribute("href") || "";
+  }
+
+  it("homepage (/) → plain /login (nowhere meaningful to return to)", () => {
+    pathnameMock.mockReturnValue("/");
+    render(<Navigation />);
+    expect(loginHrefFromRender()).toBe("/login");
+  });
+
+  it("/cart → /login?returnUrl=%2Fcart (the main customer-flow case)", () => {
+    pathnameMock.mockReturnValue("/cart");
+    render(<Navigation />);
+    expect(loginHrefFromRender()).toBe("/login?returnUrl=%2Fcart");
+  });
+
+  it("/domains/search → returnUrl carries the full path including slashes (URL-encoded)", () => {
+    pathnameMock.mockReturnValue("/domains/search");
+    render(<Navigation />);
+    expect(loginHrefFromRender()).toBe("/login?returnUrl=%2Fdomains%2Fsearch");
+  });
+
+  it("/hosting/plans → returnUrl carries the full path", () => {
+    pathnameMock.mockReturnValue("/hosting/plans");
+    render(<Navigation />);
+    expect(loginHrefFromRender()).toBe("/login?returnUrl=%2Fhosting%2Fplans");
+  });
+
+  // The auth-flow pages are excluded so the customer can never end up in a
+  // login → login → login loop, or a register → login → register bounce.
+  it.each([
+    "/login",
+    "/register",
+    "/activate",
+    "/reset-password",
+    "/forgot-password",
+    "/maintenance",
+    "/403",
+  ])("%s → plain /login (excluded path)", (path) => {
+    pathnameMock.mockReturnValue(path);
+    render(<Navigation />);
+    expect(loginHrefFromRender()).toBe("/login");
+  });
+
+  it.each([
+    "/login/forgot",
+    "/register/social",
+    "/activate/abc-123-token",
+    "/reset-password/xyz",
+  ])("sub-path %s of an excluded route → still plain /login", (path) => {
+    pathnameMock.mockReturnValue(path);
+    render(<Navigation />);
+    expect(loginHrefFromRender()).toBe("/login");
+  });
+
+  it("malformed pathname (//evil.com) → plain /login (open-redirect guard)", () => {
+    pathnameMock.mockReturnValue("//evil.com/phishing");
+    render(<Navigation />);
+    expect(loginHrefFromRender()).toBe("/login");
+  });
+
+  it("empty pathname → plain /login", () => {
+    pathnameMock.mockReturnValue("");
+    render(<Navigation />);
+    expect(loginHrefFromRender()).toBe("/login");
+  });
+
+  it("authenticated → no Login link at all (Dashboard takes its place)", () => {
+    pathnameMock.mockReturnValue("/cart");
+    useSessionMock.mockReturnValue({
+      data: { user: { name: "Ada Lovelace", role: "user" } },
+      status: "authenticated",
+    });
+    render(<Navigation />);
+    expect(screen.queryByRole("link", { name: /^login$/i })).not.toBeInTheDocument();
+  });
+
+  it("both desktop AND mobile Login buttons carry the returnUrl", () => {
+    pathnameMock.mockReturnValue("/cart");
+    render(<Navigation />);
+    const links = screen.getAllByRole("link", { name: /^login$/i });
+    // Expect at least 2 (desktop + mobile menu); both should have the same href.
+    expect(links.length).toBeGreaterThanOrEqual(2);
+    const hrefs = links.map((a) => a.getAttribute("href"));
+    expect(hrefs.every((h) => h === "/login?returnUrl=%2Fcart")).toBe(true);
+  });
+});
+
 describe("<Navigation> dashboard + admin variants", () => {
   it("variant='dashboard' renders the compact shell with Logout when onLogout supplied", async () => {
     const user = userEvent.setup();

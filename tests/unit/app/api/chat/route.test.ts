@@ -394,6 +394,46 @@ describe("SSE streaming response", () => {
     expect(data[2]).toBe("data: [DONE]");
   });
 
+  it("upstream closes without trailing \\n\\n delimiter → final frame is STILL parsed (regression for production [DONE]-only bug)", async () => {
+    // Some intermediate proxies strip the trailing blank line on
+    // short single-chunk Gemini responses, leaving the route's
+    // read loop with a buffer containing the un-delimited frame
+    // when `done` arrives. The flush-trailing-buffer branch ensures
+    // the response is still emitted.
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        // One frame, NO closing \n\n
+        controller.enqueue(encoder.encode(textCandidate("Yes!").replace(/\n\n$/, "")));
+        controller.close();
+      },
+    });
+    fetchMock.mockResolvedValueOnce(
+      new Response(stream, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      })
+    );
+    const res = await POST(makeReq(VALID));
+    const chunks = await readSSEChunks(res);
+    const data = chunks.filter((c) => c.startsWith("data: "));
+    expect(data).toHaveLength(2); // text + [DONE]
+    expect(JSON.parse(data[0].slice(6))).toEqual({ text: "Yes!" });
+    expect(data[1]).toBe("data: [DONE]");
+  });
+
+  it("upstream uses CRLF line endings → frames still extract correctly", async () => {
+    const crlfFrame = `data: ${JSON.stringify({
+      candidates: [{ content: { role: "model", parts: [{ text: "hi" }] } }],
+    })}\r\n\r\n`;
+    fetchMock.mockResolvedValueOnce(makeGeminiStream([crlfFrame]));
+    const res = await POST(makeReq(VALID));
+    const chunks = await readSSEChunks(res);
+    const data = chunks.filter((c) => c.startsWith("data: "));
+    expect(data).toHaveLength(2);
+    expect(JSON.parse(data[0].slice(6))).toEqual({ text: "hi" });
+  });
+
   it("split frame across reader.read() boundaries reassembles correctly", async () => {
     // Slice a single SSE frame in the middle so the buffer-join code is exercised.
     const frame = textCandidate("hello world");
