@@ -229,7 +229,6 @@ export default function ChatWidget() {
                   )}
                 </button>
               </div>
-              <p className="text-center text-gray-400 text-xs mt-1.5">Powered by Claude AI</p>
             </div>
           </motion.div>
         )}
