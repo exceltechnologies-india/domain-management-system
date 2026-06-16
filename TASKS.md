@@ -1,6 +1,6 @@
 # Domain Management Portal — Tasks
 
-**Last updated:** 16 Jun 2026 06:25Z
+**Last updated:** 16 Jun 2026 06:50Z
 **Currently live in production:** revision `dms-00150-jmx` (deployed 2026-06-16 06:25Z; includes slice 7iC + cart-sync hotfix + 4 HIGH-severity dependency security patches)
 **Most-recent batch:** 66 customer-safety + admin-safety improvements shipped 8–16 Jun via 49 production deploys (pending-deploy queue is empty); every item below tagged with its live revision
 **Today (2026-06-16) shipped:** 1 vertical slice + 1 hotfix live — 7iC (Razorpay payment-capture webhook) + cart-sync URL fix; 42 new tests + 4 HIGH-severity npm-audit vulnerabilities patched along the way; suite at 5941/5941
@@ -11,7 +11,7 @@ Eight days of focused safety-check additions are complete. Every production-faci
 
 ## In Flight
 
-(nothing in flight)
+- [ ] **Switching the customer-facing AI chatbot from Claude to Google Gemini** — the homepage chatbot is being moved from Anthropic Claude Haiku (which the project pays per-token for) to Google's free-tier Gemini 2.5 Flash; the project owner provided a Google AI Studio key on the free tier (project "anutech-hosting", project number 57635649418); the new key was verified working against the live Gemini API before the swap; tests being rewritten to match the new model + SDK; same customer-facing chat experience expected (queued for next deploy)
 
 ## Recently Shipped — user-visible improvements
 
