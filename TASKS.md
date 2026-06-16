@@ -1,6 +1,6 @@
 # Domain Management Portal — Tasks
 
-**Last updated:** 16 Jun 2026 06:05Z
+**Last updated:** 16 Jun 2026 06:20Z
 **Currently live in production:** revision `dms-00149-tgq` (deployed 2026-06-16 05:35Z; includes slice 7iC + 4 HIGH-severity dependency security patches)
 **Most-recent batch:** 65 customer-safety + admin-safety improvements shipped 8–16 Jun via 48 production deploys (pending-deploy queue is empty); every item below tagged with its live revision
 **Today (2026-06-16) shipped:** 1 vertical slice live — 7iC (Razorpay payment-capture webhook); 42 new tests + 4 HIGH-severity npm-audit vulnerabilities patched along the way; suite at 5941/5941
@@ -11,7 +11,7 @@ Eight days of focused safety-check additions are complete. Every production-faci
 
 ## In Flight
 
-(nothing in flight)
+- [ ] **Shopping cart now syncs across devices for logged-in customers** — fixing a bug found while the senior reviewer was browsing the cart page: a logged-in customer's cart wasn't following them to another device or browser because the front-end was calling the wrong server address to save the cart; a 401 "Unauthorized" error was showing up in the browser console as a result; the local-device cart kept working from browser storage so most customers wouldn't have noticed, but anyone who added items on their phone and then opened their laptop would have seen an empty cart; one-line address correction in three places (queued for next deploy)
 
 ## Recently Shipped — user-visible improvements
 
