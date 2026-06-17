@@ -71,6 +71,15 @@ const PUBLIC_API_PREFIXES = [
   // limited at the route layer (10 req/min/IP); content-screened by
   // the three-layer guard rails in app/api/chat/route.ts.
   "/api/chat",
+  // Public-tolerant cart sync: the cart store calls /api/cart on every
+  // load/save/merge regardless of login state, by design (the
+  // localStorage cart is the source of truth for guests; the server
+  // cart only matters once a customer logs in). Middleware lets the
+  // request through; the route handler itself returns a 200 no-op
+  // (empty cart / write-skipped) for unauthenticated requests instead
+  // of a 401 — keeps the browser console clean for guests browsing
+  // the cart.
+  "/api/cart",
   "/api/domains/search",
   "/api/domains/bulk-search",
   "/api/domains/pricing",

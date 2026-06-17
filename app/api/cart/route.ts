@@ -72,10 +72,16 @@ const validateAndCorrectCartItems = (
 
 export async function GET(request: NextRequest) {
   try {
-    // Check authentication
+    // Guest-tolerant: middleware lets unauthenticated requests through to
+    // this route (see PUBLIC_API_PREFIXES in middleware.ts). The cart
+    // store calls /api/cart on every page-load regardless of login state;
+    // returning a 200 with an empty cart for guests (instead of 401)
+    // keeps the browser console clean while preserving the fail-soft
+    // contract — guests use the localStorage cart, the server cart only
+    // matters once they're logged in.
     const user = await AuthService.getUserFromRequest(request);
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ success: true, cart: [] });
     }
 
     // Get user's cart (empty array if missing)
@@ -105,10 +111,15 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication
+    // Guest-tolerant: return a 200 no-op for unauthenticated requests
+    // instead of 401. The cart store fires saveToServer() on every cart
+    // mutation (add/remove/period-change) regardless of login state; for
+    // guests, the localStorage cart is the source of truth and there's
+    // no server-side cart to update, so we acknowledge the call without
+    // persisting anything.
     const user = await AuthService.getUserFromRequest(request);
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ success: true, saved: false });
     }
 
     const validation = await validatedBody(request, cartSyncSchema);
@@ -139,10 +150,12 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    // Check authentication
+    // Guest-tolerant: same pattern as GET/POST — return 200 no-op for
+    // unauthenticated requests. Guests have no server-side cart to
+    // clear; the client's localStorage clear runs independently.
     const user = await AuthService.getUserFromRequest(request);
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ success: true, cleared: false });
     }
 
     // Clear user's cart

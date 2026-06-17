@@ -17,7 +17,7 @@
  *    the session user._id — a body field can't override. Pinned.
  *
  * Other pins:
- *  - GET/POST/DELETE all require auth → 401
+ *  - GET/POST/DELETE all guest-tolerant: 200 no-op for anonymous
  *  - GET self-heals (corrected cart re-saved); short-circuit if no
  *    correction needed
  *  - POST zod: array length max:50; item.passthrough preserves
@@ -81,29 +81,44 @@ beforeEach(() => {
   getMaxYears.mockReset().mockReturnValue(10);
 });
 
-// ─────────────────────────── Auth ─────────────────────────────
+// ─────────────────── Guest-tolerant 200 no-op ───────────────────────
+// Anonymous requests (no NextAuth session) used to return 401 from
+// every method, which spammed the browser console for guests browsing
+// the cart page (the cart store calls these endpoints on every cart
+// mutation regardless of login state). The route now returns a 200
+// no-op for guests instead — pinned per-method so the contract can't
+// regress back to 401.
 
-describe("Auth gate (all 3 methods)", () => {
-  it("GET: no user → 401", async () => {
+describe("Guest (no session) — 200 no-op, NOT 401", () => {
+  it("GET: no user → 200 with empty cart; getUserCart NOT called", async () => {
     getUserFromRequest.mockResolvedValueOnce(null);
     const res = await GET(makeReq("GET"));
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.cart).toEqual([]);
     expect(getUserCart).not.toHaveBeenCalled();
   });
 
-  it("POST: no user → 401; setUserCart NOT called", async () => {
+  it("POST: no user → 200 with saved:false; setUserCart NOT called (no server-side write)", async () => {
     getUserFromRequest.mockResolvedValueOnce(null);
     const res = await POST(
       makeReq("POST", { cart: [{ domainName: "x.com" }] })
     );
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.saved).toBe(false);
     expect(setUserCart).not.toHaveBeenCalled();
   });
 
-  it("DELETE: no user → 401; clearUserCart NOT called", async () => {
+  it("DELETE: no user → 200 with cleared:false; clearUserCart NOT called", async () => {
     getUserFromRequest.mockResolvedValueOnce(null);
     const res = await DELETE(makeReq("DELETE"));
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.cleared).toBe(false);
     expect(clearUserCart).not.toHaveBeenCalled();
   });
 });
