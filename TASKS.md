@@ -1,6 +1,6 @@
 # Domain Management Portal — Tasks
 
-**Last updated:** 17 Jun 2026 06:20Z
+**Last updated:** 17 Jun 2026 06:30Z
 **Currently live in production:** revision `dms-00164-kq7` (deployed 2026-06-17 06:20Z; includes the reCAPTCHA site-key typo fix + 14 prior hotfixes from yesterday + Gemini chatbot migration + slice 7iC + 4 HIGH-severity dependency security patches)
 **Most-recent batch:** 80 customer-safety + admin-safety improvements shipped 8–17 Jun via 63 production deploys (pending-deploy queue is empty); every item below tagged with its live revision
 **Yesterday (2026-06-16) shipped:** 1 vertical slice + 14 hotfixes + 1 cost-reduction migration + 1 chatbot hardening pass live; **Today (2026-06-17) shipped so far:** 1 hotfix live — reCAPTCHA site-key typo corrected (customers were blocked from submitting any public form); suite at 6027/6027
@@ -11,7 +11,7 @@ Eight days of focused safety-check additions are complete. Every production-faci
 
 ## In Flight
 
-(nothing in flight)
+- [ ] **Fixing two separate console-error issues surfaced by testing the login page in incognito mode** — the senior reviewer's incognito-mode test ruled out the browser-extension theory we'd used to explain an earlier console error, and revealed two real bugs underneath: (1) a "Bad Request" 400 error fired every time anything client-side wrote to the diagnostic log because the client logger's data shape didn't match what the server-side log endpoint expected (field-name + type mismatch — sending an array under the wrong field name); (2) the React "#418" hydration error we'd previously attributed to browser extensions turned out to be coming from the homepage chat widget reading from short-term browser session-storage during its initial render, which causes the page to render differently on the server vs. on the customer's screen if any prior chat exchange had been saved; both fixed and redeploying (queued for next deploy)
 
 ## Recently Shipped — user-visible improvements
 
