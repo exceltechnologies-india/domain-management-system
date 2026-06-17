@@ -51,13 +51,30 @@ export default function SocialLoginButtons({
     ...(GITHUB_ENABLED ? ['github' as SocialProvider] : []),
   ];
 
+  /**
+   * Resolve the post-login destination from `?returnUrl=…` on the
+   * login page's URL. Honours the same open-redirect guard the
+   * credentials-login flow uses (LoginForm.tsx:126): the value must
+   * be a same-origin path that starts with `/[non-slash]`. Anything
+   * else (absolute URL, protocol-relative `//evil.com`, `javascript:`,
+   * etc.) falls back to /dashboard. SSR-safe via the `typeof window`
+   * guard so this can be called from a useEffect or event handler.
+   */
+  const resolveReturnUrl = (): string => {
+    if (typeof window === 'undefined') return '/dashboard';
+    const raw = new URLSearchParams(window.location.search).get('returnUrl');
+    if (raw && /^\/[^/]/.test(raw)) return raw;
+    return '/dashboard';
+  };
+
   const handleSocialLogin = async (provider: SocialProvider) => {
     try {
       setIsLoading(provider);
 
+      const callbackUrl = resolveReturnUrl();
       const result = await signIn(provider, {
         redirect: false,
-        callbackUrl: '/dashboard',
+        callbackUrl,
       });
 
       if (result?.error) {
@@ -81,7 +98,7 @@ export default function SocialLoginButtons({
       } else if (result?.ok) {
         toast.success('Successfully signed in! Redirecting...');
         setTimeout(() => {
-          window.location.href = '/dashboard';
+          window.location.href = callbackUrl;
         }, 2000);
         onSuccess?.();
       }

@@ -110,3 +110,127 @@ describe("<SocialLoginButtons>", () => {
     expect(onError).toHaveBeenCalledWith(expect.stringMatching(/unexpected error/i));
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// returnUrl handling — the post-login destination must honour the
+// ?returnUrl=… query param so customers arriving at /login from the
+// cart land back on the cart, not the default /dashboard.
+// Same open-redirect guard as the credentials-login form.
+// ═══════════════════════════════════════════════════════════════════
+describe("<SocialLoginButtons> — returnUrl handling", () => {
+  /**
+   * jsdom doesn't let us reassign window.location wholesale, but
+   * window.history.pushState updates window.location.search in the
+   * shared singleton. Tests reset back to '/' in afterEach so they
+   * don't leak state.
+   */
+  function setQueryString(qs: string) {
+    window.history.pushState({}, "", `/login${qs}`);
+  }
+
+  afterEach(() => {
+    window.history.pushState({}, "", "/login");
+  });
+
+  it("?returnUrl=/cart → signIn called with callbackUrl='/cart' (not '/dashboard')", async () => {
+    const user = userEvent.setup();
+    setQueryString("?returnUrl=%2Fcart");
+    signInMock.mockResolvedValue({ ok: false });
+    render(<SocialLoginButtons />);
+    await user.click(screen.getByRole("button", { name: /sign in with google/i }));
+    expect(signInMock).toHaveBeenCalledWith("google", {
+      redirect: false,
+      callbackUrl: "/cart",
+    });
+  });
+
+  it("?returnUrl=/checkout → callbackUrl='/checkout'", async () => {
+    const user = userEvent.setup();
+    setQueryString("?returnUrl=%2Fcheckout");
+    signInMock.mockResolvedValue({ ok: false });
+    render(<SocialLoginButtons />);
+    await user.click(screen.getByRole("button", { name: /sign in with google/i }));
+    expect(signInMock).toHaveBeenCalledWith("google", {
+      redirect: false,
+      callbackUrl: "/checkout",
+    });
+  });
+
+  it("no returnUrl → falls back to '/dashboard' (preserves legacy behaviour)", async () => {
+    const user = userEvent.setup();
+    setQueryString("");
+    signInMock.mockResolvedValue({ ok: false });
+    render(<SocialLoginButtons />);
+    await user.click(screen.getByRole("button", { name: /sign in with google/i }));
+    expect(signInMock).toHaveBeenCalledWith("google", {
+      redirect: false,
+      callbackUrl: "/dashboard",
+    });
+  });
+
+  it.each([
+    ["//evil.com/phishing", "protocol-relative URL (open-redirect probe)"],
+    ["https://evil.com", "absolute URL"],
+    ["javascript:alert(1)", "javascript: URI"],
+    ["", "empty string"],
+    ["cart", "missing leading slash"],
+  ])(
+    "malformed returnUrl=%s (%s) → falls back to '/dashboard'",
+    async (returnUrl) => {
+      const user = userEvent.setup();
+      setQueryString(`?returnUrl=${encodeURIComponent(returnUrl)}`);
+      signInMock.mockResolvedValue({ ok: false });
+      render(<SocialLoginButtons />);
+      await user.click(screen.getByRole("button", { name: /sign in with google/i }));
+      expect(signInMock).toHaveBeenCalledWith("google", {
+        redirect: false,
+        callbackUrl: "/dashboard",
+      });
+    }
+  );
+
+  it("on success, the post-timeout redirect uses the SAME resolved callbackUrl (not hard-coded /dashboard)", async () => {
+    vi.useFakeTimers();
+    try {
+      setQueryString("?returnUrl=%2Fcart");
+      signInMock.mockResolvedValue({ ok: true });
+      // Capture window.location.href assignment by spying on the
+      // window.location setter via a one-off Object.defineProperty.
+      let assignedHref: string | null = null;
+      const origLocation = window.location;
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: {
+          ...origLocation,
+          search: "?returnUrl=%2Fcart",
+          set href(v: string) {
+            assignedHref = v;
+          },
+          get href() {
+            return assignedHref ?? origLocation.href;
+          },
+        },
+      });
+      try {
+        render(<SocialLoginButtons />);
+        const btn = screen.getByRole("button", { name: /sign in with google/i });
+        await act(async () => {
+          btn.click();
+          await Promise.resolve();
+        });
+        // Advance past the 2s redirect timeout
+        await act(async () => {
+          vi.advanceTimersByTime(2100);
+        });
+        expect(assignedHref).toBe("/cart");
+      } finally {
+        Object.defineProperty(window, "location", {
+          configurable: true,
+          value: origLocation,
+        });
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
