@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { RecaptchaClient } from '@/lib/recaptcha';
 import { logger } from '@/lib/logger';
 import { apiClient } from '@/lib/api-client';
@@ -27,7 +27,16 @@ export default function GoogleRecaptcha({
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<number | null>(null);
   const renderedRef = useRef<boolean>(false);
-  const [containerId] = useState(() => `recaptcha-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+  // React's useId() returns a deterministic id that matches on both
+  // sides of hydration. The previous Date.now()+Math.random() approach
+  // produced a different id on the server vs. the client, causing
+  // React error #418 (hydration mismatch) on every page that renders
+  // this widget (login, register, contact, password-reset). The id is
+  // sanitised to be a valid HTML id (useId returns colon-bracketed
+  // strings like ":r5:" which would otherwise need to be escaped in
+  // CSS selectors).
+  const reactId = useId();
+  const containerId = `recaptcha-${reactId.replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const [error, setError] = useState<string | null>(null);
 
   // Use refs for callbacks to avoid stable dependency issues
