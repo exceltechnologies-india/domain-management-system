@@ -373,7 +373,12 @@ export default function AdminSettings() {
 
   const saveCaptchaSettings = async () => {
     setIsSavingCaptcha(true);
-    const result = await apiClient.post("/api/v1/admin/settings", { key: "captcha_enabled", value: captchaEnabled, description: "Enable Google reCAPTCHA on public forms", category: "security" });
+    // Saved under category="feature_flags" — the captcha toggle is a
+    // boolean feature flag, not a credential, so it shouldn't require
+    // step-up password re-auth on each save. See NEVER_SECURITY_KEYS in
+    // app/api/admin/settings/route.ts which mirrors this classification
+    // on the server.
+    const result = await apiClient.post("/api/v1/admin/settings", { key: "captcha_enabled", value: captchaEnabled, description: "Enable Google reCAPTCHA on public forms", category: "feature_flags" });
     if (result.ok) showSuccessToast(`Captcha ${captchaEnabled ? "enabled" : "disabled"}`);
     else showErrorToast("Failed to save captcha settings");
     setIsSavingCaptcha(false);

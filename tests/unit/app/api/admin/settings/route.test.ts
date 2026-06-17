@@ -247,6 +247,43 @@ describe("POST — Security-key step-up auth (THE BIG ONE)", () => {
     expect(upsertSetting).toHaveBeenCalledTimes(1);
   });
 
+  // Feature flags are explicitly NOT security-scoped, even if their
+  // stored category happens to be "security" (e.g. from a historical
+  // save before this exception was added). Without this carve-out, the
+  // first save would write category="security", and every subsequent
+  // save would 403 with REAUTH_REQUIRED — and there's no step-up UI
+  // for plain feature flags, so the admin would be stuck.
+  it.each([
+    "captcha_enabled",
+    "hosting_trial_enabled",
+    "hosting_test_plan_enabled",
+    "tld_pricing_cache_enabled",
+    "tld_pricing_cache_ttl",
+    "maintenance_mode_enabled",
+  ])(
+    "NEVER_SECURITY_KEYS exception: %s with stored category='security' STILL skips reauth (feature flag, not credential)",
+    async (key) => {
+      getSetting.mockResolvedValueOnce({ key, category: "security" });
+      await POST(
+        makeReq("POST", { key, value: true, category: "feature_flags" })
+      );
+      expect(requireReAuth).not.toHaveBeenCalled();
+      expect(upsertSetting).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it("NEVER_SECURITY_KEYS exception does NOT bypass reauth for hardcoded SECURITY_KEYS (defense-in-depth — the allowlist always wins)", async () => {
+    // cron_secret is in SECURITY_KEYS. Even if a future maintainer
+    // accidentally adds it to NEVER_SECURITY_KEYS, the SECURITY_KEYS
+    // check runs first and requires reauth.
+    getSetting.mockResolvedValueOnce(null);
+    requireReAuth.mockResolvedValueOnce({ passed: true });
+    await POST(
+      makeReq("POST", { key: "cron_secret", value: "rotated", category: "feature_flags" })
+    );
+    expect(requireReAuth).toHaveBeenCalledTimes(1);
+  });
+
   it("First-time write of a security key (no existing setting) → reauth still fires (allowlist alone is enough)", async () => {
     getSetting.mockResolvedValueOnce(null);
     requireReAuth.mockResolvedValueOnce({ passed: true });
