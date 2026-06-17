@@ -1,6 +1,6 @@
 # Domain Management Portal — Tasks
 
-**Last updated:** 16 Jun 2026 14:00Z
+**Last updated:** 17 Jun 2026 06:15Z
 **Currently live in production:** revision `dms-00163-xw5` (deployed 2026-06-16 14:00Z; includes the admin captcha-toggle fix + social-login returnUrl fix + cart 401-silenced-for-guests + browser-extension hydration-noise fix + cart-login redirect fix + login/register hydration-error fix + chatbot stream-parser fix + nav Login button returnUrl fix + "Complete Profile First" button fix + chatbot auth-allowlist fix + chatbot guard rails + chat-widget attribution cleanup + Gemini chatbot swap + slice 7iC + cart-sync hotfix + 4 HIGH-severity dependency security patches)
 **Most-recent batch:** 79 customer-safety + admin-safety improvements shipped 8–16 Jun via 62 production deploys (pending-deploy queue is empty); every item below tagged with its live revision
 **Today (2026-06-16) shipped:** 1 vertical slice + 14 hotfixes + 1 cost-reduction migration + 1 chatbot hardening pass live — 7iC (Razorpay payment-capture webhook) + cart-sync URL fix + chatbot swap to Google Gemini + removed stale "Powered by Claude AI" tag + three-layer chatbot guard rails + fixed chatbot 401 for anonymous visitors + cart "Complete Profile First" button now actually works + Login button returns customer to where they came from + chatbot stream-parser fix + login/register hydration-error fix + cart-to-login redirect lands back on cart + browser-extension-induced console error silenced + cart endpoint 401 no longer fires for guests + social-login (Google/Facebook/GitHub) honours the return-to-cart hint + admin captcha on/off toggle now actually works; 147 new tests today; suite at 6027/6027
@@ -11,7 +11,7 @@ Eight days of focused safety-check additions are complete. Every production-faci
 
 ## In Flight
 
-(nothing in flight)
+- [ ] **Fixing the broken "Failed to render verification widget" error on customer login / sign-up forms** — turned out to be a one-character typo in the production configuration where the reCAPTCHA site key had an uppercase letter "I" instead of a lowercase letter "l" (almost identical in many fonts); Google's reCAPTCHA service didn't recognise the typo'd key and refused to render the verification widget, blocking customers from submitting login/sign-up/contact/password-reset forms; corrected the typo and redeploying (queued for next deploy)
 
 ## Recently Shipped — user-visible improvements
 
