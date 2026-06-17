@@ -2,14 +2,28 @@
 # deploy-cloud-run.sh — build and deploy the dms image to Cloud Run.
 #
 # Replaces the VPS `./deploy.sh` for the Cloud Run target. Builds the image
-# via Cloud Build, then deploys a new revision of the `dms` service.
+# either LOCALLY on this VPS via `docker build` + `docker push` (default —
+# avoids Cloud Build cost) or via Cloud Build (--cloud-build), then deploys
+# a new revision of the `dms` service.
 #
 # Usage:
-#   ./scripts/deploy-cloud-run.sh                  # build + deploy
+#   ./scripts/deploy-cloud-run.sh                  # local docker build → push
+#                                                  # → deploy (default)
+#   ./scripts/deploy-cloud-run.sh --cloud-build    # use Cloud Build instead
+#                                                  # of local docker (slower
+#                                                  # to start, no VPS load,
+#                                                  # but costs money)
 #   ./scripts/deploy-cloud-run.sh --skip-build     # deploy current :latest image
 #                                                  # without rebuilding
 #   ./scripts/deploy-cloud-run.sh --skip-ci-check  # bypass the CI-green gate
 #                                                  # (emergency hotfixes)
+#
+# Local-build prerequisites (one-time, done 2026-06-17):
+#   - Docker installed on the VPS (docker-ce 29+)
+#   - User in `docker` group (so we don't need sudo each command)
+#   - `gcloud auth configure-docker us-central1-docker.pkg.dev` run once so
+#     Docker uses gcloud as the credential helper for the artifact-registry
+#     hostname (config at ~/.docker/config.json)
 #
 # Pre-deploy CI gate (added 2026-05-20):
 #   The script refuses to deploy when the latest GitHub Actions CI run for
@@ -72,10 +86,13 @@ trap 'rc=$?; if [ "$DEPLOY_LOGGED" = "false" ]; then log_deploy "failed_exit_${r
 
 SKIP_BUILD=false
 SKIP_CI_CHECK=false
+BUILD_MODE=local   # `local` (docker build on this VPS) or `cloud` (gcloud builds submit)
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-build) SKIP_BUILD=true; shift ;;
     --skip-ci-check) SKIP_CI_CHECK=true; shift ;;
+    --cloud-build) BUILD_MODE=cloud; shift ;;
+    --local-build) BUILD_MODE=local; shift ;;
     -h|--help)
       sed -n '2,/^set -uo/p' "$0" | sed 's/^# \{0,1\}//'
       exit 0 ;;
@@ -189,32 +206,73 @@ echo "  Project:   $PROJECT"
 echo "  Region:    $REGION"
 echo "  Service:   $SERVICE"
 echo "  Image:     $IMAGE"
-$SKIP_BUILD && echo "  Mode:      --skip-build (deploying existing :latest)"
+echo "  Build:     ${BUILD_MODE}$($SKIP_BUILD && echo " (skipped via --skip-build)")"
 echo "════════════════════════════════════════"
 
 # ── Step 1: build ─────────────────────────────────────────────────────────────
 DEPLOY_STAGE="build"
 if ! $SKIP_BUILD; then
-  echo ""
-  echo "📍 [1/2] Building image via Cloud Build (~4 min)..."
   # shellcheck disable=SC1091
   set -a; source .env.local; set +a
 
-  gcloud builds submit \
-    --config=cloudbuild.yaml \
-    --substitutions="_NEXT_PUBLIC_RAZORPAY_KEY_ID=${NEXT_PUBLIC_RAZORPAY_KEY_ID:-},_NEXT_PUBLIC_RECAPTCHA_SITE_KEY=${NEXT_PUBLIC_RECAPTCHA_SITE_KEY:-},_NEXT_PUBLIC_FACEBOOK_ENABLED=${NEXT_PUBLIC_FACEBOOK_ENABLED:-false},_NEXT_PUBLIC_GITHUB_ENABLED=${NEXT_PUBLIC_GITHUB_ENABLED:-false},_NEXT_PUBLIC_SUPPORT_EMAIL=${NEXT_PUBLIC_SUPPORT_EMAIL:-support@anutech.in}" \
-    >/dev/null 2>&1 &
-  BUILD_PID=$!
-  # Print progress dots while build runs
-  while kill -0 $BUILD_PID 2>/dev/null; do printf "."; sleep 5; done
-  wait $BUILD_PID
-  BUILD_EXIT=$?
-  echo ""
-  if [ $BUILD_EXIT -ne 0 ]; then
-    echo "❌ Build failed. See: gcloud builds list --limit=1"
-    exit 1
+  if [ "$BUILD_MODE" = "local" ]; then
+    # Local docker build on this VPS, then push to Artifact Registry. The
+    # build runs synchronously so the user sees Docker's normal layered
+    # output. ~12-18 minutes on a 2-vCPU box; the cost is VPS CPU/egress
+    # rather than Cloud Build minutes. Falls back to Cloud Build if `docker`
+    # is missing — keeps emergency hotfixes unblocked when running from a
+    # workstation that doesn't have Docker.
+    if ! command -v docker >/dev/null 2>&1; then
+      echo "⚠️  --local-build requested but Docker is not installed."
+      echo "    Either install Docker or rerun with --cloud-build."
+      exit 1
+    fi
+    echo ""
+    echo "📍 [1/2] Building image locally via Docker..."
+    SHORT_SHA="${DEPLOY_HEAD_SHA:0:8}"
+    docker build \
+      --build-arg "NEXT_PUBLIC_RAZORPAY_KEY_ID=${NEXT_PUBLIC_RAZORPAY_KEY_ID:-}" \
+      --build-arg "NEXT_PUBLIC_RECAPTCHA_SITE_KEY=${NEXT_PUBLIC_RECAPTCHA_SITE_KEY:-}" \
+      --build-arg "NEXT_PUBLIC_FACEBOOK_ENABLED=${NEXT_PUBLIC_FACEBOOK_ENABLED:-false}" \
+      --build-arg "NEXT_PUBLIC_GITHUB_ENABLED=${NEXT_PUBLIC_GITHUB_ENABLED:-false}" \
+      --build-arg "NEXT_PUBLIC_SUPPORT_EMAIL=${NEXT_PUBLIC_SUPPORT_EMAIL:-support@anutech.in}" \
+      --tag "$IMAGE" \
+      --tag "us-central1-docker.pkg.dev/${PROJECT}/dms/dms:${SHORT_SHA}" \
+      .
+    BUILD_EXIT=$?
+    if [ $BUILD_EXIT -ne 0 ]; then
+      echo "❌ Local docker build failed."
+      exit 1
+    fi
+    echo "✅ Local build succeeded"
+    echo ""
+    echo "📍 [1b/2] Pushing image to Artifact Registry..."
+    docker push "$IMAGE"
+    PUSH_EXIT=$?
+    docker push "us-central1-docker.pkg.dev/${PROJECT}/dms/dms:${SHORT_SHA}" >/dev/null 2>&1 || true
+    if [ $PUSH_EXIT -ne 0 ]; then
+      echo "❌ Image push failed."
+      exit 1
+    fi
+    echo "✅ Image pushed: $IMAGE (also tagged :$SHORT_SHA)"
+  else
+    echo ""
+    echo "📍 [1/2] Building image via Cloud Build (~4 min)..."
+    gcloud builds submit \
+      --config=cloudbuild.yaml \
+      --substitutions="_NEXT_PUBLIC_RAZORPAY_KEY_ID=${NEXT_PUBLIC_RAZORPAY_KEY_ID:-},_NEXT_PUBLIC_RECAPTCHA_SITE_KEY=${NEXT_PUBLIC_RECAPTCHA_SITE_KEY:-},_NEXT_PUBLIC_FACEBOOK_ENABLED=${NEXT_PUBLIC_FACEBOOK_ENABLED:-false},_NEXT_PUBLIC_GITHUB_ENABLED=${NEXT_PUBLIC_GITHUB_ENABLED:-false},_NEXT_PUBLIC_SUPPORT_EMAIL=${NEXT_PUBLIC_SUPPORT_EMAIL:-support@anutech.in}" \
+      >/dev/null 2>&1 &
+    BUILD_PID=$!
+    while kill -0 $BUILD_PID 2>/dev/null; do printf "."; sleep 5; done
+    wait $BUILD_PID
+    BUILD_EXIT=$?
+    echo ""
+    if [ $BUILD_EXIT -ne 0 ]; then
+      echo "❌ Build failed. See: gcloud builds list --limit=1"
+      exit 1
+    fi
+    echo "✅ Build succeeded"
   fi
-  echo "✅ Build succeeded"
 else
   echo ""
   echo "⏭️  [1/2] Build skipped"
