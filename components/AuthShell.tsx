@@ -1,5 +1,4 @@
 import { ReactNode } from 'react';
-import Link from 'next/link';
 import { CheckCircle, Globe, Shield, Headphones, Sparkles, TrendingUp } from 'lucide-react';
 import Logo from './Logo';
 
@@ -56,11 +55,13 @@ export default function AuthShell({
             }}
           />
 
-          {/* Top: logo */}
+          {/* Top: logo (Logo internally wraps itself in a <Link href="/">; do
+              NOT add an outer <Link> here — nested <a> tags are invalid HTML
+              and the browser's auto-correction during parse produces a
+              different DOM than the SSR'd one, throwing React #418 on every
+              login/register page load.) */}
           <div className="relative z-10 flex items-center justify-between">
-            <Link href="/" className="inline-block">
-              <Logo size="lg" variant="dark" />
-            </Link>
+            <Logo size="lg" variant="dark" />
           </div>
 
           {/* Middle: headline + preview card */}
@@ -125,11 +126,10 @@ export default function AuthShell({
 
         {/* Form panel */}
         <main className="flex flex-col">
-          {/* Mobile-only top bar with logo */}
+          {/* Mobile-only top bar with logo (Logo self-wraps in <Link href="/">;
+              no outer <Link> here — same reason as above). */}
           <div className="lg:hidden flex items-center justify-center pt-8 pb-2">
-            <Link href="/">
-              <Logo size="md" />
-            </Link>
+            <Logo size="md" />
           </div>
 
           <div className="flex-1 flex items-center justify-center px-4 sm:px-8 py-10 sm:py-14">
