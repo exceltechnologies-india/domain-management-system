@@ -10,6 +10,13 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   icon?: React.ReactNode;
   rightIcon?: React.ReactNode;
   fullWidth?: boolean;
+  // Retained for API compatibility with existing callers; the entry-state
+  // animations were removed because Framer Motion's SSR'd inline styles
+  // diverged from the React-19 client-rendered styles during hydration
+  // and threw React #418 on every login/register page load. The
+  // error/helper-message AnimatePresence below is kept — those only
+  // render conditionally after a validation failure, so they don't
+  // participate in the initial server-vs-client comparison.
   animate?: boolean;
 }
 
@@ -20,7 +27,6 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
   icon,
   rightIcon,
   fullWidth = false,
-  animate = true,
   className = '',
   autoComplete,
   type,
@@ -37,13 +43,11 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
   const widthClasses = fullWidth ? 'w-full' : '';
   const focusClasses = isFocused ? 'ring-2 ring-primary-500/20 shadow-md' : '';
 
-  // Auto-detect autocomplete based on input type and name if not explicitly provided
   const getAutocomplete = (): string | undefined => {
     if (autoComplete) {
       return autoComplete;
     }
     if (type === 'password') {
-      // Check if it's a new password (registration) or current password (login)
       if (name?.includes('confirm') || (name === 'password' && placeholder?.toLowerCase().includes('create'))) {
         return 'new-password';
       }
@@ -58,71 +62,38 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
     return undefined;
   };
 
-  const inputElement = (
-    <input
-      ref={ref}
-      type={type}
-      name={name}
-      placeholder={placeholder}
-      className={`${baseClasses} ${errorClasses} ${iconClasses} ${rightIconClasses} ${widthClasses} ${focusClasses} ${className}`}
-      onFocus={() => setIsFocused(true)}
-      onBlur={() => setIsFocused(false)}
-      autoComplete={getAutocomplete()}
-      {...props}
-    />
-  );
-
   return (
     <div className={fullWidth ? 'w-full' : ''}>
       {label && (
-        <motion.label
-          className="block text-sm font-medium text-gray-700 mb-1"
-          initial={animate ? { opacity: 0, y: -5 } : {}}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2 }}
-        >
+        <label className="block text-sm font-medium text-gray-700 mb-1">
           {label}
-        </motion.label>
+        </label>
       )}
       <div className="relative">
         {icon && (
-          <motion.div
-            className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"
-            initial={animate ? { opacity: 0, x: -5 } : {}}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.2, delay: 0.1 }}
-          >
-            <motion.span
-              className="text-gray-400"
-              animate={isFocused ? { scale: 1.1, color: '#3b82f6' } : { scale: 1, color: '#9ca3af' }}
-              transition={{ duration: 0.2 }}
-            >
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <span className={`transition-colors duration-200 ${isFocused ? 'text-primary-500 scale-110' : 'text-gray-400'}`}>
               {icon}
-            </motion.span>
-          </motion.div>
+            </span>
+          </div>
         )}
 
-        {animate ? (
-          <motion.div
-            initial={{ opacity: 0, y: 5 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            {inputElement}
-          </motion.div>
-        ) : (
-          inputElement
-        )}
+        <input
+          ref={ref}
+          type={type}
+          name={name}
+          placeholder={placeholder}
+          className={`${baseClasses} ${errorClasses} ${iconClasses} ${rightIconClasses} ${widthClasses} ${focusClasses} ${className}`}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          autoComplete={getAutocomplete()}
+          {...props}
+        />
 
         {rightIcon && (
-          <motion.div
-            className="absolute inset-y-0 right-0 pr-3 flex items-center"
-            initial={animate ? { opacity: 0, x: 5 } : {}}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.2, delay: 0.1 }}
-          >
+          <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
             {rightIcon}
-          </motion.div>
+          </div>
         )}
       </div>
 

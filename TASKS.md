@@ -1,9 +1,9 @@
 # Domain Management Portal — Tasks
 
-**Last updated:** 17 Jun 2026 06:55Z
+**Last updated:** 17 Jun 2026 07:05Z
 **Currently live in production:** revision `dms-00166-pn8` (deployed 2026-06-17 06:55Z; includes the reCAPTCHA-widget-ID hydration fix + client-logger + ChatWidget hydration fixes + reCAPTCHA site-key typo fix + 14 prior hotfixes from yesterday + Gemini chatbot migration + slice 7iC + 4 HIGH-severity dependency security patches)
-**Most-recent batch:** 82 customer-safety + admin-safety improvements shipped 8–17 Jun via 65 production deploys (pending-deploy queue is empty); every item below tagged with its live revision
-**Yesterday (2026-06-16) shipped:** 1 vertical slice + 14 hotfixes + 1 cost-reduction migration + 1 chatbot hardening pass live; **Today (2026-06-17) shipped so far:** 3 hotfixes live — reCAPTCHA site-key typo + console-error cleanup + the real React #418 root cause on the login page; suite at 6027/6027
+**Most-recent batch:** 82 customer-safety + admin-safety improvements shipped 8–17 Jun via 65 production deploys (1 pending in deploy queue: the 4th-attempt React #418 root cause — animation-library hydration); every item below tagged with its live revision
+**Yesterday (2026-06-16) shipped:** 1 vertical slice + 14 hotfixes + 1 cost-reduction migration + 1 chatbot hardening pass live; **Today (2026-06-17) shipped so far:** 3 hotfixes live — reCAPTCHA site-key typo + console-error cleanup + the third React #418 attempt on the login page; **1 pending**: the actual underlying #418 cause (animation-library inline-style hydration mismatch); suite at 6027/6027
 
 ## 🏁 Rescan-4 audit cycle: CLOSED 16 Jun 2026
 
@@ -11,7 +11,7 @@ Eight days of focused safety-check additions are complete. Every production-faci
 
 ## In Flight
 
-(nothing in flight)
+- [ ] **The "React #418" hydration error on the login / register pages — fourth-attempt root cause: the form-field animation library's inline styles** — after three prior attempts (browser extensions, the homepage chat widget, the reCAPTCHA container ID) the senior reviewer still saw the same red React #418 error in the browser console on the login page, in normal-mode browsers AND across multiple different browsers (ruling out caching and extensions); fresh investigation by reading the server-rendered HTML directly with `curl` revealed **nine elements on the login form with inline styles like `style="opacity:0;transform:translateY(-5px)"`** — these are micro-animation initial-states emitted by the page's animation library (Framer Motion) on the email field label, password field label, the mail/lock/eye icons next to those fields, and the input wrappers themselves; root cause: with the codebase now on React 19 + Framer Motion 12, the animation library's server-rendered inline styles are matched against subtly different client-rendered styles during hydration (Framer Motion adds extra style properties for hardware acceleration / will-change on the client that aren't in the server output), and React 19's stricter hydration comparison throws #418 on every mismatch; **the animations themselves are decorative 0.2-second opacity-fade-in effects on form labels and field icons** — they don't add meaningful UX value (customers don't even consciously perceive a 0.2s fade on a form they're going to read for several seconds anyway) but they're the actual hydration-mismatch source; fix: strip the Framer Motion wrappers from the form-field component for the parts that render on initial page load (labels, icon containers, input wrappers); keep the conditionally-rendered error/helper-message animation (those only render when there's a validation error, so they don't participate in the initial server vs. client comparison); after this deploy the login form will render with no animation on labels/icons/inputs (it'll be visually static — labels appear immediately) but the hydration mismatch will be gone for good; this is a fourth, root-level fix — not a workaround — and the previous three fixes still ship since each one fixed a real but different bug along the way
 
 ## Recently Shipped — user-visible improvements
 
