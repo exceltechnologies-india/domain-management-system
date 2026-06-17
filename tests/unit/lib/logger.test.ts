@@ -6,7 +6,10 @@
  *  - Production: console.* is NOT called.
  *  - error + warn push to the /api/v1/log endpoint via sendBeacon when
  *    available (else fetch).
- *  - sendBeacon payload contains the level + sanitized messages.
+ *  - sendBeacon payload contains the level + a joined `message` string
+ *    + the sanitized structured array under `details` (the server schema
+ *    at app/api/log/route.ts requires `message: string` and accepts
+ *    optional `details: unknown`).
  *  - Error objects are serialised to {message, stack, name}.
  *  - Circular objects are replaced with '[Circular Object]'.
  *  - log/info/debug do NOT call sendBeacon/fetch (server-side noise).
@@ -95,7 +98,7 @@ describe("logger server forwarding (error + warn)", () => {
     vi.resetModules();
   });
 
-  it("error → navigator.sendBeacon called with /api/v1/log + the level+messages payload", async () => {
+  it("error → navigator.sendBeacon called with /api/v1/log + the level+message+details payload", async () => {
     const { logger } = await import("@/lib/logger");
     logger.error("boom", { id: 1 });
     expect(sendBeaconMock).toHaveBeenCalledTimes(1);
@@ -105,7 +108,12 @@ describe("logger server forwarding (error + warn)", () => {
     const text = await (blob as Blob).text();
     const parsed = JSON.parse(text);
     expect(parsed.level).toBe("error");
-    expect(parsed.messages).toEqual(["boom", { id: 1 }]);
+    // `message` is the joined string (server schema requires `string`).
+    expect(typeof parsed.message).toBe("string");
+    expect(parsed.message).toContain("boom");
+    expect(parsed.message).toContain('{"id":1}');
+    // `details` is the original structured array (for server-side context).
+    expect(parsed.details).toEqual(["boom", { id: 1 }]);
   });
 
   it("warn → sendBeacon called with level='warn'", async () => {
@@ -114,7 +122,8 @@ describe("logger server forwarding (error + warn)", () => {
     const blob = sendBeaconMock.mock.calls[0][1] as Blob;
     const parsed = JSON.parse(await blob.text());
     expect(parsed.level).toBe("warn");
-    expect(parsed.messages).toEqual(["careful"]);
+    expect(parsed.message).toBe("careful");
+    expect(parsed.details).toEqual(["careful"]);
   });
 
   it("log / info / debug do NOT call sendBeacon (avoid noise)", async () => {
@@ -131,11 +140,11 @@ describe("logger server forwarding (error + warn)", () => {
     logger.error(err);
     const blob = sendBeaconMock.mock.calls[0][1] as Blob;
     const parsed = JSON.parse(await blob.text());
-    expect(parsed.messages[0]).toMatchObject({
+    expect(parsed.details[0]).toMatchObject({
       message: "oops",
       name: "Error",
     });
-    expect(parsed.messages[0].stack).toBeTypeOf("string");
+    expect(parsed.details[0].stack).toBeTypeOf("string");
   });
 
   it("Circular objects are replaced with '[Circular Object]'", async () => {
@@ -145,7 +154,7 @@ describe("logger server forwarding (error + warn)", () => {
     logger.error(a);
     const blob = sendBeaconMock.mock.calls[0][1] as Blob;
     const parsed = JSON.parse(await blob.text());
-    expect(parsed.messages[0]).toBe("[Circular Object]");
+    expect(parsed.details[0]).toBe("[Circular Object]");
   });
 
   it("falls back to fetch when sendBeacon is unavailable", async () => {
