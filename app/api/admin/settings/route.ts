@@ -47,8 +47,27 @@ const SECURITY_KEYS = new Set<string>([
   "field_encryption_key",
 ]);
 
+// Keys that are explicitly NOT security-scoped, even if their stored
+// category in the DB happens to be "security". These are feature flags
+// that only carry a boolean / threshold value — flipping them doesn't
+// expose any credential and doesn't unlock further escalation, so
+// requiring step-up password re-auth on every toggle was friction
+// without security benefit. Without this exception the keys could
+// land in a locked state (first save records the "security" category,
+// every subsequent save then hits the stored-category check and 403s
+// because there's no step-up UI for plain feature flags).
+const NEVER_SECURITY_KEYS = new Set<string>([
+  "captcha_enabled",
+  "hosting_trial_enabled",
+  "hosting_test_plan_enabled",
+  "tld_pricing_cache_enabled",
+  "tld_pricing_cache_ttl",
+  "maintenance_mode_enabled",
+]);
+
 async function isSecurityScopedKey(key: string): Promise<boolean> {
   if (SECURITY_KEYS.has(key)) return true;
+  if (NEVER_SECURITY_KEYS.has(key)) return false;
   const existing = await getSetting(key);
   return existing?.category === "security";
 }
