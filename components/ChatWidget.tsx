@@ -35,7 +35,20 @@ function loadMessages(): Message[] {
 
 export default function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>(loadMessages);
+  // Initial state MUST match what the server renders — start with the
+  // greeting only, then hydrate from sessionStorage in useEffect. If we
+  // read sessionStorage in the useState initialiser, the server renders
+  // [GREETING] (no `window`) while the client renders whatever was
+  // previously saved → React throws hydration error #418. The same
+  // visible behaviour (conversation resumes from sessionStorage) is
+  // preserved; we just defer the read by one tick.
+  const [messages, setMessages] = useState<Message[]>([GREETING]);
+  useEffect(() => {
+    const saved = loadMessages();
+    if (saved.length !== 1 || saved[0] !== GREETING) {
+      setMessages(saved);
+    }
+  }, []);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);

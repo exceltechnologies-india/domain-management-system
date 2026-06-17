@@ -29,9 +29,23 @@ const sendToServer = async (level: string, args: unknown[]) => {
       return arg;
     });
 
-    // Use sendBeacon if available for better reliability on unload
-    // otherwise fallback to fetch
-    const payload = JSON.stringify({ level, messages });
+    // Server schema (app/api/log/route.ts) expects `{level, message:
+    // string, details?: unknown}` — message MUST be a string and is
+    // required (zod validation rejects with 400 otherwise). Collapse
+    // the variadic args into a single space-joined `message` string,
+    // and pass the full structured array as `details` so the server
+    // logger receives the same shape as before for diagnostic context.
+    const message = messages
+      .map((m) =>
+        typeof m === 'string'
+          ? m
+          : typeof m === 'object' && m !== null
+          ? JSON.stringify(m)
+          : String(m)
+      )
+      .join(' ')
+      .slice(0, 8000); // schema caps at 8000 chars
+    const payload = JSON.stringify({ level, message, details: messages });
     const url = '/api/v1/log';
 
     if (navigator.sendBeacon) {
