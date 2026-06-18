@@ -65,6 +65,19 @@ export interface IOrder extends Document {
     dnsActivatedAt?: Date;
     dnsProvider?: "resellerclub" | "directadmin";
     itemType?: "domain" | "hosting"; // Defaults to "domain" if not present
+    /**
+     * For hosting cart items: the actual domain the DirectAdmin user is
+     * provisioned against (e.g. "tryraju.com"). The cart store gives
+     * hosting items a synthetic `domainName` ("hosting-standard-…") so the
+     * cart can show domain + hosting as two distinct rows; `linkedDomain`
+     * is the real domain. Without persisting it, /payments/verify
+     * (security-pinned to DB-stored order.domains, NOT request-body
+     * cartItems) reconstructed the hosting CartItem with only the
+     * synthetic domainName, the provisioner tried `linkedDomain ||
+     * domainName` and got the synthetic ID, and DirectAdmin refused to
+     * create a user for it. Added 2026-06-18 to fix that flow.
+     */
+    linkedDomain?: string;
     hostingPlan?: {
       planId: string;
       name: string;
@@ -231,6 +244,10 @@ const OrderSchema = new Schema<IOrder>(
           enum: ["domain", "hosting"],
           default: "domain",
         },
+        // See the IOrder interface comment above. For hosting cart items the
+        // synthetic cart-store domainName ("hosting-standard-…") would
+        // otherwise be passed to the DirectAdmin provisioner and rejected.
+        linkedDomain: String,
         dnsProvider: {
           type: String,
           enum: ["resellerclub", "directadmin"],

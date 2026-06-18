@@ -1,3 +1,10 @@
+// Default MONGODB_URI so module-load-time env checks in lib/mongodb.ts don't
+// throw when a test transitively imports something that pulls it in (e.g.
+// lib/services/payment/order-creator → lib/services/payments → lib/mongodb).
+// The mongoose mock below stubs `connect` away, so the placeholder URI is
+// never actually dialed.
+process.env.MONGODB_URI = process.env.MONGODB_URI || "mongodb://placeholder";
+
 import { vi } from "vitest";
 // Register @testing-library/jest-dom matchers (toBeInTheDocument, etc.) for
 // component tests. Harmless for the existing model/service/store unit suites.
