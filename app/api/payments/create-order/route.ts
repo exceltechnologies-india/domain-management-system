@@ -287,6 +287,10 @@ export async function POST(request: NextRequest) {
                 item.periodUnit ||
                 (item.itemType === "hosting" ? "months" : "years"),
               itemType: item.itemType || "domain",
+              // Persist the linked domain for hosting items so /verify can
+              // reconstruct the CartItem with the real domain to provision
+              // on DirectAdmin (not the synthetic cart-store ID).
+              linkedDomain: item.linkedDomain,
               isTrial:
                 (item as CartItem & { isTrial?: boolean }).isTrial === true,
               status: "pending",

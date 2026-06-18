@@ -42,6 +42,10 @@ export function cartItemsFromOrderDomains(
     itemType: d.itemType,
     periodUnit: d.periodUnit as CartItem["periodUnit"],
     isTrial: d.isTrial === true,
+    // Restore linkedDomain so downstream consumers (Zoho invoice display,
+    // recurring-invoice line items) show the real domain for hosting
+    // items rather than the synthetic cart-store ID.
+    linkedDomain: (d as { linkedDomain?: string }).linkedDomain,
     hostingPlan: d.hostingPlan
       ? {
           id: d.hostingPlan.planId,
@@ -336,6 +340,10 @@ export async function finalizePendingOrder(
     itemType: d.itemType,
     periodUnit: d.periodUnit as CartItem["periodUnit"],
     isTrial: d.isTrial === true,
+    // Restore linkedDomain so the hosting provisioner targets the real
+    // domain (e.g. "tryraju.com") rather than the synthetic cart-store ID
+    // stored in d.domainName for hosting items.
+    linkedDomain: (d as { linkedDomain?: string }).linkedDomain,
     hostingPlan: d.hostingPlan
       ? {
           id: d.hostingPlan.planId,
