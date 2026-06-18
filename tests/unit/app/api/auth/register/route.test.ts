@@ -23,11 +23,6 @@
  *    hostile body bytes
  *  - L3 zod: invalid email → 400; missing password → 400; missing
  *    firstName → 400
- *  - L4 reCAPTCHA: optional — when recaptchaToken supplied + verifier
- *    fails → 403 SECURITY_CHECK_FAILED; clientIP from x-forwarded-for[0]
- *    → x-real-ip → 'unknown'
- *  - L4 reCAPTCHA: NO recaptchaToken supplied → verifier NOT consulted
- *    (legacy/dev path); proceeds to user-exists check
  *  - L5 existing user → 400 USER_EXISTS; createUserWithCredentials NOT
  *    called
  *  - L6 happy: crypto.randomBytes(32) → 64-char hex activation token
@@ -57,11 +52,6 @@ vi.mock("@/lib/rate-limit", async () => {
     rateLimiters: { register: { isAllowed } },
   };
 });
-
-const verifyToken = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/recaptcha", () => ({
-  RecaptchaServer: { verifyToken },
-}));
 
 const getUserByEmail = vi.hoisted(() => vi.fn());
 const createUserWithCredentials = vi.hoisted(() => vi.fn());
@@ -140,7 +130,6 @@ const VALID = {
 beforeEach(() => {
   validateCSRF.mockReset().mockReturnValue({ isValid: true });
   isAllowed.mockReset().mockResolvedValue({ allowed: true, remaining: 5 });
-  verifyToken.mockReset().mockResolvedValue({ success: true });
   getUserByEmail.mockReset().mockResolvedValue(null);
   createUserWithCredentials.mockReset().mockImplementation(async (data) => ({
     _id: "U_NEW",
@@ -184,7 +173,6 @@ describe("L3 — Zod schema", () => {
       makeReq({ ...VALID, email: "not-an-email" })
     );
     expect(res.status).toBe(400);
-    expect(verifyToken).not.toHaveBeenCalled();
   });
 
   it("missing firstName → 400", async () => {
@@ -199,50 +187,6 @@ describe("L3 — Zod schema", () => {
     delete body.password;
     const res = await POST(makeReq(body));
     expect(res.status).toBe(400);
-  });
-});
-
-describe("L4 — reCAPTCHA (optional)", () => {
-  it("recaptchaToken provided + verifier success=false → 403 SECURITY_CHECK_FAILED", async () => {
-    verifyToken.mockResolvedValueOnce({ success: false });
-    const res = await POST(
-      makeReq({ ...VALID, recaptchaToken: "tok" })
-    );
-    expect(res.status).toBe(403);
-    const body = await res.json();
-    expect(body.code).toBe("SECURITY_CHECK_FAILED");
-    expect(getUserByEmail).not.toHaveBeenCalled();
-  });
-
-  it("NO recaptchaToken supplied → verifier NOT consulted; proceeds", async () => {
-    const res = await POST(makeReq(VALID));
-    expect(verifyToken).not.toHaveBeenCalled();
-    expect(res.status).toBe(201);
-  });
-
-  it("clientIP from x-forwarded-for[0]; verifier called with it", async () => {
-    await POST(
-      makeReq(
-        { ...VALID, recaptchaToken: "tok" },
-        { "x-forwarded-for": "10.0.0.1, 10.0.0.2" }
-      )
-    );
-    expect(verifyToken).toHaveBeenCalledWith("tok", "10.0.0.1");
-  });
-
-  it("clientIP fallback to x-real-ip when forwarded absent", async () => {
-    await POST(
-      makeReq(
-        { ...VALID, recaptchaToken: "tok" },
-        { "x-real-ip": "192.168.1.5" }
-      )
-    );
-    expect(verifyToken).toHaveBeenCalledWith("tok", "192.168.1.5");
-  });
-
-  it("clientIP falls back to 'unknown' when neither header present", async () => {
-    await POST(makeReq({ ...VALID, recaptchaToken: "tok" }));
-    expect(verifyToken).toHaveBeenCalledWith("tok", "unknown");
   });
 });
 

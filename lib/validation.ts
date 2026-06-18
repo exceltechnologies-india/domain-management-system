@@ -126,20 +126,17 @@ export const Schemas = {
       country: z.string().max(100).optional().default("IN"),
       zipcode: z.string().max(15).optional().default(""),
     }).optional(),
-    recaptchaToken: z.string().optional(),
   }),
 
   /** Forgot Password: Validates the request to initiate a password recovery. */
   forgotPassword: z.object({
     email: z.string().email("Invalid email format").trim().toLowerCase(),
-    recaptchaToken: z.string().min(1, "Security token is required"),
   }).strict(),
 
   /** Reset Password: Validates the final stage of password recovery with strict complexity checks. */
   resetPassword: z.object({
     token: z.string().min(1, "Reset token is required"),
     password: passwordSchema,
-    recaptchaToken: z.string().min(1, "Security token is required"),
   }).strict(),
 
   /** DNS Record: Validates DNS entries for domain configuration. */

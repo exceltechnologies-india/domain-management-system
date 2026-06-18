@@ -8,7 +8,6 @@ import Textarea from './Textarea';
 import Card from './Card';
 import toast from 'react-hot-toast';
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
-import GoogleRecaptcha from './GoogleRecaptcha';
 import { apiClient } from '@/lib/api-client';
 
 interface ContactFormProps {
@@ -24,27 +23,12 @@ export default function ContactForm({ className = '' }: ContactFormProps) {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // Check if reCAPTCHA is configured
-    const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
-    const isRecaptchaConfigured = recaptchaSiteKey && recaptchaSiteKey !== 'your-recaptcha-site-key';
-
-    // Only require reCAPTCHA token if reCAPTCHA is configured
-    if (isRecaptchaConfigured && !recaptchaToken) {
-      showErrorToast('Please complete the security verification');
-      setIsSubmitting(false);
-      return;
-    }
-
-    const result = await apiClient.post('/api/v1/contact', {
-      ...formData,
-      recaptchaToken: recaptchaToken,
-    });
+    const result = await apiClient.post('/api/v1/contact', { ...formData });
 
     if (result.ok) {
       setIsSubmitted(true);
@@ -147,27 +131,12 @@ export default function ContactForm({ className = '' }: ContactFormProps) {
           helperText="Please provide as much detail as possible"
         />
 
-        {process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && 
-         process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY !== 'your-recaptcha-site-key' && (
-          <div className="py-2">
-            <GoogleRecaptcha
-              onSuccess={(token) => setRecaptchaToken(token)}
-              onError={() => setRecaptchaToken(null)}
-              onExpire={() => setRecaptchaToken(null)}
-              className="flex justify-center"
-            />
-          </div>
-        )}
-
         <Button
           type="button"
           onClick={handleSubmit}
           loading={isSubmitting}
           fullWidth
           icon={<Send className="h-4 w-4" />}
-          disabled={!!(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && 
-                   process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY !== 'your-recaptcha-site-key' && 
-                   !recaptchaToken)}
           className="mt-2"
         >
           {isSubmitting ? 'Sending...' : 'Send Message'}

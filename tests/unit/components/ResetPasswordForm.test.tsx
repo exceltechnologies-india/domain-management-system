@@ -77,7 +77,7 @@ describe("<ResetPasswordForm>", () => {
     expect(mockApiPost).not.toHaveBeenCalled();
   });
 
-  it("posts {token, password, recaptchaToken} on a valid submit and swaps to the success screen", async () => {
+  it("posts {token, password} on a valid submit and swaps to the success screen", async () => {
     const user = userEvent.setup();
     mockApiPost.mockResolvedValue({ ok: true, data: {} });
     render(<ResetPasswordForm token="reset-abc" />);
@@ -88,7 +88,6 @@ describe("<ResetPasswordForm>", () => {
     expect(mockApiPost).toHaveBeenCalledWith("/api/v1/auth/reset-password", {
       token: "reset-abc",
       password: "ValidPass123!",
-      recaptchaToken: null,
     });
     expect(await screen.findByRole("heading", { name: /password reset complete/i })).toBeInTheDocument();
     expect(mockToast.success).toHaveBeenCalledWith(expect.stringMatching(/reset successfully/i));

@@ -8,7 +8,6 @@ import Input from './Input';
 import Card from './Card';
 import Logo from './Logo';
 import toast from 'react-hot-toast';
-import GoogleRecaptcha from './GoogleRecaptcha';
 import { apiClient } from '@/lib/api-client';
 
 interface ResetPasswordFormProps {
@@ -28,7 +27,6 @@ export default function ResetPasswordForm({ token, className = '', isSetup = fal
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,21 +44,9 @@ export default function ResetPasswordForm({ token, className = '', isSetup = fal
     setIsLoading(true);
 
     try {
-      // Check if reCAPTCHA is configured
-      const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
-      const isRecaptchaConfigured = recaptchaSiteKey && recaptchaSiteKey !== 'your-recaptcha-site-key';
-
-      // Only require reCAPTCHA token if reCAPTCHA is configured
-      if (isRecaptchaConfigured && !recaptchaToken) {
-        toast.error('Please complete the security verification');
-        setIsLoading(false);
-        return;
-      }
-
       const result = await apiClient.post('/api/v1/auth/reset-password', {
         token,
         password: formData.password,
-        recaptchaToken: recaptchaToken,
       });
 
       if (result.ok) {
@@ -205,16 +191,6 @@ export default function ResetPasswordForm({ token, className = '', isSetup = fal
                 }
               />
             </div>
-
-            {process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY &&
-              process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY !== 'your-recaptcha-site-key' && (
-                <GoogleRecaptcha
-                  onSuccess={(token) => setRecaptchaToken(token)}
-                  onError={() => setRecaptchaToken(null)}
-                  onExpire={() => setRecaptchaToken(null)}
-                  className="flex justify-center"
-                />
-              )}
 
             <Button
               type="button"

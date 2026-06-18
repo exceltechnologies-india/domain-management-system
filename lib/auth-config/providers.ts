@@ -69,7 +69,6 @@ export const providers = [
     credentials: {
       email: { label: "Email", type: "email" },
       password: { label: "Password", type: "password" },
-      recaptchaToken: { label: "reCAPTCHA Token", type: "text" },
       totpCode: { label: "Authenticator Code", type: "text" },
     },
     async authorize(credentials, req) {
@@ -106,33 +105,10 @@ export const providers = [
           !!credentials.password
         );
 
-        // Enforce reCAPTCHA only in production when the secret key is configured
-        const recaptchaConfigured = process.env.NODE_ENV === 'production' && !!process.env.RECAPTCHA_SECRET_KEY;
-        if (recaptchaConfigured && !credentials.recaptchaToken) {
-          serverLogger.warn("[AUTH] ❌ reCAPTCHA token missing for " + credentials.email);
-          throw new Error("reCAPTCHA verification is required");
-        }
-
-        if (credentials.recaptchaToken) {
-          try {
-            const { RecaptchaServer } = await import('@/lib/recaptcha');
-            const recaptchaResult = await RecaptchaServer.verifyToken(
-              credentials.recaptchaToken
-            );
-
-            if (!recaptchaResult.success) {
-              serverLogger.warn("[AUTH] ❌ reCAPTCHA verification failed for " + credentials.email);
-              throw new Error("reCAPTCHA verification failed. Please try again.");
-            }
-          } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : String(error);
-            if (message === "reCAPTCHA verification failed. Please try again.") {
-              throw error;
-            }
-            serverLogger.error("[AUTH] ❌ reCAPTCHA error:", message);
-            // Don't block login if reCAPTCHA service is down or there's a network error
-          }
-        }
+        // reCAPTCHA was removed on 2026-06-17 (full rip ahead of a fresh
+        // re-install). Rate limiting (above) + per-IP login throttling still
+        // gate brute-force; CSRF + same-origin checks in middleware still
+        // gate cross-site abuse. Login no longer requires a captcha token.
 
         // Race connectDB against timeout
         const timeoutPromise = new Promise((_, reject) =>

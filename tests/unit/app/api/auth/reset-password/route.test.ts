@@ -11,9 +11,6 @@
  *    invalid → 403 CSRF_ERROR with the validator's error message
  *  - **Layer 2 — zod**: Schemas.resetPassword.safeParse →
  *    invalid → 400 VALIDATION_ERROR with first error message
- *  - **Layer 3 — reCAPTCHA**: RecaptchaServer.verifyToken with
- *    IP (x-forwarded-for first, x-real-ip fallback, 'unknown'
- *    fallback); failure → 403 SECURITY_CHECK_FAILED
  *  - **Layer 4 — Token verification**: findUserByResetToken null
  *    → 400 INVALID_TOKEN 'Invalid or expired reset token'
  *  - **Layer 5 — CRITICAL: Admin block**: user.role === 'admin'
@@ -36,9 +33,6 @@ const validateCSRF = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/security", () => ({
   SecurityValidator: { validateCSRF },
 }));
-
-const verifyToken = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/recaptcha", () => ({ RecaptchaServer: { verifyToken } }));
 
 const findUserByResetToken = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/users", () => ({ findUserByResetToken }));
@@ -74,7 +68,6 @@ function makeReq(
 const validBody = {
   token: "reset-token-fake-123",
   password: "StrongP@ssw0rd123!",
-  recaptchaToken: "captcha-ok",
 };
 
 function freshUser(overrides: Record<string, unknown> = {}) {
@@ -94,7 +87,6 @@ function freshUser(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   validateCSRF.mockReset().mockReturnValue({ isValid: true });
-  verifyToken.mockReset().mockResolvedValue({ success: true });
   findUserByResetToken.mockReset();
   sendPasswordChangeNotificationEmail.mockReset().mockResolvedValue(undefined);
 });
@@ -111,7 +103,6 @@ describe("Layer 1 — CSRF protection", () => {
     const body = await res.json();
     expect(body.code).toBe("CSRF_ERROR");
     expect(body.error).toBe("Origin mismatch");
-    expect(verifyToken).not.toHaveBeenCalled();
     expect(findUserByResetToken).not.toHaveBeenCalled();
   });
 
@@ -130,22 +121,9 @@ describe("Layer 2 — zod validation", () => {
     const res = await POST(
       makeReq({
         password: "StrongP@ssw0rd123!",
-        recaptchaToken: "x",
       })
     );
     expect(res.status).toBe(400);
-    expect(verifyToken).not.toHaveBeenCalled();
-  });
-
-  it("missing recaptchaToken → 400", async () => {
-    const res = await POST(
-      makeReq({
-        token: "x",
-        password: "StrongP@ssw0rd123!",
-      })
-    );
-    expect(res.status).toBe(400);
-    expect(verifyToken).not.toHaveBeenCalled();
   });
 
   it("weak password fails schema → 400", async () => {
@@ -156,44 +134,6 @@ describe("Layer 2 — zod validation", () => {
       })
     );
     expect(res.status).toBe(400);
-  });
-});
-
-// ─── Layer 3: reCAPTCHA ──────────────────────────────────────────
-describe("Layer 3 — reCAPTCHA with IP discovery", () => {
-  it("x-forwarded-for first comma-split value passed to verifyToken", async () => {
-    findUserByResetToken.mockResolvedValueOnce(freshUser());
-    await POST(
-      makeReq(validBody, {
-        "x-forwarded-for": "1.2.3.4, 5.6.7.8",
-      })
-    );
-    expect(verifyToken).toHaveBeenCalledWith("captcha-ok", "1.2.3.4");
-  });
-
-  it("x-real-ip fallback when x-forwarded-for missing", async () => {
-    findUserByResetToken.mockResolvedValueOnce(freshUser());
-    await POST(
-      makeReq(validBody, {
-        "x-real-ip": "9.9.9.9",
-      })
-    );
-    expect(verifyToken).toHaveBeenCalledWith("captcha-ok", "9.9.9.9");
-  });
-
-  it("'unknown' fallback when neither header present", async () => {
-    findUserByResetToken.mockResolvedValueOnce(freshUser());
-    await POST(makeReq(validBody));
-    expect(verifyToken).toHaveBeenCalledWith("captcha-ok", "unknown");
-  });
-
-  it("reCAPTCHA failure → 403 SECURITY_CHECK_FAILED; NO token lookup", async () => {
-    verifyToken.mockResolvedValueOnce({ success: false });
-    const res = await POST(makeReq(validBody));
-    expect(res.status).toBe(403);
-    const body = await res.json();
-    expect(body.code).toBe("SECURITY_CHECK_FAILED");
-    expect(findUserByResetToken).not.toHaveBeenCalled();
   });
 });
 

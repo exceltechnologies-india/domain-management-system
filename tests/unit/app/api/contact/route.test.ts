@@ -4,7 +4,7 @@
  * defense has to fire correctly.
  *
  * Threat model pinned:
- *  - Bot submissions → reCAPTCHA gate before any email is sent
+ *  - Bot submissions: reCAPTCHA was removed 2026-06-17; rate limit + zod stay
  *  - XSS in admin inbox or in user's confirmation email → every
  *    user-supplied string is run through InputValidator.sanitizeHtml
  *    before being interpolated into the HTML body
@@ -15,14 +15,9 @@
  * Specific pins:
  *  - Body validation FIRST (zod) — missing fields / oversize /
  *    empty string → 400 (validatedBody returns VALIDATION_ERROR)
- *  - **Client-IP discovery**: x-forwarded-for FIRST split on ',' →
- *    x-real-ip → 'unknown'. The IP is passed to RecaptchaServer.
- *    verifyToken for risk scoring; missing both headers must NOT
- *    crash the handler
- *  - reCAPTCHA failure → 403; NO email sent
- *  - InputValidator chain runs AFTER reCAPTCHA. Any one of name /
- *    email / subject / message having errors → 400 with errors
- *    joined by ', ' (so client can show all four at once)
+ *  - InputValidator chain runs after zod. Any one of name / email /
+ *    subject / message having errors → 400 with errors joined by ', '
+ *    (so client can show all four at once)
  *  - **Admin notification sent first**; if EmailService.sendAdminNotification
  *    returns false → 500 'Failed to send message' (admin must
  *    actually receive the lead — don't 200 if mail is silently
@@ -35,9 +30,6 @@
  *    stack details)
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-
-const verifyToken = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/recaptcha", () => ({ RecaptchaServer: { verifyToken } }));
 
 const validateName = vi.hoisted(() => vi.fn());
 const validateEmail = vi.hoisted(() => vi.fn());
@@ -92,7 +84,6 @@ const validBody = {
   email: "bob@example.com",
   subject: "Need help",
   message: "Hello, this is my message",
-  recaptchaToken: "captcha-ok",
 };
 
 function passingValidators() {
@@ -121,7 +112,6 @@ function passingValidators() {
 }
 
 beforeEach(() => {
-  verifyToken.mockReset().mockResolvedValue({ success: true });
   validateName.mockReset();
   validateEmail.mockReset();
   validateMessage.mockReset();
@@ -132,19 +122,9 @@ beforeEach(() => {
 
 // ─── Body validation (zod) ────────────────────────────────────────
 describe("Body validation (zod, before any external call)", () => {
-  it("missing recaptchaToken → 400 VALIDATION_ERROR; NO recaptcha verify, NO mail", async () => {
-    const { recaptchaToken: _omit, ...partial } = validBody;
-    void _omit;
-    const res = await POST(makeReq(partial));
-    expect(res.status).toBe(400);
-    expect(verifyToken).not.toHaveBeenCalled();
-    expect(sendAdminNotification).not.toHaveBeenCalled();
-  });
-
   it("empty name → 400", async () => {
     const res = await POST(makeReq({ ...validBody, name: "" }));
     expect(res.status).toBe(400);
-    expect(verifyToken).not.toHaveBeenCalled();
   });
 
   it("oversize message (> 10k chars) → 400", async () => {
@@ -163,47 +143,11 @@ describe("Body validation (zod, before any external call)", () => {
   });
 });
 
-// ─── Client-IP discovery (chained header walk) ────────────────────
-describe("Client-IP discovery passed to reCAPTCHA", () => {
-  it("x-forwarded-for FIRST value used (comma-split[0])", async () => {
-    passingValidators();
-    await POST(
-      makeReq(validBody, {
-        "x-forwarded-for": "1.2.3.4, 5.6.7.8",
-        "x-real-ip": "9.9.9.9",
-      })
-    );
-    expect(verifyToken).toHaveBeenCalledWith("captcha-ok", "1.2.3.4");
-  });
+// reCAPTCHA gate + IP-discovery tests were removed on 2026-06-17 ahead
+// of a fresh re-install. The contact form still has zod body validation,
+// email-format checks, and rate-limiting at the middleware layer.
 
-  it("falls back to x-real-ip when no x-forwarded-for", async () => {
-    passingValidators();
-    await POST(makeReq(validBody, { "x-real-ip": "9.9.9.9" }));
-    expect(verifyToken).toHaveBeenCalledWith("captcha-ok", "9.9.9.9");
-  });
-
-  it("'unknown' fallback when neither header is set (no crash)", async () => {
-    passingValidators();
-    await POST(makeReq(validBody));
-    expect(verifyToken).toHaveBeenCalledWith("captcha-ok", "unknown");
-  });
-});
-
-// ─── reCAPTCHA gate (anti-spam) ───────────────────────────────────
-describe("reCAPTCHA gate", () => {
-  it("failure → 403 'Security verification failed'; NO emails sent", async () => {
-    verifyToken.mockResolvedValueOnce({ success: false, error: "bot" });
-    const res = await POST(makeReq(validBody));
-    expect(res.status).toBe(403);
-    const body = await res.json();
-    expect(body.error).toContain("Security verification failed");
-    expect(sendAdminNotification).not.toHaveBeenCalled();
-    expect(sendEmail).not.toHaveBeenCalled();
-    expect(validateName).not.toHaveBeenCalled();
-  });
-});
-
-// ─── InputValidator chain (post-captcha) ──────────────────────────
+// ─── InputValidator chain ────────────────────────────────────────
 describe("InputValidator chain", () => {
   it("ANY field with errors → 400, errors joined by ', '", async () => {
     validateName.mockReturnValue({
@@ -346,14 +290,6 @@ describe("User confirmation email — XSS guard via sanitizeHtml", () => {
 
 // ─── Outer catch ──────────────────────────────────────────────────
 describe("Outer catch", () => {
-  it("RecaptchaServer.verifyToken throws → 500 'Internal server error'", async () => {
-    verifyToken.mockRejectedValueOnce(new Error("recaptcha network blip"));
-    const res = await POST(makeReq(validBody));
-    expect(res.status).toBe(500);
-    const body = await res.json();
-    expect(body.error).toBe("Internal server error");
-  });
-
   it("InputValidator throws → 500", async () => {
     validateName.mockImplementation(() => {
       throw new Error("validator crash");

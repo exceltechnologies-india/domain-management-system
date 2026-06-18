@@ -3,7 +3,6 @@ import { createUserWithCredentials, getUserByEmail } from "@/lib/services/users"
 import { EmailService } from "@/lib/email";
 import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { Schemas } from "@/lib/validation";
-import { RecaptchaServer } from "@/lib/recaptcha";
 import { SecurityValidator } from "@/lib/security";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import crypto from "crypto";
@@ -57,26 +56,11 @@ export async function POST(request: NextRequest) {
       companyName,
       gstNumber,
       address,
-      recaptchaToken,
     } = result.data;
 
-    /**
-     * 🛡️ DEFENSE-IN-DEPTH: Security Layer 4 - Human Verification (reCAPTCHA)
-     * Verifies that the user is not a bot.
-     */
-    const clientIP = request.headers.get("x-forwarded-for")?.split(",")[0] ||
-                     request.headers.get("x-real-ip") ||
-                     "unknown";
-    if (recaptchaToken) {
-      const recaptchaResult = await RecaptchaServer.verifyToken(
-        recaptchaToken,
-        clientIP
-      );
-  
-      if (!recaptchaResult.success) {
-        return secureErrorResponse("Security verification failed. Please try again.", 403, "SECURITY_CHECK_FAILED");
-      }
-    }
+    // reCAPTCHA was removed on 2026-06-17 (full rip ahead of a fresh
+    // re-install). CSRF + rate limiting + schema validation above still gate
+    // automated abuse.
 
     /**
      * 🛡️ DEFENSE-IN-DEPTH: Security Layer 5 - Business Logic Guard

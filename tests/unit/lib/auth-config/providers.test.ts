@@ -21,12 +21,6 @@
  *  - **Rate-limit gate keyed by email + IP** (per-user AND per-IP
  *    attacks both caught); IP read from x-forwarded-for first, else
  *    x-real-ip, else 'unknown'
- *  - reCAPTCHA gate: production + secret set + no token → throws
- *    'reCAPTCHA verification is required' BEFORE the DB lookup
- *  - reCAPTCHA verify failure (after token present) → throws
- *    'reCAPTCHA verification failed. Please try again.'
- *  - reCAPTCHA service throw (network error) is SWALLOWED (don't
- *    block login when captcha service is down)
  *  - **Backup code path**: TOTP code doesn't match secret BUT matches
  *    a backup hash → consumeUserBackupCode + WARN log + login proceeds
  *  - Backup code: hash list traversed in order; matched hash
@@ -87,12 +81,6 @@ vi.mock("@/lib/rate-limit", () => ({
   rateLimiters: { login: { checkKey: loginCheck } },
 }));
 
-// reCAPTCHA dynamic import target.
-const recaptchaVerify = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/recaptcha", () => ({
-  RecaptchaServer: { verifyToken: recaptchaVerify },
-}));
-
 beforeEach(() => {
   GoogleProviderMock.mockClear();
   FacebookProviderMock.mockClear();
@@ -107,8 +95,6 @@ beforeEach(() => {
   verifyBackupCode.mockReset();
   loginCheck.mockReset();
   loginCheck.mockResolvedValue({ allowed: true });
-  recaptchaVerify.mockReset();
-  recaptchaVerify.mockResolvedValue({ success: true });
   vi.stubEnv("GOOGLE_CLIENT_ID", "g_id");
   vi.stubEnv("GOOGLE_CLIENT_SECRET", "g_secret");
   vi.stubEnv("NODE_ENV", "test");
@@ -304,44 +290,6 @@ describe("authorize — rate limit keyed by email + IP", () => {
       authorize({ email: "u@x.test", password: "p" })
     ).rejects.toThrow("TooManyRequests");
     expect(getUserByEmailForLogin).not.toHaveBeenCalled();
-  });
-});
-
-describe("authorize — reCAPTCHA gate", () => {
-  it("PRODUCTION + secret set + no token → throws 'reCAPTCHA verification is required' BEFORE DB lookup", async () => {
-    vi.stubEnv("NODE_ENV", "production");
-    vi.stubEnv("RECAPTCHA_SECRET_KEY", "real-secret");
-    const authorize = await getAuthorize();
-    await expect(
-      authorize({ email: "u@x.test", password: "p" })
-    ).rejects.toThrow(/reCAPTCHA verification is required/);
-    expect(getUserByEmailForLogin).not.toHaveBeenCalled();
-  });
-
-  it("reCAPTCHA verifyToken failure → throws 'reCAPTCHA verification failed' (re-thrown specifically)", async () => {
-    recaptchaVerify.mockResolvedValueOnce({ success: false });
-    const authorize = await getAuthorize();
-    await expect(
-      authorize({
-        email: "u@x.test",
-        password: "p",
-        recaptchaToken: "real-token",
-      })
-    ).rejects.toThrow(/reCAPTCHA verification failed/);
-  });
-
-  it("reCAPTCHA service network error → SWALLOWED (login proceeds when captcha service is down)", async () => {
-    recaptchaVerify.mockRejectedValueOnce(new Error("captcha service ENOTFOUND"));
-    getUserByEmailForLogin.mockResolvedValueOnce(null); // user not found = generic
-    const authorize = await getAuthorize();
-    // The captcha service ENOTFOUND error must not bubble; the user-not-found path must.
-    await expect(
-      authorize({
-        email: "u@x.test",
-        password: "p",
-        recaptchaToken: "real-token",
-      })
-    ).rejects.toThrow("Invalid email or password");
   });
 });
 

@@ -16,7 +16,7 @@
  *  - Password show/hide toggle
  *
  * Heavy mock setup — useRouter + useSearchParams + signIn + toast
- * helpers + safeLocalStorage + GoogleRecaptcha (stubbed off) + the
+ * helpers + safeLocalStorage + the
  * AuthShell + SocialLoginButtons subcomponents replaced with light shims.
  */
 import { render, screen, waitFor, act } from "@testing-library/react";
@@ -58,10 +58,6 @@ vi.mock("@/lib/storage", () => ({
 
 vi.mock("@/lib/logger", () => ({
   logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}));
-
-vi.mock("@/components/GoogleRecaptcha", () => ({
-  default: () => <div data-testid="recaptcha-stub" />,
 }));
 
 vi.mock("@/components/AuthShell", () => ({

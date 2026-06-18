@@ -182,12 +182,11 @@ describe("Layer 3 — anti-abuse defenses", () => {
     expect(getPlanByPlanId).not.toHaveBeenCalled();
   });
 
-  it("abuse signals (deviceFingerprint, recaptchaToken, otpToken) passed through to evaluator", async () => {
+  it("abuse signals (deviceFingerprint, otpToken) passed through to evaluator", async () => {
     setupHappy();
     await POST(
       makePost({
         deviceFingerprint: "fp-abc",
-        recaptchaToken: "rc-tok",
         otpToken: "otp-tok",
       })
     );
@@ -203,7 +202,6 @@ describe("Layer 3 — anti-abuse defenses", () => {
     );
     expect(opts).toEqual(
       expect.objectContaining({
-        recaptchaToken: "rc-tok",
         clientIp: "203.0.113.1",
       })
     );
