@@ -267,27 +267,29 @@ const OrderSchema = new Schema<IOrder>(
       },
     ],
     successfulDomains: [String],
+    // paymentVerification is OPTIONAL on the parent (an Order starts as
+    // `pending` with no verification, then `/payments/verify` fills this in
+    // once the payment completes). The required fields below only apply
+    // when the verifier actually sets the subdoc — without the explicit
+    // sub-schema + `default: undefined`, Mongoose auto-creates an empty
+    // `paymentVerification: {}` on every parent save and trips the required
+    // validators, producing
+    //   Order validation failed: paymentVerification.razorpayOrderId: Path
+    //   `paymentVerification.razorpayOrderId` is required
+    // which is exactly what the diagnostic surfaced on 2026-06-18 when the
+    // first checkout attempt of the day failed to persist the pending Order.
     paymentVerification: {
-      verifiedAt: {
-        type: Date,
-        required: true,
-      },
-      paymentStatus: {
-        type: String,
-        required: true,
-      },
-      paymentAmount: {
-        type: Number,
-        required: true,
-      },
-      paymentCurrency: {
-        type: String,
-        required: true,
-      },
-      razorpayOrderId: {
-        type: String,
-        required: true,
-      },
+      type: new Schema(
+        {
+          verifiedAt: { type: Date, required: true },
+          paymentStatus: { type: String, required: true },
+          paymentAmount: { type: Number, required: true },
+          paymentCurrency: { type: String, required: true },
+          razorpayOrderId: { type: String, required: true },
+        },
+        { _id: false }
+      ),
+      default: undefined,
     },
     invoiceNumber: {
       type: String,

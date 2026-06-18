@@ -312,26 +312,12 @@ export async function POST(request: NextRequest) {
             `📝 [CREATE-ORDER] Pending Order persisted: ${internalOrderId} (rzp=${razorpayOrderId})`
           );
         } catch (dbErr) {
-          // TEMPORARY DIAGNOSTIC: surface the real error inline so we can see
-          // why the persist failed in the live response (Cloud Logging is
-          // silently swallowing the serverLogger output for this route). The
-          // dev-mode `error` field will be removed once we identify the
-          // root cause. Logged via console.error too so it shows up as a
-          // separate stderr line in Cloud Logging.
-          const dbErrMsg = dbErr instanceof Error ? `${dbErr.name}: ${dbErr.message}` : String(dbErr);
-          const dbErrStack = dbErr instanceof Error ? dbErr.stack : undefined;
-          console.error(
-            `[CREATE-ORDER] dbErr rzp=${razorpayOrderId} msg=${dbErrMsg}\n${dbErrStack}`
-          );
           serverLogger.error(
             `❌ [CREATE-ORDER] Failed to persist pending Order for rzp=${razorpayOrderId}:`,
             dbErr
           );
           return NextResponse.json(
-            {
-              error: "Failed to initialise order. Please try again.",
-              _debug: dbErrMsg,
-            },
+            { error: "Failed to initialise order. Please try again." },
             { status: 500 }
           );
         }
