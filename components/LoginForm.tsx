@@ -11,7 +11,6 @@ import SocialLoginButtons from './SocialLoginButtons';
 import toast from 'react-hot-toast';
 import { showSuccessToast, showErrorToast, showAccountDeactivated } from '@/lib/toast';
 import { safeLocalStorage } from '@/lib/storage';
-import GoogleRecaptcha from './GoogleRecaptcha';
 import AuthShell from './AuthShell';
 import { logger } from '@/lib/logger';
 
@@ -29,8 +28,6 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [activationMessage, setActivationMessage] = useState('');
   const [deactivatedMessage, setDeactivatedMessage] = useState('');
-  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
-  const [resetRecaptchaKey, setResetRecaptchaKey] = useState(0);
   const [totpRequired, setTotpRequired] = useState(false);
   const [totpCode, setTotpCode] = useState('');
   const router = useRouter();
@@ -95,18 +92,6 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
     setIsLoading(true);
 
     try {
-      // Check if reCAPTCHA is configured (only enforced in production)
-      const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
-      const isRecaptchaConfigured = process.env.NODE_ENV === 'production' &&
-        recaptchaSiteKey && recaptchaSiteKey !== 'your-recaptcha-site-key';
-
-      // Only require reCAPTCHA token if reCAPTCHA is configured
-      if (isRecaptchaConfigured && !recaptchaToken) {
-        showErrorToast('Please complete the security verification');
-        setIsLoading(false);
-        return;
-      }
-
       // Store remember me preference BEFORE login
       if (formData.rememberMe) {
         safeLocalStorage.setItem('rememberMe', 'true');
@@ -132,7 +117,6 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
         redirect: false, // Handle redirect manually
         email: formData.email,
         password: formData.password,
-        recaptchaToken: recaptchaToken,
         totpCode: totpCode || undefined,
         callbackUrl: safeReturnUrl,
       });
@@ -164,10 +148,6 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
             showErrorToast(result.error);
           }
         }
-
-        // Reset reCAPTCHA on failed login attempt
-        setRecaptchaToken(null);
-        setResetRecaptchaKey(prev => prev + 1);
 
         setIsLoading(false);
       } else {
@@ -347,27 +327,12 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
               </div>
             </div>
 
-            {process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY &&
-              process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY !== 'your-recaptcha-site-key' && (
-                <GoogleRecaptcha
-                  onSuccess={(token) => setRecaptchaToken(token)}
-                  onError={() => setRecaptchaToken(null)}
-                  onExpire={() => setRecaptchaToken(null)}
-                  resetKey={resetRecaptchaKey}
-                  className="flex justify-center"
-                />
-              )}
-
             <Button
               type="button"
               onClick={handleSubmit}
               loading={isLoading}
               fullWidth
               icon={<User className="h-4 w-4" />}
-              disabled={!!(process.env.NODE_ENV === 'production' &&
-                process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY &&
-                process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY !== 'your-recaptcha-site-key' &&
-                !recaptchaToken)}
             >
               {isLoading ? 'Signing in...' : 'Sign in'}
             </Button>

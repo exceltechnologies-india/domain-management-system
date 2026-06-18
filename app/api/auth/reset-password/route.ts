@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { findUserByResetToken } from "@/lib/services/users";
-import { RecaptchaServer } from "@/lib/recaptcha";
 import { Schemas } from "@/lib/validation";
 import { SecurityValidator } from "@/lib/security";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
@@ -23,7 +22,7 @@ export async function POST(request: NextRequest) {
 
     /**
      * 🛡️ DEFENSE-IN-DEPTH: Security Layer 2 - Zod Validation
-     * Strictly validates the reset token, the new password, and the recaptcha token.
+     * Strictly validates the reset token and the new password.
      */
     const result = Schemas.resetPassword.safeParse(body);
     if (!result.success) {
@@ -32,22 +31,11 @@ export async function POST(request: NextRequest) {
       return secureErrorResponse(firstError, 400, "VALIDATION_ERROR", result.error.format());
     }
 
-    const { token, password, recaptchaToken } = result.data;
+    const { token, password } = result.data;
 
-    /**
-     * 🛡️ DEFENSE-IN-DEPTH: Security Layer 3 - reCAPTCHA Verification
-     */
-    const clientIP = request.headers.get("x-forwarded-for")?.split(",")[0] ||
-                     request.headers.get("x-real-ip") ||
-                     "unknown";
-    const recaptchaResult = await RecaptchaServer.verifyToken(
-      recaptchaToken,
-      clientIP
-    );
-
-    if (!recaptchaResult.success) {
-      return secureErrorResponse("Security verification failed. Please try again.", 403, "SECURITY_CHECK_FAILED");
-    }
+    // reCAPTCHA was removed on 2026-06-17 ahead of a fresh re-install. The
+    // single-use reset token (256-bit, ~1-hour TTL) below is the primary
+    // anti-abuse gate for this endpoint.
 
     /**
      * 🛡️ DEFENSE-IN-DEPTH: Security Layer 4 - Token Verification

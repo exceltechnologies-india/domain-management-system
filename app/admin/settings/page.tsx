@@ -176,10 +176,6 @@ export default function AdminSettings() {
   const [currentOrigin, setCurrentOrigin] = useState<string>("");
   const [isSavingCors, setIsSavingCors] = useState(false);
 
-  // Captcha
-  const [captchaEnabled, setCaptchaEnabled] = useState(true);
-  const [isSavingCaptcha, setIsSavingCaptcha] = useState(false);
-
   // Trial
   const [hostingTrialEnabled, setHostingTrialEnabled] = useState(true);
   const [isSavingTrial, setIsSavingTrial] = useState(false);
@@ -219,7 +215,7 @@ export default function AdminSettings() {
   // ── Data loading ──────────────────────────────────────────────────────────
   const loadAllSettings = async () => {
     setIsDataLoading(true);
-    await Promise.all([loadSavedIPData(), loadCacheSettings(), loadIPWhitelistSettings(), loadCORSSettings(), loadCaptchaSettings(), loadHostingTrialSettings(), loadTestPlanSettings(), loadMaintenanceSettings()]);
+    await Promise.all([loadSavedIPData(), loadCacheSettings(), loadIPWhitelistSettings(), loadCORSSettings(), loadHostingTrialSettings(), loadTestPlanSettings(), loadMaintenanceSettings()]);
     if (typeof window !== "undefined") setCurrentOrigin(window.location.origin);
     setIsDataLoading(false);
   };
@@ -264,13 +260,6 @@ export default function AdminSettings() {
     setCorsProtectionEnabled(en?.value === true || en?.value === "true");
     const os = s["cors_allowed_origins"];
     if (os?.value) setAllowedOrigins(Array.isArray(os.value) ? os.value : typeof os.value === "string" ? os.value.split(",").map((o: string) => o.trim()) : []);
-  };
-
-  const loadCaptchaSettings = async () => {
-    const result = await apiClient.get<{ settings?: Record<string, { value?: unknown }> }>("/api/v1/admin/settings");
-    if (!result.ok) return;
-    const s = result.data.settings?.captcha_enabled;
-    if (s !== undefined) setCaptchaEnabled(s.value === true || s.value === "true");
   };
 
   const loadHostingTrialSettings = async () => {
@@ -371,19 +360,6 @@ export default function AdminSettings() {
     setAllowedOrigins([...allowedOrigins, t]); setNewOrigin("");
   };
 
-  const saveCaptchaSettings = async () => {
-    setIsSavingCaptcha(true);
-    // Saved under category="feature_flags" — the captcha toggle is a
-    // boolean feature flag, not a credential, so it shouldn't require
-    // step-up password re-auth on each save. See NEVER_SECURITY_KEYS in
-    // app/api/admin/settings/route.ts which mirrors this classification
-    // on the server.
-    const result = await apiClient.post("/api/v1/admin/settings", { key: "captcha_enabled", value: captchaEnabled, description: "Enable Google reCAPTCHA on public forms", category: "feature_flags" });
-    if (result.ok) showSuccessToast(`Captcha ${captchaEnabled ? "enabled" : "disabled"}`);
-    else showErrorToast("Failed to save captcha settings");
-    setIsSavingCaptcha(false);
-  };
-
   const saveHostingTrialSettings = async () => {
     setIsSavingTrial(true);
     const result = await apiClient.post("/api/v1/admin/settings", { key: "hosting_trial_enabled", value: hostingTrialEnabled, description: "15-day free trial for yearly hosting", category: "promotions" });
@@ -437,7 +413,7 @@ export default function AdminSettings() {
   const navItems: { id: ActiveSection; label: string; icon: React.ElementType; description: string }[] = [
     { id: "general",     label: "General",     icon: Wrench,   description: "Maintenance mode" },
     { id: "performance", label: "Performance", icon: Database, description: "Cache & server info" },
-    { id: "security",    label: "Security",    icon: Shield,   description: "IP, CORS & captcha" },
+    { id: "security",    label: "Security",    icon: Shield,   description: "IP whitelisting & CORS" },
     { id: "promotions",  label: "Promotions",  icon: Tag,      description: "Trials & test plans" },
   ];
 
@@ -852,25 +828,6 @@ export default function AdminSettings() {
                   )}
                 </SCard>
 
-                {/* reCAPTCHA */}
-                <SCard>
-                  <SCardHead
-                    title="Google reCAPTCHA"
-                    description="Human verification on all public forms (login, register, contact, password reset)"
-                    action={<Toggle checked={captchaEnabled} onChange={setCaptchaEnabled} />}
-                  />
-                  <div className="p-6">
-                    <StatusBanner
-                      active={captchaEnabled}
-                      color="green"
-                      activeMsg="reCAPTCHA is active. All public forms require human verification before submission."
-                      inactiveMsg="reCAPTCHA is disabled. Public forms can be submitted without verification — only disable temporarily for testing."
-                    />
-                  </div>
-                  <SFooter>
-                    <SaveBtn onClick={saveCaptchaSettings} loading={isSavingCaptcha} label="Save Captcha Settings" />
-                  </SFooter>
-                </SCard>
               </>
             )}
 

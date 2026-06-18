@@ -37,7 +37,7 @@ describe("<ContactForm>", () => {
     expect(screen.getByRole("button", { name: /send message/i })).toBeInTheDocument();
   });
 
-  it("posts {name, email, subject, message, recaptchaToken: null} on submit and swaps to the success screen", async () => {
+  it("posts {name, email, subject, message} on submit and swaps to the success screen", async () => {
     const user = userEvent.setup();
     mockApiPost.mockResolvedValue({ ok: true, data: {} });
     render(<ContactForm />);
@@ -53,7 +53,6 @@ describe("<ContactForm>", () => {
       email: "alice@example.com",
       subject: "Pricing",
       message: "Tell me more.",
-      recaptchaToken: null,
     });
     expect(await screen.findByRole("heading", { name: /message sent!/i })).toBeInTheDocument();
     expect(showSuccessToast).toHaveBeenCalledWith(expect.stringMatching(/sent successfully/i));

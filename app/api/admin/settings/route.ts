@@ -57,7 +57,6 @@ const SECURITY_KEYS = new Set<string>([
 // every subsequent save then hits the stored-category check and 403s
 // because there's no step-up UI for plain feature flags).
 const NEVER_SECURITY_KEYS = new Set<string>([
-  "captcha_enabled",
   "hosting_trial_enabled",
   "hosting_test_plan_enabled",
   "tld_pricing_cache_enabled",

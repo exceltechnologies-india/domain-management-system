@@ -254,7 +254,6 @@ describe("POST — Security-key step-up auth (THE BIG ONE)", () => {
   // save would 403 with REAUTH_REQUIRED — and there's no step-up UI
   // for plain feature flags, so the admin would be stuck.
   it.each([
-    "captcha_enabled",
     "hosting_trial_enabled",
     "hosting_test_plan_enabled",
     "tld_pricing_cache_enabled",

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserByEmail } from "@/lib/services/users";
 import { EmailService } from "@/lib/email";
-import { RecaptchaServer } from "@/lib/recaptcha";
 import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { Schemas } from "@/lib/validation";
 import { SecurityValidator } from "@/lib/security";
@@ -45,23 +44,10 @@ export async function POST(request: NextRequest) {
       return secureErrorResponse("Invalid request data", 400, "VALIDATION_ERROR", result.error.format());
     }
 
-    const { email, recaptchaToken } = result.data;
+    const { email } = result.data;
 
-    /**
-     * 🛡️ DEFENSE-IN-DEPTH: Security Layer 4 - Human Verification
-     * Google reCAPTCHA verification.
-     */
-    const clientIP = request.headers.get("x-forwarded-for")?.split(",")[0] ||
-                     request.headers.get("x-real-ip") ||
-                     "unknown";
-    const recaptchaResult = await RecaptchaServer.verifyToken(
-      recaptchaToken,
-      clientIP
-    );
-
-    if (!recaptchaResult.success) {
-      return secureErrorResponse("Security verification failed. Please try again.", 403, "SECURITY_CHECK_FAILED");
-    }
+    // reCAPTCHA was removed on 2026-06-17 ahead of a fresh re-install. CSRF +
+    // password-reset rate limiter above still gate automated requests.
 
     /**
      * 🛡️ DEFENSE-IN-DEPTH: Security Layer 5 - Email Enumeration Defense

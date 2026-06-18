@@ -22,8 +22,7 @@
  * Other pins:
  *  - CSRF gate first → 403 CSRF_ERROR
  *  - Rate limit BEFORE body parse → 429 with limit:3
- *  - Zod fail (invalid email / missing recaptcha) → 400 VALIDATION_ERROR
- *  - reCAPTCHA fail → 403 SECURITY_CHECK_FAILED
+ *  - Zod fail (invalid email) → 400 VALIDATION_ERROR
  *  - clientIP: x-forwarded-for (first hop) → x-real-ip → "unknown"
  *  - sendPasswordResetEmail receives isFirstTimeSetup based on
  *    user.isGuest === true (strict-truth, not coerced)
@@ -49,11 +48,6 @@ vi.mock("@/lib/rate-limit", async () => {
     rateLimiters: { passwordReset: { isAllowed } },
   };
 });
-
-const verifyToken = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/recaptcha", () => ({
-  RecaptchaServer: { verifyToken },
-}));
 
 const getUserByEmail = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/users", () => ({ getUserByEmail }));
@@ -89,7 +83,6 @@ function makeReq(
 beforeEach(() => {
   validateCSRF.mockReset().mockReturnValue({ isValid: true });
   isAllowed.mockReset().mockResolvedValue({ allowed: true, remaining: 3 });
-  verifyToken.mockReset().mockResolvedValue({ success: true });
   getUserByEmail.mockReset();
   sendPasswordResetEmail.mockReset().mockResolvedValue(true);
 });
@@ -124,18 +117,11 @@ describe("Layer 2 — Rate limit BEFORE body parse", () => {
 describe("Layer 3 — Zod schema", () => {
   it("invalid email format → 400 VALIDATION_ERROR", async () => {
     const res = await POST(
-      makeReq({ email: "not-an-email", recaptchaToken: "tok" })
+      makeReq({ email: "not-an-email" })
     );
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.code).toBe("VALIDATION_ERROR");
-    expect(verifyToken).not.toHaveBeenCalled();
-  });
-
-  it("missing recaptchaToken → 400 VALIDATION_ERROR", async () => {
-    const res = await POST(makeReq({ email: "x@y.com" }));
-    expect(res.status).toBe(400);
-    expect(verifyToken).not.toHaveBeenCalled();
   });
 
   it("email is lower-cased before lookup", async () => {
@@ -144,64 +130,23 @@ describe("Layer 3 — Zod schema", () => {
     // (not silently trimmed). This test pins only the lowercase step.
     getUserByEmail.mockResolvedValueOnce(null);
     await POST(
-      makeReq({ email: "ALICE@Example.COM", recaptchaToken: "tok" })
+      makeReq({ email: "ALICE@Example.COM" })
     );
     expect(getUserByEmail).toHaveBeenCalledWith("alice@example.com");
   });
 
   it("leading whitespace in email → 400 VALIDATION_ERROR (pins zod order: email() before trim())", async () => {
     const res = await POST(
-      makeReq({ email: "  alice@example.com", recaptchaToken: "tok" })
+      makeReq({ email: "  alice@example.com" })
     );
     expect(res.status).toBe(400);
     expect(getUserByEmail).not.toHaveBeenCalled();
   });
 });
 
-describe("Layer 4 — reCAPTCHA", () => {
-  it("verifyToken success=false → 403 SECURITY_CHECK_FAILED; no user lookup", async () => {
-    verifyToken.mockResolvedValueOnce({ success: false });
-    const res = await POST(
-      makeReq({ email: "x@y.com", recaptchaToken: "tok" })
-    );
-    expect(res.status).toBe(403);
-    const body = await res.json();
-    expect(body.code).toBe("SECURITY_CHECK_FAILED");
-    expect(getUserByEmail).not.toHaveBeenCalled();
-  });
-
-  it("clientIP from x-forwarded-for (first hop) → reCAPTCHA call", async () => {
-    getUserByEmail.mockResolvedValueOnce(null);
-    await POST(
-      makeReq(
-        { email: "x@y.com", recaptchaToken: "tok" },
-        { "x-forwarded-for": "10.0.0.1, 10.0.0.2", "x-real-ip": "127.0.0.1" }
-      )
-    );
-    expect(verifyToken).toHaveBeenCalledWith("tok", "10.0.0.1");
-  });
-
-  it("falls through to x-real-ip when forwarded absent", async () => {
-    getUserByEmail.mockResolvedValueOnce(null);
-    await POST(
-      makeReq(
-        { email: "x@y.com", recaptchaToken: "tok" },
-        { "x-real-ip": "192.168.1.5" }
-      )
-    );
-    expect(verifyToken).toHaveBeenCalledWith("tok", "192.168.1.5");
-  });
-
-  it("falls through to 'unknown' when neither header present", async () => {
-    getUserByEmail.mockResolvedValueOnce(null);
-    await POST(makeReq({ email: "x@y.com", recaptchaToken: "tok" }));
-    expect(verifyToken).toHaveBeenCalledWith("tok", "unknown");
-  });
-});
-
 describe("Layer 5 — Anti-enumeration (response indistinguishability)", () => {
   const probe = () =>
-    POST(makeReq({ email: "x@y.com", recaptchaToken: "tok" }));
+    POST(makeReq({ email: "x@y.com" }));
 
   it("user-missing AND user-is-admin AND user-found all return identical 200 body shape", async () => {
     // Probe 1: user missing
@@ -255,7 +200,7 @@ describe("Layer 6 — Admin-via-public-flow block", () => {
       save,
     });
     const res = await POST(
-      makeReq({ email: "admin@example.com", recaptchaToken: "tok" })
+      makeReq({ email: "admin@example.com" })
     );
     expect(res.status).toBe(200);
     expect(save).not.toHaveBeenCalled();
@@ -285,7 +230,7 @@ describe("Happy path — token + email", () => {
     const user = setupUser();
     const before = Date.now();
     await POST(
-      makeReq({ email: "alice@example.com", recaptchaToken: "tok" })
+      makeReq({ email: "alice@example.com" })
     );
     expect(user.save).toHaveBeenCalledTimes(1);
     expect(user.resetToken).toMatch(/^[a-f0-9]{64}$/);
@@ -296,7 +241,7 @@ describe("Happy path — token + email", () => {
 
   it("isGuest=true → sendPasswordResetEmail receives isFirstTimeSetup=true", async () => {
     setupUser({ isGuest: true });
-    await POST(makeReq({ email: "g@y.com", recaptchaToken: "tok" }));
+    await POST(makeReq({ email: "g@y.com" }));
     expect(sendPasswordResetEmail).toHaveBeenCalledWith(
       "alice@example.com",
       "Alice Smith",
@@ -307,7 +252,7 @@ describe("Happy path — token + email", () => {
 
   it("isGuest=false → isFirstTimeSetup=false (strict-truth, not coerced)", async () => {
     setupUser({ isGuest: false });
-    await POST(makeReq({ email: "g@y.com", recaptchaToken: "tok" }));
+    await POST(makeReq({ email: "g@y.com" }));
     expect(sendPasswordResetEmail).toHaveBeenCalledWith(
       expect.any(String),
       expect.any(String),
@@ -318,7 +263,7 @@ describe("Happy path — token + email", () => {
 
   it("isGuest undefined → isFirstTimeSetup=false (NOT NaN-coerced or true-y)", async () => {
     setupUser({ isGuest: undefined });
-    await POST(makeReq({ email: "g@y.com", recaptchaToken: "tok" }));
+    await POST(makeReq({ email: "g@y.com" }));
     expect(sendPasswordResetEmail).toHaveBeenCalledWith(
       expect.any(String),
       expect.any(String),
@@ -331,7 +276,7 @@ describe("Happy path — token + email", () => {
     const user = setupUser();
     sendPasswordResetEmail.mockResolvedValueOnce(false);
     const res = await POST(
-      makeReq({ email: "g@y.com", recaptchaToken: "tok" })
+      makeReq({ email: "g@y.com" })
     );
     expect(res.status).toBe(500);
     const body = await res.json();
@@ -350,7 +295,7 @@ describe("Outer catch", () => {
       new Error("Mongo cluster down — pwd $2a$12$BCRYPT_LEAK_ME")
     );
     const res = await POST(
-      makeReq({ email: "x@y.com", recaptchaToken: "tok" })
+      makeReq({ email: "x@y.com" })
     );
     expect(res.status).toBe(500);
     const body = await res.json();

@@ -18,7 +18,6 @@ export const dynamic = "force-dynamic";
 const eligibilitySchema = z.object({
   planId: z.string().optional(),
   deviceFingerprint: z.string().optional(),
-  recaptchaToken: z.string().optional(),
   otpToken: z.string().optional(),
 });
 
@@ -29,8 +28,7 @@ type EligibilityBody = z.infer<typeof eligibilitySchema>;
  *
  * GET keeps the original ?planId=<id> contract for any older clients still
  * cached on user devices. POST is the canonical form — accepts the abuse
- * signals (deviceFingerprint, recaptchaToken) in the body so they're not in
- * the URL or referer.
+ * signals (deviceFingerprint) in the body so they're not in the URL or referer.
  */
 async function runEligibility(
   request: NextRequest,
@@ -53,7 +51,8 @@ async function runEligibility(
     return secureJsonResponse({ eligible: false, reason: "You have already used your free trial" });
   }
 
-  // 3. Abuse defenses — disposable email, reCAPTCHA, IP & device throttles
+  // 3. Abuse defenses — disposable email, IP & device throttles. reCAPTCHA
+  // was removed on 2026-06-17 ahead of a fresh re-install.
   const clientIp = getClientIp(request);
   const abuseCheck = await evaluateTrialAbuse(
     {
@@ -63,7 +62,7 @@ async function runEligibility(
       phone: user.phone,
       otpToken: body.otpToken,
     },
-    { recaptchaToken: body.recaptchaToken, clientIp }
+    { clientIp }
   );
   if (!abuseCheck.allowed) {
     serverLogger.warn(

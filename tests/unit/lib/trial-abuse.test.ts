@@ -6,15 +6,15 @@
  *  - **hashIp**: HMAC-SHA256 with AUTH_SECRET fallback → NEXTAUTH_SECRET
  *    → literal 'trial-abuse-fallback'; empty/'unknown' IP → ''
  *    (no raw IP ever persisted — DB-leak resilience)
- *  - **evaluateTrialAbuse 5-step pipeline** in order (cheapest first):
+ *  - **evaluateTrialAbuse 4-step pipeline** in order (cheapest first):
  *    1. Disposable email → DISPOSABLE_EMAIL
- *    2. reCAPTCHA (only if token supplied) — failure → RECAPTCHA;
- *       v3 score < 0.5 also → RECAPTCHA; verify THROW (Google
- *       unreachable) → swallowed, proceed
- *    3. IP throttle: 30-day window TrialClaim.exists({ipHash}) hit → IP_THROTTLE
- *    4. Device fingerprint throttle: same 30-day window → DEVICE_THROTTLE
- *    5. Phone OTP: only when isTrialOtpRequired() returns true;
+ *    2. IP throttle: 30-day window TrialClaim.exists({ipHash}) hit → IP_THROTTLE
+ *    3. Device fingerprint throttle: same 30-day window → DEVICE_THROTTLE
+ *    4. Phone OTP: only when isTrialOtpRequired() returns true;
  *       missing otpToken → OTP_REQUIRED; verifyOtpToken invalid → OTP_REQUIRED
+ *  - reCAPTCHA step was REMOVED on 2026-06-17 (full rip ahead of a fresh
+ *    re-install). Trial abuse defences are now disposable-email + IP +
+ *    device + optional phone OTP.
  *  - All-clear → {allowed:true}
  *  - **recordTrialClaim E11000 (duplicate-key race) is SWALLOWED**
  *    (the prior insert already records the claim; this attempt is a
@@ -28,10 +28,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const isDisposableEmail = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/disposable-emails", () => ({ isDisposableEmail }));
 
-const recaptchaVerifyToken = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/recaptcha", () => ({
-  RecaptchaServer: { verifyToken: recaptchaVerifyToken },
-}));
 
 const getSettingValue = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/settings", () => ({ getSettingValue }));
@@ -64,8 +60,6 @@ function mockReq(headers: Record<string, string> = {}): never {
 beforeEach(() => {
   isDisposableEmail.mockReset();
   isDisposableEmail.mockReturnValue(false);
-  recaptchaVerifyToken.mockReset();
-  recaptchaVerifyToken.mockResolvedValue({ success: true });
   getSettingValue.mockReset();
   getSettingValue.mockResolvedValue(false); // OTP off by default
   verifyOtpToken.mockReset();
@@ -125,67 +119,22 @@ describe("hashIp — HMAC-SHA256 with secret fallback", () => {
   });
 });
 
-describe("evaluateTrialAbuse — 5-step pipeline (cheapest first)", () => {
+describe("evaluateTrialAbuse — 4-step pipeline (cheapest first)", () => {
   it("step 1: disposable email → DISPOSABLE_EMAIL (instant, no other checks run)", async () => {
     isDisposableEmail.mockReturnValueOnce(true);
     const result = await evaluateTrialAbuse(
-      { email: "trash@10minutemail.com", ipHash: "abc" },
-      { recaptchaToken: "tok" }
+      { email: "trash@10minutemail.com", ipHash: "abc" }
     );
     expect(result).toEqual({
       allowed: false,
       code: "DISPOSABLE_EMAIL",
       reason: expect.stringMatching(/temporary or disposable/i),
     });
-    // No reCAPTCHA / DB call needed.
-    expect(recaptchaVerifyToken).not.toHaveBeenCalled();
+    // No DB call needed.
     expect(trialClaimExists).not.toHaveBeenCalled();
   });
 
-  it("step 2: reCAPTCHA failure → RECAPTCHA code", async () => {
-    recaptchaVerifyToken.mockResolvedValueOnce({ success: false });
-    const result = await evaluateTrialAbuse(
-      { email: "u@x.test", ipHash: "abc" },
-      { recaptchaToken: "tok" }
-    );
-    expect(result.allowed).toBe(false);
-    expect(result.code).toBe("RECAPTCHA");
-  });
-
-  it("step 2: reCAPTCHA v3 score < 0.5 → RECAPTCHA (bot defence)", async () => {
-    recaptchaVerifyToken.mockResolvedValueOnce({ success: true, score: 0.3 });
-    const result = await evaluateTrialAbuse(
-      { email: "u@x.test" },
-      { recaptchaToken: "tok" }
-    );
-    expect(result.code).toBe("RECAPTCHA");
-  });
-
-  it("step 2: reCAPTCHA v2 (no score) success → passes through", async () => {
-    recaptchaVerifyToken.mockResolvedValueOnce({ success: true });
-    const result = await evaluateTrialAbuse(
-      { email: "u@x.test" },
-      { recaptchaToken: "tok" }
-    );
-    expect(result.allowed).toBe(true);
-  });
-
-  it("step 2: reCAPTCHA verify THROW (Google unreachable) is SWALLOWED (don't hard-fail on Google outage)", async () => {
-    recaptchaVerifyToken.mockRejectedValueOnce(new Error("ENOTFOUND"));
-    const result = await evaluateTrialAbuse(
-      { email: "u@x.test" },
-      { recaptchaToken: "tok" }
-    );
-    expect(result.allowed).toBe(true);
-  });
-
-  it("recaptchaToken NOT supplied → reCAPTCHA step skipped entirely", async () => {
-    const result = await evaluateTrialAbuse({ email: "u@x.test" });
-    expect(recaptchaVerifyToken).not.toHaveBeenCalled();
-    expect(result.allowed).toBe(true);
-  });
-
-  it("step 3: IP throttle hit within 30-day window → IP_THROTTLE", async () => {
+  it("step 2: IP throttle hit within 30-day window → IP_THROTTLE", async () => {
     trialClaimExists.mockResolvedValueOnce({ _id: "X" });
     const result = await evaluateTrialAbuse({ ipHash: "abc123" });
     expect(result.code).toBe("IP_THROTTLE");
@@ -197,7 +146,7 @@ describe("evaluateTrialAbuse — 5-step pipeline (cheapest first)", () => {
     );
   });
 
-  it("step 4: device fingerprint hit → DEVICE_THROTTLE (only after IP check passes)", async () => {
+  it("step 3: device fingerprint hit → DEVICE_THROTTLE (only after IP check passes)", async () => {
     trialClaimExists
       .mockResolvedValueOnce(null) // IP check passes
       .mockResolvedValueOnce({ _id: "X" }); // device check hits
@@ -208,14 +157,14 @@ describe("evaluateTrialAbuse — 5-step pipeline (cheapest first)", () => {
     expect(result.code).toBe("DEVICE_THROTTLE");
   });
 
-  it("step 5: OTP required + missing otpToken → OTP_REQUIRED", async () => {
+  it("step 4: OTP required + missing otpToken → OTP_REQUIRED", async () => {
     getSettingValue.mockResolvedValueOnce(true);
     const result = await evaluateTrialAbuse({});
     expect(result.code).toBe("OTP_REQUIRED");
     expect(result.reason).toMatch(/verify your phone/i);
   });
 
-  it("step 5: OTP required + invalid otpToken → OTP_REQUIRED with verifier reason", async () => {
+  it("step 4: OTP required + invalid otpToken → OTP_REQUIRED with verifier reason", async () => {
     getSettingValue.mockResolvedValueOnce(true);
     verifyOtpToken.mockReturnValueOnce({
       valid: false,
@@ -229,7 +178,7 @@ describe("evaluateTrialAbuse — 5-step pipeline (cheapest first)", () => {
     expect(result.reason).toBe("OTP expired");
   });
 
-  it("step 5: OTP required + valid token → passes", async () => {
+  it("step 4: OTP required + valid token → passes", async () => {
     getSettingValue.mockResolvedValueOnce(true);
     verifyOtpToken.mockReturnValueOnce({ valid: true });
     const result = await evaluateTrialAbuse({

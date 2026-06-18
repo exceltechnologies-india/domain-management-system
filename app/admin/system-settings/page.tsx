@@ -36,10 +36,6 @@ export default function AdminSettings() {
   const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
 
-  // Captcha settings state
-  const [captchaEnabled, setCaptchaEnabled] = useState(true);
-  const [isSavingCaptcha, setIsSavingCaptcha] = useState(false);
-
   // IP Whitelisting state
   const [ipWhitelistEnabled, setIpWhitelistEnabled] = useState(false);
   const [whitelistedIPs, setWhitelistedIPs] = useState<string[]>([]);
@@ -114,7 +110,6 @@ export default function AdminSettings() {
       fetchCurrentIP(),
       loadCORSSettings(),
       fetchCurrentOrigin(),
-      loadCaptchaSettings(),
       loadRazorpayMode(),
     ]);
     setIsDataLoading(false);
@@ -275,38 +270,6 @@ export default function AdminSettings() {
     } else {
       showErrorToast('Current IP not available. Please check IP first.');
     }
-  };
-
-  // Load captcha settings
-  const loadCaptchaSettings = async () => {
-    const result = await apiClient.get<{ settings?: Record<string, { value?: unknown }> }>('/api/v1/admin/settings');
-    if (!result.ok) {
-      logger.error('Error loading captcha settings:', result.error.message);
-      return;
-    }
-    const settings = result.data.settings || {};
-    const setting = settings['captcha_enabled'];
-    if (setting !== undefined) {
-      setCaptchaEnabled(setting.value === true || setting.value === 'true');
-    }
-  };
-
-  // Save captcha settings
-  const saveCaptchaSettings = async () => {
-    setIsSavingCaptcha(true);
-    const result = await apiClient.post('/api/v1/admin/settings', {
-      key: 'captcha_enabled',
-      value: captchaEnabled,
-      description: 'Enable or disable Google reCAPTCHA across all public forms',
-      category: 'security',
-    });
-    if (result.ok) {
-      showSuccessToast(`Captcha ${captchaEnabled ? 'enabled' : 'disabled'} successfully`);
-    } else {
-      logger.error('Error saving captcha settings:', result.error.message);
-      showErrorToast('Failed to save captcha settings');
-    }
-    setIsSavingCaptcha(false);
   };
 
   // Load CORS settings
@@ -872,55 +835,6 @@ export default function AdminSettings() {
                 )}
               </div>
 
-              {/* Captcha Settings */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                      <Shield className="h-5 w-5 text-blue-600" />
-                      Google reCAPTCHA
-                    </h3>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Enable or disable reCAPTCHA verification on all public forms (login, register, contact, password reset)
-                    </p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={captchaEnabled}
-                      onChange={(e) => setCaptchaEnabled(e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                  </label>
-                </div>
-
-                <div className={`rounded-lg p-4 mb-4 ${captchaEnabled ? 'bg-green-50 border border-green-200' : 'bg-yellow-50 border border-yellow-200'}`}>
-                  <div className="flex items-start gap-3">
-                    {captchaEnabled ? (
-                      <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    ) : (
-                      <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                    )}
-                    <p className="text-sm text-gray-700">
-                      {captchaEnabled
-                        ? 'reCAPTCHA is active. All public forms require human verification before submission.'
-                        : 'reCAPTCHA is disabled. Public forms can be submitted without human verification. Only disable this temporarily (e.g. for testing).'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    onClick={saveCaptchaSettings}
-                    disabled={isSavingCaptcha}
-                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                  >
-                    <Save className="h-4 w-4" />
-                    {isSavingCaptcha ? 'Saving...' : 'Save Captcha Settings'}
-                  </button>
-                </div>
-              </div>
             </div>
           )}
 

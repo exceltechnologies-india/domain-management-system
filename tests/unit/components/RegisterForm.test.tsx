@@ -6,7 +6,7 @@
  * paths.
  *
  * Mocks: useRouter, react-hot-toast, safeLocalStorage, apiClient,
- * GoogleRecaptcha (stubbed off), Card/Logo/Button shims, and the 3
+ * Card/Logo/Button shims, and the 3
  * subform sections replaced with thin stubs exposing the formData
  * setters via test buttons.
  */
@@ -37,10 +37,6 @@ type ApiResult<T> = { ok: true; data: T } | { ok: false; error: { status: number
 const apiPostMock = vi.hoisted(() => vi.fn<(path: string, body: unknown) => Promise<ApiResult<unknown>>>());
 vi.mock("@/lib/api-client", () => ({
   apiClient: { post: apiPostMock },
-}));
-
-vi.mock("@/components/GoogleRecaptcha", () => ({
-  default: () => <div data-testid="recaptcha-stub" />,
 }));
 
 vi.mock("@/components/SocialLoginButtons", () => ({

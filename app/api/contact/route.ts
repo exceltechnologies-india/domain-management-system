@@ -1,19 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { EmailService } from "@/lib/email";
 import { InputValidator } from "@/lib/validation";
-import { RecaptchaServer } from "@/lib/recaptcha";
 import { serverLogger } from "@/lib/server-logger";
 import { validatedBody, z } from "@/lib/api-validation";
 
 // Zod gates the structural shape (every field present + string + bounded);
 // the existing InputValidator below still runs content-safety + sanitization
-// before the body is rendered into email HTML.
+// before the body is rendered into email HTML. reCAPTCHA was removed on
+// 2026-06-17 ahead of a fresh re-install.
 const contactSchema = z.object({
   name: z.string().trim().min(1).max(200),
   email: z.string().trim().min(1).max(254),
   subject: z.string().trim().min(1).max(500),
   message: z.string().trim().min(1).max(10000),
-  recaptchaToken: z.string().min(1),
 });
 
 // Force dynamic rendering - required for API routes
@@ -23,27 +22,7 @@ export async function POST(request: NextRequest) {
   try {
     const validation = await validatedBody(request, contactSchema);
     if (!validation.ok) return validation.response;
-    const { name, email, subject, message, recaptchaToken } = validation.data;
-
-    // Verify reCAPTCHA token
-    const clientIP = request.headers.get("x-forwarded-for")?.split(",")[0] ||
-                     request.headers.get("x-real-ip") ||
-                     "unknown";
-    const recaptchaResult = await RecaptchaServer.verifyToken(
-      recaptchaToken,
-      clientIP
-    );
-
-    if (!recaptchaResult.success) {
-      serverLogger.warn(
-        "reCAPTCHA verification failed for contact form:",
-        recaptchaResult.error
-      );
-      return NextResponse.json(
-        { error: "Security verification failed. Please try again." },
-        { status: 403 }
-      );
-    }
+    const { name, email, subject, message } = validation.data;
 
     // Validate all inputs
     const nameValidation = InputValidator.validateName(name, "Name");
