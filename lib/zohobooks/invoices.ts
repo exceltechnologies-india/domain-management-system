@@ -43,10 +43,36 @@ export async function createInvoice(
 
     // 1. Get or Create Contact
     let contact = await self.getContactByEmail(user.email);
+
+    // Fallback: some Zoho contacts get their emails or contact_persons scrubbed
+    // by manual UI edits in Zoho Books, breaking the email-based lookup. When
+    // that happens, recover by matching on contact_name. Zoho enforces unique
+    // contact_name per organization, so a name hit here is the same person
+    // (not a stranger). Without this fallback, createContact below would hit
+    // Zoho's duplicate-name rejection — and that path depends on the exact
+    // numeric error code Zoho returns (currently 3062 in contacts.ts:148, but
+    // .in DC observed returning a different code that didn't trigger the
+    // recovery branch). Proactively matching by name avoids the dependence on
+    // the error-code identity entirely.
+    if (!contact) {
+      const fullName = `${user.firstName} ${user.lastName}`.trim();
+      if (fullName) {
+        const byName = await self.getContactByName(fullName);
+        if (byName) {
+          serverLogger.info(
+            `[ZohoBooks] Recovered existing contact ${byName.contact_id} ("${byName.contact_name}") by name match for ${user.email} — email was missing from contact_persons on Zoho's side`
+          );
+          contact = byName;
+        }
+      }
+    }
+
     if (!contact) {
       contact = await self.createContact(user);
     } else {
-      // User might have updated details (e.g. re-signed up), sync changes to Zoho
+      // User might have updated details (e.g. re-signed up), sync changes to
+      // Zoho. Also patches the email back onto a name-matched orphan contact
+      // so future invoices find it via email and skip this fallback.
       await self.updateContactDetails(contact.contact_id, user);
     }
 

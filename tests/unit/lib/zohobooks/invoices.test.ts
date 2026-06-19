@@ -97,6 +97,11 @@ function makeSelf(overrides: Partial<any> = {}): any {
     _idempotentRetry: vi.fn(async (fn: () => Promise<any>) => fn()),
     _roundAmount: vi.fn((n: number) => Math.round(n)),
     getContactByEmail: vi.fn(),
+    // Added 2026-06-19 — createInvoice falls back to getContactByName when
+    // email lookup misses (Zoho contacts can have their email scrubbed in
+    // the UI). Default mock returns null so tests that mock email-found or
+    // expect a fresh createContact still hit those branches.
+    getContactByName: vi.fn(async () => null),
     createContact: vi.fn(),
     updateContactDetails: vi.fn(),
     updateContactToConsumer: vi.fn(),
@@ -128,6 +133,8 @@ const okItem = {
 
 const okUser = {
   email: "user@x.com",
+  firstName: "User",
+  lastName: "Tester",
   address: { state: "Maharashtra" },
 };
 
@@ -230,6 +237,51 @@ describe("createInvoice — contact upsert", () => {
     await expect(
       createInvoice(self, okOrder as any, okUser as any, [okItem as any])
     ).rejects.toThrow(/Failed to identify customer/);
+  });
+
+  // Pinned 2026-06-19 — see the corresponding code-side fallback in
+  // lib/zohobooks/invoices.ts. Regression test for the case where Zoho
+  // contacts get their emails / contact_persons scrubbed by manual UI
+  // edits (the Deepak Sharma orphan contact that broke INV-204049-D3CE1933).
+  // Without this fallback, createContact below would hit Zoho's
+  // duplicate-name path which depends on a specific error code (3062)
+  // that the .in DC didn't reliably return.
+  it("email lookup misses but name lookup hits → uses existing contact + skips createContact", async () => {
+    const self = makeSelf();
+    self.getContactByEmail.mockResolvedValueOnce(null);
+    self.getContactByName.mockResolvedValueOnce({
+      contact_id: "ORPHAN",
+      contact_name: "Deepak Sharma",
+    });
+    self.updateContactDetails.mockResolvedValueOnce(true);
+    zohoAxios.post.mockResolvedValue({
+      data: { code: 0, invoice: { invoice_id: "INV-1", total: 0 } },
+    });
+
+    await createInvoice(self, okOrder as any, okUser as any, [okItem as any]);
+
+    expect(self.getContactByName).toHaveBeenCalledWith(
+      `${okUser.firstName} ${okUser.lastName}`
+    );
+    expect(self.createContact).not.toHaveBeenCalled();
+    // updateContactDetails repairs the orphan — patches email back
+    expect(self.updateContactDetails).toHaveBeenCalledWith("ORPHAN", okUser);
+  });
+
+  it("email lookup misses AND name lookup misses → still falls through to createContact", async () => {
+    const self = makeSelf();
+    self.getContactByEmail.mockResolvedValueOnce(null);
+    // makeSelf's default already returns null, but be explicit
+    self.getContactByName.mockResolvedValueOnce(null);
+    self.createContact.mockResolvedValueOnce({ contact_id: "NEW" });
+    zohoAxios.post.mockResolvedValue({
+      data: { code: 0, invoice: { invoice_id: "INV-1", total: 0 } },
+    });
+
+    await createInvoice(self, okOrder as any, okUser as any, [okItem as any]);
+
+    expect(self.getContactByName).toHaveBeenCalled();
+    expect(self.createContact).toHaveBeenCalled();
   });
 });
 
