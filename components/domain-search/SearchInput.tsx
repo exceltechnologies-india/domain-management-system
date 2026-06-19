@@ -118,16 +118,18 @@ export default function SearchInput({
             exit={{ opacity: 0 }}
             className="mt-6 flex items-center justify-center gap-3 text-blue-600 font-semibold"
           >
+            {/* The prompt sits OUTSIDE the white search card and directly on
+                the page's blue hero background in both hosted usages
+                (app/page.tsx + app/domains/search/page.tsx, both pass
+                theme="light"). The previous theme="light" colors
+                (text-blue-500 sparkle + text-gray-600 text) were meant for
+                a white card backdrop and read as low-contrast on blue.
+                Switched to high-contrast yellow icon + near-white text so
+                the prompt is readable in both contexts. */}
             <Sparkles
-              className={`h-5 w-5 animate-pulse transition-colors duration-300 ${
-                theme === 'dark' ? 'text-yellow-400' : 'text-blue-500'
-              }`}
+              className="h-5 w-5 animate-pulse text-yellow-300 transition-colors duration-300"
             />
-            <span
-              className={`text-sm sm:text-base transition-colors duration-300 ${
-                theme === 'dark' ? 'text-blue-100/90' : 'text-gray-600'
-              }`}
-            >
+            <span className="text-sm sm:text-base text-white/90 transition-colors duration-300">
               We'll check .com, .net, .in and more for "{baseDomain}"
             </span>
           </motion.div>
