@@ -12,6 +12,7 @@ interface Grecaptcha {
   ) => number;
   reset: (widgetId?: number) => void;
   getResponse: (widgetId?: number) => string;
+  ready?: (cb: () => void) => void;
 }
 
 function grecaptcha(): Grecaptcha | undefined {
@@ -51,14 +52,32 @@ export class RecaptchaClient {
       script.defer = true;
 
       script.onload = () => {
-        // Wait for grecaptcha to be ready
-        const checkReady = () => {
+        // Google's reCAPTCHA script defines `window.grecaptcha` early as a
+        // stub before its internal init completes — `.render` lands a few
+        // hundred ms later. Polling for the global alone (the original
+        // gate here) returned a half-initialised object and the first
+        // `grecaptcha.render(...)` call threw "n.render is not a function"
+        // in every customer browser. The correct gate is
+        // `grecaptcha.ready(cb)`, which Google guarantees fires after the
+        // public API (render, reset, getResponse) is callable. Fall back
+        // to polling for `.render` being a function if `.ready` itself
+        // hasn't been defined yet (timing depends on the script
+        // edge-server's build of api.js).
+        const checkReady = (tries = 0) => {
           const g = grecaptcha();
-          if (g) {
-            resolve();
-          } else {
-            setTimeout(checkReady, 100);
+          if (g && typeof g.ready === "function") {
+            g.ready(() => resolve());
+            return;
           }
+          if (g && typeof g.render === "function") {
+            resolve();
+            return;
+          }
+          if (tries > 100) {
+            reject(new Error("reCAPTCHA grecaptcha.render never became available after 10s"));
+            return;
+          }
+          setTimeout(() => checkReady(tries + 1), 100);
         };
         checkReady();
       };
