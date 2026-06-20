@@ -89,11 +89,15 @@ export class ZohoBooksService {
 
   // GST Tax IDs are organisation-specific in Zoho Books.
   // Set ZOHO_TAX_ID_GST18 and ZOHO_TAX_ID_IGST18 in Cloud Run env vars.
-  // Fallback values match the original IDs for backwards compatibility,
-  // but a missing env var in a new account will cause Zoho validation errors.
+  // Fallback values are the CURRENT production org's active tax IDs (org
+  // 60071125342, verified active via /api/v3/settings/taxes on 2026-06-20)
+  // so a missing env var still produces a successful invoice for the live
+  // org instead of crashing on Zoho's "Some of the taxes have been deleted"
+  // (code 1016) — the failure mode that hid the missing-env-var bug for a
+  // month until the dms-00188-lfm error-surface patch made it visible.
   private static readonly TAX_IDS = {
-    GST18: process.env.ZOHO_TAX_ID_GST18 || '3650677000000328294',
-    IGST18: process.env.ZOHO_TAX_ID_IGST18 || '3650677000000328134',
+    GST18: process.env.ZOHO_TAX_ID_GST18 || '3847734000000032211',
+    IGST18: process.env.ZOHO_TAX_ID_IGST18 || '3847734000000032173',
   };
 
   // Location ID for "Domain Hosting Online Business" — used on all invoices instead of Head Office.
