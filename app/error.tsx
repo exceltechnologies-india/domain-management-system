@@ -15,7 +15,14 @@ interface ErrorProps {
 
 export default function Error({ error, reset }: ErrorProps) {
   useEffect(() => {
-    // Custom error tracking
+    // Always echo to the browser console FIRST so a dev with the page
+    // open immediately sees what went wrong — without this, the error
+    // boundary silently swallowed the message and the only paper trail
+    // was the (often 403'd) admin/log-error forwarder.
+    // eslint-disable-next-line no-console
+    console.error('[error-boundary]', error);
+
+    // Then forward to the server-side log collection for ops postmortem
     fetch('/api/v1/admin/log-error', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
