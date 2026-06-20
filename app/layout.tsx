@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import localFont from 'next/font/local';
 import './globals.css';
 import { Toaster } from 'react-hot-toast';
 import ClientOnly from '@/components/ClientOnly';
@@ -12,7 +12,22 @@ import { ConfirmDialogHost } from '@/lib/confirm-dialog';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { headers } from 'next/headers';
 
-const inter = Inter({ subsets: ['latin'] });
+// Self-hosted Inter variable font — previously `Inter({ subsets: ['latin'] })`
+// from `next/font/google`. Switched to local because Google Fonts is
+// intermittently unreachable from the Docker build network (ETIMEDOUT on
+// fonts.googleapis.com / fonts.gstatic.com during the 2026-06-20 deploy
+// chain), and a build-time external dep is the wrong shape for a deploy
+// pipeline anyway. Files in public/fonts/ are the official Inter project
+// release from rsms.me/inter — same glyph set, no behaviour change for
+// customers.
+const inter = localFont({
+  src: [
+    { path: '../public/fonts/InterVariable.woff2', weight: '100 900', style: 'normal' },
+    { path: '../public/fonts/InterVariable-Italic.woff2', weight: '100 900', style: 'italic' },
+  ],
+  display: 'swap',
+  variable: '--font-inter',
+});
 
 export const metadata: Metadata = {
   title: 'Anutech Digital Private Limited - Domain Management System',
