@@ -65,6 +65,38 @@ export async function POST(request: NextRequest) {
       validation.data;
     const cartItems = rawCartItems as CartItem[];
 
+    /**
+     * Defensive linkedDomain inference for hosting items.
+     *
+     * The cart UI's "Please set up a domain for all hosting plans" check is
+     * meant to block checkout when a hosting item is missing linkedDomain,
+     * but a 60-day production audit on 2026-06-20 found that EVERY hosting
+     * order (6/6) was being saved with linkedDomain=undefined — meaning the
+     * client-side check never actually populated the field on the request
+     * body. Older orders silently "succeeded" in DirectAdmin with the
+     * synthetic cart ID as the username (zombie accounts the customer
+     * couldn't use); recent orders properly fail.
+     *
+     * Server-side recovery: if a hosting item has no linkedDomain AND the
+     * cart contains exactly one domain item, link them. Unambiguous in
+     * practice — every observed failed order matched this shape. The
+     * inference happens BEFORE persistence so the DB row + the
+     * /verify-side cart reconstruction + provisioner all see the same
+     * real domain.
+     */
+    const domainItems = cartItems.filter((i) => !i.itemType || i.itemType === "domain");
+    if (domainItems.length === 1) {
+      const inferredDomain = domainItems[0].domainName;
+      for (const item of cartItems) {
+        if (item.itemType === "hosting" && !item.linkedDomain) {
+          item.linkedDomain = inferredDomain;
+          serverLogger.info(
+            `🔗 [CREATE-ORDER] Auto-linked hosting item to ${inferredDomain} (client sent no linkedDomain)`
+          );
+        }
+      }
+    }
+
     // Zod gates structural shape; the TLD policy check is business logic.
     for (const item of cartItems) {
       if (!item.itemType || item.itemType === "domain") {
