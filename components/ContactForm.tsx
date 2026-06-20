@@ -8,6 +8,7 @@ import Textarea from './Textarea';
 import Card from './Card';
 import toast from 'react-hot-toast';
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
+import GoogleRecaptcha from './GoogleRecaptcha';
 import { apiClient } from '@/lib/api-client';
 
 interface ContactFormProps {
@@ -23,12 +24,24 @@ export default function ContactForm({ className = '' }: ContactFormProps) {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    const result = await apiClient.post('/api/v1/contact', { ...formData });
+    // Only require a captcha token when the captcha is actually configured.
+    // GoogleRecaptcha self-signals onSuccess('manual-pass') when the site
+    // key isn't set, so a missing token in that mode is fine.
+    const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+    const captchaConfigured = siteKey && siteKey !== 'your-recaptcha-site-key';
+    if (captchaConfigured && !recaptchaToken) {
+      showErrorToast('Please complete the security verification');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const result = await apiClient.post('/api/v1/contact', { ...formData, recaptchaToken });
 
     if (result.ok) {
       setIsSubmitted(true);
@@ -130,6 +143,18 @@ export default function ContactForm({ className = '' }: ContactFormProps) {
           fullWidth
           helperText="Please provide as much detail as possible"
         />
+
+        {process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY &&
+          process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY !== 'your-recaptcha-site-key' && (
+            <div className="py-2">
+              <GoogleRecaptcha
+                onSuccess={(token) => setRecaptchaToken(token)}
+                onError={() => setRecaptchaToken(null)}
+                onExpire={() => setRecaptchaToken(null)}
+                className="flex justify-center"
+              />
+            </div>
+          )}
 
         <Button
           type="button"

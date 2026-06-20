@@ -19,6 +19,7 @@ const eligibilitySchema = z.object({
   planId: z.string().optional(),
   deviceFingerprint: z.string().optional(),
   otpToken: z.string().optional(),
+  recaptchaToken: z.string().nullable().optional(),
 });
 
 type EligibilityBody = z.infer<typeof eligibilitySchema>;
@@ -51,8 +52,7 @@ async function runEligibility(
     return secureJsonResponse({ eligible: false, reason: "You have already used your free trial" });
   }
 
-  // 3. Abuse defenses — disposable email, IP & device throttles. reCAPTCHA
-  // was removed on 2026-06-17 ahead of a fresh re-install.
+  // 3. Abuse defenses — disposable email, reCAPTCHA, IP & device throttles.
   const clientIp = getClientIp(request);
   const abuseCheck = await evaluateTrialAbuse(
     {
@@ -62,7 +62,7 @@ async function runEligibility(
       phone: user.phone,
       otpToken: body.otpToken,
     },
-    { clientIp }
+    { clientIp, recaptchaToken: body.recaptchaToken || undefined }
   );
   if (!abuseCheck.allowed) {
     serverLogger.warn(

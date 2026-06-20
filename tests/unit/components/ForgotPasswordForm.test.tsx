@@ -70,6 +70,7 @@ describe("<ForgotPasswordForm>", () => {
 
     expect(mockApiPost).toHaveBeenCalledWith("/api/v1/auth/forgot-password", {
       email: "alice@example.com",
+      recaptchaToken: null,
     });
     expect(await screen.findByRole("heading", { name: /check your email/i })).toBeInTheDocument();
     expect(screen.getByText(/we've sent a password reset link to alice@example\.com/i)).toBeInTheDocument();

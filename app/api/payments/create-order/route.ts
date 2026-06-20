@@ -44,6 +44,7 @@ const createOrderSchema = z.object({
   cartItems: z.array(cartItemSchema).min(1, "Cart is empty"),
   deviceFingerprint: z.string().optional(),
   otpToken: z.string().optional(),
+  recaptchaToken: z.string().nullable().optional(),
 });
 
 // Force dynamic rendering - required for API routes
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
 
     const validation = await validatedBody(request, createOrderSchema);
     if (!validation.ok) return validation.response;
-    const { cartItems: rawCartItems, deviceFingerprint, otpToken } =
+    const { cartItems: rawCartItems, deviceFingerprint, otpToken, recaptchaToken } =
       validation.data;
     const cartItems = rawCartItems as CartItem[];
 
@@ -166,7 +167,7 @@ export async function POST(request: NextRequest) {
               phone: user.phone,
               otpToken,
             },
-            { clientIp }
+            { clientIp, recaptchaToken: recaptchaToken || undefined }
           );
           if (!abuseCheck.allowed) {
             serverLogger.warn(

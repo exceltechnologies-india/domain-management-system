@@ -126,17 +126,24 @@ export const Schemas = {
       country: z.string().max(100).optional().default("IN"),
       zipcode: z.string().max(15).optional().default(""),
     }).optional(),
+    // reCAPTCHA token: optional at the schema layer because dev / non-
+    // production environments may run without RECAPTCHA_SECRET_KEY set;
+    // the route's RecaptchaServer.verifyToken short-circuits to success
+    // when the secret is empty/placeholder so the optional shape is safe.
+    recaptchaToken: z.string().optional().nullable(),
   }),
 
   /** Forgot Password: Validates the request to initiate a password recovery. */
   forgotPassword: z.object({
     email: z.string().email("Invalid email format").trim().toLowerCase(),
+    recaptchaToken: z.string().optional().nullable(),
   }).strict(),
 
   /** Reset Password: Validates the final stage of password recovery with strict complexity checks. */
   resetPassword: z.object({
     token: z.string().min(1, "Reset token is required"),
     password: passwordSchema,
+    recaptchaToken: z.string().optional().nullable(),
   }).strict(),
 
   /** DNS Record: Validates DNS entries for domain configuration. */

@@ -10,6 +10,7 @@ import SocialLoginButtons from './SocialLoginButtons';
 import toast from 'react-hot-toast';
 import { safeLocalStorage } from '@/lib/storage';
 import { apiClient } from '@/lib/api-client';
+import GoogleRecaptcha from './GoogleRecaptcha';
 import PersonalInfoSection from './register/PersonalInfoSection';
 import AddressSection from './register/AddressSection';
 import CredentialsSection from './register/CredentialsSection';
@@ -43,6 +44,7 @@ export default function RegisterForm({ className = '' }: RegisterFormProps) {
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
   const router = useRouter();
 
   const totalSteps = 4;
@@ -139,6 +141,14 @@ export default function RegisterForm({ className = '' }: RegisterFormProps) {
       return;
     }
 
+    const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+    const captchaConfigured = siteKey && siteKey !== 'your-recaptcha-site-key';
+    if (captchaConfigured && !recaptchaToken) {
+      toast.error('Please complete the security verification');
+      setIsLoading(false);
+      return;
+    }
+
     const result = await apiClient.post<{ token?: string; user?: unknown; error?: string }>('/api/v1/auth/register', {
       firstName: formData.firstName,
       lastName: formData.lastName,
@@ -148,6 +158,7 @@ export default function RegisterForm({ className = '' }: RegisterFormProps) {
       phoneCc: formData.phoneCc,
       companyName: formData.companyName,
       address: formData.address,
+      recaptchaToken,
     });
 
     if (result.ok) {
@@ -428,13 +439,27 @@ export default function RegisterForm({ className = '' }: RegisterFormProps) {
 
             <CredentialsSection formData={formData} onChange={handleChange} />
 
+            {currentStep === totalSteps &&
+              process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY &&
+              process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY !== 'your-recaptcha-site-key' && (
+                <GoogleRecaptcha
+                  onSuccess={(token) => setRecaptchaToken(token)}
+                  onError={() => setRecaptchaToken(null)}
+                  onExpire={() => setRecaptchaToken(null)}
+                  className="flex justify-center"
+                />
+              )}
+
             <Button
               type="button"
               onClick={handleSubmit}
               loading={isLoading}
               fullWidth
               icon={<UserPlus className="h-4 w-4" />}
-              disabled={formData.password.length > 0 && formData.password.length < 8}
+              disabled={(currentStep === totalSteps &&
+                !!(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY &&
+                  process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY !== 'your-recaptcha-site-key' &&
+                  !recaptchaToken)) || (formData.password.length > 0 && formData.password.length < 8)}
             >
               {isLoading ? 'Creating account...' : 'Create account'}
             </Button>
