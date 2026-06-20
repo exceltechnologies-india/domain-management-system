@@ -101,7 +101,13 @@ export default function GoogleRecaptcha({
                 return;
               }
 
-              setError('Failed to render verification widget');
+              // Surface the actual underlying error in the user-visible message
+              // so production diagnostics don't need to scrape suppressed logs.
+              // Temporary aid during the Phase 2 captcha re-introduction —
+              // remove once render is confirmed-stable in real customer sessions.
+              setError(`Failed to render verification widget — ${errorMsg.slice(0, 200)}`);
+              // eslint-disable-next-line no-console
+              console.error('[GoogleRecaptcha] render error:', renderError);
               logger.error('reCAPTCHA render error:', renderError);
               if (handlersRef.current.onError) handlersRef.current.onError();
             }
@@ -109,7 +115,10 @@ export default function GoogleRecaptcha({
         }
       } catch (err) {
         if (isMounted) {
-          setError('An unexpected error occurred with verification');
+          const outerMsg = err instanceof Error ? err.message : String(err);
+          setError(`An unexpected error occurred with verification — ${outerMsg.slice(0, 200)}`);
+          // eslint-disable-next-line no-console
+          console.error('[GoogleRecaptcha] outer error:', err);
           logger.error('reCAPTCHA overall error:', err);
         }
       }
