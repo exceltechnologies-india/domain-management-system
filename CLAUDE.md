@@ -15,6 +15,14 @@ Do this **every time**, not just at end-of-session. The audit file going stale i
 
 If multiple audit MDs are active (e.g. an older `audit.md` plus the newer `TASKS.md`), update the one that owns the batch and leave the others alone.
 
+### Flipping In-Flight → Done in TASKS.md (reviewer dashboard parser)
+
+The senior reviewer dashboard at task.anutech.in parses TASKS.md entries by **title text**. When an In-Flight entry's title stays verbatim and only the `[ ]` flips to `[x]`, the dashboard reconciles the hourglass to a check on the ORIGINAL day's row — but registers NO event for the day the fix actually shipped. Today's-view ends up showing 0 events even though work landed.
+
+**The rule**: when flipping an In-Flight item to ✅ Done, ADD a NEW `[x]` "Recently Shipped" entry above it with a distinct title (e.g. prefixed with "FIXED:" or rewritten to describe the resolution). Keep the original In-Flight row in place too — flip its `[ ]` to `[x]` and append a "✅ RESOLVED on YYYY-MM-DD" prefix to the body for the audit trail. Result: yesterday's row reconciles ⏳ → ✅ AND today's view shows the freshly-shipped resolution event. Both reviewers see the full report-in → resolution-out arc.
+
+NEVER delete completed tasks — audit trail. The dashboard, the codebase history, and the project memory all rely on the historical entries staying in place. (See auto-memory `feedback_tasks_flip_dual_entry`.)
+
 ## Other persistent conventions
 
 - Do not surface credential/key rotation as a next step — the user has opted out for this project (see auto-memory `feedback_key_rotation_skip`).
