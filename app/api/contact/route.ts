@@ -1,18 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { EmailService } from "@/lib/email";
 import { InputValidator } from "@/lib/validation";
+import { RecaptchaServer } from "@/lib/recaptcha";
 import { serverLogger } from "@/lib/server-logger";
 import { validatedBody, z } from "@/lib/api-validation";
 
 // Zod gates the structural shape (every field present + string + bounded);
 // the existing InputValidator below still runs content-safety + sanitization
-// before the body is rendered into email HTML. reCAPTCHA was removed on
-// 2026-06-17 ahead of a fresh re-install.
+// before the body is rendered into email HTML. reCAPTCHA re-introduced
+// 2026-06-20 (env-var presence is the kill switch).
 const contactSchema = z.object({
   name: z.string().trim().min(1).max(200),
   email: z.string().trim().min(1).max(254),
   subject: z.string().trim().min(1).max(500),
   message: z.string().trim().min(1).max(10000),
+  recaptchaToken: z.string().nullable().optional(),
 });
 
 // Force dynamic rendering - required for API routes
@@ -22,7 +24,24 @@ export async function POST(request: NextRequest) {
   try {
     const validation = await validatedBody(request, contactSchema);
     if (!validation.ok) return validation.response;
-    const { name, email, subject, message } = validation.data;
+    const { name, email, subject, message, recaptchaToken } = validation.data;
+
+    /**
+     * 🛡️ DEFENSE-IN-DEPTH: Human Verification (reCAPTCHA)
+     * Re-introduced 2026-06-20. Skipped when secret is missing (env-var kill switch).
+     */
+    const clientIP = request.headers.get("x-forwarded-for")?.split(",")[0] ||
+                     request.headers.get("x-real-ip") ||
+                     "unknown";
+    if (recaptchaToken) {
+      const recaptchaResult = await RecaptchaServer.verifyToken(recaptchaToken, clientIP);
+      if (!recaptchaResult.success) {
+        return NextResponse.json(
+          { error: "Security verification failed. Please try again." },
+          { status: 403 }
+        );
+      }
+    }
 
     // Validate all inputs
     const nameValidation = InputValidator.validateName(name, "Name");

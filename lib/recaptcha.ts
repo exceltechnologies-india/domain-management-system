@@ -1,0 +1,216 @@
+/**
+ * Google reCAPTCHA utilities for client and server
+ */
+
+import { logger } from "@/lib/logger";
+import { serverLogger } from "@/lib/server-logger";
+
+interface Grecaptcha {
+  render: (
+    container: string | HTMLElement,
+    options: Record<string, unknown>
+  ) => number;
+  reset: (widgetId?: number) => void;
+  getResponse: (widgetId?: number) => string;
+}
+
+function grecaptcha(): Grecaptcha | undefined {
+  return (window as unknown as { grecaptcha?: Grecaptcha }).grecaptcha;
+}
+
+// Client-side: Load reCAPTCHA script and handle widget
+export class RecaptchaClient {
+  private static siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || "";
+  private static scriptPromise: Promise<void> | null = null;
+
+  /**
+   * Load reCAPTCHA script
+   */
+  static loadScript(): Promise<void> {
+    if (this.scriptPromise) {
+      return this.scriptPromise;
+    }
+
+    this.scriptPromise = new Promise((resolve, reject) => {
+      if (typeof window === "undefined") {
+        reject(new Error("reCAPTCHA can only be loaded in browser"));
+        return;
+      }
+
+      // Check if script already exists
+      if (document.querySelector('script[src*="google.com/recaptcha/api.js"]')) {
+        resolve();
+        return;
+      }
+
+      // SRI not applied: Google does not publish stable hashes for recaptcha/api.js;
+      // the script updates without versioning the URL. CSP restricts to www.google.com.
+      const script = document.createElement("script");
+      script.src = `https://www.google.com/recaptcha/api.js?render=explicit`;
+      script.async = true;
+      script.defer = true;
+
+      script.onload = () => {
+        // Wait for grecaptcha to be ready
+        const checkReady = () => {
+          const g = grecaptcha();
+          if (g) {
+            resolve();
+          } else {
+            setTimeout(checkReady, 100);
+          }
+        };
+        checkReady();
+      };
+
+      script.onerror = () => {
+        this.scriptPromise = null;
+        reject(new Error("Failed to load Google reCAPTCHA script."));
+      };
+
+      document.head.appendChild(script);
+    });
+
+    return this.scriptPromise;
+  }
+
+  /**
+   * Render reCAPTCHA widget
+   */
+  static async render(
+    container: string | HTMLElement,
+    options?: {
+      callback?: (token: string) => void;
+      "expired-callback"?: () => void;
+      "error-callback"?: () => void;
+      theme?: 'light' | 'dark';
+      size?: 'normal' | 'compact';
+    }
+  ): Promise<number | null> {
+    if (typeof window === "undefined") {
+      throw new Error("reCAPTCHA can only be rendered in browser");
+    }
+
+    const currentSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || this.siteKey;
+
+    if (!currentSiteKey || currentSiteKey === 'your-recaptcha-site-key') {
+      logger.warn("reCAPTCHA site key not configured correctly");
+      return null;
+    }
+
+    await this.loadScript();
+
+    try {
+      const g = grecaptcha();
+      if (!g) {
+        logger.warn("reCAPTCHA grecaptcha global missing after script load");
+        return null;
+      }
+      const widgetId = g.render(container, {
+        sitekey: currentSiteKey,
+        callback: options?.callback,
+        "expired-callback": options?.["expired-callback"],
+        "error-callback": options?.["error-callback"],
+        theme: options?.theme || "light",
+        size: options?.size || "normal",
+      });
+
+      return widgetId;
+    } catch (error) {
+      logger.error("reCAPTCHA render error:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Reset reCAPTCHA widget
+   */
+  static reset(widgetId?: number): void {
+    if (typeof window === "undefined") return;
+    const g = grecaptcha();
+    if (!g) return;
+
+    try {
+      g.reset(widgetId);
+    } catch (error) {
+      logger.error("Error resetting reCAPTCHA:", error);
+    }
+  }
+
+  /**
+   * Get response token from reCAPTCHA
+   */
+  static getResponse(widgetId?: number): string {
+    if (typeof window === "undefined") return "";
+    const g = grecaptcha();
+    if (!g) return "";
+    return g.getResponse(widgetId);
+  }
+}
+
+// Server-side: Verify reCAPTCHA token
+export class RecaptchaServer {
+  private static secretKey = process.env.RECAPTCHA_SECRET_KEY || "";
+  private static verifyUrl = "https://www.google.com/recaptcha/api/siteverify";
+
+  /**
+   * Verify reCAPTCHA token.
+   *
+   * Phase 2 re-introduction (2026-06-20) does NOT use the admin
+   * captcha_enabled DB toggle from Phase 1 — env-var presence is the
+   * only kill switch. Setting RECAPTCHA_SECRET_KEY to empty / the
+   * placeholder value disables verification entirely (returns success).
+   */
+  static async verifyToken(
+    token: string,
+    remoteip?: string
+  ): Promise<{
+    success: boolean;
+    error?: string;
+    "error-codes"?: string[];
+  }> {
+    if (!this.secretKey || this.secretKey === 'your-recaptcha-secret-key') {
+      serverLogger.warn("reCAPTCHA secret key not configured - skipping verification");
+      return { success: true };
+    }
+
+    if (!token || token === 'captcha-disabled') {
+      return {
+        success: false,
+        error: "reCAPTCHA token is required",
+      };
+    }
+
+    try {
+      const params = new URLSearchParams();
+      params.append("secret", this.secretKey);
+      params.append("response", token);
+      if (remoteip) {
+        params.append("remoteip", remoteip);
+      }
+
+      const response = await fetch(this.verifyUrl, {
+        method: "POST",
+        body: params,
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        return {
+          success: false,
+          error: "reCAPTCHA verification failed",
+          "error-codes": data["error-codes"] || [],
+        };
+      }
+
+      return { success: true };
+    } catch (error) {
+      serverLogger.error("reCAPTCHA verification error:", error);
+      return {
+        success: false,
+        error: "Failed to verify reCAPTCHA",
+      };
+    }
+  }
+}

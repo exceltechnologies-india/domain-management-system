@@ -88,6 +88,7 @@ describe("<ResetPasswordForm>", () => {
     expect(mockApiPost).toHaveBeenCalledWith("/api/v1/auth/reset-password", {
       token: "reset-abc",
       password: "ValidPass123!",
+      recaptchaToken: null,
     });
     expect(await screen.findByRole("heading", { name: /password reset complete/i })).toBeInTheDocument();
     expect(mockToast.success).toHaveBeenCalledWith(expect.stringMatching(/reset successfully/i));

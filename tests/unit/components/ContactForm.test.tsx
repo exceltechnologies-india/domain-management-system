@@ -53,6 +53,7 @@ describe("<ContactForm>", () => {
       email: "alice@example.com",
       subject: "Pricing",
       message: "Tell me more.",
+      recaptchaToken: null,
     });
     expect(await screen.findByRole("heading", { name: /message sent!/i })).toBeInTheDocument();
     expect(showSuccessToast).toHaveBeenCalledWith(expect.stringMatching(/sent successfully/i));

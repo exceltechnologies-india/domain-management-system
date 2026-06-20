@@ -8,6 +8,7 @@ import Input from './Input';
 import Card from './Card';
 import Logo from './Logo';
 import toast from 'react-hot-toast';
+import GoogleRecaptcha from './GoogleRecaptcha';
 import { apiClient } from '@/lib/api-client';
 
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -27,6 +28,7 @@ export default function ForgotPasswordForm({ className = '', isSetup = false, pr
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [error, setError] = useState('');
+  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
   const [cooldownEnd, setCooldownEnd] = useState<number>(0);
   const [remainingSeconds, setRemainingSeconds] = useState<number>(0);
 
@@ -49,7 +51,19 @@ export default function ForgotPasswordForm({ className = '', isSetup = false, pr
     setIsLoading(true);
     setError(''); // Clear previous errors
 
-    const result = await apiClient.post('/api/v1/auth/forgot-password', { email });
+    const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+    const captchaConfigured = siteKey && siteKey !== 'your-recaptcha-site-key';
+    if (captchaConfigured && !recaptchaToken) {
+      setError('Please complete the security verification');
+      toast.error('Please complete the security verification');
+      setIsLoading(false);
+      return;
+    }
+
+    const result = await apiClient.post('/api/v1/auth/forgot-password', {
+      email,
+      recaptchaToken,
+    });
 
     if (result.ok) {
       setIsSubmitted(true);
@@ -182,12 +196,25 @@ export default function ForgotPasswordForm({ className = '', isSetup = false, pr
               helperText={isSetup ? "We'll send a password setup link to this email" : "We'll send a password reset link to this email"}
             />
 
+            {process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY &&
+              process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY !== 'your-recaptcha-site-key' && (
+                <GoogleRecaptcha
+                  onSuccess={(token) => setRecaptchaToken(token)}
+                  onError={() => setRecaptchaToken(null)}
+                  onExpire={() => setRecaptchaToken(null)}
+                  className="flex justify-center"
+                />
+              )}
+
             <Button
               type="button"
               onClick={handleSubmit}
               loading={isLoading}
               fullWidth
               icon={<Mail className="h-4 w-4" />}
+              disabled={!!(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY &&
+                process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY !== 'your-recaptcha-site-key' &&
+                !recaptchaToken)}
             >
               {isLoading ? 'Sending...' : (isSetup ? 'Send Setup Link' : 'Send Reset Link')}
             </Button>

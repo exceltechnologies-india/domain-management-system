@@ -9,10 +9,12 @@ import { NextRequest } from "next/server";
 import TrialClaim from "@/models/TrialClaim";
 import { getSettingValue } from "@/lib/services/settings";
 import { isDisposableEmail } from "@/lib/disposable-emails";
+import { RecaptchaServer } from "@/lib/recaptcha";
 import { serverLogger } from "@/lib/server-logger";
 import { verifyOtpToken } from "@/lib/trial-otp";
 
 const ENFORCEMENT_WINDOW_DAYS = 30;
+const RECAPTCHA_MIN_SCORE = 0.5;
 
 function ipHashSecret(): string {
   return process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "trial-abuse-fallback";
@@ -54,6 +56,7 @@ export interface AbuseCheckResult {
     | "DISPOSABLE_EMAIL"
     | "IP_THROTTLE"
     | "DEVICE_THROTTLE"
+    | "RECAPTCHA"
     | "OTP_REQUIRED";
 }
 
@@ -61,14 +64,13 @@ export interface AbuseCheckResult {
  * Runs all currently-active trial-abuse checks for the given signals.
  * Order matters: cheapest checks first.
  *
- * reCAPTCHA was removed from the trial-abuse pipeline on 2026-06-17 (full
- * rip ahead of a fresh re-install). Disposable-email + IP throttle + device
- * fingerprint + optional phone OTP still gate trial claims.
+ * reCAPTCHA was re-introduced 2026-06-20. When the secret is missing
+ * (env-var kill switch) verifyToken short-circuits to success so this
+ * pipeline still passes cleanly.
  */
 export async function evaluateTrialAbuse(
   signals: AbuseSignals,
-  // Kept for signature stability; reCAPTCHA option is currently ignored.
-  _options: { clientIp?: string } = {}
+  options: { recaptchaToken?: string; clientIp?: string } = {}
 ): Promise<AbuseCheckResult> {
   // 1. Disposable email — instant local check.
   if (signals.email && isDisposableEmail(signals.email)) {
@@ -79,7 +81,35 @@ export async function evaluateTrialAbuse(
     };
   }
 
-  // 2. IP throttle — has this IP claimed a trial within the window?
+  // 2. reCAPTCHA verification (skipped silently when captcha is disabled
+  // app-wide via the env-var kill switch — same contract used by login).
+  if (options.recaptchaToken) {
+    try {
+      const result = await RecaptchaServer.verifyToken(options.recaptchaToken, options.clientIp);
+      if (!result.success) {
+        return {
+          allowed: false,
+          code: "RECAPTCHA",
+          reason: "Security verification failed. Please refresh and try again.",
+        };
+      }
+      const score = (result as { score?: number }).score;
+      if (typeof score === "number" && score < RECAPTCHA_MIN_SCORE) {
+        serverLogger.warn(
+          `[TrialAbuse] reCAPTCHA score below threshold: ${score} for ip=${options.clientIp || "unknown"}`
+        );
+        return {
+          allowed: false,
+          code: "RECAPTCHA",
+          reason: "Security verification failed. Please refresh and try again.",
+        };
+      }
+    } catch (e) {
+      serverLogger.warn("[TrialAbuse] reCAPTCHA verify threw, allowing:", (e as Error).message);
+    }
+  }
+
+  // 3. IP throttle — has this IP claimed a trial within the window?
   if (signals.ipHash) {
     const since = new Date(Date.now() - ENFORCEMENT_WINDOW_DAYS * 24 * 60 * 60 * 1000);
     const ipClaim = await TrialClaim.exists({

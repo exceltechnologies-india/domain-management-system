@@ -16,6 +16,7 @@ import { serverLogger } from "@/lib/server-logger";
 import { updateLastActivity } from "@/lib/session-activity";
 import { verifyTotpCode, verifyBackupCode } from "@/lib/totp";
 import { rateLimiters } from "@/lib/rate-limit";
+import { RecaptchaServer } from "@/lib/recaptcha";
 
 export const providers = [
   GoogleProvider({
@@ -70,6 +71,7 @@ export const providers = [
       email: { label: "Email", type: "email" },
       password: { label: "Password", type: "password" },
       totpCode: { label: "Authenticator Code", type: "text" },
+      recaptchaToken: { label: "reCAPTCHA Token", type: "text" },
     },
     async authorize(credentials, req) {
       try {
@@ -105,10 +107,22 @@ export const providers = [
           !!credentials.password
         );
 
-        // reCAPTCHA was removed on 2026-06-17 (full rip ahead of a fresh
-        // re-install). Rate limiting (above) + per-IP login throttling still
-        // gate brute-force; CSRF + same-origin checks in middleware still
-        // gate cross-site abuse. Login no longer requires a captcha token.
+        /**
+         * 🛡️ Human Verification (reCAPTCHA)
+         * Re-introduced 2026-06-20. When secret is missing (env-var kill switch),
+         * verifyToken short-circuits to success. Rate limiting (above) + CSRF +
+         * same-origin in middleware still gate abuse even when captcha is off.
+         */
+        if (credentials.recaptchaToken) {
+          const recaptchaResult = await RecaptchaServer.verifyToken(
+            credentials.recaptchaToken,
+            ip
+          );
+          if (!recaptchaResult.success) {
+            serverLogger.warn(`[AUTH] ❌ reCAPTCHA failed for ${credentials.email}`);
+            throw new Error("CaptchaFailed");
+          }
+        }
 
         // Race connectDB against timeout
         const timeoutPromise = new Promise((_, reject) =>
