@@ -89,8 +89,39 @@ export async function POST(
     }
 
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    serverLogger.error(`❌ [ADMIN] Error in manual re-sync route:`, message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    // Zoho's Books API uses HTTP 4xx for business-rule rejections — missing
+    // GSTIN, invalid contact_id, tax mismatch, currency mismatch, etc. The
+    // useful detail lives in `response.data.message` (and/or
+    // `response.data.code`). Axios's own thrown message is just "Request
+    // failed with status code 4xx" — useless for diagnosing which row in the
+    // stuck-orders list is broken for which reason. Detect axios errors and
+    // surface the inner Zoho text so the admin toast carries the real reason.
+    const asAxios = error as {
+      isAxiosError?: boolean;
+      response?: { status?: number; data?: { message?: string; code?: number } };
+      message?: string;
+    };
+    const zohoMessage = asAxios?.response?.data?.message;
+    const zohoCode = asAxios?.response?.data?.code;
+    const zohoStatus = asAxios?.response?.status;
+    const message = zohoMessage
+      ? `Zoho rejected the request: ${zohoMessage}${typeof zohoCode === "number" ? ` (code ${zohoCode})` : ""}${typeof zohoStatus === "number" ? ` [HTTP ${zohoStatus}]` : ""}`
+      : error instanceof Error
+        ? error.message
+        : String(error);
+    serverLogger.error(`❌ [ADMIN] Error in manual re-sync route:`, message, {
+      zohoMessage,
+      zohoCode,
+      zohoStatus,
+      axiosMessage: asAxios?.message,
+    });
+    return NextResponse.json(
+      {
+        error: message,
+        zohoCode,
+        zohoStatus,
+      },
+      { status: 500 }
+    );
   }
 }
