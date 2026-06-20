@@ -347,7 +347,16 @@ async function handleMiddleware(request: NextRequest, nonce: string, requestId: 
   // Previously this check only ran inside the `isAdminApi` branch, leaving
   // /api/user/* and /api/payments/* defended only by NextAuth's `sameSite:
   // lax` cookie — which still allows top-level navigation POSTs.
-  if (isApi && !isPublicApi) {
+  // SELF_AUTHENTICATING_ADMIN_API endpoints (currently /api/admin/log-error)
+  // are also exempt from the CSRF gate — they authenticate via x-cron-secret
+  // or same-origin server-to-self fetch, NOT via session cookie + Origin
+  // header. The earlier dms-00179-fwc fix added the exemption to the
+  // admin-role check (line ~358 below) but forgot this CSRF gate which
+  // fires first in the pipeline, so log-error continued to 403 silently
+  // for every serverLogger.error() call. Today's hosting-provisioning
+  // failure (dms-00190+) is the second case we've hit; restoring the
+  // exemption here closes the gap properly.
+  if (isApi && !isPublicApi && !SELF_AUTHENTICATING_ADMIN_API.has(classificationPath)) {
     const csrfCheck = SecurityValidator.validateCSRF(request);
     if (!csrfCheck.isValid) {
       serverLogger.warn(`[Middleware Security] CSRF validation failed on ${sanitizePathForLog(pathname)}: ${csrfCheck.error}`, { requestId });
