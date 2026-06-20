@@ -167,8 +167,16 @@ export async function GET(req: NextRequest) {
         zohoLatencyMs = ms() - zohoStart;
         if (!org) throw new Error("Could not fetch organization details from Zoho Books");
 
-        zohoPlanName = (org.plan_name as string | undefined) || "";
-        zohoPlanType = (org.plan_type as string | undefined) || "";
+        // Zoho returns plan_name + plan_type as either strings OR (in some
+        // org states) non-string values like booleans or numeric tier IDs.
+        // The TS cast above is a compile-time lie; coerce at runtime so the
+        // dashboard render path (which calls .charAt + .slice on these
+        // fields) never sees a non-string. Without this guard the admin
+        // dashboard crashed with "planType.charAt is not a function" —
+        // caught in the 2026-06-20 SystemLog after restoring error-log
+        // visibility via the SELF_AUTHENTICATING_ADMIN_API middleware fix.
+        zohoPlanName = org.plan_name != null ? String(org.plan_name) : "";
+        zohoPlanType = org.plan_type != null ? String(org.plan_type) : "";
         const rawExpiry: string | undefined =
           (org.trial_expiry_date as string | undefined) ||
           (org.plan_expiry_date as string | undefined) ||

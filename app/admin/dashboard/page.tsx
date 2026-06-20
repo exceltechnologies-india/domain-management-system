@@ -515,9 +515,18 @@ export default function AdminDashboard() {
                   details={[
                     {
                       label: "Plan Type",
-                      value: zb?.planType
-                        ? zb.planType.charAt(0).toUpperCase() + zb.planType.slice(1)
-                        : "—",
+                      // Defensive String() coercion — Zoho Books' getOrganizationDetails
+                      // API can return plan_type as a non-string value (e.g. boolean
+                      // false, or a numeric tier id) for orgs in certain states.
+                      // The previous `zb.planType.charAt(...)` call crashed the whole
+                      // admin dashboard with "planType.charAt is not a function"
+                      // when this happened — caught in 2026-06-20 SystemLog.
+                      value: (() => {
+                        const pt = zb?.planType;
+                        if (pt === undefined || pt === null || pt === '') return '—';
+                        const s = String(pt);
+                        return s.charAt(0).toUpperCase() + s.slice(1);
+                      })(),
                     },
                     {
                       label: "Subscription",
