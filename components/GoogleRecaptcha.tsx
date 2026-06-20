@@ -101,11 +101,13 @@ export default function GoogleRecaptcha({
                 return;
               }
 
-              // Surface the actual underlying error in the user-visible message
-              // so production diagnostics don't need to scrape suppressed logs.
-              // Temporary aid during the Phase 2 captcha re-introduction —
-              // remove once render is confirmed-stable in real customer sessions.
-              setError(`Failed to render verification widget — ${errorMsg.slice(0, 200)}`);
+              setError('Failed to render verification widget');
+              // Raw console.error survives the production-silenced `logger.*`
+              // (lib/logger.ts gates console output on NODE_ENV==='development').
+              // Without this, the actual reCAPTCHA failure mode is invisible
+              // in customer DevTools — which is what turned the Phase 2
+              // install's `n.render is not a function` bug into a multi-hour
+              // diagnostic detour. Keep this line.
               // eslint-disable-next-line no-console
               console.error('[GoogleRecaptcha] render error:', renderError);
               logger.error('reCAPTCHA render error:', renderError);
@@ -115,8 +117,9 @@ export default function GoogleRecaptcha({
         }
       } catch (err) {
         if (isMounted) {
-          const outerMsg = err instanceof Error ? err.message : String(err);
-          setError(`An unexpected error occurred with verification — ${outerMsg.slice(0, 200)}`);
+          setError('An unexpected error occurred with verification');
+          // Same diagnostic carve-out as the inner catch above — survive
+          // production logger suppression for unrecoverable widget errors.
           // eslint-disable-next-line no-console
           console.error('[GoogleRecaptcha] outer error:', err);
           logger.error('reCAPTCHA overall error:', err);
