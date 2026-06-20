@@ -36,6 +36,21 @@ const GUEST_PUBLIC_ROUTES = new Set(["/checkout/guest"]);
 const ADMIN_PREFIXES = ["/admin"];
 const ADMIN_API_PREFIXES = ["/api/admin"];
 
+// Specific admin-API paths that handle their own authorisation inside the
+// route handler (cron-secret OR session OR same-origin) and should NOT be
+// middleware-gated to admin-only. Without this, the server-side
+// serverLogger.error → /api/v1/admin/log-error forwarder (a no-cookie
+// server-to-self fetch) gets 403'd by the admin-API check before its own
+// validation can run — which is why client + server errors weren't reaching
+// the SystemLog collection on 2026-06-17 (Zoho invoice failure), 2026-06-18
+// (paymentVerification subdoc + linkedDomain saves), or 2026-06-19 (admin
+// dashboard render error). Each entry must match the post-/api/v1 strip
+// (classificationPath) so it applies to both /api/admin/X and
+// /api/v1/admin/X.
+const SELF_AUTHENTICATING_ADMIN_API = new Set<string>([
+  "/api/admin/log-error",
+]);
+
 // Pages that REQUIRE relaxed CSP (unsafe-eval / unsafe-inline) because they
 // load third-party JS that uses eval/new Function(). Everything else — and
 // all API routes — defaults to STRICT (nonce-only script-src).
@@ -298,7 +313,9 @@ async function handleMiddleware(request: NextRequest, nonce: string, requestId: 
   // Explicitly allow HEAD requests for public routes (monitoring)
   const isHeadRequest = request.method === "HEAD";
 
-  const isAdminApi = ADMIN_API_PREFIXES.some(p => classificationPath === p || classificationPath.startsWith(p + "/"));
+  const isAdminApi =
+    ADMIN_API_PREFIXES.some(p => classificationPath === p || classificationPath.startsWith(p + "/")) &&
+    !SELF_AUTHENTICATING_ADMIN_API.has(classificationPath);
   const isAdminPage = ADMIN_PREFIXES.some(p => pathname === p || pathname.startsWith(p + "/"));
   const isAuthPage = AUTH_PAGES.has(pathname);
   const isGuestPublicRoute = GUEST_PUBLIC_ROUTES.has(pathname) || Array.from(GUEST_PUBLIC_ROUTES).some(p => pathname.startsWith(p + "/"));
