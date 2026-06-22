@@ -106,24 +106,21 @@ export default function ActivatePage() {
     if (result.ok) {
       setActivationStatus('success');
       setMessage(result.data.message || 'Account activated.');
-      setUserEmail(result.data.user?.email || '');
+      const activatedEmail = result.data.user?.email || '';
+      setUserEmail(activatedEmail);
 
-      // Store token and user data in localStorage for immediate login
-      if (result.data.token && result.data.user) {
-        safeLocalStorage.setItem('token', result.data.token);
-        safeLocalStorage.setItem('user', JSON.stringify(result.data.user));
-
-        // Store token in cookie for server-side access.
-        // HttpOnly cannot be set here (client-side write); JS reads this cookie for
-        // Authorization headers. SameSite=Lax blocks cross-site form submissions;
-        // Secure ensures the cookie is only sent over HTTPS in production.
-        const secure = window.location.protocol === 'https:' ? '; Secure' : '';
-        document.cookie = `token=${result.data.token}; path=/; max-age=${24 * 60 * 60}; SameSite=Lax${secure}`;
-      }
-
-      // Redirect to dashboard after 2 seconds
+      // Redirect to login (NOT dashboard) — the activation route returns a
+      // legacy custom JWT that doesn't establish a NextAuth session, so
+      // pushing straight to /dashboard hits the middleware without a valid
+      // session and 302s to /403 ("Access Denied"). The customer's already
+      // chosen a password during registration; they just need to sign in
+      // with it. Pre-fill the email via querystring so they only need to
+      // type the password.
       setTimeout(() => {
-        router.push('/dashboard');
+        const params = new URLSearchParams();
+        params.set('message', 'Account activated successfully! Please sign in to continue.');
+        if (activatedEmail) params.set('email', activatedEmail);
+        router.push(`/login?${params.toString()}`);
       }, 2000);
     } else if (result.error.status === 0) {
       setActivationStatus('error');

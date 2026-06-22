@@ -60,6 +60,15 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
       setActivationMessage(decodeURIComponent(message));
     }
 
+    // Pre-fill email from ?email= when present (used by the post-activation
+    // redirect — saves the customer from re-typing the address they just
+    // verified). The savedEmail / loginFormData restores from localStorage
+    // above already cover repeat sign-ins.
+    const emailParam = searchParams.get('email');
+    if (emailParam) {
+      setFormData((prev) => ({ ...prev, email: decodeURIComponent(emailParam) }));
+    }
+
     // Check for NextAuth error parameter (e.g., from social login failure)
     const error = searchParams.get('error');
     if (error === 'AccessDenied' || error === 'Callback') {

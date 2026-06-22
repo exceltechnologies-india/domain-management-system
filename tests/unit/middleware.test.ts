@@ -424,20 +424,24 @@ describe("Admin-on-/dashboard guard — prevent role pollution of user surfaces"
 
 // ─── Protected route auth ───────────────────────────────────────────
 describe("Protected user routes — auth gate", () => {
-  it("no token on /dashboard → 307 to /403", async () => {
+  it("no token on /dashboard → 307 to /login with returnUrl", async () => {
     getToken.mockResolvedValueOnce(null);
     const req = makeReq("https://example.com/dashboard");
     const res = await middleware(req);
     expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toContain("/403");
+    const location = res.headers.get("location") || "";
+    expect(location).toContain("/login");
+    expect(location).toContain("returnUrl=%2Fdashboard");
   });
 
-  it("no token on /checkout → 307 to /403", async () => {
+  it("no token on /checkout → 307 to /login with returnUrl", async () => {
     getToken.mockResolvedValueOnce(null);
     const req = makeReq("https://example.com/checkout");
     const res = await middleware(req);
     expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toContain("/403");
+    const location = res.headers.get("location") || "";
+    expect(location).toContain("/login");
+    expect(location).toContain("returnUrl=%2Fcheckout");
   });
 
   it("**guest checkout (/checkout/guest) is PUBLIC** (no token required)", async () => {

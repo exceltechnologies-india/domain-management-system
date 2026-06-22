@@ -405,7 +405,18 @@ async function handleMiddleware(request: NextRequest, nonce: string, requestId: 
   if (isProtectedRoute) {
     if (!token) {
       logAuthAttempt(pathname, 401, requestId);
-      return addSecurityHeaders(NextResponse.redirect(new URL("/403", request.url)), { nonce, strictCSP: isStrictCSPRoute });
+      // Unauthenticated user → send to /login with returnUrl so they can
+      // come back to where they were trying to go after signing in.
+      // Previously this redirected to /403 ("Access Denied"), which is
+      // misleading UX — the customer wasn't denied access, they just
+      // weren't signed in. Specifically this bit the post-activation flow:
+      // the activate page pushed to /dashboard before a NextAuth session
+      // was established, so customers fresh from clicking the activation
+      // email landed on the hostile 403 page instead of a friendly login.
+      const safeReturn = pathname.startsWith("/") && !pathname.startsWith("//") ? pathname : "/dashboard";
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("returnUrl", safeReturn);
+      return addSecurityHeaders(NextResponse.redirect(loginUrl), { nonce, strictCSP: isStrictCSPRoute });
     }
 
     // Safety: prevent admins from accessing regular dashboards
