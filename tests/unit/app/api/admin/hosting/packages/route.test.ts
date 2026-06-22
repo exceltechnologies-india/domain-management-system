@@ -232,6 +232,39 @@ describe("GET — LIVE mode (DA available)", () => {
     );
   });
 
+  /**
+   * Pins the dms-00202+ admin-side filter: only the 3 commercial-tier
+   * packages (Starter / Standard / Plus) appear in the admin Hosting →
+   * Packages list, even when DA exposes additional legacy / internal
+   * names. The non-commercial packages still get synced to the DB
+   * (so customer-account lookups by planId continue to resolve) — only
+   * the GET response surface is filtered.
+   */
+  it("mixed DA package list → only commercial tiers (per HOSTING_PLANS config) returned to admin UI", async () => {
+    // The mocked HOSTING_PLANS at the top of this file has Starter + Pro
+    // as the commercial set. Real prod config has Starter/Standard/Plus.
+    // Test uses the mocked set; the filter logic is the same shape.
+    daListPackages.mockResolvedValueOnce([
+      "Starter", "Pro",                       // commercial (per mocked HOSTING_PLANS)
+      "1GB-ST", "2GB-wp", "ultimatepackage",  // DA-internal / legacy
+    ]);
+    daGetPackageDetails.mockResolvedValue({ quota: "1024", bandwidth: "10240" });
+    HostingPlanFindOne
+      .mockResolvedValueOnce(makePlan({ planId: "starter", directAdminPackage: "Starter" }))
+      .mockResolvedValueOnce(makePlan({ planId: "pro", directAdminPackage: "Pro" }))
+      .mockResolvedValueOnce(makePlan({ planId: "1gb-st", directAdminPackage: "1GB-ST" }))
+      .mockResolvedValueOnce(makePlan({ planId: "2gb-wp", directAdminPackage: "2GB-wp" }))
+      .mockResolvedValueOnce(makePlan({ planId: "ultimate", directAdminPackage: "ultimatepackage" }));
+
+    const res = await GET(makeReq("GET"));
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    // Only the 2 commercial tiers from mocked HOSTING_PLANS survive.
+    expect(body.data).toHaveLength(2);
+    const returnedPackages = body.data.map((p: { directAdminPackage: string }) => p.directAdminPackage).sort();
+    expect(returnedPackages).toEqual(["Pro", "Starter"]);
+  });
+
   it("'unlimited' quota/bandwidth → -1 sentinel", async () => {
     daListPackages.mockResolvedValueOnce(["Pro"]);
     daGetPackageDetails.mockResolvedValueOnce({
