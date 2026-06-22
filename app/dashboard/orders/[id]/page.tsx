@@ -208,12 +208,17 @@ function DomainCard({ domain }: { domain: OrderDomain }) {
         </div>
       )}
 
-      {/* Error */}
-      {domain.error && domain.status === 'failed' && (
-        <div className="mx-5 mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-xs text-red-700">{domain.error}</p>
-        </div>
-      )}
+      {/*
+        Customer-facing failure display intentionally relies on the friendly
+        copy in the bookingStatus chain (rendered just above). We DO NOT
+        surface `domain.error` here because — since dms-00194-mlz — that
+        field carries the raw upstream provisioning error (DA license caps,
+        ResellerClub error codes, etc.) for admin diagnostics. Customers
+        seeing "Cannot Execute Your Request - License is limited to 2
+        accounts" is wrong UX — they don't know what DA is. The admin
+        order-management page (`/admin/order-management`) reads
+        `domain.error` directly and surfaces it to operators.
+      */}
     </div>
   );
 }
