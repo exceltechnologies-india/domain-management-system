@@ -130,13 +130,38 @@ export async function GET(request: NextRequest) {
             );
             let linkedByEmail = false;
             let daConfig: DaUserConfig = {};
+            // Live disk/bandwidth USAGE values — come from a separate DA
+            // endpoint (CMD_API_SHOW_USER_USAGE) than the config endpoint
+            // (CMD_API_SHOW_USER_CONFIG). The config endpoint only carries
+            // LIMITS (bandwidth / quota); reading `daConfig.bandwidth_usage`
+            // / `daConfig.quota_usage` from it returns undefined for every
+            // user — which is why `/admin/hosting` had been silently
+            // displaying "0 B / 1 GB" for every account since the page
+            // existed. Fix landed 2026-06-22.
+            let daUsage: DaUserConfig = {};
 
             try {
                 // Per-user fetch can be slow at scale (~100s of users). If this
-                // becomes a hotspot, switch to the bulk usage map + DB-cached
-                // config — the try/catch around it keeps one failure from
-                // taking down the whole stats page either way.
-                daConfig = await DirectAdminService.getUserConfig(daUsername);
+                // becomes a hotspot, switch to the bulk usage map
+                // (CMD_API_SHOW_ALL_USERS_USAGE if DA exposes it for this
+                // server) + DB-cached config — the try/catch around it keeps
+                // one failure from taking down the whole stats page either
+                // way. Today the two per-user calls run in parallel so the
+                // wall-clock cost per user is max(config, usage), not
+                // config + usage.
+                [daConfig, daUsage] = await Promise.all([
+                    DirectAdminService.getUserConfig(daUsername),
+                    DirectAdminService.getUserUsage(daUsername).catch((e: unknown) => {
+                        // Usage-fetch failure shouldn't block the row — log
+                        // and continue with zeros. Config is the more
+                        // important one; usage is just a display nicety.
+                        serverLogger.warn(
+                            `[ADMIN-HOSTING-STATS] Usage fetch failed for ${daUsername}:`,
+                            e instanceof Error ? e.message : String(e)
+                        );
+                        return {} as DaUserConfig;
+                    }),
+                ]);
 
                 if (!localUser && daConfig.email) {
                     // Try simple email match from our pre-fetched list? No, simpler to just skip or rely on what we have.
@@ -165,10 +190,13 @@ export async function GET(request: NextRequest) {
 
             const bandwidth = daConfig.bandwidth || '0';
             const quota = daConfig.quota || '0';
-            
+
+            // Usage fields prefer the dedicated usage endpoint's values; fall
+            // back to the (usually-empty) config-endpoint fields for backwards
+            // compat with any DA build that happens to include them there.
             const usage = {
-              bandwidth: daConfig.bandwidth_usage || '0',
-              disk: daConfig.quota_usage || '0',
+              bandwidth: daUsage.bandwidth || daConfig.bandwidth_usage || '0',
+              disk: daUsage.quota || daUsage.disk || daConfig.quota_usage || '0',
               bandwidthLimit: bandwidth === 'unlimited' ? 'Unlimited' : bandwidth,
               diskLimit: quota === 'unlimited' ? 'Unlimited' : quota,
             };
