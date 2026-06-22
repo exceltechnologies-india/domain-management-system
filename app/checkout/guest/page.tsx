@@ -15,7 +15,7 @@ import Footer from '@/components/Footer';
 import Link from 'next/link';
 import { getMinRegistrationPeriod } from '@/lib/tld-min-periods';
 import type { CartItem } from '@/lib/types';
-import { INDIAN_STATES } from '@/lib/constants';
+import { INDIAN_STATES, normaliseIndianState } from '@/lib/constants';
 import { getDeviceFingerprint } from '@/lib/device-fingerprint';
 import { useRazorpayCheckout } from '@/components/RazorpayCheckoutFrame';
 
@@ -133,36 +133,13 @@ function GuestCheckoutInner() {
 
           // State — Nominatim returns the full name which sometimes doesn't
           // match the dropdown verbatim ("NCT of Delhi", "Orissa", etc).
-          // Normalise + fuzzy-match against the canonical INDIAN_STATES list.
-          const detectedRawState: string = addr.state || addr['ISO3166-2-lvl4'] || '';
-          const stateAliases: Record<string, string> = {
-            'national capital territory of delhi': 'Delhi',
-            'nct of delhi': 'Delhi',
-            'delhi nct': 'Delhi',
-            'orissa': 'Odisha',
-            'pondicherry': 'Puducherry',
-            'uttaranchal': 'Uttarakhand',
-            'jammu & kashmir': 'Jammu and Kashmir',
-            'j&k': 'Jammu and Kashmir',
-            'andaman & nicobar': 'Andaman and Nicobar Islands',
-            'tamilnadu': 'Tamil Nadu',
-          };
-          const normaliseState = (raw: string): string => {
-            if (!raw) return '';
-            const k = raw.toLowerCase().trim();
-            if (stateAliases[k]) return stateAliases[k];
-            // Exact (case-insensitive) match against canonical list
-            const exact = INDIAN_STATES.find(
-              (s) => s.toLowerCase() === k
-            );
-            if (exact) return exact;
-            // Substring fallback — e.g. "Delhi NCT" contains "delhi"
-            const fuzzy = INDIAN_STATES.find(
-              (s) => k.includes(s.toLowerCase()) || s.toLowerCase().includes(k)
-            );
-            return fuzzy || '';
-          };
-          const detectedState = normaliseState(detectedRawState);
+          // Normalise against the canonical INDIAN_STATES list via the
+          // shared `normaliseIndianState` helper in lib/constants (used
+          // by all 3 auto-detect call sites — guest checkout, dashboard
+          // settings, registration — so they stay in sync). The
+          // `ISO3166-2-lvl4` fallback covers responses that omit `state`
+          // but include the ISO subdivision code.
+          const detectedState = normaliseIndianState(addr.state || addr['ISO3166-2-lvl4']);
 
           const detectedZip = addr.postcode || '';
 
