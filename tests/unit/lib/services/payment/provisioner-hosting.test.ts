@@ -479,15 +479,22 @@ describe("handleHostingProvisionError — DA-unreachable vs hard-failure routing
     expect(step.progress).toBe(100);
   });
 
-  it("createPendingHosting failure SWALLOWED — orderDomain.error still surfaces", async () => {
+  it("createPendingHosting failure SWALLOWED — orderDomain.error still surfaces the raw DA reason for admin postmortem", async () => {
     daCreateUser.mockResolvedValueOnce({
       kind: "hard_failure",
-      reason: "fail",
+      reason: "DETAILED INTERNAL REASON",
     });
     createPendingHosting.mockRejectedValueOnce(new Error("phs db down"));
     const result = await provisionHostingItem(ITEM as never, CTX as never);
     expect(result.registrationResult.status).toBe("failed");
-    expect(result.orderDomain.error).toMatch(/team has been notified/i);
+    // 2026-06-22: orderDomain.error now carries the raw DA reason (was the
+    // generic user-facing copy until today). The user-facing string still
+    // shows in `result.registrationResult.error` and in
+    // `orderDomain.bookingStatus[last].message`; orderDomain.error is
+    // free to be diagnostic-quality because the customer order page
+    // reads bookingStatus, not orderDomain.error.
+    expect(result.orderDomain.error).toContain("DETAILED INTERNAL REASON");
+    expect(result.registrationResult.error).toMatch(/team has been notified/i);
   });
 
   it("PendingHosting payload includes raw error.message for postmortem (NOT the user-facing version)", async () => {
