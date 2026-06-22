@@ -600,46 +600,63 @@ export default function AdminOrders() {
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Domains in this Order</h3>
                 <div className="space-y-3">
                   {selectedOrder.domains.map((domain, index) => (
-                    <div key={index} className="flex flex-col sm:flex-row sm:items-center justify-between py-3 px-4 bg-gray-50 rounded-lg gap-3 sm:gap-0">
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
-                        <div className="flex items-center space-x-2">
-                          <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
-                              domain.status === 'registered' ? 'bg-green-500' : 
-                              domain.status === 'pending' ? 'bg-yellow-500' : 
-                              'bg-red-500'
-                            }`}></div>
-                          <span className="font-medium text-gray-900 break-all">
-                            {domain.domainName}
-                          </span>
-                          {domain.status !== 'registered' && (
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium uppercase ${
-                              domain.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
-                            }`}>
-                              {domain.status}
+                    <div key={index} className="py-3 px-4 bg-gray-50 rounded-lg">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+                          <div className="flex items-center space-x-2">
+                            <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                                domain.status === 'registered' ? 'bg-green-500' :
+                                domain.status === 'pending' ? 'bg-yellow-500' :
+                                'bg-red-500'
+                              }`}></div>
+                            <span className="font-medium text-gray-900 break-all">
+                              {domain.domainName}
                             </span>
-                          )}
+                            {domain.status !== 'registered' && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium uppercase ${
+                                domain.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
+                              }`}>
+                                {domain.status}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center space-x-2 sm:ml-0">
+                            {domain.hostingPlan?.name && (
+                              <span className="text-xs font-normal text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                {domain.hostingPlan.name}
+                              </span>
+                            )}
+                            <span className="text-sm text-gray-500 whitespace-nowrap">
+                              {domain.registrationPeriod} {(domain.hostingPlan ? 'month' : 'year')}{domain.registrationPeriod !== 1 ? 's' : ''}
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center space-x-2 sm:ml-0">
-                          {domain.hostingPlan?.name && (
-                            <span className="text-xs font-normal text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full whitespace-nowrap">
-                              {domain.hostingPlan.name}
-                            </span>
-                          )}
-                          <span className="text-sm text-gray-500 whitespace-nowrap">
-                            {domain.registrationPeriod} {(domain.hostingPlan ? 'month' : 'year')}{domain.registrationPeriod !== 1 ? 's' : ''}
+                        <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto mt-2 sm:mt-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-200">
+                          <span className="font-medium text-gray-900">
+                            ₹{(domain.price * domain.registrationPeriod).toFixed(2)}
                           </span>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto mt-2 sm:mt-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-200">
-                        <span className="font-medium text-gray-900">
-                          ₹{(domain.price * domain.registrationPeriod).toFixed(2)}
-                        </span>
-                        {domain.status === 'failed' && domain.error && (
-                          <span className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded ml-3">
+                      {/*
+                        Raw upstream provisioner error — admin-only diagnostic.
+                        Surfaces what DirectAdmin / ResellerClub actually replied
+                        (e.g. "License is limited to 2 accounts", "Domain already
+                        registered", "Invalid package name"). Customers see the
+                        friendly bookingStatus.message on /dashboard/orders/[id];
+                        operators see the raw text here. Block layout (rather
+                        than the old inline pill) so multi-line / long messages
+                        are readable.
+                      */}
+                      {domain.status === 'failed' && domain.error && (
+                        <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                          <div className="text-[10px] font-semibold uppercase tracking-wide text-red-600 mb-1">
+                            Upstream provisioner error
+                          </div>
+                          <div className="text-xs text-red-800 font-mono whitespace-pre-wrap break-words">
                             {domain.error}
-                          </span>
-                        )}
-                      </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
