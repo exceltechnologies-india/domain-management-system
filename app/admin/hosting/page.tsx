@@ -26,6 +26,8 @@ import {
   RefreshCw,
   CheckCircle2,
   HardDrive,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import ActionMenu from '@/components/admin/ActionMenu';
 import RefreshButton from '@/components/dashboard/RefreshButton';
@@ -75,6 +77,7 @@ export default function AdminHostingPage() {
   const [user, setUser] = useState<User | null>(null);
   const [hostingData, setHostingData] = useState<HostingData[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   const [daMode, setDaMode] = useState<string>('Live'); // Default to Live, update from API
 
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -508,6 +511,21 @@ export default function AdminHostingPage() {
     item.user.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Client-side pagination — the /api/v1/admin/hosting/stats endpoint
+  // returns all accounts in one shot (acceptable for the current ~30-account
+  // scale; server-side cursoring becomes worthwhile only past a few hundred).
+  // Slicing in-memory means search + sort still operate on the full dataset.
+  const PAGE_SIZE = 10;
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pagedData = filteredData.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  // Reset to page 1 whenever the filter shrinks the dataset below the
+  // current page's offset — otherwise an empty table renders after typing
+  // a narrow search.
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(1);
+  }, [currentPage, totalPages]);
+
   const AnimatedLoading = () => {
     const [dots, setDots] = useState('');
 
@@ -621,7 +639,7 @@ export default function AdminHostingPage() {
                   placeholder="Search by domain, user or email…"
                   className="w-full sm:w-80 pl-10 pr-3 py-2 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                 />
               </div>
               <RefreshButton onClick={fetchHostingData} isLoading={isDataLoading} />
@@ -649,7 +667,7 @@ export default function AdminHostingPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredData.map((item) => (
+                  {pagedData.map((item) => (
                     <tr
                       key={item.id}
                       className="hover:bg-gray-50 group/row cursor-context-menu"
@@ -812,6 +830,52 @@ export default function AdminHostingPage() {
                   ))}
                 </tbody>
               </table>
+              {/*
+                Pagination footer. Hidden when there's only one page (≤10
+                accounts) so the existing single-page experience is
+                unchanged for small datasets. The page counter shows the
+                visible window (e.g. "11–20 of 31") plus prev / next
+                controls. Page numbers themselves aren't rendered as
+                buttons because the hosting list is unlikely to grow past
+                a handful of pages and prev/next keeps the header
+                uncluttered; can revisit if we ever hit 100+ accounts.
+              */}
+              {totalPages > 1 && (
+                <div className="px-6 py-3 border-t border-gray-100 bg-gray-50/40 flex items-center justify-between gap-3 text-xs">
+                  <div className="text-gray-600">
+                    Showing <span className="font-medium text-gray-900">{(safePage - 1) * PAGE_SIZE + 1}</span>
+                    {" – "}
+                    <span className="font-medium text-gray-900">{Math.min(safePage * PAGE_SIZE, filteredData.length)}</span>
+                    {" of "}
+                    <span className="font-medium text-gray-900">{filteredData.length}</span> account{filteredData.length === 1 ? '' : 's'}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={safePage === 1}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      aria-label="Previous page"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                      Previous
+                    </button>
+                    <span className="text-gray-500 px-1">
+                      Page <span className="font-medium text-gray-900">{safePage}</span> of <span className="font-medium text-gray-900">{totalPages}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={safePage === totalPages}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      aria-label="Next page"
+                    >
+                      Next
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           </div>
