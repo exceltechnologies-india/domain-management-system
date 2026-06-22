@@ -16,13 +16,21 @@ export const API_KEY = process.env.DIRECTADMIN_API_KEY;
 
 /**
  * The shared-server IP that DA accounts get bound to. Sourced from the
- * DIRECTADMIN_IP env var; the literal fallback is the production server's IP
- * (kept so that local-dev / first-boot smoke tests don't crash before the env
- * is wired). Production deploys MUST set DIRECTADMIN_IP — a forgotten env in
- * staging would otherwise silently provision new hosting accounts onto the
- * prod DA box.
+ * DIRECTADMIN_IP env var; the literal fallback is the current production
+ * server's IP (kept so local-dev / first-boot smoke tests don't crash before
+ * the env is wired). Production deploys MUST set DIRECTADMIN_IP — a
+ * forgotten env in staging would otherwise silently provision new hosting
+ * accounts onto the prod DA box.
+ *
+ * Updated 2026-06-22 from the old `136.115.64.54` fallback (the previous
+ * server that's being retired) to `35.208.86.44` (the new DA server's
+ * primary IP from IP Manager). The senior reviewer hit this immediately
+ * after the DA server switch — every create-user call was failing with
+ * "That IP does not exist in your list" because DIRECTADMIN_IP was never
+ * in the deploy script's ENV_VARS list, so Cloud Run ran with the stale
+ * fallback.
  */
-const DA_FALLBACK_IP = "136.115.64.54";
+const DA_FALLBACK_IP = "35.208.86.44";
 export const DA_SERVER_IP =
   process.env.DIRECTADMIN_IP ||
   (process.env.NODE_ENV === "production"

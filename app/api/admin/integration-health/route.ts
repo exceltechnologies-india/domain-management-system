@@ -91,6 +91,14 @@ const PROVIDERS: ProviderClassifier[] = [
         hint: "DirectAdmin license tier is at its account quota. Either delete an unused user in DA admin (Account Manager → Show All Users) or upgrade the license to a higher tier from the DA license provider.",
       },
       {
+        needle: /that ip does not exist in your list|ip does not exist/i,
+        hint: "The `DIRECTADMIN_IP` env var our code sends to DA's create-user API isn't in the DA server's IP Manager list. Open the new DA admin → Server Manager → IP Manager → copy the active IP, then set `DIRECTADMIN_IP=<ip>` in `.env.local` AND verify it's in `deploy-cloud-run.sh`'s ENV_VARS list. Redeploy. Bit us 2026-06-22 right after the DA server switch — the literal fallback in `lib/directadmin/client.ts` was the OLD server's IP.",
+      },
+      {
+        needle: /cannot create account.*package not found|package not found/i,
+        hint: "DA rejected the create-user call because the package name our code is sending (Starter / Standard / Plus by default) doesn't exist on the DA server. Open DA admin → Server Manager → Manage User Packages → create the three commercial packages with the right disk / bandwidth / inode limits per tier.",
+      },
+      {
         needle: /\[DA-FAIL\]|DirectAdmin|da_unreachable|directadmin|DA-/i,
         hint: "DA returned an error on the create-user / suspend / delete call. Check the DA admin panel is reachable and the CSF / firewall / API allowlist still includes Cloud Run's NAT egress IP 34.14.59.128.",
       },
