@@ -29,7 +29,24 @@ export async function GET(request: NextRequest) {
     }
 
     await connectDB();
-    
+
+    /**
+     * `?firstPage=N` (default 0 = "fetch all") — when set, returns just
+     * the first N DA users' rows so the admin page's initial paint is
+     * fast even with a 3-digit account count. The page then fires a
+     * second request without this param to backfill the rest. With it
+     * off (the legacy path), the route fetches DA config + usage for
+     * every account, which is 2 DA API calls × N users; even running
+     * in parallel the wall-clock grows with N.
+     *
+     * Cap at 200 to prevent abuse. The list is sliced AFTER DA's
+     * listUsers() returns (alphabetical / DA's natural order), so the
+     * "first 10" the fast call returns are stable — when the
+     * background fetch completes and replaces state, the same 10 rows
+     * stay put and 21 more append.
+     */
+    const firstPageParam = Math.max(0, Math.min(200, Number(new URL(request.url).searchParams.get('firstPage')) || 0));
+
     // 2. Fetch Data Sources (Resilient)
     // Always attempt live fetch as the default and only mode
     
@@ -121,9 +138,18 @@ export async function GET(request: NextRequest) {
     };
     let hostingStats: HostingStatRow[] = [];
 
+    // Apply the firstPage cap if requested. `totalUsers` reflects the
+    // un-sliced count so the frontend knows whether a background fetch
+    // is needed to populate the rest.
+    const totalUsers = daUserList.length;
+    const usersToProcess = firstPageParam > 0
+      ? daUserList.slice(0, firstPageParam)
+      : daUserList;
+    const truncated = usersToProcess.length < totalUsers;
+
     if (isDaAvailable) {
         // LIVE MODE: Iterate over DA Users and map to local
-        hostingStats = await Promise.all(daUserList.map(async (daUsername): Promise<HostingStatRow> => {
+        hostingStats = await Promise.all(usersToProcess.map(async (daUsername): Promise<HostingStatRow> => {
             // [Keep existing mapping logic, just using pre-fetched hostingRecords]
             let localUser: LocalUser | undefined = (localUsers as LocalUser[]).find(
               (u) => u.directAdminUsername === daUsername
@@ -315,14 +341,22 @@ export async function GET(request: NextRequest) {
         }
     }
 
-    const response = NextResponse.json({ 
-      success: true, 
+    const response = NextResponse.json({
+      success: true,
       data: hostingStats,
       source: isDaAvailable ? 'live' : 'db',
       isDaConnected: isDaAvailable,
       daError: daError,
       daMode,
-      warning: isDaAvailable ? null : `DirectAdmin unreachable: ${daError}`
+      warning: isDaAvailable ? null : `DirectAdmin unreachable: ${daError}`,
+      // Pagination hint — used by the admin hosting page to decide
+      // whether a background "fetch the rest" request is needed after
+      // the fast first-page render.
+      pagination: {
+        returned: hostingStats.length,
+        total: totalUsers,
+        truncated,
+      },
     });
     
     return addSecurityHeaders(response);

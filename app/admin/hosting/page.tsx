@@ -213,12 +213,27 @@ export default function AdminHostingPage() {
 
 
 
-  // Fetch Hosting Data
+  /**
+   * Fetch hosting accounts via a two-pass lazy-load:
+   *
+   *   Pass 1 — `?firstPage=10` returns the first 10 accounts quickly so the
+   *            table paints with real data immediately. `setIsDataLoading`
+   *            clears here so the skeleton goes away after only N×config+N×usage
+   *            DA round-trips (~1-2s typical), not all-31×... (~4-8s typical).
+   *
+   *   Pass 2 — backgrounds a no-param request (returns every account) and
+   *            silently swaps state in when it lands. The user sees the table
+   *            grow from 10 → 31 rows over a few seconds, no spinner.
+   *
+   * Skipped when there are <= 10 accounts on the server (pass 1's `total`
+   * count matches the returned size, so no background fetch is needed).
+   */
   const fetchHostingData = async () => {
     setIsDataLoading(true);
     setIsServerDown(false); // Reset
 
-    const result = await apiClient.get<{
+    // PASS 1 — fast first-page
+    const firstResult = await apiClient.get<{
       success?: boolean;
       data?: HostingData[];
       daMode?: string;
@@ -227,16 +242,15 @@ export default function AdminHostingPage() {
       message?: string;
       error?: string;
       code?: string;
-    }>(`/api/v1/admin/hosting/stats?t=${Date.now()}`);
+      pagination?: { returned?: number; total?: number; truncated?: boolean };
+    }>(`/api/v1/admin/hosting/stats?firstPage=10&t=${Date.now()}`);
 
-    if (!result.ok) {
-      // 503 / DA_SERVER_DOWN / network failure → treat as server down (silent),
-      // any other server error → server down + visible toast
+    if (!firstResult.ok) {
       setIsServerDown(true);
-      if (result.error.status === 503 || result.error.code === 'DA_SERVER_DOWN' || result.error.status === 0) {
-        setDaError(result.error.message || 'DirectAdmin server is unreachable');
+      if (firstResult.error.status === 503 || firstResult.error.code === 'DA_SERVER_DOWN' || firstResult.error.status === 0) {
+        setDaError(firstResult.error.message || 'DirectAdmin server is unreachable');
       } else {
-        setDaError(result.error.message || 'Network error or system failure');
+        setDaError(firstResult.error.message || 'Network error or system failure');
         toast.error('Error loading hosting data');
       }
       setHostingData([]);
@@ -244,39 +258,52 @@ export default function AdminHostingPage() {
       return;
     }
 
-    const data = result.data;
-    // 200 but non-JSON / empty body — the old content-type guard
-    if (!data) {
+    const firstData = firstResult.data;
+    if (!firstData) {
       setIsServerDown(true);
       setDaError('Server returned an invalid response (non-JSON)');
       setHostingData([]);
       setIsDataLoading(false);
       return;
     }
-    // 200 JSON that still signals DA unreachable
-    if (data.error === 'DA_SERVER_DOWN' || data.code === 'DA_SERVER_DOWN') {
+    if (firstData.error === 'DA_SERVER_DOWN' || firstData.code === 'DA_SERVER_DOWN') {
       setIsServerDown(true);
-      setDaError(data.message || 'DirectAdmin server is unreachable');
+      setDaError(firstData.message || 'DirectAdmin server is unreachable');
       setHostingData([]);
       setIsDataLoading(false);
       return;
     }
 
-    if (data.success) {
-      // Deduplicate data by ID to prevent key warnings
-      const incoming = data.data ?? [];
+    if (firstData.success) {
+      const incoming = firstData.data ?? [];
       const uniqueData = Array.from(new Map(incoming.map((item) => [item.id, item])).values());
       setHostingData(uniqueData);
-      if (data.daMode) setDaMode(data.daMode); // Update mode from API
-
-      // Update connection status
-      setIsServerDown(!data.isDaConnected);
-      setDaError(data.daError || null);
+      if (firstData.daMode) setDaMode(firstData.daMode);
+      setIsServerDown(!firstData.isDaConnected);
+      setDaError(firstData.daError || null);
     } else {
       toast.error('Failed to fetch hosting data');
-      setDaError(data.message || 'Unknown API error');
+      setDaError(firstData.message || 'Unknown API error');
+      setIsDataLoading(false);
+      return;
     }
     setIsDataLoading(false);
+
+    // PASS 2 — background backfill IF there are more rows beyond the first 10
+    if (firstData.pagination?.truncated) {
+      // No loading state — silent fill-in. Errors here are swallowed so a
+      // background failure doesn't disrupt the table the user is already
+      // looking at; the first 10 rows remain valid.
+      const fullResult = await apiClient.get<{
+        success?: boolean;
+        data?: HostingData[];
+      }>(`/api/v1/admin/hosting/stats?t=${Date.now()}`);
+
+      if (fullResult.ok && fullResult.data?.success && fullResult.data.data) {
+        const fullData = Array.from(new Map(fullResult.data.data.map((item) => [item.id, item])).values());
+        setHostingData(fullData);
+      }
+    }
   };
 
   const fetchProvisionDeps = async () => {
