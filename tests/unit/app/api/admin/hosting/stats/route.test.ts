@@ -121,10 +121,11 @@ vi.doMock("next/server", () => ({ NextRequest, NextResponse }));
 
 import { GET } from "@/app/api/admin/hosting/stats/route";
 
-function makeReq() {
-  return new NextRequest("https://example.com/api/admin/hosting/stats", {
-    method: "GET",
-  });
+function makeReq(qs = "") {
+  const url = qs
+    ? `https://example.com/api/admin/hosting/stats?${qs}`
+    : "https://example.com/api/admin/hosting/stats";
+  return new NextRequest(url, { method: "GET" });
 }
 
 // Chainable Hosting.find query stub
@@ -352,6 +353,48 @@ describe("LIVE mode — DA available", () => {
     const res = await GET(makeReq());
     const body = await res.json();
     expect(body.data[0].phpVersion).toBe("8.2");
+  });
+
+  /**
+   * Pins the lazy-load behavior added 2026-06-22 to keep the admin
+   * hosting page snappy on first paint. Without `?firstPage=N` the
+   * route fetches DA config + usage for every user; with it set, only
+   * the first N users are processed and the response includes
+   * `pagination.truncated: true` so the frontend knows to background-
+   * fetch the rest.
+   */
+  it("?firstPage=2 with 5 DA users → only first 2 rows returned + pagination.truncated=true", async () => {
+    listUsersWithDirectAdmin.mockResolvedValueOnce([]);
+    hostingFind.mockReturnValueOnce(chainableHostingFind([]));
+    listDAUsers.mockResolvedValueOnce(["alice", "bob", "carol", "dan", "eve"]);
+    getAllUserUsage.mockResolvedValueOnce({});
+    getServerInfo.mockResolvedValueOnce({ php: "8.2" });
+    // Only 2 config + 2 usage fetches should fire (Promise.all per user).
+    getUserConfig
+      .mockResolvedValueOnce({ domain: "alice.example.com" })
+      .mockResolvedValueOnce({ domain: "bob.example.com" });
+
+    const res = await GET(makeReq("firstPage=2"));
+    const body = await res.json();
+    expect(body.data).toHaveLength(2);
+    expect(body.pagination).toEqual({ returned: 2, total: 5, truncated: true });
+    // The 3rd-onward users were not fetched — getUserConfig only called 2x.
+    expect(getUserConfig).toHaveBeenCalledTimes(2);
+  });
+
+  it("?firstPage missing → returns all rows + pagination.truncated=false", async () => {
+    listUsersWithDirectAdmin.mockResolvedValueOnce([]);
+    hostingFind.mockReturnValueOnce(chainableHostingFind([]));
+    listDAUsers.mockResolvedValueOnce(["alice", "bob"]);
+    getAllUserUsage.mockResolvedValueOnce({});
+    getServerInfo.mockResolvedValueOnce({ php: "8.2" });
+    getUserConfig
+      .mockResolvedValueOnce({ domain: "alice.example.com" })
+      .mockResolvedValueOnce({ domain: "bob.example.com" });
+    const res = await GET(makeReq());
+    const body = await res.json();
+    expect(body.data).toHaveLength(2);
+    expect(body.pagination).toEqual({ returned: 2, total: 2, truncated: false });
   });
 
   it("PHP version resolution: no daConfig.php_version + no daConfig.php='ON' → 'Default'", async () => {
