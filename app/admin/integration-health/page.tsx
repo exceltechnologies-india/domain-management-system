@@ -60,6 +60,10 @@ const PROVIDER_DESCRIPTIONS: Record<string, string> = {
   zoho: 'Tax-compliant invoice generation post-payment.',
   resellerclub: 'Domain registration, transfer, and DNS management.',
   razorpay: 'Payment authorization, capture, and webhook handling.',
+  email: 'Outbound SMTP — order confirmations, activation links, password resets.',
+  auth: 'Sign-in, 2FA, JWT verification, rate-limit triggers.',
+  background: 'Cron jobs and worker queues — Zoho retry, RC pricing sync, daily cleanup.',
+  application: 'Other server-side errors — middleware, API routes, business logic.',
   unknown: 'Errors that did not match any known upstream-provider signature.',
 };
 
