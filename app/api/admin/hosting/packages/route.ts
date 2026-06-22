@@ -126,12 +126,42 @@ export async function GET(request: NextRequest) {
         // Fallback: Fetch from DB only
         syncedPackages = await HostingPlan.find({ isActive: true });
     }
-    
-    serverLogger.info(`Admin List Packages: Returning ${syncedPackages.length} packages (Source: ${isDaAvailable ? 'DA+DB' : 'DB Only'})`);
+
+    /**
+     * Surface ONLY the 3 commercial-tier packages on the admin page
+     * — Starter / Standard / Plus (the ones we sell + bill via Razorpay).
+     *
+     * DA servers carry many extra packages: legacy / pre-production
+     * names (`1GB-ST`, `1gb-st-multidomain`, `1gb-wp`, `25GB-wp`,
+     * `2GB-wp`, `5GB-wp`, `ultimatepackage`), an "internal/test"
+     * tier, the migrated installs from older DA setups, etc. These
+     * still need to live in our `hostingplans` collection because
+     * existing customer accounts may be on them and lookups by
+     * `planId` must still resolve. But the admin Hosting → Packages
+     * page should ONLY show the three commercial tiers — anything
+     * else is DA-internal book-keeping that an operator should
+     * manage in DA admin, not here.
+     *
+     * Filter set is sourced from `config/hosting-plans.ts`
+     * (HOSTING_PLANS) so adding a new commercial tier in one place
+     * automatically surfaces it here too — no list to keep in sync.
+     */
+    const commercialPlanIds = new Set(Object.values(HOSTING_PLANS).map(p => p.id));
+    const commercialServerPackages = new Set(Object.values(HOSTING_PLANS).map(p => p.serverPackage));
+    const visiblePackages = syncedPackages.filter(p => {
+      const planId = (p as { planId?: string }).planId;
+      const daPkg = (p as { directAdminPackage?: string }).directAdminPackage;
+      return (planId && commercialPlanIds.has(planId))
+          || (daPkg && commercialServerPackages.has(daPkg));
+    });
+
+    serverLogger.info(
+      `Admin List Packages: Returning ${visiblePackages.length} commercial packages (filtered from ${syncedPackages.length} synced; source: ${isDaAvailable ? 'DA+DB' : 'DB Only'})`
+    );
 
     return secureJsonResponse({
       success: true,
-      data: syncedPackages,
+      data: visiblePackages,
       source: isDaAvailable ? 'live' : 'db',
       warning: isDaAvailable ? null : 'DirectAdmin unreachable. Showing cached packages.'
     });
