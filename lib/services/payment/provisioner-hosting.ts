@@ -225,6 +225,10 @@ export async function provisionHostingItem(
 
     const orderDomain: OrderDomain = {
       domainName: item.domainName,
+      // Carry linkedDomain through to the post-provisioning write-back so
+      // it doesn't get erased from the DB row on the `finalizePendingOrder`
+      // `Order.updateOne` $set domains. See OrderDomain.linkedDomain JSDoc.
+      linkedDomain: item.linkedDomain,
       price: item.price,
       currency: item.currency || "INR",
       registrationPeriod: safePeriod,
@@ -389,6 +393,11 @@ async function handleHostingProvisionError(
 
   const orderDomain: OrderDomain = {
     domainName: item.domainName,
+    // Carry linkedDomain through the failure path too — the field was set
+    // at create-order time (dms-00191-wgk inference patch) and must survive
+    // `finalizePendingOrder`'s `Order.updateOne $set domains: orderDomains`
+    // overwrite so admin Re-sync has the real target domain.
+    linkedDomain: item.linkedDomain,
     price: item.price,
     currency: item.currency || "INR",
     registrationPeriod: item.registrationPeriod || 1,
@@ -402,12 +411,19 @@ async function handleHostingProvisionError(
         step: isDaUnreachable ? "hosting_deferred" : "domain_failed",
         message: isDaUnreachable
           ? "Provisioning queued — waiting for server availability"
-          : userFacingError, // generic — raw `details` stays in serverLogger
+          : userFacingError, // generic — raw `details` lives on orderDomain.error
         timestamp: new Date(),
         progress: isDaUnreachable ? 50 : 100,
       },
     ],
-    error: userFacingError,
+    // Diagnostic field — carries the raw upstream error (DA API reply,
+    // exception message + status code, etc.) for admin postmortem. The
+    // customer-facing copy lives in the bookingStatus[].message above.
+    // Cloud Run's stdout/stderr stream has been unreliable for this
+    // service all week, and PendingHosting rows aren't always created
+    // (see handleHostingProvisionError catch), so this is the only
+    // diagnostic-quality place the raw error reliably lands.
+    error: details,
   };
 
   return { registrationResult, orderDomain };

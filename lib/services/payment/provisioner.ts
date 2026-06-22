@@ -55,7 +55,29 @@ export interface OrderDomain {
   expiresAt?: Date;
   planName?: string;
   hostingPlan?: Record<string, unknown>;
+  /**
+   * Customer-friendly failure copy in the customer's order page when this
+   * domain failed to register. For HOSTING items where the operator needs
+   * the raw upstream-error (DA API reply, ResellerClub code, etc.) for
+   * postmortem, populate this with the raw `details` string — the
+   * customer-visible message lives in the last bookingStatus entry, so
+   * `error` is free to carry the diagnostic payload without leaking
+   * anything to UI.
+   */
   error?: string;
+  /**
+   * The real customer-facing domain a hosting line item is associated with.
+   * For hosting items, `domainName` carries the synthetic cart-store ID
+   * (`hosting-standard-…`) — we MUST also carry the real domain through
+   * the post-provisioning write-back, otherwise the field gets erased on
+   * every `finalizePendingOrder` update and admin Re-sync has nothing to
+   * target. Added 2026-06-22 after the senior reviewer's
+   * `ord_1782106329614_xg3p4t` test order showed linkedDomain disappearing
+   * from the DB row immediately after a failed provisioning attempt
+   * (had been correctly set at create-order time by the dms-00191-wgk
+   * inference patch — only to be overwritten here).
+   */
+  linkedDomain?: string;
 }
 
 export interface ProvisionerContext {
