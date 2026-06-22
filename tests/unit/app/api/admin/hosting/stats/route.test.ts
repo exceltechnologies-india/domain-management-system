@@ -53,12 +53,14 @@ const listDAUsers = vi.hoisted(() => vi.fn());
 const getAllUserUsage = vi.hoisted(() => vi.fn());
 const getServerInfo = vi.hoisted(() => vi.fn());
 const getUserConfig = vi.hoisted(() => vi.fn());
+const getUserUsage = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/directadmin", () => ({
   DirectAdminService: {
     listUsers: listDAUsers,
     getAllUserUsage,
     getServerInfo,
     getUserConfig,
+    getUserUsage,
   },
 }));
 
@@ -174,6 +176,11 @@ beforeEach(() => {
   getAllUserUsage.mockReset().mockResolvedValue({});
   getServerInfo.mockReset().mockResolvedValue({ php: "Default" });
   getUserConfig.mockReset();
+  // Defensive default — getUserUsage is called in parallel with getUserConfig
+  // for every row; any test that doesn't explicitly mock usage should still
+  // pass with an empty usage payload (which is what real DA would return for
+  // a brand-new account).
+  getUserUsage.mockReset().mockResolvedValue({});
   findUsersByEmails.mockReset();
   getUserBriefByEmail.mockReset();
   listAllUserBriefs.mockReset().mockResolvedValue([]);
@@ -251,6 +258,65 @@ describe("LIVE mode — DA available", () => {
     expect(row.package).toBe("Pro");
     expect(row.phpVersion).toBe("8.3");
     expect(row.isUnlinked).toBe(false);
+  });
+
+  /**
+   * Pins the dms-00200+ fix for the silent "0 B / 1 GB" display bug:
+   * DA's CMD_API_SHOW_USER_CONFIG endpoint only returns LIMITS (bandwidth,
+   * quota); the actual USAGE fields (bandwidth, quota on the usage endpoint
+   * — same field names, different endpoint) live on CMD_API_SHOW_USER_USAGE.
+   * The page had been silently displaying zero used bytes for every account
+   * because the config endpoint doesn't populate `bandwidth_usage` /
+   * `quota_usage` at all. The stats route now fetches both endpoints in
+   * parallel and the usage-endpoint values win.
+   */
+  it("usage endpoint values win over (almost always undefined) config-endpoint usage fields", async () => {
+    listUsersWithDirectAdmin.mockResolvedValueOnce([makeLocalUser()]);
+    hostingFind.mockReturnValueOnce(chainableHostingFind([]));
+    listDAUsers.mockResolvedValueOnce(["alice"]);
+    getAllUserUsage.mockResolvedValueOnce({});
+    getServerInfo.mockResolvedValueOnce({ php: "8.2" });
+    getUserConfig.mockResolvedValueOnce({
+      domain: "alice.example.com",
+      bandwidth: "10000", // limit
+      quota: "1024",      // limit
+      // bandwidth_usage / quota_usage absent — this is what DA's config
+      // endpoint actually returns in production.
+    });
+    getUserUsage.mockResolvedValueOnce({
+      bandwidth: "2500", // 2.5 GB of bandwidth used
+      quota: "780",       // 780 MB of disk used
+    });
+    const res = await GET(makeReq());
+    const body = await res.json();
+    expect(body.data[0].usage).toEqual({
+      bandwidth: "2500",
+      disk: "780",
+      bandwidthLimit: "10000",
+      diskLimit: "1024",
+    });
+  });
+
+  it("usage fetch failure for one user does not crash the row — usage shows 0 and config still surfaces", async () => {
+    listUsersWithDirectAdmin.mockResolvedValueOnce([makeLocalUser()]);
+    hostingFind.mockReturnValueOnce(chainableHostingFind([]));
+    listDAUsers.mockResolvedValueOnce(["alice"]);
+    getAllUserUsage.mockResolvedValueOnce({});
+    getServerInfo.mockResolvedValueOnce({ php: "8.2" });
+    getUserConfig.mockResolvedValueOnce({
+      domain: "alice.example.com",
+      bandwidth: "10000",
+      quota: "1024",
+      package: "Pro",
+    });
+    getUserUsage.mockRejectedValueOnce(new Error("DA usage endpoint timeout"));
+    const res = await GET(makeReq());
+    const body = await res.json();
+    // Row still renders (not status='error') — usage fields fall back to '0'.
+    expect(body.data[0].status).not.toBe("error");
+    expect(body.data[0].usage.bandwidth).toBe("0");
+    expect(body.data[0].usage.disk).toBe("0");
+    expect(body.data[0].package).toBe("Pro");
   });
 
   it("'unlimited' bandwidth/quota → 'Unlimited' display strings", async () => {
