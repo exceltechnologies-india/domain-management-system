@@ -99,6 +99,10 @@ const PROVIDERS: ProviderClassifier[] = [
         hint: "DA rejected the create-user call because the package name our code is sending (Starter / Standard / Plus by default) doesn't exist on the DA server. Open DA admin → Server Manager → Manage User Packages → create the three commercial packages with the right disk / bandwidth / inode limits per tier.",
       },
       {
+        needle: /cannot create account.*invalid domain name|invalid domain name/i,
+        hint: "DA rejected the create-user call because it considers the domain name invalid. Two common causes: (1) the TLD isn't in DA's whitelist — check `/usr/local/directadmin/data/templates/valid_TLDs` or DA admin → Server Manager → DNS Administration → TLD list, and add any newer / country-code TLD (e.g. `.ai`, `.tech`) the platform sells but DA doesn't yet know about. (2) DA is doing a live-DNS check and the domain isn't registered yet on the registrar side (race between RC completing the registration + our code calling DA). If (1), update DA. If (2), the existing `check-unprovisioned` cron will pick it up once RC completes; verify the cron is actually firing.",
+      },
+      {
         needle: /\[DA-FAIL\]|DirectAdmin|da_unreachable|directadmin|DA-/i,
         hint: "DA returned an error on the create-user / suspend / delete call. Check the DA admin panel is reachable and the CSF / firewall / API allowlist still includes Cloud Run's NAT egress IP 34.14.59.128.",
       },
