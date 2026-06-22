@@ -12,7 +12,7 @@ import {
   Receipt,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { INDIAN_STATES } from '@/lib/constants';
+import { INDIAN_STATES, normaliseIndianState } from '@/lib/constants';
 import { InputValidator } from '@/lib/validation';
 import { apiClient } from '@/lib/api-client';
 import UserLayout from '@/components/user/UserLayout';
@@ -411,7 +411,12 @@ export default function UserSettings() {
           if (!res.ok) throw new Error();
           const data = await res.json();
           const addr = data.address;
-          setUser(prev => prev ? { ...prev, address: { ...prev.address, line1: [addr.house_number, addr.road || addr.street, addr.neighbourhood].filter(Boolean).join(', ') || prev.address?.line1 || '', city: addr.city || addr.town || addr.village || prev.address?.city || '', state: addr.state || prev.address?.state || '', zipcode: addr.postcode || prev.address?.zipcode || '', country: 'IN' } } : null);
+          // Normalise the reverse-geocoded state against INDIAN_STATES so
+          // "NCT of Delhi" / "Orissa" / etc. resolve to the dropdown's
+          // canonical option. Empty string keeps the existing value
+          // unchanged — never poisons the dropdown with a non-matching
+          // raw string (was the bug on 2026-06-22).
+          setUser(prev => prev ? { ...prev, address: { ...prev.address, line1: [addr.house_number, addr.road || addr.street, addr.neighbourhood].filter(Boolean).join(', ') || prev.address?.line1 || '', city: addr.city || addr.town || addr.village || prev.address?.city || '', state: normaliseIndianState(addr.state) || prev.address?.state || '', zipcode: addr.postcode || prev.address?.zipcode || '', country: 'IN' } } : null);
           toast.success('Location detected!', { id: t });
         } catch { toast.error('Could not get address from location', { id: t }); }
         finally { setIsDetectingLocation(false); }

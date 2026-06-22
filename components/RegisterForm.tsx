@@ -10,6 +10,7 @@ import SocialLoginButtons from './SocialLoginButtons';
 import toast from 'react-hot-toast';
 import { safeLocalStorage } from '@/lib/storage';
 import { apiClient } from '@/lib/api-client';
+import { normaliseIndianState } from '@/lib/constants';
 import GoogleRecaptcha from './GoogleRecaptcha';
 import PersonalInfoSection from './register/PersonalInfoSection';
 import AddressSection from './register/AddressSection';
@@ -358,13 +359,17 @@ export default function RegisterForm({ className = '' }: RegisterFormProps) {
         }
       }
 
-      // Update form with detected location (India only)
+      // Update form with detected location (India only). Normalise the
+      // reverse-geocoded state via the shared `normaliseIndianState`
+      // helper so "NCT of Delhi" / "Orissa" / etc. resolve to the
+      // canonical INDIAN_STATES dropdown option instead of leaving the
+      // dropdown empty (was the bug on 2026-06-22).
       setFormData(prev => ({
         ...prev,
         address: {
           line1: line1,
           city: data.city || data.locality || '',
-          state: data.principalSubdivision || data.administrativeAreaLevel1 || '',
+          state: normaliseIndianState(data.principalSubdivision || data.administrativeAreaLevel1),
           country: 'IN', // Always set to India
           zipcode: zipcode,
         }
