@@ -356,19 +356,42 @@ export default function UserSettings() {
         setUser(updated); savedUserRef.current = JSON.stringify(updated); setIsDirty(false);
         safeLocalStorage.setItem('user', JSON.stringify(updated));
         window.dispatchEvent(new CustomEvent('profileUpdated', { detail: { user: updated, isComplete } }));
-        // When the customer was bounced here from the cart (or another flow)
-        // with a returnUrl query param, redirect them back there after a
-        // successful save — but only if the profile is now actually complete.
-        // An incomplete save just lands on /dashboard like before.
-        const dest = isComplete ? postSaveDestination : '/dashboard';
-        toast.success(
-          isComplete && dest !== '/dashboard'
-            ? 'Profile completed! Taking you back to your cart...'
-            : isComplete
-            ? 'Profile completed!'
-            : 'Profile updated successfully'
-        );
-        setTimeout(() => router.push(dest), 1500);
+
+        if (isComplete) {
+          // Profile is complete — go to the returnUrl (cart, hosting flow,
+          // wherever the customer was sent here from) or fall back to
+          // /dashboard.
+          const dest = postSaveDestination;
+          toast.success(
+            dest !== '/dashboard'
+              ? 'Profile completed! Taking you back to your cart...'
+              : 'Profile completed!'
+          );
+          setTimeout(() => router.push(dest), 1500);
+        } else {
+          // Profile still incomplete after this save — DON'T bounce to
+          // /dashboard. Previous behaviour redirected to /dashboard, which
+          // then re-prompted "Complete your profile" → landed back on
+          // settings → user never saw which field was actually missing
+          // (the senior reviewer's report on 2026-06-22). Instead, switch
+          // to the section that contains the next missing field, surface
+          // a targeted toast naming the gap, and let the customer fill
+          // it in without leaving the page.
+          const addr = (updated.address || {}) as { line1?: string; city?: string; state?: string; zipcode?: string };
+          const missingAddress = !addr.line1?.trim() || !addr.city?.trim() || !addr.state?.trim() || !addr.zipcode?.trim();
+          const missingPhone = !updated.phone?.trim();
+
+          if (missingAddress) {
+            setActiveSection('billing');
+            toast.success('Saved. Please also add your billing address to complete your profile.');
+          } else if (missingPhone) {
+            // Stay on the profile tab; the contact-numbers section is here.
+            toast.success('Saved. Please also add a phone number to complete your profile.');
+          } else {
+            // No specific known gap — just acknowledge the save.
+            toast.success('Profile updated.');
+          }
+        }
       } else {
         toast.error(result.error.message || 'Failed to update profile');
       }
