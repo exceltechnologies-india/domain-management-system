@@ -30,11 +30,49 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { serverLogger } from "@/lib/server-logger";
 import Order from "@/models/Order";
+import SystemLog from "@/models/SystemLog";
 import connectDB from "@/lib/mongodb";
 
 export const dynamic = "force-dynamic";
 
-type ProviderId = "directadmin" | "resellerclub" | "zoho" | "razorpay" | "unknown";
+type ProviderId =
+  | "directadmin"
+  | "resellerclub"
+  | "zoho"
+  | "razorpay"
+  | "email"
+  | "auth"
+  | "background"
+  | "application"
+  | "unknown";
+
+/**
+ * SystemLog `service` field → provider mapping. Each serverLogger.error()
+ * call site sets `service` on the meta object (e.g. `{ service: "razorpay" }`)
+ * and that flows through to SystemLog.service via lib/server-logger.ts.
+ * Falls back to keyword-match classification when service is unset.
+ */
+const SERVICE_TO_PROVIDER: Record<string, ProviderId> = {
+  directadmin: "directadmin",
+  da: "directadmin",
+  resellerclub: "resellerclub",
+  rc: "resellerclub",
+  zoho: "zoho",
+  zohobooks: "zoho",
+  razorpay: "razorpay",
+  payment: "razorpay",
+  email: "email",
+  smtp: "email",
+  mailer: "email",
+  auth: "auth",
+  nextauth: "auth",
+  login: "auth",
+  cron: "background",
+  worker: "background",
+  scheduler: "background",
+  api: "application",
+  middleware: "application",
+};
 
 interface ProviderClassifier {
   id: ProviderId;
@@ -103,8 +141,38 @@ const PROVIDERS: ProviderClassifier[] = [
     label: "Razorpay",
     signatures: [
       {
-        needle: /razorpay|BAD_REQUEST_ERROR|order_.*not_found/i,
-        hint: "Razorpay API error. Verify RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET / RAZORPAY_WEBHOOK_SECRET in Secret Manager and that the key is in the right mode (test vs live) for this environment.",
+        needle: /razorpay|BAD_REQUEST_ERROR|order_.*not_found|webhook.*signature/i,
+        hint: "Razorpay API error or webhook signature mismatch. Verify RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET / RAZORPAY_WEBHOOK_SECRET in Secret Manager and that the key is in the right mode (test vs live) for this environment.",
+      },
+    ],
+  },
+  {
+    id: "email",
+    label: "Email / SMTP",
+    signatures: [
+      {
+        needle: /smtp|nodemailer|EAUTH|EENVELOPE|550 |551 |552 |553 /i,
+        hint: "Outbound email failure. Check SMTP_HOST / SMTP_USER / SMTP_PASS in Secret Manager, look at the SMTP provider's rate-limit or reputation dashboard, and verify the FROM_EMAIL domain's SPF/DKIM are intact.",
+      },
+    ],
+  },
+  {
+    id: "auth",
+    label: "Authentication",
+    signatures: [
+      {
+        needle: /TooManyRequests.*login|rate limit exceeded for.*from|CredentialsSignin|InvalidTotpCode|JWT.*malformed|jwt expired/i,
+        hint: "Login / 2FA / JWT issue. A spike in rate-limit messages usually means brute-force traffic — confirm IPs aren't legitimate users before tightening. Repeated 'jwt expired' across many users would suggest NEXTAUTH_SECRET rotation drift.",
+      },
+    ],
+  },
+  {
+    id: "background",
+    label: "Background Jobs",
+    signatures: [
+      {
+        needle: /cron|scheduler|worker|daily-scheduler|sync-zoho-invoice|check-unprovisioned/i,
+        hint: "Cron / worker failure. The endpoint typically requires x-cron-secret — if many fail with the same secret-mismatch message, the CRON_SECRET in Secret Manager may have rotated out of sync with Google Cloud Scheduler.",
       },
     ],
   },
@@ -315,6 +383,91 @@ export async function GET(request: NextRequest) {
         amount: o.amount,
         createdAt: o.createdAt,
       });
+    }
+
+    // 3. SystemLog ERROR entries — every serverLogger.error() call lands
+    // here via the /api/v1/admin/log-error forwarder (CSRF gate fix shipped
+    // earlier today via dms-00190-jmx so this now reliably populates).
+    // Far broader coverage than the Order-based sources alone: email
+    // failures, auth issues, cron-job errors, RC API timeouts, etc. We
+    // classify each entry by its `service` field first, fall back to the
+    // existing keyword classifier when service is unset.
+    interface LeanedSystemLog {
+      _id: unknown;
+      message: string;
+      source?: string;
+      service?: string;
+      stack?: string;
+      statusCode?: number;
+      createdAt: Date;
+    }
+
+    const recentErrorLogs = (await SystemLog.find(
+      {
+        level: "error",
+        createdAt: { $gte: since },
+        // Exclude client-boundary errors — those are browser-side React
+        // crashes, usually a customer-environment quirk (extension,
+        // ad-blocker, broken cache). Keep them out of the operator view
+        // to avoid drowning the real upstream signals.
+        source: { $ne: "Client Boundary" },
+      },
+      {
+        message: 1,
+        source: 1,
+        service: 1,
+        stack: 1,
+        statusCode: 1,
+        createdAt: 1,
+      }
+    )
+      .sort({ createdAt: -1 })
+      .limit(500)
+      .lean()) as unknown as LeanedSystemLog[];
+
+    for (const log of recentErrorLogs) {
+      const errText = (log.message || "").trim();
+      if (!errText) continue;
+
+      // Classify: explicit `service` field first (set by the call site),
+      // else fall through to message-keyword matching.
+      let providerId: ProviderId | undefined;
+      let providerLabel: string | undefined;
+      let hint: string | undefined;
+      if (log.service) {
+        const mapped = SERVICE_TO_PROVIDER[log.service.toLowerCase()];
+        if (mapped) {
+          providerId = mapped;
+          // Find the provider's display label from PROVIDERS, or fall back.
+          const cfg = PROVIDERS.find((p) => p.id === mapped);
+          providerLabel = cfg?.label ?? mapped;
+        }
+      }
+      const classified = providerId
+        ? { provider: providerId, label: providerLabel!, hint }
+        : classify(errText);
+
+      const key = `${classified.provider}::${bucketKey(errText)}`;
+      const occurred = log.createdAt.toISOString();
+      const existing = buckets.get(key);
+      if (existing) {
+        existing.count += 1;
+        if (occurred < existing.firstSeen) existing.firstSeen = occurred;
+        if (occurred > existing.lastSeen) existing.lastSeen = occurred;
+        // SystemLog entries have no order context — we don't push to
+        // affectedOrders (those are for order-derived sources).
+      } else {
+        buckets.set(key, {
+          provider: classified.provider,
+          providerLabel: classified.label,
+          exemplarMessage: errText.slice(0, 500),
+          count: 1,
+          firstSeen: occurred,
+          lastSeen: occurred,
+          hint: classified.hint,
+          affectedOrders: [],
+        });
+      }
     }
 
     // Roll up buckets into provider groups.
