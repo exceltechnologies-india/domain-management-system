@@ -25,8 +25,8 @@
  *  - Bad signature → 400 INVALID_SIGNATURE (NEVER process the body)
  *  - Event 'subscription.charged' → handleSubscriptionCharged called
  *    with FULL payload (incl. created_at + payment entity)
- *  - Event 'subscription.payment_failed' → handleSubscriptionFailed
- *    called
+ *  - Event 'subscription.halted' → handleSubscriptionFailed called
+ *    (razorpay-side event for "retry budget exhausted")
  *  - Other events → still 200 (no-op pass-through)
  *  - Outer catch → 500 WEBHOOK_ERROR generic ('Webhook processing
  *    failed' — no stack leak)
@@ -247,8 +247,8 @@ describe("Event routing", () => {
     expect(handleSubscriptionFailed).not.toHaveBeenCalled();
   });
 
-  it("'subscription.payment_failed' → handleSubscriptionFailed", async () => {
-    const payload = freshPayload({ event: "subscription.payment_failed" });
+  it("'subscription.halted' → handleSubscriptionFailed", async () => {
+    const payload = freshPayload({ event: "subscription.halted" });
     await POST(makeReq(payload, { "x-razorpay-signature": "sig" }));
     expect(handleSubscriptionFailed).toHaveBeenCalledWith(payload);
     expect(handleSubscriptionCharged).not.toHaveBeenCalled();

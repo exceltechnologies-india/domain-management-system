@@ -311,7 +311,7 @@ export async function handleSubscriptionFailed(payload: RazorpayWebhookPayload) 
   if (!userId || !domainName) return;
 
   serverLogger.warn(
-    `[Webhook] subscription.payment_failed — user=${userId} domain=${domainName}. APPLYING STRICT EXPIRY.`
+    `[Webhook] subscription.halted — user=${userId} domain=${domainName}. APPLYING STRICT EXPIRY.`
   );
 
   try {
