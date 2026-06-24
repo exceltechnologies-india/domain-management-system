@@ -1,6 +1,6 @@
 /**
  * Tests for `@/lib/services/payment/webhook-handlers` (rescan-4
- * slice 7fi). Razorpay subscription.charged + subscription.payment_failed
+ * slice 7fi). Razorpay subscription.charged + subscription.halted
  * webhook handlers. Pins:
  *  - **Missing userId or domainName in notes → early return**
  *    (no idempotency anchor possible without these — webhook is

@@ -13,7 +13,7 @@
  *   Layer 5 — generic error message on unhandled exceptions.
  *
  * Plus the event-dispatch table: `subscription.charged` and
- * `subscription.payment_failed` get routed to specific handler functions;
+ * `subscription.halted` get routed to specific handler functions;
  * everything else is acknowledged silently.
  *
  * The Razorpay SDK + handler functions + redis client are mocked at the
@@ -121,7 +121,7 @@ function chargedPayload(opts: {
 
 function failedPayload(opts: { paymentId?: string } = {}): object {
   return {
-    event: "subscription.payment_failed",
+    event: "subscription.halted",
     created_at: Math.floor(Date.now() / 1000),
     payload: {
       payment: {
@@ -283,7 +283,7 @@ describe("POST /api/webhooks/razorpay — event dispatch", () => {
     expect(mockFailedHandler).not.toHaveBeenCalled();
   });
 
-  it("routes 'subscription.payment_failed' to handleSubscriptionFailed", async () => {
+  it("routes 'subscription.halted' to handleSubscriptionFailed", async () => {
     const body = JSON.stringify(failedPayload());
     const res = await POST(makeWebhookRequest(body, signBody(body)));
     expect(res.status).toBe(200);

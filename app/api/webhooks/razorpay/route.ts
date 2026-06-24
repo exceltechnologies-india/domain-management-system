@@ -84,7 +84,10 @@ export async function POST(request: NextRequest) {
 
     if (event === "subscription.charged") {
       await handleSubscriptionCharged(payload);
-    } else if (event === "subscription.payment_failed") {
+    } else if (event === "subscription.halted") {
+      // Razorpay fires `subscription.halted` (not the never-existed
+      // `subscription.payment_failed`) once the retry budget is exhausted —
+      // i.e. payments have stopped and the subscription is no longer active.
       await handleSubscriptionFailed(payload);
     }
 
