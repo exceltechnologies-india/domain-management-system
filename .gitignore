@@ -57,3 +57,7 @@ logs/
 # install). Per-environment — not source. See deploy.sh's "Dependencies changed"
 # block.
 .npm-lock-hash
+
+# One-off migration state snapshots (e.g. pre-cutover Razorpay plan IDs).
+# These are recovery artefacts — kept on the operator's machine, not in git.
+scripts/*-backup-*.json
