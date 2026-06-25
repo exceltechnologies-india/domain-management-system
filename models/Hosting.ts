@@ -15,7 +15,9 @@ export interface IHosting extends Document {
   directAdminUsername: string; // Username on the DA server
   orderId: string; // Reference to the purchase order
   paymentId?: string; // Reference to the verified payment
-  subscriptionId?: string; // Reference to Razorpay Subscription
+  subscriptionId?: string; // Reference to Razorpay Subscription (Subscriptions-API flow)
+  razorpayCustomerId?: string; // Reference to Razorpay Customer (Tokens-API flow)
+  razorpayTokenId?: string; // Stored mandate token for merchant-initiated recurring charges (Tokens-API flow)
   region?: string;
   ipAddress?: string;
   nameservers?: string[];
@@ -94,6 +96,14 @@ const HostingSchema = new Schema<IHosting>(
       type: String,
     },
     subscriptionId: {
+      type: String,
+      index: true,
+    },
+    razorpayCustomerId: {
+      type: String,
+      index: true,
+    },
+    razorpayTokenId: {
       type: String,
       index: true,
     },

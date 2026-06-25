@@ -91,7 +91,62 @@ export interface CreateOrderOptions {
   amount: number;
   currency: string;
   receipt: string;
-  payment_capture: 1;
+  payment_capture: 1 | boolean;
+  notes?: Record<string, string>;
+  // Recurring-authorization fields (Tokens flow). Optional + present only
+  // when creating CIT auth orders or MIT charge orders. See
+  // docs/razorpay-tokens-migration.md §4.
+  customer_id?: string;
+  method?: 'card' | 'emandate' | 'upi' | 'nach' | 'netbanking';
+  token?: {
+    max_amount: number;
+    expire_at: number;
+    frequency?: 'as_presented' | 'monthly';
+    auth_type?: 'netbanking' | 'debitcard' | 'aadhaar' | 'physical';
+  };
+}
+
+export interface CreateCustomerOptions {
+  name: string;
+  email: string;
+  contact: string;
+  fail_existing?: 0 | 1;
+  notes?: Record<string, string>;
+}
+
+export interface RazorpayCustomerResponse {
+  id: string;
+  entity: string;
+  name: string;
+  email: string;
+  contact: string;
+  created_at: number;
+  notes?: Record<string, string>;
+}
+
+export interface CreateRecurringPaymentOptions {
+  email: string;
+  contact: string;
+  amount: number;
+  currency: string;
+  order_id: string;
+  customer_id: string;
+  token: string;
+  recurring: boolean | 1 | 0 | '1' | '0';
+  description?: string;
+  notes?: Record<string, string>;
+}
+
+export interface CreateRecurringPaymentResponse {
+  razorpay_payment_id?: string;
+  razorpay_order_id?: string;
+  razorpay_signature?: string;
+  id?: string;
+}
+
+export interface RefundOptions {
+  amount?: number;
+  speed?: 'optimum' | 'normal';
   notes?: Record<string, string>;
 }
 
@@ -141,9 +196,10 @@ interface TypedRazorpayClient {
     fetch(id: string): Promise<RazorpayPaymentDetails>;
     refund(
       id: string,
-      opts: { payment_id: string; amount?: number }
+      opts: RefundOptions
     ): Promise<RazorpayRefund>;
     all(opts: ListPaymentsOptions): Promise<RazorpayPaymentListResponse>;
+    createRecurringPayment(opts: CreateRecurringPaymentOptions): Promise<CreateRecurringPaymentResponse>;
   };
   subscriptions: {
     create(opts: CreateSubscriptionOptions): Promise<RazorpaySubscription>;
@@ -151,6 +207,9 @@ interface TypedRazorpayClient {
   };
   plans: {
     create(opts: CreatePlanOptions): Promise<RazorpayPlan>;
+  };
+  customers: {
+    create(opts: CreateCustomerOptions): Promise<RazorpayCustomerResponse>;
   };
 }
 

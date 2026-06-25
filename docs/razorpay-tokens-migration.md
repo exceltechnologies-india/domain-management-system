@@ -163,12 +163,22 @@ core migration.
 
 ## 4. Razorpay API specifics
 
-**⚠️ VERIFICATION REQUIRED**: the API parameters below are based on
-Razorpay's docs as I understand them but the Razorpay API has evolved
-multiple times. Before implementation, **read the current Razorpay
-docs at <https://razorpay.com/docs/api/payments/recurring-payments/>**
-and adjust parameter names + shapes as needed. The architecture
-doesn't change; just the specific param names might.
+**✅ VERIFIED 2026-06-25 against razorpay-node v2.9.6 TypeScript
+definitions** (`node_modules/razorpay/dist/types/`). The shapes below
+match exactly what the installed SDK accepts. Corrections from the
+draft version:
+
+- Parameter was `expire_by` in the draft → actual SDK uses **`expire_at`**
+- Draft used `max_amount: 99999900` (₹9,99,999) generically → actual
+  caps are payment-method-specific:
+  - **Cards (NPCI cap): `max_amount` between 100 (₹1) and 1500000 (₹15,000)** — hard ceiling, no waiver path
+  - **eMandate (netbanking/debitcard): `max_amount` between 500 (₹5) and 100000000 (₹10,00,000), default 9999900 (₹99,999)**
+  - UPI Autopay: not exposed as a separate type in razorpay-node v2.9.6 — most likely uses the card-token shape (`RazorpayTokenCard`), inheriting the ₹15,000 cap. **Verify with Razorpay support** once UPI Autopay activates 2026-07-08.
+- Draft listed `frequency: 'yearly'` as a possible value → razorpay-node
+  comments are explicit: **only `as_presented` and `monthly` are
+  supported for card tokens**. No `yearly`, `daily`, or `weekly`.
+- `payment_capture` is a **boolean** (`true`/`false`), not an integer
+- The MIT charge uses **`razorpay.payments.createRecurringPayment()`** with `token: string` (the token_id) + `recurring: true | 1 | '1'`
 
 ### 4.1 Customer creation
 
@@ -185,13 +195,15 @@ const customer = await razorpay.customers.create({
 
 ### 4.2 Recurring-token order (CIT — ₹2 validation transaction)
 
-```js
+```ts
+// SDK shape: RazorpayAuthorizationCreateRequestBody
 const order = await razorpay.orders.create({
   amount: 200,                     // ₹2 in paise — the validation amount
   currency: 'INR',
-  customer_id: customer.id,        // Tie this order to the customer
-  payment_capture: 1,
+  customer_id: customer.id,        // REQUIRED — ties this order to the customer
+  payment_capture: true,           // BOOLEAN, not 0/1
   receipt: `auth_${orderId}`,
+  method: 'card',                  // OR 'emandate' / 'upi' / 'nach' / 'netbanking'
   notes: {
     type: 'mandate_validation',
     user_id: user._id.toString(),
@@ -199,23 +211,60 @@ const order = await razorpay.orders.create({
     intended_tier: 'starter',
     intended_period: 'yearly',
   },
-  // ↓ This block makes the order a "recurring authorization" — the
-  // ↓ specific parameter shape varies; verify against Razorpay docs
-  // ↓ for the current syntax (may use `token: {...}` or `recurring: 1`
-  // ↓ or `customer_id + method + token: {...}` depending on the SDK version).
+  // Token object — shape varies by payment method (see 4.2.1 + 4.2.2)
   token: {
-    max_amount: 99999900,          // ₹9,99,999 — upper bound for any
-                                   // single future debit. Set high enough
-                                   // that the most expensive tier (and
-                                   // potential future tier expansions) fits.
-    expire_by: <30 years from now in epoch seconds>,
-    frequency: 'as_presented',     // Allows merchant-initiated charges
-                                   // at any cadence (not bound to monthly/yearly)
+    // FOR CARDS (RazorpayTokenCard):
+    max_amount: 1500000,           // ₹15,000 — NPCI's hard cap for card recurring.
+                                   // NO WAIVER PATH. Tiers priced above ₹15,000 cannot
+                                   // use card-based mandate; would need eMandate flow.
+    expire_at: <epoch in seconds>, // FIELD NAME is `expire_at`, NOT `expire_by`.
+                                   // Default if omitted: 10 years from now.
+    frequency: 'as_presented',     // Card-only values: 'as_presented' OR 'monthly'.
+                                   // 'yearly' NOT supported for cards.
+                                   // 'as_presented' = merchant can charge any time, any amount up to max
   },
 });
 // order.id returned to frontend; opens Razorpay checkout in
 // recurring-payment-authorization mode (NOT subscription mode)
 ```
+
+#### 4.2.1 eMandate variant (netbanking + debit card mandates)
+
+```ts
+{
+  // RazorpayTokenEmandate shape:
+  auth_type: 'netbanking',  // OR 'debitcard' | 'aadhaar' | 'physical'
+  max_amount: 9999900,      // Default ₹99,999; range 500 (₹5) to 100000000 (₹10,00,000)
+  expire_at: <epoch>,       // Default 10 years
+  notes: {...},
+  bank_account: {...},      // Optional pre-fill at checkout
+  first_payment_amount: 0,  // Optional: charge this amount IN ADDITION to validation amount at auth
+}
+```
+
+#### 4.2.2 NACH variant (paper / physical mandates)
+
+```ts
+{
+  // RazorpayTokenNach shape — extends RazorpayTokenEmandate with NACH form metadata:
+  ...emandate_fields,
+  nach: {
+    form_reference1: string,
+    form_reference2: string,
+    description: string,
+  },
+}
+```
+
+#### 4.2.3 UPI Autopay (not exposed in razorpay-node v2.9.6 types)
+
+The SDK's `RazorpayAuthorizationCreateRequestBody.token` union is
+`RazorpayTokenCard | RazorpayTokenEmandate | RazorpayTokenNach` — no
+UPI-specific shape. Most likely UPI uses the card-token shape
+(`{max_amount, expire_at, frequency}`) with `method: 'upi'` on the
+order. **Verify with Razorpay support** once UPI Autopay activates
+2026-07-08 — if SDK types are out of date, the actual API may accept
+UPI Autopay tokens via the same shape.
 
 ### 4.3 Customer pays + we receive the token
 
@@ -246,18 +295,20 @@ await razorpay.payments.refund(payment.id, {
 
 ### 4.5 Merchant-initiated transaction (MIT) — the actual subscription charge
 
-```js
+```ts
 // In scripts/charge-recurring-hostings.js cron:
+// Step 1: create an order for the MIT charge
 const order = await razorpay.orders.create({
   amount: 59988,                   // ₹599.88 in paise — Starter yearly
   currency: 'INR',
   customer_id: hosting.razorpayCustomerId,
-  payment_capture: 1,
+  payment_capture: true,           // BOOLEAN, not 0/1
   receipt: `mit_${hosting._id}_${Date.now()}`,
   notes: { type: 'recurring_charge', hosting_id: hosting._id.toString() },
 });
 
-// Charge using the stored token — no customer involvement
+// Step 2: SDK shape RazorpayRecurringPaymentCreateRequestBody — extends
+// RazorpayPaymentBaseRequestBody with `token` + `recurring`
 const payment = await razorpay.payments.createRecurringPayment({
   email: user.email,
   contact: user.phone,
@@ -265,8 +316,10 @@ const payment = await razorpay.payments.createRecurringPayment({
   currency: 'INR',
   order_id: order.id,
   customer_id: hosting.razorpayCustomerId,
-  token: hosting.razorpayTokenId,
-  recurring: '1',
+  token: hosting.razorpayTokenId,  // the token_id from CIT (NOT the customer_id)
+  recurring: true,                  // ALSO accepts 1 | 0 | '1' | '0' per SDK type
+  notes: { hosting_id: hosting._id.toString() },
+  description: `Recurring charge for ${hosting.domainName}`,
 });
 ```
 

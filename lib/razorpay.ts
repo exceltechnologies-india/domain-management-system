@@ -207,23 +207,6 @@ export class RazorpayService {
   /**
    * Refund payment
    */
-  static async refundPayment(paymentId: string, amount?: number): Promise<RazorpayRefund> {
-    try {
-      const refundOptions: { payment_id: string; amount?: number } = {
-        payment_id: paymentId,
-      };
-
-      if (amount) {
-        refundOptions.amount = amount * 100;
-      }
-
-      return await razorpayClient.payments.refund(paymentId, refundOptions);
-    } catch (error) {
-      serverLogger.error("Razorpay refund error:", error);
-      throw new Error("Failed to process refund");
-    }
-  }
-
   /**
    * Get order details
    */
@@ -330,6 +313,250 @@ export class RazorpayService {
       const err = asRzpErr(error);
       throw new Error(
         `Failed to cancel subscription: ${err.error?.description || err.message}`
+      );
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Tokens-flow methods (Google / Netflix / Spotify ₹2-charge-and-reverse
+  // pattern). Used by the Tokens migration flow when `HOSTING_MANDATE_FLOW`
+  // is set to `tokens`. See docs/razorpay-tokens-migration.md for the
+  // architecture. These methods coexist with the Subscriptions-API methods
+  // above so the feature flag can route between flows without code duplication.
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Create a Razorpay Customer for the Tokens recurring-payment flow.
+   *
+   * `fail_existing: 0` makes this idempotent — if a customer with the same
+   * email/contact already exists, Razorpay returns that customer instead of
+   * throwing a duplicate-key error. So repeated calls for the same user are
+   * safe and return the same customer_id.
+   */
+  static async createCustomer(params: {
+    name: string;
+    email: string;
+    contact: string;
+    notes?: Record<string, string>;
+  }): Promise<{ id: string; entity: string; name: string; email: string; contact: string }> {
+    try {
+      const customer = await razorpayClient.customers.create({
+        name: params.name,
+        email: params.email,
+        contact: params.contact,
+        fail_existing: 0,
+        notes: params.notes,
+      });
+      serverLogger.info(`✅ [RAZORPAY] Customer ready: ${customer.id} (${params.email})`);
+      return customer as { id: string; entity: string; name: string; email: string; contact: string };
+    } catch (error: unknown) {
+      serverLogger.error("❌ [RAZORPAY] Customer create error:", error);
+      const err = asRzpErr(error);
+      throw new Error(
+        `Failed to create Razorpay customer: ${err.error?.description || err.message}`
+      );
+    }
+  }
+
+  /**
+   * Create a recurring-authorization order (Customer-Initiated Transaction).
+   *
+   * This is the "₹2 validation transaction" that the customer authorizes on
+   * Razorpay's checkout overlay. The validation amount (typically ₹2) is
+   * debited at authorization; the mandate token returned in the resulting
+   * `payment.captured` webhook is what we use for all future MIT charges.
+   *
+   * Caller must refund the validation amount via `refundPayment()` after
+   * the token is captured — see webhook-handlers.handleRecurringTokenAuth.
+   *
+   * `validationAmountInPaise` defaults to 200 (₹2) which matches the
+   * Google / Netflix industry-standard amount. Razorpay's minimum is 100 (₹1).
+   *
+   * `maxAmountInPaise` is the upper bound on any single future MIT debit.
+   * For Cards, NPCI caps this at 1500000 (₹15,000) per debit — no waiver
+   * path. For eMandate / NACH, the cap is 100000000 (₹10,00,000).
+   *
+   * `method` selects the payment-method category Razorpay shows on the overlay.
+   *
+   * `frequency` for Cards is 'as_presented' (merchant charges at will) or
+   * 'monthly'. eMandate / NACH tokens omit frequency. UPI Autopay (post
+   * 2026-07-08 activation): likely uses the card-token shape, verify with
+   * Razorpay support.
+   */
+  static async createRecurringTokenOrder(params: {
+    customerId: string;
+    validationAmountInPaise?: number;
+    maxAmountInPaise: number;
+    method: 'card' | 'emandate' | 'upi' | 'nach' | 'netbanking';
+    frequency?: 'as_presented' | 'monthly';
+    expireAt?: number;
+    receipt: string;
+    notes?: Record<string, string>;
+  }): Promise<PaymentOrder> {
+    try {
+      const validationAmount = params.validationAmountInPaise ?? 200;
+      if (validationAmount < 100) {
+        throw new Error(
+          `Validation amount must be at least 100 paise (₹1); got ${validationAmount}`
+        );
+      }
+      const expireAt = params.expireAt ?? Math.floor(Date.now() / 1000) + (10 * 365 * 24 * 60 * 60);
+
+      // Token shape varies by method. Cards + UPI use the card-token shape;
+      // eMandate / NACH use the eMandate shape with auth_type. We only type
+      // the minimum subset the SDK accepts via RazorpayAuthorizationCreateRequestBody.
+      const isCardLike = params.method === 'card' || params.method === 'upi';
+      const tokenObj = isCardLike
+        ? {
+            max_amount: params.maxAmountInPaise,
+            expire_at: expireAt,
+            frequency: params.frequency ?? 'as_presented',
+          }
+        : {
+            auth_type: params.method === 'nach' ? 'physical' : 'netbanking',
+            max_amount: params.maxAmountInPaise,
+            expire_at: expireAt,
+          };
+
+      serverLogger.info(
+        `💰 [RAZORPAY] Creating recurring-token order: customer=${params.customerId} validationAmount=${validationAmount} maxAmount=${params.maxAmountInPaise} method=${params.method}`
+      );
+
+      const order = await razorpayClient.orders.create({
+        amount: validationAmount,
+        currency: 'INR',
+        customer_id: params.customerId,
+        payment_capture: true,
+        method: params.method,
+        receipt: params.receipt,
+        notes: params.notes,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- token shape varies by method, SDK union
+        token: tokenObj as any,
+      });
+      serverLogger.info(`✅ [RAZORPAY] Recurring-token order created: ${order.id}`);
+      return order as unknown as PaymentOrder;
+    } catch (error: unknown) {
+      serverLogger.error("❌ [RAZORPAY] Recurring-token order create error:", error);
+      const err = asRzpErr(error);
+      throw new Error(
+        `Failed to create recurring-token order: ${err.error?.description || err.message}`
+      );
+    }
+  }
+
+  /**
+   * Charge a customer via a stored mandate token (Merchant-Initiated Transaction).
+   *
+   * Used by the recurring-charge cron after the initial CIT auth has stored
+   * a token on the Hosting record. No customer involvement — the mandate
+   * permits us to debit any amount up to the token's `max_amount`.
+   *
+   * Two-step at the Razorpay API level: (1) create an Order for the MIT
+   * amount, (2) create a recurring Payment against that order using the
+   * token. Both happen inside this method.
+   */
+  static async chargeViaToken(params: {
+    customerId: string;
+    tokenId: string;
+    amountInRupees: number;
+    email: string;
+    contact: string;
+    receipt: string;
+    description?: string;
+    notes?: Record<string, string>;
+  }): Promise<{ orderId: string; paymentId: string; amount: number }> {
+    try {
+      const amountInPaise = Math.round(params.amountInRupees * 100);
+      if (amountInPaise < 100) {
+        throw new Error(
+          `MIT charge amount too small: ₹${params.amountInRupees} (${amountInPaise} paise); minimum ₹1.`
+        );
+      }
+
+      serverLogger.info(
+        `💰 [RAZORPAY] MIT charge starting: customer=${params.customerId} token=${params.tokenId} amount=₹${params.amountInRupees}`
+      );
+
+      // Step 1: order for the MIT amount
+      const order = await razorpayClient.orders.create({
+        amount: amountInPaise,
+        currency: 'INR',
+        customer_id: params.customerId,
+        payment_capture: true,
+        receipt: params.receipt,
+        notes: params.notes,
+      });
+
+      // Step 2: recurring payment using the stored token
+      const payment = await razorpayClient.payments.createRecurringPayment({
+        email: params.email,
+        contact: params.contact,
+        amount: amountInPaise,
+        currency: 'INR',
+        order_id: order.id,
+        customer_id: params.customerId,
+        token: params.tokenId,
+        recurring: true,
+        notes: params.notes as { [key: string]: string },
+        description: params.description ?? `Recurring charge: ₹${params.amountInRupees}`,
+      });
+
+      // `createRecurringPayment` returns a Payment-like object; the SDK type
+      // says `{razorpay_payment_id, razorpay_order_id, razorpay_signature}`.
+      // But field naming varies in practice — read defensively.
+      const paymentObj = payment as unknown as {
+        razorpay_payment_id?: string;
+        id?: string;
+      };
+      const paymentId = paymentObj.razorpay_payment_id ?? paymentObj.id ?? '';
+      if (!paymentId) {
+        throw new Error('createRecurringPayment returned no payment id');
+      }
+      serverLogger.info(
+        `✅ [RAZORPAY] MIT charge initiated: order=${order.id} payment=${paymentId} amount=₹${params.amountInRupees}`
+      );
+      return { orderId: order.id, paymentId, amount: amountInPaise };
+    } catch (error: unknown) {
+      serverLogger.error("❌ [RAZORPAY] MIT charge error:", error);
+      const err = asRzpErr(error);
+      throw new Error(
+        `Failed to charge via token: ${err.error?.description || err.message}`
+      );
+    }
+  }
+
+  /**
+   * Refund a payment. Used to reverse the ₹2 mandate-validation charge
+   * immediately after the token is captured (the "and reverse" half of the
+   * "₹2-charge-and-reverse" pattern).
+   *
+   * `amountInPaise` is optional; if omitted, refunds the full payment amount.
+   *
+   * `speed: 'optimum'` returns money to the customer as fast as the rail
+   * allows — typically minutes for UPI, hours-to-days for cards.
+   */
+  static async refundPayment(
+    paymentId: string,
+    amountInPaise?: number,
+    notes?: Record<string, string>
+  ): Promise<RazorpayRefund> {
+    try {
+      const refundOptions: { amount?: number; speed?: 'optimum' | 'normal'; notes?: Record<string, string> } = {
+        speed: 'optimum',
+        notes,
+      };
+      if (typeof amountInPaise === 'number') refundOptions.amount = amountInPaise;
+
+      const refund = await razorpayClient.payments.refund(paymentId, refundOptions);
+      serverLogger.info(
+        `✅ [RAZORPAY] Refund created: ${refund.id} for payment ${paymentId} (${amountInPaise ?? 'full'} paise)`
+      );
+      return refund as RazorpayRefund;
+    } catch (error: unknown) {
+      serverLogger.error("❌ [RAZORPAY] Refund error:", error);
+      const err = asRzpErr(error);
+      throw new Error(
+        `Failed to refund payment ${paymentId}: ${err.error?.description || err.message}`
       );
     }
   }
