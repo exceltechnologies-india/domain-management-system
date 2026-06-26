@@ -298,6 +298,60 @@ export async function POST(request: NextRequest) {
               serverLogger.info(
                 `✅ [CREATE-ORDER] Tokens auth order created: ${tokenOrder.id} (customer=${customer.id}, plan=${plan.name}, validation=Rs 2)`
               );
+
+              // Persist a Mongo Order row so the webhook can find this CIT
+              // auth event by razorpayOrderId. status='pending' until the
+              // webhook fires payment.captured and stores token_id + refunds
+              // the Rs 2 (handleMandateValidationCaptured in
+              // app/razorpay/webhook/route.ts).
+              const tokensInternalOrderId = `ord_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+              try {
+                await createOrder({
+                  orderId: tokensInternalOrderId,
+                  userId: user.id,
+                  userName: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+                  userEmail: user.email,
+                  paymentId: `pay_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+                  razorpayOrderId: tokenOrder.id,
+                  razorpayPaymentId: "pending",
+                  razorpaySignature: "pending",
+                  amount: 2, // Rs 2 validation, not the plan price — that fires later as MIT
+                  currency: "INR",
+                  status: "pending",
+                  orderType: "hosting_trial",
+                  mandateMode: "tokens",
+                  razorpayCustomerId: customer.id,
+                  domains: [
+                    {
+                      domainName: item.linkedDomain || item.domainName,
+                      price: 0,
+                      currency: "INR",
+                      registrationPeriod: 15,
+                      periodUnit: "days",
+                      itemType: "hosting",
+                      isTrial: true,
+                      hostingPlan: {
+                        planId: plan.planId,
+                        name: plan.name,
+                        serverPackage: (plan as { directAdminPackage?: string }).directAdminPackage,
+                      },
+                    },
+                  ],
+                });
+                serverLogger.info(
+                  `✅ [CREATE-ORDER] Tokens-mode Mongo Order row persisted: ${tokensInternalOrderId} (rzpOrder=${tokenOrder.id})`
+                );
+              } catch (orderErr) {
+                serverLogger.error(
+                  `❌ [CREATE-ORDER] Failed to persist Tokens-mode Order row — webhook will not find it; manual intervention required:`,
+                  orderErr
+                );
+                // Don't fall through to Subscriptions here — the Razorpay CIT
+                // auth order is already created. If we fell back now, the
+                // customer would have a stray auth order that never gets
+                // refunded. Better to fail the call so the customer retries.
+                throw orderErr;
+              }
             } catch (tokErr) {
               serverLogger.error(
                 `❌ [CREATE-ORDER] Tokens flow failed — falling through to Subscriptions flow:`,

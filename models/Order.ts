@@ -102,6 +102,14 @@ export interface IOrder extends Document {
   invoiceNumber?: string;
   zohoInvoiceId?: string;
   orderType?: 'domain' | 'hosting' | 'bundle' | 'renewal' | 'hosting_upgrade' | 'hosting_trial' | 'unknown';
+  // Razorpay recurring-payment mode: 'subscription' uses the Subscriptions
+  // API (current default), 'tokens' uses the Tokens API (Google ₹2-and-reverse
+  // pattern). See docs/razorpay-tokens-migration.md.
+  mandateMode?: 'subscription' | 'tokens';
+  // Set when mandateMode='tokens'; the Razorpay customer+token tuple that
+  // enables future merchant-initiated charges.
+  razorpayCustomerId?: string;
+  razorpayTokenId?: string;
   upgradeDetails?: {
     hostingId: string;
     fromPlanId: string;
@@ -328,6 +336,20 @@ const OrderSchema = new Schema<IOrder>(
       type: String,
       enum: ['domain', 'hosting', 'bundle', 'renewal', 'hosting_upgrade', 'hosting_trial', 'unknown'],
       default: 'unknown',
+      index: true,
+    },
+    // See IOrder docs above. Tokens-API recurring flow fields.
+    mandateMode: {
+      type: String,
+      enum: ['subscription', 'tokens'],
+      index: true,
+    },
+    razorpayCustomerId: {
+      type: String,
+      index: true,
+    },
+    razorpayTokenId: {
+      type: String,
       index: true,
     },
     upgradeDetails: {

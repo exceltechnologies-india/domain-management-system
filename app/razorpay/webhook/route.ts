@@ -11,6 +11,7 @@ import {
   getOrderByRazorpayPaymentId,
 } from "@/lib/services/orders";
 import { finalizePendingOrder } from "@/lib/services/payment/order-creator";
+import { RazorpayService } from "@/lib/razorpay";
 import type { RazorpayPaymentDetails } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -67,7 +68,14 @@ interface RazorpayPaymentEntity {
   currency: string;
   order_id?: string;
   description?: string;
-  notes?: { receipt?: string };
+  // Razorpay puts `token_id` on the payment object when the payment authorizes
+  // a recurring-payment mandate (CIT). Used by handleMandateValidationCaptured
+  // to persist the token for future MIT charges. Defensively typed since
+  // the official razorpay-node v2.9.6 RazorpayPayment shape doesn't declare
+  // it; verified present in actual webhook payloads.
+  token_id?: string;
+  customer_id?: string;
+  notes?: { receipt?: string; type?: string; user_id?: string; domain_name?: string; [k: string]: unknown };
 }
 
 interface PaymentCapturedPayload {
@@ -99,6 +107,17 @@ async function handlePaymentCaptured(payload: PaymentCapturedPayload) {
         serverLogger.warn(
             `[Webhook] Order not found for payment ...${payment.id?.slice(-6)} (rzpOrder=${razorpayOrderId}). Returning 200 to stop retries.`
         );
+        return;
+    }
+
+    // Tokens-flow CIT auth (mandate validation) — branches BEFORE the
+    // renewal/upgrade check because Tokens-mode orders have orderType
+    // 'hosting_trial' but mandateMode 'tokens', which is a different
+    // codepath from the regular trial flow. The handler refunds the Rs 2
+    // validation amount + stores the token_id for future MIT charges.
+    // See docs/razorpay-tokens-migration.md S3.3 + S4.4.
+    if (order.mandateMode === "tokens" && order.orderType === "hosting_trial") {
+        await handleMandateValidationCaptured(order, payment);
         return;
     }
 
@@ -247,6 +266,97 @@ async function handlePaymentCaptured(payload: PaymentCapturedPayload) {
         // Razorpay retries the webhook and we get another shot at provisioning.
         throw error;
     }
+}
+
+/**
+ * Tokens-flow CIT auth (mandate validation) handler.
+ *
+ * Fires when payment.captured arrives for an Order with mandateMode='tokens'
+ * + orderType='hosting_trial'. The customer authorized a recurring-payment
+ * mandate by paying Rs 2 on Razorpay's checkout overlay; this handler:
+ *  1. Extracts the token_id from the payment object (or fetches it from
+ *     the customer's token list as a fallback).
+ *  2. Refunds the Rs 2 immediately (the "and reverse" half of the Google
+ *     "Rs 2-charge-and-reverse" pattern).
+ *  3. Persists razorpayTokenId + razorpayPaymentId on the Order row so the
+ *     Hosting provisioner (Phase 2C/2D) can find the mandate.
+ *  4. Marks the Order completed.
+ *
+ * Idempotency: guarded by `order.status !== 'pending'`. If a retry-delivery
+ * arrives after the first run completed, we no-op and let Razorpay's
+ * retry budget exhaust naturally.
+ *
+ * Does NOT yet provision the Hosting record / DA account — that's Phase 2C
+ * (will be driven by /verify reading the completed Order row OR by the
+ * recurring-charge cron).
+ *
+ * See docs/razorpay-tokens-migration.md S3.3, S3.4, and S4.4.
+ */
+async function handleMandateValidationCaptured(
+    order: IOrder & { save: () => Promise<unknown> },
+    payment: RazorpayPaymentEntity
+) {
+    // Idempotency: another delivery already processed this order.
+    if (order.status !== "pending") {
+        serverLogger.info(
+            `[Webhook] mandate_validation for ${order.orderId}: status=${order.status} — no-op`
+        );
+        return;
+    }
+
+    // Step 1: extract token_id. Razorpay sets payment.token_id on the
+    // recurring-auth payment object. As a fallback, fetch the customer's
+    // tokens and take the most recent one (sometimes the token_id arrives
+    // a beat later via a separate webhook).
+    let tokenId = payment.token_id;
+    if (!tokenId && order.razorpayCustomerId) {
+        serverLogger.warn(
+            `[Webhook] mandate_validation for ${order.orderId}: token_id missing from payment ${payment.id}; will be picked up by token.confirmed webhook or polled via fetchTokens — deferring`
+        );
+        // Returning without completing the order keeps the Order in 'pending'
+        // so a future webhook (token.confirmed) or admin re-sync can retry.
+        // Razorpay's retry budget will re-deliver this event a few more times.
+        return;
+    }
+
+    // Step 2: refund the Rs 2 validation amount. Use speed='optimum' for
+    // fastest reversal — customer sees the refund within minutes on UPI,
+    // hours on cards. This is the customer-trust-critical step; if it
+    // fails, surface loudly in logs but DON'T block downstream — manual
+    // refund from Razorpay dashboard is the fallback.
+    try {
+        await RazorpayService.refundPayment(payment.id, payment.amount, {
+            reason: "mandate_validation_refund",
+            orderId: order.orderId,
+        });
+        serverLogger.info(
+            `[Webhook] Refunded Rs ${payment.amount / 100} mandate-validation charge for ${order.orderId} (payment=${payment.id})`
+        );
+    } catch (refundErr) {
+        const msg = refundErr instanceof Error ? refundErr.message : String(refundErr);
+        serverLogger.error(
+            `❌ [Webhook] Mandate-validation refund FAILED for ${order.orderId} (payment=${payment.id}): ${msg}. Manual refund needed from Razorpay dashboard.`
+        );
+        // Continue — the token is still ours; losing the refund is a
+        // money-loss event but the mandate itself is intact.
+    }
+
+    // Step 3: persist token + payment on the Order. Use the order's `save()`
+    // rather than findOneAndUpdate because the document is already loaded.
+    const orderRef = order as IOrder & {
+        razorpayTokenId?: string;
+        razorpayPaymentId?: string;
+        status?: string;
+        save: () => Promise<unknown>;
+    };
+    orderRef.razorpayTokenId = tokenId;
+    orderRef.razorpayPaymentId = payment.id;
+    orderRef.status = "completed";
+    await orderRef.save();
+
+    serverLogger.info(
+        `✅ [Webhook] Mandate authorized for ${order.orderId}: token=${tokenId}, customer=${order.razorpayCustomerId} — Hosting provisioning deferred to Phase 2C cron / /verify`
+    );
 }
 
 async function handleRefundProcessed(payload: RefundProcessedPayload) {

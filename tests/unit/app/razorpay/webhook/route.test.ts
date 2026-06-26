@@ -76,6 +76,11 @@ vi.mock("@/lib/services/payment/order-creator", () => ({
   finalizePendingOrder,
 }));
 
+const refundPayment = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/razorpay", () => ({
+  RazorpayService: { refundPayment },
+}));
+
 const zohoCreateInvoice = vi.hoisted(() => vi.fn());
 const zohoCreateCreditNote = vi.hoisted(() => vi.fn());
 const zohoGetContactByEmail = vi.hoisted(() => vi.fn());
@@ -789,5 +794,129 @@ describe("Outer catch — 500 for unexpected throws (Razorpay retries)", () => {
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(JSON.stringify(body)).not.toContain("db-host-secret-XYZ");
+  });
+});
+
+// ── Tokens-flow CIT auth (mandate validation) handler (Phase 2B) ─────
+describe("Tokens-flow mandate validation (mandateMode='tokens')", () => {
+  beforeEach(() => {
+    refundPayment.mockReset().mockResolvedValue({ id: "rfnd_X", status: "processed" });
+  });
+
+  function tokensCITPayload(over: {
+    paymentId?: string;
+    tokenId?: string;
+    razorpayOrderId?: string;
+  } = {}) {
+    return {
+      event: "payment.captured",
+      payload: {
+        payment: {
+          entity: {
+            id: over.paymentId ?? "pay_TOK_AUTH",
+            amount: 200,
+            currency: "INR",
+            order_id: over.razorpayOrderId ?? "rzp_order_TOK",
+            token_id: over.tokenId ?? "token_T5nX",
+            customer_id: "cust_TOK",
+          },
+        },
+      },
+    };
+  }
+
+  function tokensOrder(
+    over: Partial<FakeOrder & { mandateMode?: string; razorpayCustomerId?: string; razorpayTokenId?: string }> = {}
+  ): FakeOrder & { mandateMode?: string; razorpayCustomerId?: string; razorpayTokenId?: string } {
+    return {
+      ...makeOrder({
+        razorpayOrderId: "rzp_order_TOK",
+        orderType: "hosting_trial",
+        ...over,
+      }),
+      mandateMode: "tokens",
+      razorpayCustomerId: "cust_TOK",
+      ...over,
+    };
+  }
+
+  it("on payment.captured for a tokens-mode hosting_trial: refunds Rs 2 + stores token_id + marks order completed", async () => {
+    const order = tokensOrder();
+    findOrderByRazorpayOrderIdOrInternalId.mockResolvedValueOnce(order);
+
+    const res = await POST(makeReq({ body: tokensCITPayload() }));
+    expect(res.status).toBe(200);
+
+    // Rs 2 refunded with optimum speed via RazorpayService.refundPayment
+    expect(refundPayment).toHaveBeenCalledWith(
+      "pay_TOK_AUTH",
+      200, // ₹2 in paise
+      expect.objectContaining({
+        reason: "mandate_validation_refund",
+        orderId: "ORD-1",
+      })
+    );
+
+    // Token persisted on order
+    expect(order.save).toHaveBeenCalled();
+    const orderRef = order as unknown as { razorpayTokenId?: string; razorpayPaymentId?: string; status?: string };
+    expect(orderRef.razorpayTokenId).toBe("token_T5nX");
+    expect(orderRef.razorpayPaymentId).toBe("pay_TOK_AUTH");
+    expect(orderRef.status).toBe("completed");
+
+    // finalizePendingOrder NOT called — Hosting provisioning is Phase 2C
+    expect(finalizePendingOrder).not.toHaveBeenCalled();
+  });
+
+  it("idempotency: re-delivered webhook on completed order → no-op (no refund, no save)", async () => {
+    const order = tokensOrder({ status: "completed" });
+    findOrderByRazorpayOrderIdOrInternalId.mockResolvedValueOnce(order);
+
+    await POST(makeReq({ body: tokensCITPayload() }));
+
+    expect(refundPayment).not.toHaveBeenCalled();
+    expect(order.save).not.toHaveBeenCalled();
+  });
+
+  it("token_id missing from payment BUT customer_id is on order: defers (no refund, leaves order pending so a later webhook delivery or token.confirmed event can complete it)", async () => {
+    const order = tokensOrder();  // razorpayCustomerId is set
+    findOrderByRazorpayOrderIdOrInternalId.mockResolvedValueOnce(order);
+
+    // payment with no token_id — Razorpay sometimes delivers payment.captured
+    // before the token_id is attached on their side; the deferral lets the
+    // next delivery (or a fetchTokens lookup) recover.
+    const payload = tokensCITPayload();
+    (payload.payload.payment.entity as { token_id?: string }).token_id = undefined;
+
+    const res = await POST(makeReq({ body: payload }));
+    expect(res.status).toBe(200);
+    expect(refundPayment).not.toHaveBeenCalled();  // defer until the token is available
+    expect(order.save).not.toHaveBeenCalled();
+  });
+
+  it("refund API failure does NOT block token storage (mandate is money-loss-but-mandate-intact)", async () => {
+    refundPayment.mockRejectedValueOnce(new Error("Razorpay refund API 500"));
+    const order = tokensOrder();
+    findOrderByRazorpayOrderIdOrInternalId.mockResolvedValueOnce(order);
+
+    const res = await POST(makeReq({ body: tokensCITPayload() }));
+    expect(res.status).toBe(200);
+
+    // Token still stored on order even though refund failed
+    expect(order.save).toHaveBeenCalled();
+    const orderRef = order as unknown as { razorpayTokenId?: string; status?: string };
+    expect(orderRef.razorpayTokenId).toBe("token_T5nX");
+    expect(orderRef.status).toBe("completed");
+  });
+
+  it("regular (non-tokens-mode) order: NOT routed to mandate handler", async () => {
+    const order = makeOrder();  // mandateMode undefined; orderType undefined → not 'hosting_trial' tokens branch
+    findOrderByRazorpayOrderIdOrInternalId.mockResolvedValueOnce(order);
+    claimPendingOrderForProcessing.mockResolvedValueOnce(order);
+
+    await POST(makeReq({ body: tokensCITPayload() }));
+
+    // Regular handler path: NO refund (refundPayment not called by the regular branch)
+    expect(refundPayment).not.toHaveBeenCalled();
   });
 });

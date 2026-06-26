@@ -652,6 +652,11 @@ export interface CreateOrderInput {
   invoiceNumber?: string;
   zohoInvoiceId?: string;
   orderType?: "domain" | "hosting" | "bundle" | "renewal" | "hosting_upgrade" | "hosting_trial" | "unknown";
+  // Tokens-flow recurring-payment fields. See models/Order.ts and
+  // docs/razorpay-tokens-migration.md.
+  mandateMode?: "subscription" | "tokens";
+  razorpayCustomerId?: string;
+  razorpayTokenId?: string;
   upgradeDetails?: {
     hostingId: string;
     fromPlanId: string;
