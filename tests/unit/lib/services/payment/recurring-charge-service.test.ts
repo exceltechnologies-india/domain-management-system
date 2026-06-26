@@ -44,10 +44,15 @@ const RCAFindOne = vi.hoisted(() => {
   const chain = { exec: () => Promise.resolve(null) };
   return vi.fn(() => chain);
 });
+const RCAFindOneAndUpdate = vi.hoisted(() => {
+  const chain = { exec: () => Promise.resolve(null) };
+  return vi.fn(() => chain);
+});
 vi.mock("@/models/RecurringChargeAttempt", () => ({
   default: {
     create: RCACreate,
     findOne: RCAFindOne,
+    findOneAndUpdate: RCAFindOneAndUpdate,
   },
   __esModule: true,
 }));
@@ -101,6 +106,7 @@ beforeEach(() => {
   findHostingDocs.mockReset().mockResolvedValue([]);
   RCACreate.mockReset();
   RCAFindOne.mockReset().mockReturnValue({ exec: () => Promise.resolve(null) });
+  RCAFindOneAndUpdate.mockReset().mockReturnValue({ exec: () => Promise.resolve(null) });
   getPlanByPlanId.mockReset().mockResolvedValue({
     planId: "starter",
     name: "Starter",
@@ -136,7 +142,7 @@ describe("findHostingsDueForCharge", () => {
 });
 
 describe("chargeRecurringHosting — happy path", () => {
-  it("claims attempt, charges via token, extends expiry by 1 year (yearly inferred), marks succeeded", async () => {
+  it("claims attempt, charges via token, extends expiry by 1 year (yearly inferred), marks succeeded — Hosting saved BEFORE attempt (Bug 2 fix)", async () => {
     const hosting = makeHosting();
     const claimedAttempt = {
       attemptCount: 1,
@@ -151,12 +157,25 @@ describe("chargeRecurringHosting — happy path", () => {
       amount: 59988,
     });
 
+    // Track save ORDER — Hosting must save BEFORE attempt to avoid the
+    // money-loss-on-Hosting-save-failure bug (Bug 2 from the audit).
+    const saveOrder: string[] = [];
+    hosting.save.mockImplementationOnce(async () => {
+      saveOrder.push("hosting");
+    });
+    claimedAttempt.save.mockImplementationOnce(async () => {
+      saveOrder.push("attempt");
+    });
+
     const result = await chargeRecurringHosting(
       hosting as unknown as Parameters<typeof chargeRecurringHosting>[0]
     );
 
     expect(result.outcome).toBe("succeeded");
     expect(result.attemptCount).toBe(1);
+
+    // Bug 2 fix: Hosting (expiry extension) saved BEFORE attempt (success mark)
+    expect(saveOrder).toEqual(["hosting", "attempt"]);
 
     // Charge fired with yearly amount = renewalPrice × 12
     expect(chargeViaToken).toHaveBeenCalledWith(
@@ -176,6 +195,37 @@ describe("chargeRecurringHosting — happy path", () => {
     const newExpiry = (hosting as { expiryDate: Date }).expiryDate;
     expect(newExpiry.getFullYear()).toBe(2028); // was 2027 → +1
     expect(hosting.save).toHaveBeenCalled();
+  });
+
+  it("Bug 2 fix: hosting.save failure throws BEFORE marking attempt 'succeeded' (no charged-but-service-not-extended state)", async () => {
+    const hosting = makeHosting();
+    const claimedAttempt = {
+      attemptCount: 1,
+      status: "in_progress",
+      save: vi.fn().mockResolvedValue(undefined),
+    };
+    RCACreate.mockResolvedValueOnce(claimedAttempt);
+    chargeViaToken.mockResolvedValueOnce({
+      orderId: "order_x",
+      paymentId: "pay_x",
+      amount: 59988,
+    });
+    hosting.save.mockRejectedValueOnce(new Error("Mongo write conflict"));
+
+    // chargeRecurringHosting throws because hosting.save throws
+    await expect(
+      chargeRecurringHosting(
+        hosting as unknown as Parameters<typeof chargeRecurringHosting>[0]
+      )
+    ).rejects.toThrow(/Mongo write conflict/);
+
+    // Attempt was NOT marked 'succeeded' (the bug-2 scenario: if attempt
+    // were marked 'succeeded' first, the next cron run would skip via
+    // idempotency, leaving the customer charged-but-not-served forever).
+    // With the fix, the attempt stays 'in_progress' so the operator can
+    // unstick it manually, or a future enhancement can timeout-recover.
+    expect(claimedAttempt.status).toBe("in_progress");
+    expect(claimedAttempt.save).not.toHaveBeenCalled();
   });
 });
 
@@ -237,16 +287,26 @@ describe("chargeRecurringHosting — dedup + retry races", () => {
     expect(chargeViaToken).not.toHaveBeenCalled();
   });
 
-  it("existing attempt 'failed' with nextAttemptAt in past → retries (attempt count bumped)", async () => {
+  it("existing attempt 'failed' with nextAttemptAt in past → atomic findOneAndUpdate claims the retry (attempt count bumped)", async () => {
     const past = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const attempt = {
+    const initialAttempt = {
+      _id: "attempt_R",
       attemptCount: 1,
       status: "failed",
       nextAttemptAt: past,
+    };
+    const claimedAttempt = {
+      _id: "attempt_R",
+      attemptCount: 2,
+      status: "in_progress",
       save: vi.fn().mockResolvedValue(undefined),
     };
     RCACreate.mockRejectedValueOnce({ code: 11000 });
-    RCAFindOne.mockReturnValueOnce({ exec: () => Promise.resolve(attempt) } as never);
+    RCAFindOne.mockReturnValueOnce({ exec: () => Promise.resolve(initialAttempt) } as never);
+    // findOneAndUpdate (the atomic claim) returns the updated doc
+    RCAFindOneAndUpdate.mockReturnValueOnce({
+      exec: () => Promise.resolve(claimedAttempt),
+    } as never);
     chargeViaToken.mockResolvedValueOnce({
       orderId: "order_MIT_R",
       paymentId: "pay_MIT_R",
@@ -258,7 +318,42 @@ describe("chargeRecurringHosting — dedup + retry races", () => {
     );
     expect(result.outcome).toBe("succeeded");
     expect(result.attemptCount).toBe(2);
+
+    // The atomic claim was guarded on status='failed' (so a concurrent cron
+    // that already flipped status couldn't race us into double-charging)
+    expect(RCAFindOneAndUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ _id: "attempt_R", status: "failed" }),
+      expect.objectContaining({
+        $inc: { attemptCount: 1 },
+        $set: expect.objectContaining({ status: "in_progress" }),
+      }),
+      expect.anything()
+    );
     expect(chargeViaToken).toHaveBeenCalled();
+  });
+
+  it("retry claim race: another cron won the claim (findOneAndUpdate returns null) → skip without charging", async () => {
+    const past = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const initialAttempt = {
+      _id: "attempt_R",
+      attemptCount: 1,
+      status: "failed",
+      nextAttemptAt: past,
+    };
+    RCACreate.mockRejectedValueOnce({ code: 11000 });
+    RCAFindOne.mockReturnValueOnce({ exec: () => Promise.resolve(initialAttempt) } as never);
+    // findOneAndUpdate returns null — another cron raced ahead and flipped
+    // the status between our read above and our atomic update
+    RCAFindOneAndUpdate.mockReturnValueOnce({
+      exec: () => Promise.resolve(null),
+    } as never);
+
+    const result = await chargeRecurringHosting(
+      makeHosting() as unknown as Parameters<typeof chargeRecurringHosting>[0]
+    );
+    expect(result.outcome).toBe("skipped");
+    expect(result.reason).toMatch(/retry claim race lost/);
+    expect(chargeViaToken).not.toHaveBeenCalled();
   });
 
   it("existing attempt 'failed' with nextAttemptAt FUTURE → 'skipped' (wait for scheduled retry)", async () => {

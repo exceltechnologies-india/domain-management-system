@@ -164,11 +164,30 @@ export async function chargeRecurringHosting(
           reason: `next retry scheduled for ${attempt.nextAttemptAt.toISOString()}`,
         };
       }
-      // Due for retry — bump attemptCount + claim
-      attempt.attemptCount += 1;
-      attempt.status = "in_progress";
-      attempt.lastAttemptAt = now;
-      await attempt.save();
+      // Due for retry. ATOMIC claim — guarded findOneAndUpdate on
+      // (_id, status='failed'). If another cron concurrent with us
+      // already won the claim (status flipped to 'in_progress' or
+      // 'succeeded' or 'abandoned' between our read above + this write),
+      // the update matches 0 rows and we skip safely. This prevents the
+      // race where two cron passes both read status='failed' + both
+      // bump to 'in_progress' + both charge (double-charge risk).
+      const claimed = await RecurringChargeAttempt.findOneAndUpdate(
+        { _id: attempt._id, status: "failed" },
+        {
+          $inc: { attemptCount: 1 },
+          $set: { status: "in_progress", lastAttemptAt: now },
+        },
+        { new: true }
+      ).exec();
+      if (!claimed) {
+        return {
+          ...baseResult,
+          outcome: "skipped",
+          attemptCount: attempt.attemptCount,
+          reason: "retry claim race lost (another cron won)",
+        };
+      }
+      attempt = claimed;
     }
   }
 
@@ -209,19 +228,36 @@ export async function chargeRecurringHosting(
     chargeErr = e instanceof Error ? e.message : String(e);
   }
 
-  // 4. Update attempt + hosting based on outcome
+  // 4. Update hosting + attempt based on outcome.
+  //
+  // ORDER MATTERS: extend Hosting.expiryDate FIRST, then mark the attempt
+  // 'succeeded'. The reverse order has a money-loss risk — if attempt.save
+  // succeeded but hosting.save failed, the customer was charged but service
+  // wasn't extended; the next cron run would skip via the 'succeeded'
+  // idempotency check, leaving the customer charged-but-not-served.
+  //
+  // With THIS order:
+  //   - hosting.save succeeds, attempt.save fails → service extended (good
+  //     for customer); attempt stays 'in_progress' as an audit-trail orphan
+  //     that an operator can manually reconcile later. Customer-side
+  //     correctness is preserved.
+  //   - hosting.save fails → throw → cron logs + the attempt stays
+  //     'in_progress' so the next cron pass sees it via the 'in_progress'
+  //     skip branch; once it eventually times out (a future enhancement —
+  //     today we'd require manual cleanup) or the operator unsticks it,
+  //     a clean retry can fire.
   if (chargeOk) {
-    attempt.status = "succeeded";
-    attempt.razorpayPaymentId = chargePaymentId;
-    attempt.razorpayOrderId = chargeOrderId;
-    await attempt.save();
-
     const newExpiry = new Date(hosting.expiryDate);
     if (isYearly) newExpiry.setFullYear(newExpiry.getFullYear() + 1);
     else newExpiry.setMonth(newExpiry.getMonth() + 1);
     hosting.expiryDate = newExpiry;
     hosting.last_reminder_sent = null;
     await hosting.save();
+
+    attempt.status = "succeeded";
+    attempt.razorpayPaymentId = chargePaymentId;
+    attempt.razorpayOrderId = chargeOrderId;
+    await attempt.save();
 
     serverLogger.info(
       `✅ [RECURRING-CHARGE] Charged ${hosting.domainName}: payment=${chargePaymentId} amount=₹${amountInRupees}; new expiry=${newExpiry.toISOString()}`
