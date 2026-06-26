@@ -39,7 +39,7 @@
  *  - **Response shape**: razorpayOrderId, razorpaySubscriptionId,
  *    subscriptionPlan, amount, currency, hasSubscription, isTrial
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const getUserFromRequest = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/auth", () => ({ AuthService: { getUserFromRequest } }));
@@ -61,10 +61,14 @@ vi.mock("@/lib/tld-policies", () => ({ validateDomainPeriod }));
 
 const createRazorpayOrder = vi.hoisted(() => vi.fn());
 const createSubscription = vi.hoisted(() => vi.fn());
+const createCustomer = vi.hoisted(() => vi.fn());
+const createRecurringTokenOrder = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/razorpay", () => ({
   RazorpayService: {
     createOrder: createRazorpayOrder,
     createSubscription,
+    createCustomer,
+    createRecurringTokenOrder,
   },
 }));
 
@@ -140,6 +144,14 @@ beforeEach(() => {
   createSubscription
     .mockReset()
     .mockResolvedValue({ id: "sub_RP_X" });
+  createCustomer.mockReset().mockResolvedValue({ id: "cust_tok_X" });
+  createRecurringTokenOrder
+    .mockReset()
+    .mockResolvedValue({ id: "order_tok_X", amount: 200 });
+  // Always reset the feature flag to default at the start of each test —
+  // individual Tokens-flow tests opt-in via `process.env.HOSTING_MANDATE_FLOW = 'tokens'`
+  // and clean up at the end (see the Tokens-flow describe block).
+  delete process.env.HOSTING_MANDATE_FLOW;
   evaluateTrialAbuse.mockReset().mockResolvedValue({ allowed: true });
   recordTrialClaim.mockReset().mockResolvedValue(undefined);
   HostingPlanFindOne.mockReset().mockResolvedValue(null);
@@ -711,5 +723,132 @@ describe("Razorpay createOrder args", () => {
   it("receipt id starts with 'ord_'", async () => {
     await POST(makeReq(domainCart));
     expect(createRazorpayOrder.mock.calls[0][2]).toMatch(/^ord_\d+_[a-z0-9]+$/);
+  });
+});
+
+// ── Tokens-flow branch (Phase 2A — HOSTING_MANDATE_FLOW=tokens) ────────
+describe("Tokens-flow branch (Phase 2A)", () => {
+  const tokensTrialCart = {
+    cartItems: [
+      {
+        domainName: "host-tokens",
+        price: 0,
+        currency: "INR",
+        itemType: "hosting" as const,
+        billingCycle: "yearly" as const,
+        registrationPeriod: 15,
+        isTrial: true,
+        hostingPlan: { id: "starter", name: "Starter" },
+      },
+    ],
+  };
+
+  beforeEach(() => {
+    process.env.HOSTING_MANDATE_FLOW = "tokens";
+    HostingPlanFindOne.mockResolvedValue({
+      planId: "starter",
+      name: "Starter",
+      renewalPrice: 49.99,
+      razorpayPlans: { yearly: "plan_yearly_starter", monthly: "plan_monthly_starter" },
+    });
+    getSettingValue.mockResolvedValue(true);  // trials enabled
+  });
+
+  it("with flag=tokens + trial + no other items: calls createCustomer + createRecurringTokenOrder; NOT createSubscription", async () => {
+    const res = await POST(makeReq(tokensTrialCart));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+
+    expect(createCustomer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: "u@x.com",
+        contact: "9876543210",
+        notes: { user_id: "U1" },
+      })
+    );
+    expect(createRecurringTokenOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customerId: "cust_tok_X",
+        validationAmountInPaise: 200,
+        maxAmountInPaise: 1500000,
+        method: "card",
+        frequency: "as_presented",
+      })
+    );
+    expect(createSubscription).not.toHaveBeenCalled();
+
+    // Response shape: tokens mode signal + auth order id + customer id
+    expect(body.mandateMode).toBe("tokens");
+    expect(body.razorpayOrderId).toBe("order_tok_X");
+    expect(body.razorpayCustomerId).toBe("cust_tok_X");
+    expect(body.razorpaySubscriptionId).toBeUndefined();
+    expect(body.amount).toBe(2);  // ₹2 validation amount, not the plan price
+  });
+
+  it("CIT auth order's notes carry the trial intent for the webhook handler", async () => {
+    await POST(makeReq(tokensTrialCart));
+    const args = createRecurringTokenOrder.mock.calls[0][0];
+    expect(args.notes).toEqual(
+      expect.objectContaining({
+        type: "mandate_validation",
+        user_id: "U1",
+        domain_name: "host-tokens",
+        plan_id: "starter",
+        is_trial: "true",
+        trial_days: "15",
+        intended_charge_paise: "59988",  // ₹49.99 × 12 in paise
+      })
+    );
+  });
+
+  it("flag NOT set: falls through to Subscriptions flow even for a trial", async () => {
+    delete process.env.HOSTING_MANDATE_FLOW;
+    await POST(makeReq(tokensTrialCart));
+    expect(createCustomer).not.toHaveBeenCalled();
+    expect(createRecurringTokenOrder).not.toHaveBeenCalled();
+    expect(createSubscription).toHaveBeenCalled();
+  });
+
+  it("user has no phone: falls through to Subscriptions flow", async () => {
+    getUserFromRequest.mockResolvedValueOnce({ ...validUser, phone: undefined });
+    await POST(makeReq(tokensTrialCart));
+    expect(createCustomer).not.toHaveBeenCalled();
+    expect(createSubscription).toHaveBeenCalled();
+  });
+
+  it("Tokens-flow API failure falls back to Subscriptions flow (NO error to user)", async () => {
+    createCustomer.mockRejectedValueOnce(new Error("Razorpay 500"));
+    const res = await POST(makeReq(tokensTrialCart));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    // Fell through to Subscriptions flow successfully
+    expect(createSubscription).toHaveBeenCalled();
+    expect(body.razorpaySubscriptionId).toBe("sub_RP_X");
+    expect(body.mandateMode).toBe("subscription");
+  });
+
+  it("non-trial recurring hosting: stays on Subscriptions flow even when flag=tokens (Phase 2A scope)", async () => {
+    const nonTrialCart = {
+      cartItems: [
+        {
+          domainName: "host-paid",
+          price: 49.99,
+          currency: "INR",
+          itemType: "hosting" as const,
+          billingCycle: "yearly" as const,
+          registrationPeriod: 12,
+          isTrial: false,
+          hostingPlan: { id: "starter", name: "Starter" },
+        },
+      ],
+    };
+    await POST(makeReq(nonTrialCart));
+    expect(createCustomer).not.toHaveBeenCalled();
+    expect(createRecurringTokenOrder).not.toHaveBeenCalled();
+    expect(createSubscription).toHaveBeenCalled();
+  });
+
+  afterEach(() => {
+    delete process.env.HOSTING_MANDATE_FLOW;
   });
 });

@@ -233,30 +233,111 @@ export async function POST(request: NextRequest) {
         if (plan) {
           // Trials always use the yearly plan ID
           const period = isTrial ? 'yearly' : (item.registrationPeriod === 12 ? 'yearly' : 'monthly');
-          const razorpayPlanId = plan.razorpayPlans?.[period];
 
-          if (razorpayPlanId) {
+          // ── Tokens-flow branch (Phase 2A — scoped MVP) ────────────────────
+          // Only fires when ALL of:
+          //   - HOSTING_MANDATE_FLOW=tokens (operator opt-in)
+          //   - this item is a free trial (the conversion-killing UX surface)
+          //   - oneTimeAmount === 0 so far (no mixed cart — domain + trial
+          //     mixed-cart deferred to Phase 2B; needs Razorpay checkout to
+          //     accept one auth order_id at a time so domain co-purchase
+          //     needs separate authorization flow)
+          //   - user.phone is set (createCustomer needs a contact number)
+          // Falls through to the Subscriptions flow on any miss so production
+          // is never blocked by a missing precondition.
+          const tokensFlowAllowed =
+            process.env.HOSTING_MANDATE_FLOW === 'tokens' &&
+            isTrial &&
+            oneTimeAmount === 0 &&
+            !!user.phone;
+
+          if (tokensFlowAllowed) {
             try {
-              const subscription = await RazorpayService.createSubscription(
-                razorpayPlanId,
-                user.id,
-                item.linkedDomain || item.domainName,
-                true,
-                100,
-                isTrial ? 15 : undefined
-              );
+              const customer = await RazorpayService.createCustomer({
+                name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+                email: user.email,
+                contact: user.phone as string,
+                notes: { user_id: String(user.id) },
+              });
+
+              // NPCI hard caps card-token recurring at Rs 15,000 (1500000 paise).
+              // All current tiers (Starter Rs 599.88/yr through Plus Rs 2246.40/yr) are
+              // well below that; setting max_amount at the cap gives headroom
+              // for tier upgrades + multi-year prepayments via the same token.
+              const tokenOrder = await RazorpayService.createRecurringTokenOrder({
+                customerId: customer.id,
+                validationAmountInPaise: 200,  // Rs 2 — the "and reverse" amount
+                maxAmountInPaise: 1500000,      // Rs 15,000 NPCI cap
+                method: 'card',                  // Razorpay overlay shows all enabled methods
+                frequency: 'as_presented',       // merchant-driven recurring cadence
+                receipt: `auth_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                notes: {
+                  type: 'mandate_validation',
+                  user_id: String(user.id),
+                  domain_name: item.linkedDomain || item.domainName,
+                  plan_id: plan.planId,
+                  plan_name: plan.name,
+                  period,
+                  is_trial: 'true',
+                  // First MIT charge fires after 15-day trial. Cron reads this
+                  // and the trial_expiry_unix below to schedule the renewal.
+                  trial_days: '15',
+                  intended_charge_paise: String(Math.round(plan.renewalPrice * 12 * 100)),
+                },
+              });
+
               subscriptionData = {
-                id: subscription.id,
+                id: tokenOrder.id,            // For backward-compat with `razorpaySubscriptionId` consumers — actually the auth order id in tokens mode
                 planName: plan.name,
-                period: period
+                period,
+                mode: 'tokens' as const,
+                customerId: customer.id,
+                orderId: tokenOrder.id,
               };
               subscriptionCreated = true;
-              serverLogger.info(`✅ [CREATE-ORDER] Subscription Created: ${subscription.id} for ${plan.name}${isTrial ? ' (15-day trial)' : ''}`);
-            } catch (subErr) {
-              serverLogger.error(`❌ [CREATE-ORDER] Failed to create subscription for ${plan.name}`, subErr);
+              serverLogger.info(
+                `✅ [CREATE-ORDER] Tokens auth order created: ${tokenOrder.id} (customer=${customer.id}, plan=${plan.name}, validation=Rs 2)`
+              );
+            } catch (tokErr) {
+              serverLogger.error(
+                `❌ [CREATE-ORDER] Tokens flow failed — falling through to Subscriptions flow:`,
+                tokErr
+              );
+              // Intentional fall-through: any failure in the Tokens flow
+              // (Razorpay API down, customer-creation race, invalid phone)
+              // should not block the customer from completing checkout.
+              // The Subscriptions flow below is the existing, battle-tested path.
             }
-          } else {
-            serverLogger.warn(`⚠️ [CREATE-ORDER] No Razorpay Plan ID found for ${plan.name} (${period})`);
+          }
+
+          // ── Subscriptions-flow branch (existing default path) ─────────────
+          if (!subscriptionCreated) {
+            const razorpayPlanId = plan.razorpayPlans?.[period];
+
+            if (razorpayPlanId) {
+              try {
+                const subscription = await RazorpayService.createSubscription(
+                  razorpayPlanId,
+                  user.id,
+                  item.linkedDomain || item.domainName,
+                  true,
+                  100,
+                  isTrial ? 15 : undefined
+                );
+                subscriptionData = {
+                  id: subscription.id,
+                  planName: plan.name,
+                  period: period,
+                  mode: 'subscription' as const,
+                };
+                subscriptionCreated = true;
+                serverLogger.info(`✅ [CREATE-ORDER] Subscription Created: ${subscription.id} for ${plan.name}${isTrial ? ' (15-day trial)' : ''}`);
+              } catch (subErr) {
+                serverLogger.error(`❌ [CREATE-ORDER] Failed to create subscription for ${plan.name}`, subErr);
+              }
+            } else {
+              serverLogger.warn(`⚠️ [CREATE-ORDER] No Razorpay Plan ID found for ${plan.name} (${period})`);
+            }
           }
         } else {
           serverLogger.warn(`⚠️ [CREATE-ORDER] HostingPlan not found in DB for planId: ${(item.hostingPlan as { planId?: string } | undefined)?.planId || (item as CartItem & { planId?: string }).planId}`);
@@ -366,12 +447,20 @@ export async function POST(request: NextRequest) {
       }
 
       const isTrial = recurringHostingItems[0]?.isTrial === true;
+
+      // Tokens-mode response shape: the CIT auth order_id replaces the
+      // subscription_id; frontend opens Razorpay checkout with order_id +
+      // customer_id + recurring: 1 instead of subscription_id.
+      const isTokensMode = subscriptionData?.mode === 'tokens';
+
       return NextResponse.json({
         success: true,
-        razorpayOrderId,
-        razorpaySubscriptionId: subscriptionData?.id,
+        razorpayOrderId: isTokensMode ? subscriptionData?.orderId : razorpayOrderId,
+        razorpaySubscriptionId: isTokensMode ? undefined : subscriptionData?.id,
+        razorpayCustomerId: isTokensMode ? subscriptionData?.customerId : undefined,
         subscriptionPlan: subscriptionData?.planName,
-        amount: oneTimeAmount,
+        mandateMode: subscriptionData?.mode ?? null,  // 'subscription' | 'tokens' | null
+        amount: isTokensMode ? 2 : oneTimeAmount,     // ₹2 validation in tokens mode
         currency: "INR",
         hasSubscription: !!subscriptionData,
         isTrial: isTrial && !!subscriptionData,
