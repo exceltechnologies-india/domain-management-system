@@ -34,6 +34,8 @@ import RecurringChargeAttempt from "@/models/RecurringChargeAttempt";
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import { getUserById } from "@/lib/services/users";
 import { RazorpayService } from "@/lib/razorpay";
+import { suspendUser as daSuspendUser } from "@/lib/integrations/directadmin";
+import { EmailService } from "@/lib/email";
 import { serverLogger } from "@/lib/server-logger";
 
 /**
@@ -234,8 +236,74 @@ export async function chargeRecurringHosting(
     attempt.abandonedAt = now;
     await attempt.save();
     serverLogger.error(
-      `❌ [RECURRING-CHARGE] ABANDONED ${hosting.domainName} after ${attempt.attemptCount} attempts: ${chargeErr}. Hosting NOT extended; admin action needed.`
+      `❌ [RECURRING-CHARGE] ABANDONED ${hosting.domainName} after ${attempt.attemptCount} attempts: ${chargeErr}.`
     );
+
+    // Phase 2F: dunning + DA suspend on abandonment.
+    //
+    // Three best-effort actions — each wrapped in try/catch so a single
+    // failure (DA unreachable mid-suspend / email transport down / etc.)
+    // doesn't cascade. The attempt is already marked 'abandoned', so the
+    // cron summary correctly counts this row whatever happens here.
+
+    // (a) Suspend DA user. Skip if directAdminUsername empty (Phase 2C
+    // creates Hostings with status='pending' + empty username; Phase 2E
+    // cron flips to status='active' + populated username before MIT
+    // charges could ever fire, so in practice this guard is defensive).
+    if (hosting.directAdminUsername) {
+      try {
+        const outcome = await daSuspendUser({
+          username: hosting.directAdminUsername,
+          reason: `Recurring charge abandoned after ${attempt.attemptCount} attempts`,
+        });
+        if (outcome.kind === "suspended") {
+          serverLogger.info(
+            `[RECURRING-CHARGE] DA suspended ${hosting.directAdminUsername} (abandoned recurring charge)`
+          );
+        } else {
+          serverLogger.warn(
+            `[RECURRING-CHARGE] DA suspend returned ${outcome.kind} for ${hosting.directAdminUsername}: ${outcome.reason ?? ""}`
+          );
+        }
+      } catch (suspendErr) {
+        serverLogger.error(
+          `[RECURRING-CHARGE] DA suspend threw for ${hosting.directAdminUsername}: ${suspendErr instanceof Error ? suspendErr.message : String(suspendErr)}`
+        );
+      }
+    }
+
+    // (b) Flip Hosting status to 'expired'. The next renewal attempt
+    // would be a manual customer action (re-add payment + re-subscribe),
+    // not another cron retry.
+    hosting.status = "expired";
+    hosting.next_action_at = undefined;
+    try {
+      await hosting.save();
+    } catch (saveErr) {
+      serverLogger.error(
+        `[RECURRING-CHARGE] Failed to flip Hosting.status='expired' for ${hosting.domainName}: ${saveErr instanceof Error ? saveErr.message : String(saveErr)}`
+      );
+    }
+
+    // (c) Send the dunning / suspension email. Customer needs to know
+    // their hosting was suspended + how to recover.
+    try {
+      const user = await getUserById(String(hosting.userId));
+      if (user?.email) {
+        await EmailService.sendServiceSuspensionEmail(user.email, {
+          serviceName: hosting.domainName,
+          serviceType: "Hosting",
+        });
+        serverLogger.info(
+          `[RECURRING-CHARGE] Suspension email sent to ${user.email} for ${hosting.domainName}`
+        );
+      }
+    } catch (emailErr) {
+      serverLogger.error(
+        `[RECURRING-CHARGE] Failed to send suspension email for ${hosting.domainName}: ${emailErr instanceof Error ? emailErr.message : String(emailErr)}`
+      );
+    }
+
     return { ...baseResult, outcome: "abandoned", attemptCount: attempt.attemptCount, reason: chargeErr };
   }
   const backoffDays = RETRY_BACKOFF_DAYS[Math.min(attempt.attemptCount - 1, RETRY_BACKOFF_DAYS.length - 1)];

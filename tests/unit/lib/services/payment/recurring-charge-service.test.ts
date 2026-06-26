@@ -61,6 +61,14 @@ vi.mock("@/lib/services/users", () => ({ getUserById }));
 const chargeViaToken = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/razorpay", () => ({ RazorpayService: { chargeViaToken } }));
 
+const daSuspendUser = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/integrations/directadmin", () => ({ suspendUser: daSuspendUser }));
+
+const sendServiceSuspensionEmail = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/email", () => ({
+  EmailService: { sendServiceSuspensionEmail },
+}));
+
 vi.mock("@/lib/server-logger", () => ({
   serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
@@ -104,6 +112,8 @@ beforeEach(() => {
     phone: "9876543210",
   });
   chargeViaToken.mockReset();
+  daSuspendUser.mockReset().mockResolvedValue({ kind: "suspended" });
+  sendServiceSuspensionEmail.mockReset().mockResolvedValue(true);
 });
 
 describe("findHostingsDueForCharge", () => {
@@ -294,8 +304,8 @@ describe("chargeRecurringHosting — failure handling", () => {
     expect(attemptObj.nextAttemptAt!.getTime()).toBeLessThanOrEqual(before + 1.1 * 24 * 60 * 60 * 1000);
   });
 
-  it("4th failure (MAX_ATTEMPTS = initial + 3 retries) → 'abandoned'; expiry NOT extended", async () => {
-    const hosting = makeHosting();
+  it("4th failure (MAX_ATTEMPTS = initial + 3 retries) → 'abandoned' + DA suspended + Hosting expired + suspension email sent (Phase 2F)", async () => {
+    const hosting = makeHosting({ directAdminUsername: "userxxx" });
     const originalExpiry = new Date(hosting.expiryDate).getTime();
     const attempt = {
       attemptCount: 4,
@@ -314,9 +324,89 @@ describe("chargeRecurringHosting — failure handling", () => {
     expect(attemptObj.status).toBe("abandoned");
     expect(attemptObj.abandonedAt).toBeInstanceOf(Date);
 
-    // Hosting expiry NOT changed
+    // Hosting expiry NOT changed (no successful charge → no extension)
     expect((hosting as { expiryDate: Date }).expiryDate.getTime()).toBe(originalExpiry);
-    expect(hosting.save).not.toHaveBeenCalled();
+
+    // Phase 2F: DA suspended with attempt count in the reason
+    expect(daSuspendUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        username: "userxxx",
+        reason: expect.stringMatching(/abandoned after 4 attempts/),
+      })
+    );
+
+    // Phase 2F: Hosting flipped to 'expired' + saved
+    expect((hosting as unknown as { status: string }).status).toBe("expired");
+    expect(hosting.save).toHaveBeenCalled();
+
+    // Phase 2F: suspension email sent
+    expect(sendServiceSuspensionEmail).toHaveBeenCalledWith(
+      "user@x.com",
+      expect.objectContaining({
+        serviceName: "example.com",
+        serviceType: "Hosting",
+      })
+    );
+  });
+
+  it("Phase 2F: abandonment skips DA suspend when directAdminUsername is empty (defensive)", async () => {
+    const hosting = makeHosting({ directAdminUsername: "" });
+    const attempt = {
+      attemptCount: 4,
+      status: "in_progress",
+      save: vi.fn().mockResolvedValue(undefined),
+    };
+    RCACreate.mockResolvedValueOnce(attempt);
+    chargeViaToken.mockRejectedValueOnce(new Error("Card declined"));
+
+    await chargeRecurringHosting(
+      hosting as unknown as Parameters<typeof chargeRecurringHosting>[0]
+    );
+
+    expect(daSuspendUser).not.toHaveBeenCalled();
+    // Hosting still gets flipped to 'expired' + email still sent
+    expect((hosting as unknown as { status: string }).status).toBe("expired");
+    expect(sendServiceSuspensionEmail).toHaveBeenCalled();
+  });
+
+  it("Phase 2F: DA suspend failure does NOT block Hosting.status='expired' + email send", async () => {
+    daSuspendUser.mockRejectedValueOnce(new Error("DA unreachable"));
+    const hosting = makeHosting({ directAdminUsername: "userxxx" });
+    const attempt = {
+      attemptCount: 4,
+      status: "in_progress",
+      save: vi.fn().mockResolvedValue(undefined),
+    };
+    RCACreate.mockResolvedValueOnce(attempt);
+    chargeViaToken.mockRejectedValueOnce(new Error("Card declined"));
+
+    const result = await chargeRecurringHosting(
+      hosting as unknown as Parameters<typeof chargeRecurringHosting>[0]
+    );
+
+    expect(result.outcome).toBe("abandoned");
+    expect((hosting as unknown as { status: string }).status).toBe("expired");
+    expect(sendServiceSuspensionEmail).toHaveBeenCalled();
+  });
+
+  it("Phase 2F: suspension email failure does NOT block DA suspend + Hosting.status flip", async () => {
+    sendServiceSuspensionEmail.mockRejectedValueOnce(new Error("SMTP down"));
+    const hosting = makeHosting({ directAdminUsername: "userxxx" });
+    const attempt = {
+      attemptCount: 4,
+      status: "in_progress",
+      save: vi.fn().mockResolvedValue(undefined),
+    };
+    RCACreate.mockResolvedValueOnce(attempt);
+    chargeViaToken.mockRejectedValueOnce(new Error("Card declined"));
+
+    const result = await chargeRecurringHosting(
+      hosting as unknown as Parameters<typeof chargeRecurringHosting>[0]
+    );
+
+    expect(result.outcome).toBe("abandoned");
+    expect(daSuspendUser).toHaveBeenCalled();
+    expect((hosting as unknown as { status: string }).status).toBe("expired");
   });
 });
 
