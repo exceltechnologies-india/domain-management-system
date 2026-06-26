@@ -71,6 +71,17 @@ interface HostingData {
   isUnlinked?: boolean;
   linkedByEmail?: boolean;
   error?: string;
+  // Recurring-payment metadata. Subscriptions-API path populates
+  // `subscriptionId`; Tokens-API path populates `razorpayCustomerId`
+  // + `razorpayTokenId`. `billingType` captures the high-level mode
+  // ('subscription' | 'manual'); `isTrial` is set for active 15-day
+  // free trials. Surfaced in the detail modal so an operator triaging
+  // a stuck mandate can pivot to Razorpay dashboard via the IDs.
+  subscriptionId?: string | null;
+  razorpayCustomerId?: string | null;
+  razorpayTokenId?: string | null;
+  isTrial?: boolean;
+  billingType?: string | null;
 }
 
 export default function AdminHostingPage() {
@@ -1211,6 +1222,69 @@ export default function AdminHostingPage() {
                         <div className="font-bold text-gray-900">{selectedDetails.php}</div>
                       </div>
                     </div>
+
+                    {/* Recurring Payment / Mandate (Phase 2I admin-visibility addition).
+                        Pulls from the row data (hostingData.find by daUsername) rather
+                        than the live DA-side details, since this info lives on our
+                        local Hosting record, not on DA. Rendered only when at least
+                        one recurring-payment identifier is present — Subscriptions-API
+                        customers see `subscriptionId`; Tokens-API customers see
+                        `razorpayCustomerId` + `razorpayTokenId`; manual-billing
+                        customers see neither, so the section stays hidden for them. */}
+                    {(() => {
+                      const row = hostingData.find((d) => d.daUsername === selectedDetails.username);
+                      const hasMandate = row && (row.subscriptionId || row.razorpayTokenId || row.razorpayCustomerId);
+                      if (!row || !hasMandate) return null;
+                      const isTokens = !!row.razorpayTokenId;
+                      const isSubs = !isTokens && !!row.subscriptionId;
+                      return (
+                        <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-amber-900">Recurring Payment</span>
+                            <div className="flex gap-2">
+                              {row.isTrial && (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                  15-day trial
+                                </span>
+                              )}
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                isTokens
+                                  ? 'bg-purple-100 text-purple-800'
+                                  : isSubs
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {isTokens ? 'Tokens API (₹2-and-reverse)' : isSubs ? 'Subscriptions API' : 'Manual billing'}
+                              </span>
+                            </div>
+                          </div>
+                          {row.razorpayCustomerId && (
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-gray-600">Razorpay Customer ID</span>
+                              <span className="text-sm font-mono text-gray-900">{row.razorpayCustomerId}</span>
+                            </div>
+                          )}
+                          {row.razorpayTokenId && (
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-gray-600">Mandate Token ID</span>
+                              <span className="text-sm font-mono text-gray-900">{row.razorpayTokenId}</span>
+                            </div>
+                          )}
+                          {row.subscriptionId && (
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-gray-600">Razorpay Subscription ID</span>
+                              <span className="text-sm font-mono text-gray-900">{row.subscriptionId}</span>
+                            </div>
+                          )}
+                          {row.billingType && (
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-gray-600">Billing Type</span>
+                              <span className="text-sm font-medium text-gray-900 capitalize">{row.billingType}</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* Row 2: Resources Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

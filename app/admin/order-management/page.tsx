@@ -51,6 +51,15 @@ interface Order {
   failedDomains: string[];
   isArchived?: boolean; // Legacy
   isDeleted?: boolean; // Actual DB field
+  // Razorpay recurring-payment mode + mandate identifiers. Set when the
+  // Tokens-flow CIT auth is used (Phase 2A onwards). Surfaced in the
+  // detail modal so an operator can distinguish Tokens-mode mandates
+  // from Subscriptions-API customers + jump to Razorpay dashboard by
+  // customerId/tokenId when triaging recurring-charge failures.
+  mandateMode?: "subscription" | "tokens";
+  razorpayCustomerId?: string;
+  razorpayTokenId?: string;
+  razorpayOrderId?: string;
 }
 
 interface User {
@@ -593,6 +602,43 @@ export default function AdminOrders() {
                   </div>
                   <p className="text-xs text-gray-500 text-right">*GST (18%) is included in the total amount</p>
                 </div>
+
+                {/* Recurring Payment / Mandate Details — only when a recurring-payment
+                    mode is set on the order. Surfaces the Razorpay customerId +
+                    tokenId so an operator triaging a failed MIT charge can pivot
+                    directly to Razorpay's dashboard to inspect the mandate. */}
+                {selectedOrder.mandateMode && (
+                  <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-amber-900">Recurring Payment</span>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
+                        selectedOrder.mandateMode === 'tokens'
+                          ? 'bg-purple-100 text-purple-800'
+                          : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {selectedOrder.mandateMode === 'tokens' ? 'Tokens API (₹2-and-reverse)' : 'Subscriptions API'}
+                      </span>
+                    </div>
+                    {selectedOrder.razorpayCustomerId && (
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-600">Razorpay Customer ID</span>
+                        <span className="text-sm font-mono text-gray-900">{selectedOrder.razorpayCustomerId}</span>
+                      </div>
+                    )}
+                    {selectedOrder.razorpayTokenId && (
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-600">Mandate Token ID</span>
+                        <span className="text-sm font-mono text-gray-900">{selectedOrder.razorpayTokenId}</span>
+                      </div>
+                    )}
+                    {selectedOrder.razorpayOrderId && (
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-600">Razorpay Order ID</span>
+                        <span className="text-sm font-mono text-gray-900">{selectedOrder.razorpayOrderId}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Domains */}

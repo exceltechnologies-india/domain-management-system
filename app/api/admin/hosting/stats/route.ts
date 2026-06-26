@@ -121,6 +121,15 @@ export async function GET(request: NextRequest) {
       isUnlinked?: boolean;
       linkedByEmail?: boolean;
       error?: string;
+      // Tokens-flow + Subscriptions-flow recurring-billing metadata —
+      // surfaced in the admin detail modal so an operator can tell
+      // immediately which Razorpay API path runs this Hosting + has
+      // the customer/token IDs to pivot into Razorpay's dashboard.
+      subscriptionId?: string | null;
+      razorpayCustomerId?: string | null;
+      razorpayTokenId?: string | null;
+      isTrial?: boolean;
+      billingType?: string | null;
     };
     type LocalUser = (typeof localUsers)[number] & { _id: { toString(): string } };
     type HostingRecord = {
@@ -135,6 +144,11 @@ export async function GET(request: NextRequest) {
       username?: string;
       name?: string;
       serverIp?: string;
+      subscriptionId?: string | null;
+      razorpayCustomerId?: string | null;
+      razorpayTokenId?: string | null;
+      isTrial?: boolean;
+      billingType?: string | null;
     };
     let hostingStats: HostingStatRow[] = [];
 
@@ -290,7 +304,15 @@ export async function GET(request: NextRequest) {
               expiryDate: expiresAt,
               createdDate: createdAt || daConfig.date_created,
               isUnlinked: !localUser,
-              linkedByEmail: linkedByEmail
+              linkedByEmail: linkedByEmail,
+              // Tokens-flow visibility (Phase 2I — admin UI surfaces).
+              // null when the Hosting doesn't have a recurring-payment
+              // mandate set up; populated when CIT auth completed.
+              subscriptionId: hostingRecord?.subscriptionId ?? null,
+              razorpayCustomerId: hostingRecord?.razorpayCustomerId ?? null,
+              razorpayTokenId: hostingRecord?.razorpayTokenId ?? null,
+              isTrial: hostingRecord?.isTrial ?? false,
+              billingType: hostingRecord?.billingType ?? null,
             };
         }));
     } else {
@@ -321,6 +343,12 @@ export async function GET(request: NextRequest) {
                  phpVersion: 'Unknown',
                  expiryDate: h.expiryDate,
                  createdDate: h.createdAt,
+                 // Tokens-flow visibility (Phase 2I — admin UI surfaces).
+                 subscriptionId: h.subscriptionId ?? null,
+                 razorpayCustomerId: h.razorpayCustomerId ?? null,
+                 razorpayTokenId: h.razorpayTokenId ?? null,
+                 isTrial: h.isTrial ?? false,
+                 billingType: h.billingType ?? null,
                  isUnlinked: !localUser, // If we have a hosting record but no user?
                  linkedByEmail: false
              };
