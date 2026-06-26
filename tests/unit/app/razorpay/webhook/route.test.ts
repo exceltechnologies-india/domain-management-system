@@ -81,6 +81,16 @@ vi.mock("@/lib/razorpay", () => ({
   RazorpayService: { refundPayment },
 }));
 
+const createTokensFlowTrialHosting = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/services/payment/tokens-trial-provisioner", () => ({
+  createTokensFlowTrialHosting,
+}));
+
+const findUserHosting = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/services/hostings", () => ({
+  findUserHosting,
+}));
+
 const zohoCreateInvoice = vi.hoisted(() => vi.fn());
 const zohoCreateCreditNote = vi.hoisted(() => vi.fn());
 const zohoGetContactByEmail = vi.hoisted(() => vi.fn());
@@ -801,6 +811,13 @@ describe("Outer catch — 500 for unexpected throws (Razorpay retries)", () => {
 describe("Tokens-flow mandate validation (mandateMode='tokens')", () => {
   beforeEach(() => {
     refundPayment.mockReset().mockResolvedValue({ id: "rfnd_X", status: "processed" });
+    findUserHosting.mockReset().mockResolvedValue(null);
+    createTokensFlowTrialHosting.mockReset().mockResolvedValue({
+      hostingId: "host_T_1",
+      domainName: "example.com",
+      expiryDate: new Date(),
+      status: "pending",
+    });
   });
 
   function tokensCITPayload(over: {
@@ -840,7 +857,7 @@ describe("Tokens-flow mandate validation (mandateMode='tokens')", () => {
     };
   }
 
-  it("on payment.captured for a tokens-mode hosting_trial: refunds Rs 2 + stores token_id + marks order completed", async () => {
+  it("on payment.captured for a tokens-mode hosting_trial: refunds Rs 2 + stores token_id + marks order completed + creates Hosting record", async () => {
     const order = tokensOrder();
     findOrderByRazorpayOrderIdOrInternalId.mockResolvedValueOnce(order);
 
@@ -864,8 +881,51 @@ describe("Tokens-flow mandate validation (mandateMode='tokens')", () => {
     expect(orderRef.razorpayPaymentId).toBe("pay_TOK_AUTH");
     expect(orderRef.status).toBe("completed");
 
-    // finalizePendingOrder NOT called — Hosting provisioning is Phase 2C
+    // Phase 2C: Hosting record creation (after token storage + refund)
+    expect(findUserHosting).toHaveBeenCalledWith("U1", { domainName: "alice.com" });
+    expect(createTokensFlowTrialHosting).toHaveBeenCalledTimes(1);
+    expect(createTokensFlowTrialHosting).toHaveBeenCalledWith(
+      expect.objectContaining({ orderId: "ORD-1", razorpayTokenId: "token_T5nX" })
+    );
+
+    // finalizePendingOrder NOT called — Tokens flow does not use it
     expect(finalizePendingOrder).not.toHaveBeenCalled();
+  });
+
+  it("Phase 2C idempotency: existing Hosting for (userId, domainName) → skip create", async () => {
+    findUserHosting.mockResolvedValueOnce({ _id: "h_existing", domainName: "alice.com" });
+    const order = tokensOrder();
+    findOrderByRazorpayOrderIdOrInternalId.mockResolvedValueOnce(order);
+
+    await POST(makeReq({ body: tokensCITPayload() }));
+
+    expect(findUserHosting).toHaveBeenCalled();
+    expect(createTokensFlowTrialHosting).not.toHaveBeenCalled();
+  });
+
+  it("Phase 2C Hosting-creation failure does NOT block the webhook (token already stored + refund issued)", async () => {
+    createTokensFlowTrialHosting.mockRejectedValueOnce(new Error("createHosting DB write failed"));
+    const order = tokensOrder();
+    findOrderByRazorpayOrderIdOrInternalId.mockResolvedValueOnce(order);
+
+    const res = await POST(makeReq({ body: tokensCITPayload() }));
+    expect(res.status).toBe(200);  // 200 so Razorpay doesn't retry the whole flow
+
+    // The token was still stored on the order before Hosting creation was attempted
+    const orderRef = order as unknown as { razorpayTokenId?: string; status?: string };
+    expect(orderRef.razorpayTokenId).toBe("token_T5nX");
+    expect(orderRef.status).toBe("completed");
+  });
+
+  it("Phase 2C: order with empty domains array → no Hosting created, no crash", async () => {
+    const order = { ...tokensOrder(), domains: [] };
+    findOrderByRazorpayOrderIdOrInternalId.mockResolvedValueOnce(order);
+
+    const res = await POST(makeReq({ body: tokensCITPayload() }));
+    expect(res.status).toBe(200);
+
+    expect(findUserHosting).not.toHaveBeenCalled();
+    expect(createTokensFlowTrialHosting).not.toHaveBeenCalled();
   });
 
   it("idempotency: re-delivered webhook on completed order → no-op (no refund, no save)", async () => {

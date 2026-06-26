@@ -12,6 +12,8 @@ import {
 } from "@/lib/services/orders";
 import { finalizePendingOrder } from "@/lib/services/payment/order-creator";
 import { RazorpayService } from "@/lib/razorpay";
+import { createTokensFlowTrialHosting } from "@/lib/services/payment/tokens-trial-provisioner";
+import { findUserHosting } from "@/lib/services/hostings";
 import type { RazorpayPaymentDetails } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -354,8 +356,43 @@ async function handleMandateValidationCaptured(
     orderRef.status = "completed";
     await orderRef.save();
 
+    // Step 4: provision the Hosting record (Phase 2C). Idempotency guard:
+    // if a Hosting already exists for this (userId, domainName), skip — the
+    // first webhook delivery (or /verify) already created it.
+    //
+    // DirectAdmin user creation is intentionally deferred to Phase 2D's
+    // provisioning cron. The Hosting created here has status='pending'
+    // until that cron flips it to 'active'.
+    try {
+        const firstDomain = (order.domains as unknown as Array<{ domainName?: string }> | undefined)?.[0];
+        const targetDomain = firstDomain?.domainName;
+        if (targetDomain) {
+            const existing = await findUserHosting(String(order.userId), { domainName: targetDomain });
+            if (existing) {
+                serverLogger.info(
+                    `[Webhook] Hosting already exists for ${order.orderId} / ${targetDomain} — skipping create (idempotent)`
+                );
+            } else {
+                await createTokensFlowTrialHosting(order as IOrder & { razorpayCustomerId?: string; razorpayTokenId?: string });
+            }
+        } else {
+            serverLogger.warn(
+                `[Webhook] Order ${order.orderId} has no domain in domains[0] — Hosting NOT created. Manual intervention required.`
+            );
+        }
+    } catch (provisionErr) {
+        const msg = provisionErr instanceof Error ? provisionErr.message : String(provisionErr);
+        serverLogger.error(
+            `❌ [Webhook] Hosting creation failed for ${order.orderId}: ${msg}. Order is marked completed + token stored; manual Hosting creation needed.`
+        );
+        // Don't rethrow — the mandate is set up, token is stored, order is
+        // completed. A missing Hosting record is recoverable via admin tool
+        // / re-running this function; a thrown error here would cause
+        // Razorpay to retry the webhook indefinitely.
+    }
+
     serverLogger.info(
-        `✅ [Webhook] Mandate authorized for ${order.orderId}: token=${tokenId}, customer=${order.razorpayCustomerId} — Hosting provisioning deferred to Phase 2C cron / /verify`
+        `✅ [Webhook] Mandate authorized + Hosting created for ${order.orderId}: token=${tokenId}, customer=${order.razorpayCustomerId} — DA provisioning deferred to Phase 2D cron`
     );
 }
 
