@@ -36,6 +36,38 @@ describe("razorpay-checkout-protocol", () => {
     expect(withExtras["callback_url"]).toBe("https://example.com/callback");
   });
 
+  it("RazorpayCheckoutOptions accepts the Tokens-flow recurring shape (Phase 2G)", () => {
+    // Tokens flow opens Razorpay Checkout with order_id + customer_id +
+    // recurring: '1' to invoke the autopay mandate UI. Pinning the type
+    // surface so the existing app/checkout/page.tsx call site keeps
+    // compiling cleanly.
+    const tokensOpts: RazorpayCheckoutOptions = {
+      key: "rzp_live_T5NRBOq7ByM414",
+      name: "AnuTech Digital",
+      description: "Hosting trial — ₹2 mandate setup (refunded immediately)",
+      order_id: "order_TOK_AUTH",
+      customer_id: "cust_T",
+      recurring: "1",
+      prefill: { email: "user@x.com", name: "Test User" },
+      theme: { color: "#3b82f6" },
+    };
+    expect(tokensOpts.customer_id).toBe("cust_T");
+    expect(tokensOpts.recurring).toBe("1");
+    expect(tokensOpts.order_id).toBe("order_TOK_AUTH");
+    // subscription_id is NOT used in Tokens mode — it should remain undefined
+    expect(tokensOpts.subscription_id).toBeUndefined();
+  });
+
+  it("RazorpayCheckoutOptions also accepts recurring: 1 (numeric form)", () => {
+    const opts: RazorpayCheckoutOptions = {
+      key: "rzp_live_x",
+      order_id: "order_x",
+      customer_id: "cust_x",
+      recurring: 1,
+    };
+    expect(opts.recurring).toBe(1);
+  });
+
   it("RazorpaySuccessPayload requires payment_id + signature", () => {
     const payload: RazorpaySuccessPayload = {
       razorpay_payment_id: "pay_abc",

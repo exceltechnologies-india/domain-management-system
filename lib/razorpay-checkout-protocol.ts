@@ -22,6 +22,15 @@ export interface RazorpayCheckoutOptions {
   description?: string;
   order_id?: string;
   subscription_id?: string;
+  // Tokens-API recurring-authorization fields (Phase 2G; pair these with
+  // an order_id from a Tokens-flow CIT auth — see
+  // docs/razorpay-tokens-migration.md):
+  //   customer_id : ties the mandate to a Razorpay Customer for future MIT charges
+  //   recurring   : '1' or 1 — signals to Razorpay Checkout that this order
+  //                 is a recurring-payment authorization (mandate UI shown),
+  //                 NOT a one-shot payment.
+  customer_id?: string;
+  recurring?: '1' | 1;
   prefill?: { email?: string; name?: string; contact?: string };
   theme?: { color?: string };
   // Razorpay accepts more options — kept open-ended deliberately.

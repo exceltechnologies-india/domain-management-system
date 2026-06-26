@@ -166,7 +166,12 @@ export default function CheckoutPage() {
         throw new Error('Payment configuration missing: Razorpay key is not set');
       }
 
-      const { razorpayOrderId, razorpaySubscriptionId } = data;
+      const { razorpayOrderId, razorpaySubscriptionId, razorpayCustomerId, mandateMode } = data as {
+        razorpayOrderId?: string;
+        razorpaySubscriptionId?: string;
+        razorpayCustomerId?: string;
+        mandateMode?: 'subscription' | 'tokens' | null;
+      };
 
       // Function to verify and finalize
       const verifyPayment = async (orderId: string, paymentId: string, signature: string, subscriptionId?: string) => {
@@ -228,6 +233,34 @@ export default function CheckoutPage() {
       let orderPaymentData: RazorpayPaymentResult | null = null;
 
       try {
+        // Tokens-flow branch: when create-order responded with mandateMode='tokens',
+        // it returned the CIT auth order_id + customer_id. Razorpay Checkout
+        // opens in recurring-authorization mode (NOT one-shot mode) — the
+        // customer sees the ₹2 validation amount + autopay mandate UI.
+        // The webhook handler refunds the ₹2 + stores the token + creates
+        // the Hosting record asynchronously after Razorpay fires
+        // payment.captured. The frontend just needs to round-trip through
+        // /verify to confirm the payment landed.
+        if (mandateMode === 'tokens' && razorpayOrderId && razorpayCustomerId) {
+          const tokensResult = await razorpay.open({
+            key: keyId,
+            name: 'AnuTech Digital',
+            description: 'Hosting trial — ₹2 mandate setup (refunded immediately)',
+            order_id: razorpayOrderId,
+            customer_id: razorpayCustomerId,
+            recurring: '1',
+            prefill,
+            theme: { color: '#3b82f6' },
+          });
+
+          await verifyPayment(
+            tokensResult.razorpay_order_id || razorpayOrderId,
+            tokensResult.razorpay_payment_id,
+            tokensResult.razorpay_signature || ''
+          );
+          return; // Tokens flow is the only branch; skip the existing order/subscription path
+        }
+
         if (razorpayOrderId) {
           orderPaymentData = await razorpay.open({
             key: keyId,
