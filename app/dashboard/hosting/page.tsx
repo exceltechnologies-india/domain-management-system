@@ -383,6 +383,27 @@ export default function HostingPage() {
           <div className="text-xs text-amber-900">
             <span className="font-semibold">Keep your payment method valid.</span>{' '}
             We charge your saved card or UPI once when this hosting renews. If that single charge fails, your service is suspended and you'll need to re-subscribe with a new payment method to restore it.
+            {hostingStats.expires_at && (() => {
+              // Cron fires up to CHARGE_LOOKAHEAD_DAYS=1 day before expiry
+              // (see lib/services/payment/recurring-charge-service.ts:53).
+              // "around" not "on" — the cron has a 24-hour window so a
+              // precise timestamp would over-promise; the customer just
+              // needs the day to know when to verify their card.
+              const expiry = new Date(hostingStats.expires_at);
+              if (Number.isNaN(expiry.getTime())) return null;
+              const chargeDay = new Date(expiry);
+              chargeDay.setDate(chargeDay.getDate() - 1);
+              const formatted = chargeDay.toLocaleDateString('en-IN', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              });
+              return (
+                <div className="mt-1.5 pt-1.5 border-t border-amber-200/60">
+                  <span className="font-medium">Auto-renewal charge:</span> around {formatted}.
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
