@@ -154,11 +154,11 @@ const PROVIDERS: ProviderClassifier[] = [
     signatures: [
       {
         needle: /\[RECURRING-CHARGE\] ABANDONED|recurring charge abandoned/i,
-        hint: "A Tokens-flow MIT charge was abandoned after 4 failed attempts (T+1, T+3, T+7 day backoff). The Hosting is now status='expired' + DA-suspended + the customer was emailed. To recover: customer needs to re-subscribe (new CIT auth + new mandate). Open `/admin/recurring-charges` filtered to `status=abandoned` to see all affected customers + their lastError strings; pivot to Razorpay dashboard via the customerId/tokenId shown for per-mandate inspection.",
+        hint: "A Tokens-flow MIT charge was abandoned. Two paths into this state: (a) FIRST POST-TRIAL CHARGE failed — hard rule: abandon on the first failure (no retries) because the trial→paid conversion didn't take; (b) RENEWAL exhausted — 4 failed attempts (T+1, T+3, T+7 day backoff) for an existing paying customer. Either way: Hosting is now status='expired' + DA-suspended + the customer was emailed. Recovery requires a new CIT auth (re-subscribe). Open `/admin/recurring-charges` filtered to `status=abandoned` — the Attempts column shows `N / 1` for trial-conversion fails and `N / 4` for renewal-exhausted fails so you can tell them apart at a glance.",
       },
       {
         needle: /\[RECURRING-CHARGE\]|MIT charge|retry_scheduled|mandate.*revoke/i,
-        hint: "A Tokens-flow MIT recurring charge failed but is being retried per the [T+1, T+3, T+7] day backoff. Most common causes: customer's card declined (insufficient funds / blocked card), customer revoked the UPI mandate in their bank app, or transient Razorpay 500. Check `/admin/recurring-charges` filtered to `status=failed` to see how many attempts are still budgeted before abandonment.",
+        hint: "A Tokens-flow MIT recurring charge failed and is in soft-grace retry [T+1, T+3, T+7]. This branch only applies to RENEWALS for existing paying customers (first post-trial charges get no retries — they abandon immediately). Most common causes: card declined (insufficient funds / blocked card), customer revoked UPI mandate, transient Razorpay 500. Check `/admin/recurring-charges` filtered to `status=failed` to see how many attempts are still budgeted before abandonment.",
       },
       {
         needle: /razorpay|BAD_REQUEST_ERROR|order_.*not_found|webhook.*signature/i,
@@ -534,7 +534,7 @@ export async function GET(request: NextRequest) {
         const statusLabel = att.status === "abandoned" ? "ABANDONED" : "FAILED";
         // Synthesised message — the `[RECURRING-CHARGE]` prefix routes this
         // to the new Razorpay-recurring signature in PROVIDERS (above).
-        const errorText = `[RECURRING-CHARGE] ${statusLabel} attempt ${att.attemptCount}/4 for Hosting ${att.hostingId.toString().slice(-8)}: ${errMsg}`;
+        const errorText = `[RECURRING-CHARGE] ${statusLabel} attempt ${att.attemptCount} for Hosting ${att.hostingId.toString().slice(-8)}: ${errMsg}`;
         const { provider, label, hint } = classify(errorText);
         const key = `${provider}::${bucketKey(errorText)}`;
         const occurred = att.createdAt.toISOString();

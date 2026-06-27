@@ -48,11 +48,16 @@ const RCAFindOneAndUpdate = vi.hoisted(() => {
   const chain = { exec: () => Promise.resolve(null) };
   return vi.fn(() => chain);
 });
+// countDocuments({hostingId, status: 'succeeded'}) — used to discriminate
+// "first post-trial charge" (returns 0 → strict 1-attempt rule) from
+// "subsequent renewal" (returns >= 1 → 4-attempt rule with backoff).
+const RCACountDocuments = vi.hoisted(() => vi.fn());
 vi.mock("@/models/RecurringChargeAttempt", () => ({
   default: {
     create: RCACreate,
     findOne: RCAFindOne,
     findOneAndUpdate: RCAFindOneAndUpdate,
+    countDocuments: RCACountDocuments,
   },
   __esModule: true,
 }));
@@ -107,6 +112,10 @@ beforeEach(() => {
   RCACreate.mockReset();
   RCAFindOne.mockReset().mockReturnValue({ exec: () => Promise.resolve(null) });
   RCAFindOneAndUpdate.mockReset().mockReturnValue({ exec: () => Promise.resolve(null) });
+  // Default: pretend this hosting HAS had a prior successful charge so the
+  // renewal-retry (4-attempt) policy applies. Tests that want to exercise
+  // the strict first-charge (1-attempt) rule override with mockResolvedValueOnce(0).
+  RCACountDocuments.mockReset().mockResolvedValue(1);
   getPlanByPlanId.mockReset().mockResolvedValue({
     planId: "starter",
     name: "Starter",
@@ -442,6 +451,96 @@ describe("chargeRecurringHosting — failure handling", () => {
         serviceType: "Hosting",
       })
     );
+  });
+
+  it("FIRST POST-TRIAL CHARGE failure → abandoned on attempt 1 (hard rule, no retries) + DA suspended + Hosting expired + suspension email sent", async () => {
+    // Trial-conversion failure scenario: zero prior succeeded attempts for
+    // this hosting means the customer is on the FIRST post-trial charge.
+    // Hard rule: 1 attempt then suspend.
+    RCACountDocuments.mockResolvedValueOnce(0); // <-- no prior succeeded charges
+    const hosting = makeHosting({ directAdminUsername: "userxxx" });
+    const originalExpiry = new Date(hosting.expiryDate).getTime();
+    const attempt = {
+      attemptCount: 1, // <-- first attempt, not the 4th
+      status: "in_progress",
+      save: vi.fn().mockResolvedValue(undefined),
+    };
+    RCACreate.mockResolvedValueOnce(attempt);
+    chargeViaToken.mockRejectedValueOnce(new Error("Card declined"));
+
+    const result = await chargeRecurringHosting(
+      hosting as unknown as Parameters<typeof chargeRecurringHosting>[0]
+    );
+
+    expect(result.outcome).toBe("abandoned");
+    expect(result.attemptCount).toBe(1); // <-- key assertion: abandoned on attempt 1
+    const attemptObj = attempt as unknown as { status: string; abandonedAt?: Date; nextAttemptAt?: Date };
+    expect(attemptObj.status).toBe("abandoned");
+    expect(attemptObj.abandonedAt).toBeInstanceOf(Date);
+    // No retry should be scheduled for first-charge fail
+    expect(attemptObj.nextAttemptAt).toBeUndefined();
+
+    // Hosting expiry NOT changed
+    expect((hosting as { expiryDate: Date }).expiryDate.getTime()).toBe(originalExpiry);
+
+    // DA suspended with first-charge-specific reason string
+    expect(daSuspendUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        username: "userxxx",
+        reason: expect.stringMatching(/Trial.*paid conversion failed on first charge/i),
+      })
+    );
+
+    // Hosting flipped to 'expired' + suspension email sent
+    expect((hosting as unknown as { status: string }).status).toBe("expired");
+    expect(sendServiceSuspensionEmail).toHaveBeenCalled();
+  });
+
+  it("FIRST POST-TRIAL CHARGE does NOT schedule retry — straight to abandon (regression guard)", async () => {
+    RCACountDocuments.mockResolvedValueOnce(0);
+    const hosting = makeHosting();
+    const attempt = {
+      attemptCount: 1,
+      status: "in_progress",
+      save: vi.fn().mockResolvedValue(undefined),
+    };
+    RCACreate.mockResolvedValueOnce(attempt);
+    chargeViaToken.mockRejectedValueOnce(new Error("Insufficient balance"));
+
+    const result = await chargeRecurringHosting(
+      hosting as unknown as Parameters<typeof chargeRecurringHosting>[0]
+    );
+
+    // Regression guard: nothing about this should look like a "retry"
+    expect(result.outcome).not.toBe("retry_scheduled");
+    expect(result.outcome).toBe("abandoned");
+  });
+
+  it("RENEWAL (priorSuccessCount >= 1) failure on attempt 1 → 'retry_scheduled', not abandoned (existing 4-attempt soft-grace preserved)", async () => {
+    // Customer with at least one prior succeeded charge — they get the
+    // soft-grace 4-attempt policy. This is the negative control for the
+    // new first-charge rule.
+    RCACountDocuments.mockResolvedValueOnce(3); // 3 prior succeeded yearly renewals
+    const hosting = makeHosting();
+    const attempt = {
+      attemptCount: 1,
+      status: "in_progress",
+      save: vi.fn().mockResolvedValue(undefined),
+    };
+    RCACreate.mockResolvedValueOnce(attempt);
+    chargeViaToken.mockRejectedValueOnce(new Error("Temporary network glitch"));
+
+    const result = await chargeRecurringHosting(
+      hosting as unknown as Parameters<typeof chargeRecurringHosting>[0]
+    );
+
+    expect(result.outcome).toBe("retry_scheduled");
+    const attemptObj = attempt as unknown as { status: string; nextAttemptAt?: Date };
+    expect(attemptObj.status).toBe("failed");
+    expect(attemptObj.nextAttemptAt).toBeInstanceOf(Date);
+    // Service NOT suspended — they're a paying customer, this is just a glitch
+    expect(daSuspendUser).not.toHaveBeenCalled();
+    expect(sendServiceSuspensionEmail).not.toHaveBeenCalled();
   });
 
   it("Phase 2F: abandonment skips DA suspend when directAdminUsername is empty (defensive)", async () => {

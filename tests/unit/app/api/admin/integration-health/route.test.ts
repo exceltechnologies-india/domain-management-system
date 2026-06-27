@@ -113,7 +113,8 @@ describe("/api/admin/integration-health — RecurringChargeAttempt source", () =
     );
     expect(razorpay).toBeDefined();
     expect(razorpay.totalErrors).toBe(1);
-    expect(razorpay.patterns[0].hint).toMatch(/retried per the \[T\+1, T\+3, T\+7\]/);
+    expect(razorpay.patterns[0].hint).toMatch(/soft-grace retry \[T\+1, T\+3, T\+7\]/);
+    expect(razorpay.patterns[0].hint).toMatch(/first post-trial charges get no retries/i);
   });
 
   it("abandoned RecurringChargeAttempt → razorpay provider card with abandonment hint", async () => {
@@ -140,7 +141,11 @@ describe("/api/admin/integration-health — RecurringChargeAttempt source", () =
     );
     expect(razorpay.totalErrors).toBe(1);
     expect(razorpay.patterns[0].exemplarMessage).toMatch(/\[RECURRING-CHARGE\] ABANDONED/);
-    expect(razorpay.patterns[0].hint).toMatch(/abandoned after 4 failed attempts/);
+    // Hint now describes BOTH abandonment paths (first-charge hard rule
+    // + renewal-exhausted soft-grace) — pin a phrase from each so a
+    // future revert that drops one path is caught.
+    expect(razorpay.patterns[0].hint).toMatch(/FIRST POST-TRIAL CHARGE failed/);
+    expect(razorpay.patterns[0].hint).toMatch(/RENEWAL exhausted/);
     expect(razorpay.patterns[0].hint).toMatch(/\/admin\/recurring-charges/);
   });
 

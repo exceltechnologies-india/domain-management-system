@@ -53,6 +53,12 @@ interface AttemptRow {
   razorpayPaymentId: string | null;
   razorpayOrderId: string | null;
   createdAt: string;
+  // True when this attempt was the FIRST post-trial charge for its hosting
+  // (no prior succeeded attempt existed when this attempt fired). Used by
+  // the UI to show "N / 1" instead of "N / 4" — first-charge fails follow
+  // the hard 1-attempt rule, not the 4-attempt renewal soft-grace.
+  wasFirstPostTrial: boolean;
+  maxAttempts: number;
 }
 
 export async function GET(request: NextRequest) {
@@ -110,7 +116,7 @@ export async function GET(request: NextRequest) {
     const hostingIds = Array.from(new Set(attempts.map((a) => a.hostingId.toString())));
     const userIds = Array.from(new Set(attempts.map((a) => a.userId.toString())));
 
-    const [hostings, users] = await Promise.all([
+    const [hostings, users, succeededByHosting] = await Promise.all([
       hostingIds.length
         ? Hosting.find({ _id: { $in: hostingIds } })
             .select("_id domainName status")
@@ -120,6 +126,18 @@ export async function GET(request: NextRequest) {
         ? User.find({ _id: { $in: userIds } })
             .select("_id email firstName lastName")
             .lean()
+        : [],
+      // For each hosting on the page, find the earliest succeeded attempt's
+      // createdAt. An attempt is "first post-trial" iff its createdAt is
+      // <= this value (or no value exists for its hosting at all).
+      hostingIds.length
+        ? RecurringChargeAttempt.aggregate<{
+            _id: { toString(): string };
+            earliestSucceededAt: Date;
+          }>([
+            { $match: { hostingId: { $in: hostingIds }, status: "succeeded" } },
+            { $group: { _id: "$hostingId", earliestSucceededAt: { $min: "$createdAt" } } },
+          ])
         : [],
     ]);
 
@@ -131,12 +149,23 @@ export async function GET(request: NextRequest) {
     const userMap = new Map<string, UserRow>(
       (users as unknown as UserRow[]).map((u) => [u._id.toString(), u])
     );
+    const firstSuccessByHosting = new Map<string, Date>(
+      succeededByHosting.map((r) => [r._id.toString(), r.earliestSucceededAt])
+    );
 
     const rows: AttemptRow[] = attempts.map((a) => {
       const hostingId = a.hostingId.toString();
       const userId = a.userId.toString();
       const hosting = hostingMap.get(hostingId);
       const user = userMap.get(userId);
+      // wasFirstPostTrial: no prior succeeded attempt existed when this
+      // row was created. The earliest-succeeded check handles 3 cases
+      // correctly: (a) no successes at all → true; (b) THIS row is the
+      // earliest success → true (no prior at attempt time); (c) row was
+      // created after a prior success → false (it's a renewal).
+      const firstSuccessAt = firstSuccessByHosting.get(hostingId);
+      const wasFirstPostTrial = !firstSuccessAt || a.createdAt <= firstSuccessAt;
+      const maxAttempts = wasFirstPostTrial ? 1 : 4;
       return {
         id: a._id.toString(),
         hostingId,
@@ -156,6 +185,8 @@ export async function GET(request: NextRequest) {
         razorpayPaymentId: a.razorpayPaymentId ?? null,
         razorpayOrderId: a.razorpayOrderId ?? null,
         createdAt: a.createdAt.toISOString(),
+        wasFirstPostTrial,
+        maxAttempts,
       };
     });
 

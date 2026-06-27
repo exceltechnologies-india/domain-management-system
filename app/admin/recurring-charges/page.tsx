@@ -46,6 +46,8 @@ interface AttemptRow {
   razorpayPaymentId: string | null;
   razorpayOrderId: string | null;
   createdAt: string;
+  wasFirstPostTrial?: boolean;
+  maxAttempts?: number;
 }
 
 interface ApiResponse {
@@ -278,7 +280,16 @@ export default function AdminRecurringChargesPage() {
                           </span>
                         </td>
                         <td className="px-4 py-2 text-center font-medium text-gray-900">
-                          {row.attemptCount} / 4
+                          <span
+                            title={
+                              row.wasFirstPostTrial
+                                ? "First post-trial charge — hard 1-attempt rule (no retries on trial→paid conversion)"
+                                : "Renewal — soft-grace [T+1, T+3, T+7] day retry policy"
+                            }
+                            className={row.wasFirstPostTrial ? "text-purple-700" : "text-gray-900"}
+                          >
+                            {row.attemptCount} / {row.maxAttempts ?? 4}
+                          </span>
                         </td>
                         <td className="px-4 py-2 text-xs text-gray-600">
                           <div>Due: {formatDate(row.dueDate)}</div>

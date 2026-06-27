@@ -17,8 +17,19 @@
  *     - Calls RazorpayService.chargeViaToken
  *     - On success: extends Hosting.expiryDate by one billing period;
  *       flips RecurringChargeAttempt to 'succeeded'
- *     - On failure: schedules nextAttemptAt per the retry policy
- *       (T+1, T+3, T+7 days); after 4 failed attempts marks 'abandoned'
+ *     - On failure: behavior depends on whether this is the FIRST
+ *       post-trial charge (trial→paid conversion) or a subsequent
+ *       renewal:
+ *         - First post-trial charge (zero prior succeeded attempts on
+ *           this hosting) → HARD RULE: abandon on the first failure.
+ *           No retries. The trial converted unsuccessfully; the
+ *           customer must re-subscribe to recover. Filters out trial
+ *           signups with non-paying cards / fraudulent mandates.
+ *         - Subsequent renewals (at least one prior succeeded attempt
+ *           for this hosting) → schedules nextAttemptAt per the retry
+ *           policy (T+1, T+3, T+7 days); after 4 failed attempts marks
+ *           'abandoned'. Soft-grace window keeps existing paying
+ *           customers in service across transient card declines.
  *
  * NOT in scope here (Phase 2E+):
  *  - DA suspend on abandoned attempts
@@ -44,9 +55,21 @@ import { serverLogger } from "@/lib/server-logger";
  */
 const CHARGE_LOOKAHEAD_DAYS = 1;
 
-/** Retry policy: backoff after each failed attempt, in days. */
+/** Retry policy for ongoing renewals: backoff after each failed attempt, in days. */
 const RETRY_BACKOFF_DAYS = [1, 3, 7] as const;
-const MAX_ATTEMPTS = RETRY_BACKOFF_DAYS.length + 1; // initial + N retries
+const RENEWAL_MAX_ATTEMPTS = RETRY_BACKOFF_DAYS.length + 1; // initial + N retries
+
+/**
+ * HARD RULE for trial-to-paid conversion: the FIRST post-trial recurring
+ * charge gets exactly one try. If it fails, the trial converted
+ * unsuccessfully and we abandon immediately — no retries, no soft-grace.
+ * Filters out trial signups whose mandates are stale / fraudulent /
+ * attached to non-paying cards. Existing paying customers (with at least
+ * one prior succeeded recurring charge) get the gentler RENEWAL_MAX_ATTEMPTS
+ * policy because a single transient decline shouldn't sever a long-term
+ * customer relationship.
+ */
+const FIRST_CHARGE_MAX_ATTEMPTS = 1;
 
 export interface ChargeResult {
   hostingId: string;
@@ -112,6 +135,21 @@ export async function chargeRecurringHosting(
   const monthsSinceStart = monthsBetween(hosting.startDate, hosting.expiryDate);
   const isYearly = monthsSinceStart >= 11; // trial 15-day → renews as yearly; existing yearly cycles continue yearly
   const amountInRupees = isYearly ? plan.renewalPrice * 12 : plan.renewalPrice;
+
+  // Discriminate first-post-trial-charge (HARD RULE: 1 attempt) from
+  // subsequent renewals (4 attempts with [T+1,T+3,T+7] backoff). The
+  // signal is whether any prior RecurringChargeAttempt for this hosting
+  // has ever succeeded — if not, money has never come in after the
+  // trial, so the trial→paid conversion has not yet happened and the
+  // strict rule applies.
+  const priorSuccessCount = await RecurringChargeAttempt.countDocuments({
+    hostingId: hosting._id,
+    status: "succeeded",
+  });
+  const isFirstPostTrialCharge = priorSuccessCount === 0;
+  const maxAttempts = isFirstPostTrialCharge
+    ? FIRST_CHARGE_MAX_ATTEMPTS
+    : RENEWAL_MAX_ATTEMPTS;
 
   // 2. Atomic claim — try to insert a RecurringChargeAttempt for this
   //    (hostingId, dueDate). Unique-index dedup means the second concurrent
@@ -267,12 +305,15 @@ export async function chargeRecurringHosting(
 
   // Charge failed — schedule retry OR abandon
   attempt.lastError = chargeErr;
-  if (attempt.attemptCount >= MAX_ATTEMPTS) {
+  if (attempt.attemptCount >= maxAttempts) {
     attempt.status = "abandoned";
     attempt.abandonedAt = now;
     await attempt.save();
+    const abandonReason = isFirstPostTrialCharge
+      ? `trial→paid conversion failed on first attempt (hard rule: no retries on first post-trial charge)`
+      : `after ${attempt.attemptCount} attempts (renewal retry exhausted)`;
     serverLogger.error(
-      `❌ [RECURRING-CHARGE] ABANDONED ${hosting.domainName} after ${attempt.attemptCount} attempts: ${chargeErr}.`
+      `❌ [RECURRING-CHARGE] ABANDONED ${hosting.domainName} ${abandonReason}: ${chargeErr}.`
     );
 
     // Phase 2F: dunning + DA suspend on abandonment.
@@ -290,7 +331,9 @@ export async function chargeRecurringHosting(
       try {
         const outcome = await daSuspendUser({
           username: hosting.directAdminUsername,
-          reason: `Recurring charge abandoned after ${attempt.attemptCount} attempts`,
+          reason: isFirstPostTrialCharge
+            ? `Trial→paid conversion failed on first charge attempt`
+            : `Recurring charge abandoned after ${attempt.attemptCount} attempts`,
         });
         if (outcome.kind === "suspended") {
           serverLogger.info(
