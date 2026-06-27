@@ -96,4 +96,51 @@ describe("sendHostingProvisionedEmail", () => {
     const html = sendEmailMock.mock.calls[0][0].html;
     expect(html).not.toContain("<li>ns");
   });
+
+  // Pins the Tokens-flow payment-validity callout introduced for the
+  // unified hard 1-attempt MIT policy (d4b6a64). The callout MUST
+  // appear ONLY when mandateMode='tokens' — Subscriptions-flow customers
+  // (whose retries are still managed by Razorpay's Subscriptions API
+  // server-side) would be misled by the strict-suspension language.
+  describe("Tokens-flow payment-validity callout (d4b6a64)", () => {
+    it("mandateMode='tokens' → renders the payment-validity callout block", async () => {
+      await sendHostingProvisionedEmail("u@e.test", "Ada", {
+        ...DETAILS,
+        mandateMode: "tokens",
+      });
+      const html = sendEmailMock.mock.calls[0][0].html;
+      expect(html).toContain("Keep Your Payment Method Valid");
+      expect(html).toMatch(/single charge fails/i);
+      expect(html).toMatch(/suspended/i);
+      expect(html).toMatch(/re-subscribe/i);
+    });
+
+    it("mandateMode='subscriptions' → callout block ABSENT (anti-misinform existing subscription-mode customers)", async () => {
+      await sendHostingProvisionedEmail("u@e.test", "Ada", {
+        ...DETAILS,
+        mandateMode: "subscriptions",
+      });
+      const html = sendEmailMock.mock.calls[0][0].html;
+      expect(html).not.toContain("Keep Your Payment Method Valid");
+      expect(html).not.toContain("single charge fails");
+    });
+
+    it("mandateMode='manual' → callout block ABSENT (manual billing means no auto-renewal at all)", async () => {
+      await sendHostingProvisionedEmail("u@e.test", "Ada", {
+        ...DETAILS,
+        mandateMode: "manual",
+      });
+      const html = sendEmailMock.mock.calls[0][0].html;
+      expect(html).not.toContain("Keep Your Payment Method Valid");
+    });
+
+    it("mandateMode UNSET (legacy callers + back-compat) → callout ABSENT", async () => {
+      // The 4 non-Tokens call sites (provisioner-hosting, renewal,
+      // pending-hostings, admin/hosting/provision) don't pass the field
+      // — they should continue to render the original email shape.
+      await sendHostingProvisionedEmail("u@e.test", "Ada", DETAILS);
+      const html = sendEmailMock.mock.calls[0][0].html;
+      expect(html).not.toContain("Keep Your Payment Method Valid");
+    });
+  });
 });

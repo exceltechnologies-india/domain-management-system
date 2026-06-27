@@ -202,6 +202,10 @@ export async function provisionTokensFlowHosting(
         planName,
         serverIp: DA_SERVER_IP,
         nameservers: DirectAdminService.NAMESERVERS,
+        // Tokens-flow customers see the hard 1-attempt policy callout
+        // up front so the suspension expectation is set before their
+        // first MIT charge fires (d4b6a64).
+        mandateMode: "tokens",
       }
     );
     serverLogger.info(

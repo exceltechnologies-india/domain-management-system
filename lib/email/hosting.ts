@@ -9,12 +9,36 @@ export async function sendHostingProvisionedEmail(
     planName?: string;
     serverIp: string;
     nameservers: string[];
+    // Tokens-flow customers face a strict 1-attempt recurring-charge
+    // policy (d4b6a64). They get an extra callout in the welcome email
+    // setting that expectation up front. Subscriptions-flow + manual
+    // customers default to undefined here → no callout.
+    mandateMode?: "tokens" | "subscriptions" | "manual";
   }
 ): Promise<boolean> {
   const subject = "Hosting Account Provisioned Successfully";
   const nameserversList = hostingDetails.nameservers
     .map((ns) => `<li>${ns}</li>`)
     .join("");
+
+  // Tokens-flow-specific payment-method-validity callout. Goes between
+  // the "Service Activated" green banner and the account-details table
+  // so customers see it during the post-trial-CIT-auth confirmation
+  // moment when payment expectations are top-of-mind.
+  const tokensFlowCallout =
+    hostingDetails.mandateMode === "tokens"
+      ? `
+        <div style="background-color: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 20px; margin: 20px 0;">
+          <h3 style="color: #92400E; margin: 0 0 10px 0; font-size: 16px;">⚠️ Important: Keep Your Payment Method Valid</h3>
+          <p style="color: #78350F; margin: 0 0 8px 0; font-size: 14px;">
+            Your hosting renews automatically. We will charge your saved payment method once when your billing cycle is due.
+          </p>
+          <p style="color: #78350F; margin: 0; font-size: 14px;">
+            <strong>If that single charge fails</strong> (declined card, insufficient balance, revoked mandate), your service will be suspended and you'll need to re-subscribe with a new payment method to restore it. Please ensure the card or UPI ID on file stays valid — especially when it's close to expiry or you've recently changed banks.
+          </p>
+        </div>
+      `
+      : "";
 
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
@@ -31,6 +55,8 @@ export async function sendHostingProvisionedEmail(
             Your web hosting for <strong>${hostingDetails.domainName}</strong> has been successfully provisioned and is ready to use.
           </p>
         </div>
+
+        ${tokensFlowCallout}
 
         <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
           <h3 style="color: #1f2937; margin: 0 0 15px 0; font-size: 16px;">Account Details</h3>
