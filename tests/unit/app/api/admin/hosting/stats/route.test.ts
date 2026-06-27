@@ -556,6 +556,183 @@ describe("Best-match hosting record (3-tier resolution)", () => {
   });
 });
 
+// ─── Tokens-flow + Subscriptions-flow fields contract ────────────
+//
+// These pin that the response payload includes the recurring-billing
+// metadata that downstream consumers depend on:
+//   - `/admin/hosting` mandate-mode badge column (5f93f85) reads
+//     `razorpayTokenId` + `subscriptionId` + `isTrial` to render
+//     TOKENS / SUBSCRIPTION / MANUAL + TRIAL badges
+//   - Hosting detail modal (a570a7d) reads all 5 fields to render
+//     the "Recurring Payment" amber-card section
+//   - Without these tests, a refactor that silently dropped any of
+//     these fields would pass typecheck (they're optional on the
+//     HostingData interface) and silently revert every row to
+//     MANUAL/null on the admin surfaces — no errors, no signal.
+//
+// Pinned for BOTH the LIVE path (Hosting-record fields passed through
+// alongside the DA-mapped row) AND the DB-fallback path (when DA is
+// unreachable + the route falls back to Hosting collection only).
+describe("Tokens-flow / Subscriptions-flow fields contract (5f93f85 + a570a7d)", () => {
+  it("LIVE mode: Tokens-flow Hosting (razorpayTokenId set) → all 5 billing fields present on row, isTrial reflects flag", async () => {
+    listUsersWithDirectAdmin.mockResolvedValueOnce([makeLocalUser()]);
+    hostingFind.mockReturnValueOnce(
+      chainableHostingFind([
+        makeHostingRecord({
+          razorpayCustomerId: "cust_TOK1",
+          razorpayTokenId: "token_TOK1",
+          subscriptionId: null,
+          isTrial: true,
+          billingType: "subscription",
+        }),
+      ])
+    );
+    listDAUsers.mockResolvedValueOnce(["alice"]);
+    getAllUserUsage.mockResolvedValueOnce({});
+    getServerInfo.mockResolvedValueOnce({ php: "8.2" });
+    getUserConfig.mockResolvedValueOnce({ domain: "alice.example.com" });
+
+    const res = await GET(makeReq());
+    const body = await res.json();
+    const row = body.data[0];
+    expect(row.razorpayCustomerId).toBe("cust_TOK1");
+    expect(row.razorpayTokenId).toBe("token_TOK1");
+    expect(row.subscriptionId).toBeNull();
+    expect(row.isTrial).toBe(true);
+    expect(row.billingType).toBe("subscription");
+  });
+
+  it("LIVE mode: Subscriptions-flow Hosting (subscriptionId set, no token) → subscription badge fields populated, Tokens fields null", async () => {
+    listUsersWithDirectAdmin.mockResolvedValueOnce([makeLocalUser()]);
+    hostingFind.mockReturnValueOnce(
+      chainableHostingFind([
+        makeHostingRecord({
+          subscriptionId: "sub_LIVE123",
+          razorpayCustomerId: null,
+          razorpayTokenId: null,
+          isTrial: false,
+          billingType: "subscription",
+        }),
+      ])
+    );
+    listDAUsers.mockResolvedValueOnce(["alice"]);
+    getAllUserUsage.mockResolvedValueOnce({});
+    getServerInfo.mockResolvedValueOnce({ php: "8.2" });
+    getUserConfig.mockResolvedValueOnce({ domain: "alice.example.com" });
+
+    const res = await GET(makeReq());
+    const body = await res.json();
+    const row = body.data[0];
+    expect(row.subscriptionId).toBe("sub_LIVE123");
+    expect(row.razorpayTokenId).toBeNull();
+    expect(row.razorpayCustomerId).toBeNull();
+    expect(row.isTrial).toBe(false);
+    expect(row.billingType).toBe("subscription");
+  });
+
+  it("LIVE mode: Manual-billing Hosting (no Razorpay IDs) → all Tokens fields null, isTrial=false (badge column → MANUAL)", async () => {
+    listUsersWithDirectAdmin.mockResolvedValueOnce([makeLocalUser()]);
+    hostingFind.mockReturnValueOnce(
+      chainableHostingFind([
+        // Use a totally bare hosting record with no billing fields —
+        // simulates legacy / manual hostings that pre-date the
+        // Tokens-flow rollout.
+        makeHostingRecord(),
+      ])
+    );
+    listDAUsers.mockResolvedValueOnce(["alice"]);
+    getAllUserUsage.mockResolvedValueOnce({});
+    getServerInfo.mockResolvedValueOnce({ php: "8.2" });
+    getUserConfig.mockResolvedValueOnce({ domain: "alice.example.com" });
+
+    const res = await GET(makeReq());
+    const body = await res.json();
+    const row = body.data[0];
+    expect(row.subscriptionId).toBeNull();
+    expect(row.razorpayCustomerId).toBeNull();
+    expect(row.razorpayTokenId).toBeNull();
+    expect(row.isTrial).toBe(false);
+    expect(row.billingType).toBeNull();
+  });
+
+  it("LIVE mode: unlinked DA account (no matching Hosting record) → Tokens fields default to null/false safely", async () => {
+    listUsersWithDirectAdmin.mockResolvedValueOnce([]); // no local users
+    hostingFind.mockReturnValueOnce(chainableHostingFind([])); // no hosting records
+    listDAUsers.mockResolvedValueOnce(["orphan_da_user"]);
+    getAllUserUsage.mockResolvedValueOnce({});
+    getServerInfo.mockResolvedValueOnce({ php: "8.2" });
+    getUserConfig.mockResolvedValueOnce({ domain: "orphan.example.com" });
+
+    const res = await GET(makeReq());
+    const body = await res.json();
+    const row = body.data[0];
+    expect(row.isUnlinked).toBe(true);
+    // Without a Hosting record, all billing fields must default
+    // safely — never undefined (badge column reads .razorpayTokenId
+    // and would render "TOKENS" if it were undefined-but-truthy
+    // through a coercion bug).
+    expect(row.subscriptionId).toBeNull();
+    expect(row.razorpayCustomerId).toBeNull();
+    expect(row.razorpayTokenId).toBeNull();
+    expect(row.isTrial).toBe(false);
+    expect(row.billingType).toBeNull();
+  });
+
+  it("DB FALLBACK mode (DA unreachable): Tokens-flow Hosting → billing fields still present on row", async () => {
+    listUsersWithDirectAdmin.mockResolvedValueOnce([makeLocalUser()]);
+    hostingFind.mockReturnValueOnce(
+      chainableHostingFind([
+        makeHostingRecord({
+          razorpayCustomerId: "cust_DB_FALL",
+          razorpayTokenId: "token_DB_FALL",
+          subscriptionId: null,
+          isTrial: true,
+          billingType: "subscription",
+        }),
+      ])
+    );
+    // DA unreachable → route enters DB fallback path
+    listDAUsers.mockRejectedValueOnce(new Error("ECONNREFUSED"));
+
+    const res = await GET(makeReq());
+    const body = await res.json();
+    expect(body.source).toBe("db");
+    expect(body.isDaConnected).toBe(false);
+    const row = body.data[0];
+    expect(row.razorpayCustomerId).toBe("cust_DB_FALL");
+    expect(row.razorpayTokenId).toBe("token_DB_FALL");
+    expect(row.subscriptionId).toBeNull();
+    expect(row.isTrial).toBe(true);
+    expect(row.billingType).toBe("subscription");
+  });
+
+  it("regression guard: every billing field is explicitly present on the row object (not just undefined)", async () => {
+    listUsersWithDirectAdmin.mockResolvedValueOnce([makeLocalUser()]);
+    hostingFind.mockReturnValueOnce(
+      chainableHostingFind([makeHostingRecord()])
+    );
+    listDAUsers.mockResolvedValueOnce(["alice"]);
+    getAllUserUsage.mockResolvedValueOnce({});
+    getServerInfo.mockResolvedValueOnce({ php: "8.2" });
+    getUserConfig.mockResolvedValueOnce({ domain: "alice.example.com" });
+
+    const res = await GET(makeReq());
+    const body = await res.json();
+    const row = body.data[0];
+    // `in` (not just `=== null`) — guards against a refactor that drops
+    // the field entirely. If the field is missing from the object, the
+    // admin UI's `row.razorpayTokenId ? <TOKENS> : ...` ternary still
+    // works coincidentally, but the contract is broken silently and
+    // would surface as a downstream typecheck failure on a future
+    // consumer that destructures the field.
+    expect("subscriptionId" in row).toBe(true);
+    expect("razorpayCustomerId" in row).toBe(true);
+    expect("razorpayTokenId" in row).toBe(true);
+    expect("isTrial" in row).toBe(true);
+    expect("billingType" in row).toBe(true);
+  });
+});
+
 // ─── Local-DB status override ──────────────────────────────────────
 describe("Local DB status overrides DA status (anti-stale-DA)", () => {
   it("hostingRecord.status='suspended' overrides daConfig.suspended='no' → row shows 'suspended'", async () => {
