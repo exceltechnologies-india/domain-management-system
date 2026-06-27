@@ -754,6 +754,38 @@ export default function AdminHostingPage() {
                           </span>
                           <span className="text-xs text-gray-400">IP: {item.serverIp}</span>
                         </div>
+                        <div className="flex items-center gap-1 mt-1.5">
+                          {item.razorpayTokenId ? (
+                            <span
+                              className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded border border-purple-200 font-medium"
+                              title="Tokens API — ₹2-charge-and-reverse mandate (Google/Netflix pattern). MIT charges are driven by the daily cron via /admin/recurring-charges."
+                            >
+                              TOKENS
+                            </span>
+                          ) : item.subscriptionId ? (
+                            <span
+                              className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200 font-medium"
+                              title="Razorpay Subscriptions API — plan-based mandate. Renewals are driven by Razorpay webhooks."
+                            >
+                              SUBSCRIPTION
+                            </span>
+                          ) : (
+                            <span
+                              className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded border border-gray-200 font-medium"
+                              title="Manual billing — no recurring mandate on file. Renewals require operator action."
+                            >
+                              MANUAL
+                            </span>
+                          )}
+                          {item.isTrial && (
+                            <span
+                              className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200 font-medium"
+                              title="Active 15-day free trial — first MIT charge will run after the trial window closes."
+                            >
+                              TRIAL
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex flex-col gap-1">
