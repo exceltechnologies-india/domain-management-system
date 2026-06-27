@@ -89,7 +89,7 @@ describe("/api/admin/integration-health — RecurringChargeAttempt source", () =
     expect(RCAFind).not.toHaveBeenCalled();
   });
 
-  it("failed RecurringChargeAttempt → razorpay provider card with retry-scheduled hint", async () => {
+  it("failed RecurringChargeAttempt → razorpay provider card with unified-policy hint (legacy 'failed' status pre-hard-1-attempt-rule)", async () => {
     const now = new Date();
     RCAFind.mockReturnValueOnce(
       chainable([
@@ -113,8 +113,10 @@ describe("/api/admin/integration-health — RecurringChargeAttempt source", () =
     );
     expect(razorpay).toBeDefined();
     expect(razorpay.totalErrors).toBe(1);
-    expect(razorpay.patterns[0].hint).toMatch(/soft-grace retry \[T\+1, T\+3, T\+7\]/);
-    expect(razorpay.patterns[0].hint).toMatch(/first post-trial charges get no retries/i);
+    // Hint now describes the unified hard 1-attempt policy — `failed`
+    // rows shouldn't normally exist (all fails go straight to `abandoned`)
+    // but the signature still classifies them if a legacy row appears.
+    expect(razorpay.patterns[0].hint).toMatch(/hard 1-attempt policy/i);
   });
 
   it("abandoned RecurringChargeAttempt → razorpay provider card with abandonment hint", async () => {
@@ -141,11 +143,11 @@ describe("/api/admin/integration-health — RecurringChargeAttempt source", () =
     );
     expect(razorpay.totalErrors).toBe(1);
     expect(razorpay.patterns[0].exemplarMessage).toMatch(/\[RECURRING-CHARGE\] ABANDONED/);
-    // Hint now describes BOTH abandonment paths (first-charge hard rule
-    // + renewal-exhausted soft-grace) — pin a phrase from each so a
-    // future revert that drops one path is caught.
-    expect(razorpay.patterns[0].hint).toMatch(/FIRST POST-TRIAL CHARGE failed/);
-    expect(razorpay.patterns[0].hint).toMatch(/RENEWAL exhausted/);
+    // Hint now describes the unified hard 1-attempt rule applied to
+    // both trial-conversion AND renewal — pin the rule + the dashboard
+    // link so a future regression that drops either signal is caught.
+    expect(razorpay.patterns[0].hint).toMatch(/HARD RULE: 1 attempt then suspend/i);
+    expect(razorpay.patterns[0].hint).toMatch(/UNIFORMLY to both trial-to-paid conversions AND renewals/i);
     expect(razorpay.patterns[0].hint).toMatch(/\/admin\/recurring-charges/);
   });
 

@@ -283,12 +283,12 @@ export default function AdminRecurringChargesPage() {
                           <span
                             title={
                               row.wasFirstPostTrial
-                                ? "First post-trial charge — hard 1-attempt rule (no retries on trial→paid conversion)"
-                                : "Renewal — soft-grace [T+1, T+3, T+7] day retry policy"
+                                ? "First post-trial charge — hard 1-attempt rule (trial→paid conversion didn't take)"
+                                : "Renewal — hard 1-attempt rule (existing customer's mandate failed)"
                             }
-                            className={row.wasFirstPostTrial ? "text-purple-700" : "text-gray-900"}
+                            className={row.wasFirstPostTrial ? "text-purple-700" : "text-blue-700"}
                           >
-                            {row.attemptCount} / {row.maxAttempts ?? 4}
+                            {row.attemptCount} / {row.maxAttempts ?? 1}
                           </span>
                         </td>
                         <td className="px-4 py-2 text-xs text-gray-600">

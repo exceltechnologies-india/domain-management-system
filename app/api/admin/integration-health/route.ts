@@ -154,11 +154,11 @@ const PROVIDERS: ProviderClassifier[] = [
     signatures: [
       {
         needle: /\[RECURRING-CHARGE\] ABANDONED|recurring charge abandoned/i,
-        hint: "A Tokens-flow MIT charge was abandoned. Two paths into this state: (a) FIRST POST-TRIAL CHARGE failed — hard rule: abandon on the first failure (no retries) because the trial→paid conversion didn't take; (b) RENEWAL exhausted — 4 failed attempts (T+1, T+3, T+7 day backoff) for an existing paying customer. Either way: Hosting is now status='expired' + DA-suspended + the customer was emailed. Recovery requires a new CIT auth (re-subscribe). Open `/admin/recurring-charges` filtered to `status=abandoned` — the Attempts column shows `N / 1` for trial-conversion fails and `N / 4` for renewal-exhausted fails so you can tell them apart at a glance.",
+        hint: "A Tokens-flow MIT charge was abandoned. HARD RULE: 1 attempt then suspend, applied UNIFORMLY to both trial-to-paid conversions AND renewals. The Hosting is now status='expired' + DA-suspended + the customer was emailed. Recovery requires a new CIT auth (re-subscribe). The admin dashboard at `/admin/recurring-charges` differentiates the two paths visually for triage (purple text = trial-conversion fail, blue text = renewal fail) — the technical policy is identical but the operational follow-up may differ (a long-term-customer's mandate dying may warrant outreach; a trial-conversion fail usually doesn't).",
       },
       {
-        needle: /\[RECURRING-CHARGE\]|MIT charge|retry_scheduled|mandate.*revoke/i,
-        hint: "A Tokens-flow MIT recurring charge failed and is in soft-grace retry [T+1, T+3, T+7]. This branch only applies to RENEWALS for existing paying customers (first post-trial charges get no retries — they abandon immediately). Most common causes: card declined (insufficient funds / blocked card), customer revoked UPI mandate, transient Razorpay 500. Check `/admin/recurring-charges` filtered to `status=failed` to see how many attempts are still budgeted before abandonment.",
+        needle: /\[RECURRING-CHARGE\]|MIT charge|mandate.*revoke/i,
+        hint: "A Tokens-flow MIT recurring charge failed. Under the current hard 1-attempt policy, this row should already be in status='abandoned' rather than 'failed' — `status='failed'` rows would only appear if a row was created under the older soft-grace policy (pre-this-commit) or if an operator manually edited the row. Most common root causes: card declined (insufficient funds / blocked card), customer revoked UPI mandate in their bank app, transient Razorpay 500. Open `/admin/recurring-charges` to see the row's `lastError` + pivot to Razorpay dashboard via the shown customerId/tokenId.",
       },
       {
         needle: /razorpay|BAD_REQUEST_ERROR|order_.*not_found|webhook.*signature/i,

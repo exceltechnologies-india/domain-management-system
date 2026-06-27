@@ -386,7 +386,11 @@ describe("chargeRecurringHosting — dedup + retry races", () => {
 });
 
 describe("chargeRecurringHosting — failure handling", () => {
-  it("first failure → 'retry_scheduled' with nextAttemptAt +1 day", async () => {
+  it("RENEWAL first failure → 'abandoned' on attempt 1 (hard rule extended to renewals)", async () => {
+    // Renewal scenario (priorSuccessCount=1 via the default beforeEach
+    // mock). Under the unified hard 1-attempt policy, even renewals
+    // abandon immediately on first failure — no soft-grace, no retry
+    // scheduling. lastError is still captured for audit.
     const attempt = {
       attemptCount: 1,
       status: "in_progress",
@@ -395,20 +399,19 @@ describe("chargeRecurringHosting — failure handling", () => {
     RCACreate.mockResolvedValueOnce(attempt);
     chargeViaToken.mockRejectedValueOnce(new Error("Razorpay card declined"));
 
-    const before = Date.now();
     const result = await chargeRecurringHosting(
       makeHosting() as unknown as Parameters<typeof chargeRecurringHosting>[0]
     );
 
-    expect(result.outcome).toBe("retry_scheduled");
+    expect(result.outcome).toBe("abandoned");
     const attemptObj = attempt as unknown as { status: string; lastError?: string; nextAttemptAt?: Date };
-    expect(attemptObj.status).toBe("failed");
+    expect(attemptObj.status).toBe("abandoned");
     expect(attemptObj.lastError).toBe("Razorpay card declined");
-    expect(attemptObj.nextAttemptAt!.getTime()).toBeGreaterThanOrEqual(before + 0.9 * 24 * 60 * 60 * 1000);
-    expect(attemptObj.nextAttemptAt!.getTime()).toBeLessThanOrEqual(before + 1.1 * 24 * 60 * 60 * 1000);
+    // No retry scheduling under the unified policy
+    expect(attemptObj.nextAttemptAt).toBeUndefined();
   });
 
-  it("4th failure (MAX_ATTEMPTS = initial + 3 retries) → 'abandoned' + DA suspended + Hosting expired + suspension email sent (Phase 2F)", async () => {
+  it("renewal failure with attemptCount=4 (legacy soft-grace row from pre-unified-policy) → 'abandoned' + DA suspended + Hosting expired + suspension email sent (Phase 2F — kept for backward compat with rows created under the old 4-attempt policy)", async () => {
     const hosting = makeHosting({ directAdminUsername: "userxxx" });
     const originalExpiry = new Date(hosting.expiryDate).getTime();
     const attempt = {
@@ -435,7 +438,7 @@ describe("chargeRecurringHosting — failure handling", () => {
     expect(daSuspendUser).toHaveBeenCalledWith(
       expect.objectContaining({
         username: "userxxx",
-        reason: expect.stringMatching(/abandoned after 4 attempts/),
+        reason: expect.stringMatching(/Renewal charge failed on first attempt/i),
       })
     );
 
@@ -516,31 +519,45 @@ describe("chargeRecurringHosting — failure handling", () => {
     expect(result.outcome).toBe("abandoned");
   });
 
-  it("RENEWAL (priorSuccessCount >= 1) failure on attempt 1 → 'retry_scheduled', not abandoned (existing 4-attempt soft-grace preserved)", async () => {
-    // Customer with at least one prior succeeded charge — they get the
-    // soft-grace 4-attempt policy. This is the negative control for the
-    // new first-charge rule.
+  it("RENEWAL (priorSuccessCount >= 1) failure on attempt 1 → 'abandoned' on first attempt (unified hard rule extended to renewals)", async () => {
+    // Long-term paying customer (3 prior succeeded yearly renewals) has
+    // their renewal charge fail. Under the unified hard 1-attempt policy
+    // shipped after 5ea21a6, even renewals abandon immediately — no
+    // soft-grace window. The trial-vs-renewal differentiation is kept
+    // only for log + DA-suspend-reason audit trail; technical policy is
+    // identical for both branches.
     RCACountDocuments.mockResolvedValueOnce(3); // 3 prior succeeded yearly renewals
-    const hosting = makeHosting();
+    const hosting = makeHosting({ directAdminUsername: "userxxx" });
     const attempt = {
       attemptCount: 1,
       status: "in_progress",
       save: vi.fn().mockResolvedValue(undefined),
     };
     RCACreate.mockResolvedValueOnce(attempt);
-    chargeViaToken.mockRejectedValueOnce(new Error("Temporary network glitch"));
+    chargeViaToken.mockRejectedValueOnce(new Error("Card declined"));
 
     const result = await chargeRecurringHosting(
       hosting as unknown as Parameters<typeof chargeRecurringHosting>[0]
     );
 
-    expect(result.outcome).toBe("retry_scheduled");
-    const attemptObj = attempt as unknown as { status: string; nextAttemptAt?: Date };
-    expect(attemptObj.status).toBe("failed");
-    expect(attemptObj.nextAttemptAt).toBeInstanceOf(Date);
-    // Service NOT suspended — they're a paying customer, this is just a glitch
-    expect(daSuspendUser).not.toHaveBeenCalled();
-    expect(sendServiceSuspensionEmail).not.toHaveBeenCalled();
+    expect(result.outcome).toBe("abandoned");
+    expect(result.attemptCount).toBe(1);
+    const attemptObj = attempt as unknown as { status: string; nextAttemptAt?: Date; abandonedAt?: Date };
+    expect(attemptObj.status).toBe("abandoned");
+    expect(attemptObj.abandonedAt).toBeInstanceOf(Date);
+    expect(attemptObj.nextAttemptAt).toBeUndefined();
+
+    // DA suspended with the renewal-specific reason (not the trial-conversion reason)
+    expect(daSuspendUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        username: "userxxx",
+        reason: expect.stringMatching(/Renewal charge failed on first attempt/i),
+      })
+    );
+
+    // Hosting flipped to 'expired' + suspension email sent
+    expect((hosting as unknown as { status: string }).status).toBe("expired");
+    expect(sendServiceSuspensionEmail).toHaveBeenCalled();
   });
 
   it("Phase 2F: abandonment skips DA suspend when directAdminUsername is empty (defensive)", async () => {

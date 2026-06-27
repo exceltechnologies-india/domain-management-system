@@ -163,9 +163,11 @@ export async function GET(request: NextRequest) {
       // correctly: (a) no successes at all → true; (b) THIS row is the
       // earliest success → true (no prior at attempt time); (c) row was
       // created after a prior success → false (it's a renewal).
+      // Kept for audit-trail differentiation in the UI even though both
+      // branches now share the hard 1-attempt policy.
       const firstSuccessAt = firstSuccessByHosting.get(hostingId);
       const wasFirstPostTrial = !firstSuccessAt || a.createdAt <= firstSuccessAt;
-      const maxAttempts = wasFirstPostTrial ? 1 : 4;
+      const maxAttempts = 1; // uniform hard rule — see lib/services/payment/recurring-charge-service.ts
       return {
         id: a._id.toString(),
         hostingId,
