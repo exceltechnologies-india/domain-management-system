@@ -716,3 +716,101 @@ describe("isPrimary flag", () => {
     expect(body.data[0].isPrimary).toBe(false);
   });
 });
+
+// ─── mandateMode discriminator (customer dashboard payment-validity note) ─
+//
+// The customer dashboard at app/dashboard/hosting/page.tsx renders an
+// amber "Keep your payment method valid" note ONLY when mandateMode is
+// 'tokens'. The discriminator is derived server-side here from
+// hostingRecord.razorpayTokenId / .subscriptionId so the customer page
+// doesn't need to inspect billing internals directly. Anti-misinform
+// rule: Subscriptions-flow customers (Razorpay handles retries
+// server-side) and manual customers (no auto-renewal) must NOT receive
+// this discriminator value, since the note's strict-suspension language
+// doesn't apply to them.
+describe("mandateMode discriminator (drives customer payment-validity note)", () => {
+  it("razorpayTokenId set → mandateMode='tokens' (Tokens-flow customer; triggers dashboard note)", async () => {
+    happyDA();
+    listUserHostingsByDomain.mockResolvedValueOnce([
+      {
+        _id: { toString: () => "H_tokens" },
+        directAdminUsername: "alice_da",
+        razorpayTokenId: "token_TOK1",
+        razorpayCustomerId: "cust_TOK1",
+        subscriptionId: null,
+        isTrial: false,
+        billingType: "subscription",
+      },
+    ]);
+    const res = await GET(makeReq());
+    const body = await res.json();
+    expect(body.data[0].mandateMode).toBe("tokens");
+  });
+
+  it("subscriptionId set (no razorpayTokenId) → mandateMode='subscriptions' (Subscriptions-flow customer; no note)", async () => {
+    happyDA();
+    listUserHostingsByDomain.mockResolvedValueOnce([
+      {
+        _id: { toString: () => "H_sub" },
+        directAdminUsername: "alice_da",
+        subscriptionId: "sub_LIVE123",
+        razorpayTokenId: null,
+        razorpayCustomerId: null,
+        isTrial: false,
+        billingType: "subscription",
+      },
+    ]);
+    const res = await GET(makeReq());
+    const body = await res.json();
+    expect(body.data[0].mandateMode).toBe("subscriptions");
+  });
+
+  it("neither razorpayTokenId nor subscriptionId → mandateMode='manual' (no auto-renewal; no note)", async () => {
+    happyDA();
+    listUserHostingsByDomain.mockResolvedValueOnce([
+      {
+        _id: { toString: () => "H_manual" },
+        directAdminUsername: "alice_da",
+        subscriptionId: null,
+        razorpayTokenId: null,
+        razorpayCustomerId: null,
+        isTrial: false,
+        billingType: "manual",
+      },
+    ]);
+    const res = await GET(makeReq());
+    const body = await res.json();
+    expect(body.data[0].mandateMode).toBe("manual");
+  });
+
+  it("BOTH razorpayTokenId AND subscriptionId set → mandateMode='tokens' (Tokens-flow wins; migrating customer)", async () => {
+    // Realistic edge case: a customer who started on Subscriptions and
+    // was later migrated to Tokens-flow would briefly have both IDs on
+    // the record. The hard 1-attempt MIT policy applies because the
+    // active mandate is the Token; the orphaned subscriptionId is a
+    // historical reference. Tokens MUST win the discriminator.
+    happyDA();
+    listUserHostingsByDomain.mockResolvedValueOnce([
+      {
+        _id: { toString: () => "H_migrated" },
+        directAdminUsername: "alice_da",
+        subscriptionId: "sub_OLD",
+        razorpayTokenId: "token_NEW",
+        razorpayCustomerId: "cust_NEW",
+        isTrial: false,
+        billingType: "subscription",
+      },
+    ]);
+    const res = await GET(makeReq());
+    const body = await res.json();
+    expect(body.data[0].mandateMode).toBe("tokens");
+  });
+
+  it("no matching hosting record at all → mandateMode='manual' (defensive default)", async () => {
+    happyDA();
+    listUserHostingsByDomain.mockResolvedValueOnce([]);
+    const res = await GET(makeReq());
+    const body = await res.json();
+    expect(body.data[0].mandateMode).toBe("manual");
+  });
+});

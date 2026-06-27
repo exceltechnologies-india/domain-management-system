@@ -58,6 +58,10 @@ interface HostingStats {
   autoRenew?: boolean;
   billingType?: 'subscription' | 'manual';
   isTrial?: boolean;
+  // Derived from the Hosting record's razorpayTokenId / subscriptionId
+  // by `/api/user/hosting/stats`. 'tokens' triggers the payment-
+  // validity note (hard 1-attempt MIT rule); other modes don't.
+  mandateMode?: 'tokens' | 'subscriptions' | 'manual';
 }
 
 interface HostingStatsResponse {
@@ -365,6 +369,23 @@ export default function HostingPage() {
           </div>
         </div>
       </div>
+
+      {/* Tokens-flow payment-validity note — strict 1-attempt MIT policy.
+          Rendered only for customers whose Hosting has a stored mandate
+          token (mandateMode='tokens'). Subscriptions-flow customers
+          (whose retries are handled by Razorpay's Subscriptions API
+          server-side) and manual customers don't see this. Matches the
+          welcome-email callout (26b0f51) so the expectation is set in
+          both surfaces. */}
+      {hostingStats.mandateMode === 'tokens' && hostingStats.status !== 'expired' && (
+        <div className="mx-4 my-3 md:mx-6 p-3 bg-amber-50 border border-amber-200 rounded-lg flex gap-2.5 items-start">
+          <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div className="text-xs text-amber-900">
+            <span className="font-semibold">Keep your payment method valid.</span>{' '}
+            We charge your saved card or UPI once when this hosting renews. If that single charge fails, your service is suspended and you'll need to re-subscribe with a new payment method to restore it.
+          </div>
+        </div>
+      )}
 
       {/* Footer Info */}
       <div className="px-4 py-4 md:px-6 md:py-3 bg-gray-50 border-t border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs text-gray-500">

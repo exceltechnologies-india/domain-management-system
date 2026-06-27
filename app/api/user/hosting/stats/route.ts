@@ -282,6 +282,20 @@ export async function GET(request: NextRequest) {
               autoRenew: hostingRecord?.autoRenew ?? false,
               billingType: hostingRecord?.billingType ?? 'manual',
               isTrial: hostingRecord?.isTrial ?? false,
+              // Derived discriminator: 'tokens' iff a mandate token is on
+              // file (Tokens-API flow — strict 1-attempt MIT policy);
+              // 'subscriptions' iff a Razorpay subscriptionId is on file
+              // (Subscriptions-API flow — Razorpay handles retries
+              // server-side); 'manual' otherwise (no auto-renewal at
+              // all). The customer dashboard renders a payment-validity
+              // note ONLY when this is 'tokens' so the strict-policy
+              // expectation is communicated to the customers it applies
+              // to, without misleading the others.
+              mandateMode: hostingRecord?.razorpayTokenId
+                ? 'tokens'
+                : hostingRecord?.subscriptionId
+                  ? 'subscriptions'
+                  : 'manual',
             };
 
         } catch (error: unknown) {
