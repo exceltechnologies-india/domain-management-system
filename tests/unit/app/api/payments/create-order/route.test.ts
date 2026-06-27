@@ -91,6 +91,14 @@ vi.mock("@/models/HostingPlan", () => ({
 const getSettingValue = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/settings", () => ({ getSettingValue }));
 
+// Manual-flow trial provisioner — used by the new
+// HOSTING_MANDATE_FLOW=manual branch in the route. Returns a minimal
+// success shape since the route only checks for throw vs no-throw.
+const createManualFlowTrialHosting = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/services/payment/manual-trial-provisioner", () => ({
+  createManualFlowTrialHosting,
+}));
+
 vi.mock("@/lib/server-logger", () => ({
   serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
@@ -148,6 +156,12 @@ beforeEach(() => {
   createRecurringTokenOrder
     .mockReset()
     .mockResolvedValue({ id: "order_tok_X", amount: 200 });
+  createManualFlowTrialHosting.mockReset().mockResolvedValue({
+    hostingId: "H_MANUAL_1",
+    domainName: "host-manual",
+    expiryDate: new Date("2026-07-12"),
+    status: "pending",
+  });
   // Always reset the feature flag to default at the start of each test —
   // individual Tokens-flow tests opt-in via `process.env.HOSTING_MANDATE_FLOW = 'tokens'`
   // and clean up at the end (see the Tokens-flow describe block).
@@ -850,5 +864,175 @@ describe("Tokens-flow branch (Phase 2A)", () => {
 
   afterEach(() => {
     delete process.env.HOSTING_MANDATE_FLOW;
+  });
+});
+
+// ── Manual-flow branch (HOSTING_MANDATE_FLOW=manual) ───────────────────
+//
+// The manual flow skips Razorpay entirely at signup. Customer signs up,
+// Hosting is provisioned with billingType='manual' + isTrial=true, and
+// at trial-end the existing renewal-reminder cron fires + the customer
+// pays manually via /api/user/hosting/renew. Shipped as a temporary
+// path while UPI Autopay activation is pending (~2026-07-08); the
+// operator flips back to HOSTING_MANDATE_FLOW=tokens once activated.
+//
+// Tests focus on the branch's correctness:
+//   - flag=manual + trial → calls createManualFlowTrialHosting; does
+//     NOT touch Razorpay (no customer / no token order / no
+//     subscription / no one-shot order)
+//   - Order row persisted with mandateMode='manual'
+//   - Response shape signals manualMode=true to the frontend so it
+//     skips razorpay.open()
+//   - Falls through to Subscriptions on provisioner failure
+//   - Non-trial stays on Subscriptions even when flag=manual
+//   - Mutual exclusion: when flag=manual + tokens-prerequisites both
+//     met, the manual branch wins (it runs FIRST) and tokens skips
+//     via the new !subscriptionCreated gate
+describe("Manual-flow branch (HOSTING_MANDATE_FLOW=manual)", () => {
+  const manualTrialCart = {
+    cartItems: [
+      {
+        domainName: "host-manual",
+        price: 0,
+        currency: "INR",
+        itemType: "hosting" as const,
+        billingCycle: "yearly" as const,
+        registrationPeriod: 15,
+        isTrial: true,
+        hostingPlan: { id: "starter", name: "Starter" },
+      },
+    ],
+  };
+
+  beforeEach(() => {
+    process.env.HOSTING_MANDATE_FLOW = "manual";
+    HostingPlanFindOne.mockResolvedValue({
+      planId: "starter",
+      name: "Starter",
+      renewalPrice: 49.99,
+      razorpayPlans: { yearly: "plan_yearly_starter", monthly: "plan_monthly_starter" },
+    });
+    getSettingValue.mockResolvedValue(true); // trials enabled
+  });
+
+  afterEach(() => {
+    delete process.env.HOSTING_MANDATE_FLOW;
+  });
+
+  it("with flag=manual + trial: calls createManualFlowTrialHosting; NO Razorpay calls of any kind", async () => {
+    const res = await POST(makeReq(manualTrialCart));
+    expect(res.status).toBe(200);
+
+    // Manual provisioner was invoked with the expected shape
+    expect(createManualFlowTrialHosting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "U1",
+        domainName: "host-manual",
+        planId: "starter",
+        planName: "Starter",
+        orderId: expect.stringMatching(/^ord_\d+_[a-z0-9]+$/),
+      })
+    );
+
+    // ZERO Razorpay surface — that's the whole point of manual mode
+    expect(createCustomer).not.toHaveBeenCalled();
+    expect(createRecurringTokenOrder).not.toHaveBeenCalled();
+    expect(createSubscription).not.toHaveBeenCalled();
+    expect(createRazorpayOrder).not.toHaveBeenCalled();
+  });
+
+  it("persists a Mongo Order row with mandateMode='manual' + orderType='hosting_trial' + amount=0", async () => {
+    await POST(makeReq(manualTrialCart));
+    expect(createOrder).toHaveBeenCalledTimes(1);
+    const orderArgs = createOrder.mock.calls[0][0];
+    expect(orderArgs).toMatchObject({
+      mandateMode: "manual",
+      orderType: "hosting_trial",
+      amount: 0,
+      status: "pending",
+      currency: "INR",
+    });
+    // Domain shape carries the trial signal
+    expect(orderArgs.domains[0]).toMatchObject({
+      domainName: "host-manual",
+      isTrial: true,
+      itemType: "hosting",
+      hostingPlan: expect.objectContaining({ planId: "starter" }),
+    });
+  });
+
+  it("response shape signals manualMode=true + no Razorpay IDs + amount=0 (frontend skips razorpay.open())", async () => {
+    const res = await POST(makeReq(manualTrialCart));
+    const body = await res.json();
+    expect(body).toMatchObject({
+      success: true,
+      manualMode: true,
+      mandateMode: "manual",
+      amount: 0,
+      currency: "INR",
+      hasSubscription: true,
+      isTrial: true,
+    });
+    // No Razorpay handles to open with
+    expect(body.razorpayOrderId).toBeUndefined();
+    expect(body.razorpaySubscriptionId).toBeUndefined();
+    expect(body.razorpayCustomerId).toBeUndefined();
+  });
+
+  it("flag NOT set: falls through to Subscriptions flow even for a trial (manual is opt-in)", async () => {
+    delete process.env.HOSTING_MANDATE_FLOW;
+    await POST(makeReq(manualTrialCart));
+    expect(createManualFlowTrialHosting).not.toHaveBeenCalled();
+    expect(createSubscription).toHaveBeenCalled();
+  });
+
+  it("flag=manual + provisioner throws: falls back to Subscriptions flow (NO error to user)", async () => {
+    createManualFlowTrialHosting.mockRejectedValueOnce(new Error("Mongo write failed"));
+    const res = await POST(makeReq(manualTrialCart));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    // Fell through cleanly
+    expect(createSubscription).toHaveBeenCalled();
+    expect(body.mandateMode).toBe("subscription");
+    expect(body.manualMode).toBeFalsy(); // not in manual mode anymore
+  });
+
+  it("flag=manual + non-trial recurring hosting: stays on Subscriptions (manual is trial-only by design)", async () => {
+    const nonTrialCart = {
+      cartItems: [
+        {
+          domainName: "host-paid",
+          price: 49.99,
+          currency: "INR",
+          itemType: "hosting" as const,
+          billingCycle: "yearly" as const,
+          registrationPeriod: 12,
+          isTrial: false,
+          hostingPlan: { id: "starter", name: "Starter" },
+        },
+      ],
+    };
+    await POST(makeReq(nonTrialCart));
+    expect(createManualFlowTrialHosting).not.toHaveBeenCalled();
+    expect(createSubscription).toHaveBeenCalled();
+  });
+
+  it("flag=manual wins over tokens when both would be eligible (manual runs first; tokens skips via !subscriptionCreated)", async () => {
+    // flag=manual + user has phone (tokens-flow precondition) + trial +
+    // no other items. Under the existing precedence, manual fires first
+    // and sets subscriptionCreated=true; tokens branch must skip even
+    // though its own preconditions would otherwise pass.
+    process.env.HOSTING_MANDATE_FLOW = "manual";
+    await POST(makeReq(manualTrialCart));
+    expect(createManualFlowTrialHosting).toHaveBeenCalled();
+    // Tokens-flow Razorpay calls must NOT happen
+    expect(createCustomer).not.toHaveBeenCalled();
+    expect(createRecurringTokenOrder).not.toHaveBeenCalled();
+  });
+
+  it("does NOT create a one-shot Razorpay order (oneTimeAmount stays 0 since item.price=0 + subscriptionCreated=true)", async () => {
+    await POST(makeReq(manualTrialCart));
+    // The post-branch `if (oneTimeAmount > 0)` block should be skipped
+    expect(createRazorpayOrder).not.toHaveBeenCalled();
   });
 });
