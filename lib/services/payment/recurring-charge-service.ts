@@ -135,8 +135,21 @@ export async function chargeRecurringHosting(
   if (!plan) {
     return { ...baseResult, outcome: "skipped", attemptCount: 0, reason: `plan not found: ${hosting.planId}` };
   }
+  // isYearly inference — drives BOTH the charge amount AND the expiry-extension
+  // direction below. Two signal sources:
+  //   (1) hosting.isTrial=true → this is the first post-trial MIT charge.
+  //       Tokens-flow trials are yearly-only (enforced in
+  //       app/api/payments/create-order/route.ts:174-176), so this MUST
+  //       charge the yearly amount. Without this, the date heuristic alone
+  //       would see ~15 days between startDate + expiryDate and infer
+  //       MONTHLY → 12x undercharge + 30-day expiry-extension instead of
+  //       1-year (caught by self-audit pass).
+  //   (2) Date heuristic: >= 11 month-deltas between start + expiry → yearly.
+  //       Covers ongoing renewals where startDate stays at the original
+  //       signup day and expiryDate accumulates whole years.
+  const isTrialFirstCharge = hosting.isTrial === true;
   const monthsSinceStart = monthsBetween(hosting.startDate, hosting.expiryDate);
-  const isYearly = monthsSinceStart >= 11; // trial 15-day → renews as yearly; existing yearly cycles continue yearly
+  const isYearly = isTrialFirstCharge || monthsSinceStart >= 11;
   const amountInRupees = isYearly ? plan.renewalPrice * 12 : plan.renewalPrice;
 
   // Discriminate first-post-trial-charge (HARD RULE: 1 attempt) from
@@ -288,11 +301,33 @@ export async function chargeRecurringHosting(
   //     today we'd require manual cleanup) or the operator unsticks it,
   //     a clean retry can fire.
   if (chargeOk) {
-    const newExpiry = new Date(hosting.expiryDate);
-    if (isYearly) newExpiry.setFullYear(newExpiry.getFullYear() + 1);
-    else newExpiry.setMonth(newExpiry.getMonth() + 1);
+    // Trial-to-paid transition: hard-reset newExpiry to now + 1 year so
+    // the customer's paid cycle starts fresh on the charge day, matching
+    // the Subscriptions-flow handler's pattern at
+    // lib/services/payment/webhook-handlers.ts:230-234. Also flip
+    // isTrial=false so the admin UI's "TRIAL" badge stops showing and
+    // subsequent renewals follow the date-heuristic path (no longer need
+    // the isTrial override).
+    //
+    // Ongoing renewals: newExpiry = current expiryDate + 1 cycle —
+    // accumulates the cycle correctly across multi-year customers.
+    const newExpiry = isTrialFirstCharge
+      ? (() => {
+          const d = new Date(now);
+          d.setFullYear(d.getFullYear() + 1);
+          return d;
+        })()
+      : (() => {
+          const d = new Date(hosting.expiryDate);
+          if (isYearly) d.setFullYear(d.getFullYear() + 1);
+          else d.setMonth(d.getMonth() + 1);
+          return d;
+        })();
     hosting.expiryDate = newExpiry;
     hosting.last_reminder_sent = null;
+    if (isTrialFirstCharge) {
+      hosting.isTrial = false;
+    }
     await hosting.save();
 
     attempt.status = "succeeded";

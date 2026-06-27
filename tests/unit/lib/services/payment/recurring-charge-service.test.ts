@@ -650,3 +650,121 @@ describe("chargeRecurringHosting — yearly vs monthly inference", () => {
     expect(chargeViaToken.mock.calls[0][0].amountInRupees).toBe(49.99);
   });
 });
+
+// Caught by the second self-audit pass: pre-fix, a Tokens-flow trial
+// customer's first MIT charge would see startDate=now + expiryDate=now+15d
+// → monthsBetween=0 → isYearly=false → charge MONTHLY (49.99) when the
+// customer signed up for YEARLY (599.88). 12x undercharge + expiry only
+// extended by 30d instead of 1y. Trials are yearly-only per
+// app/api/payments/create-order/route.ts:174-176; the fix uses
+// hosting.isTrial=true as an additional yearly signal that overrides
+// the date heuristic for the first post-trial MIT.
+describe("chargeRecurringHosting — TRIAL-TO-PAID transition (audit-2 fix)", () => {
+  it("trial first MIT (isTrial=true, ~15d between start+expiry) → YEARLY amount, NOT monthly", async () => {
+    const startDate = new Date("2026-06-26");
+    const expiryDate = new Date("2026-07-11"); // 15-day trial
+    const hosting = makeHosting({
+      startDate,
+      expiryDate,
+      isTrial: true, // <-- the trigger for the fix
+    });
+
+    const attempt = {
+      attemptCount: 1,
+      status: "in_progress",
+      save: vi.fn().mockResolvedValue(undefined),
+    };
+    RCACreate.mockResolvedValueOnce(attempt);
+    chargeViaToken.mockResolvedValueOnce({
+      orderId: "o_trial_first",
+      paymentId: "p_trial_first",
+      amount: 59988, // ₹599.88 in paise
+    });
+
+    await chargeRecurringHosting(
+      hosting as unknown as Parameters<typeof chargeRecurringHosting>[0]
+    );
+
+    // Pre-fix: 49.99 (monthly). Post-fix: 599.88 (yearly = 49.99 × 12).
+    expect(chargeViaToken.mock.calls[0][0].amountInRupees).toBeCloseTo(599.88, 2);
+  });
+
+  it("trial first MIT success → newExpiry = now + 1 year (hard reset; drops the 15-day trial overhang) + isTrial flips to false", async () => {
+    const startDate = new Date("2026-06-26");
+    const expiryDate = new Date("2026-07-11"); // 15-day trial expires here
+    const hosting = makeHosting({
+      startDate,
+      expiryDate,
+      isTrial: true,
+    });
+
+    const attempt = {
+      attemptCount: 1,
+      status: "in_progress",
+      save: vi.fn().mockResolvedValue(undefined),
+    };
+    RCACreate.mockResolvedValueOnce(attempt);
+    chargeViaToken.mockResolvedValueOnce({
+      orderId: "o", paymentId: "p", amount: 59988,
+    });
+
+    const beforeNow = Date.now();
+    await chargeRecurringHosting(
+      hosting as unknown as Parameters<typeof chargeRecurringHosting>[0]
+    );
+    const afterNow = Date.now();
+
+    // newExpiry should be approximately now + 1 year (hard reset matches
+    // Subscriptions-flow handler pattern in webhook-handlers.ts:230-234).
+    // Pre-fix bug: would have been expiryDate + 30 days = early-August
+    // (only 30 days from trial-end, off by ~11 months).
+    const newExpiry = (hosting as unknown as { expiryDate: Date }).expiryDate;
+    const expectedLow = new Date(beforeNow);
+    expectedLow.setFullYear(expectedLow.getFullYear() + 1);
+    const expectedHigh = new Date(afterNow);
+    expectedHigh.setFullYear(expectedHigh.getFullYear() + 1);
+    expect(newExpiry.getTime()).toBeGreaterThanOrEqual(expectedLow.getTime() - 10);
+    expect(newExpiry.getTime()).toBeLessThanOrEqual(expectedHigh.getTime() + 10);
+
+    // isTrial must flip to false so the admin "TRIAL" badge stops showing
+    // and subsequent renewals follow the date-heuristic path.
+    expect((hosting as unknown as { isTrial: boolean }).isTrial).toBe(false);
+  });
+
+  it("non-trial yearly customer (isTrial=false, ~12 months between start+expiry) → still YEARLY + expiry += 1 year from current expiry (regression guard)", async () => {
+    // Mirrors the makeHosting default (12-month cycle). Confirms the fix
+    // didn't break the post-trial-renewal path where the date heuristic
+    // alone should keep doing the right thing.
+    const startDate = new Date("2026-06-01");
+    const expiryDate = new Date("2027-06-01"); // exactly 12 months
+    const hosting = makeHosting({
+      startDate,
+      expiryDate,
+      isTrial: false, // <-- explicit; default is also false
+    });
+
+    const attempt = {
+      attemptCount: 1,
+      status: "in_progress",
+      save: vi.fn().mockResolvedValue(undefined),
+    };
+    RCACreate.mockResolvedValueOnce(attempt);
+    chargeViaToken.mockResolvedValueOnce({
+      orderId: "o", paymentId: "p", amount: 59988,
+    });
+
+    await chargeRecurringHosting(
+      hosting as unknown as Parameters<typeof chargeRecurringHosting>[0]
+    );
+
+    expect(chargeViaToken.mock.calls[0][0].amountInRupees).toBeCloseTo(599.88, 2);
+    // For non-trial renewal: newExpiry = expiryDate + 1 year (accumulate
+    // cycle), NOT now + 1 year (hard reset only applies to trial→paid).
+    const newExpiry = (hosting as unknown as { expiryDate: Date }).expiryDate;
+    const expectedNew = new Date("2028-06-01");
+    expect(newExpiry.getTime()).toBe(expectedNew.getTime());
+
+    // isTrial stays false (was already false; no change)
+    expect((hosting as unknown as { isTrial: boolean }).isTrial).toBe(false);
+  });
+});
