@@ -22,6 +22,7 @@ import {
   Activity,
   MessageCircle,
   ShieldAlert,
+  RefreshCcw,
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -46,6 +47,7 @@ export default function AdminLayout({ children, user, onLogout }: AdminLayoutPro
     { name: 'Payments', href: '/admin/payment-management', icon: FileText },
     { name: 'Pending Domains', href: '/admin/pending-domains', icon: AlertTriangle },
     { name: 'Integration Health', href: '/admin/integration-health', icon: ShieldAlert },
+    { name: 'Recurring Charges', href: '/admin/recurring-charges', icon: RefreshCcw },
     { name: 'Support Tickets', href: '/admin/support-tickets', icon: MessageCircle },
     { name: 'Hosting', href: '/admin/hosting', icon: Server },
     { name: 'Domains', href: '/admin/domains', icon: Globe },
