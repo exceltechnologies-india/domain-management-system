@@ -1,11 +1,28 @@
 # Razorpay Tokens Migration — Design Document
 
 **Author:** Claude Code (working with Pawan)
-**Date:** 2026-06-25
-**Status:** DRAFT — awaiting review + Razorpay-doc verification on the
-specific API parameters in §4.
-**Implementation gate:** scheduled to start AFTER Razorpay live cutover
-Steps 4-5 close (post UPI Autopay activation, est. 2026-07-08).
+**Date:** 2026-06-25; refreshed 2026-06-26 to reflect shipped state.
+**Status:** **IMPLEMENTED in code (DORMANT in prod behind
+`HOSTING_MANDATE_FLOW=subscriptions` feature flag).** All
+implementation phases (Foundation + 2A–2H) shipped 2026-06-26 across
+9 commits (`dca48b5` Foundation, `b50709d` 2A, `04c0d0c` 2B,
+`956c73a` 2C, `066a8a4` 2D, `14a64d0` 2G, `8312689` 2E, `c42237d`
+2F, `5fae71a` 2H) plus self-audit-driven hardening (`d86dd01` two
+HIGH-severity race + ordering bug fixes), operator tooling
+(`53c50fd` one-command Cloud Scheduler setup), 5 admin-UI
+visibility commits (`a570a7d`, `4da1dd3`, `1198403`, `5f93f85`,
+`13791f3` test pin), and 2 policy commits (`5ea21a6` first-charge
+hard 1-attempt rule, `d4b6a64` rule extended to renewals).
+**Phase 3 (integration tests against Razorpay TEST mode) is still
+pending** + operator-side wire-up (one command + one env flip).
+See §3.5 for the IMPORTANT POLICY CHANGE that supersedes the
+original design — current behaviour is uniform 1-attempt rule
+across all MIT charges, not the soft-grace [T+1, T+3, T+7] retry
+window originally specified.
+**Implementation gate REMOVED**: code shipped ahead of Razorpay
+live cutover Steps 4-5 (which are paused on UPI Autopay activation,
+est. 2026-07-08). Flag-flip rollout still gated on Steps 4-5 +
+operator-side Cloud Scheduler wire-up.
 
 ## 1. Background
 
@@ -125,7 +142,7 @@ set up.
 |----------------|-------------|--------|
 | `payment.captured` on a recurring-token order (CIT — customer-initiated transaction) | **NEW BRANCH** in [app/razorpay/webhook/route.ts](../app/razorpay/webhook/route.ts) | (a) Read `token_id` from payment object; (b) store on `Hosting.razorpayTokenId`; (c) immediately call `RazorpayService.refundPayment(payment_id, validationAmount)` to refund the ₹2; (d) flip Hosting status to `active` / extend expiry by trial period |
 | `payment.captured` on a merchant-initiated transaction (MIT — recurring charge we triggered) | **NEW BRANCH** | Similar to current `subscription.charged` — record RenewalPayment, extend expiry, fire Zoho invoice via Cloud Task |
-| `payment.failed` on MIT | **NEW BRANCH** | Similar to current `subscription.halted` — mark Hosting expired, suspend DA user (after retry exhaustion — see §3.5) |
+| `payment.failed` on MIT | **NEW BRANCH** | Similar to current `subscription.halted` — mark Hosting expired, suspend DA user **immediately on the first failure** (no retry exhaustion; see §3.5 for the policy change) |
 | `subscription.charged` / `subscription.halted` | **REMOVE eventually** | Keep for backward-compat with existing subscription-mode customers until they all cycle out (~12-18 months) |
 
 ### 3.4 New: merchant-driven recurring charge cron
@@ -135,21 +152,74 @@ set up.
 | `scripts/charge-recurring-hostings.js` (NEW) | Cron entry point. Queries `Hosting.find({ status: 'active', razorpayTokenId: { $exists: true }, expiryDate: { $lte: today + 1 day } })`. For each due Hosting, calls `RazorpayService.chargeViaToken(customer_id, token_id, planAmount, receipt)`. Does NOT update Hosting state directly — relies on the webhook `payment.captured` MIT handler to do that (idempotent). |
 | `gcloud scheduler jobs create` config | New job: invoke this cron daily at 04:00 IST. Existing scheduler config in `scripts/setup-cloud-scheduler.sh` (or equivalent — verify location). |
 
-### 3.5 Retry + dunning logic (no longer Razorpay's job)
+### 3.5 Abandonment + dunning logic (no longer Razorpay's job)
 
 Razorpay's Subscriptions API handles retries automatically (retries
-for ~7 days then halts the subscription). In Tokens mode, **we are
-responsible for retries**. Plan:
+for ~7 days then halts the subscription). In Tokens mode, **we own
+this state machine**.
 
-1. Cron fires charge → fails → record in new `RecurringChargeAttempt`
-   collection with `attemptCount`, `nextAttemptAt`
-2. Retry schedule: T+0 (initial), T+1 day, T+3 days, T+7 days
-3. After 4 failed attempts: mark Hosting expired, suspend DA user,
-   send dunning email (re-using existing email templates from
-   [lib/services/payment/webhook-handlers.ts:311-343](../lib/services/payment/webhook-handlers.ts#L311-L343))
+**Original design (shipped in `066a8a4` + `c42237d`)**: soft-grace
+[T+1, T+3, T+7] day backoff with 4 total attempts before abandonment.
+This matched Razorpay's Subscription-API behaviour to minimise customer
+disruption from transient declines.
 
-This is meaningful new logic. Estimated +1 day of work beyond the
-core migration.
+**Current policy (shipped in `5ea21a6` + `d4b6a64` — supersedes the
+original design)**: **HARD RULE — 1 attempt then suspend, uniformly
+across ALL recurring charges**. Both first-post-trial conversions AND
+subsequent renewals. No retries, no soft-grace window.
+
+| Behaviour | Original (soft-grace) | Current (hard rule) |
+|-----------|----------------------|---------------------|
+| First post-trial charge fails | 4 attempts over 9 days then suspend | **1 attempt then suspend** |
+| Year-N renewal fails | 4 attempts over 9 days then suspend | **1 attempt then suspend** |
+| Recovery path | Customer can wait + cron retries | Customer must re-subscribe (new CIT + new mandate) |
+
+Rationale for the policy change:
+
+- **Simpler customer expectation**: one rule, not two — every recurring
+  charge gets one try; valid payment method on file = required
+- **Faster operator visibility**: mandate failures surface immediately
+  in `/admin/recurring-charges` rather than 9 days later, giving the
+  operator a chance to reach out proactively to high-value customers
+- **Lower cron load**: no [T+1, T+3, T+7] follow-up sweeps cluttering
+  the daily charge run
+- **Trial signups + long-term customers face the same standard** —
+  no incentive structure for non-paying trial signups to hang on
+  past the trial window
+
+State machine:
+
+1. Cron fires charge → fails → `RecurringChargeAttempt.status =
+   'abandoned'` immediately (not 'failed')
+2. Three best-effort abandonment actions fire (each wrapped in
+   independent try/catch so one failure doesn't cascade):
+   - DirectAdmin user suspended via `daSuspendUser`
+   - `Hosting.status = 'expired'`
+   - Suspension email sent via
+     `EmailService.sendServiceSuspensionEmail` (re-using the existing
+     templates)
+3. The trial-vs-renewal discriminator (`priorSuccessCount`) is KEPT
+   for log + admin-UI + DA-suspend-reason audit-trail differentiation
+   — knowing whether an abandonment was a trial-conversion fail vs
+   a long-term customer's mandate dying is operationally meaningful
+   even though the technical policy is identical
+
+Reversibility:
+
+- `RETRY_BACKOFF_DAYS = [1, 3, 7]` is preserved in
+  [lib/services/payment/recurring-charge-service.ts](../lib/services/payment/recurring-charge-service.ts)
+  as a dormant constant. If the operator ever wants to restore the
+  original soft-grace policy, bump `RENEWAL_MAX_ATTEMPTS` (and/or
+  `FIRST_CHARGE_MAX_ATTEMPTS`) back to 4 — the dormant retry-claim
+  + retry-scheduling branches will start firing again with no
+  further code changes.
+
+Test surface in
+[tests/unit/lib/services/payment/recurring-charge-service.test.ts](../tests/unit/lib/services/payment/recurring-charge-service.test.ts)
+pins the unified policy across both branches (trial-conversion fail
+→ abandoned on attempt 1; renewal fail → abandoned on attempt 1;
+trial-conversion DA suspend reason differs from renewal DA suspend
+reason for audit visibility).
 
 ### 3.6 Data model changes
 
@@ -386,7 +456,7 @@ rolling out, flipped to `tokens` after verification).
 | Test type | What |
 |-----------|------|
 | Unit | `RazorpayService.createCustomer`, `createRecurringTokenOrder`, `chargeViaToken`, `refundPayment` — all mocked at Razorpay SDK boundary |
-| Unit | New webhook branches (`payment.captured` CIT, `payment.captured` MIT, `payment.failed` MIT, retry-attempt scheduling) — mocked Razorpay SDK |
+| Unit | New webhook branches (`payment.captured` CIT, `payment.captured` MIT, `payment.failed` MIT) + abandonment-on-first-failure path — mocked Razorpay SDK |
 | Unit | Cron handler in isolation — feed it fake `Hosting` rows due for charge, assert correct `chargeViaToken` calls + idempotency under repeated runs |
 | Integration | End-to-end against Razorpay TEST mode: signup → CIT auth → refund → MIT charge → renewal cycle. Verifies the actual Razorpay APIs match our code's assumptions. |
 | Manual | Phase-1 (operator's account at flag-flipped state) — see §5.3 |
@@ -410,7 +480,7 @@ Existing test surface in `tests/unit/lib/services/payment/webhook-handlers.test.
 | Implementation: `lib/razorpay.ts` new methods | 0.5 day |
 | Implementation: `app/api/payments/create-order/route.ts` Tokens branch | 0.5 day |
 | Implementation: webhook handlers (CIT auth → store token + refund; MIT recurring) | 1 day |
-| Implementation: cron + retry/dunning logic + `RecurringChargeAttempt` model | 1 day |
+| Implementation: cron + abandonment/dunning logic + `RecurringChargeAttempt` model | 1 day |
 | Tests (unit + integration) | 0.5-1 day |
 | Phase 1 internal validation | 0.5 day |
 | **TOTAL implementation** | **4-5 days** |
