@@ -443,14 +443,77 @@ export async function sendServiceExpiryTodayEmail(
 
 export async function sendServiceSuspensionEmail(
   userEmail: string,
-  details: { serviceName: string; serviceType: string }
+  details: {
+    serviceName: string;
+    serviceType: string;
+    // Tokens-flow customers see a different recovery path because the
+    // hard 1-attempt MIT policy (d4b6a64) means the mandate is dead
+    // after a single failure — they MUST re-subscribe via a new CIT
+    // auth + new mandate. Subscriptions-flow customers (whose retries
+    // are managed by Razorpay server-side, several attempts before
+    // halting) may be able to update payment in their existing
+    // subscription. Manual customers don't have auto-renewal at all.
+    // Defaults to undefined → generic wording for back-compat.
+    mandateMode?: "tokens" | "subscriptions" | "manual";
+  }
 ): Promise<boolean> {
   const subject = `Account Suspended: ${details.serviceName}`;
+  const dashboardUrl = `${process.env.NEXTAUTH_URL || ""}/dashboard/hosting`;
+  const supportEmail = process.env.SUPPORT_EMAIL || "support@example.com";
+
+  // Recovery-path copy varies by mandate mode. Tokens-flow gets a
+  // specific re-subscribe CTA because their mandate is dead; the
+  // others get the generic contact-support fallback.
+  const recoveryBlock =
+    details.mandateMode === "tokens"
+      ? `
+        <div style="background-color: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 18px; margin: 20px 0;">
+          <h3 style="color: #92400E; margin: 0 0 10px 0; font-size: 16px;">What happened</h3>
+          <p style="color: #78350F; margin: 0 0 8px 0; font-size: 14px;">
+            Your saved payment method couldn't be charged for the renewal of this ${details.serviceType}. Under our renewal policy each recurring charge is attempted once — if it fails, service is suspended immediately and the payment mandate is closed.
+          </p>
+          <p style="color: #78350F; margin: 0; font-size: 14px;">
+            Common causes: card expired or replaced, insufficient balance at the moment of the charge, or a UPI mandate that was revoked in your bank app.
+          </p>
+        </div>
+        <h3 style="color: #1f2937; margin: 25px 0 10px 0; font-size: 16px;">How to restore service</h3>
+        <p style="color: #4b5563; font-size: 14px; margin: 0 0 12px 0;">
+          Sign in to your dashboard, choose <strong>${details.serviceName}</strong>, and re-subscribe with a fresh card or UPI ID. A new mandate will be set up and your hosting will be reactivated as soon as the first charge succeeds.
+        </p>
+        <div style="text-align: center; margin: 25px 0;">
+          <a href="${dashboardUrl}" style="display: inline-block; background: linear-gradient(135deg, #1A73E8, #1557B0); color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 15px;">
+            Restore Service
+          </a>
+        </div>`
+      : `
+        <p style="color: #4b5563; font-size: 14px; margin: 0 0 12px 0;">
+          Please contact support to resolve this issue and restore service.
+        </p>
+        <div style="text-align: center; margin: 25px 0;">
+          <a href="${dashboardUrl}" style="display: inline-block; background: linear-gradient(135deg, #1A73E8, #1557B0); color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 15px;">
+            Open Dashboard
+          </a>
+        </div>`;
+
   const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h2 style="color: #d93025;">Service Suspended</h2>
-      <p>Your ${details.serviceType} <strong>${details.serviceName}</strong> has been suspended due to non-renewal.</p>
-      <p>Please contact support to resolve this issue and restore service.</p>
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+      <div style="background: linear-gradient(135deg, #DC2626, #991B1B); color: white; padding: 25px; text-align: center; border-radius: 8px 8px 0 0;">
+        <h1 style="margin: 0; font-size: 22px; font-weight: bold;">Service Suspended</h1>
+        <p style="margin: 8px 0 0 0; opacity: 0.9;">${details.serviceName}</p>
+      </div>
+
+      <div style="padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+        <p style="font-size: 16px; color: #374151; margin-bottom: 15px;">
+          Your ${details.serviceType} <strong>${details.serviceName}</strong> has been suspended due to a failed renewal payment.
+        </p>
+
+        ${recoveryBlock}
+
+        <p style="font-size: 13px; color: #6b7280; margin-top: 25px;">
+          Need help? Reply to this email or contact us at
+          <a href="mailto:${supportEmail}" style="color: #1A73E8;">${supportEmail}</a>.
+        </p>
+      </div>
     </div>
   `;
   return sendEmail({ to: userEmail, subject, html });

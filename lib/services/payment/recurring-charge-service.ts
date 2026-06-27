@@ -375,6 +375,11 @@ export async function chargeRecurringHosting(
         await EmailService.sendServiceSuspensionEmail(user.email, {
           serviceName: hosting.domainName,
           serviceType: "Hosting",
+          // Tokens-flow customers always reach this path — the hard
+          // 1-attempt rule means a single MIT failure → abandon →
+          // suspend → this email. mandateMode='tokens' triggers the
+          // re-subscribe recovery block in the template.
+          mandateMode: "tokens",
         });
         serverLogger.info(
           `[RECURRING-CHARGE] Suspension email sent to ${user.email} for ${hosting.domainName}`

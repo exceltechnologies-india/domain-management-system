@@ -452,6 +452,10 @@ describe("chargeRecurringHosting — failure handling", () => {
       expect.objectContaining({
         serviceName: "example.com",
         serviceType: "Hosting",
+        // Hard 1-attempt rule means every abandonment path on the Tokens
+        // service is mandateMode='tokens' — the suspension-email template
+        // renders the re-subscribe recovery block.
+        mandateMode: "tokens",
       })
     );
   });

@@ -198,6 +198,73 @@ describe("sendServiceSuspensionEmail", () => {
       "Account Suspended: x.com"
     );
   });
+
+  it("renders the service name + type in the body", async () => {
+    await sendServiceSuspensionEmail("user@x.test", {
+      serviceName: "example.com",
+      serviceType: "Hosting",
+    });
+    const html = sendEmailMock.mock.calls[0][0].html;
+    expect(html).toContain("example.com");
+    expect(html).toContain("Hosting");
+  });
+
+  // Tokens-flow recovery-path callout (d4b6a64 + this commit). When
+  // the hard 1-attempt MIT rule trips a suspension, the customer needs
+  // a clear re-subscribe CTA — generic "contact support" wording isn't
+  // enough because the mandate is dead and can't be retried.
+  describe("mandateMode='tokens' recovery block", () => {
+    it("renders the Tokens-flow recovery copy + re-subscribe CTA", async () => {
+      await sendServiceSuspensionEmail("user@x.test", {
+        serviceName: "example.com",
+        serviceType: "Hosting",
+        mandateMode: "tokens",
+      });
+      const html = sendEmailMock.mock.calls[0][0].html;
+      expect(html).toMatch(/What happened/i);
+      expect(html).toMatch(/each recurring charge is attempted once/i);
+      expect(html).toMatch(/How to restore service/i);
+      expect(html).toMatch(/re-subscribe with a fresh card or UPI ID/i);
+      expect(html).toContain("Restore Service");
+      // Common-cause hints help the customer self-diagnose
+      expect(html).toMatch(/card expired or replaced/i);
+      expect(html).toMatch(/UPI mandate that was revoked/i);
+    });
+
+    it("mandateMode unset → generic contact-support copy (back-compat for legacy callers)", async () => {
+      await sendServiceSuspensionEmail("user@x.test", {
+        serviceName: "example.com",
+        serviceType: "Hosting",
+      });
+      const html = sendEmailMock.mock.calls[0][0].html;
+      expect(html).not.toMatch(/What happened/i);
+      expect(html).not.toMatch(/re-subscribe/i);
+      expect(html).toMatch(/Please contact support/i);
+      expect(html).toContain("Open Dashboard");
+    });
+
+    it("mandateMode='subscriptions' → generic copy (Razorpay handles their retries server-side)", async () => {
+      await sendServiceSuspensionEmail("user@x.test", {
+        serviceName: "example.com",
+        serviceType: "Hosting",
+        mandateMode: "subscriptions",
+      });
+      const html = sendEmailMock.mock.calls[0][0].html;
+      expect(html).not.toMatch(/each recurring charge is attempted once/i);
+      expect(html).toMatch(/Please contact support/i);
+    });
+
+    it("mandateMode='manual' → generic copy (no auto-renewal at all)", async () => {
+      await sendServiceSuspensionEmail("user@x.test", {
+        serviceName: "example.com",
+        serviceType: "Hosting",
+        mandateMode: "manual",
+      });
+      const html = sendEmailMock.mock.calls[0][0].html;
+      expect(html).not.toMatch(/each recurring charge is attempted once/i);
+      expect(html).toMatch(/Please contact support/i);
+    });
+  });
 });
 
 describe("sendServiceGracePeriodEmail", () => {
