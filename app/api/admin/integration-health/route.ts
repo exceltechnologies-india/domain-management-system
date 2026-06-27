@@ -153,6 +153,14 @@ const PROVIDERS: ProviderClassifier[] = [
     label: "Razorpay",
     signatures: [
       {
+        needle: /\[RECURRING-CHARGE\] ABANDONED|recurring charge abandoned/i,
+        hint: "A Tokens-flow MIT charge was abandoned after 4 failed attempts (T+1, T+3, T+7 day backoff). The Hosting is now status='expired' + DA-suspended + the customer was emailed. To recover: customer needs to re-subscribe (new CIT auth + new mandate). Open `/admin/recurring-charges` filtered to `status=abandoned` to see all affected customers + their lastError strings; pivot to Razorpay dashboard via the customerId/tokenId shown for per-mandate inspection.",
+      },
+      {
+        needle: /\[RECURRING-CHARGE\]|MIT charge|retry_scheduled|mandate.*revoke/i,
+        hint: "A Tokens-flow MIT recurring charge failed but is being retried per the [T+1, T+3, T+7] day backoff. Most common causes: customer's card declined (insufficient funds / blocked card), customer revoked the UPI mandate in their bank app, or transient Razorpay 500. Check `/admin/recurring-charges` filtered to `status=failed` to see how many attempts are still budgeted before abandonment.",
+      },
+      {
         needle: /razorpay|BAD_REQUEST_ERROR|order_.*not_found|webhook.*signature/i,
         hint: "Razorpay API error or webhook signature mismatch. Verify RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET / RAZORPAY_WEBHOOK_SECRET in Secret Manager and that the key is in the right mode (test vs live) for this environment.",
       },
@@ -480,6 +488,80 @@ export async function GET(request: NextRequest) {
           affectedOrders: [],
         });
       }
+    }
+
+    // 4. RecurringChargeAttempt rows with status='failed' or 'abandoned'.
+    // Querying the canonical state collection directly (rather than relying
+    // on serverLogger calls landing in SystemLog with the right strings)
+    // means coverage is bulletproof: if a row exists, the operator sees it.
+    // Each row becomes one synthetic error entry that the Razorpay
+    // provider's RECURRING-CHARGE signatures pick up + classify with the
+    // dedicated hint pointing at /admin/recurring-charges.
+    try {
+      const { default: RecurringChargeAttempt } = await import(
+        "@/models/RecurringChargeAttempt"
+      );
+      const failedAttempts = (await RecurringChargeAttempt.find(
+        {
+          status: { $in: ["failed", "abandoned"] },
+          createdAt: { $gte: since },
+        },
+        {
+          status: 1,
+          attemptCount: 1,
+          lastError: 1,
+          hostingId: 1,
+          createdAt: 1,
+          abandonedAt: 1,
+          dueDate: 1,
+        }
+      )
+        .sort({ createdAt: -1 })
+        .limit(500)
+        .lean()) as unknown as Array<{
+        _id: { toString(): string };
+        status: "failed" | "abandoned";
+        attemptCount: number;
+        lastError?: string | null;
+        hostingId: { toString(): string };
+        createdAt: Date;
+        abandonedAt?: Date | null;
+        dueDate: Date;
+      }>;
+
+      for (const att of failedAttempts) {
+        const errMsg = att.lastError || "(no error captured)";
+        const statusLabel = att.status === "abandoned" ? "ABANDONED" : "FAILED";
+        // Synthesised message — the `[RECURRING-CHARGE]` prefix routes this
+        // to the new Razorpay-recurring signature in PROVIDERS (above).
+        const errorText = `[RECURRING-CHARGE] ${statusLabel} attempt ${att.attemptCount}/4 for Hosting ${att.hostingId.toString().slice(-8)}: ${errMsg}`;
+        const { provider, label, hint } = classify(errorText);
+        const key = `${provider}::${bucketKey(errorText)}`;
+        const occurred = att.createdAt.toISOString();
+        const existing = buckets.get(key);
+        if (existing) {
+          existing.count += 1;
+          if (occurred < existing.firstSeen) existing.firstSeen = occurred;
+          if (occurred > existing.lastSeen) existing.lastSeen = occurred;
+        } else {
+          buckets.set(key, {
+            provider,
+            providerLabel: label,
+            exemplarMessage: errorText.slice(0, 500),
+            count: 1,
+            firstSeen: occurred,
+            lastSeen: occurred,
+            hint,
+            affectedOrders: [],
+          });
+        }
+      }
+    } catch (rcaErr) {
+      // Don't let RCA query failures crash the whole page — the existing
+      // Order + SystemLog sources stay intact.
+      serverLogger.warn(
+        `[integration-health] RecurringChargeAttempt query failed: ${rcaErr instanceof Error ? rcaErr.message : String(rcaErr)}`
+      );
     }
 
     // Roll up buckets into provider groups.
