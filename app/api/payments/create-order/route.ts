@@ -5,6 +5,7 @@ import { serverLogger } from "@/lib/server-logger";
 import { validateDomainPeriod } from "@/lib/tld-policies";
 import { verifyDomainPrices } from "@/lib/services/payment/price-verifier";
 import { createOrder } from "@/lib/services/orders";
+import { createManualFlowTrialHosting } from "@/lib/services/payment/manual-trial-provisioner";
 import type { CartItem } from "@/lib/types";
 import {
   evaluateTrialAbuse,
@@ -234,6 +235,101 @@ export async function POST(request: NextRequest) {
           // Trials always use the yearly plan ID
           const period = isTrial ? 'yearly' : (item.registrationPeriod === 12 ? 'yearly' : 'monthly');
 
+          // ── Manual-flow branch (no mandate at signup) ───────────────────
+          // Temporary trial-without-mandate path while Razorpay UPI Autopay
+          // activation is pending (~2026-07-08) and eSign (~2026-06-27).
+          // Lets customers sign up + start a trial WITHOUT a Razorpay
+          // mandate auth at signup. At trial expiry, the existing renewal-
+          // reminder cron (next_action_at) fires + the customer pays
+          // manually via /dashboard/hosting/renew → one-shot Razorpay
+          // order. No mandate is ever set up; renewals stay manual.
+          //
+          // When UPI Autopay activates, the operator flips
+          // `HOSTING_MANDATE_FLOW=tokens` and new signups go through the
+          // mandate-at-signup flow again. Customers who signed up under
+          // manual mode keep paying manually — they're not migrated
+          // backward into the mandate flow automatically.
+          //
+          // Gated the same way as the Tokens branch: trial + no mixed
+          // cart. Falls through to Subscriptions on any miss.
+          const manualFlowAllowed =
+            process.env.HOSTING_MANDATE_FLOW === 'manual' &&
+            isTrial &&
+            oneTimeAmount === 0;
+
+          if (manualFlowAllowed) {
+            try {
+              const manualInternalOrderId = `ord_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
+              // Persist a Mongo Order row so admin UI can find this signup
+              // by orderId. status='pending' until the customer eventually
+              // pays via the renewal flow — at which point the regular
+              // verify-payment + manual-renewal handlers update it.
+              // mandateMode='manual' is OUTSIDE the CreateOrderInput
+              // literal type ("subscription" | "tokens") so we route
+              // through the Record<string, unknown> escape hatch.
+              await createOrder({
+                orderId: manualInternalOrderId,
+                userId: user.id,
+                userName: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+                userEmail: user.email,
+                paymentId: `pay_manual_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+                razorpayOrderId: `manual_${Date.now()}`,
+                razorpayPaymentId: "manual",
+                razorpaySignature: "manual",
+                amount: 0, // No charge at signup
+                currency: "INR",
+                status: "pending",
+                orderType: "hosting_trial",
+                mandateMode: "manual",
+                domains: [
+                  {
+                    domainName: item.linkedDomain || item.domainName,
+                    price: 0,
+                    currency: "INR",
+                    registrationPeriod: 15,
+                    periodUnit: "days",
+                    itemType: "hosting",
+                    isTrial: true,
+                    hostingPlan: {
+                      planId: plan.planId,
+                      name: plan.name,
+                      serverPackage: (plan as { directAdminPackage?: string }).directAdminPackage,
+                    },
+                  },
+                ],
+              } as Record<string, unknown>);
+
+              await createManualFlowTrialHosting({
+                userId: user.id,
+                domainName: item.linkedDomain || item.domainName,
+                planId: plan.planId,
+                planName: plan.name,
+                serverPackage: (plan as { directAdminPackage?: string }).directAdminPackage,
+                orderId: manualInternalOrderId,
+              });
+
+              subscriptionData = {
+                id: manualInternalOrderId,
+                planName: plan.name,
+                period,
+                mode: 'manual' as const,
+              };
+              subscriptionCreated = true;
+              serverLogger.info(
+                `✅ [CREATE-ORDER] Manual-mode trial provisioned: order=${manualInternalOrderId} domain=${item.linkedDomain || item.domainName} plan=${plan.name} (no Razorpay involvement)`
+              );
+            } catch (manErr) {
+              serverLogger.error(
+                `❌ [CREATE-ORDER] Manual flow failed — falling through to Subscriptions flow:`,
+                manErr
+              );
+              // Intentional fall-through to Subscriptions — manual flow
+              // is the new opt-in path; the existing Subscriptions flow
+              // is the battle-tested fallback.
+            }
+          }
+
           // ── Tokens-flow branch (Phase 2A — scoped MVP) ────────────────────
           // Only fires when ALL of:
           //   - HOSTING_MANDATE_FLOW=tokens (operator opt-in)
@@ -246,6 +342,7 @@ export async function POST(request: NextRequest) {
           // Falls through to the Subscriptions flow on any miss so production
           // is never blocked by a missing precondition.
           const tokensFlowAllowed =
+            !subscriptionCreated && // skip if manual branch already provisioned
             process.env.HOSTING_MANDATE_FLOW === 'tokens' &&
             isTrial &&
             oneTimeAmount === 0 &&
@@ -506,15 +603,24 @@ export async function POST(request: NextRequest) {
       // subscription_id; frontend opens Razorpay checkout with order_id +
       // customer_id + recurring: 1 instead of subscription_id.
       const isTokensMode = subscriptionData?.mode === 'tokens';
+      // Manual-mode response shape: NO Razorpay interaction at all.
+      // Frontend sees `manualMode: true` and skips razorpay.open()
+      // entirely, redirecting to the dashboard with a success toast.
+      const isManualMode = subscriptionData?.mode === 'manual';
 
       return NextResponse.json({
         success: true,
-        razorpayOrderId: isTokensMode ? subscriptionData?.orderId : razorpayOrderId,
-        razorpaySubscriptionId: isTokensMode ? undefined : subscriptionData?.id,
+        razorpayOrderId: isManualMode
+          ? undefined
+          : isTokensMode
+            ? subscriptionData?.orderId
+            : razorpayOrderId,
+        razorpaySubscriptionId: isManualMode || isTokensMode ? undefined : subscriptionData?.id,
         razorpayCustomerId: isTokensMode ? subscriptionData?.customerId : undefined,
         subscriptionPlan: subscriptionData?.planName,
-        mandateMode: subscriptionData?.mode ?? null,  // 'subscription' | 'tokens' | null
-        amount: isTokensMode ? 2 : oneTimeAmount,     // ₹2 validation in tokens mode
+        mandateMode: subscriptionData?.mode ?? null,  // 'subscription' | 'tokens' | 'manual' | null
+        manualMode: isManualMode,
+        amount: isManualMode ? 0 : isTokensMode ? 2 : oneTimeAmount,
         currency: "INR",
         hasSubscription: !!subscriptionData,
         isTrial: isTrial && !!subscriptionData,

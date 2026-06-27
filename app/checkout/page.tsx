@@ -166,12 +166,32 @@ export default function CheckoutPage() {
         throw new Error('Payment configuration missing: Razorpay key is not set');
       }
 
-      const { razorpayOrderId, razorpaySubscriptionId, razorpayCustomerId, mandateMode } = data as {
+      const { razorpayOrderId, razorpaySubscriptionId, razorpayCustomerId, mandateMode, manualMode } = data as {
         razorpayOrderId?: string;
         razorpaySubscriptionId?: string;
         razorpayCustomerId?: string;
-        mandateMode?: 'subscription' | 'tokens' | null;
+        mandateMode?: 'subscription' | 'tokens' | 'manual' | null;
+        manualMode?: boolean;
       };
+
+      // Manual-mode branch: NO Razorpay interaction. Hosting was already
+      // provisioned server-side by create-order. Just redirect to the
+      // dashboard with a success toast — same as the post-verify happy
+      // path for the other flows. No verify-payment call needed since
+      // there's no payment to verify.
+      if (manualMode || mandateMode === 'manual') {
+        safeSessionStorage.setItem('paymentResult', JSON.stringify({
+          status: 'success',
+          amount: 0,
+          mandateMode: 'manual',
+          timestamp: Date.now(),
+        }));
+        setPaymentCompleted(true);
+        clearCart();
+        setIsPaymentInProgress(false);
+        router.push('/payment-success');
+        return;
+      }
 
       // Function to verify and finalize
       const verifyPayment = async (orderId: string, paymentId: string, signature: string, subscriptionId?: string) => {
