@@ -640,11 +640,12 @@ export default function AdminHostingPage() {
   };
 
   const filteredData = hostingData.filter(item => {
-    // Search filter — domain / name / email substring match
-    const matchesSearch =
-      item.domain.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.user.email.toLowerCase().includes(searchTerm.toLowerCase());
+    // Search filter — domain substring match only. Name/email used to be
+    // included but produced too many false positives when an entire test
+    // dataset shared a common email domain (e.g. every row matching "excel"
+    // via @exceltechnologies.in). Domain-only keeps results scoped to the
+    // hosting account, which is what operators actually search by.
+    const matchesSearch = item.domain.toLowerCase().includes(searchTerm.toLowerCase());
     if (!matchesSearch) return false;
     // Customer-type filter — drives the trial-vs-paid distinction the
     // operator can slice the table by.
@@ -809,7 +810,7 @@ export default function AdminHostingPage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search by domain, user or email…"
+                  placeholder="Search by domain…"
                   className="w-full sm:w-80 pl-10 pr-3 py-2 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
                   value={searchTerm}
                   onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
