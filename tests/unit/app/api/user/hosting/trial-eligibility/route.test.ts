@@ -209,6 +209,16 @@ describe("Layer 3 — anti-abuse defenses", () => {
 });
 
 describe("Layer 4 — planId yearly-Razorpay-mapping", () => {
+  // The Razorpay-plans-yearly check is mode-gated: it only fires under
+  // HOSTING_MANDATE_FLOW=subscriptions (the default). Tokens and Manual
+  // flows don't need pre-configured Razorpay plans. The default-flow
+  // tests in this block assume HOSTING_MANDATE_FLOW is unset (treated
+  // as 'subscriptions'). The mode-specific tests at the end pin the
+  // 2026-06-29 incident-fix behavior across all three modes.
+  beforeEach(() => {
+    delete process.env.HOSTING_MANDATE_FLOW;
+  });
+
   it("plan missing → eligible:false 'plan is not available for a free trial'", async () => {
     setupHappy();
     getPlanByPlanId.mockResolvedValueOnce(null);
@@ -218,7 +228,7 @@ describe("Layer 4 — planId yearly-Razorpay-mapping", () => {
     expect(body.reason).toContain("not available");
   });
 
-  it("plan exists BUT razorpayPlans.yearly missing → eligible:false", async () => {
+  it("plan exists BUT razorpayPlans.yearly missing (under subscriptions flow) → eligible:false", async () => {
     setupHappy();
     getPlanByPlanId.mockResolvedValueOnce({
       planId: "p-1",
@@ -246,6 +256,47 @@ describe("Layer 4 — planId yearly-Razorpay-mapping", () => {
     const body = await res.json();
     expect(body.eligible).toBe(true);
     expect(getPlanByPlanId).not.toHaveBeenCalled();
+  });
+
+  // 2026-06-29 incident-fix tests. After the operator flipped
+  // HOSTING_MANDATE_FLOW=manual to launch the no-mandate trial path,
+  // every customer hitting "Start Free Trial" got "This plan is not
+  // available for a free trial" because the Razorpay-yearly gate was
+  // checking a field that only matters under subscriptions flow. The
+  // fix mode-gates the Razorpay-plans check.
+  it("HOSTING_MANDATE_FLOW=manual + plan WITHOUT razorpayPlans.yearly → eligible:true (no Razorpay involvement under manual)", async () => {
+    process.env.HOSTING_MANDATE_FLOW = "manual";
+    setupHappy();
+    getPlanByPlanId.mockResolvedValueOnce({
+      planId: "starter",
+      // No razorpayPlans.yearly — Manual flow doesn't need it
+      razorpayPlans: {},
+    });
+    const res = await POST(makePost({ planId: "starter" }));
+    const body = await res.json();
+    expect(body.eligible).toBe(true);
+  });
+
+  it("HOSTING_MANDATE_FLOW=tokens + plan WITHOUT razorpayPlans.yearly → eligible:true (Tokens uses CIT auth, no pre-configured plan)", async () => {
+    process.env.HOSTING_MANDATE_FLOW = "tokens";
+    setupHappy();
+    getPlanByPlanId.mockResolvedValueOnce({
+      planId: "starter",
+      razorpayPlans: {},
+    });
+    const res = await POST(makePost({ planId: "starter" }));
+    const body = await res.json();
+    expect(body.eligible).toBe(true);
+  });
+
+  it("HOSTING_MANDATE_FLOW=manual + plan MISSING ENTIRELY → still eligible:false (the plan-exists check is mode-independent)", async () => {
+    process.env.HOSTING_MANDATE_FLOW = "manual";
+    setupHappy();
+    getPlanByPlanId.mockResolvedValueOnce(null);
+    const res = await POST(makePost({ planId: "p-ghost" }));
+    const body = await res.json();
+    expect(body.eligible).toBe(false);
+    expect(body.reason).toContain("not available");
   });
 });
 

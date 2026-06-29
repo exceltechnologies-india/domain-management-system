@@ -75,10 +75,22 @@ async function runEligibility(
     });
   }
 
-  // 4. Confirm requested plan has a yearly Razorpay plan
+  // 4. Confirm requested plan exists. The Razorpay-yearly-plan check
+  //    only applies under the Subscriptions flow — Tokens flow uses CIT
+  //    auth (no pre-configured plan needed) and Manual flow bypasses
+  //    Razorpay entirely. Pre-2026-06-29 this check ran regardless of
+  //    flow, which blocked trial signup on the day the operator flipped
+  //    HOSTING_MANDATE_FLOW=manual — every customer hitting "Start Free
+  //    Trial" on the live Starter plan got "This plan is not available
+  //    for a free trial" because the gate didn't know about the
+  //    non-Subscriptions flows.
   if (body.planId) {
     const plan = await getPlanByPlanId(body.planId);
-    if (!plan || !plan.razorpayPlans?.yearly) {
+    if (!plan) {
+      return secureJsonResponse({ eligible: false, reason: "This plan is not available for a free trial" });
+    }
+    const mandateMode = process.env.HOSTING_MANDATE_FLOW ?? "subscriptions";
+    if (mandateMode === "subscriptions" && !plan.razorpayPlans?.yearly) {
       return secureJsonResponse({ eligible: false, reason: "This plan is not available for a free trial" });
     }
   }
