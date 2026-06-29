@@ -107,6 +107,17 @@ export default function AdminHostingPage() {
   // position they had before clicking Next/Prev and may not realize the
   // page actually changed.
   const tableTopRef = useRef<HTMLDivElement | null>(null);
+  // Guard against repeated fetches caused by session-reference churn.
+  // Without this, NextAuth's `refetchOnWindowFocus: true` default makes
+  // useSession() return a NEW session object reference every time the
+  // window regains focus (even if the underlying session content is
+  // identical). The auth-check useEffect's deps array includes
+  // `session`, so each refocus re-fires the effect → fetchHostingData
+  // runs again → two-pass flow restarts → table briefly drops to 10
+  // rows → pagination disappears → admin sees a "loop". This ref makes
+  // the data fetch run exactly once per page-mount; the operator hits
+  // the Refresh button for explicit updates.
+  const hasFetchedHostingsRef = useRef(false);
   const [daMode, setDaMode] = useState<string>('Live'); // Default to Live, update from API
 
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -217,7 +228,15 @@ export default function AdminHostingPage() {
 
       setUser(userObj);
       setIsAuthLoading(false);
-      void fetchHostingData();
+      // Guard: fetch only once per page-mount. See `hasFetchedHostingsRef`
+      // declaration for the full incident note (NextAuth refetchOnWindowFocus
+      // session-reference churn would otherwise loop us through the two-pass
+      // hostings fetch on every window focus, transiently dropping the table
+      // back to 10 rows and making pagination flicker out).
+      if (!hasFetchedHostingsRef.current) {
+        hasFetchedHostingsRef.current = true;
+        void fetchHostingData();
+      }
       return;
     }
 
