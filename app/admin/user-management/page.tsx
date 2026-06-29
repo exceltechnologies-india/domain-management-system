@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Search, Filter, MoreVertical, Trash2, Eye, EyeOff, RefreshCw, Key, UserCheck, XCircle, CheckCircle, Server, Shield, Unlock, ShieldOff, Users, UserX, Cog } from 'lucide-react';
+import { Search, Filter, MoreVertical, Trash2, Eye, EyeOff, RefreshCw, Key, UserCheck, XCircle, CheckCircle, Server, Shield, Unlock, ShieldOff, Users, UserX, Cog, ExternalLink } from 'lucide-react';
 import RefreshButton from '@/components/dashboard/RefreshButton';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { AdminLayoutSkeleton, AdminUsersPageSkeleton } from '@/components/skeletons/PageSkeletons';
@@ -1232,6 +1233,7 @@ export default function AdminUsers() {
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Domain</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expires</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Manage</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -1250,6 +1252,28 @@ export default function AdminUsers() {
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-500">
                             {host.expiryDate ? formatIndianDate(new Date(host.expiryDate)) : '-'}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {/* Deep-link to /admin/hosting pre-filtered to this
+                                domain so the operator can jump straight to the
+                                hosting management surface without leaving this
+                                modal, navigating away, and searching manually.
+                                /admin/hosting reads `?q=` on mount and pre-fills
+                                its search input. Skipped when domainName is
+                                missing (defensive — the row would be useless
+                                for management anyway). */}
+                            {host.domainName ? (
+                              <Link
+                                href={`/admin/hosting?q=${encodeURIComponent(host.domainName)}`}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-md transition-colors"
+                                title={`Open ${host.domainName} in the hosting admin`}
+                              >
+                                Open
+                                <ExternalLink className="h-3 w-3" />
+                              </Link>
+                            ) : (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
                           </td>
                         </tr>
                       ))}

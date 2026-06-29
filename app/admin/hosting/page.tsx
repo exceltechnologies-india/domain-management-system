@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useTransition, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import {
   Server,
@@ -87,7 +87,14 @@ interface HostingData {
 export default function AdminHostingPage() {
   const [user, setUser] = useState<User | null>(null);
   const [hostingData, setHostingData] = useState<HostingData[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  // Pre-fill searchTerm from the `?q=` query param so deep-links from
+  // other admin surfaces (e.g. the User Services modal in
+  // /admin/user-management) can land the operator straight on a
+  // pre-filtered hosting list. Falls back to '' when no `q` is present.
+  // The state itself is still editable after mount — the param just
+  // seeds the initial value.
+  const searchParams = useSearchParams();
+  const [searchTerm, setSearchTerm] = useState(() => searchParams?.get('q') ?? '');
   // Filter rows by customer type: 'all' (default), 'trial' (isTrial=true only),
   // or 'paid' (isTrial=false only). Lets the operator slice the table to
   // "who's still on free trial" vs "who's actually paying" — common
