@@ -176,74 +176,55 @@ export async function POST(request: NextRequest) {
           if (item.billingCycle !== 'yearly' && item.registrationPeriod !== 15) {
             return NextResponse.json({ error: "Trial is only available for yearly hosting plans" }, { status: 400 });
           }
-          // Admin-account testing bypass — same rationale as the eligibility
-          // endpoint: operators (role='admin') need to exercise the trial
-          // flow on their own dev machine, which trips the IP/device/email
-          // defenses designed for real-customer abuse. Admin role is a
-          // strict whitelist (real customers don't have it) so the bypass
-          // can't be exploited from the public surface. Logged for audit.
-          const isAdminBypass = (user as { role?: string }).role === "admin";
-          if (isAdminBypass) {
-            serverLogger.info(
-              `[CREATE-ORDER] Admin bypass active for trial signup: user=${user.email} — skipping prior-order + abuse defenses + claim-record`
-            );
-          }
-          // Global trials kill-switch — applies to admins too
+          // One trial per user lifetime
           const { getSettingValue } = await import("@/lib/services/settings");
           const trialFlag = await getSettingValue<boolean>("hosting_trial_enabled");
           const trialsEnabled = trialFlag !== false;
           if (!trialsEnabled) {
             return NextResponse.json({ error: "Free trials are currently unavailable" }, { status: 400 });
           }
-          // One trial per user lifetime — SKIPPED for admins
-          if (!isAdminBypass) {
-            const priorTrial = await userHasPriorTrialOrder(user.id);
-            if (priorTrial) {
-              return NextResponse.json({ error: "You have already used your free trial" }, { status: 400 });
-            }
+          const priorTrial = await userHasPriorTrialOrder(user.id);
+          if (priorTrial) {
+            return NextResponse.json({ error: "You have already used your free trial" }, { status: 400 });
           }
 
-          // Defense-in-depth abuse check — SKIPPED for admins (matches the
-          // eligibility-endpoint bypass so the operator gets a consistent
-          // experience: if eligibility says they're OK to test, checkout
-          // shouldn't reject them at the next gate).
+          // Defense-in-depth: re-run the same abuse checks here even though
+          // the eligibility endpoint already ran them. The eligibility result
+          // is advisory — this is the gate immediately before provisioning.
           const clientIp = getClientIp(request);
-          if (!isAdminBypass) {
-            const abuseCheck = await evaluateTrialAbuse(
-              {
-                email: user.email,
-                ipHash: hashIp(clientIp),
-                deviceFingerprint,
-                phone: user.phone,
-                otpToken,
-              },
-              { clientIp, recaptchaToken: recaptchaToken || undefined }
-            );
-            if (!abuseCheck.allowed) {
-              serverLogger.warn(
-                `[CREATE-ORDER] Trial blocked for user=${user.email} reason=${abuseCheck.code}`
-              );
-              return NextResponse.json(
-                { error: abuseCheck.reason, code: abuseCheck.code },
-                { status: 400 }
-              );
-            }
-          }
-
-          // Record the claim — SKIPPED for admins so the operator's own
-          // testing doesn't burn up their IP/device's 30-day quota and
-          // accidentally throttle a real customer who later visits from
-          // the same office network. Real customers (non-admins) still
-          // record claims normally.
-          if (!isAdminBypass) {
-            await recordTrialClaim({
-              userId: String(user.id),
-              userEmail: user.email,
+          const abuseCheck = await evaluateTrialAbuse(
+            {
+              email: user.email,
               ipHash: hashIp(clientIp),
               deviceFingerprint,
-              planId: item.hostingPlan?.id || (item as CartItem & { planId?: string }).planId,
-            });
+              phone: user.phone,
+              otpToken,
+            },
+            { clientIp, recaptchaToken: recaptchaToken || undefined }
+          );
+          if (!abuseCheck.allowed) {
+            serverLogger.warn(
+              `[CREATE-ORDER] Trial blocked for user=${user.email} reason=${abuseCheck.code}`
+            );
+            return NextResponse.json(
+              { error: abuseCheck.reason, code: abuseCheck.code },
+              { status: 400 }
+            );
           }
+
+          // Record the claim now — even if Razorpay subscription creation
+          // fails downstream, the user has been authorised for the trial
+          // and we want subsequent attempts from this IP/device to be
+          // throttled either way. The trial-abuse window is 30 days; a
+          // false-positive throttle is preferable to letting the same
+          // browser retry through a fresh email.
+          await recordTrialClaim({
+            userId: String(user.id),
+            userEmail: user.email,
+            ipHash: hashIp(clientIp),
+            deviceFingerprint,
+            planId: item.hostingPlan?.id || (item as CartItem & { planId?: string }).planId,
+          });
         }
 
         const plan = await HostingPlan.findOne({ planId: item.hostingPlan?.id || (item as CartItem & { planId?: string }).planId });

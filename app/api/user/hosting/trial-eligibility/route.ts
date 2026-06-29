@@ -38,63 +38,41 @@ async function runEligibility(
   const user = await AuthService.getUserFromRequest(request);
   if (!user) return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
 
-  // Admin-account testing bypass: operators (role='admin') often need to
-  // exercise the customer trial flow on their own dev/staging machine —
-  // testing layouts, error paths, end-to-end signup, etc. The same IP +
-  // device + email get hit repeatedly, which legitimately trips
-  // IP_THROTTLE / DEVICE_THROTTLE / one-trial-per-user defenses designed
-  // to stop real-customer abuse. Admin role is a strict whitelist (real
-  // customers don't have it) so skipping Layers 2-3 here doesn't weaken
-  // production. The plan-exists check (Layer 4) still runs — a malformed
-  // planId should fail regardless of who's asking.
-  const isAdminBypass = user.role === "admin";
-  if (isAdminBypass) {
-    serverLogger.info(
-      `[TrialEligibility] Admin bypass active for user=${user.email} — skipping prior-order + abuse defenses`
-    );
-  }
-
-  // 1. Global trials kill-switch (applies to admins too — if the operator
-  // turned trials off, that's the intent regardless of role)
+  // 1. Global trials kill-switch
   const trialEnabled = await getSettingValue<boolean>("hosting_trial_enabled", true);
   const trialsEnabled = trialEnabled !== false;
   if (!trialsEnabled) {
     return secureJsonResponse({ eligible: false, reason: "Trials are currently unavailable" });
   }
 
-  // 2. One trial per user lifetime — SKIPPED for admins (operator testing)
-  if (!isAdminBypass) {
-    const userId = String(user._id);
-    const priorTrial = await userHasPriorTrialOrder(userId);
-    if (priorTrial) {
-      return secureJsonResponse({ eligible: false, reason: "You have already used your free trial" });
-    }
+  // 2. One trial per user lifetime
+  const userId = String(user._id);
+  const priorTrial = await userHasPriorTrialOrder(userId);
+  if (priorTrial) {
+    return secureJsonResponse({ eligible: false, reason: "You have already used your free trial" });
   }
 
   // 3. Abuse defenses — disposable email, reCAPTCHA, IP & device throttles.
-  // SKIPPED for admins (operator testing on their own IP/device repeatedly).
-  if (!isAdminBypass) {
-    const clientIp = getClientIp(request);
-    const abuseCheck = await evaluateTrialAbuse(
-      {
-        email: user.email,
-        ipHash: hashIp(clientIp),
-        deviceFingerprint: body.deviceFingerprint,
-        phone: user.phone,
-        otpToken: body.otpToken,
-      },
-      { clientIp, recaptchaToken: body.recaptchaToken || undefined }
+  const clientIp = getClientIp(request);
+  const abuseCheck = await evaluateTrialAbuse(
+    {
+      email: user.email,
+      ipHash: hashIp(clientIp),
+      deviceFingerprint: body.deviceFingerprint,
+      phone: user.phone,
+      otpToken: body.otpToken,
+    },
+    { clientIp, recaptchaToken: body.recaptchaToken || undefined }
+  );
+  if (!abuseCheck.allowed) {
+    serverLogger.warn(
+      `[TrialEligibility] Blocked for user=${user.email} reason=${abuseCheck.code}`
     );
-    if (!abuseCheck.allowed) {
-      serverLogger.warn(
-        `[TrialEligibility] Blocked for user=${user.email} reason=${abuseCheck.code}`
-      );
-      return secureJsonResponse({
-        eligible: false,
-        reason: abuseCheck.reason,
-        code: abuseCheck.code,
-      });
-    }
+    return secureJsonResponse({
+      eligible: false,
+      reason: abuseCheck.reason,
+      code: abuseCheck.code,
+    });
   }
 
   // 4. Confirm requested plan exists. The Razorpay-yearly-plan check
