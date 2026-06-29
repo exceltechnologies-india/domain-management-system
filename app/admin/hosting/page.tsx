@@ -88,6 +88,11 @@ export default function AdminHostingPage() {
   const [user, setUser] = useState<User | null>(null);
   const [hostingData, setHostingData] = useState<HostingData[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  // Filter rows by customer type: 'all' (default), 'trial' (isTrial=true only),
+  // or 'paid' (isTrial=false only). Lets the operator slice the table to
+  // "who's still on free trial" vs "who's actually paying" — common
+  // operational ask especially in the first weeks of a launch.
+  const [customerTypeFilter, setCustomerTypeFilter] = useState<'all' | 'trial' | 'paid'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [daMode, setDaMode] = useState<string>('Live'); // Default to Live, update from API
 
@@ -543,11 +548,25 @@ export default function AdminHostingPage() {
     }
   };
 
-  const filteredData = hostingData.filter(item =>
-    item.domain.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredData = hostingData.filter(item => {
+    // Search filter — domain / name / email substring match
+    const matchesSearch =
+      item.domain.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.user.email.toLowerCase().includes(searchTerm.toLowerCase());
+    if (!matchesSearch) return false;
+    // Customer-type filter — drives the trial-vs-paid distinction the
+    // operator can slice the table by.
+    if (customerTypeFilter === 'trial') return item.isTrial === true;
+    if (customerTypeFilter === 'paid') return item.isTrial !== true;
+    return true;
+  });
+
+  // Trial / paid counts across the WHOLE dataset (not the filtered slice)
+  // so the operator sees "12 of 47 are on trial" regardless of the
+  // current filter view.
+  const trialCount = hostingData.filter(item => item.isTrial === true).length;
+  const paidCount = hostingData.filter(item => item.isTrial !== true).length;
 
   // Client-side pagination — the /api/v1/admin/hosting/stats endpoint
   // returns all accounts in one shot (acceptable for the current ~30-account
@@ -662,14 +681,36 @@ export default function AdminHostingPage() {
         <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden min-h-[400px]">
           {/* Card header */}
           <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2.5 flex-wrap">
               <HardDrive className="h-4 w-4 text-gray-500" />
               <h3 className="text-sm font-semibold text-gray-900">All Hosting Accounts</h3>
               <span className="inline-flex items-center text-xs font-medium text-gray-500 bg-white border border-gray-200 px-2 py-0.5 rounded-full">
                 {filteredData.length}
               </span>
+              {/* Trial / paid mix — visible at-a-glance regardless of the current filter */}
+              <span className="inline-flex items-center text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full" title="Customers on a 15-day free trial">
+                {trialCount} trial
+              </span>
+              <span className="inline-flex items-center text-[11px] font-medium text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full" title="Customers past the trial window — actively paying or post-trial">
+                {paidCount} paid
+              </span>
             </div>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              {/* Customer-type filter — slices the table by trial vs paid.
+                  See `customerTypeFilter` state declaration for rationale. */}
+              <select
+                value={customerTypeFilter}
+                onChange={(e) => {
+                  setCustomerTypeFilter(e.target.value as 'all' | 'trial' | 'paid');
+                  setCurrentPage(1);
+                }}
+                className="text-sm bg-white border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                title="Filter by customer type"
+              >
+                <option value="all">All customers</option>
+                <option value="trial">Trial only</option>
+                <option value="paid">Paid only</option>
+              </select>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input
@@ -689,7 +730,13 @@ export default function AdminHostingPage() {
             <AdminTableRowsSkeleton rows={6} cols={6} />
           ) : filteredData.length === 0 ? (
             <div className="p-12 text-center text-gray-500">
-              No hosting accounts found on the server.
+              {customerTypeFilter === 'trial' && trialCount === 0
+                ? "No trial customers right now."
+                : customerTypeFilter === 'paid' && paidCount === 0
+                  ? "No paid customers right now."
+                  : customerTypeFilter !== 'all'
+                    ? `No ${customerTypeFilter} customers match your search.`
+                    : "No hosting accounts found on the server."}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -732,6 +779,28 @@ export default function AdminHostingPage() {
                               {item.isUnlinked && (
                                 <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-700 border border-orange-200">
                                   UNLINKED
+                                </span>
+                              )}
+                              {/* Trial vs paid pill — symmetric (always one
+                                  visible). Amber TRIAL when isTrial=true;
+                                  green PAID otherwise. Placed in the most
+                                  prominent column so an admin scanning the
+                                  list can answer "trial or paid?" in one
+                                  glance. Mirrors the existing UNLINKED pill
+                                  style. */}
+                              {item.isTrial ? (
+                                <span
+                                  className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200"
+                                  title="On a 15-day free trial — has not yet completed a paid renewal"
+                                >
+                                  TRIAL
+                                </span>
+                              ) : (
+                                <span
+                                  className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-700 border border-green-200"
+                                  title="Past the trial window — actively paying or post-trial"
+                                >
+                                  PAID
                                 </span>
                               )}
                             </div>
@@ -777,14 +846,10 @@ export default function AdminHostingPage() {
                               MANUAL
                             </span>
                           )}
-                          {item.isTrial && (
-                            <span
-                              className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200 font-medium"
-                              title="Active 15-day free trial — first MIT charge will run after the trial window closes."
-                            >
-                              TRIAL
-                            </span>
-                          )}
+                          {/* TRIAL pill removed from this column — replaced
+                              by the more prominent binary TRIAL/PAID pill
+                              in the User & Domain column (column 1). One
+                              source of truth per row. */}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
