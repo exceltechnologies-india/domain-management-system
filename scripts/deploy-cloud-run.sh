@@ -289,8 +289,50 @@ echo "📍 [2/2] Deploying to Cloud Run..."
 # shellcheck disable=SC1091
 set -a; source .env.local; set +a
 
+# Sticky operator-toggled flags — preserve current Cloud Run values across
+# full deploys.
+#
+# Why: this script uses `--set-env-vars` (which REPLACES the full env-var
+# map on the new revision, not merges). For flags that the operator
+# toggles in production via `gcloud run services update --update-env-vars`
+# (notably HOSTING_MANDATE_FLOW for the Tokens/Subscriptions/Manual
+# selector), a naive `--set-env-vars` deploy reverts the flag to whatever
+# this script's shell sees — which is usually unset → default
+# 'subscriptions'. That silent revert bit us at 2026-06-29 06:28Z
+# (revision dms-00209-ldb flipped HOSTING_MANDATE_FLOW from 'manual' back
+# to 'subscriptions' mid-launch). Fix: query the active revision's
+# current value and use that as the deploy-time value, so deploys are
+# idempotent against operator flag flips. Falls back to shell env / file
+# default if the service doesn't exist yet (first deploy).
+read_current_env_var() {
+  local var_name="$1"
+  gcloud run services describe "$SERVICE" \
+    --project="$PROJECT" \
+    --region="$REGION" \
+    --format=json 2>/dev/null \
+  | node -e "
+    let buf = '';
+    process.stdin.on('data', c => buf += c);
+    process.stdin.on('end', () => {
+      try {
+        const env = JSON.parse(buf).spec.template.spec.containers[0].env;
+        const hit = env.find(e => e.name === '$var_name');
+        if (hit && hit.value !== undefined) process.stdout.write(hit.value);
+      } catch {}
+    });
+  " 2>/dev/null
+}
+
+CURRENT_HOSTING_MANDATE_FLOW=$(read_current_env_var "HOSTING_MANDATE_FLOW")
+# Resolution order: current Cloud Run value (highest — preserves operator
+# flag flips) → shell env (e.g. operator exports HOSTING_MANDATE_FLOW
+# before invoking this script) → 'subscriptions' (safest default for
+# first-time deploys before any operator decision).
+HOSTING_MANDATE_FLOW="${CURRENT_HOSTING_MANDATE_FLOW:-${HOSTING_MANDATE_FLOW:-subscriptions}}"
+echo "   HOSTING_MANDATE_FLOW resolved to: ${HOSTING_MANDATE_FLOW}"
+
 # Build the env-vars string. ^|^ delimiter handles commas in values defensively.
-ENV_VARS="ADMIN_EMAIL=${ADMIN_EMAIL:-}|APP_URL=${APP_URL:-}|DIRECTADMIN_IP=${DIRECTADMIN_IP:-}|FROM_EMAIL=${FROM_EMAIL:-}|FROM_NAME=${FROM_NAME:-}|GCP_PROJECT_ID=${PROJECT}|GCP_QUEUE_LOCATION=${GCP_QUEUE_LOCATION:-us-central1}|GCP_QUEUE_NAME=${GCP_QUEUE_NAME:-}|HOSTING_MANDATE_FLOW=${HOSTING_MANDATE_FLOW:-subscriptions}|NEXTAUTH_URL=${NEXTAUTH_URL:-}|NEXT_PUBLIC_FACEBOOK_ENABLED=${NEXT_PUBLIC_FACEBOOK_ENABLED:-false}|NEXT_PUBLIC_GITHUB_ENABLED=${NEXT_PUBLIC_GITHUB_ENABLED:-false}|NEXT_PUBLIC_RAZORPAY_KEY_ID=${NEXT_PUBLIC_RAZORPAY_KEY_ID:-}|NEXT_PUBLIC_RECAPTCHA_SITE_KEY=${NEXT_PUBLIC_RECAPTCHA_SITE_KEY:-}|REDIS_HOST=10.70.203.51|REDIS_PORT=6379|RESELLERCLUB_API_URL=${RESELLERCLUB_API_URL:-https://httpapi.com}|SMTP_HOST=${SMTP_HOST:-}|SMTP_PORT=${SMTP_PORT:-587}|SMTP_SECURE=${SMTP_SECURE:-false}|SUPPORT_EMAIL=${SUPPORT_EMAIL:-}|ZOHO_DC=${ZOHO_DC:-.in}|ZOHO_LOCATION_ID=${ZOHO_LOCATION_ID:-}|ZOHO_ORG_ID=${ZOHO_ORG_ID:-}|ZOHO_ORG_STATE=${ZOHO_ORG_STATE:-}|ZOHO_TAX_ID_GST18=${ZOHO_TAX_ID_GST18:-}|ZOHO_TAX_ID_IGST18=${ZOHO_TAX_ID_IGST18:-}"
+ENV_VARS="ADMIN_EMAIL=${ADMIN_EMAIL:-}|APP_URL=${APP_URL:-}|DIRECTADMIN_IP=${DIRECTADMIN_IP:-}|FROM_EMAIL=${FROM_EMAIL:-}|FROM_NAME=${FROM_NAME:-}|GCP_PROJECT_ID=${PROJECT}|GCP_QUEUE_LOCATION=${GCP_QUEUE_LOCATION:-us-central1}|GCP_QUEUE_NAME=${GCP_QUEUE_NAME:-}|HOSTING_MANDATE_FLOW=${HOSTING_MANDATE_FLOW}|NEXTAUTH_URL=${NEXTAUTH_URL:-}|NEXT_PUBLIC_FACEBOOK_ENABLED=${NEXT_PUBLIC_FACEBOOK_ENABLED:-false}|NEXT_PUBLIC_GITHUB_ENABLED=${NEXT_PUBLIC_GITHUB_ENABLED:-false}|NEXT_PUBLIC_RAZORPAY_KEY_ID=${NEXT_PUBLIC_RAZORPAY_KEY_ID:-}|NEXT_PUBLIC_RECAPTCHA_SITE_KEY=${NEXT_PUBLIC_RECAPTCHA_SITE_KEY:-}|REDIS_HOST=10.70.203.51|REDIS_PORT=6379|RESELLERCLUB_API_URL=${RESELLERCLUB_API_URL:-https://httpapi.com}|SMTP_HOST=${SMTP_HOST:-}|SMTP_PORT=${SMTP_PORT:-587}|SMTP_SECURE=${SMTP_SECURE:-false}|SUPPORT_EMAIL=${SUPPORT_EMAIL:-}|ZOHO_DC=${ZOHO_DC:-.in}|ZOHO_LOCATION_ID=${ZOHO_LOCATION_ID:-}|ZOHO_ORG_ID=${ZOHO_ORG_ID:-}|ZOHO_ORG_STATE=${ZOHO_ORG_STATE:-}|ZOHO_TAX_ID_GST18=${ZOHO_TAX_ID_GST18:-}|ZOHO_TAX_ID_IGST18=${ZOHO_TAX_ID_IGST18:-}"
 
 SECRETS_FLAG="ADMIN_PASSWORD=ADMIN_PASSWORD:latest,ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,CRON_SECRET=CRON_SECRET:latest,DIRECTADMIN_ADMIN_USER=DIRECTADMIN_ADMIN_USER:latest,DIRECTADMIN_API_KEY=DIRECTADMIN_API_KEY:latest,DIRECTADMIN_URL=DIRECTADMIN_URL:latest,FACEBOOK_CLIENT_ID=FACEBOOK_CLIENT_ID:latest,FACEBOOK_CLIENT_SECRET=FACEBOOK_CLIENT_SECRET:latest,GITHUB_CLIENT_ID=GITHUB_CLIENT_ID:latest,GITHUB_CLIENT_SECRET=GITHUB_CLIENT_SECRET:latest,GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest,JWT_SECRET=JWT_SECRET:latest,MONGODB_URI=MONGODB_URI:latest,NEXTAUTH_SECRET=NEXTAUTH_SECRET:latest,RAZORPAY_KEY_ID=RAZORPAY_KEY_ID:latest,RAZORPAY_KEY_SECRET=RAZORPAY_KEY_SECRET:latest,RAZORPAY_WEBHOOK_SECRET=RAZORPAY_WEBHOOK_SECRET:latest,RECAPTCHA_SECRET_KEY=RECAPTCHA_SECRET_KEY:latest,RESELLERCLUB_ID=RESELLERCLUB_ID:latest,RESELLERCLUB_RESELLER_ID=RESELLERCLUB_RESELLER_ID:latest,RESELLERCLUB_SECRET=RESELLERCLUB_SECRET:latest,SMTP_PASS=SMTP_PASS:latest,SMTP_USER=SMTP_USER:latest,ZOHO_CLIENT_ID=ZOHO_CLIENT_ID:latest,ZOHO_CLIENT_SECRET=ZOHO_CLIENT_SECRET:latest,ZOHO_REFRESH_TOKEN=ZOHO_REFRESH_TOKEN:latest"
 
