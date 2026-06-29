@@ -1,14 +1,23 @@
 # rescan-4 S2 (batch 7y) — pre-commit hook
 #
-# 1. lint-staged: runs eslint --fix on the staged .ts/.tsx/.js/.jsx files
+# 1. check-staged-for-secrets: grep-scan staged files for secret-shaped
+#    strings (MongoDB URIs with embedded creds, Razorpay key secrets,
+#    private-key PEM blocks, etc.). Born from a 2026-06-29 incident where
+#    a MongoDB Atlas connection string was found in git history; cleaned
+#    up at significant cost (history rewrite + force-push + password
+#    rotation + Cloud Run redeploy). This is the first gate so we fail
+#    fast before paying the eslint + tsc cost.
+#
+# 2. lint-staged: runs eslint --fix on the staged .ts/.tsx/.js/.jsx files
 #    (configured in package.json#lint-staged). Catches the same warnings
 #    CI surfaces, but at commit time, on just the staged surface.
 #
-# 2. tsc --noEmit: runs the project-wide type check. Cheap (cached) on
+# 3. tsc --noEmit: runs the project-wide type check. Cheap (cached) on
 #    incremental edits; full pass when the dep graph is cold.
 #
 # Skipping with --no-verify is supported but discouraged — the same
 # checks gate CI, so skipping locally just defers the failure.
 
+bash scripts/check-staged-for-secrets.sh
 npx lint-staged
 npx tsc --noEmit

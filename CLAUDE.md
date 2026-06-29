@@ -23,9 +23,24 @@ The senior reviewer dashboard at task.anutech.in parses TASKS.md entries by **ti
 
 NEVER delete completed tasks — audit trail. The dashboard, the codebase history, and the project memory all rely on the historical entries staying in place. (See auto-memory `feedback_tasks_flip_dual_entry`.)
 
+## HARD RULE — Never let secrets reach git
+
+**Single biggest "cost-per-mistake" rule in this repo.** A MongoDB Atlas password leaked into the initial commit and stayed in git history until 2026-06-29 — cleanup cost was a history rewrite + force-push of 147 tags + password rotation + Secret Manager v2 + Cloud Run redeploy. Don't repeat.
+
+**Enforcement (defence in depth):**
+
+1. **Pre-commit hook** at `.husky/pre-commit` calls `scripts/check-staged-for-secrets.sh` BEFORE eslint/tsc. The script greps staged hunks (ADDED lines only) for: MongoDB URIs with embedded credentials, Razorpay live/test key SECRETS (24+ chars after `rzp_live_/rzp_test_` — Key IDs are shorter and OK), Anthropic API keys (`sk-ant-`), AWS access keys (`AKIA…`), GCP service-account `private_key` JSON fields, PEM `BEGIN PRIVATE KEY` blocks, and env-var-shape secret assignments (`KEY/SECRET/TOKEN/PASSWORD = "long-random"`). Blocks the commit on any match.
+2. **`.gitignore`** covers `.env`, `.env.*` (except `.env.example`), `gcp-key.json`, `service-account*.json`, `*.json.key`, and `scripts/*-backup-*.json`. Don't loosen these without re-adding what you removed.
+3. **Two-store discipline** (see auto-memory `project_secret_manager_split`): `.env.local` is for local dev + build-time-public values; Google Secret Manager holds the production runtime secrets. Updating one without the other will silently break the OTHER environment. Always pair them when rotating.
+
+**When to override (`--no-verify`):**
+Only for confirmed false positives — e.g., an intentional test fixture string that triggers the regex. NEVER skip to commit a real secret. If you skipped and a real secret slipped, you owe a history rewrite + a rotation, not a quiet fix-forward.
+
+**If you find a leaked credential already in history:** rotate the live credential FIRST (Atlas/Razorpay/whichever console), then `gcloud secrets versions add NAME --data-file=-` for the runtime store, then force a new Cloud Run revision (env-var nudge or full redeploy), THEN rewrite git history + force-push. The order matters — rewriting history while the leaked credential is still live just hides it from new clones without actually securing anything.
+
 ## Other persistent conventions
 
-- Do not surface credential/key rotation as a next step — the user has opted out for this project (see auto-memory `feedback_key_rotation_skip`).
+- Do not surface credential/key rotation as a next step — the user has opted out for this project (see auto-memory `feedback_key_rotation_skip`). **Exception**: active leaks discovered via security review override this preference; rotate immediately, don't ask twice.
 - Do not force-restart the DirectAdmin/hosting server or aggressively roll IPs — the Cloud Run NAT IP must stay whitelisted at all 4 DA layers (see auto-memory `project_da_whitelist_layers`).
 - After triggering a deploy via `scripts/deploy-cloud-run.sh`, tail the output so the user sees progress (see auto-memory `feedback_deploy_progress`).
 - **Always use the local Docker build path** when deploying. `bash scripts/deploy-cloud-run.sh` already defaults to local — do NOT pass `--cloud-build`, and do NOT propose Cloud Build (`gcloud builds submit`) as an alternative. Cloud Build on `E2_HIGHCPU_8` was costing ~$0.08/deploy and ~10 deploys/day adds up; the VPS already runs 24/7 so local builds are free at the margin. If Docker is missing on the host running the script, fix Docker — don't fall back to Cloud Build. The `--cloud-build` flag and `cloudbuild.yaml` stay in the repo only as an emergency escape hatch for machines that don't have Docker (see auto-memory `feedback_local_build_only`).
