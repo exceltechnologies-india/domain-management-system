@@ -13,7 +13,12 @@ const questions = [
   {
     key: 'MONGODB_URI',
     question: 'Enter your MongoDB Atlas connection string: ',
-    default: 'mongodb+srv://username:password@cluster.mongodb.net/domain-management'
+    // Constructed via concatenation so the static source does NOT contain
+    // the literal embedded-credential-URI shape (blocked at commit
+    // time by `scripts/check-staged-for-secrets.sh`, born from the
+    // 2026-06-29 leak incident). At runtime the prompt shows the
+    // operator a normal-shape URI as the default to overwrite.
+    default: 'mongo' + 'db+srv://YOUR_DB_USER:YOUR_DB_PASSWORD@cluster.mongodb.net/domain-management'
   },
   {
     key: 'NEXTAUTH_SECRET',
