@@ -282,12 +282,64 @@ export default function AdminHostingPage() {
    *
    * Skipped when there are <= 10 accounts on the server (pass 1's `total`
    * count matches the returned size, so no background fetch is needed).
+   *
+   * Deep-link path (?q= present on initial load): Pass 1 is INTENTIONALLY
+   * SKIPPED — the operator came here looking for one specific row, and the
+   * fast-first-10 doesn't help them when the target row is not in the
+   * first 10. Pre-2026-06-29 this caused a confusing 2s window where the
+   * deep-link from User Services modal would show "No hosting accounts
+   * found" before Pass 2 populated the dataset. Now: when an initial
+   * search term is present, we go straight to the full fetch (slower
+   * first paint but the right rows are present immediately).
    */
   const fetchHostingData = async () => {
     setIsDataLoading(true);
     setIsServerDown(false); // Reset
 
-    // PASS 1 — fast first-page
+    // Deep-link path: skip Pass 1 + go straight to full dataset
+    const initialSearchPresent = searchTerm.trim().length > 0;
+    if (initialSearchPresent) {
+      const fullResult = await apiClient.get<{
+        success?: boolean;
+        data?: HostingData[];
+        daMode?: string;
+        isDaConnected?: boolean;
+        daError?: string;
+        message?: string;
+        error?: string;
+        code?: string;
+      }>(`/api/v1/admin/hosting/stats?t=${Date.now()}`);
+      if (!fullResult.ok) {
+        setIsServerDown(true);
+        if (fullResult.error.status === 503 || fullResult.error.code === 'DA_SERVER_DOWN' || fullResult.error.status === 0) {
+          setDaError(fullResult.error.message || 'DirectAdmin server is unreachable');
+        } else {
+          setDaError(fullResult.error.message || 'Network error or system failure');
+          toast.error('Error loading hosting data');
+        }
+        setHostingData([]);
+        setIsDataLoading(false);
+        return;
+      }
+      const fullData = fullResult.data;
+      if (!fullData || !fullData.success) {
+        setIsServerDown(true);
+        setDaError(fullData?.message || 'Server returned an invalid response');
+        setHostingData([]);
+        setIsDataLoading(false);
+        return;
+      }
+      const incoming = fullData.data ?? [];
+      const uniqueData = Array.from(new Map(incoming.map((item) => [item.id, item])).values());
+      setHostingData(uniqueData);
+      if (fullData.daMode) setDaMode(fullData.daMode);
+      setIsServerDown(!fullData.isDaConnected);
+      setDaError(fullData.daError || null);
+      setIsDataLoading(false);
+      return; // Skip Pass 2 — we already have the full dataset
+    }
+
+    // PASS 1 — fast first-page (no deep-link search active)
     const firstResult = await apiClient.get<{
       success?: boolean;
       data?: HostingData[];
@@ -772,13 +824,17 @@ export default function AdminHostingPage() {
             <AdminTableRowsSkeleton rows={6} cols={6} />
           ) : filteredData.length === 0 ? (
             <div className="p-12 text-center text-gray-500">
-              {customerTypeFilter === 'trial' && trialCount === 0
-                ? "No trial customers right now."
-                : customerTypeFilter === 'paid' && paidCount === 0
-                  ? "No paid customers right now."
-                  : customerTypeFilter !== 'all'
-                    ? `No ${customerTypeFilter} customers match your search.`
-                    : "No hosting accounts found on the server."}
+              {isDataLoading && searchTerm.trim().length > 0
+                ? `Searching for "${searchTerm}"…`
+                : customerTypeFilter === 'trial' && trialCount === 0
+                  ? "No trial customers right now."
+                  : customerTypeFilter === 'paid' && paidCount === 0
+                    ? "No paid customers right now."
+                    : customerTypeFilter !== 'all'
+                      ? `No ${customerTypeFilter} customers match your search.`
+                      : searchTerm.trim().length > 0
+                        ? `No hosting accounts match "${searchTerm}".`
+                        : "No hosting accounts found on the server."}
             </div>
           ) : (
             <div className="overflow-x-auto">
