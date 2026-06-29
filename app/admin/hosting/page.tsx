@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useTransition, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -94,6 +94,19 @@ export default function AdminHostingPage() {
   // operational ask especially in the first weeks of a launch.
   const [customerTypeFilter, setCustomerTypeFilter] = useState<'all' | 'trial' | 'paid'>('all');
   const [currentPage, setCurrentPage] = useState(1);
+  // Pagination transition state — marks page-change updates as a React
+  // transition so we can show a "pending" overlay during reconciliation.
+  // Without this, clicking Prev/Next has no visual feedback between the
+  // click and the table re-render (10 rows of complex content take
+  // 100-300ms to reconcile on slower machines); admin reads that gap as
+  // "did my click register?" and may double-click. Fix gives the table
+  // a brief opacity dip + disables the buttons while pending.
+  const [isPaginating, startPaginationTransition] = useTransition();
+  // Ref to the table container so we can scroll the new page's top into
+  // view on page-change — otherwise the user lands at whatever scroll
+  // position they had before clicking Next/Prev and may not realize the
+  // page actually changed.
+  const tableTopRef = useRef<HTMLDivElement | null>(null);
   const [daMode, setDaMode] = useState<string>('Live'); // Default to Live, update from API
 
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -678,7 +691,10 @@ export default function AdminHostingPage() {
         )}
 
         {/* ── Hosting list card (filters folded into header) ── */}
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden min-h-[400px]">
+        <div
+          ref={tableTopRef}
+          className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden min-h-[400px] scroll-mt-20"
+        >
           {/* Card header */}
           <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 flex-wrap">
@@ -751,7 +767,11 @@ export default function AdminHostingPage() {
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider sticky right-0 bg-gray-50 z-20 shadow-[-1px_0_0_rgba(0,0,0,0.1)]">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody
+                  className={`bg-white divide-y divide-gray-200 transition-opacity duration-150 ${
+                    isPaginating ? 'opacity-60' : 'opacity-100'
+                  }`}
+                >
                   {pagedData.map((item) => (
                     <tr
                       key={item.id}
@@ -987,8 +1007,21 @@ export default function AdminHostingPage() {
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                      disabled={safePage === 1}
+                      onClick={() => {
+                        // Wrap the state update in a React transition so
+                        // the table tbody picks up the `opacity-60` pending
+                        // signal during reconciliation — gives the admin
+                        // immediate visual feedback that the click
+                        // registered. Then scroll the top of the table
+                        // into view so the user lands on the new page's
+                        // first row rather than at their previous scroll
+                        // position.
+                        startPaginationTransition(() => {
+                          setCurrentPage((p) => Math.max(1, p - 1));
+                        });
+                        tableTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }}
+                      disabled={safePage === 1 || isPaginating}
                       className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       aria-label="Previous page"
                     >
@@ -997,11 +1030,19 @@ export default function AdminHostingPage() {
                     </button>
                     <span className="text-gray-500 px-1">
                       Page <span className="font-medium text-gray-900">{safePage}</span> of <span className="font-medium text-gray-900">{totalPages}</span>
+                      {isPaginating && (
+                        <span className="ml-1.5 inline-block animate-pulse text-blue-600" aria-label="Loading next page">…</span>
+                      )}
                     </span>
                     <button
                       type="button"
-                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                      disabled={safePage === totalPages}
+                      onClick={() => {
+                        startPaginationTransition(() => {
+                          setCurrentPage((p) => Math.min(totalPages, p + 1));
+                        });
+                        tableTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }}
+                      disabled={safePage === totalPages || isPaginating}
                       className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       aria-label="Next page"
                     >
