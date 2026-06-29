@@ -129,6 +129,14 @@ export default function AdminHostingPage() {
 
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isDataLoading, setIsDataLoading] = useState(true);
+  // True while Pass 2 (background backfill) is in flight. Pass 1 already
+  // returned + the table is rendering with those rows, but the full
+  // dataset is still being fetched. Without surfacing this, the user sees
+  // either a misleading empty state (when the searched-for row is in the
+  // not-yet-loaded tail) or a stale row count with no indication that
+  // more is coming. Drives a spinner inside the search input + the
+  // "Searching for X…" empty-state message.
+  const [isBackgroundFetching, setIsBackgroundFetching] = useState(false);
   const [daError, setDaError] = useState<string | null>(null);
 
   // Provisioning Modal State
@@ -396,19 +404,27 @@ export default function AdminHostingPage() {
     }
     setIsDataLoading(false);
 
-    // PASS 2 — background backfill IF there are more rows beyond the first 10
+    // PASS 2 — background backfill IF there are more rows beyond the first 10.
+    // `isBackgroundFetching` drives a spinner inside the search input + the
+    // "Searching for X…" empty-state, so a search for a row that lives in
+    // the not-yet-loaded tail reads as "still looking" rather than "not found".
     if (firstData.pagination?.truncated) {
-      // No loading state — silent fill-in. Errors here are swallowed so a
-      // background failure doesn't disrupt the table the user is already
-      // looking at; the first 10 rows remain valid.
-      const fullResult = await apiClient.get<{
-        success?: boolean;
-        data?: HostingData[];
-      }>(`/api/v1/admin/hosting/stats?t=${Date.now()}`);
+      setIsBackgroundFetching(true);
+      try {
+        const fullResult = await apiClient.get<{
+          success?: boolean;
+          data?: HostingData[];
+        }>(`/api/v1/admin/hosting/stats?t=${Date.now()}`);
 
-      if (fullResult.ok && fullResult.data?.success && fullResult.data.data) {
-        const fullData = Array.from(new Map(fullResult.data.data.map((item) => [item.id, item])).values());
-        setHostingData(fullData);
+        if (fullResult.ok && fullResult.data?.success && fullResult.data.data) {
+          const fullData = Array.from(new Map(fullResult.data.data.map((item) => [item.id, item])).values());
+          setHostingData(fullData);
+        }
+        // Errors are swallowed by design — Pass 1 rows remain valid;
+        // a background failure shouldn't disrupt the table the user
+        // is already looking at.
+      } finally {
+        setIsBackgroundFetching(false);
       }
     }
   };
@@ -811,12 +827,18 @@ export default function AdminHostingPage() {
                 <input
                   type="text"
                   placeholder="Search by domain…"
-                  className="w-full sm:w-80 pl-10 pr-3 py-2 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                  className="w-full sm:w-80 pl-10 pr-9 py-2 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
                   value={searchTerm}
                   onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                 />
+                {(isDataLoading || isBackgroundFetching) && (
+                  <Loader2
+                    className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-blue-500"
+                    aria-label="Loading more accounts"
+                  />
+                )}
               </div>
-              <RefreshButton onClick={fetchHostingData} isLoading={isDataLoading} />
+              <RefreshButton onClick={fetchHostingData} isLoading={isDataLoading || isBackgroundFetching} />
             </div>
           </div>
           {/* Content body wrapper for table/loading/empty states */}
@@ -825,17 +847,27 @@ export default function AdminHostingPage() {
             <AdminTableRowsSkeleton rows={6} cols={6} />
           ) : filteredData.length === 0 ? (
             <div className="p-12 text-center text-gray-500">
-              {isDataLoading && searchTerm.trim().length > 0
-                ? `Searching for "${searchTerm}"…`
-                : customerTypeFilter === 'trial' && trialCount === 0
-                  ? "No trial customers right now."
-                  : customerTypeFilter === 'paid' && paidCount === 0
-                    ? "No paid customers right now."
-                    : customerTypeFilter !== 'all'
-                      ? `No ${customerTypeFilter} customers match your search.`
-                      : searchTerm.trim().length > 0
-                        ? `No hosting accounts match "${searchTerm}".`
-                        : "No hosting accounts found on the server."}
+              {isBackgroundFetching && searchTerm.trim().length > 0 ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                  Searching for &quot;{searchTerm}&quot;…
+                </span>
+              ) : isBackgroundFetching ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                  Loading more accounts…
+                </span>
+              ) : customerTypeFilter === 'trial' && trialCount === 0 ? (
+                "No trial customers right now."
+              ) : customerTypeFilter === 'paid' && paidCount === 0 ? (
+                "No paid customers right now."
+              ) : customerTypeFilter !== 'all' ? (
+                `No ${customerTypeFilter} customers match your search.`
+              ) : searchTerm.trim().length > 0 ? (
+                `No hosting accounts match "${searchTerm}".`
+              ) : (
+                "No hosting accounts found on the server."
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
