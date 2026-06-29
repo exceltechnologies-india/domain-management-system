@@ -18,6 +18,47 @@ like `known-good-<what-it-fixes>` (so the intent is grep-able). Use
 
 ---
 
+## 2026-06-29 — `dms-00207-jvz` / post-MongoDB-credential-rotation
+
+**Cloud Run revision**: `dms-00207-jvz`
+**Image digest**: same as `dms-00206-z6j` (image unchanged — only an env-var nudge `MONGODB_ROTATION_TS` was added to force a new revision binding to Secret Manager v2)
+**Git commit**: `a5b6272` (`sec(hooks): pre-commit hook blocks secrets reaching git`)
+**Operator note**: Marked stable after the 2026-06-29 security incident remediation. Sequence of events documented for the audit trail:
+
+1. **Leak detected** — security review found a MongoDB Atlas connection string with the database user's password embedded directly in the URL (a `mongodb+srv://...` connection string) in git history. File `test-full-app.js` committed in initial commit `2ceee43`, removed from working tree in `a1761c2`, but readable via `git log -p` until today's force-push. Specific password value intentionally not reproduced here — see commit `a5b6272` for the pre-commit hook that prevents that pattern from being re-committed.
+2. **Password rotated in Atlas** — operator (pawan@anutech.in) rotated the database user `pawan`'s password via Atlas console. Old password died immediately.
+3. **Secret Manager v2 pushed** — new MONGODB_URI written via `gcloud secrets versions add MONGODB_URI --data-file=-` (heredoc; password never in shell history or chat).
+4. **Cloud Run env-var nudge** — `gcloud run services update dms --update-env-vars="MONGODB_ROTATION_TS=..."` forced a new revision without rebuilding the image. Revision `dms-00207-jvz` came up serving 100% on the new password. Health check 200; admin endpoints 401 (auth check ran = DB reach OK); zero ERROR logs.
+5. **Git history rewritten** — `git filter-branch --index-filter "git rm --cached --ignore-unmatch test-full-app.js" -- --all` purged the file from all 6000+ commits. SHAs all changed. 147 deploy tags also rewritten.
+6. **Force-pushed to GitHub** — main + all tags. Remote credential count: 0.
+7. **Hard-rule defence added** — pre-commit hook at `.husky/pre-commit` → `scripts/check-staged-for-secrets.sh` greps staged hunks for MongoDB URIs, Razorpay key secrets, Anthropic keys, AWS keys, GCP SA private_key fields, PEM private-key blocks, and env-var-shape secret assignments. Blocks the commit on any match. End-to-end tested (real `git commit` blocked correctly).
+
+Pre-rewrite history snapshot (in case the rewrite needs to be undone) is preserved locally at `refs/original/refs/heads/main` (SHA `b022162`). It's NOT on the remote and will be GC'd in ~90 days unless explicitly preserved.
+
+### Rollback paths
+
+This is NOT a rollback target in the traditional sense — there's no "stable image" tagged for this entry because the image was unchanged from `dms-00206-z6j`. But for completeness:
+
+**Path 1 — Cloud Run revision traffic-shift** (instant, no rebuild):
+```bash
+gcloud run services update-traffic dms \
+  --project=speedy-unison-453807-e9 \
+  --region=europe-west1 \
+  --to-revisions=dms-00206-z6j=100
+```
+Note: rolling back to `dms-00206-z6j` would mean a pod restart that re-reads Secret Manager `:latest` (= v2 = new password). So even the pre-rotation revision would now use the post-rotation password. The old (rotated) password is dead in Atlas regardless.
+
+**Path 2 — Revert the pre-commit hook** (if it's blocking legitimate commits — should be vanishingly rare): edit `.husky/pre-commit` to comment out the `check-staged-for-secrets.sh` line, or use `git commit --no-verify`. Don't loosen the scanner regex itself; if it's a false positive, fix the input.
+
+**Path 3 — Restore pre-rewrite git history** (if the rewrite caused an unforeseen issue): while `refs/original/refs/heads/main` still exists locally:
+```bash
+git update-ref refs/heads/main refs/original/refs/heads/main
+git push --force origin main
+```
+This puts the leaked credential back in remote history. Only do this if you're prepared to immediately re-rotate the credential AND redo the rewrite + force-push cycle.
+
+---
+
 ## 2026-06-22 — `stable-2026-06-22` / `known-good-hosting-chain-closed`
 
 **Cloud Run revision**: `dms-00205-2zv`
