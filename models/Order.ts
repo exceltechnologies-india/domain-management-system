@@ -105,7 +105,7 @@ export interface IOrder extends Document {
   // Razorpay recurring-payment mode: 'subscription' uses the Subscriptions
   // API (current default), 'tokens' uses the Tokens API (Google ₹2-and-reverse
   // pattern). See docs/razorpay-tokens-migration.md.
-  mandateMode?: 'subscription' | 'tokens';
+  mandateMode?: 'subscription' | 'tokens' | 'manual';
   // Set when mandateMode='tokens'; the Razorpay customer+token tuple that
   // enables future merchant-initiated charges.
   razorpayCustomerId?: string;
@@ -338,10 +338,22 @@ const OrderSchema = new Schema<IOrder>(
       default: 'unknown',
       index: true,
     },
-    // See IOrder docs above. Tokens-API recurring flow fields.
+    // Recurring-billing rail used at signup. 'subscription' = legacy
+    // Razorpay Subscriptions API (mandate at signup, renewals charged
+    // by Razorpay's recurring billing); 'tokens' = Razorpay Tokens
+    // API (CIT auth + MIT cron); 'manual' = no Razorpay mandate at
+    // signup, renewals are operator/customer-initiated via the
+    // existing renewal flow at /api/user/hosting/renew. The 'manual'
+    // value was missing from the enum until 2026-06-30 — every
+    // manual-flow trial signup since the HOSTING_MANDATE_FLOW=manual
+    // flip (2026-06-29 06:12Z) was failing Mongoose validation,
+    // throwing inside the route's manual-flow try/catch, falling
+    // through to the Razorpay createOrder path, and 500-ing because
+    // oneTimeAmount=0 leaves no payment target either. See
+    // app/api/payments/create-order/route.ts:284 for the saving site.
     mandateMode: {
       type: String,
-      enum: ['subscription', 'tokens'],
+      enum: ['subscription', 'tokens', 'manual'],
       index: true,
     },
     razorpayCustomerId: {
