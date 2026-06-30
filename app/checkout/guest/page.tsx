@@ -469,7 +469,7 @@ function GuestCheckoutInner() {
                         features.push('Domain Registration', 'DNS Management', 'Domain Lock');
                       }
                       if (has('hosting')) {
-                        features.push('DirectAdmin Control Panel', 'Free SSL Certificate', 'Daily Backups');
+                        features.push('Hosting Control Panel', 'Free SSL Certificate', 'Daily Backups');
                       }
                       features.push('24/7 Support');
                       return features.map((feature) => (

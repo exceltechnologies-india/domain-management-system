@@ -329,7 +329,7 @@ export default function CartPage() {
                         </div>
                         <div className="min-w-0">
                           <h4 className="text-sm sm:text-base font-medium text-gray-900 truncate">
-                            DirectAdmin Hosting Panel
+                            Hosting Control Panel
                           </h4>
                           <p className="text-xs sm:text-sm text-gray-600">
                             Powerful control panel for your hosting

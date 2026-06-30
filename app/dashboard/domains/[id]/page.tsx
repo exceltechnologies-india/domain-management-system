@@ -182,10 +182,10 @@ export default function ManageDomain() {
                       <CheckCircle className="h-5 w-5 text-blue-400" aria-hidden="true" />
                     </div>
                     <div className="ml-3">
-                      <h3 className="text-sm font-medium text-blue-800">Managed by DirectAdmin</h3>
+                      <h3 className="text-sm font-medium text-blue-800">Managed by Hosting</h3>
                       <div className="mt-2 text-sm text-blue-700">
                         <p>
-                          This domain is connected to your hosting package. Nameservers are automatically managed by DirectAdmin to ensure your website and services work correctly.
+                          This domain is connected to your hosting package. Nameservers are automatically managed by your hosting setup to ensure your website and services work correctly.
                         </p>
                       </div>
                     </div>

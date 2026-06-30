@@ -29,7 +29,7 @@ export default function OrderTimeline({ hasDomains, hasHosting, userEmail }: Ord
             icon: <Server className="h-4 w-4" />,
             title: 'Hosting account set up',
             timing: '2–5 minutes',
-            detail: 'Your DirectAdmin account is created and credentials sent to you.',
+            detail: 'Your hosting account is created and credentials sent to you.',
             status: 'fast' as const,
           },
         ]

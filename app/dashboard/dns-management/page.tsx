@@ -522,7 +522,7 @@ export default function DNSManagementPage() {
               </div>
               <h2 className="text-2xl font-bold text-gray-900 mb-4">DNS Managed via Hosting</h2>
               <p className="text-gray-600 mb-8">
-                Since you only have hosting services with us, your DNS is managed directly through your Hosting Control Panel (DirectAdmin).
+                Since you only have hosting services with us, your DNS is managed directly through your Hosting Control Panel.
               </p>
               <button
                 onClick={() => router.push('/dashboard/hosting')}
@@ -620,7 +620,7 @@ export default function DNSManagementPage() {
                 </div>
                 <h2 className="text-lg font-semibold text-gray-900 mb-2">DNS Managed via Hosting</h2>
                 <p className="text-sm text-gray-500 mb-6 max-w-lg mx-auto">
-                  This domain is included with your hosting package. DNS records are managed directly through your Hosting Control Panel (DirectAdmin).
+                  This domain is included with your hosting package. DNS records are managed directly through your Hosting Control Panel.
                 </p>
                 <button
                   onClick={() => router.push('/dashboard/hosting')}

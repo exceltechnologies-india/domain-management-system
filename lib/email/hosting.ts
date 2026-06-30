@@ -81,7 +81,7 @@ export async function sendHostingProvisionedEmail(
         <div style="margin-bottom: 20px;">
           <p style="font-size: 14px; color: #374151; margin-bottom: 10px;"><strong>1. Access Control Panel</strong></p>
           <p style="font-size: 14px; color: #6b7280; margin-bottom: 0;">
-            You can log in to your DirectAdmin control panel directly from your dashboard without needing separate credentials.
+            You can log in to your hosting control panel directly from your dashboard without needing separate credentials.
           </p>
         </div>
 

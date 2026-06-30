@@ -262,8 +262,8 @@ export default function HostingPage() {
     },
     {
       icon: <Database className="h-5 w-5" />,
-      title: "DirectAdmin Panel",
-      description: "Manage your hosting with DirectAdmin - a powerful, user-friendly control panel for complete website management, email accounts, databases, and more."
+      title: "Hosting Control Panel",
+      description: "Manage your hosting with a powerful, user-friendly control panel — complete website management, email accounts, databases, and more, all in one place."
     },
     {
       icon: <Cloud className="h-5 w-5" />,

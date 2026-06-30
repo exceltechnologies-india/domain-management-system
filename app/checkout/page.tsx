@@ -552,7 +552,7 @@ export default function CheckoutPage() {
                       <>
                         <div className="flex items-center text-blue-800">
                           <Check className="h-4 w-4 mr-2 text-green-600" />
-                          DirectAdmin Control Panel
+                          Hosting Control Panel
                         </div>
                         <div className="flex items-center text-blue-800">
                           <Check className="h-4 w-4 mr-2 text-green-600" />
