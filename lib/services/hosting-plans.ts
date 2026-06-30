@@ -27,7 +27,17 @@ export async function getPlanByPlanId(
   opts?: { activeOnly?: boolean }
 ): Promise<IHostingPlan | null> {
   await connectDB();
-  const filter: Record<string, unknown> = { planId };
+  // Case-insensitive lookup — the live DB has mixed-case planIds (commercial
+  // tiers 'Starter'/'Standard'/'Plus' are capitalized to match DA package
+  // names, but the frontend's HOSTING_PLANS config sends lowercase 'starter'
+  // /'standard'/'plus' IDs, and DA-internal package names like '25GB-wp' /
+  // 'ultimatepackage' are themselves mixed-case). Without this normalization,
+  // a Manual-flow trial signup on the Starter plan emitted the misleading
+  // "This plan is not available for a free trial" toast because line-90 of
+  // /api/user/hosting/trial-eligibility couldn't find the row.
+  const filter: Record<string, unknown> = {
+    planId: { $regex: `^${planId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" },
+  };
   if (opts?.activeOnly) filter.isActive = true;
   return HostingPlan.findOne(filter);
 }
@@ -86,7 +96,11 @@ export async function getPlanByPlanIdLean(
   planId: string
 ): Promise<any | null> {
   await connectDB();
-  return HostingPlan.findOne({ planId }).lean();
+  // Mirrors the case-insensitive normalization in getPlanByPlanId — see
+  // that function's comment for the full rationale.
+  return HostingPlan.findOne({
+    planId: { $regex: `^${planId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" },
+  }).lean();
 }
 
 // ─── Writes (admin) ───────────────────────────────────────────────────────────
