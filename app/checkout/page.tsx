@@ -15,6 +15,7 @@ import { CheckoutPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import OrderTimeline from '@/components/checkout/OrderTimeline';
 import { getMinRegistrationPeriod } from '@/lib/tld-min-periods';
 import { getDeviceFingerprint } from '@/lib/device-fingerprint';
+import { HOSTING_PLANS } from '@/config/hosting-plans';
 import type { CartItem } from '@/lib/types';
 import { logger } from '@/lib/logger';
 import { useRazorpayCheckout } from '@/components/RazorpayCheckoutFrame';
@@ -43,7 +44,23 @@ export default function CheckoutPage() {
   const razorpay = useRazorpayCheckout();
   const hasTrial = cartItems.some((i: CartItem) => i.isTrial === true);
   const trialItem = cartItems.find((i: CartItem) => i.isTrial === true);
-  const trialYearlyPrice = trialItem ? (trialItem.hostingPlan?.price ?? 0) : 0;
+  // Resolve the monthly plan rate for a trial item. Prefer the value
+  // stored on the CartItem (set by addTrialToCart since `e586aef`); fall
+  // back to the HOSTING_PLANS config keyed by hostingPlan.id when the
+  // field is missing — covers legacy cart items added before that fix
+  // landed AND any future code path that constructs a trial item
+  // without populating the price. Result is always a finite number
+  // when an active plan id is present, so neither render site ever
+  // shows "—" for a trial we actually offer.
+  const trialMonthlyPrice = (() => {
+    if (!trialItem) return 0;
+    const stored = trialItem.hostingPlan?.price;
+    if (typeof stored === 'number' && stored > 0) return stored;
+    const planId = trialItem.hostingPlan?.id;
+    if (planId && HOSTING_PLANS[planId]?.price) return HOSTING_PLANS[planId].price;
+    return 0;
+  })();
+  const trialYearlyPrice = trialMonthlyPrice * 12;
 
   useEffect(() => {
     // Wait for NextAuth to resolve
@@ -491,18 +508,15 @@ export default function CheckoutPage() {
                               <>
                                 <p className="text-xl font-bold text-green-600">₹0.00</p>
                                 <p className="text-xs text-gray-500">Free for 15 days</p>
-                                {/* Post-trial recurring rate. `item.price` is 0 for
-                                    trials (it's the today-charge); the actual
-                                    monthly plan price is preserved on
-                                    `item.hostingPlan.price` by addTrialToCart in
-                                    app/hosting/page.tsx — multiply by 12 for the
-                                    yearly amount. Falls back to "—" if the field
-                                    is missing (e.g. legacy cart items added before
-                                    the trial price was stored on the plan). */}
+                                {/* Post-trial recurring rate — routed through
+                                    `trialYearlyPrice` which prefers the value
+                                    stored on the CartItem and falls back to
+                                    HOSTING_PLANS config when missing (covers
+                                    legacy items added before e586aef). The
+                                    fallback means we never render "—" for a
+                                    trial plan we actually offer. */}
                                 <p className="text-xs text-purple-600 font-medium mt-0.5">
-                                  then {item.hostingPlan?.price
-                                    ? `₹${(item.hostingPlan.price * 12).toFixed(2)}/yr`
-                                    : '—'}
+                                  then ₹{trialYearlyPrice.toFixed(2)}/yr
                                 </p>
                               </>
                             ) : (
@@ -610,7 +624,7 @@ export default function CheckoutPage() {
                           </div>
                           <div className="flex justify-between text-xs">
                             <span className="text-purple-700 font-medium">After trial (day 15+)</span>
-                            <span className="font-bold text-purple-900">₹{trialItem?.price ? trialItem.price * 12 : '—'}/year</span>
+                            <span className="font-bold text-purple-900">₹{trialYearlyPrice.toFixed(2)}/year</span>
                           </div>
                         </div>
                       </div>
