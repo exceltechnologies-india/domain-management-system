@@ -62,17 +62,26 @@ export interface IUser extends Document {
     price: number;
     currency: string;
     registrationPeriod: number;
-    // Aligned with the schema below — was missing from the interface.
-    // Without these, code reading them off `user.cart[i]` got `never` and
-    // had to widen via casts (or, more commonly, silently dropped them).
+    // Aligned with the Mongoose subdoc schema below. Every field that
+    // appears on lib/types.CartItem must be declared in BOTH places —
+    // Mongoose's default strict mode silently strips undeclared fields
+    // on save (this is how `isTrial: true` and `billingCycle: 'yearly'`
+    // were getting lost mid-cycle until 2026-06-30).
     periodUnit?: "months" | "years" | "minutes" | "days";
     linkedDomain?: string;
     itemType?: "domain" | "hosting";
+    billingCycle?: "monthly" | "yearly";
+    isTrial?: boolean;
+    tldAttributes?: Record<string, string>;
     hostingPlan?: {
+      id?: string;
       name: string;
       period: number;
       features: string[];
       serverPackage?: string;
+      description?: string;
+      price?: number;
+      originalPrice?: number;
     };
   }>;
   // TOTP 2FA — fields are select:false; never returned by default queries
@@ -325,11 +334,43 @@ const UserSchema = new Schema<IUser>(
           type: String,
           trim: true,
         },
+        // Hosting billing cycle. 'yearly' means recurring renewals will
+        // charge the yearly amount; 'monthly' means monthly. Drives the
+        // cart UI's locked-period chip + the post-trial recurring-charge
+        // shape under Tokens/Manual flow.
+        billingCycle: {
+          type: String,
+          enum: ["monthly", "yearly"],
+        },
+        // 15-day free-trial flag. Was being silently stripped on every
+        // POST /api/cart save before this schema field existed, which
+        // caused the cart UI to fall back from "15-day free trial" to
+        // "15 month(s) subscription" + "1 Year" after `loadFromServer`
+        // replayed the server-stripped state into local zustand.
+        isTrial: {
+          type: Boolean,
+          default: false,
+        },
+        // Per-TLD attributes collected at checkout (.us Nexus category,
+        // .au registrant info, etc.). Empty/undefined for the common case.
+        // Strict mode dropped these before this field was declared,
+        // forcing the checkout to re-prompt the customer.
+        tldAttributes: {
+          type: Object,
+        },
         hostingPlan: {
+          // `id` is the canonical plan key the trial-eligibility +
+          // create-order routes look up by — strict mode dropped it
+          // before this was declared, which would silently break any
+          // server-side plan resolution path that relied on it.
+          id: String,
           name: String,
           period: Number,
           features: [String],
           serverPackage: String,
+          description: String,
+          price: Number,
+          originalPrice: Number,
         },
       },
     ],
