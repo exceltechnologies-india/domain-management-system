@@ -61,17 +61,50 @@ export interface AbuseCheckResult {
 }
 
 /**
+ * Truthy-check the abuse-defense kill switch env var. When set
+ * (TRIAL_ABUSE_DISABLED=true / 1 / yes), evaluateTrialAbuse
+ * short-circuits to allowed AND recordTrialClaim skips writes so
+ * no fresh records accumulate during the bypass window. Used for
+ * operator testing while a launch-day blocker is being verified;
+ * flip back to unset/false in production traffic.
+ *
+ * Same kill-switch pattern as RECAPTCHA_SECRET_KEY absence — see
+ * `lib/recaptcha-server.ts`. Env-var-only, no admin DB toggle (the
+ * 2026-06-20 captcha-reintro auto-memory `feedback_no_db_kill_switch`
+ * documents why DB toggles for security defenses were avoided
+ * after the step-up-reauth quirk ate two hotfix cycles).
+ */
+function isTrialAbuseDisabled(): boolean {
+  const v = (process.env.TRIAL_ABUSE_DISABLED || "").toLowerCase().trim();
+  return v === "true" || v === "1" || v === "yes" || v === "on";
+}
+
+/**
  * Runs all currently-active trial-abuse checks for the given signals.
  * Order matters: cheapest checks first.
  *
  * reCAPTCHA was re-introduced 2026-06-20. When the secret is missing
  * (env-var kill switch) verifyToken short-circuits to success so this
  * pipeline still passes cleanly.
+ *
+ * Whole-pipeline kill switch: TRIAL_ABUSE_DISABLED=true bypasses every
+ * check. Use during operator testing or when the abuse layer itself
+ * is impeding a verified-good signup (e.g. operator's own IP hit the
+ * 30-day throttle while testing the launch).
  */
 export async function evaluateTrialAbuse(
   signals: AbuseSignals,
   options: { recaptchaToken?: string; clientIp?: string } = {}
 ): Promise<AbuseCheckResult> {
+  if (isTrialAbuseDisabled()) {
+    serverLogger.warn(
+      `[TrialAbuse] BYPASSED — TRIAL_ABUSE_DISABLED env is truthy. ` +
+      `email=${signals.email ?? "none"} ipHash=${signals.ipHash?.slice(0, 8) ?? "none"}. ` +
+      `Reset this env var before production traffic resumes.`
+    );
+    return { allowed: true };
+  }
+
   // 1. Disposable email — instant local check.
   if (signals.email && isDisposableEmail(signals.email)) {
     return {
@@ -174,6 +207,17 @@ export async function recordTrialClaim(args: {
   deviceFingerprint?: string;
   planId?: string;
 }): Promise<void> {
+  // Skip writing claim records while the bypass is active. Otherwise
+  // every test signup would accumulate a record that re-engages the
+  // abuse defenses the instant the operator flips the kill switch
+  // off — defeating the bypass.
+  if (isTrialAbuseDisabled()) {
+    serverLogger.warn(
+      `[TrialAbuse] recordTrialClaim SKIPPED — TRIAL_ABUSE_DISABLED env is truthy. ` +
+      `userEmail=${args.userEmail.toLowerCase()}`
+    );
+    return;
+  }
   try {
     await TrialClaim.create({
       userId: args.userId,
