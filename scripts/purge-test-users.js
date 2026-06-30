@@ -24,18 +24,28 @@
  *                                    must be cleaned manually in that
  *                                    case)
  *   4. Hosting rows                 (by userId)
- *   5. TrialClaim rows              (by userId / userEmail / ipHash from
+ *   5. PendingDomain rows           (by userId — domain registrations
+ *                                    that hit insufficient-balance or
+ *                                    other technical issues. Added
+ *                                    2026-06-30 after a scrub left 3
+ *                                    PendingDomain orphans that the
+ *                                    dashboard's RC auto-sync picked
+ *                                    back up when the user re-signed in)
+ *   6. Domain rows                  (by userId — fully-registered
+ *                                    domains. NOT touching ResellerClub
+ *                                    on their side — see RC caveat below)
+ *   7. TrialClaim rows              (by userId / userEmail / ipHash from
  *                                    any matching claim — resets the
  *                                    30-day abuse-defense throttle so
  *                                    the operator can re-test from the
  *                                    same IP without waiting)
- *   6. Invoice rows                 (by userId / userEmail — Zoho-side
+ *   8. Invoice rows                 (by userId / userEmail — Zoho-side
  *                                    invoices are NOT touched; legal
  *                                    record there is the merchant's
  *                                    responsibility to clean up
  *                                    separately if needed)
- *   7. Order rows                   (by userId / userEmail)
- *   8. User document                (last — references above all
+ *   9. Order rows                   (by userId / userEmail)
+ *  10. User document                (last — references above all
  *                                    pointed at this id)
  *
  * Safety guards:
@@ -43,6 +53,22 @@
  *   - Skips users whose role is 'admin' (extra anti-footgun)
  *   - Dry-run by default; --apply required for any writes
  *   - Logs every action; surviving DA orphans are clearly flagged
+ *
+ * ResellerClub-side caveat (CRITICAL — read before re-testing):
+ *   This script does NOT touch ResellerClub. The dashboard's auto-sync
+ *   at app/dashboard/page.tsx fires `/api/domains/sync` 1s after first
+ *   paint when `stats.totalDomains === 0`. That endpoint looks up the
+ *   user's RC customer ID by email and re-pulls all their RC-side
+ *   domains as synthetic `SYNC-*` Orders. So if the test user's email
+ *   is still linked to an RC customer with pending or active domains,
+ *   re-signing in with the same email will resurrect the domain rows
+ *   in our DB — and the user will see them on /dashboard/domains again.
+ *
+ *   To prevent that, before re-using a test email: log into the
+ *   ResellerClub partner dashboard and either (a) cancel/delete the
+ *   relevant Customer + Order, or (b) use a completely different test
+ *   email for the next signup. Option (b) is the cleanest because it
+ *   sidesteps any RC-side reconciliation entirely.
  *
  * Why not use the existing /api/admin/users DELETE endpoint:
  *   `permanentDeleteUser` in lib/services/users.ts only snapshots the
@@ -136,6 +162,8 @@ async function main() {
     hostings: db.collection('hostings'),
     invoices: db.collection('invoices'),
     pendinghostings: db.collection('pendinghostings'),
+    pendingdomains: db.collection('pendingdomains'),
+    domains: db.collection('domains'),
     recurringchargeattempts: db.collection('recurringchargeattempts'),
     trialclaims: db.collection('trialclaims'),
   };
@@ -171,6 +199,12 @@ async function main() {
       ? await c.recurringchargeattempts.find({ hostingId: { $in: hostingIds } }).toArray()
       : [];
     const claims = await c.trialclaims.find({ $or: [{ userId }, { userEmail: email }] }).toArray();
+    // Domain registrations — by userId AND by userEmail to catch records
+    // where the user re-signed up after a prior purge and orphaned domain
+    // rows lost the userId linkage. PendingDomain rows in particular may
+    // pre-date the User record they're now linked to.
+    const pendingdomains = await c.pendingdomains.find({ $or: [{ userId }, { userEmail: email }] }).toArray();
+    const domains = await c.domains.find({ $or: [{ userId }, { userEmail: email }] }).toArray();
     const daUsernames = hostings.map((h) => h.directAdminUsername).filter(Boolean);
 
     console.log(`  User _id              : ${userId}`);
@@ -178,6 +212,8 @@ async function main() {
     console.log(`  Orders                : ${orders.length}`);
     console.log(`  Invoices              : ${invoices.length}`);
     console.log(`  PendingHostings       : ${pending.length}`);
+    console.log(`  PendingDomains        : ${pendingdomains.length}${pendingdomains.length ? ` (${pendingdomains.map((p) => p.domainName).join(', ')})` : ''}`);
+    console.log(`  Domains               : ${domains.length}${domains.length ? ` (${domains.map((d) => d.domainName).join(', ')})` : ''}`);
     console.log(`  RecurringChargeAttempt: ${rca.length}`);
     console.log(`  TrialClaims           : ${claims.length}`);
     console.log(`  DA accounts           : ${daUsernames.length ? daUsernames.join(', ') : '(none)'}`);
@@ -217,22 +253,35 @@ async function main() {
       const r = await c.hostings.deleteMany({ userId });
       console.log(`  ✓ Deleted ${r.deletedCount} Hosting rows`);
     }
-    // 5. TrialClaims
+    // 5. PendingDomains
+    {
+      const r = await c.pendingdomains.deleteMany({ $or: [{ userId }, { userEmail: email }] });
+      console.log(`  ✓ Deleted ${r.deletedCount} PendingDomain rows`);
+    }
+    // 6. Domains (fully-registered). NOT touching ResellerClub — see
+    //    file-header caveat. The dashboard's RC auto-sync will resurrect
+    //    these rows when the test email re-signs in unless RC is cleaned
+    //    separately.
+    {
+      const r = await c.domains.deleteMany({ $or: [{ userId }, { userEmail: email }] });
+      console.log(`  ✓ Deleted ${r.deletedCount} Domain rows`);
+    }
+    // 7. TrialClaims
     {
       const r = await c.trialclaims.deleteMany({ $or: [{ userId }, { userEmail: email }] });
       console.log(`  ✓ Deleted ${r.deletedCount} TrialClaim rows`);
     }
-    // 6. Invoices
+    // 8. Invoices
     {
       const r = await c.invoices.deleteMany({ $or: [{ userId }, { userEmail: email }] });
       console.log(`  ✓ Deleted ${r.deletedCount} Invoice rows`);
     }
-    // 7. Orders
+    // 9. Orders
     {
       const r = await c.orders.deleteMany({ $or: [{ userId }, { userEmail: email }] });
       console.log(`  ✓ Deleted ${r.deletedCount} Order rows`);
     }
-    // 8. User
+    // 10. User
     {
       const r = await c.users.deleteOne({ _id: userId });
       console.log(`  ✓ Deleted ${r.deletedCount} User document`);
