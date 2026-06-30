@@ -38,6 +38,18 @@ Only for confirmed false positives — e.g., an intentional test fixture string 
 
 **If you find a leaked credential already in history:** rotate the live credential FIRST (Atlas/Razorpay/whichever console), then `gcloud secrets versions add NAME --data-file=-` for the runtime store, then force a new Cloud Run revision (env-var nudge or full redeploy), THEN rewrite git history + force-push. The order matters — rewriting history while the leaked credential is still live just hides it from new clones without actually securing anything.
 
+## Trial order invoice policy (operator decision 2026-06-30)
+
+**Do NOT generate a Zoho Books invoice for ₹0 trial signups.** The Order row gets persisted (`amount: 0, status: 'pending', orderType: 'hosting_trial'`) as the audit trail; the Hosting row gets created with `isTrial: true` and `billingType: 'manual'`; the welcome email fires when the DA-provisioning cron flips the Hosting to active. None of that emits a tax invoice.
+
+The customer's FIRST tax invoice fires at day 15+ when the trial converts via the renewal flow (`/api/user/hosting/renew` → Razorpay one-shot order → `/api/payments/verify` → `createZohoInvoice` in `lib/services/payment/post-tasks.ts`). At that point the renewal Order has the real ₹599.88 (Starter yearly) / ₹1,500 (Standard yearly) / ₹2,246.40 (Plus yearly) amount, and the invoice issued matches the actual charge.
+
+**Why this is correct**: Indian GST requires a tax invoice only for a taxable supply with consideration > 0. Issuing ₹0 invoices in Zoho would clutter the books, complicate revenue reporting, and create unnecessary reconciliation work for the finance team. AWS / Netflix / Spotify / GoDaddy all follow the same pattern — invoice fires at first real charge, not at trial signup.
+
+**Enforcement**: `createZohoInvoice` in `lib/services/payment/post-tasks.ts` short-circuits at the top with `if (!orderAmount || orderAmount <= 0 || orderType === 'hosting_trial') return earlyWithNoInvoice;`. The guard fires before any retry/claim logic so neither an accidental zero-amount caller nor a future code path that hands a trial Order can issue an invoice in Zoho. The guard is belt-and-suspenders — current callers (`payments/verify` + `payments/guest/verify`) only fire on a real Razorpay payment, which always has amount > 0; the guard defends against future regressions.
+
+If a customer ASKS for a trial-period invoice: there is none. Canned response: *"No invoice is issued for the free trial period since there's no charge. Your first invoice will be generated automatically when your trial converts on day 15 — that's when your card / UPI mandate is charged for the first time."*
+
 ## Other persistent conventions
 
 - Do not surface credential/key rotation as a next step — the user has opted out for this project (see auto-memory `feedback_key_rotation_skip`). **Exception**: active leaks discovered via security review override this preference; rotate immediately, don't ask twice.

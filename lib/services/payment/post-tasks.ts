@@ -99,11 +99,36 @@ async function attemptCreateZohoInvoice(
  * cold-start window and short Zoho hiccups so the user's first payment
  * usually lands an invoice without needing the background self-heal.
  * Throws on final failure — callers must handle and surface the error.
+ *
+ * ZERO-AMOUNT INVOICE POLICY (operator decision 2026-06-30): we
+ * intentionally do NOT generate Zoho invoices for ₹0 orders. Trial
+ * signups (15-day free trial under Manual or Tokens flow) create an
+ * Order row with `amount: 0` + `orderType: 'hosting_trial'` purely as
+ * audit-trail; the customer's first real tax invoice is issued at day
+ * 15+ when the renewal flow charges the actual yearly amount. This is
+ * compliant with Indian GST (tax invoice is required only for taxable
+ * consideration > 0) AND matches industry practice (AWS / Netflix /
+ * Spotify / GoDaddy all issue the first invoice at first real charge,
+ * not at trial signup). The guard fires on amount<=0 OR explicit
+ * trial-order types to defend against any future caller that hands
+ * us a ₹0 context. See CLAUDE.md "Trial order invoice policy" + the
+ * `project_trial_no_invoice` auto-memory entry.
  */
 export async function createZohoInvoice(
   ctx: ZohoInvoiceContext,
   options: { maxAttempts?: number; retryDelayMs?: number } = {}
 ): Promise<{ invoiceId: string; invoiceNumber: string | null }> {
+  const orderAmount = ctx.order?.amount;
+  const orderType = ctx.order?.orderType;
+  if (!orderAmount || orderAmount <= 0 || orderType === "hosting_trial") {
+    serverLogger.info(
+      `⏭️ [ZohoInvoice] Skipping zero-amount/trial order ${ctx.orderId} ` +
+      `(amount=${orderAmount}, orderType=${orderType}). ` +
+      `Invoice will be issued on the first real charge — see Trial order invoice policy.`
+    );
+    return { invoiceId: "", invoiceNumber: null };
+  }
+
   const maxAttempts = options.maxAttempts ?? 2;
   const retryDelayMs = options.retryDelayMs ?? 1500;
   let lastError: unknown;
