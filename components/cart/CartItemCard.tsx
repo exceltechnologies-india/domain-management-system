@@ -28,8 +28,13 @@ export default function CartItemCard({ item, onRemove, onPeriodChange }: CartIte
       ? item.hostingPlan.name
       : item.domainName;
 
-  const periodLabel =
-    item.itemType === 'hosting' && item.registrationPeriod === 12
+  // Trial items use days as their unit + a distinct label so the cart
+  // doesn't mis-render a 15-day free trial as a 15-month subscription
+  // (the periodUnit field was being silently ignored — see the trial
+  // CartItem construction in app/hosting/page.tsx → handleStartTrial).
+  const periodLabel = item.isTrial
+    ? `${item.registrationPeriod}-day free trial`
+    : item.itemType === 'hosting' && item.registrationPeriod === 12
       ? '1 year subscription'
       : `${item.registrationPeriod} ${item.itemType === 'hosting' ? 'month(s)' : 'year(s)'} ${
           item.itemType === 'hosting' ? 'subscription' : 'registration'
@@ -91,7 +96,11 @@ export default function CartItemCard({ item, onRemove, onPeriodChange }: CartIte
             <label className="text-xs sm:text-sm font-medium text-gray-700">
               Registration Period:
             </label>
-            {isBillingCycleLocked ? (
+            {item.isTrial ? (
+              <div className="px-4 py-2 border border-gray-200 rounded-md text-sm bg-amber-50 text-amber-800 font-medium min-w-[100px] text-center">
+                {item.registrationPeriod} Days
+              </div>
+            ) : isBillingCycleLocked ? (
               <div className="px-4 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 text-gray-700 font-medium min-w-[100px] text-center">
                 {item.billingCycle === 'yearly' ? '1 Year' : '1 Month'}
               </div>
@@ -126,10 +135,12 @@ export default function CartItemCard({ item, onRemove, onPeriodChange }: CartIte
           {/* Price */}
           <div className="text-right">
             <p className="text-xl font-bold text-gray-900">
-              ₹{(item.price * item.registrationPeriod).toFixed(2)}
+              {item.isTrial ? '₹0.00' : `₹${(item.price * item.registrationPeriod).toFixed(2)}`}
             </p>
             <p className="text-sm text-gray-600">
-              {item.itemType === 'hosting' ? (
+              {item.isTrial ? (
+                <>Free for {item.registrationPeriod} days</>
+              ) : item.itemType === 'hosting' ? (
                 <>
                   ₹{item.price}
                   {item.registrationPeriod === 12 ? '/mo (Annually)' : '/mo'}
