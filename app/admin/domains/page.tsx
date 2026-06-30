@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import {
   Globe,
@@ -43,7 +43,12 @@ interface Domain {
 export default function AdminDomainsPage() {
   const [domains, setDomains] = useState<Domain[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  // Pre-fill searchTerm from `?q=` so deep-links from other admin
+  // surfaces (e.g. the Domains rows in the User Services modal in
+  // /admin/user-management) land the operator on a pre-filtered list.
+  // Falls back to '' when no `q` is present.
+  const searchParams = useSearchParams();
+  const [searchTerm, setSearchTerm] = useState(() => searchParams?.get('q') ?? '');
   const [statusFilter, setStatusFilter] = useState('all');
   const [activeDomainLoad, setActiveDomainLoad] = useState<string | null>(null);
 

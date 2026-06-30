@@ -1300,6 +1300,7 @@ export default function AdminUsers() {
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Domain Name</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expires</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Manage</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -1317,6 +1318,24 @@ export default function AdminUsers() {
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-500">
                             {domain.expiryDate ? formatIndianDate(new Date(domain.expiryDate)) : '-'}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {/* Deep-link to /admin/domains pre-filtered to this
+                                domain — mirrors the Hosting Services pill above.
+                                /admin/domains reads `?q=` on mount and pre-fills
+                                its search input. */}
+                            {domain.domainName ? (
+                              <Link
+                                href={`/admin/domains?q=${encodeURIComponent(domain.domainName)}`}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-md transition-colors"
+                                title={`Open ${domain.domainName} in the domains admin`}
+                              >
+                                Open
+                                <ExternalLink className="h-3 w-3" />
+                              </Link>
+                            ) : (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
                           </td>
                         </tr>
                       ))}
