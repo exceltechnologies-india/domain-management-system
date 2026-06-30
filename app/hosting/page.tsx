@@ -132,6 +132,12 @@ export default function HostingPage() {
         period: 15,
         features: [...plan.features, '15-Day Free Trial', '30-Day Money-Back Guarantee'],
         serverPackage: plan.serverPackage,
+        // Preserve the underlying plan's monthly price so the checkout
+        // page can show "then ₹X/yr" accurately. CartItem.price stays 0
+        // for trials (it's the today-charge) — hostingPlan.price carries
+        // the post-trial recurring rate. Schema landed in 19ec2d2 so the
+        // field persists across save/load cycles.
+        price: plan.price,
       },
     };
 

@@ -491,7 +491,19 @@ export default function CheckoutPage() {
                               <>
                                 <p className="text-xl font-bold text-green-600">₹0.00</p>
                                 <p className="text-xs text-gray-500">Free for 15 days</p>
-                                <p className="text-xs text-purple-600 font-medium mt-0.5">then ₹{item.price * 12}/yr</p>
+                                {/* Post-trial recurring rate. `item.price` is 0 for
+                                    trials (it's the today-charge); the actual
+                                    monthly plan price is preserved on
+                                    `item.hostingPlan.price` by addTrialToCart in
+                                    app/hosting/page.tsx — multiply by 12 for the
+                                    yearly amount. Falls back to "—" if the field
+                                    is missing (e.g. legacy cart items added before
+                                    the trial price was stored on the plan). */}
+                                <p className="text-xs text-purple-600 font-medium mt-0.5">
+                                  then {item.hostingPlan?.price
+                                    ? `₹${(item.hostingPlan.price * 12).toFixed(2)}/yr`
+                                    : '—'}
+                                </p>
                               </>
                             ) : (
                               <>
