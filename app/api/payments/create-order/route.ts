@@ -311,7 +311,7 @@ export async function POST(request: NextRequest) {
                 ],
               } as Record<string, unknown>);
 
-              await createManualFlowTrialHosting({
+              const provisionedHosting = await createManualFlowTrialHosting({
                 userId: user.id,
                 domainName: item.linkedDomain || item.domainName,
                 planId: plan.planId,
@@ -330,6 +330,45 @@ export async function POST(request: NextRequest) {
               serverLogger.info(
                 `✅ [CREATE-ORDER] Manual-mode trial provisioned: order=${manualInternalOrderId} domain=${item.linkedDomain || item.domainName} plan=${plan.name} (no Razorpay involvement)`
               );
+
+              // Inline synchronous DA provisioning. Trade-off: adds ~2-5s
+              // to the checkout POST latency while `daCreateUser` runs,
+              // but the customer sees the trial hosting as `active` on
+              // the /payment-success + /dashboard redirect instead of
+              // waiting up to 10 min for the Cloud Scheduler cron.
+              // Matches the Tokens-flow paid path's post-verify
+              // provisioning UX.
+              //
+              // Best-effort by design: if DA is unreachable or a username
+              // collision occurs, log + fall through. The Hosting stays
+              // status='pending' + the cron
+              // (scripts/provision-pending-tokens-hostings.js /
+              // /api/workers/tokens-provision-pending) will retry on
+              // its 10-min interval. Failure here does NOT rollback the
+              // Order / Hosting persistence — customer's signup is
+              // valid + retry-safe.
+              try {
+                const Hosting = (await import("@/models/Hosting")).default;
+                const { provisionTokensFlowHosting } = await import(
+                  "@/lib/services/payment/tokens-da-provisioner"
+                );
+                const hostingDoc = await Hosting.findById(provisionedHosting.hostingId);
+                if (hostingDoc) {
+                  const provResult = await provisionTokensFlowHosting(hostingDoc);
+                  serverLogger.info(
+                    `🔄 [CREATE-ORDER] Manual-mode inline DA provisioning outcome=${provResult.outcome}` +
+                    (provResult.daUsername ? ` daUsername=${provResult.daUsername}` : "") +
+                    (provResult.reason ? ` reason=${provResult.reason}` : "")
+                  );
+                }
+              } catch (provErr) {
+                // Never fail the checkout on provisioning error — the
+                // cron will retry. Log so it's diagnosable.
+                serverLogger.warn(
+                  `⚠️ [CREATE-ORDER] Manual-mode inline provisioning threw — cron will retry:`,
+                  provErr
+                );
+              }
             } catch (manErr) {
               serverLogger.error(
                 `❌ [CREATE-ORDER] Manual flow failed — falling through to Subscriptions flow:`,
