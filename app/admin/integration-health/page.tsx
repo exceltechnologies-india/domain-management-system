@@ -70,7 +70,7 @@ const PROVIDER_DESCRIPTIONS: Record<string, string> = {
 export default function IntegrationHealthPage() {
   const [data, setData] = useState<HealthResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [windowDays, setWindowDays] = useState(30);
+  const [windowDays, setWindowDays] = useState(1);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [currentUser, setCurrentUser] = useState<{ firstName: string; lastName: string; email: string; role: string } | null>(null);
 
