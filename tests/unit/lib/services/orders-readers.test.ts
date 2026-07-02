@@ -328,7 +328,7 @@ describe("findUserOrder — privacy-safe lookup", () => {
 });
 
 describe("listOrdersForAdmin — pagination + hard-deleted-user fallback", () => {
-  it("default page=1, perPage=100, skip=0; excludes pending (default)", async () => {
+  it("default page=1, perPage=100, skip=0; excludes stale pending intents BUT keeps trial + tokens-CIT signups", async () => {
     const populate = vi
       .fn()
       .mockResolvedValueOnce([
@@ -346,7 +346,22 @@ describe("listOrdersForAdmin — pagination + hard-deleted-user fallback", () =>
     expect(limit).toHaveBeenCalledWith(100);
     const [filter] = Order.find.mock.calls[0];
     expect(filter.isDeleted).toEqual({ $ne: true });
-    expect(filter.status).toEqual({ $ne: "pending" });
+    // Pins the trial-orders-visible fix from 2026-07-02: filter shape is
+    // now $or [(non-pending) OR (pending + trial-marker)], NOT the old
+    // blanket `status: { $ne: "pending" }` that hid legit trial signups.
+    expect(filter.$or).toBeDefined();
+    expect(filter.$or).toHaveLength(2);
+    expect(filter.$or[0]).toEqual({ status: { $ne: "pending" } });
+    expect(filter.$or[1].status).toBe("pending");
+    expect(filter.$or[1].$or).toContainEqual({ orderType: "hosting_trial" });
+    expect(filter.$or[1].$or).toContainEqual({
+      mandateMode: { $in: ["manual", "tokens"] },
+    });
+    // The old blanket status filter must NOT be at the top level anymore —
+    // if it re-appears via a refactor, MongoDB's $and semantics would AND
+    // it with the $or clause and the trial branch would be filtered back
+    // out.
+    expect(filter.status).toBeUndefined();
   });
 
   it("archived:true → flips to isDeleted:true filter", async () => {
@@ -361,7 +376,7 @@ describe("listOrdersForAdmin — pagination + hard-deleted-user fallback", () =>
     expect(filter.isDeleted).toBe(true);
   });
 
-  it("includePending:true → no status filter", async () => {
+  it("includePending:true → no status filter / no $or (all pending rows visible)", async () => {
     const populate = vi.fn().mockResolvedValueOnce([]);
     const limit = vi.fn().mockReturnValue({ populate });
     const skip = vi.fn().mockReturnValue({ limit });
@@ -371,6 +386,7 @@ describe("listOrdersForAdmin — pagination + hard-deleted-user fallback", () =>
     await listOrdersForAdmin({ includePending: true });
     const [filter] = Order.find.mock.calls[0];
     expect(filter.status).toBeUndefined();
+    expect(filter.$or).toBeUndefined();
   });
 
   it("HARD-DELETED-USER fallback: synthesises userId stub from userName/userEmail snapshot", async () => {

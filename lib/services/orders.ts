@@ -340,7 +340,38 @@ export async function listOrdersForAdmin(opts: {
   const baseQuery: Record<string, unknown> = opts.archived
     ? { isDeleted: true }
     : { isDeleted: { $ne: true } };
-  if (!opts.includePending) baseQuery.status = { $ne: "pending" };
+  // Filter out stale `pending` checkout intents (customer bailed mid-checkout)
+  // while KEEPING legitimate pending trial signups + Tokens-CIT auth
+  // orders visible. The distinction:
+  //   - Stale pending intent: status='pending' + no orderType='hosting_trial'
+  //     + no mandateMode='manual'|'tokens'. These are old checkout-abandons
+  //     with no signal of what the customer meant to buy.
+  //   - Trial signup (manual flow): status='pending' + orderType='hosting_trial'
+  //     + mandateMode='manual' + amount=0. Legit; belongs on the admin
+  //     dashboard so operators can see who's on trial. Flips to a NEW
+  //     Order (real amount) on day 15+ renewal; the trial row stays as
+  //     audit trail.
+  //   - Tokens CIT auth: status='pending' + orderType='hosting_trial' +
+  //     mandateMode='tokens' + amount=2 (₹2 mandate-validation charge).
+  //     Legit; belongs on the dashboard.
+  //
+  // Trial-orders-invisible bug was introduced pre-2026-07-02 when this
+  // filter was written under the assumption that pending==bailed-checkout.
+  // Manual-flow trial launch (dms-00210, 2026-06-29) broke that assumption
+  // silently — operators couldn't see fresh signups in /admin/order-management
+  // even though the rows existed. Fix landed 2026-07-02 in this batch.
+  if (!opts.includePending) {
+    baseQuery.$or = [
+      { status: { $ne: "pending" } },
+      {
+        status: "pending",
+        $or: [
+          { orderType: "hosting_trial" },
+          { mandateMode: { $in: ["manual", "tokens"] } },
+        ],
+      },
+    ];
+  }
   const query = baseQuery;
 
   const [rawOrders, total] = await Promise.all([

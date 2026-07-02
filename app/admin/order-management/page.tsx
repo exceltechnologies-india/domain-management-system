@@ -55,11 +55,17 @@ interface Order {
   // Tokens-flow CIT auth is used (Phase 2A onwards). Surfaced in the
   // detail modal so an operator can distinguish Tokens-mode mandates
   // from Subscriptions-API customers + jump to Razorpay dashboard by
-  // customerId/tokenId when triaging recurring-charge failures.
-  mandateMode?: "subscription" | "tokens";
+  // customerId/tokenId when triaging recurring-charge failures. `manual`
+  // added 2026-06-30 with the manual-flow trial launch (dms-00227).
+  mandateMode?: "subscription" | "tokens" | "manual";
   razorpayCustomerId?: string;
   razorpayTokenId?: string;
   razorpayOrderId?: string;
+  // Trial orders (both manual-flow + Tokens-flow CIT-auth) carry
+  // orderType='hosting_trial'. Distinguishes a legit-signup pending
+  // order from a bailed-checkout pending intent. Surfaced as an amber
+  // TRIAL pill in the row so operators can triage at a glance.
+  orderType?: "hosting_trial" | string;
 }
 
 interface User {
@@ -339,7 +345,25 @@ export default function AdminOrders() {
       key: 'orderId',
       label: 'Order ID',
       sortable: true,
-      render: (value: string) => <span className="font-medium text-gray-900 text-xs sm:text-sm">{value}</span>
+      render: (value: string, row: Order) => (
+        <div className="flex items-center gap-1.5">
+          <span className="font-medium text-gray-900 text-xs sm:text-sm">{value}</span>
+          {row.orderType === 'hosting_trial' && (
+            <span
+              className="px-1.5 py-0.5 text-[9px] sm:text-[10px] font-semibold rounded bg-amber-100 text-amber-800 border border-amber-200"
+              title={
+                row.mandateMode === 'manual'
+                  ? 'Manual-flow trial signup — no charge today; first invoice fires at day 15+ conversion via the renewal flow'
+                  : row.mandateMode === 'tokens'
+                    ? 'Tokens-flow trial — ₹2 CIT-auth charge already refunded; first MIT charge fires at day 15+'
+                    : 'Trial signup'
+              }
+            >
+              TRIAL
+            </span>
+          )}
+        </div>
+      )
     },
     {
       key: 'customer',
