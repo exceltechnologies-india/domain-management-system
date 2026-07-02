@@ -206,3 +206,130 @@ describe("/api/admin/integration-health — RecurringChargeAttempt source", () =
     expect(razorpay.totalErrors).toBe(0);
   });
 });
+
+// ─────────────────── Application provider (post-2026-07-02) ───────────────────
+// The `application` bucket was silently broken pre-2026-07-02: `service: 'api'`
+// SystemLog entries mapped to a `application` provider id that wasn't seeded
+// in providerMap, causing a runtime TypeError swallowed by the outer catch.
+// The 7-layer manual-flow-trial chain would have surfaced there if not for
+// the seeding bug. These tests pin the fix.
+
+describe("/api/admin/integration-health — Application provider", () => {
+  it("SystemLog entry with service='api' classifies to application card without crashing the route", async () => {
+    const now = new Date();
+    SystemLogFind.mockReturnValueOnce(
+      chainable([
+        {
+          _id: "sl1",
+          message:
+            "❌ [CREATE-ORDER] Manual flow failed — falling through to Subscriptions flow: ValidatorError: mandateMode: `manual` is not a valid enum value for path `mandateMode`.",
+          source: "Server Logger",
+          service: "api",
+          createdAt: now,
+        },
+      ])
+    );
+    const res = await GET(makeReq());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const application = body.providers.find(
+      (p: { id: string }) => p.id === "application"
+    );
+    expect(application).toBeDefined();
+    expect(application.totalErrors).toBe(1);
+    // The ValidatorError signature should win → the hint mentions the
+    // "add-new-enum-value" lesson from ORDER-MANDATEMODE-MANUAL.
+    expect(application.patterns[0].hint).toMatch(/Mongoose schema-layer/i);
+    expect(application.patterns[0].hint).toMatch(/enum/i);
+  });
+
+  it("[CREATE-ORDER] prefixed error clusters under application with the create-order hint", async () => {
+    const now = new Date();
+    SystemLogFind.mockReturnValueOnce(
+      chainable([
+        {
+          _id: "sl2",
+          message: "❌ [CREATE-ORDER] Razorpay order creation failed: Failed to generate payment targets",
+          source: "Server Logger",
+          service: "api",
+          createdAt: now,
+        },
+      ])
+    );
+    const res = await GET(makeReq());
+    const body = await res.json();
+    const application = body.providers.find(
+      (p: { id: string }) => p.id === "application"
+    );
+    expect(application.totalErrors).toBe(1);
+    // "Failed to generate payment targets" wins over the [CREATE-ORDER] tag
+    // (both match — first-match-wins order in PROVIDERS[] gives us the
+    // targeted hint that names the outer razorpay-catch fall-through).
+    expect(application.patterns[0].hint).toMatch(/no-payment-target throw/i);
+  });
+
+  it("MongooseError buffering timeout gets the cold-start connectDB hint", async () => {
+    const now = new Date();
+    SystemLogFind.mockReturnValueOnce(
+      chainable([
+        {
+          _id: "sl3",
+          message:
+            "MongooseError: Operation `hostings.find()` buffering timed out after 10000ms",
+          source: "Server Logger",
+          service: "api",
+          createdAt: now,
+        },
+      ])
+    );
+    const res = await GET(makeReq());
+    const body = await res.json();
+    const application = body.providers.find(
+      (p: { id: string }) => p.id === "application"
+    );
+    expect(application.totalErrors).toBe(1);
+    expect(application.patterns[0].hint).toMatch(/cold-start signature/i);
+    expect(application.patterns[0].hint).toMatch(/connectDB/i);
+  });
+
+  it("application provider is present in response even when no errors exist (empty card renders green)", async () => {
+    // All sources empty (default from beforeEach) → we expect the application
+    // card to STILL be in the providers array so the frontend renders it.
+    const res = await GET(makeReq());
+    const body = await res.json();
+    const application = body.providers.find(
+      (p: { id: string }) => p.id === "application"
+    );
+    expect(application).toBeDefined();
+    expect(application.totalErrors).toBe(0);
+    expect(application.patterns).toHaveLength(0);
+  });
+
+  it("**latent crash fix**: unseeded provider id from a bucket routes to `unknown` instead of throwing TypeError", async () => {
+    // Simulate a SystemLog entry whose service maps to a provider that
+    // wasn't seeded in providerMap. Pre-fix: `providerMap.get(id)!.total…`
+    // threw TypeError, whole route 500'd. Post-fix: falls back to unknown.
+    // We use `service: "unknown_future_service"` — an unmapped service that
+    // triggers the keyword-classify path returning 'unknown' (the safe
+    // fallback). The rendering path shouldn't throw regardless.
+    const now = new Date();
+    SystemLogFind.mockReturnValueOnce(
+      chainable([
+        {
+          _id: "sl4",
+          message: "Some totally-unclassified opaque failure text with no signature match",
+          source: "Server Logger",
+          service: "unknown_future_service",
+          createdAt: now,
+        },
+      ])
+    );
+    const res = await GET(makeReq());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    // The entry should surface under `unknown` (fallback) rather than crash.
+    const unknown = body.providers.find((p: { id: string }) => p.id === "unknown");
+    expect(unknown).toBeDefined();
+    expect(unknown.totalErrors).toBe(1);
+  });
+});

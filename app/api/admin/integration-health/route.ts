@@ -196,6 +196,40 @@ const PROVIDERS: ProviderClassifier[] = [
       },
     ],
   },
+  {
+    // Application-layer failures — internal bugs in our own code, NOT
+    // upstream-service errors. Added 2026-07-02 after the 7-layer
+    // manual-flow-trial chain (dms-00222 → dms-00232) surfaced a class of
+    // 500s that never landed on the dashboard because they didn't match
+    // any upstream-provider signature. The trial-signup failures were
+    // Mongoose ValidatorError + case-mismatch DB lookups returning null +
+    // missing schema fields — internal, but customer-facing 500s that
+    // operators need to see. Signatures target the exact shapes observed.
+    id: "application",
+    label: "Application",
+    signatures: [
+      {
+        needle: /ValidatorError|validation failed:|is not a valid enum value|Cast to \w+ failed/i,
+        hint: "Mongoose schema-layer rejection. Common causes: (a) an enum field received a value not in the schema's enum list (the ORDER-MANDATEMODE-MANUAL bug from dms-00227 was this shape); (b) a required field is missing; (c) a cast (e.g. String → ObjectId) failed. Fix: either extend the schema's enum to include the value, or fix the caller. When adding a new value to an enum-like field, grep ALL callers that set that field AND every schema/type that declares the allowed values in the SAME commit.",
+      },
+      {
+        needle: /Failed to (generate payment targets|create payment order)/i,
+        hint: "The `/api/payments/create-order` route reached its no-payment-target throw. Usually means an upstream branch (Manual / Tokens / Subscription) threw silently and the outer catch surfaced this generic error. Check `serverLogger.error` entries with `[CREATE-ORDER]` prefix in the same window for the actual root cause — often a schema validation, case-mismatch, or missing helper import.",
+      },
+      {
+        needle: /Cannot read propert(y|ies) of (undefined|null)|is not a function|TypeError:/i,
+        hint: "Runtime TypeError — usually a code bug (accessing a field on a null/undefined value or calling a non-function). Search the stack trace for the file:line. Repeats of the same TypeError across multiple requests are a solid regression indicator; investigate what changed in the last deploy.",
+      },
+      {
+        needle: /\[CREATE-ORDER\]|\[CART\]|\[CHECKOUT\]|\[TRIAL-|\[PROVISIONER\]/i,
+        hint: "An internal payment / cart / checkout / trial / provisioner code path emitted an ERROR log. Search the exemplar message for the specific `[TAG]` prefix + follow the route/service file it names. These are internal-code bugs, not upstream failures — fix in code + redeploy.",
+      },
+      {
+        needle: /buffering timed out|MongooseError|connection.*closed|MongoServerError/i,
+        hint: "MongoDB connection / query failure. `buffering timed out after 10000ms` is the cold-start signature — a Cloud Run container woke without connectDB() having run. Check the specific route/service module is calling `await connectDB()` before its first query (the PROVISIONER-CONNECTDB-COLD-START-FIX from dms-00235 was this shape).",
+      },
+    ],
+  },
 ];
 
 function classify(errorText: string): { provider: ProviderId; label: string; hint?: string } {
@@ -207,6 +241,22 @@ function classify(errorText: string): { provider: ProviderId; label: string; hin
     }
   }
   return { provider: "unknown", label: "Unclassified" };
+}
+
+/**
+ * Look up a hint within ONE provider's signatures only. Used when
+ * `log.service` has already told us which provider bucket the entry
+ * belongs on — we don't want a keyword collision with another provider
+ * (e.g. "Razorpay order creation failed" matching razorpay's generic
+ * signature) to override that assignment or attach the wrong hint.
+ */
+function hintForProvider(errorText: string, providerId: ProviderId): string | undefined {
+  const p = PROVIDERS.find((x) => x.id === providerId);
+  if (!p) return undefined;
+  for (const sig of p.signatures) {
+    if (sig.needle.test(errorText)) return sig.hint;
+  }
+  return undefined;
 }
 
 /**
@@ -449,23 +499,28 @@ export async function GET(request: NextRequest) {
       const errText = (log.message || "").trim();
       if (!errText) continue;
 
-      // Classify: explicit `service` field first (set by the call site),
-      // else fall through to message-keyword matching.
-      let providerId: ProviderId | undefined;
-      let providerLabel: string | undefined;
-      let hint: string | undefined;
-      if (log.service) {
-        const mapped = SERVICE_TO_PROVIDER[log.service.toLowerCase()];
-        if (mapped) {
-          providerId = mapped;
-          // Find the provider's display label from PROVIDERS, or fall back.
-          const cfg = PROVIDERS.find((p) => p.id === mapped);
-          providerLabel = cfg?.label ?? mapped;
-        }
+      // Classification order:
+      //   (a) If log.service maps to a specific provider → that's the
+      //       bucket assignment; look up the hint from ONLY that
+      //       provider's signatures (avoids razorpay-generic-signature
+      //       stealing an application-code error just because the string
+      //       "Razorpay" appears in the message).
+      //   (b) Else fall through to whole-PROVIDERS classify() which does
+      //       both provider assignment + hint lookup by first-match.
+      let classified: { provider: ProviderId; label: string; hint?: string };
+      const serviceMapped = log.service
+        ? SERVICE_TO_PROVIDER[log.service.toLowerCase()]
+        : undefined;
+      if (serviceMapped && serviceMapped !== "unknown") {
+        const cfg = PROVIDERS.find((p) => p.id === serviceMapped);
+        classified = {
+          provider: serviceMapped,
+          label: cfg?.label ?? serviceMapped,
+          hint: hintForProvider(errText, serviceMapped),
+        };
+      } else {
+        classified = classify(errText);
       }
-      const classified = providerId
-        ? { provider: providerId, label: providerLabel!, hint }
-        : classify(errText);
 
       const key = `${classified.provider}::${bucketKey(errText)}`;
       const occurred = log.createdAt.toISOString();
@@ -564,7 +619,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Roll up buckets into provider groups.
+    // Roll up buckets into provider groups. `unknown` is always present as
+    // the fallback catch-all. A defensive check in the loop below routes
+    // any bucket with an unseeded provider id into `unknown` rather than
+    // crashing — the previous `providerMap.get(b.provider)!` non-null
+    // assertion was a runtime landmine: SERVICE_TO_PROVIDER could produce
+    // an id (e.g. legacy 'application' mappings before that provider was
+    // seeded here) that had no map entry, and the ensuing TypeError got
+    // silently swallowed by the outer catch as a generic 500.
     const providerMap = new Map<ProviderId, ProviderHealth>();
     for (const cfg of PROVIDERS) {
       providerMap.set(cfg.id, { id: cfg.id, label: cfg.label, totalErrors: 0, patterns: [] });
@@ -572,7 +634,7 @@ export async function GET(request: NextRequest) {
     providerMap.set("unknown", { id: "unknown", label: "Unclassified", totalErrors: 0, patterns: [] });
 
     for (const b of buckets.values()) {
-      const group = providerMap.get(b.provider)!;
+      const group = providerMap.get(b.provider) ?? providerMap.get("unknown")!;
       group.totalErrors += b.count;
       group.patterns.push({
         exemplarMessage: b.exemplarMessage,
