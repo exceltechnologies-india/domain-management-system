@@ -51,11 +51,18 @@ echo "✓ CRON_SECRET retrieved from Secret Manager"
 # ────────────────────────────────────────────────────────────────────────
 # Job 1: tokens-provision-pending — every 10 min
 #
-# Picks up Hostings in status='pending' (created by Phase 2C's webhook
-# handler when a CIT auth completes) and creates the DA user via
-# the existing DirectAdmin createUser helper. On success the Hosting
-# flips to status='active'. Short cadence (10 min) means trial signup →
+# Flow-agnostic as of 2026-07-02 (despite the legacy job name): picks
+# up Hostings in status='pending' + empty directAdminUsername created
+# by EITHER the Tokens-flow webhook handler (Phase 2C) OR the
+# Manual-flow create-order route. Creates the DA user via the existing
+# DirectAdmin createUser helper. On success the Hosting flips to
+# status='active' + welcome email fires with mandateMode derived from
+# the record. Short cadence (10 min) means trial signup →
 # DA-account-ready in under 10 min for the customer.
+#
+# Job name kept as `tokens-provision-pending` to avoid churn on
+# existing scheduler references; the underlying worker + service are
+# already flow-agnostic.
 # ────────────────────────────────────────────────────────────────────────
 echo ""
 echo "──── Job 1: tokens-provision-pending (every 10 min) ────"
@@ -76,7 +83,7 @@ gcloud scheduler jobs "$ACTION" http tokens-provision-pending \
   --http-method=POST \
   --headers="x-cron-secret=$CRON_SECRET" \
   --attempt-deadline=60s \
-  --description="Tokens-flow DA-provisioning cron (Phase 2E/2H). Picks up Hostings in status='pending' + creates DA user. No-op when HOSTING_MANDATE_FLOW != 'tokens'." \
+  --description="Flow-agnostic DA-provisioning cron (Phase 2E/2H, made flow-agnostic 2026-07-02). Picks up Hostings in status='pending' + empty directAdminUsername for BOTH Tokens-flow and Manual-flow trials; creates DA user; flips status='active'." \
   >/dev/null
 echo "  ✓ tokens-provision-pending configured"
 
@@ -129,11 +136,20 @@ gcloud scheduler jobs list --project="$PROJECT" --location="$LOCATION" \
   --filter="name:tokens-provision-pending OR name:tokens-charge-recurring" \
   --format="table(name.basename(),schedule,state)"
 echo ""
-echo "Note: both jobs no-op until HOSTING_MANDATE_FLOW=tokens is set on"
-echo "the Cloud Run service. Until then they fire on schedule but the"
-echo "worker endpoints return success without doing any work."
+echo "Notes:"
+echo "  - Job 1 (tokens-provision-pending) is FLOW-AGNOSTIC as of 2026-07-02."
+echo "    Runs every 10 min against Hostings in status='pending' regardless"
+echo "    of HOSTING_MANDATE_FLOW value. Picks up both Tokens-flow and"
+echo "    Manual-flow trials in one pass. Active immediately."
 echo ""
-echo "To flip the flag on the live service:"
+echo "  - Job 2 (tokens-charge-recurring) STILL no-ops unless"
+echo "    HOSTING_MANDATE_FLOW=tokens is set on the Cloud Run service. The"
+echo "    MIT recurring-charge path is intrinsically Tokens-specific (needs"
+echo "    a razorpayTokenId on the Hosting record). Under HOSTING_MANDATE_FLOW="
+echo "    manual, customers renew via a manual /api/user/hosting/renew flow"
+echo "    at day 15+, not by auto-charge."
+echo ""
+echo "To flip the flag to 'tokens' once UPI Autopay activates (~2026-07-08):"
 echo "  gcloud run services update dms \\"
 echo "    --project=$PROJECT \\"
 echo "    --region=europe-west1 \\"

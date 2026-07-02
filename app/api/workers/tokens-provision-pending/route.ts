@@ -1,26 +1,23 @@
 /**
- * Tokens-flow DA-provisioning worker (Phase 2H).
+ * DA-provisioning worker (Phase 2H — flow-agnostic as of 2026-07-02).
  *
  * HTTP-invocable counterpart to `scripts/provision-pending-tokens-hostings.js`
  * (the Node CLI from Phase 2E). Cloud Scheduler can only call HTTP endpoints,
  * not run Node directly — so this worker is the production cron target.
  *
- * Behavior is identical to the CLI: query Hostings with status='pending' +
- * razorpayTokenId set + directAdminUsername empty, call
- * provisionTokensFlowHosting per row, return a summary.
+ * Behavior: query Hostings with status='pending' + directAdminUsername empty,
+ * call provisionTokensFlowHosting per row, return a summary. Flow-agnostic
+ * as of 2026-07-02 — picks up both Tokens-flow AND Manual-flow trials (both
+ * share the same pending+DA-await shape). The old razorpayTokenId filter +
+ * HOSTING_MANDATE_FLOW='tokens' guard were removed after Manual-flow trials
+ * went live (see TASKS.md DA-PROVISIONER-FLOW-AGNOSTIC-AND-STATS-UX row).
  *
- * Cloud Scheduler setup (operator action; not yet wired):
- *   gcloud scheduler jobs create http tokens-provision-pending \
- *     --schedule="*\/10 * * * *" \
- *     --uri="https://app.anutech.in/api/workers/tokens-provision-pending" \
- *     --http-method=POST \
- *     --headers="x-cron-secret=$CRON_SECRET" \
- *     --location=asia-south1
+ * Cloud Scheduler setup: `bash scripts/setup-cloud-scheduler-tokens.sh` (job
+ * name kept as `tokens-provision-pending` to match the existing template; the
+ * behavior is now flow-agnostic despite the legacy name).
  *
  * Safety:
  *   - CRON_SECRET auth via authorizeCronRequest (same pattern as other workers).
- *   - Refuses to do work unless HOSTING_MANDATE_FLOW=tokens — defensive guard
- *     so flipping the flag is the single source of truth for "Tokens flow is live".
  *   - Per-Hosting errors don't block the batch (the underlying service module
  *     already handles its own retries via leaving status='pending').
  */
@@ -40,20 +37,14 @@ export async function POST(request: NextRequest) {
     return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
   }
 
-  if (process.env.HOSTING_MANDATE_FLOW !== "tokens") {
-    serverLogger.info(
-      "[Worker:tokens-provision-pending] HOSTING_MANDATE_FLOW not 'tokens' — no-op"
-    );
-    return secureJsonResponse({
-      success: true,
-      message: "Skipped (HOSTING_MANDATE_FLOW != tokens)",
-      counts: { activated: 0, skipped: 0, da_unreachable: 0, collision_exhausted: 0, hard_failure: 0 },
-    });
-  }
+  // HOSTING_MANDATE_FLOW gate removed 2026-07-02 — worker is flow-agnostic
+  // now, so gating on the flag would cause a no-op under HOSTING_MANDATE_FLOW=manual
+  // (which is production today). See TASKS.md
+  // DA-PROVISIONER-FLOW-AGNOSTIC-AND-STATS-UX for the incident + fix.
 
   const pending = await findPendingTokensFlowHostings({ limit: 100 });
   serverLogger.info(
-    `[Worker:tokens-provision-pending] Found ${pending.length} Hostings pending DA provisioning`
+    `[Worker:provision-pending] Found ${pending.length} Hostings pending DA provisioning`
   );
 
   const counts = {
@@ -89,13 +80,13 @@ export async function POST(request: NextRequest) {
       const msg = err instanceof Error ? err.message : String(err);
       errors.push(`${hosting.domainName}: ${msg}`);
       serverLogger.error(
-        `[Worker:tokens-provision-pending] Unexpected error on ${hosting.domainName}: ${msg}`
+        `[Worker:provision-pending] Unexpected error on ${hosting.domainName}: ${msg}`
       );
     }
   }
 
   serverLogger.info(
-    `[Worker:tokens-provision-pending] Batch complete — ${JSON.stringify(counts)}${errors.length ? ` (${errors.length} unexpected errors)` : ""}`
+    `[Worker:provision-pending] Batch complete — ${JSON.stringify(counts)}${errors.length ? ` (${errors.length} unexpected errors)` : ""}`
   );
 
   return secureJsonResponse({
