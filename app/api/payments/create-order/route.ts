@@ -167,7 +167,17 @@ export async function POST(request: NextRequest) {
         const item = recurringHostingItems[0];
         const isTrial = item.isTrial === true;
 
-        const HostingPlan = (await import("@/models/HostingPlan")).default;
+        // Route the plan lookup through the service helper (not
+        // HostingPlan.findOne directly) so the case-insensitive $regex
+        // in `getPlanByPlanId` fires. The DB stores commercial-tier
+        // planIds as capitalized 'Starter'/'Standard'/'Plus' to match
+        // DA package names, but the frontend's HOSTING_PLANS config
+        // sends lowercase 'starter'/'standard'/'plus'. A direct
+        // Mongoose findOne would miss on case; the helper's regex
+        // matches either way. Same pattern that landed 2026-06-30 in
+        // the trial-eligibility route (`641257a`) — this is that fix
+        // reaching the other create-order call site.
+        const { getPlanByPlanId } = await import("@/lib/services/hosting-plans");
         const { userHasPriorTrialOrder } = await import("@/lib/services/orders");
 
         // Server-side trial eligibility enforcement
@@ -227,7 +237,8 @@ export async function POST(request: NextRequest) {
           });
         }
 
-        const plan = await HostingPlan.findOne({ planId: item.hostingPlan?.id || (item as CartItem & { planId?: string }).planId });
+        const planKey = item.hostingPlan?.id || (item as CartItem & { planId?: string }).planId;
+        const plan = planKey ? await getPlanByPlanId(planKey) : null;
 
         let subscriptionCreated = false;
 
