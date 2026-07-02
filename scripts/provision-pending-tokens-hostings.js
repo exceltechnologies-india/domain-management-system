@@ -1,11 +1,24 @@
 #!/usr/bin/env node
 /**
- * scripts/provision-pending-tokens-hostings.js — Tokens-flow DA-provisioning cron.
+ * scripts/provision-pending-tokens-hostings.js — DA-provisioning cron.
  *
- * After Phase 2C creates a Hosting row in status='pending' with an empty
- * directAdminUsername, this cron picks it up + creates the actual DA user
- * account. On success the Hosting flips to status='active' and the
- * customer's trial is usable.
+ * FLOW-AGNOSTIC as of 2026-07-02: picks up any Hosting row in
+ * status='pending' with an empty directAdminUsername, regardless of
+ * whether it came from the Tokens flow (has razorpayTokenId), Manual
+ * flow (no razorpayTokenId, billingType='manual'), or a future flow
+ * that reuses the same "pending DA-await" shape. The old
+ * razorpayTokenId filter + HOSTING_MANDATE_FLOW='tokens' guard were
+ * removed after Manual-flow trials went live 2026-06-29 — leaving
+ * them in place caused every Manual-flow trial signup to sit in
+ * status='pending' forever. See TASKS.md
+ * MANUAL-FLOW-TRIAL-VERIFIED-END-TO-END → Gap B for the incident.
+ *
+ * On success the Hosting flips to status='active' and the customer's
+ * trial is usable. The welcome-email mandateMode is now derived from
+ * `hosting.razorpayTokenId` / `hosting.billingType` so Tokens-flow
+ * signups get the 1-attempt-suspension callout and Manual-flow signups
+ * get the day-15 manual-payment reminder — messaging accurate to each
+ * signup path.
  *
  * Designed for Cloud Scheduler — invoke every 5-15 min so customers
  * complete the trial signup → DA-account-ready flow within minutes.
@@ -15,14 +28,14 @@
  * The real business logic lives in
  * lib/services/payment/tokens-da-provisioner.ts; this file is the thin
  * CLI wrapper, like Phase 2D's `scripts/charge-recurring-hostings.js`.
+ * The `TokensFlow` in the module name is a legacy artifact of when only
+ * that flow was in scope — its behavior is now flow-agnostic (see the
+ * module's docstring for the rename note).
  *
  * Usage:
  *   node scripts/provision-pending-tokens-hostings.js
  *
  * Safety:
- *   - Refuses to run unless HOSTING_MANDATE_FLOW=tokens (defensive
- *     guard — no Hostings would have razorpayTokenId set otherwise,
- *     so the query would always return empty)
  *   - Per-Hosting errors don't block the batch — log + continue
  *   - DA-unreachable + collision-exhausted + hard-failure all leave
  *     Hosting status='pending' so the next cron run retries
@@ -30,20 +43,13 @@
 require("dotenv").config({ path: ".env.local" });
 const mongoose = require("mongoose");
 
-if (process.env.HOSTING_MANDATE_FLOW !== "tokens") {
-  console.warn(
-    `⚠ HOSTING_MANDATE_FLOW is '${process.env.HOSTING_MANDATE_FLOW || "(unset)"}', not 'tokens' — no Hostings would have razorpayTokenId set, so this cron would no-op. Exiting.`
-  );
-  process.exit(0);
-}
-
 if (!process.env.MONGODB_URI) {
   console.error("✗ MONGODB_URI is unset in .env.local");
   process.exit(1);
 }
 
 async function main() {
-  console.log("─── Tokens-flow DA-provisioning cron ───");
+  console.log("─── Flow-agnostic DA-provisioning cron ───");
   console.log("");
 
   const { findPendingTokensFlowHostings, provisionTokensFlowHosting } =

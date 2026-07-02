@@ -65,16 +65,27 @@ function generateDaUsername(domainPrefix: string): string {
 }
 
 /**
- * Find Tokens-flow Hostings whose DA account hasn't been created yet.
- * Read-only query; caller iterates and invokes `provisionTokensFlowHosting`
- * per result.
+ * Find Hostings whose DA account hasn't been created yet. Flow-agnostic:
+ * picks up Tokens-flow AND Manual-flow trials (both share the same
+ * `status='pending' + directAdminUsername=empty` shape at DA-await
+ * time). The `razorpayTokenId` filter that used to be here was removed
+ * on 2026-07-02 when Manual-flow trials became a first-class signup
+ * path — Manual-flow Hostings have no razorpayTokenId so the old
+ * filter caused them to be silently ignored by the cron, leaving them
+ * in `status='pending'` forever. See TASKS.md
+ * MANUAL-FLOW-TRIAL-VERIFIED-END-TO-END → Gap B for the incident.
+ *
+ * Name kept as `findPendingTokensFlowHostings` to avoid an import-site
+ * churn across the cron script + tests; the docstring is the source of
+ * truth for behavior. A future refactor can rename to
+ * `findPendingHostingsAwaitingDa` once the ecosystem cleanup value
+ * outweighs the diff-size cost.
  */
 export async function findPendingTokensFlowHostings(opts: {
   limit?: number;
 } = {}): Promise<HydratedDocument<IHosting>[]> {
   return Hosting.find({
     status: "pending",
-    razorpayTokenId: { $exists: true, $ne: null, $nin: ["", null] },
     $or: [
       { directAdminUsername: "" },
       { directAdminUsername: { $exists: false } },
@@ -192,6 +203,19 @@ export async function provisionTokensFlowHosting(
       `[TOKENS-DA-PROVISIONER] Could not look up plan name for email: ${e instanceof Error ? e.message : String(e)}`
     );
   }
+  // Derive the welcome-email mandateMode from the Hosting record so
+  // Manual-flow trials get the "manual day-15 payment reminder" tone +
+  // Tokens-flow trials get the "hard 1-attempt suspension policy" tone.
+  // Was previously hardcoded to 'tokens'; that gave Manual-flow customers
+  // messaging that didn't match their signup path (they'll never
+  // experience an MIT charge). Signal precedence: razorpayTokenId set
+  // → Tokens flow; else billingType='manual' → Manual flow; else fall
+  // back to 'subscriptions' for legacy pre-Tokens signups.
+  const emailMandateMode: "tokens" | "manual" | "subscriptions" = hosting.razorpayTokenId
+    ? "tokens"
+    : hosting.billingType === "manual"
+      ? "manual"
+      : "subscriptions";
   try {
     await EmailService.sendHostingProvisionedEmail(
       user.email,
@@ -202,10 +226,7 @@ export async function provisionTokensFlowHosting(
         planName,
         serverIp: DA_SERVER_IP,
         nameservers: DirectAdminService.NAMESERVERS,
-        // Tokens-flow customers see the hard 1-attempt policy callout
-        // up front so the suspension expectation is set before their
-        // first MIT charge fires (d4b6a64).
-        mandateMode: "tokens",
+        mandateMode: emailMandateMode,
       }
     );
     serverLogger.info(

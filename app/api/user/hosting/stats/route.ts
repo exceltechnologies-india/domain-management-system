@@ -307,9 +307,79 @@ export async function GET(request: NextRequest) {
     const results = await Promise.all(accountStatsPromises);
     const validResults = results.filter(r => r !== null);
 
-    return secureJsonResponse({ 
-      success: true, 
-      data: validResults // Returns Array
+    // Surface pending Hostings that don't have a DA account yet. Without
+    // this, /dashboard/hosting was showing "No Hosting Services" for
+    // customers whose trial signup succeeded but whose DA account was
+    // still being provisioned by the cron — the manual-flow trial
+    // window (up to ~15 min while the cron cycles) meant fresh signups
+    // saw an empty panel + doubted their signup even happened. Added
+    // 2026-07-02 alongside the flow-agnostic DA-provisioner extension
+    // (see TASKS.md MANUAL-FLOW-TRIAL-VERIFIED-END-TO-END → Gap A).
+    //
+    // Dedupe by domainName against the DA-derived results — if a
+    // Hosting has been provisioned (has directAdminUsername now) it's
+    // already in `validResults` via the DA-usernames scan above; we
+    // don't want to double-list it as pending too. In practice this
+    // race is narrow (~5-15 min) but the guard is cheap.
+    const Hosting = (await import("@/models/Hosting")).default;
+    const pendingWithoutDa = await Hosting.find({
+      userId: user._id,
+      status: "pending",
+      $or: [
+        { directAdminUsername: "" },
+        { directAdminUsername: { $exists: false } },
+      ],
+    })
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .lean();
+
+    const alreadyListed = new Set(
+      validResults
+        .map((r) => (r as { domain?: string }).domain?.toLowerCase())
+        .filter((d): d is string => !!d)
+    );
+
+    const pendingEntries = pendingWithoutDa
+      .filter((h) => !alreadyListed.has(h.domainName?.toLowerCase() ?? ""))
+      .map((h) => {
+        // Match the shape the DA-derived branch returns so the frontend's
+        // existing pending-status UI + trial badge + mandateMode logic
+        // all fire cleanly without additional branching.
+        const mandateMode: "tokens" | "subscriptions" | "manual" = h.razorpayTokenId
+          ? "tokens"
+          : h.billingType === "manual"
+            ? "manual"
+            : "subscriptions";
+        return {
+          username: "",
+          domain: h.domainName,
+          status: "pending" as const,
+          hostingId: String(h._id),
+          bandwidth: "0",
+          quota: "0",
+          usedBandwidth: 0,
+          usedQuota: 0,
+          serverIp: null,
+          nameservers: [] as string[],
+          phpVersion: null,
+          suspended: false,
+          package: h.serverPackage || h.planId,
+          expires_at: h.expiryDate ?? null,
+          createdAt: h.startDate ?? h.createdAt ?? null,
+          plan: null,
+          isTrial: h.isTrial === true,
+          billingType: h.billingType,
+          subscriptionId: h.subscriptionId ?? null,
+          razorpayCustomerId: h.razorpayCustomerId ?? null,
+          razorpayTokenId: h.razorpayTokenId ?? null,
+          mandateMode,
+        };
+      });
+
+    return secureJsonResponse({
+      success: true,
+      data: [...validResults, ...pendingEntries],
     });
 
   } catch (error: unknown) {
