@@ -86,11 +86,71 @@ export async function GET(request: NextRequest) {
     }
 
     const targetUsernames = Array.from(matchingDaUsernames);
-    
+
+    // Shared helper — surfaces local Hostings in status='pending' without
+    // a DA account yet. Called BOTH here (when the user has no linked DA
+    // usernames at all — the "fresh manual-flow trial signup" case)
+    // AND at the bottom of the DA-derived path (to catch pending Hostings
+    // alongside active ones). Was missed on the first pass in
+    // dms-00233-sbc — the DA-derived branch got the fix but this early-
+    // return branch did not, so a fresh manual-flow trial signup still
+    // saw "No Hosting Services" on /dashboard/hosting.
+    const fetchPendingHostingEntries = async (
+      alreadyListedDomains: Set<string>
+    ) => {
+      const Hosting = (await import("@/models/Hosting")).default;
+      const pendingWithoutDa = await Hosting.find({
+        userId: user._id,
+        status: "pending",
+        $or: [
+          { directAdminUsername: "" },
+          { directAdminUsername: { $exists: false } },
+        ],
+      })
+        .sort({ createdAt: -1 })
+        .limit(20)
+        .lean();
+
+      return pendingWithoutDa
+        .filter((h) => !alreadyListedDomains.has(h.domainName?.toLowerCase() ?? ""))
+        .map((h) => {
+          const mandateMode: "tokens" | "subscriptions" | "manual" = h.razorpayTokenId
+            ? "tokens"
+            : h.billingType === "manual"
+              ? "manual"
+              : "subscriptions";
+          return {
+            username: "",
+            domain: h.domainName,
+            status: "pending" as const,
+            hostingId: String(h._id),
+            bandwidth: "0",
+            quota: "0",
+            usedBandwidth: 0,
+            usedQuota: 0,
+            serverIp: null,
+            nameservers: [] as string[],
+            phpVersion: null,
+            suspended: false,
+            package: h.serverPackage || h.planId,
+            expires_at: h.expiryDate ?? null,
+            createdAt: h.startDate ?? h.createdAt ?? null,
+            plan: null,
+            isTrial: h.isTrial === true,
+            billingType: h.billingType,
+            subscriptionId: h.subscriptionId ?? null,
+            razorpayCustomerId: h.razorpayCustomerId ?? null,
+            razorpayTokenId: h.razorpayTokenId ?? null,
+            mandateMode,
+          };
+        });
+    };
+
     if (targetUsernames.length === 0) {
-         return NextResponse.json({ 
-            success: true, 
-            data: [] // Empty array
+         const pendingEntries = await fetchPendingHostingEntries(new Set());
+         return NextResponse.json({
+            success: true,
+            data: pendingEntries,
           });
     }
 
@@ -307,75 +367,17 @@ export async function GET(request: NextRequest) {
     const results = await Promise.all(accountStatsPromises);
     const validResults = results.filter(r => r !== null);
 
-    // Surface pending Hostings that don't have a DA account yet. Without
-    // this, /dashboard/hosting was showing "No Hosting Services" for
-    // customers whose trial signup succeeded but whose DA account was
-    // still being provisioned by the cron — the manual-flow trial
-    // window (up to ~15 min while the cron cycles) meant fresh signups
-    // saw an empty panel + doubted their signup even happened. Added
-    // 2026-07-02 alongside the flow-agnostic DA-provisioner extension
-    // (see TASKS.md MANUAL-FLOW-TRIAL-VERIFIED-END-TO-END → Gap A).
-    //
-    // Dedupe by domainName against the DA-derived results — if a
-    // Hosting has been provisioned (has directAdminUsername now) it's
-    // already in `validResults` via the DA-usernames scan above; we
-    // don't want to double-list it as pending too. In practice this
-    // race is narrow (~5-15 min) but the guard is cheap.
-    const Hosting = (await import("@/models/Hosting")).default;
-    const pendingWithoutDa = await Hosting.find({
-      userId: user._id,
-      status: "pending",
-      $or: [
-        { directAdminUsername: "" },
-        { directAdminUsername: { $exists: false } },
-      ],
-    })
-      .sort({ createdAt: -1 })
-      .limit(20)
-      .lean();
-
+    // Also fetch pending Hostings without DA accounts (see the
+    // fetchPendingHostingEntries helper defined above). Dedupe against
+    // domainNames already present in the DA-derived results — narrow
+    // race window (~5-15 min) where a provisioned Hosting could appear
+    // in both if the cron ran mid-request.
     const alreadyListed = new Set(
       validResults
         .map((r) => (r as { domain?: string }).domain?.toLowerCase())
         .filter((d): d is string => !!d)
     );
-
-    const pendingEntries = pendingWithoutDa
-      .filter((h) => !alreadyListed.has(h.domainName?.toLowerCase() ?? ""))
-      .map((h) => {
-        // Match the shape the DA-derived branch returns so the frontend's
-        // existing pending-status UI + trial badge + mandateMode logic
-        // all fire cleanly without additional branching.
-        const mandateMode: "tokens" | "subscriptions" | "manual" = h.razorpayTokenId
-          ? "tokens"
-          : h.billingType === "manual"
-            ? "manual"
-            : "subscriptions";
-        return {
-          username: "",
-          domain: h.domainName,
-          status: "pending" as const,
-          hostingId: String(h._id),
-          bandwidth: "0",
-          quota: "0",
-          usedBandwidth: 0,
-          usedQuota: 0,
-          serverIp: null,
-          nameservers: [] as string[],
-          phpVersion: null,
-          suspended: false,
-          package: h.serverPackage || h.planId,
-          expires_at: h.expiryDate ?? null,
-          createdAt: h.startDate ?? h.createdAt ?? null,
-          plan: null,
-          isTrial: h.isTrial === true,
-          billingType: h.billingType,
-          subscriptionId: h.subscriptionId ?? null,
-          razorpayCustomerId: h.razorpayCustomerId ?? null,
-          razorpayTokenId: h.razorpayTokenId ?? null,
-          mandateMode,
-        };
-      });
+    const pendingEntries = await fetchPendingHostingEntries(alreadyListed);
 
     return secureJsonResponse({
       success: true,
