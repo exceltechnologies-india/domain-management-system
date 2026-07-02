@@ -46,6 +46,7 @@ import { EmailService } from "@/lib/email";
 import { getUserById, setUserDirectAdminUsername } from "@/lib/services/users";
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import { serverLogger } from "@/lib/server-logger";
+import connectDB from "@/lib/mongodb";
 
 const MAX_USERNAME_ATTEMPTS = 3;
 
@@ -84,6 +85,17 @@ function generateDaUsername(domainPrefix: string): string {
 export async function findPendingTokensFlowHostings(opts: {
   limit?: number;
 } = {}): Promise<HydratedDocument<IHosting>[]> {
+  // Establish the Mongoose connection before firing the query. Without
+  // this, HTTP-worker invocations against a cold Cloud Run instance
+  // (Cloud Scheduler wakes the container from zero) hit
+  // `MongooseError: Operation hostings.find() buffering timed out
+  // after 10000ms` because Mongoose buffers queries while waiting for
+  // a connection that the caller never established. The CLI cron
+  // establishes the connection in its `main()`; the HTTP worker did
+  // not — and this service module used to assume the caller had done
+  // it. Adding `connectDB()` here fixes both paths (idempotent, so no
+  // harm when the CLI has already connected).
+  await connectDB();
   return Hosting.find({
     status: "pending",
     $or: [
@@ -104,6 +116,13 @@ export async function findPendingTokensFlowHostings(opts: {
 export async function provisionTokensFlowHosting(
   hosting: HydratedDocument<IHosting>
 ): Promise<ProvisionResult> {
+  // Defensive — same reason as findPendingTokensFlowHostings.
+  // provisionTokensFlowHosting is often called after the finder (which
+  // now establishes the connection), but the one-off script
+  // scripts/provision-one-hosting.js loads a Hosting doc directly via
+  // Hosting.findById and could call this function on a cold container.
+  // connectDB is idempotent, so pairing it here is free insurance.
+  await connectDB();
   const hostingId = String(hosting._id);
   const baseResult: Pick<ProvisionResult, "hostingId" | "domainName"> = {
     hostingId,
