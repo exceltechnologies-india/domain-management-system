@@ -44,6 +44,9 @@ vi.mock("@/lib/auth", () => ({
   AuthService: { isAdmin },
 }));
 
+const authorizeCronRequest = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/cron-auth", () => ({ authorizeCronRequest }));
+
 const daSuspendUser = vi.hoisted(() => vi.fn());
 const daUnsuspendUser = vi.hoisted(() => vi.fn());
 const daDeleteUser = vi.hoisted(() => vi.fn());
@@ -93,6 +96,9 @@ function makeReq(body: unknown) {
 
 beforeEach(() => {
   isAdmin.mockReset().mockResolvedValue(true);
+  // Default: no cron header → route falls through to admin gate. Individual
+  // tests exercising the cron-secret machine-auth path re-mock this to true.
+  authorizeCronRequest.mockReset().mockReturnValue(false);
   daSuspendUser.mockReset();
   daUnsuspendUser.mockReset();
   daDeleteUser.mockReset();
@@ -115,6 +121,28 @@ describe("Admin gate", () => {
     const body = await res.json();
     expect(body.code).toBe("FORBIDDEN");
     expect(daSuspendUser).not.toHaveBeenCalled();
+  });
+
+  it("**cron-secret header valid → 200 EVEN when admin session absent** (scripts/purge-test-users.js path)", async () => {
+    authorizeCronRequest.mockReturnValueOnce(true);
+    isAdmin.mockResolvedValueOnce(false);
+    daDeleteUser.mockResolvedValueOnce({ kind: "user_not_found" });
+    const res = await POST(makeReq({ action: "delete", username: "alice_da" }));
+    expect(res.status).toBe(200);
+    // Admin gate MUST NOT be consulted when cron auth succeeded — that
+    // would waste a session lookup + hide auth-path bugs behind the
+    // admin fallback.
+    expect(isAdmin).not.toHaveBeenCalled();
+  });
+
+  it("**cron-secret invalid + admin session absent → 403 FORBIDDEN** (defence-in-depth)", async () => {
+    authorizeCronRequest.mockReturnValueOnce(false);
+    isAdmin.mockResolvedValueOnce(false);
+    const res = await POST(makeReq({ action: "delete", username: "alice_da" }));
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.code).toBe("FORBIDDEN");
+    expect(daDeleteUser).not.toHaveBeenCalled();
   });
 });
 

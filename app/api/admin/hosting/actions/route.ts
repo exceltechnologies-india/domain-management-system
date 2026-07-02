@@ -11,6 +11,7 @@ import { clearDirectAdminUsernameForAll } from "@/lib/services/users";
 import { deleteHostingsByIdOrUsername } from "@/lib/services/hostings";
 import { RazorpayService } from "@/lib/razorpay";
 import { validatedBody, z } from "@/lib/api-validation";
+import { authorizeCronRequest } from "@/lib/cron-auth";
 
 // Discriminated union per action. suspend/unsuspend require username
 // (the typed DA wrappers can't operate without it — the previous
@@ -45,14 +46,25 @@ export const dynamic = 'force-dynamic';
 /**
  * POST /api/admin/hosting/actions
  * Perform administrative actions on hosting accounts (suspend, unsuspend, delete).
- * Restricted to Admins only.
+ * Two auth paths, either sufficient:
+ *   1. Admin session cookie (from the /admin dashboard UI in a browser).
+ *   2. `x-cron-secret` header matching CRON_SECRET (for scripts/purge-test-users.js
+ *      and future machine-authored operator scripts). Added 2026-07-02 because
+ *      operator machines aren't whitelisted at DirectAdmin's 4 filter layers —
+ *      only the Cloud Run NAT egress IP is. Direct DA API calls from local
+ *      always 401, so the purge script needs to route DA deletes through the
+ *      production route (which runs on Cloud Run's whitelisted IP). See
+ *      [[project_da_whitelist_layers]] + TASKS.md ADMIN-ACTIONS-CRON-AUTH.
  */
 export async function POST(request: NextRequest) {
   try {
-    // 1. Authenticate and check Admin role
-    const isAdmin = await AuthService.isAdmin(request);
-    if (!isAdmin) {
-      return secureErrorResponse("Unauthorized. Admin access required.", 403, "FORBIDDEN");
+    // 1. Authenticate: cron-secret header OR admin session cookie.
+    const isCron = authorizeCronRequest(request);
+    if (!isCron) {
+      const isAdmin = await AuthService.isAdmin(request);
+      if (!isAdmin) {
+        return secureErrorResponse("Unauthorized. Admin access required.", 403, "FORBIDDEN");
+      }
     }
 
     const validation = await validatedBody(request, hostingActionSchema);

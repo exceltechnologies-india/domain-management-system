@@ -18,11 +18,20 @@
  * Cascade order (most-dependent → least-dependent):
  *   1. RecurringChargeAttempt rows  (by hostingId in user's Hostings)
  *   2. PendingHosting rows          (by userId / userEmail)
- *   3. DirectAdmin user accounts    (best-effort HTTP call; if DA is
- *                                    down, the local Hosting row is
- *                                    still removed — DA orphan rows
- *                                    must be cleaned manually in that
- *                                    case)
+ *   3. DirectAdmin user accounts    (routed through the production
+ *                                    /api/v1/admin/hosting/actions
+ *                                    endpoint using `x-cron-secret`
+ *                                    header — so the DA API call
+ *                                    executes from Cloud Run's
+ *                                    whitelisted IP, not the
+ *                                    operator's local machine which
+ *                                    is blocked at all 4 DA filter
+ *                                    layers. Same endpoint the admin
+ *                                    UI delete button uses; also
+ *                                    cascade-cancels Razorpay subs +
+ *                                    clears User.directAdminUsername
+ *                                    mapping — no extra work needed
+ *                                    below for those.)
  *   4. Hosting rows                 (by userId)
  *   5. PendingDomain rows           (by userId — domain registrations
  *                                    that hit insufficient-balance or
@@ -100,44 +109,71 @@ console.log(`\n${MODE} — ${emails.length} target user(s):`);
 emails.forEach((e) => console.log(`   • ${e}`));
 console.log('');
 
-// ── DirectAdmin client (lightweight, fetch-based, no model imports) ──
+// ── DirectAdmin delete via the production admin-actions endpoint ──
 //
-// Mirrors the call pattern in lib/directadmin/users.ts:deleteUser —
-// POST to /CMD_API_SELECT_USERS with location/delete/confirmed/select0.
-// Returns { ok: boolean, reason: string }; best-effort by design (a DA
-// outage shouldn't block the MongoDB cleanup).
+// Why not call DA directly (the old approach): operator machines aren't
+// whitelisted at DA's 4 filter layers (network firewall + CSF + BFM skip +
+// login-key Allow Networks). Only Cloud Run's NAT egress IP is. Direct
+// CMD_API_SELECT_USERS calls from local always return 401 "Not logged in",
+// which the previous version of this function silently reported as
+// "success (raw text: ...)" or a permission error, orphaning DA accounts.
+//
+// The endpoint here (`/api/v1/admin/hosting/actions` = the same route the
+// admin dashboard's Delete button uses) runs on Cloud Run — its outbound
+// DA calls come from the whitelisted IP. Auth is via the shared
+// `x-cron-secret` header path added 2026-07-02; see route file for the
+// full rationale.
+//
+// The route also cancels any Razorpay subscription attached to the row
+// and clears User.directAdminUsername mapping — cascade steps we used to
+// do here inline are now handled server-side, which is why steps 4/5
+// below still run (idempotent: they'll just report 0 deleted for the
+// already-cleaned Hosting row).
 async function daDeleteUser(username) {
-  const baseUrl = process.env.DIRECTADMIN_URL;
-  const adminUser = process.env.DIRECTADMIN_ADMIN_USER;
-  const apiKey = process.env.DIRECTADMIN_API_KEY;
-  if (!baseUrl || !adminUser || !apiKey) {
-    return { ok: false, reason: 'DA env vars not set (DIRECTADMIN_URL/USER/API_KEY)' };
+  const appUrl = process.env.APP_URL || 'https://app.anutech.in';
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) {
+    return {
+      ok: false,
+      reason:
+        'CRON_SECRET not set in .env.local — fetch with: gcloud secrets versions access latest --secret=CRON_SECRET --project=speedy-unison-453807-e9',
+    };
   }
-  const body = new URLSearchParams({
-    location: 'CMD_SELECT_USERS',
-    delete: 'Delete',
-    confirmed: 'Confirm',
-    select0: username,
-  }).toString();
-  const auth = Buffer.from(`${adminUser}:${apiKey}`).toString('base64');
   try {
-    const res = await fetch(`${baseUrl}/CMD_API_SELECT_USERS`, {
+    const res = await fetch(`${appUrl}/api/v1/admin/hosting/actions`, {
       method: 'POST',
       headers: {
-        'Authorization': `Basic ${auth}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
+        'x-cron-secret': cronSecret,
       },
-      body,
-      signal: AbortSignal.timeout(20000),
+      body: JSON.stringify({ action: 'delete', username }),
+      signal: AbortSignal.timeout(30000),
     });
-    const text = await res.text();
-    if (text && (text.includes('error=1') || text.startsWith('error=1'))) {
-      return { ok: false, reason: text.slice(0, 200) };
+    let body;
+    try {
+      body = await res.json();
+    } catch {
+      const text = await res.text().catch(() => '');
+      return { ok: false, reason: `HTTP ${res.status} non-JSON body: ${text.slice(0, 200)}` };
     }
-    if (text.toLowerCase().includes('unable to find user')) {
-      return { ok: true, reason: 'already gone (DA reports user_not_found)' };
+    if (res.status !== 200 || !body?.success) {
+      return {
+        ok: false,
+        reason: `HTTP ${res.status} ${body?.code || ''} ${body?.error || JSON.stringify(body).slice(0, 200)}`,
+      };
     }
-    return { ok: true, reason: text.slice(0, 200) || 'deleted' };
+    const outcome = body?.data?.outcome || 'ok';
+    const warning = body?.data?.warning;
+    // 'deleted' + 'user_not_found' are both clean successes for our
+    // purposes; the second means the DA orphan was already gone (still
+    // a good outcome for a scrub script). Anything else (da_unreachable,
+    // hard_failure) surfaces via `warning` — local records were still
+    // cleared on the server side, so we report ok:true but pass the
+    // warning through so the operator sees it.
+    if (warning) {
+      return { ok: true, reason: `${outcome} (warning: ${warning})` };
+    }
+    return { ok: true, reason: outcome };
   } catch (e) {
     return { ok: false, reason: e?.message || String(e) };
   }
