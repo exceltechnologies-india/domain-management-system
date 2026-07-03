@@ -28,6 +28,7 @@ import {
   HardDrive,
   ChevronLeft,
   ChevronRight,
+  LogIn,
 } from 'lucide-react';
 import ActionMenu from '@/components/admin/ActionMenu';
 import RefreshButton from '@/components/dashboard/RefreshButton';
@@ -1709,6 +1710,23 @@ export default function AdminHostingPage() {
                 label: 'View Details',
                 icon: Eye,
                 onClick: () => handleViewDetails(menuData.daUsername),
+                variant: 'info' as const
+              },
+              {
+                // Admin-side DA impersonation. Opens the customer's DA
+                // control panel in a new tab via a one-time login URL
+                // minted server-side (see app/api/admin/hosting/sso).
+                // Every access is audit-logged with the admin's email +
+                // the target DA username. Suspended accounts are
+                // accessible (admin may need to fix/investigate from
+                // inside DA), unlike the customer SSO route which blocks
+                // suspended accounts.
+                label: 'Login to DA Panel',
+                icon: LogIn,
+                onClick: () => {
+                  const url = `/api/v1/admin/hosting/sso?username=${encodeURIComponent(menuData.daUsername)}`;
+                  window.open(url, '_blank', 'noopener,noreferrer');
+                },
                 variant: 'info' as const
               },
               {
