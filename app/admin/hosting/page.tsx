@@ -85,6 +85,31 @@ interface HostingData {
   billingType?: string | null;
 }
 
+// Module-scope client-side cache for /admin/hosting/stats response.
+// Populated on every completed fetch; consulted on mount so navigating
+// away from /admin/hosting + back within the TTL doesn't re-run the DA
+// fan-out. Cleared on manual Refresh click, and invalidated on
+// sign-out (via the auth-check useEffect's dependency on session).
+// 5-minute TTL is generous — a real customer signup that lands during
+// that window will show up on the next natural refresh, and the
+// operator can force a refresh any time.
+//
+// Trade-off: within-window changes (a suspend action, a new signup)
+// won't appear until the operator hits Refresh or the TTL expires.
+// Acceptable because admin actions that MUTATE hosting state (suspend,
+// delete, change-package) go through their own endpoints + refresh
+// hostingData programmatically after success — the cache is only for
+// pure-read repeat visits.
+const HOSTING_STATS_CACHE_TTL_MS = 5 * 60 * 1000;
+let hostingStatsCache: {
+  data: HostingData[];
+  counts: { totalHostings: number; trial: number; paid: number } | null;
+  daMode: string;
+  isServerDown: boolean;
+  daError: string | null;
+  timestamp: number;
+} | null = null;
+
 export default function AdminHostingPage() {
   const [user, setUser] = useState<User | null>(null);
   const [hostingData, setHostingData] = useState<HostingData[]>([]);
@@ -308,7 +333,28 @@ export default function AdminHostingPage() {
    * search term is present, we go straight to the full fetch (slower
    * first paint but the right rows are present immediately).
    */
-  const fetchHostingData = async () => {
+  const fetchHostingData = async (opts?: { force?: boolean }) => {
+    const force = opts?.force === true;
+
+    // Consult the 5-minute cache first — unless the caller explicitly
+    // opted out (e.g. the Refresh button, which always wants fresh
+    // data). Deep-link path also skips cache since the searchTerm is
+    // meaningful state that the cache doesn't key on.
+    const cacheHit =
+      !force &&
+      !searchTerm.trim() &&
+      hostingStatsCache &&
+      Date.now() - hostingStatsCache.timestamp < HOSTING_STATS_CACHE_TTL_MS;
+    if (cacheHit && hostingStatsCache) {
+      setHostingData(hostingStatsCache.data);
+      setServerCounts(hostingStatsCache.counts);
+      setDaMode(hostingStatsCache.daMode);
+      setIsServerDown(hostingStatsCache.isServerDown);
+      setDaError(hostingStatsCache.daError);
+      setIsDataLoading(false);
+      return;
+    }
+
     setIsDataLoading(true);
     setIsServerDown(false); // Reset
 
@@ -364,6 +410,10 @@ export default function AdminHostingPage() {
       if (fullData.daMode) setDaMode(fullData.daMode);
       setIsServerDown(!fullData.isDaConnected);
       setDaError(fullData.daError || null);
+      // Deep-link path skips the module-scope cache write — the cache
+      // is keyed on "no search present" reads only, since a search-
+      // scoped fetch may exclude rows a subsequent unfiltered load
+      // would need.
       setIsDataLoading(false);
       return; // Skip Pass 2 — we already have the full dataset
     }
@@ -443,6 +493,20 @@ export default function AdminHostingPage() {
     // at. A friendly toast surfaces the timeout with a "click Refresh"
     // hint so the operator knows to retry rather than assume the data
     // shown is the complete set.
+    // If Pass 1 wasn't truncated, it already carried the full dataset —
+    // populate the cache from Pass 1's response so subsequent visits
+    // within the TTL can skip the fetch entirely.
+    if (!firstData.pagination?.truncated) {
+      hostingStatsCache = {
+        data: Array.from(new Map((firstData.data ?? []).map((item) => [item.id, item])).values()),
+        counts: firstData.counts ?? null,
+        daMode: firstData.daMode ?? 'Live',
+        isServerDown: !firstData.isDaConnected,
+        daError: firstData.daError ?? null,
+        timestamp: Date.now(),
+      };
+    }
+
     if (firstData.pagination?.truncated) {
       setIsBackgroundFetching(true);
       try {
@@ -458,6 +522,18 @@ export default function AdminHostingPage() {
           const fullData = Array.from(new Map(fullResult.data.data.map((item) => [item.id, item])).values());
           setHostingData(fullData);
           if (fullResult.data.counts) setServerCounts(fullResult.data.counts);
+          // Write to module-scope cache — this is the "complete" state.
+          // Populated only on Pass-2 success so we don't cache a partial
+          // Pass-1 slice (which would then serve stale/partial data to
+          // the next mount).
+          hostingStatsCache = {
+            data: fullData,
+            counts: fullResult.data.counts ?? null,
+            daMode: firstData.daMode ?? 'Live',
+            isServerDown: !firstData.isDaConnected,
+            daError: firstData.daError ?? null,
+            timestamp: Date.now(),
+          };
         } else if (!fullResult.ok) {
           // Distinguish timeout (fetch aborted by AbortSignal.timeout) from
           // other network errors. AbortError surfaces via the api-client
@@ -887,8 +963,9 @@ export default function AdminHostingPage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search by domain…"
-                  className="w-full sm:w-80 pl-10 pr-9 py-2 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                  placeholder={isDataLoading || isBackgroundFetching ? 'Loading dataset — please wait…' : 'Search by domain…'}
+                  disabled={isDataLoading || isBackgroundFetching}
+                  className="w-full sm:w-80 pl-10 pr-9 py-2 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow disabled:opacity-60 disabled:cursor-not-allowed"
                   value={searchTerm}
                   onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                 />
@@ -909,7 +986,15 @@ export default function AdminHostingPage() {
                   </span>
                 )}
               </div>
-              <RefreshButton onClick={fetchHostingData} isLoading={isDataLoading || isBackgroundFetching} />
+              <RefreshButton
+                onClick={() => {
+                  // Manual refresh always bypasses the 5-min cache — the
+                  // operator explicitly asked for fresh data.
+                  hostingStatsCache = null;
+                  void fetchHostingData({ force: true });
+                }}
+                isLoading={isDataLoading || isBackgroundFetching}
+              />
             </div>
           </div>
           {/* Content body wrapper for table/loading/empty states */}
