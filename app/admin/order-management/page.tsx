@@ -384,11 +384,27 @@ export default function AdminOrders() {
       key: 'amount',
       label: 'Amount',
       sortable: true,
-      render: (_value: unknown, row: Order) => (
-        <span className="text-xs sm:text-sm font-medium text-gray-900">
-          ₹{row.amount.toFixed(2)}
-        </span>
-      )
+      render: (_value: unknown, row: Order) => {
+        // Trial rows carry `amount: 0` because there's no charge at signup
+        // (see CLAUDE.md → "Trial order invoice policy"). Rendering the
+        // raw `₹0.00` next to real-money orders reads as either "refunded"
+        // or "bug" — replace with an explicit "Free trial" marker so
+        // reviewers scanning the Amount column can distinguish trial
+        // signups from ₹0 refunds at a glance. Amber-italic matches the
+        // TRIAL pill in the Order ID column for visual consistency.
+        if (row.orderType === 'hosting_trial') {
+          return (
+            <span className="text-xs sm:text-sm font-medium italic text-amber-700">
+              Free trial
+            </span>
+          );
+        }
+        return (
+          <span className="text-xs sm:text-sm font-medium text-gray-900">
+            ₹{row.amount.toFixed(2)}
+          </span>
+        );
+      }
     },
     {
       key: 'status',
@@ -610,22 +626,38 @@ export default function AdminOrders() {
                   </div>
                 </div>
 
-                {/* Amount Breakdown */}
-                <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-600">Subtotal</span>
-                    <span className="text-gray-900">₹{(selectedOrder.amount / 1.18).toFixed(2)}</span>
+                {/* Amount Breakdown — trials get a distinct card explaining
+                    the ₹0 amount + when the first real invoice fires. Non-trial
+                    orders keep the Subtotal/GST/Total breakdown unchanged. */}
+                {selectedOrder.orderType === 'hosting_trial' ? (
+                  <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-amber-900">Free Trial Signup</span>
+                      <span className="text-lg font-bold italic text-amber-800">₹0.00</span>
+                    </div>
+                    <p className="text-xs text-amber-800/80 leading-relaxed">
+                      No charge today. The customer&apos;s first tax invoice fires when they convert
+                      to a paid plan at day 15+ via the renewal flow — a separate Order will be created
+                      at that point with the real yearly amount (₹599.88 for Starter).
+                    </p>
                   </div>
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-600">GST (18%)</span>
-                    <span className="text-gray-900">₹{(selectedOrder.amount - (selectedOrder.amount / 1.18)).toFixed(2)}</span>
+                ) : (
+                  <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600">Subtotal</span>
+                      <span className="text-gray-900">₹{(selectedOrder.amount / 1.18).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600">GST (18%)</span>
+                      <span className="text-gray-900">₹{(selectedOrder.amount - (selectedOrder.amount / 1.18)).toFixed(2)}</span>
+                    </div>
+                    <div className="border-t pt-2 flex justify-between items-center">
+                      <span className="font-semibold text-gray-900">Total (incl. GST)</span>
+                      <span className="text-lg font-bold text-blue-600">₹{selectedOrder.amount.toFixed(2)} {selectedOrder.currency}</span>
+                    </div>
+                    <p className="text-xs text-gray-500 text-right">*GST (18%) is included in the total amount</p>
                   </div>
-                  <div className="border-t pt-2 flex justify-between items-center">
-                    <span className="font-semibold text-gray-900">Total (incl. GST)</span>
-                    <span className="text-lg font-bold text-blue-600">₹{selectedOrder.amount.toFixed(2)} {selectedOrder.currency}</span>
-                  </div>
-                  <p className="text-xs text-gray-500 text-right">*GST (18%) is included in the total amount</p>
-                </div>
+                )}
 
                 {/* Recurring Payment / Mandate Details — only when a recurring-payment
                     mode is set on the order. Surfaces the Razorpay customerId +
@@ -796,7 +828,9 @@ export default function AdminOrders() {
                       Customer: {orderToDelete.userId ? `${orderToDelete.userId.firstName} ${orderToDelete.userId.lastName}` : 'Unknown'}
                     </div>
                     <div className="text-gray-600">
-                      Amount: ₹{orderToDelete.amount.toFixed(2)} {orderToDelete.currency}
+                      Amount: {orderToDelete.orderType === 'hosting_trial'
+                        ? <span className="italic text-amber-700">Free trial (₹0)</span>
+                        : `₹${orderToDelete.amount.toFixed(2)} ${orderToDelete.currency}`}
                     </div>
                     <div className="text-gray-600">
                       Status: {orderToDelete.status}
@@ -864,7 +898,9 @@ export default function AdminOrders() {
                       Customer: {orderToUnarchive.userId ? `${orderToUnarchive.userId.firstName} ${orderToUnarchive.userId.lastName}` : 'Unknown'}
                     </div>
                     <div className="text-gray-600">
-                      Amount: ₹{orderToUnarchive.amount.toFixed(2)} {orderToUnarchive.currency}
+                      Amount: {orderToUnarchive.orderType === 'hosting_trial'
+                        ? <span className="italic text-amber-700">Free trial (₹0)</span>
+                        : `₹${orderToUnarchive.amount.toFixed(2)} ${orderToUnarchive.currency}`}
                     </div>
                     <div className="text-gray-600">
                       Status: {orderToUnarchive.status}
