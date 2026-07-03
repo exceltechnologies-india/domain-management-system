@@ -151,6 +151,12 @@ export default function AdminPendingDomainsPage() {
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [domainToArchive, setDomainToArchive] = useState<PendingDomain | null>(null);
 
+  // Bulk archive — separate confirmation from single-row archive so the
+  // "are you sure you want to archive N rows" copy stays distinct from
+  // the "archive this specific row" flow. Both paths funnel through the
+  // same DELETE endpoint per row; bulk loops the client-side.
+  const [showBulkArchiveConfirm, setShowBulkArchiveConfirm] = useState(false);
+
   const [showMarkResolvedConfirm, setShowMarkResolvedConfirm] = useState(false);
   const [domainToMarkResolved, setDomainToMarkResolved] = useState<PendingDomain | null>(null);
 
@@ -312,6 +318,41 @@ export default function AdminPendingDomainsPage() {
   const handleArchiveClick = (domain: PendingDomain) => {
     setDomainToArchive(domain);
     setShowArchiveConfirm(true);
+  };
+
+  // Bulk archive — loop the existing per-row DELETE endpoint client-side
+  // rather than adding a dedicated `/pending-domains/bulk-archive` route.
+  // Each row goes through the same server-side validation + audit path
+  // the single archive uses. Admin bulk actions are typically <20 rows;
+  // sequential DELETEs against Cloud Run's warm instance run well under
+  // 5s total. `Promise.all` for concurrency — server can handle it.
+  const handleBulkArchive = async (domainIds: string[]) => {
+    if (domainIds.length === 0) return;
+    setShowBulkArchiveConfirm(false);
+    setActionLoading("bulk-archive");
+
+    const results = await Promise.all(
+      domainIds.map(async (id) => {
+        const r = await apiClient.delete<{ success?: boolean; error?: string }>(
+          `/api/v1/admin/pending-domains/${id}`
+        );
+        return { id, ok: r.ok && r.data?.success === true };
+      })
+    );
+
+    const succeeded = results.filter((r) => r.ok).length;
+    const failed = results.length - succeeded;
+
+    if (succeeded > 0 && failed === 0) {
+      toast.success(`Archived ${succeeded} domain${succeeded === 1 ? "" : "s"}`);
+    } else if (succeeded > 0 && failed > 0) {
+      toast.error(`Archived ${succeeded}, ${failed} failed — check row states`);
+    } else {
+      toast.error("Failed to archive selected domains");
+    }
+    setSelectedDomains([]);
+    void fetchPendingDomains();
+    setActionLoading(null);
   };
 
   const handleArchiveDomain = async () => {
@@ -554,14 +595,25 @@ export default function AdminPendingDomainsPage() {
                 })}
               </div>
               {selectedDomains.length > 0 && (
-                <button
-                  onClick={() => handleVerifyDomains(selectedDomains)}
-                  disabled={actionLoading === "verify"}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
-                >
-                  {actionLoading === "verify" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  Verify ({selectedDomains.length})
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleVerifyDomains(selectedDomains)}
+                    disabled={actionLoading === "verify" || actionLoading === "bulk-archive"}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
+                  >
+                    {actionLoading === "verify" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Verify ({selectedDomains.length})
+                  </button>
+                  <button
+                    onClick={() => setShowBulkArchiveConfirm(true)}
+                    disabled={actionLoading === "verify" || actionLoading === "bulk-archive"}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-orange-600 rounded-xl hover:bg-orange-700 disabled:opacity-50 transition-colors shadow-sm"
+                    title="Archive all selected pending-domain rows"
+                  >
+                    {actionLoading === "bulk-archive" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />}
+                    Archive ({selectedDomains.length})
+                  </button>
+                </div>
               )}
             </div>
             <div className="flex flex-col sm:flex-row gap-2.5">
@@ -787,6 +839,32 @@ export default function AdminPendingDomainsPage() {
               <button onClick={() => setShowArchiveConfirm(false)} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
               <button onClick={handleArchiveDomain} disabled={actionLoading === `archive:${domainToArchive?._id}`} className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center gap-2 disabled:opacity-50">
                 {actionLoading === `archive:${domainToArchive?._id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />} Confirm Archive
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Bulk Archive Confirm Modal */}
+      {showBulkArchiveConfirm && (
+        <Modal isOpen={showBulkArchiveConfirm} onClose={() => setShowBulkArchiveConfirm(false)} title={`Archive ${selectedDomains.length} domain${selectedDomains.length === 1 ? "" : "s"}?`}>
+          <div className="p-6">
+            <p className="mb-4">
+              Archive <strong>{selectedDomains.length}</strong> pending-domain row{selectedDomains.length === 1 ? "" : "s"}?
+            </p>
+            <p className="mb-6 text-sm text-gray-500">
+              Each will move to the "Archived" tab and its status will flip to "Failed". This does not touch the customer's Order or refund anything —
+              archiving is a housekeeping action for pending-registration rows that will never complete.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowBulkArchiveConfirm(false)} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+              <button
+                onClick={() => handleBulkArchive(selectedDomains)}
+                disabled={actionLoading === "bulk-archive"}
+                className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center gap-2 disabled:opacity-50"
+              >
+                {actionLoading === "bulk-archive" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />}
+                Archive {selectedDomains.length} domain{selectedDomains.length === 1 ? "" : "s"}
               </button>
             </div>
           </div>
