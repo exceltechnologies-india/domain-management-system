@@ -77,28 +77,60 @@ export async function GET(request: NextRequest) {
         // request; killing it here shaves that off the fast-paint path
         // without changing any downstream behavior.
         type DaSyncTuple = [string[], DaUserConfig];
-        const daPromise: Promise<DaSyncTuple> = Promise.all([
-            DirectAdminService.listUsers(),
-            DirectAdminService.getServerInfo().catch(() => ({ php: 'Default' } as DaUserConfig))
-        ]);
 
-        // 5 second timeout for live data
-        const timeoutPromise = new Promise<DaSyncTuple>((_, reject) =>
-            setTimeout(() => reject(new Error('DA_TIMEOUT')), 5000)
-        );
+        // 10s per-attempt timeout + one silent retry on transient failure.
+        // Was 5s single-shot pre-2026-07-03 which fired too aggressively:
+        // legitimate cold-DA-connection re-auths, DA license-server
+        // round-trips, or brief cross-continent network hiccups pushed
+        // wall-time past 5s occasionally + surfaced as "Disconnected"
+        // banners to the operator even though DA came back fine on the
+        // next refresh. 10s + retry covers the "was going to succeed
+        // eventually" majority without letting a genuinely-down DA hold
+        // the whole page for 15s+. Total worst-case: 10s + 500ms backoff
+        // + 10s = ~20.5s before falling back to DB-only mode.
+        const DA_UPFRONT_TIMEOUT_MS = 10_000;
+        const DA_RETRY_BACKOFF_MS = 500;
 
-        const [users, info] = await Promise.race([daPromise, timeoutPromise]);
+        const attemptDaSync = (): Promise<DaSyncTuple> => {
+            const daPromise: Promise<DaSyncTuple> = Promise.all([
+                DirectAdminService.listUsers(),
+                DirectAdminService.getServerInfo().catch(() => ({ php: 'Default' } as DaUserConfig))
+            ]);
+            const timeoutPromise = new Promise<DaSyncTuple>((_, reject) =>
+                setTimeout(() => reject(new Error('DA_TIMEOUT')), DA_UPFRONT_TIMEOUT_MS)
+            );
+            return Promise.race([daPromise, timeoutPromise]);
+        };
+
+        let users: string[];
+        let info: DaUserConfig;
+        try {
+            [users, info] = await attemptDaSync();
+        } catch (firstErr: unknown) {
+            const firstMessage = firstErr instanceof Error ? firstErr.message : String(firstErr);
+            serverLogger.warn(
+                `[ADMIN-HOSTING-STATS] DA upfront call failed on attempt 1 (${firstMessage}) — retrying once after ${DA_RETRY_BACKOFF_MS}ms`
+            );
+            await new Promise((r) => setTimeout(r, DA_RETRY_BACKOFF_MS));
+            // Second attempt gets its own fresh timeout budget. If this
+            // also fails, the outer catch takes over and surfaces
+            // DA-down to the frontend.
+            [users, info] = await attemptDaSync();
+            serverLogger.info(
+                `[ADMIN-HOSTING-STATS] DA upfront call succeeded on retry (attempt 2)`
+            );
+        }
 
         daUserList = users;
         serverInfo = info;
     } catch (e: unknown) {
-        serverLogger.warn("DA Sync failed or timed out, using DB fallback:", e);
+        serverLogger.warn("DA Sync failed or timed out after retry, using DB fallback:", e);
         isDaAvailable = false;
         const message = e instanceof Error ? e.message : String(e);
         daError = message || 'DirectAdmin server is unreachable or timed out';
 
         if (message === 'DA_TIMEOUT') {
-            daError = 'Connection attempt to DirectAdmin timed out (5s limit)';
+            daError = 'DirectAdmin timed out after 2 attempts (10s each). Server may be under load — click Refresh to retry.';
         }
     }
 
