@@ -143,4 +143,86 @@ describe("sendHostingProvisionedEmail", () => {
       expect(html).not.toContain("Keep Your Payment Method Valid");
     });
   });
+
+  // Trial-specific messaging — added 2026-07-03 so trial signups get
+  // trial-aware copy (subject + header + banner + day-15 explainer +
+  // CTA text) instead of the generic "provisioned" language operators
+  // saw in the karmaastar test signup. Pins the new isTrial gate +
+  // trialEndsAt formatting + defaults.
+  describe("Trial-specific messaging (2026-07-03)", () => {
+    const TRIAL_ENDS = new Date("2026-07-18T11:43:00.000Z");
+
+    it("isTrial=true → subject uses trial-specific line naming the domain", async () => {
+      await sendHostingProvisionedEmail("u@e.test", "Ada", {
+        ...DETAILS,
+        isTrial: true,
+        trialEndsAt: TRIAL_ENDS,
+      });
+      const [opts] = sendEmailMock.mock.calls[0];
+      expect(opts.subject).toBe("Your 15-Day Free Trial is Active — example.com");
+    });
+
+    it("isTrial=false / unset → subject uses the paid-account line (back-compat)", async () => {
+      await sendHostingProvisionedEmail("u@e.test", "Ada", DETAILS);
+      const [opts] = sendEmailMock.mock.calls[0];
+      expect(opts.subject).toBe("Hosting Account Provisioned Successfully");
+    });
+
+    it("isTrial=true → header + banner + day-15 explainer + amber gradient all present", async () => {
+      await sendHostingProvisionedEmail("u@e.test", "Ada", {
+        ...DETAILS,
+        isTrial: true,
+        trialEndsAt: TRIAL_ENDS,
+      });
+      const html = sendEmailMock.mock.calls[0][0].html;
+      expect(html).toContain("Your Free Trial is Live!");
+      expect(html).toContain("Your 15-Day Free Trial is Active");
+      expect(html).toMatch(/free until.*18 July 2026/);
+      expect(html).toMatch(/What happens at day 15/i);
+      expect(html).toMatch(/hosting will be suspended/i);
+      expect(html).toContain("Start Using Your Trial");
+      // Amber gradient signals trial branch — non-trial uses blue.
+      expect(html).toContain("#F59E0B");
+      expect(html).not.toContain("Service Activated");
+    });
+
+    it("isTrial=true + missing trialEndsAt → banner still renders WITHOUT the 'free until' date line", async () => {
+      await sendHostingProvisionedEmail("u@e.test", "Ada", {
+        ...DETAILS,
+        isTrial: true,
+      });
+      const html = sendEmailMock.mock.calls[0][0].html;
+      expect(html).toContain("Your Free Trial is Live!");
+      expect(html).toContain("Your 15-Day Free Trial is Active");
+      // The "free until <date>" fragment must be omitted rather than
+      // rendering "free until undefined" or a Date-toString leak.
+      expect(html).not.toMatch(/free until.*<strong>[<]/);
+      expect(html).not.toContain("undefined");
+    });
+
+    it("isTrial=false → paid-account header + green banner (back-compat)", async () => {
+      await sendHostingProvisionedEmail("u@e.test", "Ada", {
+        ...DETAILS,
+        isTrial: false,
+      });
+      const html = sendEmailMock.mock.calls[0][0].html;
+      expect(html).toContain("Hosting Account Active");
+      expect(html).toContain("Service Activated");
+      expect(html).toContain("Go to Hosting Dashboard");
+      expect(html).not.toContain("Your Free Trial is Live!");
+      expect(html).not.toContain("What happens at day 15");
+    });
+
+    it("isTrial=true + mandateMode='tokens' → BOTH the trial banner AND the Tokens callout render (Tokens-flow trial signup)", async () => {
+      await sendHostingProvisionedEmail("u@e.test", "Ada", {
+        ...DETAILS,
+        isTrial: true,
+        trialEndsAt: TRIAL_ENDS,
+        mandateMode: "tokens",
+      });
+      const html = sendEmailMock.mock.calls[0][0].html;
+      expect(html).toContain("Your 15-Day Free Trial is Active");
+      expect(html).toContain("Keep Your Payment Method Valid");
+    });
+  });
 });

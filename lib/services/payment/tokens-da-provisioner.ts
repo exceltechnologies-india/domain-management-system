@@ -246,6 +246,14 @@ export async function provisionTokensFlowHosting(
         serverIp: DA_SERVER_IP,
         nameservers: DirectAdminService.NAMESERVERS,
         mandateMode: emailMandateMode,
+        // Trial signals — pipe hosting.isTrial + expiryDate through so
+        // the email template can render trial-specific copy (header
+        // gradient, banner, day-15 explainer, CTA text) instead of the
+        // generic "provisioned" language. Both fields already live on
+        // the Hosting record from createManualFlowTrialHosting +
+        // createTokensFlowTrialHosting, so no schema change needed.
+        isTrial: hosting.isTrial === true,
+        trialEndsAt: hosting.expiryDate,
       }
     );
     serverLogger.info(
