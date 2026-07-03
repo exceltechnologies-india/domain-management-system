@@ -157,6 +157,13 @@ export default function AdminPendingDomainsPage() {
   // same DELETE endpoint per row; bulk loops the client-side.
   const [showBulkArchiveConfirm, setShowBulkArchiveConfirm] = useState(false);
 
+  // Bulk PERMANENT delete — needs a typed "DELETE" confirmation before
+  // the destructive action fires, because permanent deletion drops the
+  // PendingDomain rows from Mongo entirely (no undo). Archive is
+  // reversible via the Archived tab + unarchive; delete is not.
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [bulkDeleteConfirmText, setBulkDeleteConfirmText] = useState("");
+
   const [showMarkResolvedConfirm, setShowMarkResolvedConfirm] = useState(false);
   const [domainToMarkResolved, setDomainToMarkResolved] = useState<PendingDomain | null>(null);
 
@@ -318,6 +325,43 @@ export default function AdminPendingDomainsPage() {
   const handleArchiveClick = (domain: PendingDomain) => {
     setDomainToArchive(domain);
     setShowArchiveConfirm(true);
+  };
+
+  // Bulk PERMANENT delete — same client-side-fan-out pattern as bulk
+  // archive but uses `?permanent=true` query flag so the server-side
+  // handler hard-deletes the row instead of flipping status. No undo.
+  // The caller MUST have satisfied the typed-DELETE gate in the confirm
+  // modal before this fires — guarded at the modal button's disabled
+  // state, not at this function (single source of truth for the gate
+  // keeps the flow easier to trace).
+  const handleBulkDelete = async (domainIds: string[]) => {
+    if (domainIds.length === 0) return;
+    setShowBulkDeleteConfirm(false);
+    setBulkDeleteConfirmText("");
+    setActionLoading("bulk-delete");
+
+    const results = await Promise.all(
+      domainIds.map(async (id) => {
+        const r = await apiClient.delete<{ success?: boolean; error?: string }>(
+          `/api/v1/admin/pending-domains/${id}?permanent=true`
+        );
+        return { id, ok: r.ok && r.data?.success === true };
+      })
+    );
+
+    const succeeded = results.filter((r) => r.ok).length;
+    const failed = results.length - succeeded;
+
+    if (succeeded > 0 && failed === 0) {
+      toast.success(`Permanently deleted ${succeeded} domain${succeeded === 1 ? "" : "s"}`);
+    } else if (succeeded > 0 && failed > 0) {
+      toast.error(`Deleted ${succeeded}, ${failed} failed — check row states`);
+    } else {
+      toast.error("Failed to delete selected domains");
+    }
+    setSelectedDomains([]);
+    void fetchPendingDomains();
+    setActionLoading(null);
   };
 
   // Bulk archive — loop the existing per-row DELETE endpoint client-side
@@ -595,10 +639,10 @@ export default function AdminPendingDomainsPage() {
                 })}
               </div>
               {selectedDomains.length > 0 && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <button
                     onClick={() => handleVerifyDomains(selectedDomains)}
-                    disabled={actionLoading === "verify" || actionLoading === "bulk-archive"}
+                    disabled={actionLoading === "verify" || actionLoading === "bulk-archive" || actionLoading === "bulk-delete"}
                     className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
                   >
                     {actionLoading === "verify" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -606,12 +650,24 @@ export default function AdminPendingDomainsPage() {
                   </button>
                   <button
                     onClick={() => setShowBulkArchiveConfirm(true)}
-                    disabled={actionLoading === "verify" || actionLoading === "bulk-archive"}
+                    disabled={actionLoading === "verify" || actionLoading === "bulk-archive" || actionLoading === "bulk-delete"}
                     className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-orange-600 rounded-xl hover:bg-orange-700 disabled:opacity-50 transition-colors shadow-sm"
                     title="Archive all selected pending-domain rows"
                   >
                     {actionLoading === "bulk-archive" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />}
                     Archive ({selectedDomains.length})
+                  </button>
+                  <button
+                    onClick={() => {
+                      setBulkDeleteConfirmText("");
+                      setShowBulkDeleteConfirm(true);
+                    }}
+                    disabled={actionLoading === "verify" || actionLoading === "bulk-archive" || actionLoading === "bulk-delete"}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-xl hover:bg-red-700 disabled:opacity-50 transition-colors shadow-sm"
+                    title="Permanently delete all selected pending-domain rows (no undo)"
+                  >
+                    {actionLoading === "bulk-delete" ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
+                    Delete ({selectedDomains.length})
                   </button>
                 </div>
               )}
@@ -839,6 +895,62 @@ export default function AdminPendingDomainsPage() {
               <button onClick={() => setShowArchiveConfirm(false)} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
               <button onClick={handleArchiveDomain} disabled={actionLoading === `archive:${domainToArchive?._id}`} className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center gap-2 disabled:opacity-50">
                 {actionLoading === `archive:${domainToArchive?._id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />} Confirm Archive
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Bulk Permanent Delete Confirm Modal — typed "DELETE" gate + prominent warning */}
+      {showBulkDeleteConfirm && (
+        <Modal
+          isOpen={showBulkDeleteConfirm}
+          onClose={() => {
+            setShowBulkDeleteConfirm(false);
+            setBulkDeleteConfirmText("");
+          }}
+          title={`Permanently delete ${selectedDomains.length} domain${selectedDomains.length === 1 ? "" : "s"}?`}
+        >
+          <div className="p-6">
+            <div className="bg-red-50 border border-red-300 rounded-lg p-4 mb-5">
+              <p className="text-sm font-semibold text-red-900 mb-2">⚠️ This action cannot be undone</p>
+              <p className="text-sm text-red-800 leading-relaxed">
+                You&apos;re about to <strong>permanently delete {selectedDomains.length} pending-domain row{selectedDomains.length === 1 ? "" : "s"}</strong> from the database. Unlike Archive
+                (which just flips the row to the Archived tab), Delete removes the row entirely — no recovery from the admin UI.
+              </p>
+            </div>
+            <p className="text-sm text-gray-700 mb-2">
+              This does <strong>not</strong> touch the customer&apos;s Order, refund anything, or notify the customer. It only removes
+              the pending-registration tracking row that will never complete.
+            </p>
+            <p className="text-sm text-gray-700 mb-4">
+              Type <code className="px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded text-red-700 font-semibold">DELETE</code> below to confirm.
+            </p>
+            <input
+              type="text"
+              autoFocus
+              value={bulkDeleteConfirmText}
+              onChange={(e) => setBulkDeleteConfirmText(e.target.value)}
+              placeholder="Type DELETE"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 mb-5 font-mono"
+            />
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowBulkDeleteConfirm(false);
+                  setBulkDeleteConfirmText("");
+                }}
+                className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleBulkDelete(selectedDomains)}
+                disabled={bulkDeleteConfirmText !== "DELETE" || actionLoading === "bulk-delete"}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {actionLoading === "bulk-delete" ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
+                Permanently Delete {selectedDomains.length}
               </button>
             </div>
           </div>
