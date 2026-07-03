@@ -422,24 +422,52 @@ export async function GET(request: NextRequest) {
         }
     }
 
-    // Totals-across-the-whole-dataset counter payload — computed from the
-    // full Mongo Hosting collection (which Pass 1 already fetches up
-    // front), so the admin page's "N trial / M paid" badges are truthful
-    // on FIRST PAINT even though `data[]` is Pass-1-sliced to just the
-    // fast-paint row set. Without this, the frontend was counting on
-    // hostingData.filter(...) which only reflected the ~10 rows returned
-    // by Pass 1 — a customer whose DA username lands alphabetically past
-    // the first 10 could have their trial silently missing from the
-    // counter (operator report 2026-07-03 for karmaastar's `hiheldb063`).
-    // Excludes 'terminated' rows so counts match what the UI would show
-    // in "Active" (non-archived) mode; expired/suspended rows still
-    // count because they're still real hosting accounts the operator
-    // acts on.
-    type CountableHostingRecord = { isTrial?: boolean; status?: string };
+    // Totals-across-the-whole-dataset counter payload. Two dimensions to
+    // reconcile: the VISIBLE ROWS on /admin/hosting come from DA users
+    // (via listUsers → per-user config), NOT from Mongo Hosting docs.
+    // Most existing paid customers on this DA server predate the Mongo
+    // Hosting collection (migrated from an older stack) so their DA
+    // accounts exist WITHOUT matching Hosting docs. Initial version of
+    // this counter (2026-07-03 first attempt) filtered
+    // hostingRecords.length directly — that undercounted paid badly on
+    // the karmaastar test dataset (Mongo had 1 trial doc, DA had ~65
+    // users, counter showed "1 / 1 trial / 0 paid" instead of the true
+    // "65 / 1 trial / 64 paid").
+    //
+    // Correct algorithm: iterate ALL DA users (already fetched via
+    // listUsers as `daUserList` — cheap, no DA fan-out) and decide trial
+    // vs paid via set-membership: DA username IS in the set of Mongo
+    // Hosting docs with isTrial=true (excluding terminated) → trial;
+    // else paid. This matches what the operator will see once Pass 2
+    // backfills the full row set + is what makes the counter truthful
+    // from Pass 1 onward.
+    //
+    // Excludes 'terminated' rows from the trial set so a converted /
+    // cancelled trial doesn't still count as trial. Expired/suspended
+    // rows still count as trial (if isTrial=true) because they're real
+    // rows the operator interacts with.
+    //
+    // DB-fallback mode (DA unreachable) falls back to counting
+    // hostingRecords directly since daUserList is empty in that path.
+    type CountableHostingRecord = { isTrial?: boolean; status?: string; directAdminUsername?: string };
     const countableRecords = (hostingRecords as unknown as CountableHostingRecord[])
       .filter((h) => h.status !== 'terminated');
-    const trialTotalCount = countableRecords.filter((h) => h.isTrial === true).length;
-    const paidTotalCount = countableRecords.filter((h) => h.isTrial !== true).length;
+
+    const trialDaUsernameSet = new Set<string>(
+      countableRecords
+        .filter((h) => h.isTrial === true && !!h.directAdminUsername)
+        .map((h) => h.directAdminUsername as string)
+    );
+
+    const trialTotalCount = isDaAvailable
+      ? daUserList.filter((u) => trialDaUsernameSet.has(u)).length
+      : countableRecords.filter((h) => h.isTrial === true).length;
+    const paidTotalCount = isDaAvailable
+      ? Math.max(0, daUserList.length - trialTotalCount)
+      : countableRecords.filter((h) => h.isTrial !== true).length;
+    const totalHostingCount = isDaAvailable
+      ? daUserList.length
+      : countableRecords.length;
 
     const response = NextResponse.json({
       success: true,
@@ -457,12 +485,13 @@ export async function GET(request: NextRequest) {
         total: totalUsers,
         truncated,
       },
-      // Totals across the FULL Mongo Hosting collection (not just the
-      // sliced `data[]`). Populated on both Pass 1 and Pass 2 responses
-      // so the admin page's badges are correct regardless of which pass
-      // the frontend is currently rendering from.
+      // Totals across the FULL dataset visible to the operator (DA
+      // users under LIVE mode, Mongo Hosting docs under DB-fallback).
+      // Populated on both Pass 1 and Pass 2 responses so the admin
+      // page's badges are correct regardless of which pass the frontend
+      // is currently rendering from.
       counts: {
-        totalHostings: countableRecords.length,
+        totalHostings: totalHostingCount,
         trial: trialTotalCount,
         paid: paidTotalCount,
       },
