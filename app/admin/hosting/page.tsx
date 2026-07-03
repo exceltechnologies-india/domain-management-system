@@ -305,6 +305,15 @@ export default function AdminHostingPage() {
     setIsDataLoading(true);
     setIsServerDown(false); // Reset
 
+    // Both fetch passes get an AbortSignal.timeout guard so the spinner
+    // can't get stuck forever if the API hangs / DA fan-out stalls / the
+    // Pass-2 endpoint is genuinely slow beyond a reasonable ceiling.
+    // Chosen: 45s ceiling. Pass 2 legitimately takes 5-20s under load
+    // (getUserConfig per customer), so anything above 45s is a signal
+    // that the request is either wedged or an unrecoverable API stall
+    // — no point burning the user's time waiting for it.
+    const FETCH_TIMEOUT_MS = 45_000;
+
     // Deep-link path: skip Pass 1 + go straight to full dataset
     const initialSearchPresent = searchTerm.trim().length > 0;
     if (initialSearchPresent) {
@@ -317,7 +326,9 @@ export default function AdminHostingPage() {
         message?: string;
         error?: string;
         code?: string;
-      }>(`/api/v1/admin/hosting/stats?t=${Date.now()}`);
+      }>(`/api/v1/admin/hosting/stats?t=${Date.now()}`, undefined, {
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
       if (!fullResult.ok) {
         setIsServerDown(true);
         if (fullResult.error.status === 503 || fullResult.error.code === 'DA_SERVER_DOWN' || fullResult.error.status === 0) {
@@ -348,7 +359,9 @@ export default function AdminHostingPage() {
       return; // Skip Pass 2 — we already have the full dataset
     }
 
-    // PASS 1 — fast first-page (no deep-link search active)
+    // PASS 1 — fast first-page (no deep-link search active). Same 45s
+    // guard as the deep-link path — should complete in <2s under normal
+    // load but the timeout backstops a hung API.
     const firstResult = await apiClient.get<{
       success?: boolean;
       data?: HostingData[];
@@ -359,7 +372,9 @@ export default function AdminHostingPage() {
       error?: string;
       code?: string;
       pagination?: { returned?: number; total?: number; truncated?: boolean };
-    }>(`/api/v1/admin/hosting/stats?firstPage=10&t=${Date.now()}`);
+    }>(`/api/v1/admin/hosting/stats?firstPage=10&t=${Date.now()}`, undefined, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
 
     if (!firstResult.ok) {
       setIsServerDown(true);
@@ -409,21 +424,44 @@ export default function AdminHostingPage() {
     // `isBackgroundFetching` drives a spinner inside the search input + the
     // "Searching for X…" empty-state, so a search for a row that lives in
     // the not-yet-loaded tail reads as "still looking" rather than "not found".
+    //
+    // Timeout guard: Pass 2 gets a 45s AbortSignal.timeout so the spinner
+    // can't spin forever if the API stalls (DA fan-out slow, network
+    // wedge, etc). Pass-1 rows STAY VISIBLE on timeout — a background
+    // failure shouldn't blow away the table the user is already looking
+    // at. A friendly toast surfaces the timeout with a "click Refresh"
+    // hint so the operator knows to retry rather than assume the data
+    // shown is the complete set.
     if (firstData.pagination?.truncated) {
       setIsBackgroundFetching(true);
       try {
         const fullResult = await apiClient.get<{
           success?: boolean;
           data?: HostingData[];
-        }>(`/api/v1/admin/hosting/stats?t=${Date.now()}`);
+        }>(`/api/v1/admin/hosting/stats?t=${Date.now()}`, undefined, {
+          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        });
 
         if (fullResult.ok && fullResult.data?.success && fullResult.data.data) {
           const fullData = Array.from(new Map(fullResult.data.data.map((item) => [item.id, item])).values());
           setHostingData(fullData);
+        } else if (!fullResult.ok) {
+          // Distinguish timeout (fetch aborted by AbortSignal.timeout) from
+          // other network errors. AbortError surfaces via the api-client
+          // status=0 branch with a message containing "abort". Timeout
+          // gets a distinct friendlier toast; other failures stay silent
+          // (Pass-1 rows valid, no need to alarm the operator).
+          const isTimeout =
+            fullResult.error.status === 0 &&
+            /aborted|timeout|The operation was aborted/i.test(fullResult.error.message);
+          if (isTimeout) {
+            const shownCount = firstData.pagination?.returned ?? 10;
+            toast(
+              `Loading the full hosting list took longer than expected. Showing the first ${shownCount} rows — click Refresh to retry.`,
+              { duration: 8000, icon: '⏱️', id: `pass2-timeout:${Date.now()}` }
+            );
+          }
         }
-        // Errors are swallowed by design — Pass 1 rows remain valid;
-        // a background failure shouldn't disrupt the table the user
-        // is already looking at.
       } finally {
         setIsBackgroundFetching(false);
       }
