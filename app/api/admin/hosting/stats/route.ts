@@ -65,15 +65,20 @@ export async function GET(request: NextRequest) {
     type DaUserConfig = Record<string, string | undefined>;
     let isDaAvailable = true;
     let daUserList: string[] = [];
-    let daUsageMap: DaUserConfig = {};
     let serverInfo: DaUserConfig = { php: 'Unknown' };
     let daError: string | null = null;
 
     try {
-        type DaSyncTuple = [string[], DaUserConfig, DaUserConfig];
+        // Perf: dropped the upfront `getAllUserUsage()` call — the result
+        // was assigned to `daUsageMap` and then never read (the per-user
+        // `getUserUsage(daUsername)` call in the row loop below already
+        // fetches the same data, and that's the version we actually use).
+        // `CMD_API_SHOW_ALL_USER_USAGE` costs 1-3s of DA-side work each
+        // request; killing it here shaves that off the fast-paint path
+        // without changing any downstream behavior.
+        type DaSyncTuple = [string[], DaUserConfig];
         const daPromise: Promise<DaSyncTuple> = Promise.all([
             DirectAdminService.listUsers(),
-            DirectAdminService.getAllUserUsage(),
             DirectAdminService.getServerInfo().catch(() => ({ php: 'Default' } as DaUserConfig))
         ]);
 
@@ -82,10 +87,9 @@ export async function GET(request: NextRequest) {
             setTimeout(() => reject(new Error('DA_TIMEOUT')), 5000)
         );
 
-        const [users, usage, info] = await Promise.race([daPromise, timeoutPromise]);
+        const [users, info] = await Promise.race([daPromise, timeoutPromise]);
 
         daUserList = users;
-        daUsageMap = usage;
         serverInfo = info;
     } catch (e: unknown) {
         serverLogger.warn("DA Sync failed or timed out, using DB fallback:", e);
@@ -181,26 +185,31 @@ export async function GET(request: NextRequest) {
             let daUsage: DaUserConfig = {};
 
             try {
-                // Per-user fetch can be slow at scale (~100s of users). If this
-                // becomes a hotspot, switch to the bulk usage map
-                // (CMD_API_SHOW_ALL_USERS_USAGE if DA exposes it for this
-                // server) + DB-cached config — the try/catch around it keeps
-                // one failure from taking down the whole stats page either
-                // way. Today the two per-user calls run in parallel so the
-                // wall-clock cost per user is max(config, usage), not
-                // config + usage.
+                // Perf: on the fast-paint path (firstPageParam > 0), skip
+                // the per-user usage call. Config alone gives us domain,
+                // package, status, limits, PHP version — enough for the
+                // first meaningful render. Actual bandwidth/disk USED
+                // numbers require the dedicated usage endpoint; those
+                // show as '0' on Pass 1 and get filled in when Pass 2
+                // (the un-firstPage-capped full fetch) runs. Halves the
+                // DA fan-out on Pass 1 (2 calls per user → 1) which is
+                // where the visible spinner cost lives. Full fetch
+                // (Pass 2, firstPageParam === 0) still calls both.
+                const skipUsageForFastPaint = firstPageParam > 0;
                 [daConfig, daUsage] = await Promise.all([
                     DirectAdminService.getUserConfig(daUsername),
-                    DirectAdminService.getUserUsage(daUsername).catch((e: unknown) => {
-                        // Usage-fetch failure shouldn't block the row — log
-                        // and continue with zeros. Config is the more
-                        // important one; usage is just a display nicety.
-                        serverLogger.warn(
-                            `[ADMIN-HOSTING-STATS] Usage fetch failed for ${daUsername}:`,
-                            e instanceof Error ? e.message : String(e)
-                        );
-                        return {} as DaUserConfig;
-                    }),
+                    skipUsageForFastPaint
+                      ? Promise.resolve({} as DaUserConfig)
+                      : DirectAdminService.getUserUsage(daUsername).catch((e: unknown) => {
+                          // Usage-fetch failure shouldn't block the row — log
+                          // and continue with zeros. Config is the more
+                          // important one; usage is just a display nicety.
+                          serverLogger.warn(
+                              `[ADMIN-HOSTING-STATS] Usage fetch failed for ${daUsername}:`,
+                              e instanceof Error ? e.message : String(e)
+                          );
+                          return {} as DaUserConfig;
+                      }),
                 ]);
 
                 if (!localUser && daConfig.email) {
