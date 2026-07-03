@@ -19,6 +19,7 @@ import RefreshButton from '@/components/dashboard/RefreshButton';
 import HostingRenewalModal from '@/components/HostingRenewalModal';
 import HostingUpgradeModal from '@/components/HostingUpgradeModal';
 import ExpiryBadge from '@/components/dashboard/ExpiryBadge';
+import TrialCountdownBanner from '@/components/dashboard/TrialCountdownBanner';
 
 interface HostingStats {
   domain: string;
@@ -184,6 +185,20 @@ export default function HostingPage() {
       animate={{ opacity: 1, y: 0 }}
       className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden"
     >
+      {/* Trial countdown banner — surfaces when within 3 days of trial
+          expiry so the customer sees a prominent nudge, not just the
+          small "Trial ends <date>" pill in the header. Auto-hides
+          outside the 3-day window / on non-trial cards. */}
+      <TrialCountdownBanner
+        isTrial={hostingStats.isTrial}
+        status={hostingStats.status}
+        expiryDate={hostingStats.expires_at}
+        onConvert={() => {
+          setSelectedDomainName(hostingStats.domain);
+          setIsRenewalModalOpen(true);
+        }}
+      />
+
       {/* Header */}
       <div className="p-6 border-b border-gray-100 bg-gray-50/60">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
