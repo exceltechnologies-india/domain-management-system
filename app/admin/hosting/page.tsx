@@ -871,10 +871,20 @@ export default function AdminHostingPage() {
                   onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                 />
                 {(isDataLoading || isBackgroundFetching) && (
-                  <Loader2
-                    className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-blue-500"
+                  // Wrap the icon in a positioning span so `-translate-y-1/2`
+                  // and `animate-spin` don't fight over the `transform`
+                  // property. `animate-spin` uses CSS keyframes that set
+                  // `transform: rotate(...)` and REPLACES the translateY
+                  // — the icon would rotate around its own center but
+                  // lose vertical centering each frame, reading as a
+                  // jumpy / broken spinner. Positioning on the wrapper +
+                  // animation on the icon keeps both effects intact.
+                  <span
+                    className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none inline-flex"
                     aria-label="Loading more accounts"
-                  />
+                  >
+                    <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                  </span>
                 )}
               </div>
               <RefreshButton onClick={fetchHostingData} isLoading={isDataLoading || isBackgroundFetching} />
