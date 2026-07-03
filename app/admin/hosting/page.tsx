@@ -88,6 +88,13 @@ interface HostingData {
 export default function AdminHostingPage() {
   const [user, setUser] = useState<User | null>(null);
   const [hostingData, setHostingData] = useState<HostingData[]>([]);
+  // Totals across the FULL Mongo Hosting collection — populated from the
+  // stats response's `counts` field (added 2026-07-03 for the "counter
+  // should show total, not Pass-1 slice" fix). Used to drive the
+  // "N trial / M paid" badges independently of hostingData's length, so
+  // a Pass-1 render that only has 10 of 65 rows still shows accurate
+  // 1 trial / 64 paid instead of 0 / 10.
+  const [serverCounts, setServerCounts] = useState<{ totalHostings: number; trial: number; paid: number } | null>(null);
   // Pre-fill searchTerm from the `?q=` query param so deep-links from
   // other admin surfaces (e.g. the User Services modal in
   // /admin/user-management) can land the operator straight on a
@@ -326,6 +333,7 @@ export default function AdminHostingPage() {
         message?: string;
         error?: string;
         code?: string;
+        counts?: { totalHostings: number; trial: number; paid: number };
       }>(`/api/v1/admin/hosting/stats?t=${Date.now()}`, undefined, {
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
@@ -352,6 +360,7 @@ export default function AdminHostingPage() {
       const incoming = fullData.data ?? [];
       const uniqueData = Array.from(new Map(incoming.map((item) => [item.id, item])).values());
       setHostingData(uniqueData);
+      if (fullData.counts) setServerCounts(fullData.counts);
       if (fullData.daMode) setDaMode(fullData.daMode);
       setIsServerDown(!fullData.isDaConnected);
       setDaError(fullData.daError || null);
@@ -372,6 +381,7 @@ export default function AdminHostingPage() {
       error?: string;
       code?: string;
       pagination?: { returned?: number; total?: number; truncated?: boolean };
+      counts?: { totalHostings: number; trial: number; paid: number };
     }>(`/api/v1/admin/hosting/stats?firstPage=10&t=${Date.now()}`, undefined, {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
@@ -409,6 +419,7 @@ export default function AdminHostingPage() {
       const incoming = firstData.data ?? [];
       const uniqueData = Array.from(new Map(incoming.map((item) => [item.id, item])).values());
       setHostingData(uniqueData);
+      if (firstData.counts) setServerCounts(firstData.counts);
       if (firstData.daMode) setDaMode(firstData.daMode);
       setIsServerDown(!firstData.isDaConnected);
       setDaError(firstData.daError || null);
@@ -438,6 +449,7 @@ export default function AdminHostingPage() {
         const fullResult = await apiClient.get<{
           success?: boolean;
           data?: HostingData[];
+          counts?: { totalHostings: number; trial: number; paid: number };
         }>(`/api/v1/admin/hosting/stats?t=${Date.now()}`, undefined, {
           signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
         });
@@ -445,6 +457,7 @@ export default function AdminHostingPage() {
         if (fullResult.ok && fullResult.data?.success && fullResult.data.data) {
           const fullData = Array.from(new Map(fullResult.data.data.map((item) => [item.id, item])).values());
           setHostingData(fullData);
+          if (fullResult.data.counts) setServerCounts(fullResult.data.counts);
         } else if (!fullResult.ok) {
           // Distinguish timeout (fetch aborted by AbortSignal.timeout) from
           // other network errors. AbortError surfaces via the api-client
@@ -709,11 +722,14 @@ export default function AdminHostingPage() {
     return true;
   });
 
-  // Trial / paid counts across the WHOLE dataset (not the filtered slice)
-  // so the operator sees "12 of 47 are on trial" regardless of the
-  // current filter view.
-  const trialCount = hostingData.filter(item => item.isTrial === true).length;
-  const paidCount = hostingData.filter(item => item.isTrial !== true).length;
+  // Trial / paid counts across the WHOLE dataset (not the filtered slice
+  // AND not the Pass-1 sliced hostingData). Server response now carries
+  // pre-computed counts derived from the full Mongo Hosting collection —
+  // this makes the badges truthful on FIRST PAINT before Pass 2 has
+  // completed. Fallback to filtering hostingData for older API responses
+  // that don't include `counts` (defensive; back-compat only).
+  const trialCount = serverCounts?.trial ?? hostingData.filter(item => item.isTrial === true).length;
+  const paidCount = serverCounts?.paid ?? hostingData.filter(item => item.isTrial !== true).length;
 
   // Client-side pagination — the /api/v1/admin/hosting/stats endpoint
   // returns all accounts in one shot (acceptable for the current ~30-account
@@ -835,7 +851,13 @@ export default function AdminHostingPage() {
               <HardDrive className="h-4 w-4 text-gray-500" />
               <h3 className="text-sm font-semibold text-gray-900">All Hosting Accounts</h3>
               <span className="inline-flex items-center text-xs font-medium text-gray-500 bg-white border border-gray-200 px-2 py-0.5 rounded-full">
-                {filteredData.length}
+                {/* No filter active → show server-side total (the true
+                    dataset size, not the Pass-1 slice). Filter active →
+                    show filtered count (matches what's rendered). Same
+                    fallback pattern as trialCount/paidCount above. */}
+                {(searchTerm.trim() === '' && customerTypeFilter === 'all' && serverCounts)
+                  ? serverCounts.totalHostings
+                  : filteredData.length}
               </span>
               {/* Trial / paid mix — visible at-a-glance regardless of the current filter */}
               <span className="inline-flex items-center text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full" title="Customers on a 15-day free trial">

@@ -422,6 +422,25 @@ export async function GET(request: NextRequest) {
         }
     }
 
+    // Totals-across-the-whole-dataset counter payload — computed from the
+    // full Mongo Hosting collection (which Pass 1 already fetches up
+    // front), so the admin page's "N trial / M paid" badges are truthful
+    // on FIRST PAINT even though `data[]` is Pass-1-sliced to just the
+    // fast-paint row set. Without this, the frontend was counting on
+    // hostingData.filter(...) which only reflected the ~10 rows returned
+    // by Pass 1 — a customer whose DA username lands alphabetically past
+    // the first 10 could have their trial silently missing from the
+    // counter (operator report 2026-07-03 for karmaastar's `hiheldb063`).
+    // Excludes 'terminated' rows so counts match what the UI would show
+    // in "Active" (non-archived) mode; expired/suspended rows still
+    // count because they're still real hosting accounts the operator
+    // acts on.
+    type CountableHostingRecord = { isTrial?: boolean; status?: string };
+    const countableRecords = (hostingRecords as unknown as CountableHostingRecord[])
+      .filter((h) => h.status !== 'terminated');
+    const trialTotalCount = countableRecords.filter((h) => h.isTrial === true).length;
+    const paidTotalCount = countableRecords.filter((h) => h.isTrial !== true).length;
+
     const response = NextResponse.json({
       success: true,
       data: hostingStats,
@@ -437,6 +456,15 @@ export async function GET(request: NextRequest) {
         returned: hostingStats.length,
         total: totalUsers,
         truncated,
+      },
+      // Totals across the FULL Mongo Hosting collection (not just the
+      // sliced `data[]`). Populated on both Pass 1 and Pass 2 responses
+      // so the admin page's badges are correct regardless of which pass
+      // the frontend is currently rendering from.
+      counts: {
+        totalHostings: countableRecords.length,
+        trial: trialTotalCount,
+        paid: paidTotalCount,
       },
     });
     
