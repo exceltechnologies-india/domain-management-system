@@ -292,9 +292,21 @@ export async function GET(request: NextRequest) {
             let expiresAt = null;
             let createdAt = null;
 
-            // Strategy: Pick the best matching local record for THIS domain
+            // Strategy: Pick the best matching local record for THIS domain.
+            // Case-insensitive match — DA occasionally round-trips domain
+            // casing that differs from what the Hosting doc stored (e.g.
+            // "HiHello.com" from DA vs "hihello.com" in Mongo). Before the
+            // toLowerCase pair, the strict === would return [] on any case
+            // divergence → hostingRecord undefined → isTrial defaulted to
+            // false → the TRIAL badge silently disappeared from
+            // /admin/hosting even though the Mongo row correctly had
+            // isTrial=true. Fix landed 2026-07-03. Optional-chained
+            // toLowerCase so a null domainName doesn't crash (defensive).
             const allHosting = hostingRecords as unknown as HostingRecord[];
-            const domainRecords = allHosting.filter((h) => h.domainName === daConfig.domain);
+            const daDomainLc = daConfig.domain?.toLowerCase() ?? "";
+            const domainRecords = allHosting.filter(
+              (h) => h.domainName?.toLowerCase() === daDomainLc
+            );
 
             // 1. Exact Username match
             // 2. Or 'active' status
