@@ -4,6 +4,7 @@ import {
   isWhatsAppConfigured,
   type WhatsAppConfig,
 } from "@/lib/services/whatsapp-config";
+import { recordWhatsAppSend } from "@/lib/services/whatsapp-log";
 
 const GRAPH_URL = "https://graph.facebook.com/v18.0";
 
@@ -104,6 +105,21 @@ export class WhatsAppService {
           { service: "whatsapp" }
         );
         return false;
+      }
+      // Record the send for the delivery audit (best-effort, fire-and-
+      // forget — never block the send outcome on the audit write). Parse
+      // Meta's wamid so the webhook's delivery-status callbacks can later
+      // update this same row.
+      try {
+        const data = (await res.json().catch(() => null)) as
+          | { messages?: Array<{ id?: string }> }
+          | null;
+        const messageId = data?.messages?.[0]?.id;
+        if (messageId) {
+          void recordWhatsAppSend({ messageId, to: phone, template: templateName });
+        }
+      } catch {
+        /* audit is best-effort */
       }
       return true;
     } catch (err: unknown) {

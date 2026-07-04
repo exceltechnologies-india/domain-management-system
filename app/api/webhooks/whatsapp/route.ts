@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import crypto from "crypto";
 import { serverLogger } from "@/lib/server-logger";
 import { setWhatsAppOptOut, classifyOptKeyword } from "@/lib/services/whatsapp-optout";
+import { updateWhatsAppStatus } from "@/lib/services/whatsapp-log";
 
 export const dynamic = "force-dynamic";
 
@@ -135,6 +136,15 @@ export async function POST(request: NextRequest) {
               `[WhatsApp webhook] Message ${st.id} status=${st.status} to ${st.recipient_id}`,
               { service: "whatsapp" }
             );
+          }
+          // Update the delivery-audit row (best-effort). Only the terminal
+          // statuses we model are persisted; anything else is left as-is.
+          if (st.id && (st.status === "delivered" || st.status === "read" || st.status === "failed")) {
+            await updateWhatsAppStatus({
+              messageId: st.id,
+              status: st.status,
+              error: st.status === "failed" ? JSON.stringify(st.errors ?? []).slice(0, 300) : undefined,
+            });
           }
         }
 

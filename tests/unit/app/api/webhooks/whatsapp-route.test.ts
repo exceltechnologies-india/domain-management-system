@@ -19,6 +19,9 @@ vi.mock("@/lib/services/whatsapp-optout", async (orig) => {
   return { ...actual, setWhatsAppOptOut }; // keep real classifyOptKeyword
 });
 
+const updateWhatsAppStatus = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/services/whatsapp-log", () => ({ updateWhatsAppStatus }));
+
 vi.unmock("next/server");
 const { NextRequest } = await vi.importActual<typeof import("next/server")>("next/server");
 
@@ -47,6 +50,7 @@ function makeGet(params: Record<string, string>) {
 
 beforeEach(() => {
   setWhatsAppOptOut.mockReset().mockResolvedValue(1);
+  updateWhatsAppStatus.mockReset().mockResolvedValue(undefined);
   vi.stubEnv("WHATSAPP_APP_SECRET", APP_SECRET);
   vi.stubEnv("WHATSAPP_WEBHOOK_VERIFY_TOKEN", VERIFY_TOKEN);
 });
@@ -114,12 +118,15 @@ describe("POST — inbound STOP / START", () => {
 });
 
 describe("POST — status events", () => {
-  it("delivery status batch → acked 200, no opt-out call", async () => {
+  it("delivery status batch → acked 200, audit updated, no opt-out call", async () => {
     const body = {
       entry: [{ changes: [{ value: { statuses: [{ id: "wamid.1", status: "delivered", recipient_id: "919876543210" }] } }] }],
     };
     const res = await POST(makePost(body));
     expect(res.status).toBe(200);
     expect(setWhatsAppOptOut).not.toHaveBeenCalled();
+    expect(updateWhatsAppStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ messageId: "wamid.1", status: "delivered" })
+    );
   });
 });
