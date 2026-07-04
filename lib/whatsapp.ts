@@ -44,6 +44,12 @@ export class WhatsAppService {
    * Actual send against a pre-resolved config. Private so convenience
    * methods + the public sendTemplate share one config resolution per
    * public call (no double DB read).
+   *
+   * Gate here is TRANSPORT-readiness only (token + phone-number ID) — NOT
+   * the master `enabled` flag. The public send methods enforce `enabled`
+   * before calling this; `sendTest` deliberately bypasses `enabled` so an
+   * operator can validate credentials + template BEFORE flipping the
+   * feature live.
    */
   private static async dispatch(
     config: WhatsAppConfig,
@@ -52,7 +58,7 @@ export class WhatsAppService {
     bodyParams: string[],
     languageCode: string
   ): Promise<boolean> {
-    if (!isWhatsAppConfigured(config)) return false;
+    if (!config.apiToken || !config.phoneNumberId) return false;
 
     const phone = this.formatNumber(to);
     const components =
@@ -120,7 +126,27 @@ export class WhatsAppService {
     languageCode = "en"
   ): Promise<boolean> {
     const config = await getWhatsAppConfig();
+    if (!isWhatsAppConfigured(config)) return false;
     return this.dispatch(config, to, templateName, bodyParams, languageCode);
+  }
+
+  /**
+   * Admin "send test message" — validates token + phone-number ID +
+   * template WITHOUT requiring the master `enabled` flag, so the operator
+   * can confirm the integration works before switching it on for real
+   * customer traffic. Uses the reminder template with obvious test values.
+   * Returns true on a 200 from Meta.
+   */
+  static async sendTest(to: string): Promise<boolean> {
+    const config = await getWhatsAppConfig();
+    const renewUrl = `${process.env.NEXTAUTH_URL ?? ""}/dashboard`;
+    return this.dispatch(
+      config,
+      to,
+      config.templates.reminder,
+      ["Test Service", "0", renewUrl],
+      "en"
+    );
   }
 
   /**
@@ -135,6 +161,7 @@ export class WhatsAppService {
     }: { serviceName: string; daysRemaining: number }
   ): Promise<void> {
     const config = await getWhatsAppConfig();
+    if (!isWhatsAppConfigured(config)) return;
     const renewUrl = `${process.env.NEXTAUTH_URL ?? ""}/dashboard`;
     await this.dispatch(config, whatsappNumber, config.templates.reminder, [
       serviceName,
@@ -156,6 +183,7 @@ export class WhatsAppService {
     }: { amount: number; currency?: string; serviceName: string }
   ): Promise<void> {
     const config = await getWhatsAppConfig();
+    if (!isWhatsAppConfigured(config)) return;
     await this.dispatch(config, whatsappNumber, config.templates.payment, [
       `${currency} ${amount}`,
       serviceName,
@@ -174,6 +202,7 @@ export class WhatsAppService {
     }: { serviceName: string; serviceType: string }
   ): Promise<void> {
     const config = await getWhatsAppConfig();
+    if (!isWhatsAppConfigured(config)) return;
     const renewUrl = `${process.env.NEXTAUTH_URL ?? ""}/dashboard`;
     await this.dispatch(config, whatsappNumber, config.templates.suspended, [
       serviceName,

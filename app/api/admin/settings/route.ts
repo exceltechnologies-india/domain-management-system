@@ -62,6 +62,16 @@ const NEVER_SECURITY_KEYS = new Set<string>([
   "tld_pricing_cache_enabled",
   "tld_pricing_cache_ttl",
   "maintenance_mode_enabled",
+  // WhatsApp OPERATIONAL config — none of these carry a secret (the token
+  // is env/Secret-Manager-only, never a settings key), so step-up re-auth
+  // would be friction without security benefit. The enable flag, phone-
+  // number ID, business number + template names are all safe-to-edit.
+  "whatsapp_enabled",
+  "whatsapp_phone_number_id",
+  "whatsapp_business_number",
+  "whatsapp_template_reminder",
+  "whatsapp_template_payment",
+  "whatsapp_template_suspended",
 ]);
 
 async function isSecurityScopedKey(key: string): Promise<boolean> {

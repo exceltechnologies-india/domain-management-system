@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import {
   Settings, Server, Wifi, RefreshCw, CheckCircle, AlertTriangle, AlertCircle,
   Copy, Loader2, Globe, Plus, X, Save, Database, Trash2, ChevronDown,
-  Wrench, Power, Shield, Tag,
+  Wrench, Power, Shield, Tag, MessageCircle, Send,
 } from "lucide-react";
 import RefreshButton from "@/components/dashboard/RefreshButton";
 import AdminLayout from "@/components/admin/AdminLayout";
@@ -34,7 +34,7 @@ interface IPData {
   checkedBy?: { firstName: string; lastName: string; email: string };
 }
 
-type ActiveSection = "general" | "performance" | "security" | "promotions";
+type ActiveSection = "general" | "performance" | "security" | "promotions" | "integrations";
 
 // ── Reusable primitives ────────────────────────────────────────────────────────
 
@@ -58,8 +58,8 @@ function SCardHead({ title, description, action }: { title: string; description?
   );
 }
 
-function Toggle({ checked, onChange, color = "blue" }: { checked: boolean; onChange: (v: boolean) => void; color?: "blue" | "red" | "purple" | "orange" }) {
-  const ring = { blue: "peer-focus:ring-blue-300 peer-checked:bg-blue-600", red: "peer-focus:ring-red-300 peer-checked:bg-red-600", purple: "peer-focus:ring-purple-300 peer-checked:bg-purple-600", orange: "peer-focus:ring-orange-300 peer-checked:bg-orange-500" }[color];
+function Toggle({ checked, onChange, color = "blue" }: { checked: boolean; onChange: (v: boolean) => void; color?: "blue" | "red" | "purple" | "orange" | "green" }) {
+  const ring = { blue: "peer-focus:ring-blue-300 peer-checked:bg-blue-600", red: "peer-focus:ring-red-300 peer-checked:bg-red-600", purple: "peer-focus:ring-purple-300 peer-checked:bg-purple-600", orange: "peer-focus:ring-orange-300 peer-checked:bg-orange-500", green: "peer-focus:ring-green-300 peer-checked:bg-green-600" }[color];
   return (
     <label className="relative inline-flex items-center cursor-pointer shrink-0">
       <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} className="sr-only peer" />
@@ -68,8 +68,8 @@ function Toggle({ checked, onChange, color = "blue" }: { checked: boolean; onCha
   );
 }
 
-function SaveBtn({ onClick, loading, label, color = "blue", disabled = false }: { onClick: () => void; loading: boolean; label: string; color?: "blue" | "red" | "purple" | "orange"; disabled?: boolean }) {
-  const cls = { blue: "bg-blue-600 hover:bg-blue-700", red: "bg-red-600 hover:bg-red-700", purple: "bg-purple-600 hover:bg-purple-700", orange: "bg-orange-500 hover:bg-orange-600" }[color];
+function SaveBtn({ onClick, loading, label, color = "blue", disabled = false }: { onClick: () => void; loading: boolean; label: string; color?: "blue" | "red" | "purple" | "orange" | "green"; disabled?: boolean }) {
+  const cls = { blue: "bg-blue-600 hover:bg-blue-700", red: "bg-red-600 hover:bg-red-700", purple: "bg-purple-600 hover:bg-purple-700", orange: "bg-orange-500 hover:bg-orange-600", green: "bg-green-600 hover:bg-green-700" }[color];
   return (
     <button onClick={onClick} disabled={loading || disabled} className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${cls}`}>
       {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -200,6 +200,20 @@ export default function AdminSettings() {
   const [maintenanceScheduledEnd, setMaintenanceScheduledEnd] = useState("");
   const [isSavingMaintenance, setIsSavingMaintenance] = useState(false);
 
+  // WhatsApp (operational config is admin-managed; token stays in Secret Manager)
+  const [waEnabled, setWaEnabled] = useState(false);
+  const [waHasToken, setWaHasToken] = useState(false);
+  const [waReady, setWaReady] = useState(false);
+  const [waPhoneNumberId, setWaPhoneNumberId] = useState("");
+  const [waBusinessNumber, setWaBusinessNumber] = useState("");
+  const [waTplReminder, setWaTplReminder] = useState("");
+  const [waTplPayment, setWaTplPayment] = useState("");
+  const [waTplSuspended, setWaTplSuspended] = useState("");
+  const [isSavingWa, setIsSavingWa] = useState(false);
+  const [isLoadingWa, setIsLoadingWa] = useState(false);
+  const [waTestNumber, setWaTestNumber] = useState("");
+  const [isSendingWaTest, setIsSendingWaTest] = useState(false);
+
   // ── Auth ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (status === "loading") return;
@@ -215,7 +229,7 @@ export default function AdminSettings() {
   // ── Data loading ──────────────────────────────────────────────────────────
   const loadAllSettings = async () => {
     setIsDataLoading(true);
-    await Promise.all([loadSavedIPData(), loadCacheSettings(), loadIPWhitelistSettings(), loadCORSSettings(), loadHostingTrialSettings(), loadTestPlanSettings(), loadMaintenanceSettings()]);
+    await Promise.all([loadSavedIPData(), loadCacheSettings(), loadIPWhitelistSettings(), loadCORSSettings(), loadHostingTrialSettings(), loadTestPlanSettings(), loadMaintenanceSettings(), loadWhatsAppSettings()]);
     if (typeof window !== "undefined") setCurrentOrigin(window.location.origin);
     setIsDataLoading(false);
   };
@@ -396,6 +410,70 @@ export default function AdminSettings() {
     setIsSavingTestPlan(false);
   };
 
+  // ── WhatsApp ────────────────────────────────────────────────────────────────
+  const loadWhatsAppSettings = async () => {
+    setIsLoadingWa(true);
+    // Read the RESOLVED status (DB override OR env fallback) — never the
+    // token value, only whether it's present (hasToken).
+    const result = await apiClient.get<{
+      success?: boolean;
+      status?: {
+        enabled: boolean;
+        hasToken: boolean;
+        phoneNumberId: string;
+        businessNumber: string;
+        templates: { reminder: string; payment: string; suspended: string };
+        ready: boolean;
+      };
+    }>("/api/v1/admin/whatsapp/status");
+    if (result.ok && result.data.status) {
+      const s = result.data.status;
+      setWaEnabled(s.enabled);
+      setWaHasToken(s.hasToken);
+      setWaReady(s.ready);
+      setWaPhoneNumberId(s.phoneNumberId);
+      setWaBusinessNumber(s.businessNumber);
+      setWaTplReminder(s.templates.reminder);
+      setWaTplPayment(s.templates.payment);
+      setWaTplSuspended(s.templates.suspended);
+    }
+    setIsLoadingWa(false);
+  };
+
+  const saveWhatsAppSettings = async () => {
+    setIsSavingWa(true);
+    // All operational keys in one batch. None are secrets (token is
+    // env-only) so no step-up re-auth is triggered.
+    const results = await Promise.all([
+      apiClient.post("/api/v1/admin/settings", { key: "whatsapp_enabled", value: waEnabled, description: "Master on/off for WhatsApp notifications", category: "integrations" }),
+      apiClient.post("/api/v1/admin/settings", { key: "whatsapp_phone_number_id", value: waPhoneNumberId.trim(), description: "Meta WhatsApp phone-number ID", category: "integrations" }),
+      apiClient.post("/api/v1/admin/settings", { key: "whatsapp_business_number", value: waBusinessNumber.trim(), description: "Display business number", category: "integrations" }),
+      apiClient.post("/api/v1/admin/settings", { key: "whatsapp_template_reminder", value: waTplReminder.trim(), description: "Approved reminder template name", category: "integrations" }),
+      apiClient.post("/api/v1/admin/settings", { key: "whatsapp_template_payment", value: waTplPayment.trim(), description: "Approved payment template name", category: "integrations" }),
+      apiClient.post("/api/v1/admin/settings", { key: "whatsapp_template_suspended", value: waTplSuspended.trim(), description: "Approved suspension template name", category: "integrations" }),
+    ]);
+    if (results.every((r) => r.ok)) {
+      showSuccessToast("WhatsApp settings saved");
+      await loadWhatsAppSettings();
+    } else {
+      showErrorToast("Failed to save some WhatsApp settings");
+    }
+    setIsSavingWa(false);
+  };
+
+  const sendWhatsAppTest = async () => {
+    const to = waTestNumber.trim();
+    if (!to) { showErrorToast("Enter a number to send the test to"); return; }
+    setIsSendingWaTest(true);
+    const result = await apiClient.post<{ success?: boolean; sent?: boolean; reason?: string }>("/api/v1/admin/whatsapp/test", { to });
+    if (result.ok && result.data.sent) {
+      showSuccessToast(`Test message sent to ${to}`);
+    } else {
+      showErrorToast(result.ok ? (result.data.reason || "Test send failed") : "Test send failed");
+    }
+    setIsSendingWaTest(false);
+  };
+
   const saveMaintenanceSettings = async () => {
     setIsSavingMaintenance(true);
     const scheduledEnd = maintenanceScheduledEnd ? new Date(maintenanceScheduledEnd).toISOString() : null;
@@ -415,6 +493,7 @@ export default function AdminSettings() {
     { id: "performance", label: "Performance", icon: Database, description: "Cache & server info" },
     { id: "security",    label: "Security",    icon: Shield,   description: "IP whitelisting & CORS" },
     { id: "promotions",  label: "Promotions",  icon: Tag,      description: "Trials & test plans" },
+    { id: "integrations", label: "Integrations", icon: MessageCircle, description: "WhatsApp notifications" },
   ];
 
   return (
@@ -923,6 +1002,78 @@ export default function AdminSettings() {
                     )}
                     <button onClick={loadTestPlanSettings} disabled={isLoadingTestPlan} className="px-3 py-2 text-sm text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 flex items-center gap-1.5 disabled:opacity-50">
                       <RefreshCw className={`h-3.5 w-3.5 ${isLoadingTestPlan ? "animate-spin" : ""}`} /> Refresh
+                    </button>
+                  </SFooter>
+                </SCard>
+              </>
+            )}
+
+            {!isDataLoading && activeSection === "integrations" && (
+              <>
+                {/* WhatsApp notifications */}
+                <SCard>
+                  <SCardHead
+                    title="WhatsApp Notifications (Meta Cloud API)"
+                    description="Send reminders, payment confirmations & suspension notices over WhatsApp alongside email. The API token is developer-managed in Secret Manager; everything else you manage here."
+                    action={<Toggle checked={waEnabled} onChange={setWaEnabled} color="green" />}
+                  />
+                  <div className="p-6 space-y-5">
+                    {/* Status pill row */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold border ${waReady ? "bg-green-50 text-green-700 border-green-300" : "bg-gray-100 text-gray-500 border-gray-200"}`}>
+                        {isLoadingWa ? "Loading…" : waReady ? "READY — sends live" : waEnabled ? "ENABLED — not fully configured" : "DISABLED"}
+                      </span>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${waHasToken ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"}`}>
+                        {waHasToken ? "API token: set" : "API token: MISSING (developer sets in Secret Manager)"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Phone-number ID</label>
+                        <input type="text" value={waPhoneNumberId} onChange={e => setWaPhoneNumberId(e.target.value)} placeholder="From Meta WhatsApp Manager" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-400" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Business number <span className="font-normal text-gray-400">(display only)</span></label>
+                        <input type="text" value={waBusinessNumber} onChange={e => setWaBusinessNumber(e.target.value)} placeholder="+91 98765 43210" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Reminder template</label>
+                        <input type="text" value={waTplReminder} onChange={e => setWaTplReminder(e.target.value)} placeholder="service_renewal_reminder" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-400" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Payment template</label>
+                        <input type="text" value={waTplPayment} onChange={e => setWaTplPayment(e.target.value)} placeholder="payment_confirmed" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-400" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Suspension template</label>
+                        <input type="text" value={waTplSuspended} onChange={e => setWaTplSuspended(e.target.value)} placeholder="service_suspended" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-400" />
+                      </div>
+                    </div>
+
+                    <StatusBanner
+                      active={waReady}
+                      color="green"
+                      activeMsg="WhatsApp is live. Enabled notifications will fire to customers who have a WhatsApp number on file + opted in. Template names must match what's approved in Meta WhatsApp Manager."
+                      inactiveMsg="Not sending yet. Needs: master toggle ON + API token in Secret Manager (developer) + a phone-number ID. Templates fall back to sensible defaults if left blank."
+                    />
+
+                    {/* Test send — validates config even while disabled */}
+                    <div className="border-t border-gray-100 pt-5">
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Send a test message <span className="font-normal text-gray-400">(bypasses the master toggle — validates token + template before going live)</span></label>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <input type="text" value={waTestNumber} onChange={e => setWaTestNumber(e.target.value)} placeholder="10-digit mobile or +91…" className="flex-1 min-w-[200px] px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        <button onClick={sendWhatsAppTest} disabled={isSendingWaTest} className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-green-600 rounded-xl hover:bg-green-700 disabled:opacity-50 transition-colors">
+                          {isSendingWaTest ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                          {isSendingWaTest ? "Sending…" : "Send test"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <SFooter>
+                    <SaveBtn onClick={saveWhatsAppSettings} loading={isSavingWa} label="Save WhatsApp Settings" color="green" />
+                    <button onClick={loadWhatsAppSettings} disabled={isLoadingWa} className="px-3 py-2 text-sm text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 flex items-center gap-1.5 disabled:opacity-50">
+                      <RefreshCw className={`h-3.5 w-3.5 ${isLoadingWa ? "animate-spin" : ""}`} /> Refresh
                     </button>
                   </SFooter>
                 </SCard>
