@@ -1,27 +1,35 @@
 import { serverLogger } from "@/lib/server-logger";
+import {
+  getWhatsAppConfig,
+  isWhatsAppConfigured,
+  type WhatsAppConfig,
+} from "@/lib/services/whatsapp-config";
 
 const GRAPH_URL = "https://graph.facebook.com/v18.0";
 
 /**
  * WhatsApp Cloud API (Meta) — sends pre-approved template messages.
  *
- * Required env vars:
- *   WHATSAPP_API_TOKEN      — Meta permanent / long-lived access token
- *   WHATSAPP_PHONE_NUMBER_ID — Phone number ID from Meta Business dashboard
+ * Config is split-source (see lib/services/whatsapp-config.ts):
+ *   - SECRET token: env / Secret Manager only (`WHATSAPP_API_TOKEN`).
+ *   - Operational config (enable flag, phone-number ID, template names,
+ *     business number): admin-panel-managed via Settings, env-fallback.
  *
- * Template env vars (override to match your approved template names):
- *   WHATSAPP_TEMPLATE_REMINDER   (default: "service_renewal_reminder")
- *   WHATSAPP_TEMPLATE_PAYMENT    (default: "payment_confirmed")
- *   WHATSAPP_TEMPLATE_SUSPENDED  (default: "service_suspended")
- *
- * All numbers are assumed to be 10-digit Indian mobile numbers (+91 prefix added).
+ * Every send resolves the config fresh, gates on
+ * `isWhatsAppConfigured` (enabled + token + phone-number ID), and is
+ * best-effort — network / API errors are logged and swallowed, never
+ * thrown, because notification sends run inside worker hot paths and
+ * must not stall or fail the surrounding request.
  */
 export class WhatsAppService {
-  private static get token() { return process.env.WHATSAPP_API_TOKEN; }
-  private static get phoneNumberId() { return process.env.WHATSAPP_PHONE_NUMBER_ID; }
-
-  static isConfigured(): boolean {
-    return !!(this.token && this.phoneNumberId);
+  /**
+   * Resolve config-readiness. Async now (was a sync env check) because
+   * the operational config lives in the DB. Kept as a named method so
+   * call sites that want to pre-check before composing a message can.
+   */
+  static async isConfigured(): Promise<boolean> {
+    const config = await getWhatsAppConfig();
+    return isWhatsAppConfigured(config);
   }
 
   /** Normalise to E.164 format, assuming India (+91) for 10-digit numbers. */
@@ -33,16 +41,18 @@ export class WhatsAppService {
   }
 
   /**
-   * Send a template message. Body parameters are substituted into {{1}}, {{2}}, …
-   * in the template body in order.
+   * Actual send against a pre-resolved config. Private so convenience
+   * methods + the public sendTemplate share one config resolution per
+   * public call (no double DB read).
    */
-  static async sendTemplate(
+  private static async dispatch(
+    config: WhatsAppConfig,
     to: string,
     templateName: string,
     bodyParams: string[],
-    languageCode = "en"
+    languageCode: string
   ): Promise<boolean> {
-    if (!this.isConfigured()) return false;
+    if (!isWhatsAppConfigured(config)) return false;
 
     const phone = this.formatNumber(to);
     const components =
@@ -59,11 +69,11 @@ export class WhatsAppService {
       // 15s upper bound — runs inside worker hot paths
       // (`process-service-expiry`). A hung Graph slot must not stall the
       // worker's Cloud Run slot.
-      const res = await fetch(`${GRAPH_URL}/${this.phoneNumberId}/messages`, {
+      const res = await fetch(`${GRAPH_URL}/${config.phoneNumberId}/messages`, {
         method: "POST",
         signal: AbortSignal.timeout(15_000),
         headers: {
-          Authorization: `Bearer ${this.token}`,
+          Authorization: `Bearer ${config.apiToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -98,6 +108,22 @@ export class WhatsAppService {
   }
 
   /**
+   * Send a template message. Body parameters are substituted into {{1}}, {{2}}, …
+   * in the template body in order. Resolves the split-source config
+   * internally + gates on it — returns false (no send) when WhatsApp is
+   * disabled or unconfigured.
+   */
+  static async sendTemplate(
+    to: string,
+    templateName: string,
+    bodyParams: string[],
+    languageCode = "en"
+  ): Promise<boolean> {
+    const config = await getWhatsAppConfig();
+    return this.dispatch(config, to, templateName, bodyParams, languageCode);
+  }
+
+  /**
    * Service renewal reminder.
    * Template body params: {{1}} serviceName, {{2}} daysRemaining, {{3}} renewUrl
    */
@@ -108,14 +134,13 @@ export class WhatsAppService {
       daysRemaining,
     }: { serviceName: string; daysRemaining: number }
   ): Promise<void> {
-    const template =
-      process.env.WHATSAPP_TEMPLATE_REMINDER ?? "service_renewal_reminder";
+    const config = await getWhatsAppConfig();
     const renewUrl = `${process.env.NEXTAUTH_URL ?? ""}/dashboard`;
-    await this.sendTemplate(whatsappNumber, template, [
+    await this.dispatch(config, whatsappNumber, config.templates.reminder, [
       serviceName,
       String(daysRemaining),
       renewUrl,
-    ]);
+    ], "en");
   }
 
   /**
@@ -130,12 +155,11 @@ export class WhatsAppService {
       serviceName,
     }: { amount: number; currency?: string; serviceName: string }
   ): Promise<void> {
-    const template =
-      process.env.WHATSAPP_TEMPLATE_PAYMENT ?? "payment_confirmed";
-    await this.sendTemplate(whatsappNumber, template, [
+    const config = await getWhatsAppConfig();
+    await this.dispatch(config, whatsappNumber, config.templates.payment, [
       `${currency} ${amount}`,
       serviceName,
-    ]);
+    ], "en");
   }
 
   /**
@@ -149,13 +173,12 @@ export class WhatsAppService {
       serviceType,
     }: { serviceName: string; serviceType: string }
   ): Promise<void> {
-    const template =
-      process.env.WHATSAPP_TEMPLATE_SUSPENDED ?? "service_suspended";
+    const config = await getWhatsAppConfig();
     const renewUrl = `${process.env.NEXTAUTH_URL ?? ""}/dashboard`;
-    await this.sendTemplate(whatsappNumber, template, [
+    await this.dispatch(config, whatsappNumber, config.templates.suspended, [
       serviceName,
       serviceType,
       renewUrl,
-    ]);
+    ], "en");
   }
 }

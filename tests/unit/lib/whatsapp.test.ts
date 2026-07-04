@@ -32,6 +32,14 @@ vi.mock("@/lib/server-logger", () => ({
   serverLogger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
 }));
 
+// Mock the DB boundary of the config resolver — `getSettingsMap` returns
+// {} so the resolver falls through to env vars, preserving the original
+// env-driven test behavior. The real getWhatsAppConfig + WhatsAppService
+// code paths still run (template fallback, enable gate, isConfigured).
+vi.mock("@/lib/services/settings", () => ({
+  getSettingsMap: vi.fn(async () => ({})),
+}));
+
 import { WhatsAppService } from "@/lib/whatsapp";
 
 const TOKEN = "test-token";
@@ -40,6 +48,9 @@ const PHONE_ID = "PHONE-123";
 beforeEach(() => {
   vi.stubEnv("WHATSAPP_API_TOKEN", TOKEN);
   vi.stubEnv("WHATSAPP_PHONE_NUMBER_ID", PHONE_ID);
+  // Master enable flag — env fallback since getSettingsMap is mocked to {}.
+  // Default is OFF, so tests must explicitly enable to exercise the send path.
+  vi.stubEnv("WHATSAPP_ENABLED", "true");
   vi.stubEnv("NEXTAUTH_URL", "https://example.com");
   // NOTE: do NOT pre-stub WHATSAPP_TEMPLATE_* to "" — the source uses
   // `?? fallback`, which fires on null/undefined but NOT on "". Empty
@@ -63,19 +74,24 @@ function mockFetch(status: number, body: unknown = {}) {
   );
 }
 
-describe("isConfigured — AND gate over token + phoneNumberId", () => {
-  it("both set → true", () => {
-    expect(WhatsAppService.isConfigured()).toBe(true);
+describe("isConfigured — AND gate over enabled + token + phoneNumberId", () => {
+  it("all set → true", async () => {
+    expect(await WhatsAppService.isConfigured()).toBe(true);
   });
 
-  it("missing token → false", () => {
+  it("missing token → false", async () => {
     vi.stubEnv("WHATSAPP_API_TOKEN", "");
-    expect(WhatsAppService.isConfigured()).toBe(false);
+    expect(await WhatsAppService.isConfigured()).toBe(false);
   });
 
-  it("missing phoneNumberId → false", () => {
+  it("missing phoneNumberId → false", async () => {
     vi.stubEnv("WHATSAPP_PHONE_NUMBER_ID", "");
-    expect(WhatsAppService.isConfigured()).toBe(false);
+    expect(await WhatsAppService.isConfigured()).toBe(false);
+  });
+
+  it("disabled (WHATSAPP_ENABLED unset) → false even with token + phoneId", async () => {
+    vi.stubEnv("WHATSAPP_ENABLED", "");
+    expect(await WhatsAppService.isConfigured()).toBe(false);
   });
 });
 
