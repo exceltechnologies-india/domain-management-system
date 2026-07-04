@@ -41,6 +41,7 @@ type ProviderId =
   | "zoho"
   | "razorpay"
   | "email"
+  | "whatsapp"
   | "auth"
   | "background"
   | "application"
@@ -64,6 +65,8 @@ const SERVICE_TO_PROVIDER: Record<string, ProviderId> = {
   email: "email",
   smtp: "email",
   mailer: "email",
+  whatsapp: "whatsapp",
+  wa: "whatsapp",
   auth: "auth",
   nextauth: "auth",
   login: "auth",
@@ -173,6 +176,20 @@ const PROVIDERS: ProviderClassifier[] = [
       {
         needle: /smtp|nodemailer|EAUTH|EENVELOPE|550 |551 |552 |553 /i,
         hint: "Outbound email failure. Check SMTP_HOST / SMTP_USER / SMTP_PASS in Secret Manager, look at the SMTP provider's rate-limit or reputation dashboard, and verify the FROM_EMAIL domain's SPF/DKIM are intact.",
+      },
+    ],
+  },
+  {
+    id: "whatsapp",
+    label: "WhatsApp",
+    signatures: [
+      {
+        needle: /message .* failed to|X-Hub-Signature|Invalid signature.*whatsapp|whatsapp webhook/i,
+        hint: "WhatsApp send or webhook failure. If it's a SEND failure: the template name may not be approved in Meta WhatsApp Manager, the recipient may not have opted in / messaged you in the last 24h, or the access token expired — check Admin → Settings → Integrations status + WHATSAPP_API_TOKEN in Secret Manager. If it's a WEBHOOK signature failure: WHATSAPP_APP_SECRET is wrong/missing.",
+      },
+      {
+        needle: /\[WhatsApp\]|graph\.facebook\.com|whatsapp/i,
+        hint: "WhatsApp Cloud API error. Verify the integration is enabled + configured (Admin → Settings → Integrations), the API token is valid in Secret Manager, and the approved template names match Meta WhatsApp Manager. Sends are best-effort — a WhatsApp failure never blocks the equivalent email.",
       },
     ],
   },

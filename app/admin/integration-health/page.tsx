@@ -61,6 +61,7 @@ const PROVIDER_DESCRIPTIONS: Record<string, string> = {
   resellerclub: 'Domain registration, transfer, and DNS management.',
   razorpay: 'Payment authorization, capture, and webhook handling.',
   email: 'Outbound SMTP — order confirmations, activation links, password resets.',
+  whatsapp: 'WhatsApp Cloud API — reminders, payment confirmations, suspension notices + inbound STOP/delivery webhook.',
   auth: 'Sign-in, 2FA, JWT verification, rate-limit triggers.',
   background: 'Cron jobs and worker queues — Zoho retry, RC pricing sync, daily cleanup.',
   application: 'Other server-side errors — middleware, API routes, business logic.',

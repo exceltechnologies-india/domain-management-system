@@ -96,9 +96,12 @@ export class WhatsAppService {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
+        // `service: "whatsapp"` routes this to the WhatsApp card in
+        // /admin/integration-health (else it'd fall into the generic
+        // Application bucket). Meta error body merged in for triage.
         serverLogger.error(
-          `[WhatsApp] Template "${templateName}" failed → ${phone}:`,
-          err
+          `[WhatsApp] Template "${templateName}" failed → ${phone}: ${JSON.stringify(err).slice(0, 300)}`,
+          { service: "whatsapp" }
         );
         return false;
       }
@@ -106,8 +109,8 @@ export class WhatsAppService {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       serverLogger.error(
-        `[WhatsApp] Network error sending "${templateName}" → ${phone}:`,
-        message
+        `[WhatsApp] Network error sending "${templateName}" → ${phone}: ${message}`,
+        { service: "whatsapp" }
       );
       return false;
     }

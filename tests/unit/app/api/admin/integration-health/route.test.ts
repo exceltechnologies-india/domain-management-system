@@ -214,6 +214,33 @@ describe("/api/admin/integration-health — RecurringChargeAttempt source", () =
 // The 7-layer manual-flow-trial chain would have surfaced there if not for
 // the seeding bug. These tests pin the fix.
 
+describe("/api/admin/integration-health — WhatsApp provider (2026-07-04)", () => {
+  it("SystemLog entry with service='whatsapp' → WhatsApp card, not application", async () => {
+    const now = new Date();
+    SystemLogFind.mockReturnValueOnce(
+      chainable([
+        {
+          _id: "wa1",
+          message: '[WhatsApp] Template "payment_confirmed" failed → +919876543210: {"error":{"code":132001}}',
+          source: "Server Logger",
+          service: "whatsapp",
+          createdAt: now,
+        },
+      ])
+    );
+    const res = await GET(makeReq());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const wa = body.providers.find((p: { id: string }) => p.id === "whatsapp");
+    expect(wa).toBeDefined();
+    expect(wa.totalErrors).toBe(1);
+    expect(wa.patterns[0].hint).toMatch(/WhatsApp/i);
+    // Must NOT have leaked into the application bucket.
+    const app = body.providers.find((p: { id: string }) => p.id === "application");
+    expect(app?.totalErrors ?? 0).toBe(0);
+  });
+});
+
 describe("/api/admin/integration-health — Application provider", () => {
   it("SystemLog entry with service='api' classifies to application card without crashing the route", async () => {
     const now = new Date();
