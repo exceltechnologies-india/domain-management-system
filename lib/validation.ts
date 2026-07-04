@@ -94,6 +94,7 @@ export const Schemas = {
     phone: z.string().max(20).optional(),
     phoneCc: z.string().max(20).optional(),
     whatsappNumber: z.string().max(15).optional().or(z.literal("")),
+    whatsappOptOut: z.boolean().optional(),
     address: z.object({
       line1: z.string().max(200).optional(),
       city: z.string().max(100).optional(),

@@ -28,6 +28,7 @@ interface User {
   phone?: string;
   phoneCc?: string;
   whatsappNumber?: string;
+  whatsappOptOut?: boolean;
   companyName?: string;
   gstNumber?: string;
   address?: {
@@ -209,6 +210,10 @@ export default function UserSettings() {
             phone: profile.phone || prev.phone,
             phoneCc: profile.phoneCc || prev.phoneCc || '+91',
             whatsappNumber: profile.whatsappNumber ?? prev.whatsappNumber ?? '',
+            // profile is loosely typed (Record<string,string>) though the
+            // server sends a real boolean — String()===  'true' coerces
+            // both a JSON boolean true and a "true" string safely.
+            whatsappOptOut: String(profile.whatsappOptOut) === 'true',
             companyName: profile.company || prev.companyName,
             gstNumber: profile.gstNumber || prev.gstNumber || '',
             address: {
@@ -579,6 +584,24 @@ export default function UserSettings() {
                           <label htmlFor="wa-same" className="text-xs text-gray-500 cursor-pointer select-none">Same as phone number</label>
                         </div>
                         <p className="text-xs text-gray-400 mt-1.5">Leave blank to receive notifications by email only.</p>
+
+                        {/* WhatsApp opt-out — only meaningful once a number
+                            is on file. Complements replying STOP on WhatsApp;
+                            either flips the same server-side flag. */}
+                        {!!user.whatsappNumber && (
+                          <label className="flex items-start gap-2 mt-3 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              className="h-3.5 w-3.5 mt-0.5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                              checked={user.whatsappOptOut !== true}
+                              onChange={e => setUser(p => p ? { ...p, whatsappOptOut: !e.target.checked } : null)}
+                            />
+                            <span className="text-xs text-gray-600">
+                              Receive notifications on WhatsApp
+                              <span className="block text-gray-400">Uncheck to stop WhatsApp messages (you&apos;ll still get email). You can also reply STOP on WhatsApp anytime.</span>
+                            </span>
+                          </label>
+                        )}
                       </div>
                     </div>
                     <SaveRow isDirty={isDirty} isSaving={isSaving} onClick={() => handleUpdateProfile(user)} />

@@ -298,7 +298,7 @@ describe("GET — response data-minimization", () => {
     expect(data.profile).not.toHaveProperty("_id");
   });
 
-  it("explicit 13-key whitelist", async () => {
+  it("explicit 14-key whitelist", async () => {
     getUserFromRequest.mockResolvedValueOnce(makeUser());
     await GET(makeReq("GET"));
     const data = secureJsonResponse.mock.calls[0][0] as any;
@@ -316,6 +316,7 @@ describe("GET — response data-minimization", () => {
         "phoneCc",
         "state",
         "whatsappNumber",
+        "whatsappOptOut",
         "zipCode",
       ].sort()
     );

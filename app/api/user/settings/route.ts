@@ -105,6 +105,7 @@ export async function GET(request: NextRequest) {
         phone: user.phone || "",
         phoneCc: user.phoneCc || "+91",
         whatsappNumber: user.whatsappNumber || "",
+        whatsappOptOut: user.whatsappOptOut === true,
         address: user.address?.line1 || "",
         city: user.address?.city || "",
         state: user.address?.state || "",
@@ -153,6 +154,10 @@ export async function PUT(request: NextRequest) {
       if (p.phone) user.phone = p.phone;
       if (p.phoneCc) user.phoneCc = p.phoneCc;
       if (p.whatsappNumber !== undefined) user.whatsappNumber = p.whatsappNumber || undefined;
+      // Customer-facing WhatsApp opt-out toggle — complements the
+      // STOP-keyword-driven opt-out set by the inbound webhook. Either
+      // path flips the same flag; every WhatsApp send site honors it.
+      if (p.whatsappOptOut !== undefined) user.whatsappOptOut = p.whatsappOptOut;
 
       // Auto-fill phone from WhatsApp when phone is still blank — a
       // WhatsApp-only profile should always have a phone number on file
