@@ -1,4 +1,5 @@
 import { EmailService } from "@/lib/email";
+import { WhatsAppService } from "@/lib/whatsapp";
 import { ZohoBooksService } from "@/lib/zohobooks";
 import { serverLogger } from "@/lib/server-logger";
 import type { IOrder } from "@/models/Order";
@@ -207,5 +208,29 @@ export async function runPostPaymentTasks(
     }
   };
 
-  await Promise.all([adminNotify(), domainBookingNotify()]);
+  // WhatsApp payment confirmation — fires alongside the email when the
+  // customer has a WhatsApp number on file (which they entered under a
+  // "WhatsApp number for notifications" field = implicit opt-in). The
+  // service self-gates on the master enable flag + token/phone-id
+  // config, so this is a silent no-op when WhatsApp is off/unconfigured
+  // — safe to always attempt. Best-effort: a WhatsApp failure never
+  // affects the email path or the payment outcome.
+  const whatsappNotify = async () => {
+    try {
+      if (!user.whatsappNumber) return;
+      const serviceName =
+        finalSuccessfulDomains.length > 1
+          ? `${finalSuccessfulDomains[0]} +${finalSuccessfulDomains.length - 1} more`
+          : finalSuccessfulDomains[0] || "your order";
+      await WhatsAppService.sendPaymentConfirmed(user.whatsappNumber, {
+        amount: order.amount,
+        currency: order.currency,
+        serviceName,
+      });
+    } catch (e) {
+      serverLogger.error("❌ [PAYMENT-VERIFY] WhatsApp payment-confirmed error:", e);
+    }
+  };
+
+  await Promise.all([adminNotify(), domainBookingNotify(), whatsappNotify()]);
 }
