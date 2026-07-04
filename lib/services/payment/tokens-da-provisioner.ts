@@ -266,6 +266,24 @@ export async function provisionTokensFlowHosting(
     );
   }
 
+  // WhatsApp welcome — alongside the email, when the customer has a
+  // WhatsApp number on file + hasn't opted out. Self-gating (no-op when
+  // WhatsApp disabled/unconfigured) + best-effort: a failure never blocks
+  // the status flip. Uses the "hosting provisioned" template.
+  try {
+    if (user.whatsappNumber && user.whatsappOptOut !== true) {
+      const { WhatsAppService } = await import("@/lib/whatsapp");
+      await WhatsAppService.sendServiceProvisioned(user.whatsappNumber, {
+        domainName: hosting.domainName,
+        planName,
+      });
+    }
+  } catch (waErr) {
+    serverLogger.warn(
+      `[TOKENS-DA-PROVISIONER] Welcome WhatsApp failed for ${hosting.domainName}: ${waErr instanceof Error ? waErr.message : String(waErr)}`
+    );
+  }
+
   serverLogger.info(
     `✅ [TOKENS-DA-PROVISIONER] Provisioned ${hosting.domainName}: daUsername=${daUsername} status=active`
   );

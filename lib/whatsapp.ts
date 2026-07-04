@@ -190,6 +190,27 @@ export class WhatsAppService {
   }
 
   /**
+   * Hosting provisioned / welcome.
+   * Template body params: {{1}} domainName, {{2}} planName, {{3}} dashboardUrl
+   */
+  static async sendServiceProvisioned(
+    whatsappNumber: string,
+    {
+      domainName,
+      planName,
+    }: { domainName: string; planName: string }
+  ): Promise<void> {
+    const config = await getWhatsAppConfig();
+    if (!isWhatsAppConfigured(config)) return;
+    const dashboardUrl = `${process.env.NEXTAUTH_URL ?? ""}/dashboard/hosting`;
+    await this.dispatch(config, whatsappNumber, config.templates.welcome, [
+      domainName,
+      planName,
+      dashboardUrl,
+    ], "en");
+  }
+
+  /**
    * Payment confirmed.
    * Template body params: {{1}} amount+currency, {{2}} serviceName
    */

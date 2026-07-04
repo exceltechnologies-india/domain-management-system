@@ -32,6 +32,7 @@ export const WHATSAPP_SETTING_KEYS = {
   templateReminder: "whatsapp_template_reminder",
   templatePayment: "whatsapp_template_payment",
   templateSuspended: "whatsapp_template_suspended",
+  templateWelcome: "whatsapp_template_welcome",
 } as const;
 
 // Hardcoded fallback template names — must match what's approved in the
@@ -40,6 +41,7 @@ export const WHATSAPP_SETTING_KEYS = {
 const DEFAULT_TEMPLATE_REMINDER = "service_renewal_reminder";
 const DEFAULT_TEMPLATE_PAYMENT = "payment_confirmed";
 const DEFAULT_TEMPLATE_SUSPENDED = "service_suspended";
+const DEFAULT_TEMPLATE_WELCOME = "hosting_provisioned";
 
 export interface WhatsAppConfig {
   /** Master on/off. When false, no WhatsApp message fires regardless of the rest. */
@@ -55,6 +57,7 @@ export interface WhatsAppConfig {
     reminder: string;
     payment: string;
     suspended: string;
+    welcome: string;
   };
 }
 
@@ -110,6 +113,10 @@ export async function getWhatsAppConfig(): Promise<WhatsAppConfig> {
         clean(settings[WHATSAPP_SETTING_KEYS.templateSuspended]) ??
         clean(process.env.WHATSAPP_TEMPLATE_SUSPENDED) ??
         DEFAULT_TEMPLATE_SUSPENDED,
+      welcome:
+        clean(settings[WHATSAPP_SETTING_KEYS.templateWelcome]) ??
+        clean(process.env.WHATSAPP_TEMPLATE_WELCOME) ??
+        DEFAULT_TEMPLATE_WELCOME,
     },
   };
 }

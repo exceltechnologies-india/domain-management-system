@@ -209,6 +209,7 @@ export default function AdminSettings() {
   const [waTplReminder, setWaTplReminder] = useState("");
   const [waTplPayment, setWaTplPayment] = useState("");
   const [waTplSuspended, setWaTplSuspended] = useState("");
+  const [waTplWelcome, setWaTplWelcome] = useState("");
   const [isSavingWa, setIsSavingWa] = useState(false);
   const [isLoadingWa, setIsLoadingWa] = useState(false);
   const [waTestNumber, setWaTestNumber] = useState("");
@@ -422,7 +423,7 @@ export default function AdminSettings() {
         hasToken: boolean;
         phoneNumberId: string;
         businessNumber: string;
-        templates: { reminder: string; payment: string; suspended: string };
+        templates: { reminder: string; payment: string; suspended: string; welcome: string };
         ready: boolean;
       };
     }>("/api/v1/admin/whatsapp/status");
@@ -436,6 +437,7 @@ export default function AdminSettings() {
       setWaTplReminder(s.templates.reminder);
       setWaTplPayment(s.templates.payment);
       setWaTplSuspended(s.templates.suspended);
+      setWaTplWelcome(s.templates.welcome);
     }
     setIsLoadingWa(false);
   };
@@ -451,6 +453,7 @@ export default function AdminSettings() {
       apiClient.post("/api/v1/admin/settings", { key: "whatsapp_template_reminder", value: waTplReminder.trim(), description: "Approved reminder template name", category: "integrations" }),
       apiClient.post("/api/v1/admin/settings", { key: "whatsapp_template_payment", value: waTplPayment.trim(), description: "Approved payment template name", category: "integrations" }),
       apiClient.post("/api/v1/admin/settings", { key: "whatsapp_template_suspended", value: waTplSuspended.trim(), description: "Approved suspension template name", category: "integrations" }),
+      apiClient.post("/api/v1/admin/settings", { key: "whatsapp_template_welcome", value: waTplWelcome.trim(), description: "Approved hosting-provisioned/welcome template name", category: "integrations" }),
     ]);
     if (results.every((r) => r.ok)) {
       showSuccessToast("WhatsApp settings saved");
@@ -1048,6 +1051,10 @@ export default function AdminSettings() {
                       <div>
                         <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Suspension template</label>
                         <input type="text" value={waTplSuspended} onChange={e => setWaTplSuspended(e.target.value)} placeholder="service_suspended" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-400" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Welcome template</label>
+                        <input type="text" value={waTplWelcome} onChange={e => setWaTplWelcome(e.target.value)} placeholder="hosting_provisioned" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-400" />
                       </div>
                     </div>
 

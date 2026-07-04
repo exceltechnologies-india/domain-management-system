@@ -34,6 +34,18 @@ vi.mock("@/models/Hosting", () => ({
   __esModule: true,
 }));
 
+// connectDB is called at the top of both finder + provisioner (dms-00235
+// cold-start fix). Without this mock the real Mongoose client tries to
+// resolve the placeholder test MONGODB_URI and every test times out at
+// 5s (MongooseServerSelectionError). Mock it to a resolved no-op.
+vi.mock("@/lib/mongodb", () => ({ default: vi.fn().mockResolvedValue(undefined) }));
+
+// The welcome-WhatsApp send (dynamic import in the provisioner) must not
+// hit the real service/DB in unit tests — stub it to a no-op.
+vi.mock("@/lib/whatsapp", () => ({
+  WhatsAppService: { sendServiceProvisioned: vi.fn().mockResolvedValue(undefined) },
+}));
+
 const daCreateUser = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/integrations/directadmin", () => ({ createUser: daCreateUser }));
 
@@ -99,7 +111,7 @@ beforeEach(() => {
 });
 
 describe("findPendingTokensFlowHostings", () => {
-  it("queries with status=pending + razorpayTokenId present + directAdminUsername empty/absent", async () => {
+  it("queries flow-agnostically: status=pending + directAdminUsername empty/absent (NO razorpayTokenId filter since dms-00233)", async () => {
     await findPendingTokensFlowHostings();
     const filter = (HostingFind.mock.calls as unknown as [[{
       status?: string;
@@ -107,7 +119,9 @@ describe("findPendingTokensFlowHostings", () => {
       $or?: Array<{ directAdminUsername?: string | { $exists?: boolean } }>;
     }]])[0][0];
     expect(filter.status).toBe("pending");
-    expect(filter.razorpayTokenId).toMatchObject({ $exists: true });
+    // Flow-agnostic (dms-00233): the razorpayTokenId filter was removed so
+    // Manual-flow trials (no token) are also picked up. It must NOT be present.
+    expect(filter.razorpayTokenId).toBeUndefined();
     expect(filter.$or).toEqual(
       expect.arrayContaining([
         { directAdminUsername: "" },

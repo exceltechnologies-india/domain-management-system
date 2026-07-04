@@ -72,6 +72,7 @@ const NEVER_SECURITY_KEYS = new Set<string>([
   "whatsapp_template_reminder",
   "whatsapp_template_payment",
   "whatsapp_template_suspended",
+  "whatsapp_template_welcome",
 ]);
 
 async function isSecurityScopedKey(key: string): Promise<boolean> {
