@@ -549,7 +549,23 @@ export default function UserSettings() {
                         </FieldLabel>
                         <PhoneField
                           value={user.whatsappNumber || ''}
-                          onChange={v => setUser(p => p ? { ...p, whatsappNumber: v } : null)}
+                          onChange={v => setUser(p => {
+                            if (!p) return null;
+                            // Auto-fill the phone number from WhatsApp so a
+                            // user only has to enter one number. Mirror while
+                            // phone is empty OR still equals the WhatsApp value
+                            // (i.e. it's been mirroring) — this keeps mirroring
+                            // correct mid-typing. Once the user types a DIFFERENT
+                            // phone number, we stop touching it (they want two
+                            // distinct numbers). Server-side save enforces the
+                            // same fallback as a safety net.
+                            const wasMirroring = !p.phone || p.phone === p.whatsappNumber;
+                            if (wasMirroring) {
+                              setPhoneError(v.length > 0 && v.length !== 10 ? 'Enter 10-digit mobile number' : '');
+                              return { ...p, whatsappNumber: v, phone: v };
+                            }
+                            return { ...p, whatsappNumber: v };
+                          })}
                           placeholder="10-digit WhatsApp number"
                         />
                         <div className="flex items-center gap-2 mt-2">

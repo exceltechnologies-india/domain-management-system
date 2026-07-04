@@ -154,6 +154,16 @@ export async function PUT(request: NextRequest) {
       if (p.phoneCc) user.phoneCc = p.phoneCc;
       if (p.whatsappNumber !== undefined) user.whatsappNumber = p.whatsappNumber || undefined;
 
+      // Auto-fill phone from WhatsApp when phone is still blank — a
+      // WhatsApp-only profile should always have a phone number on file
+      // (order updates + domain-registration KYC need one). Server-side
+      // safety net mirroring the settings-page UI's auto-fill; covers any
+      // save path (API client, older UI, etc.) that supplied a WhatsApp
+      // number without a phone. Never overwrites an existing phone.
+      if ((!user.phone || user.phone.trim() === "") && user.whatsappNumber) {
+        user.phone = user.whatsappNumber;
+      }
+
       if (p.address) {
         if (!user.address) user.address = { line1: '', city: '', state: '', country: '', zipcode: '' };
         if (p.address.line1) user.address.line1 = p.address.line1;

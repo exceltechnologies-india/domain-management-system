@@ -420,6 +420,35 @@ describe("PUT — profile field assignment", () => {
     // Empty phone/phoneCc → checkProfileCompletion returns false
     expect(user.profileCompleted).toBe(false);
   });
+
+  it("**WhatsApp-only profile → phone auto-filled from WhatsApp number**", async () => {
+    const user = makeUser({ phone: "", whatsappNumber: "" });
+    getUserFromRequest.mockResolvedValueOnce(user);
+    profileUpdateSafeParse.mockReturnValueOnce({
+      success: true,
+      data: { whatsappNumber: "9876543210" }, // WhatsApp provided, no phone
+    });
+
+    await PUT(makeReq("PUT", { profile: { whatsappNumber: "9876543210" } }));
+
+    expect(user.whatsappNumber).toBe("9876543210");
+    // Blank phone gets mirrored from WhatsApp so the profile has a phone.
+    expect(user.phone).toBe("9876543210");
+  });
+
+  it("existing phone is NOT overwritten by a different WhatsApp number", async () => {
+    const user = makeUser({ phone: "1112223334", whatsappNumber: "" });
+    getUserFromRequest.mockResolvedValueOnce(user);
+    profileUpdateSafeParse.mockReturnValueOnce({
+      success: true,
+      data: { whatsappNumber: "9876543210" },
+    });
+
+    await PUT(makeReq("PUT", { profile: { whatsappNumber: "9876543210" } }));
+
+    expect(user.whatsappNumber).toBe("9876543210");
+    expect(user.phone).toBe("1112223334"); // preserved — user wants two distinct numbers
+  });
 });
 
 // ─── PUT: Password update gates ────────────────────────────────────
