@@ -50,6 +50,7 @@ interface ServiceLike {
         firstName?: string;
         lastName?: string;
         whatsappNumber?: string;
+        whatsappOptOut?: boolean;
       };
   save: () => Promise<unknown>;
   [k: string]: unknown;
@@ -141,7 +142,11 @@ export async function POST(request: NextRequest) {
         ? service.userId
         : undefined;
     const userEmail: string = populatedUser?.email || "";
-    const userWhatsApp: string | undefined = populatedUser?.whatsappNumber;
+    // Suppress WhatsApp entirely when the customer has opted out (replied
+    // STOP). Nulling userWhatsApp here means both the reminder + suspension
+    // send sites (which gate on it) respect the opt-out in one place.
+    const userWhatsApp: string | undefined =
+      populatedUser?.whatsappOptOut === true ? undefined : populatedUser?.whatsappNumber;
     const userName: string | undefined = populatedUser?.firstName
       ? `${populatedUser.firstName} ${populatedUser.lastName ?? ""}`.trim()
       : undefined;

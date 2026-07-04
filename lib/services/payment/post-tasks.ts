@@ -217,7 +217,7 @@ export async function runPostPaymentTasks(
   // affects the email path or the payment outcome.
   const whatsappNotify = async () => {
     try {
-      if (!user.whatsappNumber) return;
+      if (!user.whatsappNumber || user.whatsappOptOut === true) return;
       const serviceName =
         finalSuccessfulDomains.length > 1
           ? `${finalSuccessfulDomains[0]} +${finalSuccessfulDomains.length - 1} more`

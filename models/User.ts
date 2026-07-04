@@ -22,6 +22,7 @@ export interface IUser extends Document {
   phone?: string; // Made optional for social login users
   phoneCc?: string; // Made optional for social login users
   whatsappNumber?: string; // Optional WhatsApp number for notifications (10 digits, India)
+  whatsappOptOut?: boolean; // True when the customer replied STOP on WhatsApp — suppresses all WhatsApp sends
   companyName?: string; // Made optional for social login users
   gstNumber?: string; // Added optional GST number
   address?: {
@@ -143,6 +144,10 @@ const UserSchema = new Schema<IUser>(
     whatsappNumber: {
       type: String,
       trim: true,
+    },
+    whatsappOptOut: {
+      type: Boolean,
+      default: false,
     },
     companyName: {
       type: String,
