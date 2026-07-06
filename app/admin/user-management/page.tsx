@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Search, Filter, MoreVertical, Trash2, Eye, EyeOff, RefreshCw, Key, UserCheck, XCircle, CheckCircle, Server, Shield, Unlock, ShieldOff, Users, UserX, Cog, ExternalLink } from 'lucide-react';
+import { Search, Filter, MoreVertical, Trash2, Eye, EyeOff, RefreshCw, Key, UserCheck, XCircle, CheckCircle, Server, Shield, Unlock, ShieldOff, Users, UserX, Cog, ExternalLink, Download } from 'lucide-react';
 import RefreshButton from '@/components/dashboard/RefreshButton';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { AdminLayoutSkeleton, AdminUsersPageSkeleton } from '@/components/skeletons/PageSkeletons';
@@ -37,6 +37,7 @@ export default function AdminUsers() {
   const [serviceUsers, setServiceUsers] = useState<User[]>([]);
   const [noServiceUsers, setNoServiceUsers] = useState<User[]>([]);
   const [activeTab, setActiveTab] = useState<'active' | 'deactivated' | 'services' | 'noservices'>('active');
+  const [isExporting, setIsExporting] = useState(false);
 
   // Split loading states
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -178,6 +179,83 @@ export default function AdminUsers() {
     if (userToView) {
       setSelectedUser(userToView);
       setIsModalOpen(true);
+    }
+  };
+
+  // Export the currently-selected tab's users to a CSV download. Users are
+  // already fully loaded in state (no server pagination on this page), so the
+  // export builds straight from the tab's array. Service Users carry DA/service
+  // detail; the other tabs carry contact detail — columns adapt per tab.
+  const handleExportCsv = () => {
+    setIsExporting(true);
+    try {
+      const tabMeta: Record<typeof activeTab, { rows: User[]; label: string }> = {
+        active: { rows: users, label: 'active' },
+        deactivated: { rows: deactivatedUsers, label: 'deactivated' },
+        services: { rows: serviceUsers, label: 'service-users' },
+        noservices: { rows: noServiceUsers, label: 'no-services' },
+      };
+      const { rows, label } = tabMeta[activeTab];
+
+      if (rows.length === 0) {
+        showErrorToast('No users to export');
+        return;
+      }
+
+      const esc = (v: string | number) => {
+        const s = String(v ?? '');
+        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+
+      let header: string[];
+      let toRow: (u: User) => (string | number)[];
+
+      if (activeTab === 'services') {
+        const svc = rows as Array<User & { directAdminUsername?: string; domains?: unknown[]; hosting?: unknown[] }>;
+        header = ['Name', 'Email', 'DA Username', 'Domains', 'Hosting', 'Status', 'Joined'];
+        toRow = (u) => {
+          const s = u as (typeof svc)[number];
+          return [
+            `${u.firstName} ${u.lastName}`.trim(),
+            u.email,
+            s.directAdminUsername || '',
+            s.domains?.length ?? 0,
+            s.hosting?.length ?? 0,
+            u.isActive === false ? 'inactive' : 'active',
+            u.createdAt ? formatIndianDate(new Date(u.createdAt)) : '',
+          ];
+        };
+      } else {
+        header = ['Name', 'Email', 'Role', 'Status', 'Phone', 'WhatsApp', 'Joined'];
+        toRow = (u) => {
+          const c = u as User & { phone?: string; whatsappNumber?: string };
+          return [
+            `${u.firstName} ${u.lastName}`.trim(),
+            u.email,
+            u.role || 'user',
+            u.isActive === false ? 'inactive' : 'active',
+            c.phone || '',
+            c.whatsappNumber || '',
+            u.createdAt ? formatIndianDate(new Date(u.createdAt)) : '',
+          ];
+        };
+      }
+
+      const csv = [header, ...rows.map(toRow)].map((r) => r.map(esc).join(',')).join('\n');
+      const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `users-${label}-${formatIndianDate(new Date()).replace(/\//g, '-')}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showSuccessToast(`Exported ${rows.length} user${rows.length !== 1 ? 's' : ''}`);
+    } catch {
+      showErrorToast('Failed to export users');
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -804,25 +882,40 @@ export default function AdminUsers() {
                 {activeTab === 'noservices' && 'Registered — No Services'}
               </h3>
             </div>
-            <div className="inline-flex bg-gray-100 rounded-xl p-1">
-              {[
-                { id: 'active',      label: 'Active',      count: users.length },
-                { id: 'deactivated', label: 'Deactivated', count: deactivatedUsers.length },
-                { id: 'services',    label: 'Services',    count: serviceUsers.length },
-                { id: 'noservices',  label: 'No Services', count: noServiceUsers.length },
-              ].map(t => (
-                <button
-                  key={t.id}
-                  onClick={() => setActiveTab(t.id as 'active' | 'deactivated' | 'services' | 'noservices')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    activeTab === t.id
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  {t.label} <span className={`ml-1 ${activeTab === t.id ? 'text-blue-600' : 'text-gray-400'}`}>({t.count})</span>
-                </button>
-              ))}
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="inline-flex bg-gray-100 rounded-xl p-1">
+                {[
+                  { id: 'active',      label: 'Active',      count: users.length },
+                  { id: 'deactivated', label: 'Deactivated', count: deactivatedUsers.length },
+                  { id: 'services',    label: 'Services',    count: serviceUsers.length },
+                  { id: 'noservices',  label: 'No Services', count: noServiceUsers.length },
+                ].map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => setActiveTab(t.id as 'active' | 'deactivated' | 'services' | 'noservices')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      activeTab === t.id
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    {t.label} <span className={`ml-1 ${activeTab === t.id ? 'text-blue-600' : 'text-gray-400'}`}>({t.count})</span>
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={handleExportCsv}
+                disabled={isExporting}
+                title="Download the current tab's users as a CSV file"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isExporting ? (
+                  <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" />
+                ) : (
+                  <Download className="h-3.5 w-3.5" />
+                )}
+                {isExporting ? 'Exporting…' : 'Download CSV'}
+              </button>
             </div>
           </div>
 
