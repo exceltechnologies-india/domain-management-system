@@ -12,6 +12,7 @@ import { HOSTING_PLANS } from "@/config/hosting-plans";
 // ZohoBooksService is intentionally NOT imported here.
 // Zoho invoices are created only after successful payment (in /api/payments/verify).
 import { EmailService } from "@/lib/email";
+import { WhatsAppService } from "@/lib/whatsapp";
 import { validatedBody, z } from "@/lib/api-validation";
 
 const processHostingExpirySchema = z.object({
@@ -166,6 +167,27 @@ export async function POST(request: NextRequest) {
                     periodUnit: periodUnit
                 }
             );
+
+            // WhatsApp renewal-due nudge alongside the email — this is the
+            // expiry→suspend→renew event, so the "suspended, renew to
+            // restore" template is the accurate fit (vs the "expires in N
+            // days" reminder, which would read wrong for an already-expired
+            // account). Gated on a WhatsApp number on file + not opted out;
+            // self-gating on the master flag inside the service. Best-effort:
+            // a WhatsApp failure never blocks the suspension/renewal flow.
+            const userWithWa = user as unknown as { whatsappNumber?: string; whatsappOptOut?: boolean };
+            if (userWithWa.whatsappNumber && userWithWa.whatsappOptOut !== true) {
+                try {
+                    await WhatsAppService.sendServiceSuspended(userWithWa.whatsappNumber, {
+                        serviceName: hosting.domainName,
+                        serviceType: "hosting",
+                    });
+                } catch (waErr) {
+                    serverLogger.warn(
+                        `[Worker] Renewal-due WhatsApp failed for ${hosting.domainName}: ${waErr instanceof Error ? waErr.message : String(waErr)}`
+                    );
+                }
+            }
         }
 
         // C. Update Local DB
