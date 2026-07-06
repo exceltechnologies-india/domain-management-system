@@ -113,9 +113,17 @@ describe("GET — query param parsing", () => {
     await GET(makeGetReq());
     expect(listOrdersForAdmin).toHaveBeenCalledWith({
       archived: false,
+      trialOnly: false,
       page: 1,
       perPage: 100,
     });
+  });
+
+  it("trial=true triggers trial-only query", async () => {
+    await GET(makeGetReq("trial=true"));
+    expect(listOrdersForAdmin).toHaveBeenCalledWith(
+      expect.objectContaining({ trialOnly: true })
+    );
   });
 
   it("archived=true triggers archived query (strict 'true' literal)", async () => {
@@ -136,6 +144,7 @@ describe("GET — query param parsing", () => {
     await GET(makeGetReq("page=3&per_page=25"));
     expect(listOrdersForAdmin).toHaveBeenCalledWith({
       archived: false,
+      trialOnly: false,
       page: 3,
       perPage: 25,
     });

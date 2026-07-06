@@ -389,6 +389,19 @@ describe("listOrdersForAdmin — pagination + hard-deleted-user fallback", () =>
     expect(filter.$or).toBeUndefined();
   });
 
+  it("trialOnly:true → orderType='hosting_trial' filter, no pending $or (trials are pending-by-design)", async () => {
+    const populate = vi.fn().mockResolvedValueOnce([]);
+    const limit = vi.fn().mockReturnValue({ populate });
+    const skip = vi.fn().mockReturnValue({ limit });
+    const sort = vi.fn().mockReturnValue({ skip });
+    Order.find.mockReturnValueOnce({ sort });
+    Order.countDocuments.mockResolvedValueOnce(0);
+    await listOrdersForAdmin({ trialOnly: true });
+    const [filter] = Order.find.mock.calls[0];
+    expect(filter.orderType).toBe("hosting_trial");
+    expect(filter.$or).toBeUndefined();
+  });
+
   it("HARD-DELETED-USER fallback: synthesises userId stub from userName/userEmail snapshot", async () => {
     const orderWithDeletedUser = {
       toObject: () => ({

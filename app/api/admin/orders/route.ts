@@ -14,11 +14,13 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const archived = searchParams.get("archived") === "true";
+    const trialOnly = searchParams.get("trial") === "true";
     const page = parseInt(searchParams.get("page") || "1");
     const perPage = parseInt(searchParams.get("per_page") || "100");
 
     const { orders, total, hasMore } = await listOrdersForAdmin({
       archived,
+      trialOnly,
       page,
       perPage,
     });

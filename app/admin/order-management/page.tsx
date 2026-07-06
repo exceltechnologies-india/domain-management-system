@@ -79,18 +79,24 @@ export default function AdminOrders() {
   const [user, setUser] = useState<User | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [archivedOrders, setArchivedOrders] = useState<Order[]>([]);
-  const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
+  const [trialOrders, setTrialOrders] = useState<Order[]>([]);
+  const [activeTab, setActiveTab] = useState<'active' | 'archived' | 'trial'>('active');
+  const [isExporting, setIsExporting] = useState(false);
 
   const [activePage, setActivePage] = useState(1);
   const [activeHasMore, setActiveHasMore] = useState(false);
   const [archivedPage, setArchivedPage] = useState(1);
   const [archivedHasMore, setArchivedHasMore] = useState(false);
+  const [trialPage, setTrialPage] = useState(1);
+  const [trialHasMore, setTrialHasMore] = useState(false);
 
   const activeCache = useRef<Record<number, { data: Order[], hasMore: boolean }>>({});
   const archivedCache = useRef<Record<number, { data: Order[], hasMore: boolean }>>({});
+  const trialCache = useRef<Record<number, { data: Order[], hasMore: boolean }>>({});
 
   const activeFetching = useRef<Set<number>>(new Set());
   const archivedFetching = useRef<Set<number>>(new Set());
+  const trialFetching = useRef<Set<number>>(new Set());
 
   // Split loading states
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -172,22 +178,35 @@ export default function AdminOrders() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, status, session?.user?.email]);
 
+  type TabId = 'active' | 'archived' | 'trial';
+
+  // Per-tab accessors — keep fetchOrders free of repeated ternary chains now
+  // that there are three tabs (active / archived / trial).
+  const tabState = (tab: TabId) => {
+    if (tab === 'active') return { cache: activeCache, fetching: activeFetching, setData: setOrders, setHasMore: setActiveHasMore, page: activePage };
+    if (tab === 'archived') return { cache: archivedCache, fetching: archivedFetching, setData: setArchivedOrders, setHasMore: setArchivedHasMore, page: archivedPage };
+    return { cache: trialCache, fetching: trialFetching, setData: setTrialOrders, setHasMore: setTrialHasMore, page: trialPage };
+  };
+
+  // Query-param fragment that scopes the fetch to the tab's dataset.
+  const tabQuery = (tab: TabId) =>
+    tab === 'archived' ? 'archived=true' : tab === 'trial' ? 'trial=true' : 'archived=false';
+
   useEffect(() => {
     if (!isAuthLoading && user) {
-      const targetPage = activeTab === 'active' ? activePage : archivedPage;
+      const targetPage = tabState(activeTab).page;
       void fetchOrders(activeTab, targetPage);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
   const fetchOrders = async (
-    tab: 'active' | 'archived' = activeTab,
-    targetPage: number = tab === 'active' ? activePage : archivedPage,
+    tab: TabId = activeTab,
+    targetPage: number = tabState(tab).page,
     isBackground: boolean = false,
     forceRefresh: boolean = false
   ) => {
-    const cache = tab === 'active' ? activeCache : archivedCache;
-    const fetching = tab === 'active' ? activeFetching : archivedFetching;
+    const { cache, fetching, setData, setHasMore } = tabState(tab);
 
     if (forceRefresh) {
       delete cache.current[targetPage];
@@ -195,13 +214,8 @@ export default function AdminOrders() {
 
     if (!isBackground && cache.current[targetPage]) {
       const cachedData = cache.current[targetPage];
-      if (tab === 'active') {
-        setOrders(cachedData.data);
-        setActiveHasMore(cachedData.hasMore);
-      } else {
-        setArchivedOrders(cachedData.data);
-        setArchivedHasMore(cachedData.hasMore);
-      }
+      setData(cachedData.data);
+      setHasMore(cachedData.hasMore);
       setIsDataLoading(false);
       prefetchAdjacent(tab, targetPage, cachedData.hasMore);
       return;
@@ -212,9 +226,8 @@ export default function AdminOrders() {
     if (!isBackground) setIsDataLoading(true);
     fetching.current.add(targetPage);
 
-    const archivedParam = tab === 'archived' ? 'true' : 'false';
     const result = await apiClient.get<{ orders?: Order[]; page_context?: { has_more_page?: boolean } }>(
-      `/api/v1/admin/orders?page=${targetPage}&per_page=10&archived=${archivedParam}`
+      `/api/v1/admin/orders?page=${targetPage}&per_page=10&${tabQuery(tab)}`
     );
 
     if (result.ok) {
@@ -224,13 +237,8 @@ export default function AdminOrders() {
       cache.current[targetPage] = { data: newOrders, hasMore: hasMorePage };
 
       if (!isBackground) {
-        if (tab === 'active') {
-          setOrders(newOrders);
-          setActiveHasMore(hasMorePage);
-        } else {
-          setArchivedOrders(newOrders);
-          setArchivedHasMore(hasMorePage);
-        }
+        setData(newOrders);
+        setHasMore(hasMorePage);
         prefetchAdjacent(tab, targetPage, hasMorePage);
       }
     }
@@ -239,9 +247,66 @@ export default function AdminOrders() {
     if (!isBackground) setIsDataLoading(false);
   };
 
-  const prefetchAdjacent = (tab: 'active' | 'archived', currentPage: number, currentHasMore: boolean) => {
-    const cache = tab === 'active' ? activeCache : archivedCache;
-    const fetching = tab === 'active' ? activeFetching : archivedFetching;
+  // Export the current tab's full dataset to a CSV download. Paginates through
+  // all pages server-side (per_page=100) so the file isn't limited to the 10
+  // rows currently on screen. Best-effort — surfaces a toast on failure.
+  const handleExportCsv = async () => {
+    setIsExporting(true);
+    try {
+      const all: Order[] = [];
+      let page = 1;
+      // Hard cap at 50 pages (5,000 orders) to avoid a runaway loop.
+      for (let i = 0; i < 50; i++) {
+        const result = await apiClient.get<{ orders?: Order[]; page_context?: { has_more_page?: boolean } }>(
+          `/api/v1/admin/orders?page=${page}&per_page=100&${tabQuery(activeTab)}`
+        );
+        if (!result.ok) break;
+        all.push(...(result.data.orders || []));
+        if (!result.data.page_context?.has_more_page) break;
+        page++;
+      }
+
+      if (all.length === 0) {
+        showErrorToast('No orders to export');
+        return;
+      }
+
+      const esc = (v: string | number) => {
+        const s = String(v ?? '');
+        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+      const header = ['Order ID', 'Customer', 'Email', 'Amount', 'Type', 'Status', 'Date', 'Domains'];
+      const rows = all.map((o) => [
+        o.orderId,
+        o.userId ? `${o.userId.firstName} ${o.userId.lastName}` : 'Unknown',
+        o.userId ? o.userId.email : '',
+        o.orderType === 'hosting_trial' ? 'Free trial' : o.amount.toFixed(2),
+        o.orderType === 'hosting_trial' ? 'Trial' : 'Paid',
+        o.status,
+        formatIndianDate(new Date(o.createdAt)),
+        (o.domains || []).map((d) => d.domainName).join('; '),
+      ]);
+      const csv = [header, ...rows].map((r) => r.map(esc).join(',')).join('\n');
+
+      const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `orders-${activeTab}-${formatIndianDate(new Date()).replace(/\//g, '-')}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showSuccessToast(`Exported ${all.length} order${all.length !== 1 ? 's' : ''}`);
+    } catch {
+      showErrorToast('Failed to export orders');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const prefetchAdjacent = (tab: TabId, currentPage: number, currentHasMore: boolean) => {
+    const { cache, fetching } = tabState(tab);
 
     if (currentHasMore && !cache.current[currentPage + 1] && !fetching.current.has(currentPage + 1)) {
       void fetchOrders(tab, currentPage + 1, true);
@@ -485,14 +550,14 @@ export default function AdminOrders() {
             </div>
           </div>
           <RefreshButton
-            onClick={() => fetchOrders(activeTab, activeTab === 'active' ? activePage : archivedPage, false, true)}
+            onClick={() => fetchOrders(activeTab, tabState(activeTab).page, false, true)}
             isLoading={isDataLoading}
           />
         </div>
 
         {/* ── Summary stat cards ── */}
         {!isDataLoading && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <button
               onClick={() => setActiveTab('active')}
               className={`bg-white border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${activeTab === 'active' ? 'border-blue-300 ring-2 ring-blue-100' : 'border-gray-200 hover:border-gray-300 hover:shadow-md'}`}
@@ -503,6 +568,18 @@ export default function AdminOrders() {
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-gray-500">Active Orders</p>
                 <p className="text-xl font-bold text-gray-900">{orders.length}</p>
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('trial')}
+              className={`bg-white border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${activeTab === 'trial' ? 'border-amber-300 ring-2 ring-amber-100' : 'border-gray-200 hover:border-gray-300 hover:shadow-md'}`}
+            >
+              <div className="p-2 bg-amber-50 rounded-xl">
+                <Clock className="h-4 w-4 text-amber-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-gray-500">Free Trials</p>
+                <p className="text-xl font-bold text-gray-900">{trialOrders.length}</p>
               </div>
             </button>
             <button
@@ -527,26 +604,42 @@ export default function AdminOrders() {
             <div className="flex items-center gap-2.5">
               <ShoppingBag className="h-4 w-4 text-gray-500" />
               <h3 className="text-sm font-semibold text-gray-900">
-                {activeTab === 'active' ? 'Active Orders' : 'Archived Orders'}
+                {activeTab === 'active' ? 'Active Orders' : activeTab === 'trial' ? 'Free Trial Orders' : 'Archived Orders'}
               </h3>
             </div>
-            <div className="inline-flex bg-gray-100 rounded-xl p-1">
-              {[
-                { id: 'active',   label: 'Active',   count: orders.length },
-                { id: 'archived', label: 'Archived', count: archivedOrders.length },
-              ].map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setActiveTab(t.id as 'active' | 'archived')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    activeTab === t.id
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  {t.label} <span className={`ml-1 ${activeTab === t.id ? 'text-blue-600' : 'text-gray-400'}`}>({t.count})</span>
-                </button>
-              ))}
+            <div className="flex items-center gap-3">
+              <div className="inline-flex bg-gray-100 rounded-xl p-1">
+                {[
+                  { id: 'active',   label: 'Active',   count: orders.length },
+                  { id: 'trial',    label: 'Trials',   count: trialOrders.length },
+                  { id: 'archived', label: 'Archived', count: archivedOrders.length },
+                ].map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setActiveTab(t.id as TabId)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      activeTab === t.id
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    {t.label} <span className={`ml-1 ${activeTab === t.id ? 'text-blue-600' : 'text-gray-400'}`}>({t.count})</span>
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={handleExportCsv}
+                disabled={isExporting}
+                title="Download the current tab's orders as a CSV file"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isExporting ? (
+                  <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" />
+                ) : (
+                  <Download className="h-3.5 w-3.5" />
+                )}
+                {isExporting ? 'Exporting…' : 'Download CSV'}
+              </button>
             </div>
           </div>
 
@@ -556,7 +649,7 @@ export default function AdminOrders() {
               <AdminGenericPageSkeleton />
             ) : (
               <>
-                {activeTab === 'active' ? (
+                {activeTab === 'active' && (
                   <AdminDataTable
                     title=""
                     columns={columns}
@@ -569,7 +662,22 @@ export default function AdminOrders() {
                     onPageChange={(p) => { setActivePage(p); void fetchOrders('active', p); }}
                     onRowContextMenu={handleContextMenu}
                   />
-                ) : (
+                )}
+                {activeTab === 'trial' && (
+                  <AdminDataTable
+                    title=""
+                    columns={columns}
+                    data={trialOrders}
+                    searchable={true}
+                    pagination={true}
+                    pageSize={10}
+                    totalItems={trialHasMore ? (trialPage * 10) + 10 : trialPage * 10}
+                    currentPage={trialPage}
+                    onPageChange={(p) => { setTrialPage(p); void fetchOrders('trial', p); }}
+                    onRowContextMenu={handleContextMenu}
+                  />
+                )}
+                {activeTab === 'archived' && (
                   <AdminDataTable
                     title=""
                     columns={columns}

@@ -332,6 +332,11 @@ export async function listOrdersForAdmin(opts: {
   /** Include orders still in `pending` state. Default false — checkout
    * intents that haven't been paid clutter the admin orders view. */
   includePending?: boolean;
+  /** Restrict to free-trial signups (`orderType: 'hosting_trial'`). Powers
+   * the Free Trial tab in /admin/order-management. Trials are always
+   * `status: 'pending'` until day-15 conversion, so this implies
+   * includePending. */
+  trialOnly?: boolean;
 }): Promise<AdminListResult> {
   await connectDB();
   const page = Math.max(1, opts.page ?? 1);
@@ -340,6 +345,13 @@ export async function listOrdersForAdmin(opts: {
   const baseQuery: Record<string, unknown> = opts.archived
     ? { isDeleted: true }
     : { isDeleted: { $ne: true } };
+
+  // Free Trial tab: filter to trial signups only. This short-circuits the
+  // pending-intent filter below (trials are pending-by-design) so it must be
+  // handled before that block.
+  if (opts.trialOnly) {
+    baseQuery.orderType = "hosting_trial";
+  }
   // Filter out stale `pending` checkout intents (customer bailed mid-checkout)
   // while KEEPING legitimate pending trial signups + Tokens-CIT auth
   // orders visible. The distinction:
@@ -360,7 +372,7 @@ export async function listOrdersForAdmin(opts: {
   // Manual-flow trial launch (dms-00210, 2026-06-29) broke that assumption
   // silently — operators couldn't see fresh signups in /admin/order-management
   // even though the rows existed. Fix landed 2026-07-02 in this batch.
-  if (!opts.includePending) {
+  if (!opts.includePending && !opts.trialOnly) {
     baseQuery.$or = [
       { status: { $ne: "pending" } },
       {
