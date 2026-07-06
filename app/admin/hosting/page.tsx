@@ -29,6 +29,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LogIn,
+  Download,
 } from 'lucide-react';
 import ActionMenu from '@/components/admin/ActionMenu';
 import RefreshButton from '@/components/dashboard/RefreshButton';
@@ -120,6 +121,7 @@ export default function AdminHostingPage() {
   // a Pass-1 render that only has 10 of 65 rows still shows accurate
   // 1 trial / 64 paid instead of 0 / 10.
   const [serverCounts, setServerCounts] = useState<{ totalHostings: number; trial: number; paid: number } | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
   // Pre-fill searchTerm from the `?q=` query param so deep-links from
   // other admin surfaces (e.g. the User Services modal in
   // /admin/user-management) can land the operator straight on a
@@ -333,6 +335,80 @@ export default function AdminHostingPage() {
    * search term is present, we go straight to the full fetch (slower
    * first paint but the right rows are present immediately).
    */
+  // Export the FULL hosting dataset to a CSV download. Hits the full stats
+  // endpoint directly (not `hostingData`, which may only hold the Pass-1
+  // slice) so the export always covers every account regardless of the
+  // current pagination/search state. Best-effort — toast on failure.
+  const handleExportCsv = async () => {
+    setIsExporting(true);
+    try {
+      const result = await apiClient.get<{
+        success?: boolean;
+        data?: HostingData[];
+      }>(`/api/v1/admin/hosting/stats?t=${Date.now()}`, undefined, {
+        signal: AbortSignal.timeout(60_000),
+      });
+
+      if (!result.ok || !result.data?.success) {
+        toast.error('Failed to load hosting data for export');
+        return;
+      }
+
+      const rows = Array.from(
+        new Map((result.data.data ?? []).map((item) => [item.id, item])).values()
+      );
+      if (rows.length === 0) {
+        toast.error('No hosting accounts to export');
+        return;
+      }
+
+      const esc = (v: string | number) => {
+        const s = String(v ?? '');
+        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+      const header = [
+        'Domain', 'Customer', 'Email', 'DA Username', 'Package', 'PHP',
+        'Server IP', 'Status', 'Billing', 'Trial', 'Disk Used', 'Disk Limit',
+        'Bandwidth Used', 'Bandwidth Limit', 'Created', 'Expires',
+      ];
+      const csvRows = rows.map((h) => [
+        h.domain,
+        h.user?.name || '',
+        h.user?.email || '',
+        h.daUsername || '',
+        h.package || '',
+        h.phpVersion || '',
+        h.serverIp || '',
+        h.status || '',
+        h.billingType || '',
+        h.isTrial ? 'yes' : 'no',
+        h.usage?.disk || '',
+        h.usage?.diskLimit || '',
+        h.usage?.bandwidth || '',
+        h.usage?.bandwidthLimit || '',
+        h.createdDate ? formatIndianDateTime(h.createdDate) : '',
+        h.expiryDate ? formatIndianDateTime(h.expiryDate) : '',
+      ]);
+      const csv = [header, ...csvRows].map((r) => r.map(esc).join(',')).join('\n');
+
+      const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const stamp = new Date().toISOString().slice(0, 10);
+      a.download = `hosting-accounts-${stamp}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(`Exported ${rows.length} hosting account${rows.length !== 1 ? 's' : ''}`);
+    } catch {
+      toast.error('Failed to export hosting data');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const fetchHostingData = async (opts?: { force?: boolean }) => {
     const force = opts?.force === true;
 
@@ -872,7 +948,20 @@ export default function AdminHostingPage() {
               <p className="text-sm text-gray-500 mt-0.5">Monitor and manage client hosting packages</p>
             </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 md:flex gap-2 w-full md:w-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:flex gap-2 w-full md:w-auto">
+            <button
+              onClick={handleExportCsv}
+              disabled={isExporting}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+              title="Export all hosting accounts as a CSV file"
+            >
+              {isExporting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              {isExporting ? 'Exporting…' : 'Export CSV'}
+            </button>
             <button
               onClick={() => router.push('/admin/hosting/pending')}
               className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors shadow-sm"
