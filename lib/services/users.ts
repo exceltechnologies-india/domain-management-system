@@ -1095,3 +1095,84 @@ export async function listUsersWithServicesAggregation(): Promise<
     { $sort: { createdAt: -1 } },
   ]);
 }
+
+export interface UserWithoutServices {
+  _id: { toString(): string };
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: IUser["role"];
+  isActive: boolean;
+  createdAt: Date;
+  phone?: string;
+  whatsappNumber?: string;
+}
+
+/**
+ * Aggregation: the COMPLEMENT of listUsersWithServicesAggregation — every
+ * non-deleted, non-admin user who owns ZERO domains AND ZERO hostings AND
+ * has no DirectAdmin account. These are registered-but-never-converted
+ * signups (the "dormant" / re-engagement audience — e.g. a target list
+ * for WhatsApp/email marketing).
+ *
+ * Mirrors the service-users definition exactly so the two lists partition
+ * the customer base cleanly: a user is either a "service user" (≥1 service
+ * OR a DA account) or a "no-service user", never both. Admins are excluded
+ * (staff accounts aren't a conversion target). Phone + WhatsApp are
+ * projected so an operator can action outreach straight from the row.
+ */
+export async function listUsersWithoutServicesAggregation(): Promise<
+  UserWithoutServices[]
+> {
+  await connectDB();
+  return User.aggregate<UserWithoutServices>([
+    // Exclude soft-deleted, admins, and deactivated accounts (isActive:false
+    // has its own dedicated "Deactivated" tab). This leaves the true
+    // never-converted / dormant re-engagement audience.
+    { $match: { isDeleted: { $ne: true }, role: { $ne: "admin" }, isActive: { $ne: false } } },
+    {
+      $lookup: {
+        from: "domains",
+        localField: "_id",
+        foreignField: "userId",
+        as: "domains",
+      },
+    },
+    {
+      $lookup: {
+        from: "hostings",
+        localField: "_id",
+        foreignField: "userId",
+        as: "hosting",
+      },
+    },
+    {
+      // No domains, no hostings, and no DA account (the third leg mirrors
+      // listServiceUserCandidates, which counts DA-account holders as
+      // service users even without a Hosting row).
+      $match: {
+        "domains.0": { $exists: false },
+        "hosting.0": { $exists: false },
+        $or: [
+          { directAdminUsername: { $exists: false } },
+          { directAdminUsername: null },
+          { directAdminUsername: "" },
+        ],
+      },
+    },
+    {
+      $project: {
+        _id: 1,
+        firstName: 1,
+        lastName: 1,
+        email: 1,
+        role: 1,
+        isActive: 1,
+        createdAt: 1,
+        phone: 1,
+        whatsappNumber: 1,
+      },
+    },
+    { $sort: { createdAt: -1 } },
+  ]);
+}

@@ -35,7 +35,8 @@ export default function AdminUsers() {
   const [users, setUsers] = useState<User[]>([]);
   const [deactivatedUsers, setDeactivatedUsers] = useState<User[]>([]);
   const [serviceUsers, setServiceUsers] = useState<User[]>([]);
-  const [activeTab, setActiveTab] = useState<'active' | 'deactivated' | 'services'>('active');
+  const [noServiceUsers, setNoServiceUsers] = useState<User[]>([]);
+  const [activeTab, setActiveTab] = useState<'active' | 'deactivated' | 'services' | 'noservices'>('active');
 
   // Split loading states
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -140,10 +141,11 @@ export default function AdminUsers() {
     setIsDataLoading(true);
     // NextAuth cookie is shipped via credentials:'include' (automatic in apiClient);
     // no Bearer token to forward (the localStorage `token` was never written).
-    const [activeResult, deactivatedResult, servicesResult] = await Promise.all([
+    const [activeResult, deactivatedResult, servicesResult, noServicesResult] = await Promise.all([
       apiClient.get<{ users?: User[] }>('/api/v1/admin/users'),
       apiClient.get<{ users?: User[] }>('/api/v1/admin/users/deactivated'),
       apiClient.get<{ users?: User[] }>('/api/v1/admin/users/services'),
+      apiClient.get<{ users?: User[] }>('/api/v1/admin/users/no-services'),
     ]);
 
     setUsers(activeResult.ok ? (activeResult.data.users ?? []) : []);
@@ -153,6 +155,12 @@ export default function AdminUsers() {
     } else {
       logger.warn('Failed to fetch service users:', servicesResult.error.message);
       setServiceUsers([]);
+    }
+    if (noServicesResult.ok) {
+      setNoServiceUsers(noServicesResult.data.users ?? []);
+    } else {
+      logger.warn('Failed to fetch no-service users:', noServicesResult.error.message);
+      setNoServiceUsers([]);
     }
     setIsDataLoading(false);
   };
@@ -165,7 +173,8 @@ export default function AdminUsers() {
     // Check both active, deactivated, and service users
     const userToView = users.find(u => u._id === userId) ||
       deactivatedUsers.find(u => u._id === userId) ||
-      serviceUsers.find(u => u._id === userId);
+      serviceUsers.find(u => u._id === userId) ||
+      noServiceUsers.find(u => u._id === userId);
     if (userToView) {
       setSelectedUser(userToView);
       setIsModalOpen(true);
@@ -625,6 +634,67 @@ export default function AdminUsers() {
     }
   ];
 
+  // Registered-but-never-converted users (zero domains + zero hosting + no DA
+  // account). Re-engagement audience — contact columns matter more than
+  // service columns, so we surface phone + WhatsApp for outreach.
+  const noServiceColumns = [
+    {
+      key: 'name',
+      label: 'Name',
+      sortable: true,
+      render: (_value: unknown, row: User) => (
+        <div>
+          <div className="text-xs sm:text-sm font-medium text-gray-900">
+            {row.firstName} {row.lastName}
+          </div>
+          <div className="text-xs sm:text-sm text-gray-500 truncate max-w-[150px] sm:max-w-none">{row.email}</div>
+        </div>
+      )
+    },
+    {
+      key: 'phone',
+      label: 'Phone',
+      render: (_value: unknown, row: User) => (
+        <span className="text-xs sm:text-sm text-gray-700">
+          {(row as User & { phone?: string }).phone || <span className="text-gray-400">-</span>}
+        </span>
+      )
+    },
+    {
+      key: 'whatsappNumber',
+      label: 'WhatsApp',
+      render: (_value: unknown, row: User) => {
+        const wa = (row as User & { whatsappNumber?: string }).whatsappNumber;
+        return wa
+          ? <span className="text-xs sm:text-sm text-green-700">{wa}</span>
+          : <span className="text-xs sm:text-sm text-gray-400">-</span>;
+      }
+    },
+    {
+      key: 'createdAt',
+      label: 'Joined',
+      sortable: true,
+      render: (_value: unknown, row: User) => (
+        <span className="text-xs sm:text-sm text-gray-600">
+          {row.createdAt ? formatIndianDate(new Date(row.createdAt)) : '-'}
+        </span>
+      )
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      render: (_value: unknown, row: User) => (
+        <button
+          onClick={(e) => handleTripleDotClick(e, row)}
+          aria-label={`Actions for ${row.firstName ? `${row.firstName} ${row.lastName || ''}`.trim() : row.email}`}
+          className={`p-2 rounded-lg transition-all duration-200 ${menuData?.id === row._id ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+        >
+          <MoreVertical className="h-5 w-5" />
+        </button>
+      )
+    }
+  ];
+
   // Animated Loading Component
   const AnimatedLoading = () => {
     const [dots, setDots] = useState('');
@@ -706,6 +776,18 @@ export default function AdminUsers() {
                 <p className="text-xl font-bold text-gray-900">{serviceUsers.length}</p>
               </div>
             </button>
+            <button
+              onClick={() => setActiveTab('noservices')}
+              className={`bg-white border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${activeTab === 'noservices' ? 'border-blue-300 ring-2 ring-blue-100' : 'border-gray-200 hover:border-gray-300 hover:shadow-md'}`}
+            >
+              <div className="p-2 bg-amber-50 rounded-xl">
+                <UserX className="h-4 w-4 text-amber-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-gray-500">No Services</p>
+                <p className="text-xl font-bold text-gray-900">{noServiceUsers.length}</p>
+              </div>
+            </button>
           </div>
         )}
 
@@ -719,6 +801,7 @@ export default function AdminUsers() {
                 {activeTab === 'active' && 'Active Users'}
                 {activeTab === 'deactivated' && 'Deactivated Users'}
                 {activeTab === 'services' && 'Service Users'}
+                {activeTab === 'noservices' && 'Registered — No Services'}
               </h3>
             </div>
             <div className="inline-flex bg-gray-100 rounded-xl p-1">
@@ -726,10 +809,11 @@ export default function AdminUsers() {
                 { id: 'active',      label: 'Active',      count: users.length },
                 { id: 'deactivated', label: 'Deactivated', count: deactivatedUsers.length },
                 { id: 'services',    label: 'Services',    count: serviceUsers.length },
+                { id: 'noservices',  label: 'No Services', count: noServiceUsers.length },
               ].map(t => (
                 <button
                   key={t.id}
-                  onClick={() => setActiveTab(t.id as 'active' | 'deactivated' | 'services')}
+                  onClick={() => setActiveTab(t.id as 'active' | 'deactivated' | 'services' | 'noservices')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                     activeTab === t.id
                       ? 'bg-white text-gray-900 shadow-sm'
@@ -777,6 +861,18 @@ export default function AdminUsers() {
                     title=""
                     columns={serviceColumns}
                     data={serviceUsers}
+                    searchable={true}
+                    pagination={true}
+                    pageSize={10}
+                    onRowContextMenu={handleContextMenu}
+                  />
+                )}
+
+                {activeTab === 'noservices' && (
+                  <AdminDataTable
+                    title=""
+                    columns={noServiceColumns}
+                    data={noServiceUsers}
                     searchable={true}
                     pagination={true}
                     pageSize={10}
