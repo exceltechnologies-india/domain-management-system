@@ -3,7 +3,19 @@ import { AuthService } from "@/lib/auth";
 import { listSettings, upsertSetting, getSetting } from "@/lib/services/settings";
 import { connectToDatabase } from "@/lib/mongoose";
 import { requireReAuth } from "@/lib/admin-security";
-import { invalidateTrackingCache } from "@/lib/services/tracking";
+import { invalidateTrackingCache, extractTrackingId, TRACKING_SETTING_KEYS } from "@/lib/services/tracking";
+import type { TrackingProvider } from "@/lib/services/tracking";
+
+// Map each tracking ID setting key to its provider so the POST handler can
+// run extractTrackingId server-side — the authoritative security boundary.
+// Whatever the admin pastes (a full snippet, a bare ID, or junk), only a
+// strictly-validated canonical ID is ever persisted.
+const TRACKING_ID_KEY_TO_PROVIDER: Record<string, TrackingProvider> = {
+  [TRACKING_SETTING_KEYS.ga4Id]: "ga4",
+  [TRACKING_SETTING_KEYS.gtmId]: "gtm",
+  [TRACKING_SETTING_KEYS.metaPixelId]: "meta",
+  [TRACKING_SETTING_KEYS.googleAdsId]: "googleAds",
+};
 import { serverLogger } from "@/lib/server-logger";
 import { validatedBody, z } from "@/lib/api-validation";
 
@@ -164,8 +176,17 @@ export async function POST(request: NextRequest) {
 
     await connectToDatabase();
 
+    // Tracking ID keys: extract + validate server-side so the stored value is
+    // always a clean canonical ID, never admin-pasted markup — even if the
+    // client sends the raw snippet (or a hand-crafted API payload).
+    let valueToStore: unknown = value;
+    const trackingProvider = TRACKING_ID_KEY_TO_PROVIDER[key];
+    if (trackingProvider) {
+      valueToStore = extractTrackingId(trackingProvider, String(value ?? ""));
+    }
+
     // Update or create setting
-    await upsertSetting(key, value, {
+    await upsertSetting(key, valueToStore, {
       description: description || "",
       category: category || "general",
       updatedBy: user.email,

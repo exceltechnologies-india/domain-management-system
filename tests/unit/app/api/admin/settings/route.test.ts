@@ -187,6 +187,39 @@ describe("POST — zod schema", () => {
       expect.any(Object)
     );
   });
+
+  it("tracking ID key: a pasted raw snippet is extracted server-side → only the canonical ID is stored", async () => {
+    getSetting.mockResolvedValue(null);
+    const res = await POST(
+      makeReq("POST", {
+        key: "tracking_ga4_id",
+        value: `<script async src="https://www.googletagmanager.com/gtag/js?id=G-ABC123XYZ"></script><script>gtag('config','G-ABC123XYZ');</script>`,
+        category: "tracking",
+      })
+    );
+    expect(res.status).toBe(200);
+    expect(upsertSetting).toHaveBeenCalledWith(
+      "tracking_ga4_id",
+      "G-ABC123XYZ", // extracted, NOT the raw markup
+      expect.any(Object)
+    );
+  });
+
+  it("tracking ID key: junk/markup with no valid ID stores '' (never the payload)", async () => {
+    getSetting.mockResolvedValue(null);
+    await POST(
+      makeReq("POST", {
+        key: "tracking_meta_pixel_id",
+        value: "<img src=x onerror=alert(1)>",
+        category: "tracking",
+      })
+    );
+    expect(upsertSetting).toHaveBeenCalledWith(
+      "tracking_meta_pixel_id",
+      "",
+      expect.any(Object)
+    );
+  });
 });
 
 describe("POST — Security-key step-up auth (THE BIG ONE)", () => {

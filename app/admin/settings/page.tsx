@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import {
   Settings, Server, Wifi, RefreshCw, CheckCircle, AlertTriangle, AlertCircle,
   Copy, Loader2, Globe, Plus, X, Save, Database, Trash2, ChevronDown,
-  Wrench, Power, Shield, Tag, MessageCircle, Send,
+  Wrench, Power, Shield, Tag, MessageCircle, Send, BarChart3,
 } from "lucide-react";
 import RefreshButton from "@/components/dashboard/RefreshButton";
 import AdminLayout from "@/components/admin/AdminLayout";
@@ -34,7 +34,24 @@ interface IPData {
   checkedBy?: { firstName: string; lastName: string; email: string };
 }
 
-type ActiveSection = "general" | "performance" | "security" | "promotions" | "integrations";
+type ActiveSection = "general" | "performance" | "security" | "promotions" | "integrations" | "tracking";
+
+// Client-side ID preview — mirrors lib/services/tracking.ts extraction so the
+// admin sees the detected ID as they paste. The SERVER re-extracts on save
+// (the authoritative boundary); this is UX feedback only. Kept inline so the
+// client bundle doesn't import the server-only tracking service (which pulls
+// mongodb).
+function previewTrackingId(provider: "ga4" | "gtm" | "meta" | "googleAds", raw: string): string {
+  const s = (raw || "").trim();
+  if (!s) return "";
+  if (provider === "ga4") { const m = s.match(/\bG-[A-Z0-9]{4,15}\b/i); return m ? m[0].toUpperCase() : ""; }
+  if (provider === "gtm") { const m = s.match(/\bGTM-[A-Z0-9]{4,15}\b/i); return m ? m[0].toUpperCase() : ""; }
+  if (provider === "googleAds") { const m = s.match(/\bAW-[0-9]{6,15}\b/i); return m ? m[0].toUpperCase() : ""; }
+  const init = s.match(/fbq\(\s*['"]init['"]\s*,\s*['"](\d{6,20})['"]/i);
+  if (init) return init[1];
+  const bare = s.match(/^\d{6,20}$/);
+  return bare ? bare[0] : "";
+}
 
 // ── Reusable primitives ────────────────────────────────────────────────────────
 
@@ -215,6 +232,18 @@ export default function AdminSettings() {
   const [waTestNumber, setWaTestNumber] = useState("");
   const [isSendingWaTest, setIsSendingWaTest] = useState(false);
 
+  // Analytics / marketing tracking. The text inputs hold either a pasted
+  // snippet or a bare ID; previewTrackingId() shows what will be extracted,
+  // and the server re-extracts to the canonical ID on save.
+  const [trEnabled, setTrEnabled] = useState(false);
+  const [trGa4, setTrGa4] = useState("");
+  const [trGtm, setTrGtm] = useState("");
+  const [trMeta, setTrMeta] = useState("");
+  const [trAds, setTrAds] = useState("");
+  const [trLoadOnAdmin, setTrLoadOnAdmin] = useState(false);
+  const [isSavingTracking, setIsSavingTracking] = useState(false);
+  const [isLoadingTracking, setIsLoadingTracking] = useState(false);
+
   // ── Auth ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (status === "loading") return;
@@ -230,7 +259,7 @@ export default function AdminSettings() {
   // ── Data loading ──────────────────────────────────────────────────────────
   const loadAllSettings = async () => {
     setIsDataLoading(true);
-    await Promise.all([loadSavedIPData(), loadCacheSettings(), loadIPWhitelistSettings(), loadCORSSettings(), loadHostingTrialSettings(), loadTestPlanSettings(), loadMaintenanceSettings(), loadWhatsAppSettings()]);
+    await Promise.all([loadSavedIPData(), loadCacheSettings(), loadIPWhitelistSettings(), loadCORSSettings(), loadHostingTrialSettings(), loadTestPlanSettings(), loadMaintenanceSettings(), loadWhatsAppSettings(), loadTrackingSettings()]);
     if (typeof window !== "undefined") setCurrentOrigin(window.location.origin);
     setIsDataLoading(false);
   };
@@ -477,6 +506,44 @@ export default function AdminSettings() {
     setIsSendingWaTest(false);
   };
 
+  const loadTrackingSettings = async () => {
+    setIsLoadingTracking(true);
+    const result = await apiClient.get<{ success?: boolean; settings?: Record<string, { value?: unknown }> }>("/api/v1/admin/settings");
+    if (result.ok && result.data.settings) {
+      const s = result.data.settings;
+      const str = (k: string) => (typeof s[k]?.value === "string" ? (s[k]!.value as string) : "");
+      const bool = (k: string) => s[k]?.value === true || s[k]?.value === "true";
+      setTrEnabled(bool("tracking_enabled"));
+      setTrGa4(str("tracking_ga4_id"));
+      setTrGtm(str("tracking_gtm_id"));
+      setTrMeta(str("tracking_meta_pixel_id"));
+      setTrAds(str("tracking_google_ads_id"));
+      setTrLoadOnAdmin(bool("tracking_load_on_admin"));
+    }
+    setIsLoadingTracking(false);
+  };
+
+  const saveTrackingSettings = async () => {
+    setIsSavingTracking(true);
+    // Send the raw field contents — the server extracts + validates each ID
+    // (extractTrackingId) so only a clean canonical ID is ever stored.
+    const results = await Promise.all([
+      apiClient.post("/api/v1/admin/settings", { key: "tracking_enabled", value: trEnabled, description: "Master on/off for analytics/marketing tags", category: "tracking" }),
+      apiClient.post("/api/v1/admin/settings", { key: "tracking_ga4_id", value: trGa4.trim(), description: "Google Analytics 4 Measurement ID (extracted)", category: "tracking" }),
+      apiClient.post("/api/v1/admin/settings", { key: "tracking_gtm_id", value: trGtm.trim(), description: "Google Tag Manager container ID (extracted)", category: "tracking" }),
+      apiClient.post("/api/v1/admin/settings", { key: "tracking_meta_pixel_id", value: trMeta.trim(), description: "Meta/Facebook Pixel ID (extracted)", category: "tracking" }),
+      apiClient.post("/api/v1/admin/settings", { key: "tracking_google_ads_id", value: trAds.trim(), description: "Google Ads conversion ID (extracted)", category: "tracking" }),
+      apiClient.post("/api/v1/admin/settings", { key: "tracking_load_on_admin", value: trLoadOnAdmin, description: "Also load tags on /admin + /dashboard", category: "tracking" }),
+    ]);
+    if (results.every((r) => r.ok)) {
+      showSuccessToast("Tracking settings saved");
+      await loadTrackingSettings(); // reflect server-extracted canonical IDs
+    } else {
+      showErrorToast("Failed to save some tracking settings");
+    }
+    setIsSavingTracking(false);
+  };
+
   const saveMaintenanceSettings = async () => {
     setIsSavingMaintenance(true);
     const scheduledEnd = maintenanceScheduledEnd ? new Date(maintenanceScheduledEnd).toISOString() : null;
@@ -497,6 +564,7 @@ export default function AdminSettings() {
     { id: "security",    label: "Security",    icon: Shield,   description: "IP whitelisting & CORS" },
     { id: "promotions",  label: "Promotions",  icon: Tag,      description: "Trials & test plans" },
     { id: "integrations", label: "Integrations", icon: MessageCircle, description: "WhatsApp notifications" },
+    { id: "tracking",    label: "Tracking",     icon: BarChart3, description: "Analytics & marketing tags" },
   ];
 
   return (
@@ -1081,6 +1149,69 @@ export default function AdminSettings() {
                     <SaveBtn onClick={saveWhatsAppSettings} loading={isSavingWa} label="Save WhatsApp Settings" color="green" />
                     <button onClick={loadWhatsAppSettings} disabled={isLoadingWa} className="px-3 py-2 text-sm text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 flex items-center gap-1.5 disabled:opacity-50">
                       <RefreshCw className={`h-3.5 w-3.5 ${isLoadingWa ? "animate-spin" : ""}`} /> Refresh
+                    </button>
+                  </SFooter>
+                </SCard>
+              </>
+            )}
+
+            {!isDataLoading && activeSection === "tracking" && (
+              <>
+                <SCard>
+                  <SCardHead
+                    title="Analytics & Marketing Tags"
+                    description="Paste the code Google or Meta give you — we extract just the ID and load the official tag safely (nonce-signed, first-party). Your pasted markup never runs on the site."
+                    action={<Toggle checked={trEnabled} onChange={setTrEnabled} color="blue" />}
+                  />
+                  <div className="p-6 space-y-5">
+                    <StatusBanner
+                      active={trEnabled && Boolean(previewTrackingId("ga4", trGa4) || previewTrackingId("gtm", trGtm) || previewTrackingId("meta", trMeta) || previewTrackingId("googleAds", trAds))}
+                      color="green"
+                      activeMsg="Tags are live on the customer site. Paste a full snippet or a bare ID in any box — the detected ID is shown beneath each field and is what actually gets loaded."
+                      inactiveMsg="Not loading yet. Turn on the master toggle and add at least one ID. You can paste the whole snippet — only the ID is extracted and stored."
+                    />
+
+                    {([
+                      { label: "Google Analytics 4", provider: "ga4" as const, val: trGa4, set: setTrGa4, ph: "Paste the gtag.js snippet, or G-XXXXXXX" },
+                      { label: "Google Tag Manager", provider: "gtm" as const, val: trGtm, set: setTrGtm, ph: "Paste the GTM snippet, or GTM-XXXXXX" },
+                      { label: "Meta / Facebook Pixel", provider: "meta" as const, val: trMeta, set: setTrMeta, ph: "Paste the Pixel base code, or the numeric ID" },
+                      { label: "Google Ads", provider: "googleAds" as const, val: trAds, set: setTrAds, ph: "Paste the Ads tag, or AW-XXXXXXXXX" },
+                    ]).map((f) => {
+                      const detected = previewTrackingId(f.provider, f.val);
+                      const hasInput = f.val.trim().length > 0;
+                      return (
+                        <div key={f.provider}>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{f.label}</label>
+                          <textarea
+                            value={f.val}
+                            onChange={(e) => f.set(e.target.value)}
+                            rows={2}
+                            placeholder={f.ph}
+                            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-blue-400"
+                          />
+                          {hasInput && (
+                            detected ? (
+                              <p className="mt-1 text-xs text-green-700 flex items-center gap-1.5"><CheckCircle className="h-3.5 w-3.5" /> Detected ID: <span className="font-mono font-semibold">{detected}</span></p>
+                            ) : (
+                              <p className="mt-1 text-xs text-red-600 flex items-center gap-1.5"><AlertCircle className="h-3.5 w-3.5" /> No valid ID found in this text</p>
+                            )
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    <div className="flex items-center justify-between border-t border-gray-100 pt-5">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">Also load on admin &amp; dashboard</p>
+                        <p className="text-xs text-gray-500 mt-0.5">Off by default — analytics normally shouldn&apos;t count staff/admin sessions.</p>
+                      </div>
+                      <Toggle checked={trLoadOnAdmin} onChange={setTrLoadOnAdmin} color="blue" />
+                    </div>
+                  </div>
+                  <SFooter>
+                    <SaveBtn onClick={saveTrackingSettings} loading={isSavingTracking} label="Save Tracking Settings" />
+                    <button onClick={loadTrackingSettings} disabled={isLoadingTracking} className="px-3 py-2 text-sm text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 flex items-center gap-1.5 disabled:opacity-50">
+                      <RefreshCw className={`h-3.5 w-3.5 ${isLoadingTracking ? "animate-spin" : ""}`} /> Refresh
                     </button>
                   </SFooter>
                 </SCard>
