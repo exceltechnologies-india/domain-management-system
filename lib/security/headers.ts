@@ -105,12 +105,25 @@ export function addSecurityHeaders(
     // injected inline scripts.
     const nonceDirective = options.nonce ? `'nonce-${options.nonce}'` : "";
     const scriptUnsafe = options.strictCSP ? "" : "'unsafe-inline' 'unsafe-eval' ";
+    // Analytics / marketing-tag provider origins. Always allowlisted (harmless
+    // when no tag is configured) so the admin-managed tracking IDs render
+    // without an edge→DB read in middleware. The site only ever loads
+    // FIRST-PARTY nonce'd snippets keyed on validated IDs (see
+    // components/TrackingScripts.tsx + lib/services/tracking.ts); these hosts
+    // cover the loader scripts + the sub-resources those loaders fetch (gtag,
+    // GTM containers, fbevents) and the beacon endpoints.
+    const trackingScript =
+      "https://www.googletagmanager.com https://www.google-analytics.com https://ssl.google-analytics.com https://connect.facebook.net https://www.googleadservices.com https://googleads.g.doubleclick.net";
+    const trackingConnect =
+      "https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://stats.g.doubleclick.net https://connect.facebook.net https://www.facebook.com https://*.facebook.com https://www.googleadservices.com https://googleads.g.doubleclick.net";
+    const trackingFrame =
+      "https://www.googletagmanager.com https://td.doubleclick.net https://www.facebook.com";
     const csp = [
       // default-src is the fallback for unspecified directives. No unsafe-* here —
       // only explicit child directives (script-src, style-src, etc.) carry those where required.
       "default-src 'self' blob: data: https://challenges.cloudflare.com https://*.cloudflare.com",
       // Nonce eliminates 'unsafe-inline' for CSP3 browsers. 'unsafe-inline' is a CSP2 fallback.
-      `script-src 'self' ${nonceDirective} ${scriptUnsafe}blob: data: https://app.anutech.in https://checkout.razorpay.com https://*.razorpay.com https://challenges.cloudflare.com https://cloudflare.com https://*.cloudflare.com https://accounts.google.com https://apis.google.com https://www.google.com https://recaptcha.net https://www.gstatic.com https://static.cloudflareinsights.com`,
+      `script-src 'self' ${nonceDirective} ${scriptUnsafe}blob: data: https://app.anutech.in https://checkout.razorpay.com https://*.razorpay.com https://challenges.cloudflare.com https://cloudflare.com https://*.cloudflare.com https://accounts.google.com https://apis.google.com https://www.google.com https://recaptcha.net https://www.gstatic.com https://static.cloudflareinsights.com ${trackingScript}`,
       // unsafe-inline required for Tailwind utility classes and Next.js style injection.
       // Google Fonts removed: web app uses next/font (self-hosted at build time); no CDN font request is made.
       "style-src 'self' 'unsafe-inline' https://accounts.google.com https://www.google.com https://www.gstatic.com https://challenges.cloudflare.com",
@@ -118,11 +131,11 @@ export function addSecurityHeaders(
       // Google Fonts CDN (fonts.gstatic.com) removed: fonts are self-hosted via next/font.
       "font-src 'self' data:",
       "upgrade-insecure-requests",
-      "connect-src 'self' data: blob: wss: https://app.anutech.in https://api.razorpay.com https://checkout.razorpay.com https://*.razorpay.com https://lumberjack.razorpay.com https://*.sentry.io https://challenges.cloudflare.com https://cloudflare.com https://*.cloudflare.com https://httpapi.com https://accounts.google.com https://apis.google.com https://www.google.com https://recaptcha.net https://www.gstatic.com https://cloudflareinsights.com https://nominatim.openstreetmap.org https://api.bigdatacloud.net",
+      `connect-src 'self' data: blob: wss: https://app.anutech.in https://api.razorpay.com https://checkout.razorpay.com https://*.razorpay.com https://lumberjack.razorpay.com https://*.sentry.io https://challenges.cloudflare.com https://cloudflare.com https://*.cloudflare.com https://httpapi.com https://accounts.google.com https://apis.google.com https://www.google.com https://recaptcha.net https://www.gstatic.com https://cloudflareinsights.com https://nominatim.openstreetmap.org https://api.bigdatacloud.net ${trackingConnect}`,
       // `blob:` allows the in-app PDF previewer (admin & user invoice pages)
       // to load `URL.createObjectURL(blob)` URLs in an <iframe>. Without it
       // the iframe is silently blocked by the browser and the preview hangs.
-      "frame-src 'self' blob: https://checkout.razorpay.com https://api.razorpay.com https://*.razorpay.com https://challenges.cloudflare.com https://cloudflare.com https://*.cloudflare.com https://www.openstreetmap.org https://accounts.google.com https://www.google.com https://recaptcha.net",
+      `frame-src 'self' blob: https://checkout.razorpay.com https://api.razorpay.com https://*.razorpay.com https://challenges.cloudflare.com https://cloudflare.com https://*.cloudflare.com https://www.openstreetmap.org https://accounts.google.com https://www.google.com https://recaptcha.net ${trackingFrame}`,
       "child-src 'self' blob: data: https://challenges.cloudflare.com https://*.cloudflare.com https://www.google.com https://recaptcha.net",
       "worker-src 'self' blob: data: https://challenges.cloudflare.com https://*.cloudflare.com https://www.google.com https://recaptcha.net",
       "object-src 'none'",

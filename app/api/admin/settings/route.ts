@@ -3,6 +3,7 @@ import { AuthService } from "@/lib/auth";
 import { listSettings, upsertSetting, getSetting } from "@/lib/services/settings";
 import { connectToDatabase } from "@/lib/mongoose";
 import { requireReAuth } from "@/lib/admin-security";
+import { invalidateTrackingCache } from "@/lib/services/tracking";
 import { serverLogger } from "@/lib/server-logger";
 import { validatedBody, z } from "@/lib/api-validation";
 
@@ -73,6 +74,16 @@ const NEVER_SECURITY_KEYS = new Set<string>([
   "whatsapp_template_payment",
   "whatsapp_template_suspended",
   "whatsapp_template_welcome",
+  // Analytics / marketing tracking. Values are already-extracted canonical
+  // provider IDs (G-…, GTM-…, numeric pixel, AW-…), not secrets or credentials
+  // — the site renders first-party nonce'd snippets keyed on them. Safe to edit
+  // without step-up re-auth.
+  "tracking_enabled",
+  "tracking_ga4_id",
+  "tracking_gtm_id",
+  "tracking_meta_pixel_id",
+  "tracking_google_ads_id",
+  "tracking_load_on_admin",
 ]);
 
 async function isSecurityScopedKey(key: string): Promise<boolean> {
@@ -159,6 +170,10 @@ export async function POST(request: NextRequest) {
       category: category || "general",
       updatedBy: user.email,
     });
+    // Bust the tracking config cache immediately so a freshly-saved provider
+    // ID renders on the next customer page load instead of waiting out the TTL.
+    if (key.startsWith("tracking_")) invalidateTrackingCache();
+
     const setting = await getSetting(key);
 
     return NextResponse.json({
