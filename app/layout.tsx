@@ -10,6 +10,7 @@ import ScrollToTop from '@/components/ScrollToTop';
 import CookieConsentBanner from '@/components/CookieConsentBanner';
 import { ConfirmDialogHost } from '@/lib/confirm-dialog';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import TrackingScripts from '@/components/TrackingScripts';
 import { headers } from 'next/headers';
 
 // Self-hosted Inter variable font — previously `Inter({ subsets: ['latin'] })`
@@ -49,6 +50,12 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className} suppressHydrationWarning>
+        {/* Admin-managed analytics / marketing tags (GA4 / GTM / Meta Pixel /
+            Google Ads). Renders first-party nonce'd snippets keyed on
+            validated IDs; no-ops when disabled. See components/TrackingScripts. */}
+        <ErrorBoundary label="TrackingScripts" fallback={null}>
+          <TrackingScripts />
+        </ErrorBoundary>
         <MotionProvider>
           <SessionProvider>
             {children}

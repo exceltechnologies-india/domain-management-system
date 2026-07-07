@@ -159,6 +159,10 @@ function nextWithNonce(request: NextRequest, nonce: string, requestId: string): 
   const headers = new Headers(request.headers);
   headers.set("x-nonce", nonce);
   headers.set(REQUEST_ID_HEADER, requestId);
+  // Expose the pathname to server components (the root layout reads it to
+  // decide whether to load analytics tags — off on /admin + /dashboard by
+  // default). Next doesn't surface the pathname via headers() otherwise.
+  headers.set("x-pathname", request.nextUrl.pathname);
   return NextResponse.next({ request: { headers } });
 }
 
