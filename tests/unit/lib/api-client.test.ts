@@ -70,6 +70,39 @@ describe("apiClient.get", () => {
     }
   });
 
+  it("dispatches the dms:auth-expired event on 401 (session-lapse signal)", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      mockJsonResponse(401, { error: "Unauthorized" })
+    );
+    const handler = vi.fn();
+    window.addEventListener("dms:auth-expired", handler);
+    await apiClient.get("/api/test");
+    window.removeEventListener("dms:auth-expired", handler);
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT dispatch dms:auth-expired on 403 (forbidden / step-up, not session lapse)", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      mockJsonResponse(403, { error: "Forbidden", code: "REAUTH_REQUIRED" })
+    );
+    const handler = vi.fn();
+    window.addEventListener("dms:auth-expired", handler);
+    await apiClient.get("/api/test");
+    window.removeEventListener("dms:auth-expired", handler);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("suppressAuthEvent silences the 401 event (e.g. login flows)", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      mockJsonResponse(401, { error: "Unauthorized" })
+    );
+    const handler = vi.fn();
+    window.addEventListener("dms:auth-expired", handler);
+    await apiClient.get("/api/test", undefined, { suppressAuthEvent: true });
+    window.removeEventListener("dms:auth-expired", handler);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
   it("synthesises a fallback message when the error body has no .error field", async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
       mockJsonResponse(500, {})

@@ -25,6 +25,7 @@ import {
   RefreshCcw,
   CalendarClock,
 } from 'lucide-react';
+import SessionExpiredBanner from '@/components/admin/SessionExpiredBanner';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -69,6 +70,8 @@ export default function AdminLayout({ children, user, onLogout }: AdminLayoutPro
 
   return (
     <div className="h-screen bg-gray-50 flex overflow-hidden">
+      {/* App-wide session-expiry prompt — fires on any apiClient 401/403 */}
+      <SessionExpiredBanner />
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div

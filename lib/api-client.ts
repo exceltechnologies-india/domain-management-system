@@ -47,7 +47,17 @@ export interface RequestOptions {
   headers?: Record<string, string>;
   /** Fetch cache mode — e.g. "no-store" for always-fresh polling reads. */
   cache?: RequestCache;
+  /**
+   * Suppress the global `dms:auth-expired` event on a 401/403 for this call.
+   * Set on flows where an auth failure is EXPECTED and self-handled — e.g. a
+   * login attempt with bad credentials, or a probe that tolerates 401 — so it
+   * doesn't trip the app-wide "session expired" banner.
+   */
+  suppressAuthEvent?: boolean;
 }
+
+/** Event name dispatched on window when any apiClient call returns 401/403. */
+export const AUTH_EXPIRED_EVENT = "dms:auth-expired";
 
 async function request<T>(
   method: string,
@@ -97,6 +107,18 @@ async function request<T>(
 
   if (!res.ok) {
     const errBody = parsedBody as { error?: string; code?: string } | undefined;
+    // Broadcast a session-expiry signal app-wide so a single listener
+    // (mounted in AdminLayout) can surface a "session expired" prompt on ANY
+    // page, instead of each page reinventing 401 handling. Fires on 401 ONLY
+    // — a 401 means "no/invalid auth token" (the true session-lapse case). A
+    // 403 is intentionally excluded: it means authenticated-but-forbidden
+    // (wrong role, or a step-up REAUTH_REQUIRED challenge like security-key
+    // saves) which pages handle contextually — treating it as "session
+    // expired" would be wrong. Opt-out via suppressAuthEvent for flows where
+    // a 401 is expected + self-handled (e.g. login).
+    if (res.status === 401 && !opts.suppressAuthEvent && typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT, { detail: { status: res.status, url } }));
+    }
     return {
       ok: false,
       error: {

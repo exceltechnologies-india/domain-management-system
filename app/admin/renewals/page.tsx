@@ -131,9 +131,10 @@ export default function AdminRenewalsPage() {
     setLoading(false);
   }, [modeFilter, windowFilter]);
 
-  // 401/403 = the admin session token wasn't accepted (expired / mid-rotation),
-  // NOT a data problem. Handle it distinctly from a genuine load failure.
-  const isAuthError = errorStatus === 401 || errorStatus === 403;
+  // 401 = the admin session token wasn't accepted (expired / mid-rotation) —
+  // handled app-wide by the SessionExpiredBanner in AdminLayout, so we skip the
+  // in-page banner for it. Everything else (incl. 403) shows the red banner.
+  const isAuthError = errorStatus === 401;
 
   useEffect(() => {
     const raw = safeLocalStorage.getItem("user");
@@ -240,20 +241,9 @@ export default function AdminRenewalsPage() {
 
           {/* Content */}
           <div className="p-4 sm:p-6">
-            {error && isAuthError && (
-              <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl mb-4 flex items-center justify-between gap-3 text-sm">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 shrink-0" />
-                  <span>
-                    Your admin session expired while refreshing{data ? " — showing the last loaded data" : ""}. Sign in again or retry.
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button onClick={() => void fetchData()} className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white border border-amber-300 text-amber-800 hover:bg-amber-100">Retry</button>
-                  <a href="/login" className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700">Sign in</a>
-                </div>
-              </div>
-            )}
+            {/* Auth errors (401/403) are handled app-wide by the
+                SessionExpiredBanner mounted in AdminLayout — no in-page banner
+                needed here. Only non-auth load failures render below. */}
             {error && !isAuthError && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4 flex items-center justify-between gap-3 text-sm">
                 <div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 shrink-0" /> {error}</div>
