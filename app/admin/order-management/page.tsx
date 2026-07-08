@@ -90,6 +90,12 @@ export default function AdminOrders() {
   const [trialPage, setTrialPage] = useState(1);
   const [trialHasMore, setTrialHasMore] = useState(false);
 
+  // True per-dataset totals (from the API's page_context.total), fetched once
+  // up front so the stat cards + tab counts are accurate on first load — not
+  // just for whichever tab happens to have been opened. Without this, Free
+  // Trials / Archived showed 0 until you clicked into them.
+  const [counts, setCounts] = useState<{ active: number; trial: number; archived: number } | null>(null);
+
   const activeCache = useRef<Record<number, { data: Order[], hasMore: boolean }>>({});
   const archivedCache = useRef<Record<number, { data: Order[], hasMore: boolean }>>({});
   const trialCache = useRef<Record<number, { data: Order[], hasMore: boolean }>>({});
@@ -169,6 +175,7 @@ export default function AdminOrders() {
       setUser(userObj as User);
       setIsAuthLoading(false);
       void fetchOrders('active', 1);
+      void fetchCounts();
       return;
     }
 
@@ -191,6 +198,20 @@ export default function AdminOrders() {
   // Query-param fragment that scopes the fetch to the tab's dataset.
   const tabQuery = (tab: TabId) =>
     tab === 'archived' ? 'archived=true' : tab === 'trial' ? 'trial=true' : 'archived=false';
+
+  // Fetch the true totals for all three datasets in one shot (per_page=1 — we
+  // only want page_context.total). Keeps the stat cards + tab counts honest
+  // regardless of which tab is currently loaded.
+  const fetchCounts = async () => {
+    const totalOf = (r: { ok: boolean; data?: { page_context?: { total?: number } } }) =>
+      r.ok ? (r.data?.page_context?.total ?? 0) : 0;
+    const [a, t, ar] = await Promise.all([
+      apiClient.get<{ page_context?: { total?: number } }>('/api/v1/admin/orders?page=1&per_page=1&archived=false'),
+      apiClient.get<{ page_context?: { total?: number } }>('/api/v1/admin/orders?page=1&per_page=1&trial=true'),
+      apiClient.get<{ page_context?: { total?: number } }>('/api/v1/admin/orders?page=1&per_page=1&archived=true'),
+    ]);
+    setCounts({ active: totalOf(a), trial: totalOf(t), archived: totalOf(ar) });
+  };
 
   useEffect(() => {
     if (!isAuthLoading && user) {
@@ -357,6 +378,7 @@ export default function AdminOrders() {
 
       activeCache.current = {};
       archivedCache.current = {};
+      void fetchCounts();
 
       setIsDeleteModalOpen(false);
       setOrderToDelete(null);
@@ -390,6 +412,7 @@ export default function AdminOrders() {
 
       activeCache.current = {};
       archivedCache.current = {};
+      void fetchCounts();
 
       setIsUnarchiveModalOpen(false);
       setOrderToUnarchive(null);
@@ -550,7 +573,7 @@ export default function AdminOrders() {
             </div>
           </div>
           <RefreshButton
-            onClick={() => fetchOrders(activeTab, tabState(activeTab).page, false, true)}
+            onClick={() => { void fetchOrders(activeTab, tabState(activeTab).page, false, true); void fetchCounts(); }}
             isLoading={isDataLoading}
           />
         </div>
@@ -567,7 +590,7 @@ export default function AdminOrders() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-gray-500">Active Orders</p>
-                <p className="text-xl font-bold text-gray-900">{orders.length}</p>
+                <p className="text-xl font-bold text-gray-900">{counts?.active ?? orders.length}</p>
               </div>
             </button>
             <button
@@ -579,7 +602,7 @@ export default function AdminOrders() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-gray-500">Free Trials</p>
-                <p className="text-xl font-bold text-gray-900">{trialOrders.length}</p>
+                <p className="text-xl font-bold text-gray-900">{counts?.trial ?? trialOrders.length}</p>
               </div>
             </button>
             <button
@@ -591,7 +614,7 @@ export default function AdminOrders() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-gray-500">Archived</p>
-                <p className="text-xl font-bold text-gray-900">{archivedOrders.length}</p>
+                <p className="text-xl font-bold text-gray-900">{counts?.archived ?? archivedOrders.length}</p>
               </div>
             </button>
           </div>
@@ -610,9 +633,9 @@ export default function AdminOrders() {
             <div className="flex items-center gap-3">
               <div className="inline-flex bg-gray-100 rounded-xl p-1">
                 {[
-                  { id: 'active',   label: 'Active',   count: orders.length },
-                  { id: 'trial',    label: 'Trials',   count: trialOrders.length },
-                  { id: 'archived', label: 'Archived', count: archivedOrders.length },
+                  { id: 'active',   label: 'Active',   count: counts?.active ?? orders.length },
+                  { id: 'trial',    label: 'Trials',   count: counts?.trial ?? trialOrders.length },
+                  { id: 'archived', label: 'Archived', count: counts?.archived ?? archivedOrders.length },
                 ].map((t) => (
                   <button
                     key={t.id}
