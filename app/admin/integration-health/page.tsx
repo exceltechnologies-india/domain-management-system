@@ -16,9 +16,10 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
-import { RefreshCw, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, ShieldAlert } from 'lucide-react';
+import { RefreshCw, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, ShieldAlert, Activity } from 'lucide-react';
 import Link from 'next/link';
 import AdminLayout from '@/components/admin/AdminLayout';
+import RefreshButton from '@/components/dashboard/RefreshButton';
 import { apiClient } from '@/lib/api-client';
 import { formatIndianDateTime } from '@/lib/dateUtils';
 import { safeLocalStorage } from '@/lib/storage';
@@ -110,66 +111,91 @@ export default function IntegrationHealthPage() {
   }, [fetchData, windowDays]);
 
   const totalAcrossProviders = data?.providers.reduce((s, p) => s + p.totalErrors, 0) || 0;
+  const healthyCount = data?.providers.filter((p) => p.totalErrors === 0).length || 0;
+  const failingCount = data?.providers.filter((p) => p.totalErrors > 0).length || 0;
+
+  const WINDOW_OPTIONS = [
+    { value: 1, label: '24 hours' },
+    { value: 7, label: '7 days' },
+    { value: 30, label: '30 days' },
+    { value: 90, label: '90 days' },
+  ];
 
   return (
     <AdminLayout user={currentUser || { firstName: 'Admin', lastName: '', email: '', role: 'admin' }} onLogout={() => { window.location.href = '/login'; }}>
-      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <ShieldAlert className="h-6 w-6 text-amber-600" />
-              <h1 className="text-2xl font-bold text-gray-900">Integration Health</h1>
+      <div className="space-y-6">
+        {/* ── Page header ── */}
+        <div className="flex items-start sm:items-center justify-between flex-col sm:flex-row gap-3 sm:gap-0">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-50 rounded-xl">
+              <ShieldAlert className="h-5 w-5 text-amber-600" />
             </div>
-            <p className="text-sm text-gray-500 max-w-2xl">
-              Aggregated error feed for every upstream service the platform talks to —
-              DirectAdmin, Zoho Books, ResellerClub, Razorpay. Recurring failures cluster
-              into one row with a count + actionable remediation hint, so service-level
-              issues (license caps, expired credentials, deleted tax IDs) surface
-              immediately instead of hiding behind generic "operation failed" toasts.
-            </p>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Integration Health</h1>
+              <p className="text-sm text-gray-500 mt-0.5 max-w-2xl">
+                Aggregated error feed for every upstream service — DirectAdmin, Zoho, ResellerClub, Razorpay, Email, WhatsApp. Recurring failures cluster into one row with a count + remediation hint.
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <label className="text-xs font-medium text-gray-600">Window:</label>
-            <select
-              value={windowDays}
-              onChange={(e) => setWindowDays(Number(e.target.value))}
-              className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value={1}>Last 24h</option>
-              <option value={7}>Last 7 days</option>
-              <option value={30}>Last 30 days</option>
-              <option value={90}>Last 90 days</option>
-            </select>
-            <button
-              onClick={() => void fetchData(windowDays)}
-              disabled={isLoading}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-            >
-              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
+          <RefreshButton onClick={() => void fetchData(windowDays)} isLoading={isLoading} />
+        </div>
+
+        {/* ── Summary stat cards ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3">
+            <div className="p-2 bg-green-50 rounded-xl"><CheckCircle2 className="h-4 w-4 text-green-600" /></div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-gray-500">Healthy providers</p>
+              <p className="text-xl font-bold text-gray-900">{data ? healthyCount : '—'}</p>
+            </div>
+          </div>
+          <div className={`bg-white border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 ${failingCount > 0 ? 'border-amber-300 ring-2 ring-amber-100' : 'border-gray-200'}`}>
+            <div className="p-2 bg-amber-50 rounded-xl"><AlertTriangle className="h-4 w-4 text-amber-600" /></div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-gray-500">With failures</p>
+              <p className="text-xl font-bold text-gray-900">{data ? failingCount : '—'}</p>
+            </div>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3">
+            <div className="p-2 bg-blue-50 rounded-xl"><Activity className="h-4 w-4 text-blue-600" /></div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-gray-500">Total failures</p>
+              <p className="text-xl font-bold text-gray-900">{data ? totalAcrossProviders : '—'}</p>
+            </div>
           </div>
         </div>
 
-        {/* Overall summary banner */}
+        {/* ── Overall status banner + window filter ── */}
         {data && (
-          <div className={`mb-6 p-4 rounded-xl border ${totalAcrossProviders > 0 ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
-            <div className="flex items-start gap-3">
-              {totalAcrossProviders > 0 ? (
-                <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
-              ) : (
-                <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-              )}
-              <div className="flex-1">
-                <div className={`text-sm font-semibold ${totalAcrossProviders > 0 ? 'text-amber-900' : 'text-green-900'}`}>
-                  {totalAcrossProviders > 0
-                    ? `${totalAcrossProviders} upstream failure${totalAcrossProviders === 1 ? '' : 's'} in the last ${data.windowDays} day${data.windowDays === 1 ? '' : 's'}`
-                    : `All upstream providers are healthy — no failures in the last ${data.windowDays} day${data.windowDays === 1 ? '' : 's'}`}
+          <div className={`rounded-2xl border shadow-sm ${totalAcrossProviders > 0 ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
+            <div className="p-4 flex items-start justify-between gap-4 flex-wrap">
+              <div className="flex items-start gap-3">
+                {totalAcrossProviders > 0 ? (
+                  <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+                ) : (
+                  <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
+                )}
+                <div>
+                  <div className={`text-sm font-semibold ${totalAcrossProviders > 0 ? 'text-amber-900' : 'text-green-900'}`}>
+                    {totalAcrossProviders > 0
+                      ? `${totalAcrossProviders} upstream failure${totalAcrossProviders === 1 ? '' : 's'} in the last ${data.windowDays} day${data.windowDays === 1 ? '' : 's'}`
+                      : `All upstream providers are healthy — no failures in the last ${data.windowDays} day${data.windowDays === 1 ? '' : 's'}`}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Snapshot generated {formatIndianDateTime(data.generatedAt)}.
+                  </div>
                 </div>
-                <div className="text-xs text-gray-500 mt-1">
-                  Snapshot generated {formatIndianDateTime(data.generatedAt)}. Click Refresh for the latest.
-                </div>
+              </div>
+              <div className="inline-flex bg-white/70 border border-white rounded-xl p-1 shrink-0">
+                {WINDOW_OPTIONS.map((w) => (
+                  <button
+                    key={w.value}
+                    onClick={() => setWindowDays(w.value)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${windowDays === w.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                    {w.label}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -177,25 +203,26 @@ export default function IntegrationHealthPage() {
 
         {/* Provider cards */}
         {isLoading && !data && (
-          <div className="bg-white border border-gray-200 rounded-xl px-5 py-8 flex items-center justify-center gap-3 text-sm text-gray-500">
-            <RefreshCw className="h-4 w-4 animate-spin" />
+          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm px-5 py-10 flex flex-col items-center justify-center gap-3 text-sm text-gray-400">
+            <RefreshCw className="h-6 w-6 animate-spin text-blue-600" />
             Loading integration health…
           </div>
         )}
 
         {data && data.providers.length === 0 && (
-          <div className="bg-white border border-gray-200 rounded-xl px-5 py-8 text-center text-sm text-gray-500">
+          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm px-5 py-10 text-center text-sm text-gray-500">
             No upstream-provider errors recorded in the last {data.windowDays} day{data.windowDays === 1 ? '' : 's'}. Nothing to act on.
           </div>
         )}
 
+        <div className="space-y-4">
         {data && data.providers.map((p) => {
           const isOpen = expanded.has(p.id);
           const hasErrors = p.totalErrors > 0;
           return (
             <div
               key={p.id}
-              className={`mb-4 bg-white border rounded-xl overflow-hidden ${hasErrors ? 'border-amber-200' : 'border-gray-200'}`}
+              className={`bg-white border rounded-2xl shadow-sm overflow-hidden transition-shadow hover:shadow-md ${hasErrors ? 'border-amber-200' : 'border-gray-200'}`}
             >
               <button
                 onClick={() => {
@@ -285,6 +312,7 @@ export default function IntegrationHealthPage() {
             </div>
           );
         })}
+        </div>
       </div>
     </AdminLayout>
   );
