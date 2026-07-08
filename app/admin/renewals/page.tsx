@@ -110,20 +110,30 @@ export default function AdminRenewalsPage() {
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
   const [modeFilter, setModeFilter] = useState<MandateMode | "all">("all");
   const [windowFilter, setWindowFilter] = useState<string>("30d");
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setErrorStatus(null);
     const params = new URLSearchParams();
     params.set("window", windowFilter);
     if (modeFilter !== "all") params.set("mode", modeFilter);
     const result = await apiClient.get<ApiResponse>(`/api/admin/renewals?${params.toString()}`);
-    if (result.ok) setData(result.data);
-    else setError(result.error.message || "Failed to load renewals");
+    if (result.ok) {
+      setData(result.data);
+    } else {
+      setErrorStatus(result.error.status);
+      setError(result.error.message || "Failed to load renewals");
+    }
     setLoading(false);
   }, [modeFilter, windowFilter]);
+
+  // 401/403 = the admin session token wasn't accepted (expired / mid-rotation),
+  // NOT a data problem. Handle it distinctly from a genuine load failure.
+  const isAuthError = errorStatus === 401 || errorStatus === 403;
 
   useEffect(() => {
     const raw = safeLocalStorage.getItem("user");
@@ -230,9 +240,24 @@ export default function AdminRenewalsPage() {
 
           {/* Content */}
           <div className="p-4 sm:p-6">
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4 flex items-center gap-2 text-sm">
-                <AlertTriangle className="h-4 w-4 shrink-0" /> {error}
+            {error && isAuthError && (
+              <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl mb-4 flex items-center justify-between gap-3 text-sm">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span>
+                    Your admin session expired while refreshing{data ? " — showing the last loaded data" : ""}. Sign in again or retry.
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button onClick={() => void fetchData()} className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white border border-amber-300 text-amber-800 hover:bg-amber-100">Retry</button>
+                  <a href="/login" className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700">Sign in</a>
+                </div>
+              </div>
+            )}
+            {error && !isAuthError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4 flex items-center justify-between gap-3 text-sm">
+                <div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 shrink-0" /> {error}</div>
+                <button onClick={() => void fetchData()} className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white border border-red-300 text-red-700 hover:bg-red-100 shrink-0">Retry</button>
               </div>
             )}
 
