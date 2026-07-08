@@ -903,19 +903,25 @@ export default function AdminUsers() {
                   </button>
                 ))}
               </div>
-              <button
-                onClick={handleExportCsv}
-                disabled={isExporting}
-                title="Download the current tab's users as a CSV file"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {isExporting ? (
-                  <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" />
-                ) : (
-                  <Download className="h-3.5 w-3.5" />
-                )}
-                {isExporting ? 'Exporting…' : 'Download CSV'}
-              </button>
+              {(() => {
+                const tabCount = { active: users.length, deactivated: deactivatedUsers.length, services: serviceUsers.length, noservices: noServiceUsers.length }[activeTab];
+                const isEmpty = tabCount === 0;
+                return (
+                  <button
+                    onClick={handleExportCsv}
+                    disabled={isExporting || isEmpty}
+                    title={isEmpty ? 'Nothing to export in this tab' : "Export the current tab's users as a CSV file"}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
+                  >
+                    {isExporting ? (
+                      <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" />
+                    ) : (
+                      <Download className="h-3.5 w-3.5" />
+                    )}
+                    {isExporting ? 'Exporting…' : 'Export CSV'}
+                  </button>
+                );
+              })()}
             </div>
           </div>
 
