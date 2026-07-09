@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import RefreshButton from '@/components/dashboard/RefreshButton';
 import AdminLayout from '@/components/admin/AdminLayout';
+import { confirmDialog } from '@/lib/confirm-dialog';
 import { AdminLayoutSkeleton, AdminGenericPageSkeleton, AdminTableRowsSkeleton } from '@/components/skeletons/PageSkeletons';
 import ActionMenu from '@/components/admin/ActionMenu';
 import { performLogout } from '@/lib/logout';
@@ -183,9 +184,12 @@ export default function AdminDomainsPage() {
   };
 
   const handleRemoveFromPanel = async (domain: Domain) => {
-    const ok = window.confirm(
-      `Remove ${domain.name} from the panel?\n\nUse this ONLY for domains transferred out to another registrar account or legacy/test domains. It soft-deletes the domain (reversible for 90 days), hides it from the customer + this list, and does NOT touch billing/order records or the registrar.`
-    );
+    const ok = await confirmDialog({
+      title: `Remove ${domain.name} from the panel?`,
+      message: 'Use this ONLY for domains transferred out to another registrar account, or legacy/test domains. It soft-deletes the domain (reversible for 90 days), hides it from the customer and this list, and does NOT touch billing/order records or the registrar.',
+      confirmText: 'Remove from panel',
+      tone: 'danger',
+    });
     if (!ok) return;
     toast.loading(`Removing ${domain.name}…`, { id: `rm-${domain.id}` });
     const result = await apiClient.delete(`/api/v1/admin/domains?domainName=${encodeURIComponent(domain.name)}`);

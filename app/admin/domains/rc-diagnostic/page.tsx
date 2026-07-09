@@ -12,6 +12,7 @@
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { apiClient } from '@/lib/api-client';
+import { confirmDialog } from '@/lib/confirm-dialog';
 import { safeLocalStorage } from '@/lib/storage';
 import { Search, ShieldAlert, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 
@@ -44,7 +45,13 @@ export default function RcDiagnosticPage() {
 
   const removeFromPanel = async () => {
     if (!result) return;
-    if (!window.confirm(`Remove ${result.domainName} from the customer panel?\n\nThis soft-deletes it (reversible for 90 days) and does not touch billing/order records or the registrar. Use only for domains transferred out / no longer managed here.`)) return;
+    const ok = await confirmDialog({
+      title: `Remove ${result.domainName} from the panel?`,
+      message: 'This soft-deletes it (reversible for 90 days) and does not touch billing/order records or the registrar. Use only for domains transferred out / no longer managed here.',
+      confirmText: 'Remove from panel',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setRemoving(true);
     const res = await apiClient.delete(`/api/v1/admin/domains?domainName=${encodeURIComponent(result.domainName)}`);
     if (res.ok) {
