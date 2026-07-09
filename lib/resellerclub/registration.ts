@@ -322,6 +322,68 @@ export async function getDomainExpiry(
 }
 
 /**
+ * Registrar-ownership diagnostic (admin-only tooling).
+ *
+ * Answers "does ResellerClub let THIS reseller account manage this domain?"
+ * by two independent probes, capturing the RAW registrar message (unlike the
+ * other helpers which swallow it):
+ *   1. orderid.json by domain-name → is the domain in this account, and what
+ *      order-id does RC think it has?
+ *   2. details.json by the STORED order-id → does RC recognise/own it, or does
+ *      it reject with "You are not allowed to perform this action"?
+ *
+ * Used to confirm a suspected order-id/account mismatch before any change.
+ */
+export async function diagnoseDomainRegistrar(
+  domainName: string,
+  storedOrderId?: string | null
+): Promise<{
+  byName: { ok: boolean; orderId?: string; rawMessage?: string };
+  byStoredOrderId: { tested: boolean; ok: boolean; domainName?: string; rawMessage?: string };
+}> {
+  const rawMsg = (error: unknown): string | undefined => {
+    if (error instanceof AxiosError) {
+      const d = error.response?.data as { message?: string; msg?: string } | undefined;
+      return d?.message || d?.msg || error.message;
+    }
+    return error instanceof Error ? error.message : undefined;
+  };
+
+  const byName: { ok: boolean; orderId?: string; rawMessage?: string } = { ok: false };
+  try {
+    const r = await api.get("/api/domains/orderid.json", {
+      params: { "domain-name": domainName },
+    });
+    byName.ok = true;
+    byName.orderId =
+      typeof r.data === "string" || typeof r.data === "number"
+        ? String(r.data)
+        : JSON.stringify(r.data);
+  } catch (e) {
+    byName.rawMessage = rawMsg(e);
+  }
+
+  const byStoredOrderId: { tested: boolean; ok: boolean; domainName?: string; rawMessage?: string } = {
+    tested: false,
+    ok: false,
+  };
+  if (storedOrderId) {
+    byStoredOrderId.tested = true;
+    try {
+      const r = await api.get("/api/domains/details.json", {
+        params: { "order-id": storedOrderId, options: "OrderDetails" },
+      });
+      byStoredOrderId.ok = true;
+      byStoredOrderId.domainName = (r.data as { domainname?: string })?.domainname;
+    } catch (e) {
+      byStoredOrderId.rawMessage = rawMsg(e);
+    }
+  }
+
+  return { byName, byStoredOrderId };
+}
+
+/**
  * Get order ID for a specific domain
  *
  * Retrieves the order ID associated with a domain name.
