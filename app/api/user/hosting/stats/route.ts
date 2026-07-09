@@ -5,7 +5,7 @@ import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrap
 import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { serverLogger } from "@/lib/server-logger";
 import type { IHosting } from "@/models/Hosting";
-import { listUserHostingsByDomain, upsertHostingFromDirectAdminStats } from "@/lib/services/hostings";
+import { listHostingsForUser, listUserHostingsByDomain, upsertHostingFromDirectAdminStats } from "@/lib/services/hostings";
 
 export const dynamic = 'force-dynamic';
 
@@ -35,60 +35,33 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 2. Identification Strategy
-    // Source A: Explicitly linked username (user.directAdminUsername) — fast path.
-    // Source B: Email-match scan over the full DA user list — slow fallback,
-    //           only used when we don't have a linked username yet.
+    // 2. Identification Strategy — OWNERSHIP COMES FROM OUR RECORDS ONLY.
     //
-    // The email-match scan used to run on every request and amplified one
-    // HTTP request into N `getUserConfig` calls (N = total DA users). Now
-    // it only fires when we have no other way to find the user's account,
-    // which is also the only correct time it's needed.
+    // ⚠️ SECURITY: never determine hosting ownership from the DirectAdmin
+    // account's email. The operator provisions many customers' DA accounts
+    // with the same contact email (e.g. the reseller's own address), so an
+    // email-match scan over the DA user list returned OTHER customers'
+    // accounts — a cross-tenant data leak (a customer saw every account that
+    // shared that email). Ownership is authoritatively the set of Hosting
+    // docs whose `userId` is this user, plus the user's own linked
+    // `directAdminUsername`. We only ever fetch DA stats for those usernames.
     const matchingDaUsernames = new Set<string>();
 
     if (user.directAdminUsername) {
-        // Fast path — linked account is sufficient. Skip the full enumeration.
         matchingDaUsernames.add(user.directAdminUsername);
     }
 
-    // Only the server info is needed here. We previously ALSO called
-    // getAllUserUsage() (CMD_API_SHOW_ALL_USER_USAGE — a full-server dump of
-    // EVERY DA user's usage) in this Promise.all, but its result was never
-    // used: per-account usage comes from getUserUsage(daUsername) below. That
-    // dump gets progressively slower as the server accumulates accounts (~65
-    // now), so it was silently adding seconds to every customer's hosting-page
-    // load for nothing — the main reason /dashboard/hosting got slow over
-    // time. Dropped. Per-account usage is unchanged.
-    const serverInfo = await DirectAdminService.getServerInfo();
-
-    // Only fall back to the email-discovery scan when we still don't know
-    // any DA username for this user. This is the migration-window path
-    // (account exists on DA but the User row's `directAdminUsername` was
-    // never persisted) — rare, and the result auto-fills user.directAdminUsername.
-    if (matchingDaUsernames.size === 0 && user.email) {
-        const daUserList = await DirectAdminService.listUsers();
-        const MAX_SCAN = 200; // bound the worst-case fan-out per request
-
-        if (daUserList.length > MAX_SCAN) {
-            serverLogger.warn(
-                `[stats] DA user list (${daUserList.length}) exceeds MAX_SCAN ` +
-                `(${MAX_SCAN}); skipping email-discovery scan for ${user.email}. ` +
-                `Set User.directAdminUsername to bypass this fallback.`
-            );
-        } else {
-            const scanPromises = daUserList.map(async (username) => {
-                try {
-                    const conf = await DirectAdminService.getUserConfig(username);
-                    if (conf && conf.email === user.email) {
-                        matchingDaUsernames.add(username);
-                    }
-                } catch {
-                    // Ignore per-user errors — best-effort discovery.
-                }
-            });
-            await Promise.all(scanPromises);
-        }
+    // Authoritative ownership: DA usernames on Hosting records this user owns.
+    const ownedHostings = await listHostingsForUser(user._id, { limit: 100 });
+    for (const h of ownedHostings) {
+        const daU = (h as { directAdminUsername?: string }).directAdminUsername;
+        if (daU && daU.trim()) matchingDaUsernames.add(daU.trim());
     }
+
+    // Server info (PHP default, etc.). We previously ALSO called
+    // getAllUserUsage() here (a full-server usage dump) but its result was
+    // never used and it slowed the page as the server grew — dropped.
+    const serverInfo = await DirectAdminService.getServerInfo();
 
     const targetUsernames = Array.from(matchingDaUsernames);
 

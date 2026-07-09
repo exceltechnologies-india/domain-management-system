@@ -84,9 +84,11 @@ vi.mock("@/lib/directadmin", () => ({
 }));
 
 const listUserHostingsByDomain = vi.hoisted(() => vi.fn());
+const listHostingsForUser = vi.hoisted(() => vi.fn());
 const upsertHostingFromDirectAdminStats = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/hostings", () => ({
   listUserHostingsByDomain,
+  listHostingsForUser,
   upsertHostingFromDirectAdminStats,
 }));
 
@@ -162,6 +164,9 @@ function happyDA() {
   getUserUsage.mockResolvedValue(freshDaUsage());
   getDNSRecords.mockResolvedValue([]);
   listUserHostingsByDomain.mockResolvedValue([]);
+  // Ownership source: the user's own Hosting docs. Default to the linked
+  // primary account so the happy path targets alice_da.
+  listHostingsForUser.mockResolvedValue([{ directAdminUsername: "alice_da" }]);
   planFindOne.mockReturnValue({ select: vi.fn().mockResolvedValue(null) });
   upsertHostingFromDirectAdminStats.mockResolvedValue(undefined);
 }
@@ -177,6 +182,7 @@ beforeEach(() => {
   listUsers.mockReset();
   getDNSRecords.mockReset();
   listUserHostingsByDomain.mockReset();
+  listHostingsForUser.mockReset().mockResolvedValue([]);
   upsertHostingFromDirectAdminStats.mockReset();
   planFindOne.mockReset();
 });
@@ -231,23 +237,17 @@ describe("Fast path — user.directAdminUsername set", () => {
   });
 });
 
-// ─── Slow fallback: email-discovery scan ───────────────────────────
-describe("Email-discovery fallback (no linked username)", () => {
-  it("scans DA users + matches by email when user.directAdminUsername is missing", async () => {
+// ─── Ownership from OUR records (no DA-email scan — cross-tenant leak fix) ──
+describe("Ownership from Hosting.userId (never the DA-account email)", () => {
+  it("targets DA usernames from the user's own Hosting docs when no linked username", async () => {
     getUserFromRequest.mockResolvedValueOnce({
       ...user,
       directAdminUsername: undefined,
     });
-    getAllUserUsage.mockResolvedValue({});
     getServerInfo.mockResolvedValue({ php: "8.2" });
-    listUsers.mockResolvedValueOnce(["bob_da", "alice_da", "carol_da"]);
-    getUserConfig.mockImplementation((u) =>
-      Promise.resolve(
-        u === "alice_da"
-          ? freshDaConfig({ email: "alice@example.com" })
-          : freshDaConfig({ email: "someone-else@example.com" })
-      )
-    );
+    // The user OWNS this hosting (Hosting.userId === user._id).
+    listHostingsForUser.mockResolvedValueOnce([{ directAdminUsername: "alice_da" }]);
+    getUserConfig.mockResolvedValue(freshDaConfig());
     getUserUsage.mockResolvedValue(freshDaUsage());
     getDNSRecords.mockResolvedValue([]);
     listUserHostingsByDomain.mockResolvedValue([]);
@@ -257,96 +257,67 @@ describe("Email-discovery fallback (no linked username)", () => {
     const res = await GET(makeReq());
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.success).toBe(true);
     expect(body.data).toHaveLength(1);
     expect(body.data[0].username).toBe("alice_da");
   });
 
-  it("skips email scan if user has no email AND no linked username → returns empty data", async () => {
+  it("NEVER runs the DA email-discovery scan (the cross-tenant leak vector)", async () => {
     getUserFromRequest.mockResolvedValueOnce({
-      _id: "U2",
-      email: undefined,
+      ...user,
       directAdminUsername: undefined,
     });
-    getAllUserUsage.mockResolvedValue({});
     getServerInfo.mockResolvedValue({ php: "8.2" });
+    listHostingsForUser.mockResolvedValueOnce([{ directAdminUsername: "alice_da" }]);
+    getUserConfig.mockResolvedValue(freshDaConfig());
+    getUserUsage.mockResolvedValue(freshDaUsage());
+    getDNSRecords.mockResolvedValue([]);
+    listUserHostingsByDomain.mockResolvedValue([]);
+    planFindOne.mockReturnValue({ select: vi.fn().mockResolvedValue(null) });
+    upsertHostingFromDirectAdminStats.mockResolvedValue(undefined);
+
+    await GET(makeReq());
+    // listUsers = the full DA-user enumeration that matched by email. Must
+    // never be called — that's what leaked other customers' accounts.
+    expect(listUsers).not.toHaveBeenCalled();
+    // Only the owned username is fetched.
+    expect(getUserConfig).toHaveBeenCalledTimes(1);
+    expect(getUserConfig).toHaveBeenCalledWith("alice_da");
+  });
+
+  it("no linked username and no owned Hosting → empty data, no DA scan", async () => {
+    getUserFromRequest.mockResolvedValueOnce({
+      _id: "U2",
+      email: "someone@example.com",
+      directAdminUsername: undefined,
+    });
+    getServerInfo.mockResolvedValue({ php: "8.2" });
+    listHostingsForUser.mockResolvedValueOnce([]);
 
     const res = await GET(makeReq());
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.data).toEqual([]);
     expect(listUsers).not.toHaveBeenCalled();
-  });
-
-  it("DA user list > MAX_SCAN (200) → SKIPS scan (anti-fan-out), returns empty data", async () => {
-    getUserFromRequest.mockResolvedValueOnce({
-      ...user,
-      directAdminUsername: undefined,
-    });
-    getAllUserUsage.mockResolvedValue({});
-    getServerInfo.mockResolvedValue({ php: "8.2" });
-    listUsers.mockResolvedValueOnce(
-      Array.from({ length: 201 }, (_, i) => `u${i}`)
-    );
-
-    const res = await GET(makeReq());
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.data).toEqual([]);
-    // Crucially — getUserConfig must NOT be called 201 times
     expect(getUserConfig).not.toHaveBeenCalled();
-  });
-
-  it("per-user getUserConfig error in scan → swallowed, scan continues", async () => {
-    getUserFromRequest.mockResolvedValueOnce({
-      ...user,
-      directAdminUsername: undefined,
-    });
-    getAllUserUsage.mockResolvedValue({});
-    getServerInfo.mockResolvedValue({ php: "8.2" });
-    listUsers.mockResolvedValueOnce(["broken", "alice_da"]);
-    getUserConfig.mockImplementation((u) => {
-      if (u === "broken") return Promise.reject(new Error("DA blip"));
-      if (u === "alice_da")
-        return Promise.resolve(freshDaConfig({ email: "alice@example.com" }));
-      return Promise.resolve(freshDaConfig());
-    });
-    getUserUsage.mockResolvedValue(freshDaUsage());
-    getDNSRecords.mockResolvedValue([]);
-    listUserHostingsByDomain.mockResolvedValue([]);
-    planFindOne.mockReturnValue({ select: vi.fn().mockResolvedValue(null) });
-    upsertHostingFromDirectAdminStats.mockResolvedValue(undefined);
-
-    const res = await GET(makeReq());
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.data).toHaveLength(1);
-    expect(body.data[0].username).toBe("alice_da");
   });
 });
 
 // ─── Per-account failure isolation ─────────────────────────────────
 describe("Per-account fetch failure", () => {
   it("getUserConfig throw on detail fetch → that account dropped (null filtered); others survive", async () => {
+    // User owns two accounts (per our Hosting records); one account's detail
+    // fetch fails and must be dropped while the other survives.
     getUserFromRequest.mockResolvedValueOnce({
       ...user,
       directAdminUsername: undefined,
     });
-    getAllUserUsage.mockResolvedValue({});
     getServerInfo.mockResolvedValue({ php: "8.2" });
-    listUsers.mockResolvedValueOnce(["alice_da", "alice_secondary"]);
-    // Discovery phase: both match by email
-    let calls = 0;
+    listHostingsForUser.mockResolvedValueOnce([
+      { directAdminUsername: "alice_da" },
+      { directAdminUsername: "alice_secondary" },
+    ]);
     getUserConfig.mockImplementation((u) => {
-      calls++;
-      // First two calls = discovery; both match
-      if (calls <= 2) {
-        return Promise.resolve(freshDaConfig({ email: "alice@example.com" }));
-      }
-      // Subsequent calls = detail fetch
-      if (u === "alice_da") {
-        return Promise.resolve(freshDaConfig());
-      }
+      if (u === "alice_da") return Promise.resolve(freshDaConfig());
       return Promise.reject(new Error("detail fetch broke"));
     });
     getUserUsage.mockResolvedValue(freshDaUsage());
@@ -694,14 +665,14 @@ describe("isPrimary flag", () => {
     expect(body.data[0].isPrimary).toBe(true);
   });
 
-  it("false for email-discovered secondary accounts", async () => {
+  it("false for owned secondary accounts (not the user's linked primary)", async () => {
     getUserFromRequest.mockResolvedValueOnce({
       ...user,
       directAdminUsername: undefined,
     });
-    getAllUserUsage.mockResolvedValue({});
     getServerInfo.mockResolvedValue({ php: "8.2" });
-    listUsers.mockResolvedValueOnce(["secondary_da"]);
+    // Owned via Hosting.userId but not the user's linked primary username.
+    listHostingsForUser.mockResolvedValueOnce([{ directAdminUsername: "secondary_da" }]);
     getUserConfig.mockResolvedValue(
       freshDaConfig({ email: "alice@example.com" })
     );
