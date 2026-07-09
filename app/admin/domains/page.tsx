@@ -19,6 +19,7 @@ import {
   Settings,
   Network,
   Inbox,
+  Trash2,
 } from 'lucide-react';
 import RefreshButton from '@/components/dashboard/RefreshButton';
 import AdminLayout from '@/components/admin/AdminLayout';
@@ -178,6 +179,21 @@ export default function AdminDomainsPage() {
       toast.error('Network error during sync', { id: `sync-${domain.id}` });
     } else {
       toast.error(result.error.message || 'Sync failed', { id: `sync-${domain.id}` });
+    }
+  };
+
+  const handleRemoveFromPanel = async (domain: Domain) => {
+    const ok = window.confirm(
+      `Remove ${domain.name} from the panel?\n\nUse this ONLY for domains transferred out to another registrar account or legacy/test domains. It soft-deletes the domain (reversible for 90 days), hides it from the customer + this list, and does NOT touch billing/order records or the registrar.`
+    );
+    if (!ok) return;
+    toast.loading(`Removing ${domain.name}…`, { id: `rm-${domain.id}` });
+    const result = await apiClient.delete(`/api/v1/admin/domains?domainName=${encodeURIComponent(domain.name)}`);
+    if (result.ok) {
+      toast.success(`${domain.name} removed from panel`, { id: `rm-${domain.id}` });
+      void fetchDomains();
+    } else {
+      toast.error(result.error.message || 'Failed to remove domain', { id: `rm-${domain.id}` });
     }
   };
 
@@ -386,6 +402,12 @@ export default function AdminDomainsPage() {
               label: 'View Order',
               icon: Eye,
               onClick: () => router.push(`/admin/order-management?search=${menuData.domain.orderId}`)
+            },
+            {
+              label: 'Remove from panel',
+              icon: Trash2,
+              onClick: () => handleRemoveFromPanel(menuData.domain),
+              variant: 'danger' as const
             }
           ] : []}
         />

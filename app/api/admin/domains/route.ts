@@ -77,6 +77,17 @@ export async function GET(request: NextRequest) {
       pendingDomainsList.map((pd) => pd.domainName.toLowerCase().trim())
     );
 
+    // 1b. Soft-deleted domains (removed from the panel — e.g. transferred out /
+    // legacy test domains). This admin list is order-derived, so a Domain
+    // soft-delete wouldn't drop it here without this cross-reference.
+    await connectDB();
+    const removedDomains = await Domain.find({ deletedAt: { $ne: null } })
+      .select("domainName")
+      .lean<Array<{ domainName: string }>>();
+    const removedNormalizedNames = new Set(
+      removedDomains.map((d) => (d.domainName || "").toLowerCase().trim())
+    );
+
     // 2. Get all orders with domains — service handles populate + lean
     const orders = await listAllOrdersForAdminDomains();
 
@@ -94,6 +105,11 @@ export async function GET(request: NextRequest) {
         // CRITICAL FILTER: If this domain is in the PendingDomain collection, 
         // it SHOULD NOT show up in the Registered list, even if status is 'registered'
         if (pendingNormalizedNames.has(domainName)) {
+            continue;
+        }
+
+        // Skip domains removed from the panel (soft-deleted).
+        if (removedNormalizedNames.has(domainName)) {
             continue;
         }
 
