@@ -56,6 +56,9 @@ export default function DNSManagementPage() {
   const [dnsRecords, setDnsRecords] = useState<DNSRecord[]>([]);
   const [nameservers, setNameservers] = useState<string[]>([]);
   const [nameserverMethod, setNameserverMethod] = useState<string>('');
+  // 'ok' = valid NS shown; 'unset' = domain has no/invalid NS (guide to Apply
+  // Defaults); 'error' = genuine lookup failure; '' = not yet loaded.
+  const [nameserverStatus, setNameserverStatus] = useState<string>('');
   const [isUpdatingNameservers, setIsUpdatingNameservers] = useState(false);
   const [ns1, setNs1] = useState('');
   const [ns2, setNs2] = useState('');
@@ -240,19 +243,22 @@ export default function DNSManagementPage() {
       return;
     }
 
-    const result = await apiClient.get<{ success?: boolean; nameservers?: string[]; method?: string; message?: string }>(`/api/v1/domains/nameservers?domainName=${encodeURIComponent(domain.name)}`);
+    const result = await apiClient.get<{ success?: boolean; nameservers?: string[]; method?: string; message?: string; nameserverStatus?: string }>(`/api/v1/domains/nameservers?domainName=${encodeURIComponent(domain.name)}`);
 
     if (result.ok && result.data.success) {
       setNameservers(result.data.nameservers || []);
       setNameserverMethod(result.data.method || '');
+      setNameserverStatus(result.data.nameserverStatus || (result.data.nameservers && result.data.nameservers.length > 0 ? 'ok' : 'unset'));
     } else if (result.ok) {
       // Handle API success but lookup failure
       setNameservers([]);
       setNameserverMethod('');
+      setNameserverStatus('error');
       toast.error(result.data.message || 'Failed to retrieve nameserver information');
     } else {
       setNameservers([]);
       setNameserverMethod('');
+      setNameserverStatus('error');
       // Show specific error message based on status
       if (result.error.status === 500) {
         toast.error('Server error occurred while fetching nameserver information');
@@ -689,20 +695,36 @@ export default function DNSManagementPage() {
                         </div>
                       ))}
                     </div>
+                  ) : nameserverStatus === 'unset' ? (
+                    <div className="text-center py-8">
+                      <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <Settings className="h-7 w-7 text-amber-500" />
+                      </div>
+                      <h4 className="text-sm font-semibold text-gray-900 mb-1.5">No nameservers set yet</h4>
+                      <p className="text-sm text-gray-500 mb-4 max-w-md mx-auto">
+                        This domain doesn&apos;t have working nameservers configured, so there&apos;s no DNS delegation to show yet.
+                        Point it at our managed nameservers to finish setup — then you can manage DNS records here.
+                      </p>
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 max-w-md mx-auto text-left flex items-start gap-2.5">
+                        <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                        <p className="text-xs text-amber-800">
+                          Use the <span className="font-semibold">Apply Defaults</span> button below to set Anutech&apos;s nameservers. Changes take minutes to a few hours to propagate.
+                        </p>
+                      </div>
+                    </div>
                   ) : (
                     <div className="text-center py-8">
                       <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
                         <AlertCircle className="h-7 w-7 text-red-500" />
                       </div>
                       <h4 className="text-sm font-semibold text-gray-900 mb-1.5">Nameserver Information Unavailable</h4>
-                      <p className="text-sm text-gray-500 mb-4">Unable to retrieve nameserver information for this domain.</p>
+                      <p className="text-sm text-gray-500 mb-4">Unable to retrieve nameserver information for this domain right now.</p>
                       <div className="bg-red-50 border border-red-200 rounded-xl p-4 max-w-md mx-auto text-left">
                         <p className="text-xs font-semibold text-red-800 mb-1.5">Possible reasons</p>
                         <ul className="text-xs text-red-700 space-y-1 list-disc list-inside">
-                          <li>Domain is not registered or expired</li>
-                          <li>WHOIS servers are temporarily unavailable</li>
-                          <li>Domain uses private registration</li>
+                          <li>WHOIS / RDAP servers are temporarily unavailable</li>
                           <li>Network connectivity issues</li>
+                          <li>Domain is expired</li>
                         </ul>
                       </div>
                     </div>

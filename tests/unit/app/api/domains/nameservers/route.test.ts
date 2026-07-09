@@ -204,6 +204,26 @@ describe("GET — response shape", () => {
   });
 });
 
+describe("GET — placeholder / invalid delegation → unset (not error)", () => {
+  it("filters 127.0.0.1-style placeholder NS and returns nameserverStatus:'unset'", async () => {
+    // sgweb.biz-style broken delegation: registrar returns placeholder IPs.
+    getNameservers.mockResolvedValueOnce(["127.0.0.1", "0.0.0.0"]);
+    const res = await GET(makeGetReq("sgweb.biz"));
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.nameservers).toEqual([]);
+    expect(body.nameserverStatus).toBe("unset");
+  });
+
+  it("valid NS from the API report nameserverStatus:'ok'", async () => {
+    getNameservers.mockResolvedValueOnce(["ns1.cloudflare.com", "ns2.cloudflare.com"]);
+    const res = await GET(makeGetReq("example.com"));
+    const body = await res.json();
+    expect(body.nameserverStatus).toBe("ok");
+  });
+});
+
 // ─── POST ───────────────────────────────────────────────────────────
 describe("POST — auth gate FIRST", () => {
   it("no user → 401 (no domain lookup, no RC call)", async () => {

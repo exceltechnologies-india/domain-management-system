@@ -33,6 +33,40 @@ const nameserversPostSchema = z
 // Force dynamic rendering - required for API routes
 export const dynamic = 'force-dynamic';
 
+// Placeholder / invalid nameserver values that some registrars leave on a
+// domain that has never had real nameservers assigned (e.g. sgweb.biz was
+// delegated to 127.0.0.1 — "private name servers, no query sent"). These are
+// NOT usable nameservers and must be treated as "unset" so the UI nudges the
+// customer to Apply Defaults instead of showing a scary error.
+const PLACEHOLDER_NS = new Set(["127.0.0.1", "0.0.0.0", "localhost", "::1"]);
+const isIpv4 = (s: string) => /^\d{1,3}(\.\d{1,3}){3}$/.test(s);
+
+/**
+ * Resolve NS records via DNS-over-HTTPS (Google). More reliable from
+ * serverless egress than the container's system resolver (`dns.resolveNs`),
+ * and it lets us read the delegation state — a `responded:true` with an empty
+ * list means "the domain resolves but has no valid public NS" (unset), which
+ * we distinguish from a total lookup failure.
+ */
+async function resolveNsViaDoH(
+  domainName: string
+): Promise<{ nameservers: string[]; responded: boolean }> {
+  try {
+    const res = await fetch(
+      `https://dns.google/resolve?name=${encodeURIComponent(domainName)}&type=NS`,
+      { headers: { Accept: "application/dns-json" }, signal: AbortSignal.timeout(8000) }
+    );
+    if (!res.ok) return { nameservers: [], responded: false };
+    const data = (await res.json()) as { Answer?: Array<{ type?: number; data?: string }> };
+    const ns = (data.Answer ?? [])
+      .filter((a) => a.type === 2 && a.data)
+      .map((a) => a.data!.replace(/\.$/, "").toLowerCase());
+    return { nameservers: ns, responded: true };
+  } catch {
+    return { nameservers: [], responded: false };
+  }
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const domainName = searchParams.get("domainName");
@@ -246,17 +280,31 @@ export async function GET(request: NextRequest) {
           };
         } catch (dnsError: unknown) {
           const dnsMessage = dnsError instanceof Error ? dnsError.message : String(dnsError);
-          serverLogger.error(`❌ [DNS] Also failed: ${dnsMessage}`);
-
-          // All lookup methods failed - throw error
-          throw new Error(
-            `Unable to retrieve nameserver information for ${domainName}. All lookups failed.`
-          );
+          serverLogger.warn(`[DNS] resolveNs failed for ${domainName}: ${dnsMessage} — falling through to DoH`);
+          // Do NOT throw here — fall through to the DoH fallback + the
+          // "unset vs error" classification below. A domain with a broken
+          // delegation (e.g. NS = 127.0.0.1) should guide the user to Apply
+          // Defaults, not show a hard error.
         }
       }
     }
 
-    // Clean up nameservers
+    // Method 4: DNS-over-HTTPS fallback (reliable from serverless egress).
+    // Runs whenever the earlier methods produced no nameservers. `dohResponded`
+    // lets us tell "domain resolves but has no valid NS" (unset) apart from a
+    // total lookup failure (error).
+    let dohResponded = false;
+    if (nameservers.length === 0) {
+      const doh = await resolveNsViaDoH(domainName);
+      dohResponded = doh.responded;
+      if (doh.nameservers.length > 0) {
+        nameservers = doh.nameservers;
+        method = "doh";
+      }
+    }
+
+    // Clean up nameservers — also strip placeholder/invalid delegations
+    // (127.0.0.1 etc.) and bare IPs, which are not real nameservers.
     nameservers = Array.from(new Set(nameservers))
       .map((ns) => ns.toLowerCase().trim())
       .filter((ns) => {
@@ -265,9 +313,29 @@ export async function GET(request: NextRequest) {
           ns.includes(".") &&
           !ns.includes(" ") &&
           /^[a-zA-Z0-9.-]+$/.test(ns) &&
-          !ns.includes("name")
+          !ns.includes("name") &&
+          !PLACEHOLDER_NS.has(ns) &&
+          !isIpv4(ns)
         );
       });
+
+    // No valid nameservers found. Distinguish "domain exists but has no NS
+    // set" (unset — guide the user to Apply Defaults) from a genuine lookup
+    // failure (error). RDAP data or a DoH response both confirm the domain
+    // resolves, so those → unset; nothing responding at all → error.
+    if (nameservers.length === 0) {
+      const domainConfirmed = Boolean(whoisData.registrar) || dohResponded;
+      return NextResponse.json({
+        success: true,
+        domainName,
+        nameservers: [],
+        count: 0,
+        method: "none",
+        nameserverStatus: domainConfirmed ? "unset" : "error",
+        whoisData,
+        lastChecked: new Date().toISOString(),
+      });
+    }
 
 
 
@@ -295,6 +363,7 @@ export async function GET(request: NextRequest) {
       nameservers,
       count: nameservers.length,
       method: nameserverMethod,
+      nameserverStatus: "ok",
       whoisData,
       lastChecked: new Date().toISOString(),
     });
