@@ -51,10 +51,15 @@ export async function GET(request: NextRequest) {
         matchingDaUsernames.add(user.directAdminUsername);
     }
 
-    const [daUsageMap, serverInfo] = await Promise.all([
-        DirectAdminService.getAllUserUsage(),
-        DirectAdminService.getServerInfo(),
-    ]);
+    // Only the server info is needed here. We previously ALSO called
+    // getAllUserUsage() (CMD_API_SHOW_ALL_USER_USAGE — a full-server dump of
+    // EVERY DA user's usage) in this Promise.all, but its result was never
+    // used: per-account usage comes from getUserUsage(daUsername) below. That
+    // dump gets progressively slower as the server accumulates accounts (~65
+    // now), so it was silently adding seconds to every customer's hosting-page
+    // load for nothing — the main reason /dashboard/hosting got slow over
+    // time. Dropped. Per-account usage is unchanged.
+    const serverInfo = await DirectAdminService.getServerInfo();
 
     // Only fall back to the email-discovery scan when we still don't know
     // any DA username for this user. This is the migration-window path

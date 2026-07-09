@@ -630,7 +630,7 @@ describe("DB sync failure isolation", () => {
 describe("Error mapping (outer catch)", () => {
   it("error.status === 503 → 503 DA_SERVER_DOWN", async () => {
     const err = Object.assign(new Error("Service blew up"), { status: 503 });
-    getAllUserUsage.mockRejectedValueOnce(err);
+    getServerInfo.mockRejectedValueOnce(err);
     const res = await GET(makeReq());
     expect(res.status).toBe(503);
     const body = await res.json();
@@ -639,7 +639,7 @@ describe("Error mapping (outer catch)", () => {
 
   it("error.code === DA_SERVER_DOWN → 503", async () => {
     const err = Object.assign(new Error("DA gone"), { code: "DA_SERVER_DOWN" });
-    getAllUserUsage.mockRejectedValueOnce(err);
+    getServerInfo.mockRejectedValueOnce(err);
     const res = await GET(makeReq());
     expect(res.status).toBe(503);
   });
@@ -648,20 +648,20 @@ describe("Error mapping (outer catch)", () => {
     const err = Object.assign(new Error("connect refused"), {
       code: "ECONNREFUSED",
     });
-    getAllUserUsage.mockRejectedValueOnce(err);
+    getServerInfo.mockRejectedValueOnce(err);
     const res = await GET(makeReq());
     expect(res.status).toBe(503);
   });
 
   it("error.code === ETIMEDOUT → 503", async () => {
     const err = Object.assign(new Error("timeout"), { code: "ETIMEDOUT" });
-    getAllUserUsage.mockRejectedValueOnce(err);
+    getServerInfo.mockRejectedValueOnce(err);
     const res = await GET(makeReq());
     expect(res.status).toBe(503);
   });
 
   it("message contains 'status code 503' → 503", async () => {
-    getAllUserUsage.mockRejectedValueOnce(
+    getServerInfo.mockRejectedValueOnce(
       new Error("Request failed with status code 503")
     );
     const res = await GET(makeReq());
@@ -669,7 +669,7 @@ describe("Error mapping (outer catch)", () => {
   });
 
   it("message contains 'status code 502' → 503", async () => {
-    getAllUserUsage.mockRejectedValueOnce(
+    getServerInfo.mockRejectedValueOnce(
       new Error("Bad Gateway: status code 502")
     );
     const res = await GET(makeReq());
@@ -677,7 +677,7 @@ describe("Error mapping (outer catch)", () => {
   });
 
   it("generic error → 500 STATS_FETCH_FAILED", async () => {
-    getAllUserUsage.mockRejectedValueOnce(new Error("Unexpected"));
+    getServerInfo.mockRejectedValueOnce(new Error("Unexpected"));
     const res = await GET(makeReq());
     expect(res.status).toBe(500);
     const body = await res.json();
