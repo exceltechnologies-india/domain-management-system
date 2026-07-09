@@ -3,9 +3,60 @@ import { AuthService } from "@/lib/auth";
 import { listAllOrdersForAdminDomains } from "@/lib/services/orders";
 import { listAllPendingDomainNames } from "@/lib/services/pending-domains";
 import { serverLogger } from "@/lib/server-logger";
+import connectDB from "@/lib/mongodb";
+import Domain from "@/models/Domain";
 
 // Force dynamic rendering - required for API routes
 export const dynamic = "force-dynamic";
+
+/**
+ * DELETE /api/admin/domains?domainName=example.com
+ *
+ * Admin-only SOFT delete — removes a domain from the customer panel by
+ * stamping `deletedAt` (reversible within the 90-day TTL on that field).
+ * Intended for domains that are no longer manageable here — e.g. transferred
+ * out to a different registrar account, or legacy/test registrations. Does NOT
+ * touch the Order (billing/audit trail stays intact) and makes NO registrar
+ * call — the domain is already gone from our RC account.
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const admin = await AuthService.getAdminFromRequest(request);
+    if (!admin) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const domainName = request.nextUrl.searchParams.get("domainName")?.trim().toLowerCase();
+    if (!domainName) {
+      return NextResponse.json({ error: "domainName is required" }, { status: 400 });
+    }
+
+    await connectDB();
+    const res = await Domain.updateOne(
+      { domainName, deletedAt: null },
+      { $set: { deletedAt: new Date() } }
+    );
+
+    if (res.matchedCount === 0) {
+      return NextResponse.json(
+        { error: "No active domain found with that name (already removed or never existed)." },
+        { status: 404 }
+      );
+    }
+
+    serverLogger.warn(
+      `[admin/domains] Soft-deleted domain "${domainName}" from panel (by ${admin.email})`
+    );
+    return NextResponse.json({
+      success: true,
+      domainName,
+      message: "Domain removed from the panel (soft-deleted, reversible for 90 days).",
+    });
+  } catch (error) {
+    serverLogger.error("[admin/domains] soft-delete error:", error);
+    return NextResponse.json({ error: "Failed to remove domain" }, { status: 500 });
+  }
+}
 
 const MAX_DOMAINS_PAGE_SIZE = 100;
 

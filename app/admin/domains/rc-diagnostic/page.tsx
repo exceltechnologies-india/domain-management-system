@@ -39,6 +39,21 @@ export default function RcDiagnosticPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<DiagResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const [removed, setRemoved] = useState(false);
+
+  const removeFromPanel = async () => {
+    if (!result) return;
+    if (!window.confirm(`Remove ${result.domainName} from the customer panel?\n\nThis soft-deletes it (reversible for 90 days) and does not touch billing/order records or the registrar. Use only for domains transferred out / no longer managed here.`)) return;
+    setRemoving(true);
+    const res = await apiClient.delete(`/api/v1/admin/domains?domainName=${encodeURIComponent(result.domainName)}`);
+    if (res.ok) {
+      setRemoved(true);
+    } else {
+      setError(res.error.message || 'Failed to remove domain');
+    }
+    setRemoving(false);
+  };
 
   useEffect(() => {
     const raw = safeLocalStorage.getItem('user');
@@ -114,9 +129,28 @@ export default function RcDiagnosticPage() {
           <>
             <div className={`rounded-2xl border shadow-sm p-4 flex items-start gap-3 ${result.managedByThisAccount ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
               {result.managedByThisAccount ? <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" /> : <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />}
-              <div>
+              <div className="flex-1">
                 <div className={`text-sm font-semibold ${result.managedByThisAccount ? 'text-green-900' : 'text-amber-900'}`}>Verdict</div>
                 <p className="text-sm text-gray-700 mt-0.5">{result.verdict}</p>
+                {!result.managedByThisAccount && (
+                  <div className="mt-3">
+                    {removed ? (
+                      <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-green-700">
+                        <CheckCircle2 className="h-4 w-4" /> Removed from panel (reversible for 90 days).
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => void removeFromPanel()}
+                        disabled={removing}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+                      >
+                        {removing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+                        {removing ? 'Removing…' : 'Remove from panel'}
+                      </button>
+                    )}
+                    <p className="text-xs text-gray-500 mt-1.5">Soft-delete for domains transferred out / no longer managed here. Doesn&apos;t affect billing records or the registrar.</p>
+                  </div>
+                )}
               </div>
             </div>
 

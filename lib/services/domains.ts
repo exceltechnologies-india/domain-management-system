@@ -22,7 +22,14 @@ export async function listDomainsForUser(
   userId: string
 ): Promise<IDomain[]> {
   await connectDB();
-  return Domain.find({ userId }).sort({ createdAt: -1 });
+  // Exclude soft-deleted domains (deletedAt set) — e.g. a domain transferred
+  // out to another registrar account and removed from the panel by an admin.
+  // `deletedAt: null` matches both null and missing (active) records. The
+  // schema already carries a 90-day TTL on deletedAt, so this is reversible
+  // within that window. Previously this query omitted the filter, so a
+  // soft-deleted domain would still show to the customer until the TTL purged
+  // it — this closes that gap.
+  return Domain.find({ userId, deletedAt: null }).sort({ createdAt: -1 });
 }
 
 /**

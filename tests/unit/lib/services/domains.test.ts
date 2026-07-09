@@ -28,7 +28,8 @@ describe("listDomainsForUser", () => {
     domainFindMock.mockReturnValue({ sort: sortStub });
     const docs = await listDomainsForUser("user-123");
     expect(connectDBMock).toHaveBeenCalledTimes(1);
-    expect(domainFindMock).toHaveBeenCalledWith({ userId: "user-123" });
+    // Must exclude soft-deleted domains (deletedAt: null matches active + missing).
+    expect(domainFindMock).toHaveBeenCalledWith({ userId: "user-123", deletedAt: null });
     expect(sortStub).toHaveBeenCalledWith({ createdAt: -1 });
     expect(docs).toEqual([{ _id: "d1" }]);
   });
