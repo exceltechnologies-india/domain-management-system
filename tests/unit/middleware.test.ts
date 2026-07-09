@@ -23,8 +23,10 @@
  *    allows top-level POST navigations)
  *  - **Admin API: 401/403 JSON, NO redirects** (REST clients
  *    can't follow page redirects)
- *  - **Admin pages: redirect to /403** (NOT /login — avoids
- *    leak of "this endpoint exists" via 401)
+ *  - **Admin pages: unauthenticated → /login (with returnUrl);
+ *    authenticated-but-non-admin → /403**. An expired session is a
+ *    login problem, not a permissions one; /403 is reserved for a
+ *    real wrong-role case.
  *  - **Auth-page redirect by role**: logged-in user on /login →
  *    /admin/dashboard if admin, /dashboard else
  *  - **Admin-on-/dashboard guard**: admin accessing /dashboard/* →
@@ -350,17 +352,23 @@ describe("Admin API: 401/403 JSON (REST clients can't follow redirects)", () => 
   });
 });
 
-// ─── Admin pages: redirect to /403 (NOT /login) ────────────────────
-describe("Admin pages — redirect to /403 (info-leak guard)", () => {
-  it("no token → 307 redirect to /403", async () => {
+// ─── Admin pages: unauthenticated → /login; authenticated non-admin → /403 ──
+describe("Admin pages — /login when unauthenticated, /403 when wrong role", () => {
+  it("no / expired token → 307 redirect to /login with returnUrl (NOT /403)", async () => {
+    // An expired admin session is UNAUTHENTICATED, not forbidden — sending it
+    // to /403 'Access Denied' was misleading UX. It now goes to /login so the
+    // admin can re-authenticate and land back where they were.
     getToken.mockResolvedValueOnce(null);
-    const req = makeReq("https://example.com/admin/dashboard");
+    const req = makeReq("https://example.com/admin/hosting");
     const res = await middleware(req);
     expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toContain("/403");
+    const location = res.headers.get("location") || "";
+    expect(location).toContain("/login");
+    expect(location).toContain("returnUrl=%2Fadmin%2Fhosting");
+    expect(location).not.toContain("/403");
   });
 
-  it("non-admin token → /403 (NOT /login — avoids 'endpoint exists' leak)", async () => {
+  it("authenticated non-admin token → /403 (wrong role — genuinely forbidden)", async () => {
     getToken.mockResolvedValueOnce({ role: "user" });
     const req = makeReq("https://example.com/admin/dashboard");
     const res = await middleware(req);

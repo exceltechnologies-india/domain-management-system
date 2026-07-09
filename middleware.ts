@@ -395,8 +395,17 @@ async function handleMiddleware(request: NextRequest, nonce: string, requestId: 
   // Admin Pages: Enforce admin role
   if (isAdminPage) {
     if (!token) {
+      // No / expired session = NOT AUTHENTICATED, not "forbidden". Send to
+      // /login with a returnUrl so the admin lands back where they were after
+      // signing in — mirrors the protected-user-route flow below. Previously
+      // this redirected to /403 "Access Denied", which is misleading UX for a
+      // simply-lapsed admin session (the common case). /403 is reserved for
+      // an AUTHENTICATED user who lacks the admin role (the branch below).
       logAuthAttempt(pathname, 401, requestId);
-      return addSecurityHeaders(NextResponse.redirect(new URL("/403", request.url)), { nonce, strictCSP: isStrictCSPRoute });
+      const safeReturn = pathname.startsWith("/") && !pathname.startsWith("//") ? pathname : "/admin/dashboard";
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("returnUrl", safeReturn);
+      return addSecurityHeaders(NextResponse.redirect(loginUrl), { nonce, strictCSP: isStrictCSPRoute });
     }
     if (token.role !== "admin") {
       logAuthAttempt(pathname, 403, requestId);
