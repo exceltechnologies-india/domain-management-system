@@ -97,6 +97,19 @@ vi.mock("@/models/HostingPlan", () => ({
   default: { findOne: planFindOne },
 }));
 
+// The route dynamically imports @/models/Hosting inside
+// fetchPendingHostingEntries and calls Hosting.find(...).sort().limit().lean().
+// Without this mock that hits the real Mongoose model (no DB in unit tests),
+// throws, and the route falls into its error branch — which is why every
+// body.data assertion was failing. Default returns [] (no pending Hostings);
+// tests can override hostingModelFind for pending-entry cases.
+const hostingModelFind = vi.hoisted(() =>
+  vi.fn(() => ({ sort: () => ({ limit: () => ({ lean: () => Promise.resolve([]) }) }) }))
+);
+vi.mock("@/models/Hosting", () => ({
+  default: { find: hostingModelFind },
+}));
+
 vi.mock("@/lib/server-logger", () => ({
   serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
