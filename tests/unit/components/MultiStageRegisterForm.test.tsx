@@ -59,6 +59,8 @@ async function fillValid(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByPlaceholderText(/first name/i), "Alice");
   await user.type(screen.getByPlaceholderText(/last name/i), "Smith");
   await user.type(screen.getByPlaceholderText("you@example.com"), "alice@example.com");
+  // WhatsApp number is now required at signup (10 digits).
+  await user.type(screen.getByPlaceholderText(/10-digit whatsapp number/i), "9998887776");
   // Password strength validator demands upper + lower + digit + special; keep it satisfied.
   await user.type(screen.getByPlaceholderText(/create a strong password/i), "ValidPass1!");
   await user.type(screen.getByPlaceholderText(/confirm your password/i), "ValidPass1!");
@@ -94,6 +96,7 @@ describe("<MultiStageRegisterForm>", () => {
     await user.type(screen.getByPlaceholderText(/first name/i), "Alice");
     await user.type(screen.getByPlaceholderText(/last name/i), "Smith");
     await user.type(screen.getByPlaceholderText("you@example.com"), "alice@example.com");
+    await user.type(screen.getByPlaceholderText(/10-digit whatsapp number/i), "9998887776");
     await user.type(screen.getByPlaceholderText(/create a strong password/i), "ValidPass1!");
     await user.type(screen.getByPlaceholderText(/confirm your password/i), "DifferentPass1!");
     await user.click(screen.getByRole("button", { name: /create account/i }));
@@ -112,6 +115,7 @@ describe("<MultiStageRegisterForm>", () => {
       firstName: "Alice",
       lastName: "Smith",
       email: "alice@example.com",
+      whatsappNumber: "9998887776",
       password: "ValidPass1!",
     });
     expect(mockToast.success).toHaveBeenCalledWith(expect.stringMatching(/account created/i));
