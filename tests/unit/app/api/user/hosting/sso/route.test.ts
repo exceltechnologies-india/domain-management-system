@@ -47,6 +47,9 @@ vi.mock("@/lib/directadmin", () => ({
   DirectAdminService: { getUserConfig, getOneTimeLoginUrl },
 }));
 
+const listHostingsForUser = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/services/hostings", () => ({ listHostingsForUser }));
+
 vi.mock("@/lib/server-logger", () => ({
   serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
@@ -76,6 +79,7 @@ beforeEach(() => {
   getUserFromRequest.mockReset().mockResolvedValue(user);
   getUserConfig.mockReset();
   getOneTimeLoginUrl.mockReset();
+  listHostingsForUser.mockReset().mockResolvedValue([]);
 });
 
 describe("Auth gate (dual response)", () => {
@@ -98,14 +102,11 @@ describe("Auth gate (dual response)", () => {
   });
 });
 
-describe("?username ownership verification", () => {
-  it("targetUsername with email-match in DA → proceeds with that username", async () => {
-    getUserConfig
-      .mockResolvedValueOnce({ email: "ALICE@example.com" }) // verify
-      .mockResolvedValueOnce({ suspended: "no" }); // suspension check
-    getOneTimeLoginUrl.mockResolvedValueOnce(
-      "https://da.example.com/sso/login?token=abc"
-    );
+describe("?username ownership verification (from OUR records, not DA email)", () => {
+  it("targetUsername owned via a Hosting doc (Hosting.userId) → proceeds", async () => {
+    listHostingsForUser.mockResolvedValueOnce([{ directAdminUsername: "alice_alt" }]);
+    getUserConfig.mockResolvedValueOnce({ suspended: "no" }); // suspension check only
+    getOneTimeLoginUrl.mockResolvedValueOnce("https://da.example.com/sso/login?token=abc");
 
     const res = await GET(makeReq("username=alice_alt"));
     expect(res.status).toBeGreaterThanOrEqual(300);
@@ -113,21 +114,9 @@ describe("?username ownership verification", () => {
     expect(getOneTimeLoginUrl).toHaveBeenCalledWith("alice_alt");
   });
 
-  it("email is case-INsensitive matched", async () => {
-    getUserConfig
-      .mockResolvedValueOnce({ email: "Alice@Example.COM" })
-      .mockResolvedValueOnce({ suspended: "no" });
-    getOneTimeLoginUrl.mockResolvedValueOnce("https://da/sso");
-
-    const res = await GET(makeReq("username=alice_alt"));
-    expect(res.status).toBeGreaterThanOrEqual(300);
-    expect(getOneTimeLoginUrl).toHaveBeenCalledWith("alice_alt");
-  });
-
-  it("targetUsername DOES match user.directAdminUsername → proceeds even if DA returns wrong email (legacy unlinked-data tolerance)", async () => {
-    getUserConfig
-      .mockResolvedValueOnce({ email: "stale-da-email@example.com" }) // verify
-      .mockResolvedValueOnce({ suspended: "no" }); // suspension
+  it("targetUsername === user.directAdminUsername → proceeds (owned via linked username)", async () => {
+    listHostingsForUser.mockResolvedValueOnce([]); // not in Hosting docs, but linked
+    getUserConfig.mockResolvedValueOnce({ suspended: "no" });
     getOneTimeLoginUrl.mockResolvedValueOnce("https://da/sso");
 
     const res = await GET(makeReq("username=alice_da"));
@@ -135,19 +124,21 @@ describe("?username ownership verification", () => {
     expect(getOneTimeLoginUrl).toHaveBeenCalledWith("alice_da");
   });
 
-  it("CROSS-TENANT: email mismatch AND not the linked username → 403 OWNERSHIP_VERIFICATION_FAILED", async () => {
-    getUserConfig.mockResolvedValueOnce({
-      email: "different-customer@example.com",
-    });
+  it("CROSS-TENANT: targetUsername NOT owned in our records → 403; no DA-email match, no SSO URL", async () => {
+    // Even if the other account shares the operator's contact email, it must
+    // be rejected because it isn't linked to this user in our DB.
+    listHostingsForUser.mockResolvedValueOnce([{ directAdminUsername: "alice_alt" }]);
     const res = await GET(makeReq("username=bob_da"));
     expect(res.status).toBe(403);
     const body = await res.json();
     expect(body.code).toBe("OWNERSHIP_VERIFICATION_FAILED");
     expect(getOneTimeLoginUrl).not.toHaveBeenCalled();
+    // getUserConfig must NOT be consulted to decide ownership.
+    expect(getUserConfig).not.toHaveBeenCalled();
   });
 
-  it("getUserConfig throws on verify → 400 VERIFICATION_ERROR", async () => {
-    getUserConfig.mockRejectedValueOnce(new Error("DA unreachable"));
+  it("ownership lookup (listHostingsForUser) throws → 400 VERIFICATION_ERROR", async () => {
+    listHostingsForUser.mockRejectedValueOnce(new Error("DB unreachable"));
     const res = await GET(makeReq("username=alice_alt"));
     expect(res.status).toBe(400);
     const body = await res.json();

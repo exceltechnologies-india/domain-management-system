@@ -3,6 +3,7 @@ import { AuthService } from "@/lib/auth";
 import { DirectAdminService } from "@/lib/directadmin";
 import { secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
+import { listHostingsForUser } from "@/lib/services/hostings";
 
 export const dynamic = 'force-dynamic';
 
@@ -24,25 +25,36 @@ export async function GET(request: NextRequest) {
 
     let finalUsername = user.directAdminUsername;
 
-    // 2. If a specific username is requested, verify ownership via email
+    // 2. If a specific username is requested, verify ownership from OUR
+    // records — NEVER from the DA account's email.
+    //
+    // ⚠️ SECURITY: this previously granted a one-time control-panel login to
+    // `targetUsername` if the DA account's contact email matched the user's
+    // email. Because the operator provisions many customers' DA accounts with
+    // the same contact email (the reseller's own address), any customer could
+    // pass ?username=<another customer's DA account> and get a login URL into
+    // it — cross-tenant account takeover. Ownership is now the set of DA
+    // usernames on Hosting docs this user owns (Hosting.userId) plus their own
+    // linked directAdminUsername.
     if (targetUsername) {
-       // Security Check: Does this DA account belong to this user's email?
+       const ownedUsernames = new Set<string>();
+       if (user.directAdminUsername) ownedUsernames.add(user.directAdminUsername);
        try {
-          const targetConfig = await DirectAdminService.getUserConfig(targetUsername);
-          
-          // Case-insensitive email comparison
-          if (targetConfig.email && targetConfig.email.toLowerCase() === user.email.toLowerCase()) {
-              finalUsername = targetUsername;
-          } else if (targetUsername === user.directAdminUsername) {
-              // It matches the explicitly linked account
-              finalUsername = targetUsername;
-          } else {
-             serverLogger.warn(`SSO Access Denied: User ${user.email} attempted to access ${targetUsername} (Email mismatch: ${targetConfig.email})`);
-             return handleError(request, "Unauthorized: You do not own this hosting account.", 403, "OWNERSHIP_VERIFICATION_FAILED");
+          const ownedHostings = await listHostingsForUser(user._id, { limit: 100 });
+          for (const h of ownedHostings) {
+              const daU = (h as { directAdminUsername?: string }).directAdminUsername;
+              if (daU && daU.trim()) ownedUsernames.add(daU.trim());
           }
        } catch (err) {
-           serverLogger.error(`SSO Verification Error for ${targetUsername}:`, err);
+           serverLogger.error(`SSO ownership lookup failed for ${user.email}:`, err);
            return handleError(request, "Failed to verify account ownership.", 400, "VERIFICATION_ERROR");
+       }
+
+       if (ownedUsernames.has(targetUsername)) {
+           finalUsername = targetUsername;
+       } else {
+           serverLogger.warn(`SSO Access Denied: User ${user.email} attempted to access ${targetUsername} (not owned in our records)`);
+           return handleError(request, "Unauthorized: You do not own this hosting account.", 403, "OWNERSHIP_VERIFICATION_FAILED");
        }
     }
 
