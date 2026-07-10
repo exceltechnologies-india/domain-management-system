@@ -498,6 +498,7 @@ export interface RegisterUserInput {
   password: string;
   firstName: string;
   lastName: string;
+  whatsappNumber?: string;
   phone?: string;
   phoneCc?: string;
   companyName?: string;
@@ -523,6 +524,7 @@ export async function createUserWithCredentials(
     password: input.password,
     firstName: input.firstName,
     lastName: input.lastName,
+    ...(input.whatsappNumber ? { whatsappNumber: input.whatsappNumber } : {}),
     ...(input.phone ? { phone: input.phone } : {}),
     ...(input.phoneCc ? { phoneCc: input.phoneCc } : {}),
     ...(input.companyName ? { companyName: input.companyName } : {}),

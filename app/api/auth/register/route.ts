@@ -52,6 +52,7 @@ export async function POST(request: NextRequest) {
       password,
       firstName,
       lastName,
+      whatsappNumber,
       phone,
       phoneCc,
       companyName,
@@ -59,6 +60,11 @@ export async function POST(request: NextRequest) {
       address,
       recaptchaToken,
     } = result.data;
+
+    // WhatsApp is required at signup; mirror it into `phone` when the caller
+    // didn't supply a separate phone, so one number serves both (matches the
+    // Account Settings behaviour). Default country code +91.
+    const effectivePhone = phone && phone.trim() ? phone : whatsappNumber;
 
     /**
      * 🛡️ DEFENSE-IN-DEPTH: Security Layer 4 - Human Verification (reCAPTCHA)
@@ -99,14 +105,15 @@ export async function POST(request: NextRequest) {
      */
     // profileCompleted is false when registering with minimal fields (email+password).
     // Users are prompted to complete their profile (phone, address, etc.) before checkout.
-    const hasFullProfile = !!(phone && address?.line1 && address?.city);
+    const hasFullProfile = !!(effectivePhone && address?.line1 && address?.city);
     const user = await createUserWithCredentials({
       email,
       password,
       firstName,
       lastName,
-      phone,
-      phoneCc,
+      whatsappNumber,
+      phone: effectivePhone,
+      phoneCc: phoneCc || "+91",
       companyName,
       gstNumber,
       address,

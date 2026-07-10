@@ -207,6 +207,7 @@ describe("Schemas.registration", () => {
     password: "Secure#Pass99",
     firstName: "Test",
     lastName: "User",
+    whatsappNumber: "9876543210",
     phone: "9876543210",
     phoneCc: "+91",
     address: {
@@ -235,6 +236,15 @@ describe("Schemas.registration", () => {
   it("rejects registration with a weak password", () => {
     const bad = { ...validReg, password: "Password123" };
     expect(Schemas.registration.safeParse(bad).success).toBe(false);
+  });
+
+  it("rejects registration without a WhatsApp number (now required)", () => {
+    const { whatsappNumber: _w, ...bad } = validReg;
+    expect(Schemas.registration.safeParse(bad).success).toBe(false);
+  });
+
+  it("rejects a non-10-digit WhatsApp number", () => {
+    expect(Schemas.registration.safeParse({ ...validReg, whatsappNumber: "12345" }).success).toBe(false);
   });
 });
 

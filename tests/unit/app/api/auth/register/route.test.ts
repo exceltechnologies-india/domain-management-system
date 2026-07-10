@@ -125,6 +125,8 @@ const VALID = {
   password: STRONG_PASSWORD,
   firstName: "Alice",
   lastName: "Smith",
+  // WhatsApp number is required at signup (mirrors into phone server-side).
+  whatsappNumber: "9998887776",
 };
 
 beforeEach(() => {
@@ -188,6 +190,19 @@ describe("L3 — Zod schema", () => {
     const res = await POST(makeReq(body));
     expect(res.status).toBe(400);
   });
+
+  it("missing whatsappNumber → 400 (required at signup)", async () => {
+    const body = { ...VALID } as Partial<typeof VALID>;
+    delete body.whatsappNumber;
+    const res = await POST(makeReq(body));
+    expect(res.status).toBe(400);
+    expect(createUserWithCredentials).not.toHaveBeenCalled();
+  });
+
+  it("non-10-digit whatsappNumber → 400", async () => {
+    const res = await POST(makeReq({ ...VALID, whatsappNumber: "123" }));
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("L5 — Business-logic: existing user", () => {
@@ -229,15 +244,18 @@ describe("L6 — Activation token + create", () => {
     expect(arg.profileCompleted).toBe(true);
   });
 
-  it("profileCompleted=false when phone absent", async () => {
+  it("no explicit phone → WhatsApp number is mirrored into phone (so address present ⇒ profileCompleted=true)", async () => {
     await POST(
       makeReq({
-        ...VALID,
+        ...VALID, // has whatsappNumber, no explicit phone
         address: { line1: "1 main st", city: "Mumbai" },
       })
     );
     const arg = createUserWithCredentials.mock.calls[0][0];
-    expect(arg.profileCompleted).toBe(false);
+    // WhatsApp mirrored into phone
+    expect(arg.phone).toBe("9998887776");
+    // and with address present, the profile is complete
+    expect(arg.profileCompleted).toBe(true);
   });
 
   it("profileCompleted=false when address absent entirely", async () => {

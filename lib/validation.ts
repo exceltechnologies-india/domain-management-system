@@ -115,6 +115,9 @@ export const Schemas = {
     password: passwordSchema,
     firstName: z.string().min(1).max(50).trim(),
     lastName: z.string().min(1).max(50).trim(),
+    // WhatsApp number is REQUIRED at signup (renewal reminders + marketing;
+    // mirrored into `phone` server-side so it also serves domain/KYC contact).
+    whatsappNumber: z.string().trim().regex(/^\d{10}$/, "Enter a 10-digit WhatsApp number"),
     // phone/address/company are collected post-registration via the Complete Profile flow
     phone: z.string().max(20).optional(),
     phoneCc: z.string().max(20).optional(),

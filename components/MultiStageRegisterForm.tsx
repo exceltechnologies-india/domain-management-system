@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Eye, EyeOff, Lock, Mail, User, UserPlus } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, MessageCircle, User, UserPlus } from 'lucide-react';
 import Button from './Button';
 import Input from './Input';
 import SocialLoginButtons from './SocialLoginButtons';
@@ -21,6 +21,7 @@ export default function MultiStageRegisterForm({ className = '' }: RegisterFormP
     firstName: '',
     lastName: '',
     email: '',
+    whatsappNumber: '',
     password: '',
     confirmPassword: '',
   });
@@ -52,6 +53,12 @@ export default function MultiStageRegisterForm({ className = '' }: RegisterFormP
     const emailVal = InputValidator.validateEmail(formData.email);
     if (!emailVal.isValid) next.email = emailVal.errors[0];
 
+    // WhatsApp number is required at signup (renewal reminders + marketing;
+    // also doubles as the contact number for domain purposes).
+    const wa = formData.whatsappNumber.trim();
+    if (!wa) next.whatsappNumber = 'WhatsApp number is required';
+    else if (!/^\d{10}$/.test(wa)) next.whatsappNumber = 'Enter a 10-digit WhatsApp number';
+
     const pwVal = InputValidator.validatePasswordStrength(formData.password);
     if (!pwVal.isValid) next.password = pwVal.errors[0];
 
@@ -76,6 +83,7 @@ export default function MultiStageRegisterForm({ className = '' }: RegisterFormP
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
+        whatsappNumber: formData.whatsappNumber.trim(),
         password: formData.password,
       }
     );
@@ -191,6 +199,26 @@ export default function MultiStageRegisterForm({ className = '' }: RegisterFormP
             />
 
             <Input
+              label="WhatsApp number"
+              name="whatsappNumber"
+              type="tel"
+              inputMode="numeric"
+              placeholder="10-digit WhatsApp number"
+              value={formData.whatsappNumber}
+              onChange={(e) => {
+                // digits only, max 10 — keeps the +91 10-digit contract clean
+                const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                setFormData((prev) => ({ ...prev, whatsappNumber: digits }));
+                if (errors.whatsappNumber) setErrors((prev) => { const n = { ...prev }; delete n.whatsappNumber; return n; });
+              }}
+              required
+              fullWidth
+              icon={<MessageCircle className="h-4 w-4 text-gray-400" />}
+              helperText="We'll send renewal reminders here. Also used as your contact number for domains."
+              error={errors.whatsappNumber}
+            />
+
+            <Input
               label="Password"
               name="password"
               type={showPassword ? 'text' : 'password'}
@@ -247,7 +275,7 @@ export default function MultiStageRegisterForm({ className = '' }: RegisterFormP
           </form>
 
           <p className="mt-4 text-center text-xs text-gray-500">
-            You'll be prompted to add your phone and address before checkout — required for domain registration.
+            You&apos;ll be prompted to add your billing address before checkout — required for domain registration.
           </p>
       </>
     </AuthShell>
