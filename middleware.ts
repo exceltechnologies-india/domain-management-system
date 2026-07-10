@@ -17,7 +17,6 @@ const PUBLIC_ROUTES = new Set([
   "/reset-password",
   "/complete-profile",
   "/activate",
-  "/maintenance",
   "/403",
 ]);
 
@@ -166,44 +165,6 @@ function nextWithNonce(request: NextRequest, nonce: string, requestId: string): 
   return NextResponse.next({ request: { headers } });
 }
 
-// --- Maintenance Mode Cache ---
-// Module-level cache (persists across requests inside a single Node.js standalone-server process).
-// Falls back to a fresh fetch on every request in edge-like environments where module
-// state is not preserved between invocations, which is still acceptable.
-let _mCache: { enabled: boolean; message: string; scheduledEnd: string | null; expires: number } | null = null;
-const MAINTENANCE_CACHE_TTL = 15_000; // 15 seconds
-
-async function getMaintenanceStatus(_origin: string): Promise<{ enabled: boolean; message: string; scheduledEnd: string | null }> {
-  const now = Date.now();
-  if (_mCache && _mCache.expires > now) {
-    return { enabled: _mCache.enabled, message: _mCache.message, scheduledEnd: _mCache.scheduledEnd };
-  }
-  try {
-    // Use the loopback HTTP address so this request bypasses Nginx TLS and
-    // avoids HTTPS self-referral issues on the server.
-    const port = process.env.PORT || '3000';
-    // 2s timeout — a hung maintenance-status handler would otherwise block
-    // every middleware-handled request and compound with Cloud Run cold-start
-    // storms. AbortSignal.timeout throws, which lands in the catch below
-    // (fail-open: maintenance disabled).
-    const res = await fetch(`http://127.0.0.1:${port}/api/public/maintenance-status`, {
-      headers: { 'x-internal-maintenance-check': '1' },
-      signal: AbortSignal.timeout(2000),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      _mCache = {
-        enabled: !!data.enabled,
-        message: data.message || '',
-        scheduledEnd: data.scheduledEnd || null,
-        expires: now + MAINTENANCE_CACHE_TTL,
-      };
-      return { enabled: _mCache.enabled, message: _mCache.message, scheduledEnd: _mCache.scheduledEnd };
-    }
-  } catch { /* fail open */ }
-  return { enabled: false, message: '', scheduledEnd: null };
-}
-
 export async function middleware(request: NextRequest) {
   // Prefer Cloud Run's X-Cloud-Trace-Context so log entries correlate with
   // Cloud Trace spans automatically. Falls back to an upstream x-request-id
@@ -225,8 +186,8 @@ async function handleMiddleware(request: NextRequest, nonce: string, requestId: 
   // 0a. HTTPS enforcement — redirect HTTP to HTTPS in production.
   // x-forwarded-proto covers reverse-proxy / Docker deployments where TLS
   // terminates at the load balancer and the internal request arrives as HTTP.
-  // Skip for internal server-to-server calls (e.g. the maintenance-mode health
-  // check fetch): these arrive on loopback without TLS and must not be redirected.
+  // Skip for internal server-to-server loopback calls: these arrive on loopback
+  // without TLS and must not be redirected.
   if (process.env.NODE_ENV === "production") {
     const hostname = request.nextUrl.hostname;
     // Loopback hostnames used when Next.js calls itself internally (0.0.0.0 is
@@ -235,11 +196,7 @@ async function handleMiddleware(request: NextRequest, nonce: string, requestId: 
       hostname === "127.0.0.1" ||
       hostname === "localhost" ||
       hostname === "0.0.0.0";
-    // Requests that carry our internal maintenance-check sentinel header are also
-    // always server→server and must bypass TLS enforcement.
-    const hasInternalHeader =
-      request.headers.get("x-internal-maintenance-check") === "1";
-    if (!isInternalHost && !hasInternalHeader) {
+    if (!isInternalHost) {
       const proto =
         request.headers.get("x-forwarded-proto") ??
         request.nextUrl.protocol.replace(":", "");
@@ -289,29 +246,6 @@ async function handleMiddleware(request: NextRequest, nonce: string, requestId: 
   }
 
   const pathname = normalizedPathname;
-
-  // 1b. Maintenance mode — redirect non-admin, non-API routes to /maintenance when enabled.
-  // Skip: /admin/* (admins must always reach the panel), /api/* (internal calls),
-  //        /maintenance (avoid redirect loop), internal maintenance-check requests.
-  const isMaintenanceBypass =
-    pathname === '/maintenance' ||
-    // Admin panel and its API must always be reachable so admins can disable maintenance
-    pathname.startsWith('/admin') ||
-    // Login/register must be reachable so admins can authenticate during maintenance.
-    // (Regular users who log in will still hit maintenance on /dashboard afterwards.)
-    pathname === '/login' ||
-    pathname === '/register' ||
-    pathname.startsWith('/api/') ||
-    request.headers.get('x-internal-maintenance-check') === '1';
-
-  if (!isMaintenanceBypass) {
-    const maintenance = await getMaintenanceStatus('');
-    if (maintenance.enabled) {
-      const url = request.nextUrl.clone();
-      url.pathname = '/maintenance';
-      return addSecurityHeaders(NextResponse.redirect(url, { status: 307 }), { nonce, strictCSP: isStrictCSPRoute });
-    }
-  }
 
   // 2. Classification
   // Explicitly allow HEAD requests for public routes (monitoring)

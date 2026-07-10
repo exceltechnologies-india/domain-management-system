@@ -140,7 +140,6 @@ describe("<Navigation> Login button — returnUrl carries the current path", () 
     "/activate",
     "/reset-password",
     "/forgot-password",
-    "/maintenance",
     "/403",
   ])("%s → plain /login (excluded path)", (path) => {
     pathnameMock.mockReturnValue(path);

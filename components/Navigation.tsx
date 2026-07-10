@@ -93,7 +93,6 @@ export default function Navigation({
       '/activate',
       '/reset-password',
       '/forgot-password',
-      '/maintenance',
       '/403',
     ];
     if (noReturnPrefixes.some((p) => pathname === p || pathname.startsWith(p + '/'))) {

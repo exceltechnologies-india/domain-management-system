@@ -74,7 +74,6 @@ const NEVER_SECURITY_KEYS = new Set<string>([
   "hosting_test_plan_enabled",
   "tld_pricing_cache_enabled",
   "tld_pricing_cache_ttl",
-  "maintenance_mode_enabled",
   // WhatsApp OPERATIONAL config — none of these carry a secret (the token
   // is env/Secret-Manager-only, never a settings key), so step-up re-auth
   // would be friction without security benefit. The enable flag, phone-

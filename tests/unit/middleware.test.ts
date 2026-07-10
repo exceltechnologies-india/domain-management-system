@@ -4,9 +4,8 @@
  * Pins:
  *  - **HTTPS enforcement (production-only)**: x-forwarded-proto !== 'https'
  *    on a public hostname → 301 redirect to https:// URL. Loopback
- *    (127.0.0.1/localhost/0.0.0.0) AND the x-internal-maintenance-check:1
- *    sentinel header BOTH bypass — server→server calls don't get
- *    redirected (otherwise the maintenance-status fetch would loop)
+ *    (127.0.0.1/localhost/0.0.0.0) bypasses — server→server calls
+ *    don't get redirected.
  *  - **CORS preflight (OPTIONS)** returns immediately via buildPreflightResponse
  *    — no token fetch, no CSRF check
  *  - **URI normalization**: collapse `//` → `/` (and other dupes) then
@@ -32,9 +31,6 @@
  *  - **Admin-on-/dashboard guard**: admin accessing /dashboard/* →
  *    redirect to /admin/dashboard (prevents admin role pollution
  *    of regular-user surfaces)
- *  - **Maintenance mode bypass**: /admin/*, /login, /register,
- *    /api/*, /maintenance, and x-internal-maintenance-check:1 all
- *    skip the maintenance redirect
  *  - **isStrictCSPRoute computed BEFORE redirect** so the redirect
  *    response carries the right CSP for the destination
  */
@@ -163,19 +159,6 @@ describe("HTTPS enforcement (production-only)", () => {
     getToken.mockResolvedValueOnce(null);
     const req = makeReq("http://0.0.0.0/api/health", {
       headers: { "x-forwarded-proto": "http" },
-    });
-    const res = await middleware(req);
-    expect(res.status).not.toBe(301);
-  });
-
-  it("production + x-internal-maintenance-check:1 sentinel → NO redirect (anti-loop)", async () => {
-    vi.stubEnv("NODE_ENV", "production");
-    getToken.mockResolvedValueOnce(null);
-    const req = makeReq("http://example.com/api/health", {
-      headers: {
-        "x-forwarded-proto": "http",
-        "x-internal-maintenance-check": "1",
-      },
     });
     const res = await middleware(req);
     expect(res.status).not.toBe(301);
@@ -468,7 +451,6 @@ describe("Public routes / public APIs — no token fetch", () => {
     "/reset-password",
     "/complete-profile",
     "/activate",
-    "/maintenance",
     "/403",
   ])("public page %s does not fetch token", async (path) => {
     const req = makeReq(`https://example.com${path}`);
@@ -479,7 +461,6 @@ describe("Public routes / public APIs — no token fetch", () => {
   it.each([
     "/api/auth/signin",
     "/api/webhooks/razorpay",
-    "/api/public/maintenance-status",
     "/api/health",
     "/api/status",
     "/api/log",

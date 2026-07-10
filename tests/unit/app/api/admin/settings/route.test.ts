@@ -291,7 +291,6 @@ describe("POST — Security-key step-up auth (THE BIG ONE)", () => {
     "hosting_test_plan_enabled",
     "tld_pricing_cache_enabled",
     "tld_pricing_cache_ttl",
-    "maintenance_mode_enabled",
   ])(
     "NEVER_SECURITY_KEYS exception: %s with stored category='security' STILL skips reauth (feature flag, not credential)",
     async (key) => {
