@@ -541,6 +541,16 @@ describe("Guest user upsert", () => {
     expect(payload.address.line1).toBe("1 St");
   });
 
+  it("new guest: WhatsApp number persisted (mirrors phone) so it doubles as contact", async () => {
+    getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
+    setupLegacyHappyPath();
+
+    await POST(makeReq(validBody));
+    const payload = createUser.mock.calls[0][0];
+    expect(payload.whatsappNumber).toBe(payload.phone);
+    expect(payload.whatsappNumber).toBeTruthy();
+  });
+
   it("**existing guest with !profileCompleted → backfilled from token + saved**", async () => {
     const save = vi.fn().mockResolvedValue(undefined);
     const existingGuest = {

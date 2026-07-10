@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowLeft, CreditCard, Globe, Check, ShieldCheck, Smartphone, Info,
-  User as UserIcon, Mail, Phone, MapPin, Building, Hash, Navigation as NavigationIcon, Loader2,
+  User as UserIcon, Mail, MessageCircle, MapPin, Building, Hash, Navigation as NavigationIcon, Loader2,
   Server, ShoppingCart,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -543,24 +543,25 @@ function GuestCheckoutInner() {
                   </div>
 
                   <div className="sm:col-span-2">
-                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">Phone</label>
+                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">WhatsApp Number</label>
                     <div className="flex">
                       <span className="flex items-center px-3 py-2 border border-r-0 border-gray-300 rounded-l-lg bg-gray-50 text-sm text-gray-600 font-medium select-none">
                         🇮🇳 +91
                       </span>
                       <div className="relative flex-1">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                        <MessageCircle className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
                         <input
                           type="tel"
                           inputMode="numeric"
                           value={phone}
                           onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                          placeholder="10-digit mobile number"
+                          placeholder="10-digit WhatsApp number"
                           disabled={fieldDisabled}
                           className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-r-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
                         />
                       </div>
                     </div>
+                    <p className="text-xs text-gray-400 mt-1">Used for order updates + renewal reminders, and as your registrant contact number.</p>
                   </div>
 
                   <div className="sm:col-span-2">

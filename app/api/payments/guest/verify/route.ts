@@ -225,6 +225,11 @@ export async function POST(request: NextRequest) {
         password: randomBytes(32).toString("hex"), // unusable random password
         firstName: tokenPayload.firstName,
         lastName: tokenPayload.lastName,
+        // The guest provides a WhatsApp number (checkout collects it as such).
+        // Persist it as both whatsappNumber (renewal reminders + marketing)
+        // and phone (WHOIS/KYC contact) — one number serves both, matching the
+        // registered-user behaviour.
+        whatsappNumber: tokenPayload.phone,
         phone: tokenPayload.phone,
         phoneCc: "+91",
         address: {
@@ -246,6 +251,7 @@ export async function POST(request: NextRequest) {
       // Same email used again before profile completed — backfill from token.
       guestUser.firstName = guestUser.firstName || tokenPayload.firstName;
       guestUser.lastName = guestUser.lastName || tokenPayload.lastName;
+      guestUser.whatsappNumber = guestUser.whatsappNumber || tokenPayload.phone;
       guestUser.phone = guestUser.phone || tokenPayload.phone;
       guestUser.phoneCc = guestUser.phoneCc || "+91";
       guestUser.address = {
