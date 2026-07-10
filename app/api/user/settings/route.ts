@@ -147,6 +147,18 @@ export async function PUT(request: NextRequest) {
       }
 
       const p = profileResult.data;
+
+      // WhatsApp number is REQUIRED on a profile save (used for renewal
+      // reminders + marketing; also mirrored into `phone` below so it doubles
+      // as the domain/KYC contact number). Enforced here as the authoritative
+      // gate — the settings page is the sole profile editor + the profile-
+      // completion flow, so this covers both. Accepts the value from the
+      // request or an already-stored one; rejects an empty result.
+      const effectiveWhatsapp = (p.whatsappNumber ?? user.whatsappNumber ?? "").toString().trim();
+      if (!effectiveWhatsapp) {
+        return secureErrorResponse("WhatsApp number is required", 400, "WHATSAPP_REQUIRED");
+      }
+
       if (p.firstName) user.firstName = p.firstName;
       if (p.lastName) user.lastName = p.lastName;
       if (p.companyName) user.companyName = p.companyName;

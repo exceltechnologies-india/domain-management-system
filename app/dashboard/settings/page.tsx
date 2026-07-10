@@ -156,6 +156,7 @@ export default function UserSettings() {
   const [activeSection, setActiveSection] = useState<ActiveSection>('profile');
   const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [phoneError, setPhoneError] = useState('');
+  const [whatsappError, setWhatsappError] = useState('');
   const [hasExistingPassword, setHasExistingPassword] = useState(true);
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
 
@@ -350,6 +351,17 @@ export default function UserSettings() {
   };
 
   const handleUpdateProfile = async (updatedUser: Partial<User>) => {
+    // WhatsApp number is REQUIRED (used for renewal reminders + marketing).
+    // The phone number is optional — it auto-fills from WhatsApp (here and on
+    // the server) so one number covers both.
+    const wa = (updatedUser.whatsappNumber || '').trim();
+    if (!wa || wa.length !== 10) {
+      setWhatsappError(wa.length === 0 ? 'WhatsApp number is required' : 'Enter a 10-digit WhatsApp number');
+      setActiveSection('profile');
+      toast.error('Please add a valid 10-digit WhatsApp number');
+      return;
+    }
+    setWhatsappError('');
     try {
       setIsSaving(true);
       const profileData = { ...updatedUser, phoneCc: '+91', address: { ...updatedUser.address, country: 'IN' } };
@@ -533,7 +545,7 @@ export default function UserSettings() {
                     <CardHeader title="Contact Numbers" description="Used for order updates and renewal reminders" />
                     <div className="p-6 space-y-5">
                       <div>
-                        <FieldLabel>Phone Number</FieldLabel>
+                        <FieldLabel>Phone Number <span className="font-normal text-gray-400">(optional)</span></FieldLabel>
                         <PhoneField
                           value={user.phone || ''}
                           onChange={v => {
@@ -547,15 +559,17 @@ export default function UserSettings() {
 
                       <div>
                         <FieldLabel>
-                          WhatsApp Number{' '}
+                          WhatsApp Number <span className="text-red-500">*</span>{' '}
                           <span className="ml-1.5 text-xs font-normal text-green-600 bg-green-50 px-1.5 py-0.5 rounded-md">
-                            Renewal reminders
+                            Required · renewal reminders
                           </span>
                         </FieldLabel>
                         <PhoneField
                           value={user.whatsappNumber || ''}
+                          error={whatsappError}
                           onChange={v => setUser(p => {
                             if (!p) return null;
+                            setWhatsappError(v.length === 0 ? 'WhatsApp number is required' : v.length !== 10 ? 'Enter a 10-digit WhatsApp number' : '');
                             // Auto-fill the phone number from WhatsApp so a
                             // user only has to enter one number. Mirror while
                             // phone is empty OR still equals the WhatsApp value
@@ -573,6 +587,7 @@ export default function UserSettings() {
                           })}
                           placeholder="10-digit WhatsApp number"
                         />
+                        <p className="text-xs text-gray-500 mt-1.5">Required. We use this for renewal reminders and account updates — and it doubles as your contact number for domain purposes.</p>
                         <div className="flex items-center gap-2 mt-2">
                           <input
                             type="checkbox"
@@ -583,7 +598,7 @@ export default function UserSettings() {
                           />
                           <label htmlFor="wa-same" className="text-xs text-gray-500 cursor-pointer select-none">Same as phone number</label>
                         </div>
-                        <p className="text-xs text-gray-400 mt-1.5">Leave blank to receive notifications by email only.</p>
+                        <p className="text-xs text-gray-400 mt-1.5">We&apos;ll send renewal reminders and updates here. You can turn off WhatsApp messages below if you prefer email only.</p>
 
                         {/* WhatsApp opt-out — only meaningful once a number
                             is on file. Complements replying STOP on WhatsApp;

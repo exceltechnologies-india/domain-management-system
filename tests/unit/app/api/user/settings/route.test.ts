@@ -158,7 +158,10 @@ function makeUser(overrides: Partial<any> = {}) {
     lastName: "Last",
     phone: "9876543210",
     phoneCc: "+91",
-    whatsappNumber: "",
+    // Onboarded users have a WhatsApp number on file (now required on profile
+    // save). Tests that specifically exercise the "missing WhatsApp" gate
+    // override this to "".
+    whatsappNumber: "9998887776",
     address: {
       line1: "1 St",
       city: "City",
@@ -449,6 +452,36 @@ describe("PUT — profile field assignment", () => {
 
     expect(user.whatsappNumber).toBe("9876543210");
     expect(user.phone).toBe("1112223334"); // preserved — user wants two distinct numbers
+  });
+
+  it("WhatsApp number is REQUIRED — no stored + none submitted → 400 WHATSAPP_REQUIRED, no save", async () => {
+    const user = makeUser({ whatsappNumber: "" });
+    getUserFromRequest.mockResolvedValueOnce(user);
+    profileUpdateSafeParse.mockReturnValueOnce({
+      success: true,
+      data: { firstName: "New" }, // no whatsappNumber
+    });
+
+    const res = await PUT(makeReq("PUT", { profile: { firstName: "New" } }));
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.code).toBe("WHATSAPP_REQUIRED");
+    expect(user.save).not.toHaveBeenCalled();
+  });
+
+  it("WhatsApp already on file → partial profile save (no whatsapp field) still allowed", async () => {
+    const user = makeUser({ whatsappNumber: "9998887776" });
+    getUserFromRequest.mockResolvedValueOnce(user);
+    profileUpdateSafeParse.mockReturnValueOnce({
+      success: true,
+      data: { firstName: "New" },
+    });
+
+    const res = await PUT(makeReq("PUT", { profile: { firstName: "New" } }));
+
+    expect(res.status).toBe(200);
+    expect(user.firstName).toBe("New");
   });
 });
 
