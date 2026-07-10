@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import {
   Settings, Server, Wifi, RefreshCw, CheckCircle, AlertTriangle, AlertCircle,
   Copy, Loader2, Globe, Plus, X, Save, Database, Trash2, ChevronDown,
-  Wrench, Power, Shield, Tag, MessageCircle, Send, BarChart3,
+  Shield, Tag, MessageCircle, Send, BarChart3,
 } from "lucide-react";
 import RefreshButton from "@/components/dashboard/RefreshButton";
 import AdminLayout from "@/components/admin/AdminLayout";
@@ -34,7 +34,7 @@ interface IPData {
   checkedBy?: { firstName: string; lastName: string; email: string };
 }
 
-type ActiveSection = "general" | "performance" | "security" | "promotions" | "integrations" | "tracking";
+type ActiveSection = "performance" | "security" | "promotions" | "integrations" | "tracking";
 
 // Client-side ID preview — mirrors lib/services/tracking.ts extraction so the
 // admin sees the detected ID as they paste. The SERVER re-extracts on save
@@ -166,7 +166,7 @@ export default function AdminSettings() {
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const [user, setUser] = useState<{ firstName: string; lastName: string; role: string } | null>(null);
-  const [activeSection, setActiveSection] = useState<ActiveSection>("general");
+  const [activeSection, setActiveSection] = useState<ActiveSection>("performance");
 
   // Cache
   const [cacheEnabled, setCacheEnabled] = useState(true);
@@ -211,11 +211,6 @@ export default function AdminSettings() {
   // Server info
   const [serverInfoExpanded, setServerInfoExpanded] = useState(false);
 
-  // Maintenance
-  const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
-  const [maintenanceMessage, setMaintenanceMessage] = useState("");
-  const [maintenanceScheduledEnd, setMaintenanceScheduledEnd] = useState("");
-  const [isSavingMaintenance, setIsSavingMaintenance] = useState(false);
 
   // WhatsApp (operational config is admin-managed; token stays in Secret Manager)
   const [waEnabled, setWaEnabled] = useState(false);
@@ -259,7 +254,7 @@ export default function AdminSettings() {
   // ── Data loading ──────────────────────────────────────────────────────────
   const loadAllSettings = async () => {
     setIsDataLoading(true);
-    await Promise.all([loadSavedIPData(), loadCacheSettings(), loadIPWhitelistSettings(), loadCORSSettings(), loadHostingTrialSettings(), loadTestPlanSettings(), loadMaintenanceSettings(), loadWhatsAppSettings(), loadTrackingSettings()]);
+    await Promise.all([loadSavedIPData(), loadCacheSettings(), loadIPWhitelistSettings(), loadCORSSettings(), loadHostingTrialSettings(), loadTestPlanSettings(), loadWhatsAppSettings(), loadTrackingSettings()]);
     if (typeof window !== "undefined") setCurrentOrigin(window.location.origin);
     setIsDataLoading(false);
   };
@@ -320,17 +315,6 @@ export default function AdminSettings() {
     const result = await apiClient.get<{ enabled?: boolean; plan?: { razorpayPlans?: { monthly?: string } } }>("/api/v1/admin/hosting/test-plan");
     if (result.ok) { setTestPlanEnabled(result.data.enabled === true); const id = result.data.plan?.razorpayPlans?.monthly || ""; setTestPlanRazorpayId(id); setTestPlanRazorpayInput(id); }
     setIsLoadingTestPlan(false);
-  };
-
-  const loadMaintenanceSettings = async () => {
-    const result = await apiClient.get<{ settings?: Record<string, { value?: { enabled?: boolean; message?: string; scheduledEnd?: string } }> }>("/api/v1/admin/settings");
-    if (!result.ok) return;
-    const setting = (result.data.settings || {})["maintenance_mode"];
-    if (setting?.value) {
-      setMaintenanceEnabled(!!setting.value.enabled);
-      setMaintenanceMessage(setting.value.message || "");
-      if (setting.value.scheduledEnd) { const local = new Date(setting.value.scheduledEnd); local.setMinutes(local.getMinutes() - local.getTimezoneOffset()); setMaintenanceScheduledEnd(local.toISOString().slice(0, 16)); }
-    }
   };
 
   // ── Handlers ──────────────────────────────────────────────────────────────
@@ -544,22 +528,12 @@ export default function AdminSettings() {
     setIsSavingTracking(false);
   };
 
-  const saveMaintenanceSettings = async () => {
-    setIsSavingMaintenance(true);
-    const scheduledEnd = maintenanceScheduledEnd ? new Date(maintenanceScheduledEnd).toISOString() : null;
-    const result = await apiClient.post("/api/v1/admin/settings", { key: "maintenance_mode", value: { enabled: maintenanceEnabled, message: maintenanceMessage.trim(), scheduledEnd }, description: "Site-wide maintenance mode", category: "general" });
-    if (result.ok) showSuccessToast(maintenanceEnabled ? "Maintenance mode enabled" : "Site is live");
-    else showErrorToast("Failed to save maintenance settings");
-    setIsSavingMaintenance(false);
-  };
-
   const getStatusColor = () => { if (isLoading) return "bg-yellow-500"; if (!ipData?.success) return "bg-red-500"; if (ipData?.data?.allIPs && ipData.data.allIPs.length > 1) return "bg-orange-500"; return "bg-green-500"; };
   const getStatusLabel = () => { if (isLoading) return "Checking…"; if (!ipData?.success) return "Error"; if (ipData?.data?.allIPs && ipData.data.allIPs.length > 1) return "Multiple IPs"; return "Connected"; };
 
   if (isAuthLoading) return <AdminLayoutSkeleton><AdminSettingsPageSkeleton /></AdminLayoutSkeleton>;
 
   const navItems: { id: ActiveSection; label: string; icon: React.ElementType; description: string }[] = [
-    { id: "general",     label: "General",     icon: Wrench,   description: "Maintenance mode" },
     { id: "performance", label: "Performance", icon: Database, description: "Cache & server info" },
     { id: "security",    label: "Security",    icon: Shield,   description: "IP whitelisting & CORS" },
     { id: "promotions",  label: "Promotions",  icon: Tag,      description: "Trials & test plans" },
@@ -612,80 +586,6 @@ export default function AdminSettings() {
 
             {/* Loading skeleton while settings are fetched */}
             {isDataLoading && <SettingsContentSkeleton />}
-
-            {/* ════ GENERAL ════ */}
-            {!isDataLoading && activeSection === "general" && (
-              <SCard className={maintenanceEnabled ? "border-red-300" : ""}>
-                <div className={`px-6 py-4 border-b flex items-center justify-between gap-4 ${maintenanceEnabled ? "bg-red-50 border-red-200" : "bg-gray-50/60 border-gray-100"}`}>
-                  <div className="flex items-center gap-3">
-                    <div className={`p-1.5 rounded-lg ${maintenanceEnabled ? "bg-red-100" : "bg-gray-100"}`}>
-                      <Wrench className={`h-4 w-4 ${maintenanceEnabled ? "text-red-600" : "text-gray-500"}`} />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                        Maintenance Mode
-                        {maintenanceEnabled && <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-600 text-white animate-pulse">ACTIVE</span>}
-                      </h3>
-                      <p className="text-xs text-gray-500 mt-0.5">Redirects all non-admin visitors to a maintenance page</p>
-                    </div>
-                  </div>
-                  <Toggle checked={maintenanceEnabled} onChange={setMaintenanceEnabled} color="red" />
-                </div>
-
-                <div className="p-6 space-y-5">
-                  <StatusBanner
-                    active={maintenanceEnabled}
-                    color={maintenanceEnabled ? "red" : "green"}
-                    activeMsg="Maintenance mode is ON — all non-admin visitors are being redirected right now."
-                    inactiveMsg="Site is live and accessible to all visitors. Enable maintenance mode before performing upgrades or database migrations."
-                  />
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Message shown to visitors</label>
-                    <textarea
-                      value={maintenanceMessage}
-                      onChange={e => setMaintenanceMessage(e.target.value)}
-                      placeholder="We're performing scheduled maintenance to improve your experience. We'll be back shortly."
-                      rows={3}
-                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none transition-shadow"
-                    />
-                    <p className="text-xs text-gray-400 mt-1">Leave blank to show the default message.</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Scheduled end time <span className="font-normal text-gray-400">(optional — auto-disables)</span>
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="datetime-local"
-                        value={maintenanceScheduledEnd}
-                        onChange={e => setMaintenanceScheduledEnd(e.target.value)}
-                        className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      {maintenanceScheduledEnd && (
-                        <button onClick={() => setMaintenanceScheduledEnd("")} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
-                          <X className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-400 mt-1">Maintenance mode will automatically turn off at this time. A countdown is shown to visitors.</p>
-                  </div>
-                </div>
-
-                <SFooter>
-                  <button
-                    onClick={saveMaintenanceSettings}
-                    disabled={isSavingMaintenance}
-                    className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl disabled:opacity-50 transition-colors ${maintenanceEnabled ? "bg-red-600 hover:bg-red-700" : "bg-gray-700 hover:bg-gray-800"}`}
-                  >
-                    {isSavingMaintenance ? <Loader2 className="h-4 w-4 animate-spin" /> : <Power className="h-4 w-4" />}
-                    {isSavingMaintenance ? "Saving…" : maintenanceEnabled ? "Enable Maintenance Mode" : "Save (Site Stays Live)"}
-                  </button>
-                  {maintenanceEnabled && <p className="text-xs text-red-600">Saving will immediately redirect all non-admin visitors.</p>}
-                </SFooter>
-              </SCard>
-            )}
 
             {/* ════ PERFORMANCE ════ */}
             {!isDataLoading && activeSection === "performance" && (
