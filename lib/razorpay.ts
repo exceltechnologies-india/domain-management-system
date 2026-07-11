@@ -387,7 +387,14 @@ export class RazorpayService {
     customerId: string;
     validationAmountInPaise?: number;
     maxAmountInPaise: number;
-    method: 'card' | 'emandate' | 'upi' | 'nach' | 'netbanking';
+    // Optional. When OMITTED, no `method` is set on the Razorpay order, so
+    // Razorpay Checkout's recurring overlay offers ALL eligible mandate
+    // methods for the customer to pick (Card + UPI Autopay — both use the
+    // card-like token shape below). Pinning `method` restricts the overlay
+    // to that single method (the reason trials only showed Cards before).
+    // Set it only when you deliberately want to force one rail (e.g.
+    // 'emandate' / 'nach' which need the auth_type token shape).
+    method?: 'card' | 'emandate' | 'upi' | 'nach' | 'netbanking';
     frequency?: 'as_presented' | 'monthly';
     expireAt?: number;
     receipt: string;
@@ -405,7 +412,10 @@ export class RazorpayService {
       // Token shape varies by method. Cards + UPI use the card-token shape;
       // eMandate / NACH use the eMandate shape with auth_type. We only type
       // the minimum subset the SDK accepts via RazorpayAuthorizationCreateRequestBody.
-      const isCardLike = params.method === 'card' || params.method === 'upi';
+      // When `method` is omitted we default to the card-like shape, which is
+      // what an unrestricted (Card + UPI Autopay) recurring overlay needs.
+      const isCardLike =
+        !params.method || params.method === 'card' || params.method === 'upi';
       const tokenObj = isCardLike
         ? {
             max_amount: params.maxAmountInPaise,
@@ -419,7 +429,7 @@ export class RazorpayService {
           };
 
       serverLogger.info(
-        `💰 [RAZORPAY] Creating recurring-token order: customer=${params.customerId} validationAmount=${validationAmount} maxAmount=${params.maxAmountInPaise} method=${params.method}`
+        `💰 [RAZORPAY] Creating recurring-token order: customer=${params.customerId} validationAmount=${validationAmount} maxAmount=${params.maxAmountInPaise} method=${params.method ?? '<all-eligible>'}`
       );
 
       const order = await razorpayClient.orders.create({
@@ -427,7 +437,9 @@ export class RazorpayService {
         currency: 'INR',
         customer_id: params.customerId,
         payment_capture: true,
-        method: params.method,
+        // Only pin `method` when explicitly requested. Omitting it lets the
+        // recurring overlay show every eligible mandate rail (Card + UPI).
+        ...(params.method ? { method: params.method } : {}),
         receipt: params.receipt,
         notes: params.notes,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- token shape varies by method, SDK union

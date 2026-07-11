@@ -785,10 +785,13 @@ describe("Tokens-flow branch (Phase 2A)", () => {
         customerId: "cust_tok_X",
         validationAmountInPaise: 200,
         maxAmountInPaise: 1500000,
-        method: "card",
         frequency: "as_presented",
       })
     );
+    // `method` must NOT be pinned — omitting it lets the recurring overlay
+    // offer all eligible mandate rails (Card + UPI Autopay). Pinning 'card'
+    // was the bug that hid UPI Autopay from trial users.
+    expect(createRecurringTokenOrder.mock.calls[0][0].method).toBeUndefined();
     expect(createSubscription).not.toHaveBeenCalled();
 
     // Response shape: tokens mode signal + auth order id + customer id

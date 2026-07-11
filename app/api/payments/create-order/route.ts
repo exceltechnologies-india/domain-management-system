@@ -415,7 +415,10 @@ export async function POST(request: NextRequest) {
                 customerId: customer.id,
                 validationAmountInPaise: 200,  // Rs 2 — the "and reverse" amount
                 maxAmountInPaise: 1500000,      // Rs 15,000 NPCI cap
-                method: 'card',                  // Razorpay overlay shows all enabled methods
+                // No `method` → the recurring overlay offers ALL eligible
+                // mandate rails (Card + UPI Autopay), letting the customer
+                // choose. Both use the card-like token shape. (Pinning
+                // 'card' here was why only Cards showed for trial users.)
                 frequency: 'as_presented',       // merchant-driven recurring cadence
                 receipt: `auth_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
                 notes: {

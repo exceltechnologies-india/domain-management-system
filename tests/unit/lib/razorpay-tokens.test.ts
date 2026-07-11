@@ -136,6 +136,33 @@ describe("RazorpayService.createRecurringTokenOrder", () => {
     expect(callArgs.token.auth_type).toBeUndefined();
   });
 
+  it("OMITS `method` on the order (card-like token) when method is not supplied — so the overlay offers all rails (Card + UPI Autopay)", async () => {
+    mockOrderCreate.mockResolvedValueOnce({
+      id: "order_token_allrails",
+      amount: 200,
+      currency: "INR",
+      receipt: "auth_all",
+      status: "created",
+      created_at: 1234567890,
+    });
+
+    await RazorpayService.createRecurringTokenOrder({
+      customerId: "cust_abc123",
+      maxAmountInPaise: 1500000,
+      // no method → unrestricted recurring overlay
+      frequency: "as_presented",
+      receipt: "auth_all",
+    });
+
+    const callArgs = mockOrderCreate.mock.calls[0][0];
+    // The `method` key must be absent so Checkout doesn't restrict to one rail.
+    expect("method" in callArgs).toBe(false);
+    // Card-like token shape (works for both Card + UPI Autopay).
+    expect(callArgs.token.max_amount).toBe(1500000);
+    expect(callArgs.token.frequency).toBe("as_presented");
+    expect(callArgs.token.auth_type).toBeUndefined();
+  });
+
   it("builds the eMandate-token shape with auth_type=netbanking for method=emandate", async () => {
     mockOrderCreate.mockResolvedValueOnce({
       id: "order_token_em",
