@@ -222,36 +222,21 @@ describe("<LoginForm>", () => {
     );
   });
 
-  it("AccountNotActivated → toast.error + router.push('/activate?email=...') after 1s", async () => {
-    vi.useFakeTimers();
-    try {
-      signInMock.mockResolvedValueOnce({ ok: false, error: "AccountNotActivated" });
-      render(<LoginForm />);
-      const emailInput = screen.getByPlaceholderText(/enter your email address/i);
-      const pwInput = screen.getByPlaceholderText(/enter your password/i);
-      // Skip userEvent under fake timers — drive via fireEvent equivalents.
-      emailInput.focus();
-      await act(async () => {
-        (emailInput as HTMLInputElement).value = "a@b.com";
-        emailInput.dispatchEvent(new Event("input", { bubbles: true }));
-        (pwInput as HTMLInputElement).value = "pw";
-        pwInput.dispatchEvent(new Event("input", { bubbles: true }));
-      });
-      await act(async () => {
-        screen.getByRole("button", { name: /sign in/i }).click();
-      });
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-      expect(errorToast).toHaveBeenCalledWith(expect.stringMatching(/account not activated/i));
-      await act(async () => {
-        vi.advanceTimersByTime(1000);
-      });
-      expect(pushMock).toHaveBeenCalledWith(expect.stringContaining("/activate?email="));
-    } finally {
-      vi.useRealTimers();
-    }
+  it("AccountNotActivated → inline 'activate first' notice + Resend button; does NOT redirect to /activate", async () => {
+    const user = userEvent.setup();
+    signInMock.mockResolvedValueOnce({ ok: false, error: "AccountNotActivated" });
+    render(<LoginForm />);
+    await user.type(screen.getByPlaceholderText(/enter your email address/i), "a@b.com");
+    await user.type(screen.getByPlaceholderText(/enter your password/i), "pw");
+    await user.click(screen.getByRole("button", { name: /sign in/i }));
+    await waitFor(() =>
+      expect(errorToast).toHaveBeenCalledWith(expect.stringMatching(/isn.?t activated yet/i))
+    );
+    // Clear "activate first" notice + a Resend action are shown in-page …
+    expect(screen.getByText(/isn.?t activated yet/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /resend activation email/i })).toBeInTheDocument();
+    // … and we do NOT bounce the user to the token-only /activate page.
+    expect(pushMock).not.toHaveBeenCalledWith(expect.stringContaining("/activate"));
   });
 
   it("AccountDeactivated → showAccountDeactivated", async () => {

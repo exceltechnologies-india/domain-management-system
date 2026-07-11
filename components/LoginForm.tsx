@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { signIn } from 'next-auth/react';
-import { Eye, EyeOff, Lock, Mail, User, CheckCircle, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, User, CheckCircle, ShieldCheck, AlertTriangle } from 'lucide-react';
 import Button from './Button';
 import Input from './Input';
 import SocialLoginButtons from './SocialLoginButtons';
@@ -14,6 +14,7 @@ import { safeLocalStorage } from '@/lib/storage';
 import GoogleRecaptcha from './GoogleRecaptcha';
 import AuthShell from './AuthShell';
 import { logger } from '@/lib/logger';
+import { apiClient } from '@/lib/api-client';
 
 interface LoginFormProps {
   className?: string;
@@ -29,6 +30,12 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [activationMessage, setActivationMessage] = useState('');
   const [deactivatedMessage, setDeactivatedMessage] = useState('');
+  // Shown when sign-in fails because the account is registered but not yet
+  // activated. Holds the email so we can offer a "resend activation" action.
+  // Replaces the old redirect to /activate?email= (which showed a confusing
+  // "Invalid Activation Link" because that page expects a token, not an email).
+  const [notActivatedEmail, setNotActivatedEmail] = useState('');
+  const [isResendingActivation, setIsResendingActivation] = useState(false);
   const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
   const [resetRecaptchaKey, setResetRecaptchaKey] = useState(0);
   const [totpRequired, setTotpRequired] = useState(false);
@@ -99,9 +106,30 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
     safeLocalStorage.setItem('loginFormData', JSON.stringify(dataToSave));
   }, [formData.email, formData.rememberMe]);
 
+  const handleResendActivation = async () => {
+    if (!notActivatedEmail || isResendingActivation) return;
+    setIsResendingActivation(true);
+    const result = await apiClient.post<{ message?: string; error?: string }>(
+      '/api/v1/auth/resend-activation',
+      { email: notActivatedEmail }
+    );
+    if (result.ok) {
+      showSuccessToast(result.data.message || 'Activation email sent — please check your inbox.');
+    } else {
+      showErrorToast(
+        result.error.status === 0
+          ? 'Unable to resend right now. Please try again.'
+          : result.error.message || 'Could not resend the activation email. Please try again.'
+      );
+    }
+    setIsResendingActivation(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    // Clear any prior "not activated" notice so a fresh attempt starts clean.
+    setNotActivatedEmail('');
 
     try {
       // Only require a captcha token in production when the captcha is
@@ -162,10 +190,12 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
           setIsLoading(false);
           return;
         } else if (result?.error === 'AccountNotActivated') {
-          showErrorToast('Account not activated. Please check your email.');
-          setTimeout(() => {
-            router.push(`/activate?email=${encodeURIComponent(formData.email)}`);
-          }, 1000);
+          // Do NOT redirect to /activate — that page consumes an activation
+          // TOKEN from the email link; sending the user there with only an
+          // email shows "Invalid Activation Link". Instead, keep them on the
+          // login page with a clear "activate first" message + resend option.
+          setNotActivatedEmail(formData.email);
+          showErrorToast('Your account isn’t activated yet. Please check your email to activate it, then sign in.');
         } else if (result?.error === 'AccountDeactivated' || result?.error === 'AccessDenied') {
           showAccountDeactivated(process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@anutech.in');
         } else {
@@ -256,6 +286,28 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
               }
             }}
           >
+            {notActivatedEmail && (
+              <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-amber-800">
+                    <p className="font-semibold">Your account isn’t activated yet.</p>
+                    <p className="mt-1">
+                      Please open the activation link we emailed to{' '}
+                      <strong className="break-all">{notActivatedEmail}</strong>, then sign in. Didn’t get it?
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleResendActivation}
+                      disabled={isResendingActivation}
+                      className="mt-2 inline-flex items-center gap-1.5 font-semibold text-amber-800 underline hover:text-amber-900 disabled:opacity-50 disabled:no-underline"
+                    >
+                      {isResendingActivation ? 'Sending…' : 'Resend activation email'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             {deactivatedMessage && (
               <div className="mb-4">
                 <p className="text-sm text-red-600 text-center">
