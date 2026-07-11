@@ -167,6 +167,14 @@ export default function AdminPendingDomainsPage() {
   const [showMarkResolvedConfirm, setShowMarkResolvedConfirm] = useState(false);
   const [domainToMarkResolved, setDomainToMarkResolved] = useState<PendingDomain | null>(null);
 
+  // Resolve an ORDER-SOURCED stuck in-flight domain. These rows have no
+  // PendingDomain document (synthetic _id), so the register/archive/delete
+  // actions don't apply. This flow flips the ORDER's domain to failed/
+  // cancelled so it clears from the in-flight list.
+  const [showResolveOrderConfirm, setShowResolveOrderConfirm] = useState(false);
+  const [domainToResolveOrder, setDomainToResolveOrder] = useState<PendingDomain | null>(null);
+  const [resolveCancelAtRegistrar, setResolveCancelAtRegistrar] = useState(false);
+
   const fetchBalance = async () => {
     setIsBalanceLoading(true);
     setBalanceError(null);
@@ -417,6 +425,38 @@ export default function AdminPendingDomainsPage() {
     }
     setActionLoading(null);
     setDomainToArchive(null);
+  };
+
+  const handleResolveOrderClick = (domain: PendingDomain) => {
+    setDomainToResolveOrder(domain);
+    setResolveCancelAtRegistrar(false);
+    setShowResolveOrderConfirm(true);
+  };
+
+  const handleResolveOrderDomain = async () => {
+    if (!domainToResolveOrder) return;
+    setActionLoading(`resolve-order:${domainToResolveOrder._id}`);
+    setShowResolveOrderConfirm(false);
+
+    const result = await apiClient.post<{ success?: boolean; message?: string; error?: string }>(
+      "/api/v1/admin/pending-domains/resolve-order-domain",
+      {
+        orderId: domainToResolveOrder.orderId,
+        domainName: domainToResolveOrder.domainName,
+        cancelAtRegistrar: resolveCancelAtRegistrar,
+      }
+    );
+
+    if (result.ok && result.data.success) {
+      toast.success(result.data.message || "Domain resolved");
+      void fetchPendingDomains();
+    } else if (result.ok) {
+      toast.error(result.data.error || "Failed to resolve domain");
+    } else {
+      toast.error(result.error.status === 0 ? "Unable to resolve domain" : result.error.message || "Failed to resolve domain");
+    }
+    setActionLoading(null);
+    setDomainToResolveOrder(null);
   };
 
   const handleMarkResolvedClick = (domain: PendingDomain) => {
@@ -808,6 +848,16 @@ export default function AdminPendingDomainsPage() {
 
                             <div className="w-px h-5 bg-gray-200 mx-0.5" />
 
+                            {/* Order-sourced stuck in-flight domain: no PendingDomain
+                                doc, so register/archive/delete don't apply. Offer a
+                                Resolve action that flips the ORDER's domain to
+                                failed/cancelled so it clears from this list. */}
+                            {domain.source === "order" && (domain.status === "pending" || domain.status === "processing") && (
+                              <button onClick={() => handleResolveOrderClick(domain)} disabled={!!actionLoading} className="px-2.5 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-xs flex items-center gap-1.5 transition-colors font-medium disabled:opacity-50" title="Resolve this stuck in-flight order domain (mark failed / cancel)">
+                                {actionLoading === `resolve-order:${domain._id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />} Resolve
+                              </button>
+                            )}
+
                             {/* Retry Provisioning — pending: Register; failed from pending_domain: Reset+Register */}
                             {domain.status === "pending" && domain.source === "pending_domain" && (
                               <button onClick={() => handleRegisterDomainClick(domain)} className="px-2.5 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs flex items-center gap-1.5 transition-colors font-medium" title="Retry Provisioning">
@@ -1039,6 +1089,39 @@ export default function AdminPendingDomainsPage() {
               <button onClick={() => setShowMarkResolvedConfirm(false)} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
               <button onClick={handleMarkResolved} disabled={actionLoading === `resolve:${domainToMarkResolved?._id}`} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50">
                 {actionLoading === `resolve:${domainToMarkResolved?._id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Mark Resolved
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Resolve Order-Sourced Domain Modal */}
+      {showResolveOrderConfirm && (
+        <Modal isOpen={showResolveOrderConfirm} onClose={() => setShowResolveOrderConfirm(false)} title="Resolve In-Flight Order Domain">
+          <div className="p-6">
+            <p className="mb-3">Resolve <strong>{domainToResolveOrder?.domainName}</strong>?</p>
+            <p className="text-xs text-gray-500 mb-4">Order: {domainToResolveOrder?.orderId}</p>
+            <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 text-sm text-amber-800 mb-4">
+              This is an in-flight order whose domain never completed registration. Resolving marks the order&apos;s domain as
+              <strong> failed</strong> so it stops appearing in this list. This does <strong>not</strong> refund the customer or delete the Order —
+              it just closes out a domain that is stuck.
+            </div>
+            <label className="flex items-start gap-2 mb-6 text-sm text-gray-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={resolveCancelAtRegistrar}
+                onChange={(e) => setResolveCancelAtRegistrar(e.target.checked)}
+                className="mt-0.5 rounded border-gray-300"
+              />
+              <span>
+                Also cancel the order at ResellerClub (if it exists there). If the cancellation succeeds, the domain is marked
+                <strong> cancelled</strong> instead of failed. The domain is still resolved even if the registrar call fails.
+              </span>
+            </label>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowResolveOrderConfirm(false)} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+              <button onClick={handleResolveOrderDomain} disabled={actionLoading === `resolve-order:${domainToResolveOrder?._id}`} className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 flex items-center gap-2 disabled:opacity-50">
+                {actionLoading === `resolve-order:${domainToResolveOrder?._id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />} Resolve Domain
               </button>
             </div>
           </div>
