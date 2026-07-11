@@ -330,6 +330,48 @@ describe("userHasPriorTrialOrder", () => {
     await createOrder(buildOrderPayload({ orderId: "ord_nontrial_1", userId }));
     expect(await userHasPriorTrialOrder(userId)).toBe(false);
   });
+
+  it("returns false for an ABANDONED tokens trial (status 'pending' + placeholder razorpayPaymentId 'pending') — customer never completed the ₹2 mandate, so they aren't locked out", async () => {
+    const userId = validUserId();
+    await createOrder(
+      buildOrderPayload({
+        orderId: "ord_trial_abandoned",
+        userId,
+        orderType: "hosting_trial",
+        status: "pending",
+        razorpayPaymentId: "pending",
+      })
+    );
+    expect(await userHasPriorTrialOrder(userId)).toBe(false);
+  });
+
+  it("returns true for an ACTIVE manual trial (status 'pending' but razorpayPaymentId 'manual') — a real, provisioned trial still counts", async () => {
+    const userId = validUserId();
+    await createOrder(
+      buildOrderPayload({
+        orderId: "ord_trial_manual",
+        userId,
+        orderType: "hosting_trial",
+        status: "pending",
+        razorpayPaymentId: "manual",
+      })
+    );
+    expect(await userHasPriorTrialOrder(userId)).toBe(true);
+  });
+
+  it("returns true for a COMPLETED tokens trial (status 'completed' + real pay_id) — mandate was set up, trial consumed", async () => {
+    const userId = validUserId();
+    await createOrder(
+      buildOrderPayload({
+        orderId: "ord_trial_completed",
+        userId,
+        orderType: "hosting_trial",
+        status: "completed",
+        razorpayPaymentId: "pay_realtokenid",
+      })
+    );
+    expect(await userHasPriorTrialOrder(userId)).toBe(true);
+  });
 });
 
 describe("findPriorHostingOrderForUser", () => {

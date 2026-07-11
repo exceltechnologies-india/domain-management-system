@@ -1048,7 +1048,25 @@ export async function listAllOrdersForAdminDomains(): Promise<IOrder[]> {
  */
 export async function userHasPriorTrialOrder(userId: unknown): Promise<boolean> {
   await connectDB();
-  const exists = await Order.exists({ userId, orderType: "hosting_trial" });
+  // Count a trial as "used" only once it has actually been set up — NOT while
+  // it is still an abandoned checkout. The tokens flow persists a hosting_trial
+  // Order at checkout-OPEN with status 'pending' + a placeholder
+  // razorpayPaymentId 'pending', BEFORE the customer completes the ₹2 mandate
+  // authorization. If they close the Razorpay overlay without finishing, that
+  // stray pending row must NOT lock them out of ever starting a trial
+  // ("You have already used your free trial" on a trial they never began).
+  //
+  // A genuinely-consumed trial is always distinguishable from an abandoned one:
+  //   - tokens completed → webhook sets status 'completed' + a real pay_id
+  //   - manual trial      → provisioned immediately with razorpayPaymentId 'manual'
+  // Only the abandoned-at-mandate case is {status:'pending', paymentId:'pending'},
+  // so excluding exactly that shape leaves active manual trials and completed
+  // tokens trials still correctly counted (one trial per lifetime holds).
+  const exists = await Order.exists({
+    userId,
+    orderType: "hosting_trial",
+    $nor: [{ status: "pending", razorpayPaymentId: "pending" }],
+  });
   return !!exists;
 }
 
