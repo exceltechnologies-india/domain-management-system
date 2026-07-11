@@ -287,16 +287,20 @@ export default function CheckoutPage() {
         // Tokens-flow branch: when create-order responded with mandateMode='tokens',
         // it returned the CIT auth order_id + customer_id. Razorpay Checkout
         // opens in recurring-authorization mode (NOT one-shot mode) — the
-        // customer sees the ₹2 validation amount + autopay mandate UI.
-        // The webhook handler refunds the ₹2 + stores the token + creates
-        // the Hosting record asynchronously after Razorpay fires
-        // payment.captured. The frontend just needs to round-trip through
-        // /verify to confirm the payment landed.
+        // customer sees a small validation amount + autopay mandate UI.
+        // We request ₹2 (validationAmountInPaise: 200); cards honor that, but
+        // the UPI Autopay rail enforces its own higher minimum (≈₹5) for the
+        // registration debit, so the amount SHOWN varies by method. That's why
+        // the copy below stays amount-agnostic. The webhook refunds the ACTUAL
+        // captured amount (payment.amount, not a hardcoded ₹2), so the customer
+        // is fully refunded whatever the rail charged. Provisioning happens
+        // asynchronously after payment.captured; the frontend just round-trips
+        // through /verify to confirm the payment landed.
         if (mandateMode === 'tokens' && razorpayOrderId && razorpayCustomerId) {
           const tokensResult = await razorpay.open({
             key: keyId,
             name: 'AnuTech Digital',
-            description: 'Hosting trial — ₹2 mandate setup (refunded immediately)',
+            description: 'Hosting trial — mandate setup (small verification charge, refunded immediately)',
             order_id: razorpayOrderId,
             customer_id: razorpayCustomerId,
             recurring: '1',
