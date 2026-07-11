@@ -24,6 +24,7 @@ const completeProfileSchema = z.object({
 export const dynamic = 'force-dynamic';
 
 interface ProfileShape {
+  whatsappNumber?: string;
   phone?: string;
   phoneCc?: string;
   companyName?: string;
@@ -38,6 +39,7 @@ interface ProfileShape {
 
 function checkProfileCompletion(user: ProfileShape): boolean {
   // Check if all required fields are filled
+  const hasWhatsApp = user.whatsappNumber && user.whatsappNumber.trim() !== "";
   const hasPhone = user.phone && user.phone.trim() !== "";
   const hasPhoneCc = user.phoneCc && user.phoneCc.trim() !== "";
   const hasCompanyName = user.companyName && user.companyName.trim() !== "";
@@ -48,6 +50,7 @@ function checkProfileCompletion(user: ProfileShape): boolean {
   const hasZipcode = user.address?.zipcode && user.address.zipcode.trim() !== "";
 
   return !!(
+    hasWhatsApp &&
     hasPhone &&
     hasPhoneCc &&
     hasCompanyName &&

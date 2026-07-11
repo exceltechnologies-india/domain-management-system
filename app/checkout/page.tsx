@@ -29,6 +29,7 @@ interface User {
   lastName: string;
   role: string;
   profileCompleted?: boolean;
+  whatsappNumber?: string;
 }
 
 export default function CheckoutPage() {
@@ -102,6 +103,19 @@ export default function CheckoutPage() {
           if (profileCompleted !== true) {
             toast.error('Please complete your profile before checkout');
             router.push('/cart');
+            return;
+          }
+
+          // A WhatsApp number is required to check out (renewal reminders +
+          // contact). New signups/guests always have one; this catches legacy
+          // customers whose profile predates the requirement — send them to
+          // settings to add it, then bounce back to checkout. Checked
+          // independently of profileCompleted, which is persisted and may be
+          // stale-true for those accounts.
+          const hasWhatsApp = !!(updatedUser.whatsappNumber && String(updatedUser.whatsappNumber).trim());
+          if (!hasWhatsApp) {
+            toast.error('Please add a WhatsApp number to your profile before checkout');
+            router.push('/dashboard/settings?returnUrl=%2Fcheckout');
             return;
           }
 

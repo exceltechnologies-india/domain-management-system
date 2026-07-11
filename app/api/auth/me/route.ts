@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
         provider: user.provider,
         password: hasPassword, // Boolean indicating if password exists
         // Include complete profile data to prevent data loss
+        whatsappNumber: user.whatsappNumber,
         phone: user.phone,
         phoneCc: user.phoneCc,
         companyName: user.companyName,

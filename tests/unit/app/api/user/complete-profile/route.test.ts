@@ -59,6 +59,7 @@ type FakeUser = {
   email: string;
   firstName: string;
   lastName: string;
+  whatsappNumber?: string;
   phone?: string;
   phoneCc?: string;
   companyName?: string;
@@ -95,6 +96,9 @@ function makeUser(overrides: Partial<FakeUser> = {}): FakeUser {
     email: "alice@example.com",
     firstName: "Alice",
     lastName: "Smith",
+    // WhatsApp is required for completeness (set at registration). Tests that
+    // exercise the "no WhatsApp" path override this to "".
+    whatsappNumber: "9998887776",
     role: "user",
     provider: "credentials",
     save: vi.fn().mockResolvedValue(undefined),

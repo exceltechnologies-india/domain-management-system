@@ -11,6 +11,7 @@ import { serverLogger } from "@/lib/server-logger";
 export const dynamic = "force-dynamic";
 
 interface ProfileCompletionShape {
+  whatsappNumber?: string;
   phone?: string;
   phoneCc?: string;
   address?: {
@@ -23,6 +24,7 @@ interface ProfileCompletionShape {
 }
 
 function checkProfileCompletion(user: ProfileCompletionShape): boolean {
+  const hasWhatsApp = user.whatsappNumber && user.whatsappNumber.trim() !== "";
   const hasPhone = user.phone && user.phone.trim() !== "";
   const hasPhoneCc = user.phoneCc && user.phoneCc.trim() !== "";
   const hasAddress = user.address?.line1 && user.address.line1.trim() !== "";
@@ -31,7 +33,7 @@ function checkProfileCompletion(user: ProfileCompletionShape): boolean {
   const hasCountry = user.address?.country && user.address.country.trim() !== "";
   const hasZipcode = user.address?.zipcode && user.address.zipcode.trim() !== "";
 
-  return !!(hasPhone && hasPhoneCc && hasAddress && hasCity && hasState && hasCountry && hasZipcode);
+  return !!(hasWhatsApp && hasPhone && hasPhoneCc && hasAddress && hasCity && hasState && hasCountry && hasZipcode);
 }
 
 export async function GET(request: NextRequest) {

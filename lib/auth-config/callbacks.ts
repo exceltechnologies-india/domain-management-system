@@ -199,12 +199,13 @@ export const callbacks = {
           const { firstName, lastName } = extractSocialName(account.provider, profile, user);
 
           // Check if we have enough data to mark profile as complete
+          const hasWhatsApp = !!(additionalData as { whatsappNumber?: string }).whatsappNumber;
           const hasPhone = additionalData.phone && additionalData.phoneCc;
           const hasAddress =
             additionalData.address &&
             additionalData.address.line1 &&
             additionalData.address.city;
-          const isProfileComplete = hasPhone && hasAddress;
+          const isProfileComplete = hasWhatsApp && hasPhone && hasAddress;
 
           try {
             dbUser = await createUser({
@@ -301,10 +302,14 @@ export const callbacks = {
           const hasAddress =
             dbUser.address && dbUser.address.line1 && dbUser.address.city;
           const hasPhone = dbUser.phone && dbUser.phoneCc;
+          const hasWhatsApp = !!dbUser.whatsappNumber;
 
-          // If user has all required fields, they have a complete profile
+          // If user has all required fields, they have a complete profile.
+          // WhatsApp is now required — but only for the auto-UPGRADE branch;
+          // an already-persisted `profileCompleted:true` (legacy) is honored
+          // here (the checkout gate enforces WhatsApp for those separately).
           const isProfileActuallyComplete =
-            hasCompleteProfile || (hasAddress && hasPhone);
+            hasCompleteProfile || (hasAddress && hasPhone && hasWhatsApp);
 
           // Only update provider if they don't have one
           // Do NOT overwrite "credentials" provider to preserve password login
