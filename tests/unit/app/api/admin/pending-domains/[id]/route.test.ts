@@ -430,7 +430,9 @@ describe("DELETE — permanent branch (?permanent=true)", () => {
   // pendingDomain with rcOrderId truly absent, exercising the fallback
   // search path. A default of 'RC-99' would mask the test intent.
   function setupPendingWithOrderId(rcOrderId: string | undefined) {
-    const pd = makePendingDomain({ resellerClubOrderId: rcOrderId });
+    // Permanent delete is only allowed on an ARCHIVED row (archive-first
+    // flow), so the fixtures for the happy paths must be archived.
+    const pd = makePendingDomain({ resellerClubOrderId: rcOrderId, isArchived: true });
     getPendingDomainById.mockResolvedValueOnce(pd);
     return pd;
   }
@@ -442,6 +444,20 @@ describe("DELETE — permanent branch (?permanent=true)", () => {
       paramsOf("PD1")
     );
     expect(res.status).toBe(404);
+  });
+
+  it("non-archived row → 400 archive-first guard; no RC cancel, no deleteOne", async () => {
+    const pd = makePendingDomain({ isArchived: false });
+    getPendingDomainById.mockResolvedValueOnce(pd);
+    const res = await DELETE(
+      makeReq("DELETE", { query: "permanent=true" }),
+      paramsOf("PD1")
+    );
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/archive/i);
+    expect(deleteDomainOrder).not.toHaveBeenCalled();
+    expect(pendingDomainDeleteOne).not.toHaveBeenCalled();
   });
 
   it("RC orderId present → deleteDomainOrder called; success → registrarStatus:'cancelled'", async () => {

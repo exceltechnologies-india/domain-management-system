@@ -625,7 +625,13 @@ export default function AdminPendingDomainsPage() {
                   return (
                     <button
                       key={t.id}
-                      onClick={() => setActiveTab(t.id as 'active' | 'archived')}
+                      onClick={() => {
+                        // Clear selection when switching tabs so an Active-tab
+                        // selection can't carry into Archived (where it would
+                        // expose Delete acting on non-archived row IDs).
+                        setSelectedDomains([]);
+                        setActiveTab(t.id as 'active' | 'archived');
+                      }}
                       className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                         activeTab === t.id
                           ? 'bg-white text-gray-900 shadow-sm'
@@ -640,35 +646,49 @@ export default function AdminPendingDomainsPage() {
               </div>
               {selectedDomains.length > 0 && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    onClick={() => handleVerifyDomains(selectedDomains)}
-                    disabled={actionLoading === "verify" || actionLoading === "bulk-archive" || actionLoading === "bulk-delete"}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
-                  >
-                    {actionLoading === "verify" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                    Verify ({selectedDomains.length})
-                  </button>
-                  <button
-                    onClick={() => setShowBulkArchiveConfirm(true)}
-                    disabled={actionLoading === "verify" || actionLoading === "bulk-archive" || actionLoading === "bulk-delete"}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-orange-600 rounded-xl hover:bg-orange-700 disabled:opacity-50 transition-colors shadow-sm"
-                    title="Archive all selected pending-domain rows"
-                  >
-                    {actionLoading === "bulk-archive" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />}
-                    Archive ({selectedDomains.length})
-                  </button>
-                  <button
-                    onClick={() => {
-                      setBulkDeleteConfirmText("");
-                      setShowBulkDeleteConfirm(true);
-                    }}
-                    disabled={actionLoading === "verify" || actionLoading === "bulk-archive" || actionLoading === "bulk-delete"}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-xl hover:bg-red-700 disabled:opacity-50 transition-colors shadow-sm"
-                    title="Permanently delete all selected pending-domain rows (no undo)"
-                  >
-                    {actionLoading === "bulk-delete" ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
-                    Delete ({selectedDomains.length})
-                  </button>
+                  {/* Active tab: Verify + Archive. Permanent Delete is
+                      DELIBERATELY not offered here — a pending domain must be
+                      archived first, then deleted from the Archived tab. This
+                      mirrors the per-row action gating (Archive shows on
+                      Active, Delete shows on Archived) so the bulk toolbar
+                      can't bypass the archive-first flow. */}
+                  {activeTab === "active" && (
+                    <>
+                      <button
+                        onClick={() => handleVerifyDomains(selectedDomains)}
+                        disabled={actionLoading === "verify" || actionLoading === "bulk-archive" || actionLoading === "bulk-delete"}
+                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
+                      >
+                        {actionLoading === "verify" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                        Verify ({selectedDomains.length})
+                      </button>
+                      <button
+                        onClick={() => setShowBulkArchiveConfirm(true)}
+                        disabled={actionLoading === "verify" || actionLoading === "bulk-archive" || actionLoading === "bulk-delete"}
+                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-orange-600 rounded-xl hover:bg-orange-700 disabled:opacity-50 transition-colors shadow-sm"
+                        title="Archive all selected pending-domain rows"
+                      >
+                        {actionLoading === "bulk-archive" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />}
+                        Archive ({selectedDomains.length})
+                      </button>
+                    </>
+                  )}
+                  {/* Archived tab: permanent Delete only. These rows are
+                      already archived, so Verify/Archive don't apply. */}
+                  {activeTab === "archived" && (
+                    <button
+                      onClick={() => {
+                        setBulkDeleteConfirmText("");
+                        setShowBulkDeleteConfirm(true);
+                      }}
+                      disabled={actionLoading === "verify" || actionLoading === "bulk-archive" || actionLoading === "bulk-delete"}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-xl hover:bg-red-700 disabled:opacity-50 transition-colors shadow-sm"
+                      title="Permanently delete all selected archived pending-domain rows (no undo)"
+                    >
+                      {actionLoading === "bulk-delete" ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
+                      Delete ({selectedDomains.length})
+                    </button>
+                  )}
                 </div>
               )}
             </div>

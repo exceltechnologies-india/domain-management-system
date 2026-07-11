@@ -204,6 +204,22 @@ export async function DELETE(
     const isPermanent = url.searchParams.get("permanent") === "true";
 
     if (isPermanent) {
+      // Guard: permanent deletion is only allowed on an ARCHIVED row. The
+      // admin flow is archive-first → then delete from the Archived tab; the
+      // UI enforces this by only surfacing Delete on the Archived tab, but we
+      // enforce it here too so a stray/replayed request (or a future caller)
+      // can't hard-delete a live pending row without archiving it first. No
+      // undo on permanent delete, so belt-and-suspenders.
+      if (!pendingDomain.isArchived) {
+        serverLogger.warn(
+          `[${reqId}] Rejected permanent delete of non-archived pending domain: ${pendingDomainId} (${pendingDomain.domainName})`
+        );
+        return NextResponse.json(
+          { error: "Archive this pending domain before deleting it permanently." },
+          { status: 400 }
+        );
+      }
+
       // PERMANENT DELETION
       serverLogger.info(`[${reqId}] Permanently deleting pending domain: ${pendingDomainId}`);
       
