@@ -730,7 +730,25 @@ export default function AdminPendingDomainsPage() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left"><input type="checkbox" checked={selectedDomains.length === pendingDomains.length} onChange={(e) => setSelectedDomains(e.target.checked ? pendingDomains.map(d => d._id) : [])} className="rounded border-gray-300" /></th>
+                      <th className="px-6 py-3 text-left">
+                        {(() => {
+                          // Only real PendingDomain rows are selectable for bulk
+                          // actions. Order-sourced rows are a live view of
+                          // in-flight orders with a synthetic _id — they have no
+                          // archivable/deletable DB row, so selecting them makes
+                          // bulk Archive/Delete fail with "not found".
+                          const selectable = pendingDomains.filter((d) => d.source === "pending_domain");
+                          return (
+                            <input
+                              type="checkbox"
+                              disabled={selectable.length === 0}
+                              checked={selectable.length > 0 && selectable.every((d) => selectedDomains.includes(d._id))}
+                              onChange={(e) => setSelectedDomains(e.target.checked ? selectable.map((d) => d._id) : [])}
+                              className="rounded border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed"
+                            />
+                          );
+                        })()}
+                      </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Domain</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
@@ -743,7 +761,13 @@ export default function AdminPendingDomainsPage() {
                   <tbody className="bg-white divide-y divide-gray-200">
                     {pendingDomains.map((domain) => (
                       <tr key={domain._id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4"><input type="checkbox" checked={selectedDomains.includes(domain._id)} onChange={(e) => setSelectedDomains(e.target.checked ? [...selectedDomains, domain._id] : selectedDomains.filter(id => id !== domain._id))} className="rounded border-gray-300" /></td>
+                        <td className="px-6 py-4">
+                          {domain.source === "pending_domain" ? (
+                            <input type="checkbox" checked={selectedDomains.includes(domain._id)} onChange={(e) => setSelectedDomains(e.target.checked ? [...selectedDomains, domain._id] : selectedDomains.filter(id => id !== domain._id))} className="rounded border-gray-300" />
+                          ) : (
+                            <input type="checkbox" disabled title="In-flight order — archive/delete not applicable here" className="rounded border-gray-300 opacity-40 cursor-not-allowed" />
+                          )}
+                        </td>
                         <td className="px-6 py-4">
                           <div className="text-sm font-medium text-gray-900">{domain.domainName}</div>
                           <div className="text-xs text-gray-500">Order: {domain.orderId}</div>
