@@ -17,9 +17,9 @@ export default function Logo({
   variant = 'light'
 }: LogoProps) {
   const sizeClasses = {
-    sm: 'h-5 md:h-6 w-auto',
-    md: 'h-6 md:h-7 w-auto',
-    lg: 'h-7 md:h-8 w-auto'
+    sm: 'h-6 md:h-7 w-auto',
+    md: 'h-8 md:h-9 w-auto',
+    lg: 'h-10 md:h-11 w-auto'
   };
 
   const textSizeClasses = {
