@@ -61,7 +61,14 @@ export default function HomePage() {
               transition={{ duration: 0.5, delay: 0.05 }}
             >
               <h1
-                className="text-white text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-[1.1] mb-3 sm:mb-4 lg:whitespace-nowrap"
+                // At lg the one-line headline is wider than the max-w-3xl
+                // hero container, so it would overflow (and look off-centre).
+                // `w-max` sizes the h1 to the line, `max-w-none` drops the
+                // inherited cap, and left-1/2 + -translate-x-1/2 centres that
+                // block on the container's centre (= viewport centre) without
+                // widening the search box. Mobile/tablet keep the normal
+                // text-centre wrap.
+                className="text-white text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-[1.1] mb-3 sm:mb-4 lg:whitespace-nowrap lg:w-max lg:max-w-none lg:relative lg:left-1/2 lg:-translate-x-1/2"
                 style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}
               >
                 Claim Your Piece of the{' '}
