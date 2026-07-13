@@ -61,7 +61,7 @@ export default function HomePage() {
               transition={{ duration: 0.5, delay: 0.05 }}
             >
               <h1
-                className="text-white text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-[1.1] mb-3 sm:mb-4"
+                className="text-white text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-[1.1] mb-3 sm:mb-4 lg:whitespace-nowrap"
                 style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}
               >
                 Claim Your Piece of the{' '}
