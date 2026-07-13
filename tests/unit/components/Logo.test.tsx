@@ -61,10 +61,10 @@ describe("<Logo>", () => {
     expect(label.className).toMatch(/text-gray-900/);
   });
 
-  it("maps size='lg' to the h-10 md:h-11 class set on the img", () => {
+  it("maps size='lg' to the h-12 md:h-14 class set on the img", () => {
     render(<Logo size="lg" />);
     const img = screen.getByAltText(/anutech digital/i);
-    expect(img.className).toMatch(/h-10/);
-    expect(img.className).toMatch(/md:h-11/);
+    expect(img.className).toMatch(/h-12/);
+    expect(img.className).toMatch(/md:h-14/);
   });
 });
