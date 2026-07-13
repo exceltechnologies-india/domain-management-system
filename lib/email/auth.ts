@@ -216,9 +216,27 @@ export async function sendPasswordChangeNotificationEmail(
 
 export async function sendProfileUpdateEmail(
   userEmail: string,
-  userName: string
+  userName: string,
+  changedFields?: string[]
 ): Promise<boolean> {
   const subject = "Profile Updated Successfully";
+
+  // Render the list of fields that actually changed so the customer can
+  // verify it was them (and spot an unauthorized change immediately). Falls
+  // back to the generic message when the caller didn't supply a list.
+  const hasList = Array.isArray(changedFields) && changedFields.length > 0;
+  const changedListHtml = hasList
+    ? `
+          <p style="color: #065F46; margin: 12px 0 6px 0; font-size: 14px; font-weight: bold;">What changed:</p>
+          <ul style="color: #065F46; margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.6;">
+            ${changedFields
+              .map(
+                (f) =>
+                  `<li>${f.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c] || c))}</li>`
+              )
+              .join("")}
+          </ul>`
+    : "";
 
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
@@ -232,8 +250,11 @@ export async function sendProfileUpdateEmail(
         <div style="background-color: #D1FAE5; border: 1px solid #10B981; border-radius: 8px; padding: 20px; margin: 20px 0;">
           <h3 style="color: #065F46; margin: 0 0 10px 0; font-size: 18px;">✅ Details Updated Successfully</h3>
           <p style="color: #065F46; margin: 0; font-size: 14px;">
-            Your profile information has been updated. If you did not make these changes, please contact our support team immediately.
+            ${hasList
+              ? "The following details on your profile were updated. If you did not make these changes, please contact our support team immediately."
+              : "Your profile information has been updated. If you did not make these changes, please contact our support team immediately."}
           </p>
+          ${changedListHtml}
         </div>
 
         <div style="text-align: center; margin: 30px 0;">

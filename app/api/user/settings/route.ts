@@ -136,6 +136,11 @@ export async function PUT(request: NextRequest) {
 
     const body = await request.json();
 
+    // Fields that actually changed in this profile save — passed to the
+    // profile-update email so the notification pinpoints WHAT changed instead
+    // of a generic "your profile was updated". Populated in the profile block.
+    let profileChangedFields: string[] = [];
+
     // 1. Profile Update Handling
     if (body.profile) {
       /**
@@ -149,6 +154,27 @@ export async function PUT(request: NextRequest) {
       }
 
       const p = profileResult.data;
+
+      // Snapshot the current values BEFORE mutation so we can report exactly
+      // which fields changed (see the profile-update email below). Compared
+      // after the mutations so auto-fills (e.g. phone mirrored from WhatsApp)
+      // are captured accurately.
+      const snapshot = () => ({
+        "First name": user.firstName || "",
+        "Last name": user.lastName || "",
+        "Company name": user.companyName || "",
+        "GST number": user.gstNumber || "",
+        "Phone number": user.phone || "",
+        "Phone country code": user.phoneCc || "",
+        "WhatsApp number": user.whatsappNumber || "",
+        "WhatsApp notification preference": user.whatsappOptOut === true ? "off" : "on",
+        "Address line 1": user.address?.line1 || "",
+        City: user.address?.city || "",
+        State: user.address?.state || "",
+        Country: user.address?.country || "",
+        "Postal code": user.address?.zipcode || "",
+      });
+      const before = snapshot();
 
       // WhatsApp number is REQUIRED on a profile save (used for renewal
       // reminders + marketing; also mirrored into `phone` below so it doubles
@@ -193,6 +219,13 @@ export async function PUT(request: NextRequest) {
       }
 
       user.profileCompleted = checkProfileCompletion(user);
+
+      // Diff the snapshot against the post-mutation values → the exact set of
+      // changed field labels for the notification email.
+      const after = snapshot();
+      profileChangedFields = (Object.keys(before) as Array<keyof typeof before>).filter(
+        (label) => before[label] !== after[label]
+      );
     }
 
     // 2. Password Update Handling
@@ -360,12 +393,16 @@ export async function PUT(request: NextRequest) {
     }
 
     // 5. Profile Update Notification (Side Effect)
-    if (body.profile) {
+    // Only notify when something actually changed — a no-op save (form
+    // submitted with no edits) shouldn't email the customer. The email lists
+    // the exact changed fields so it's useful + a genuine security signal.
+    if (body.profile && profileChangedFields.length > 0) {
       try {
         const { EmailService } = await import('@/lib/email');
         await EmailService.sendProfileUpdateEmail(
           user.email,
-          `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email
+          `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+          profileChangedFields
         );
       } catch (emailError) {
         serverLogger.error("Profile Email Notify Error:", emailError);

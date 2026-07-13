@@ -119,6 +119,30 @@ describe("sendProfileUpdateEmail", () => {
     expect(opts.to).toBe("user@x.test");
     expect(opts.subject).toBe("Profile Updated Successfully");
   });
+
+  it("renders a 'What changed' list with the supplied field labels", async () => {
+    await sendProfileUpdateEmail("user@x.test", "Alice", [
+      "Phone number",
+      "WhatsApp number",
+    ]);
+    const [opts] = sendEmailMock.mock.calls[0];
+    expect(opts.html).toContain("What changed:");
+    expect(opts.html).toContain("<li>Phone number</li>");
+    expect(opts.html).toContain("<li>WhatsApp number</li>");
+  });
+
+  it("omits the 'What changed' list when no fields are supplied (generic copy)", async () => {
+    await sendProfileUpdateEmail("user@x.test", "Alice");
+    const [opts] = sendEmailMock.mock.calls[0];
+    expect(opts.html).not.toContain("What changed:");
+  });
+
+  it("escapes HTML in field labels (defensive)", async () => {
+    await sendProfileUpdateEmail("user@x.test", "Alice", ["<script>x</script>"]);
+    const [opts] = sendEmailMock.mock.calls[0];
+    expect(opts.html).not.toContain("<script>x</script>");
+    expect(opts.html).toContain("&lt;script&gt;");
+  });
 });
 
 describe("sendProfileCompletionEmail", () => {

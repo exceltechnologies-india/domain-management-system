@@ -483,6 +483,40 @@ describe("PUT — profile field assignment", () => {
     expect(res.status).toBe(200);
     expect(user.firstName).toBe("New");
   });
+
+  it("notification email pinpoints the exact changed field labels", async () => {
+    const user = makeUser({ firstName: "First", phone: "9876543210" });
+    getUserFromRequest.mockResolvedValueOnce(user);
+    profileUpdateSafeParse.mockReturnValueOnce({
+      success: true,
+      data: { firstName: "New", phone: "1230000000" },
+    });
+
+    await PUT(makeReq("PUT", { profile: { firstName: "New", phone: "1230000000" } }));
+
+    expect(sendProfileUpdateEmail).toHaveBeenCalledTimes(1);
+    const [, , changed] = sendProfileUpdateEmail.mock.calls[0];
+    expect(changed).toEqual(
+      expect.arrayContaining(["First name", "Phone number"])
+    );
+    // Untouched fields must NOT appear.
+    expect(changed).not.toContain("Company name");
+    expect(changed).not.toContain("WhatsApp number");
+  });
+
+  it("no-op save (submitted values equal current) → NO notification email", async () => {
+    const user = makeUser({ firstName: "First", lastName: "Last" });
+    getUserFromRequest.mockResolvedValueOnce(user);
+    profileUpdateSafeParse.mockReturnValueOnce({
+      success: true,
+      data: { firstName: "First", lastName: "Last" }, // identical to stored
+    });
+
+    const res = await PUT(makeReq("PUT", { profile: { firstName: "First", lastName: "Last" } }));
+
+    expect(res.status).toBe(200);
+    expect(sendProfileUpdateEmail).not.toHaveBeenCalled();
+  });
 });
 
 // ─── PUT: Password update gates ────────────────────────────────────
