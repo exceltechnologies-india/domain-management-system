@@ -31,7 +31,7 @@ export default function Footer({ className = '' }: FooterProps) {
           {/* Company Info */}
           <div className="col-span-2 md:col-span-2 text-center md:text-left">
             <div className="flex items-center justify-center md:justify-start mb-4">
-              <Logo size="md" showText={false} variant="dark" />
+              <Logo size="xl" showText={false} variant="dark" />
             </div>
             <p className="text-gray-300 mb-6 max-w-md mx-auto md:mx-0">
               Anutech Digital Private Limited provides secure payments, professional DNS management, comprehensive domain solutions, and reliable web hosting services.
