@@ -119,8 +119,10 @@ export default function Navigation({
     return (
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md shadow-lg border-b border-gray-200">
         <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <Logo size="md" href={variant === 'admin' ? '/admin' : '/dashboard'} />
+          {/* Fixed bar height (was py-4 + h-10/11 logo = 72/76px) so a larger
+              logo doesn't grow the navbar or break the page's pt offset. */}
+          <div className="flex justify-between items-center h-[72px] sm:h-[76px]">
+            <Logo size="xl" href={variant === 'admin' ? '/admin' : '/dashboard'} />
 
             <div className="flex items-center space-x-4">
               <div className="hidden md:flex items-center space-x-6">
@@ -169,8 +171,10 @@ export default function Navigation({
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md shadow-lg border-b border-[var(--google-border-light)]">
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center py-3 sm:py-4">
-          <Logo size="md" href="/" />
+        {/* Fixed bar height (was py-3/4 + h-10/11 logo = 64/76px) so a larger
+            logo doesn't grow the navbar or break the page's pt offset. */}
+        <div className="flex justify-between items-center h-16 sm:h-[76px]">
+          <Logo size="xl" href="/" />
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-4 lg:space-x-6">

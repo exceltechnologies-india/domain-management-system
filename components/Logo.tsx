@@ -4,7 +4,7 @@ import Link from 'next/link';
 interface LogoProps {
   className?: string;
   showText?: boolean;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   href?: string;
   variant?: 'light' | 'dark';
 }
@@ -19,13 +19,17 @@ export default function Logo({
   const sizeClasses = {
     sm: 'h-7 md:h-8 w-auto',
     md: 'h-10 md:h-11 w-auto',
-    lg: 'h-12 md:h-14 w-auto'
+    lg: 'h-12 md:h-14 w-auto',
+    // xl — used in the nav, which now has a fixed bar height so this larger
+    // mark centers within the bar without changing the navbar height.
+    xl: 'h-12 md:h-16 w-auto'
   };
 
   const textSizeClasses = {
     sm: 'text-lg',
     md: 'text-xl',
-    lg: 'text-2xl'
+    lg: 'text-2xl',
+    xl: 'text-2xl'
   };
 
   const logoElement = (
