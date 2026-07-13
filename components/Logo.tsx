@@ -40,12 +40,18 @@ export default function Logo({
         // (brightness(0) makes every pixel black, invert(1) flips it to
         // white) — a clean white silhouette on the dark login panel / footer,
         // no separate white asset to keep in sync.
+        //
+        // width/height are the asset's intrinsic dimensions (aspect ratio
+        // only); the ACTUAL rendered size comes from the `h-* w-auto` classes
+        // in sizeClasses. NOTE: do NOT re-add an inline `style` height/width —
+        // inline styles override the Tailwind height classes and pin the logo
+        // to the intrinsic size (that bug made every "bigger logo" change a
+        // no-op).
         src="/black-logo.png"
         alt="Anutech Digital Private Limited"
-        width={size === 'sm' ? 80 : size === 'md' ? 100 : 120}
-        height={size === 'sm' ? 20 : size === 'md' ? 24 : 28}
+        width={364}
+        height={93}
         className={`${sizeClasses[size]} ${variant === 'dark' ? 'brightness-0 invert' : ''}`}
-        style={{ width: 'auto', height: 'auto' }}
         priority
       />
       {showText && (
