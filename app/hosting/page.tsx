@@ -309,6 +309,7 @@ export default function HostingPage() {
         <HeroSection
           background="image"
           backgroundImage="/hosting.jpg"
+          variant="brand"
           overlayOpacity={0.88}
           className="min-h-[60vh] sm:min-h-[66vh] flex items-center py-10 sm:py-14"
         >
@@ -319,7 +320,7 @@ export default function HostingPage() {
               transition={{ delay: 0.15 }}
               className="inline-flex items-center gap-2 mb-5 sm:mb-6 bg-white/10 backdrop-blur-md border border-white/25 rounded-full pl-1.5 pr-4 py-1.5 shadow-lg"
             >
-              <span className="flex items-center justify-center h-6 w-6 rounded-full bg-blue-500/90">
+              <span className="flex items-center justify-center h-6 w-6 rounded-full bg-[#0180E5]/90">
                 <Server className="h-3.5 w-3.5 text-white" />
               </span>
               <span className="text-white text-[11px] sm:text-xs font-semibold tracking-[0.2em] uppercase">
@@ -333,7 +334,7 @@ export default function HostingPage() {
               Launch your website with a hosting provider that gives you the speed, security, and support you need to grow online.
             </p>
             <div className="flex flex-col sm:flex-row justify-center gap-3">
-              <a href="#pricing" className="inline-flex items-center justify-center gap-2 bg-white text-blue-600 px-7 py-3 rounded-full font-semibold text-base shadow-lg hover:shadow-xl hover:bg-gray-50 transition-all">
+              <a href="#pricing" className="inline-flex items-center justify-center gap-2 bg-white text-[#0177E1] px-7 py-3 rounded-full font-semibold text-base shadow-lg hover:shadow-xl hover:bg-gray-50 transition-all">
                 View Plans
                 <Sparkles className="h-4 w-4" />
               </a>
@@ -380,7 +381,7 @@ export default function HostingPage() {
                     aria-label="Toggle billing cycle — currently yearly saves 50%"
                     aria-labelledby="billing-monthly-label billing-yearly-label"
                     onClick={() => setBillingCycle(billingCycle === 'monthly' ? 'yearly' : 'monthly')}
-                    className="relative inline-flex h-7 w-14 items-center rounded-full bg-indigo-600 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                    className="relative inline-flex h-7 w-14 items-center rounded-full bg-[#0180E5] transition-colors focus:outline-none focus:ring-2 focus:ring-[#0177E1] focus:ring-offset-2"
                   >
                     <span
                       className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
@@ -544,8 +545,8 @@ export default function HostingPage() {
                     href={svc.href}
                     className={`inline-flex items-center justify-center px-5 py-2.5 rounded-xl font-medium text-sm transition-colors ${
                       svc.variant === 'primary'
-                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                        : 'bg-white text-blue-600 border border-blue-200 hover:bg-blue-50 hover:border-blue-300'
+                        ? 'bg-[#0177E1] hover:bg-[#01489D] text-white'
+                        : 'bg-white text-[#0177E1] border border-[#0180E5]/40 hover:bg-[#0180E5]/5 hover:border-[#0180E5]'
                     }`}
                   >
                     {svc.cta}
