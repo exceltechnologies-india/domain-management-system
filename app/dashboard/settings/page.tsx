@@ -29,6 +29,7 @@ interface User {
   phoneCc?: string;
   whatsappNumber?: string;
   whatsappOptOut?: boolean;
+  emailOptOut?: boolean;
   companyName?: string;
   gstNumber?: string;
   address?: {
@@ -215,6 +216,7 @@ export default function UserSettings() {
             // server sends a real boolean — String()===  'true' coerces
             // both a JSON boolean true and a "true" string safely.
             whatsappOptOut: String(profile.whatsappOptOut) === 'true',
+            emailOptOut: String(profile.emailOptOut) === 'true',
             companyName: profile.company || prev.companyName,
             gstNumber: profile.gstNumber || prev.gstNumber || '',
             address: {
@@ -617,6 +619,24 @@ export default function UserSettings() {
                             </span>
                           </label>
                         )}
+
+                        {/* Marketing / non-essential EMAIL opt-out. Always
+                            shown (every user has an email). Core account,
+                            billing, and security emails are NOT covered by this
+                            flag and always send — stated explicitly so the
+                            customer knows what they can and can't turn off. */}
+                        <label className="flex items-start gap-2 mt-3 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            className="h-3.5 w-3.5 mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            checked={user.emailOptOut !== true}
+                            onChange={e => setUser(p => p ? { ...p, emailOptOut: !e.target.checked } : null)}
+                          />
+                          <span className="text-xs text-gray-600">
+                            Receive marketing &amp; notification emails
+                            <span className="block text-gray-400">Product news, offers, and service reminders. Uncheck to unsubscribe. Essential account, billing, and security emails are always sent and can&apos;t be turned off.</span>
+                          </span>
+                        </label>
                       </div>
                     </div>
                     <SaveRow isDirty={isDirty} isSaving={isSaving} onClick={() => handleUpdateProfile(user)} />

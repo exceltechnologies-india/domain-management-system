@@ -108,6 +108,7 @@ export async function GET(request: NextRequest) {
         phoneCc: user.phoneCc || "+91",
         whatsappNumber: user.whatsappNumber || "",
         whatsappOptOut: user.whatsappOptOut === true,
+        emailOptOut: user.emailOptOut === true,
         address: user.address?.line1 || "",
         city: user.address?.city || "",
         state: user.address?.state || "",
@@ -198,6 +199,11 @@ export async function PUT(request: NextRequest) {
       // STOP-keyword-driven opt-out set by the inbound webhook. Either
       // path flips the same flag; every WhatsApp send site honors it.
       if (p.whatsappOptOut !== undefined) user.whatsappOptOut = p.whatsappOptOut;
+      // Marketing / non-essential EMAIL opt-out — same flag the email
+      // unsubscribe link sets. Honored only for non-essential mail
+      // (marketing + reminders); core account/billing/security emails
+      // always send regardless. Complements the one-click unsubscribe.
+      if (p.emailOptOut !== undefined) user.emailOptOut = p.emailOptOut;
 
       // Auto-fill phone from WhatsApp when phone is still blank — a
       // WhatsApp-only profile should always have a phone number on file

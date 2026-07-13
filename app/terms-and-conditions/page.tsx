@@ -167,9 +167,25 @@ export default function TermsPage() {
                 </p>
               </section>
 
+              {/* Communications & Notifications */}
+              <section className="mb-8">
+                <h2 className="text-2xl font-semibold text-gray-900 mb-4">10. Communications &amp; Notifications</h2>
+                <p className="text-gray-700 leading-relaxed">
+                  By using the Service you agree to receive communications from us relating to your account. We divide these into two categories:
+                </p>
+                <ul className="list-disc list-inside text-gray-700 leading-relaxed mt-3 space-y-2">
+                  <li>
+                    <strong>Essential communications</strong> — account activation, password and security alerts, invoices and payment receipts, order and provisioning status, service-suspension notices, and other transactional or legally required messages. These are necessary to operate your account securely and <strong>cannot be turned off</strong> for as long as you hold an account with us.
+                  </li>
+                  <li>
+                    <strong>Marketing &amp; non-essential notifications</strong> — product news, offers, and service reminders. You may unsubscribe from these at any time via the &quot;Receive marketing &amp; notification emails&quot; setting in your dashboard (<strong>Settings → Profile</strong>), the one-click unsubscribe link in any such email, or the WhatsApp opt-out. Unsubscribing from these does <strong>not</strong> stop essential communications above.
+                  </li>
+                </ul>
+              </section>
+
               {/* Contact Information */}
               <section className="mb-8">
-                <h2 className="text-2xl font-semibold text-gray-900 mb-4">10. Contact Information</h2>
+                <h2 className="text-2xl font-semibold text-gray-900 mb-4">11. Contact Information</h2>
                 <p className="text-gray-700 leading-relaxed">
                   If you have any questions about these Terms and Conditions, please contact us at:
                 </p>

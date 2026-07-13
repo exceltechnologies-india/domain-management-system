@@ -158,6 +158,7 @@ function makeUser(overrides: Partial<any> = {}) {
     lastName: "Last",
     phone: "9876543210",
     phoneCc: "+91",
+    emailOptOut: false,
     // Onboarded users have a WhatsApp number on file (now required on profile
     // save). Tests that specifically exercise the "missing WhatsApp" gate
     // override this to "".
@@ -301,7 +302,7 @@ describe("GET — response data-minimization", () => {
     expect(data.profile).not.toHaveProperty("_id");
   });
 
-  it("explicit 14-key whitelist", async () => {
+  it("explicit 15-key whitelist", async () => {
     getUserFromRequest.mockResolvedValueOnce(makeUser());
     await GET(makeReq("GET"));
     const data = secureJsonResponse.mock.calls[0][0] as any;
@@ -312,6 +313,7 @@ describe("GET — response data-minimization", () => {
         "company",
         "country",
         "email",
+        "emailOptOut",
         "firstName",
         "gstNumber",
         "lastName",
@@ -502,6 +504,17 @@ describe("PUT — profile field assignment", () => {
     // Untouched fields must NOT appear.
     expect(changed).not.toContain("Company name");
     expect(changed).not.toContain("WhatsApp number");
+  });
+
+  it("emailOptOut is written to the user when supplied", async () => {
+    const user = makeUser({ emailOptOut: false });
+    getUserFromRequest.mockResolvedValueOnce(user);
+    profileUpdateSafeParse.mockReturnValueOnce({
+      success: true,
+      data: { emailOptOut: true },
+    });
+    await PUT(makeReq("PUT", { profile: { emailOptOut: true } }));
+    expect(user.emailOptOut).toBe(true);
   });
 
   it("no-op save (submitted values equal current) → NO notification email", async () => {

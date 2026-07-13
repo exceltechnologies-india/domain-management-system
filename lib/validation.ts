@@ -95,6 +95,9 @@ export const Schemas = {
     phoneCc: z.string().max(20).optional(),
     whatsappNumber: z.string().max(15).optional().or(z.literal("")),
     whatsappOptOut: z.boolean().optional(),
+    // Marketing / non-essential email opt-out. Honored only for
+    // non-essential mail; core account/billing/security emails always send.
+    emailOptOut: z.boolean().optional(),
     address: z.object({
       line1: z.string().max(200).optional(),
       city: z.string().max(100).optional(),
