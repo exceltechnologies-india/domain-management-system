@@ -1,6 +1,6 @@
 # Domain Management Portal — Tasks
 
-**Last updated:** 13 Jul 2026 (revision `dms-00315-rxm` LIVE — BRAND-STEP-2 homepage color preview (exact logo blues): applied the logo's real sampled blues (`#038BEF`/`#0177E1`/`#0061D6`) to the homepage ONLY (HeroSection additive `brand` variant + homepage main CTA) for operator review before any app-wide change; global tokens untouched. Corrected from the initial muted estimate. In Flight, awaiting sign-off. Follows `dms-00313-b96`.
+**Last updated:** 13 Jul 2026 (revision `dms-00316-ndt` LIVE — BRAND-STEP-2 homepage color preview (exact logo blues, darkened a notch): applied the logo's real sampled blues (`#038BEF`/`#0177E1`/`#0061D6`) to the homepage ONLY (HeroSection additive `brand` variant + homepage main CTA) for operator review before any app-wide change; global tokens untouched. Corrected from the initial muted estimate. In Flight, awaiting sign-off. Follows `dms-00313-b96`.
 
 **Prior update:** 13 Jul 2026 (revision `dms-00313-b96` — SETTINGS-EMAIL-PREFERENCES + T&C: added a Dashboard → Settings → Profile toggle to unsubscribe from marketing/notification emails (bound to `User.emailOptOut`); core account/billing/security emails always send and can't be disabled. Documented in Terms §10 "Communications & Notifications". Suites 130/130. Follows `dms-00312-dhh`.
 
