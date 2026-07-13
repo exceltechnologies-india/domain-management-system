@@ -31,11 +31,16 @@ export default function Logo({
   const logoElement = (
     <div className={`flex items-center ${className}`}>
       <Image
-        src={variant === 'dark' ? '/logo-white.png' : '/black-logo.png'}
+        // Single source of truth for the brand mark. On dark surfaces we
+        // render the SAME logo turned pure-white via a CSS filter
+        // (brightness(0) makes every pixel black, invert(1) flips it to
+        // white) — a clean white silhouette on the dark login panel / footer,
+        // no separate white asset to keep in sync.
+        src="/black-logo.png"
         alt="Anutech Digital Private Limited"
         width={size === 'sm' ? 80 : size === 'md' ? 100 : 120}
         height={size === 'sm' ? 20 : size === 'md' ? 24 : 28}
-        className={sizeClasses[size]}
+        className={`${sizeClasses[size]} ${variant === 'dark' ? 'brightness-0 invert' : ''}`}
         style={{ width: 'auto', height: 'auto' }}
         priority
       />

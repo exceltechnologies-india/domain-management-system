@@ -2,7 +2,7 @@
  * Component tests for <Logo> (rescan-4 M14).
  * Pins the default-linked render (Next/Link wrapping at the default '/'
  * href), the unlinked path when href='' is passed, the variant fork
- * (light→black-logo.png + dark text vs dark→logo-white.png + white
+ * (light→black-logo.png + dark text vs dark→black-logo.png whitened via CSS filter + white
  * text), the size→class mapping, and the conditional company-name
  * label under `showText`.
  */
@@ -41,10 +41,13 @@ describe("<Logo>", () => {
     expect(screen.getAllByText(/anutech digital private limited/i).length).toBeGreaterThan(0);
   });
 
-  it("variant='dark' uses the white logo asset and applies the white text class to the label", () => {
+  it("variant='dark' renders the same logo turned white via CSS filter + white text label", () => {
     render(<Logo variant="dark" showText />);
     const img = screen.getByAltText(/anutech digital/i) as HTMLImageElement;
-    expect(img.src).toMatch(/logo-white\.png/);
+    // Single asset for both variants; dark is whitened with a CSS filter.
+    expect(img.src).toMatch(/black-logo\.png/);
+    expect(img.className).toMatch(/brightness-0/);
+    expect(img.className).toMatch(/invert/);
     // The label gets the text-white class
     const label = screen.getByText(/anutech digital private limited/i);
     expect(label.className).toMatch(/text-white/);
