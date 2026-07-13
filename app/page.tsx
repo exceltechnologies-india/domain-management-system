@@ -235,7 +235,7 @@ export default function HomePage() {
             >
               <Link
                 href="/hosting#pricing"
-                className="group relative bg-gradient-to-r from-[#0177E1] to-[#004FB5] text-white hover:from-[#0061D6] hover:to-[#01428F] font-bold py-4 px-10 rounded-full shadow-xl hover:shadow-2xl transition-all duration-300 flex items-center gap-2 overflow-hidden"
+                className="group relative bg-gradient-to-r from-[#0180E5] to-[#01489D] text-white hover:from-[#0177E1] hover:to-[#013A80] font-bold py-4 px-10 rounded-full shadow-xl hover:shadow-2xl transition-all duration-300 flex items-center gap-2 overflow-hidden"
               >
                 <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-300" />
                 <Server className="h-5 w-5 group-hover:rotate-12 transition-transform duration-300" />
