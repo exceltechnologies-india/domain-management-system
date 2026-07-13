@@ -22,14 +22,14 @@ export default function HeroSection({
 }: HeroSectionProps) {
   const backgroundClasses = {
     gradient: variant === 'brand'
-      ? 'bg-gradient-to-br from-[#038BEF] to-[#0061D6]'
+      ? 'bg-gradient-to-br from-[#0177E1] to-[#004FB5]'
       : variant === 'primary'
       ? 'bg-gradient-to-r from-primary-600 to-primary-800'
       : variant === 'secondary'
         ? 'bg-gradient-to-r from-gray-600 to-gray-800'
         : 'bg-gradient-to-r from-gray-800 to-gray-900',
     solid: variant === 'brand'
-      ? 'bg-[#0177E1]'
+      ? 'bg-[#0061D6]'
       : variant === 'primary'
       ? 'bg-primary-600'
       : variant === 'secondary'
@@ -55,7 +55,7 @@ export default function HeroSection({
         className="absolute inset-0"
         style={{
           background: variant === 'brand'
-            ? `linear-gradient(135deg, rgba(3, 139, 239, ${overlayOpacity}) 0%, rgba(0, 97, 214, ${overlayOpacity}) 100%)`
+            ? `linear-gradient(135deg, rgba(1, 119, 225, ${overlayOpacity}) 0%, rgba(0, 79, 181, ${overlayOpacity}) 100%)`
             : variant === 'primary'
             ? `linear-gradient(135deg, rgba(30, 64, 175, ${overlayOpacity}) 0%, rgba(29, 78, 216, ${overlayOpacity}) 100%)`
             : variant === 'secondary'
