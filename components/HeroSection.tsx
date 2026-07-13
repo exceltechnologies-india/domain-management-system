@@ -4,7 +4,10 @@ interface HeroSectionProps {
   children: ReactNode;
   className?: string;
   background?: 'gradient' | 'solid' | 'image';
-  variant?: 'primary' | 'secondary' | 'dark';
+  // 'brand' uses the Anutech logo's Azure gradient (#1E9BF0 → #1C64E0).
+  // Additive — existing callers on other variants are unaffected; currently
+  // opted into only by the homepage for the brand color-scheme preview.
+  variant?: 'primary' | 'secondary' | 'dark' | 'brand';
   backgroundImage?: string;
   overlayOpacity?: number;
 }
@@ -18,12 +21,16 @@ export default function HeroSection({
   overlayOpacity = 0.6
 }: HeroSectionProps) {
   const backgroundClasses = {
-    gradient: variant === 'primary'
+    gradient: variant === 'brand'
+      ? 'bg-gradient-to-br from-[#1E9BF0] to-[#1C64E0]'
+      : variant === 'primary'
       ? 'bg-gradient-to-r from-primary-600 to-primary-800'
       : variant === 'secondary'
         ? 'bg-gradient-to-r from-gray-600 to-gray-800'
         : 'bg-gradient-to-r from-gray-800 to-gray-900',
-    solid: variant === 'primary'
+    solid: variant === 'brand'
+      ? 'bg-[#1C64E0]'
+      : variant === 'primary'
       ? 'bg-primary-600'
       : variant === 'secondary'
         ? 'bg-gray-600'
@@ -47,7 +54,9 @@ export default function HeroSection({
       <div
         className="absolute inset-0"
         style={{
-          background: variant === 'primary'
+          background: variant === 'brand'
+            ? `linear-gradient(135deg, rgba(30, 155, 240, ${overlayOpacity}) 0%, rgba(28, 100, 224, ${overlayOpacity}) 100%)`
+            : variant === 'primary'
             ? `linear-gradient(135deg, rgba(30, 64, 175, ${overlayOpacity}) 0%, rgba(29, 78, 216, ${overlayOpacity}) 100%)`
             : variant === 'secondary'
               ? `linear-gradient(135deg, rgba(75, 85, 99, ${overlayOpacity}) 0%, rgba(31, 41, 55, ${overlayOpacity}) 100%)`

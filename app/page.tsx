@@ -36,6 +36,7 @@ export default function HomePage() {
         <HeroSection
           background="image"
           backgroundImage="/domain-1.jpeg"
+          variant="brand"
           overlayOpacity={0.96}
           className="flex items-center py-12 sm:py-16 lg:min-h-[56vh]"
         >
@@ -234,7 +235,7 @@ export default function HomePage() {
             >
               <Link
                 href="/hosting#pricing"
-                className="group relative bg-gradient-to-r from-primary-600 to-blue-600 text-white hover:from-primary-700 hover:to-blue-700 font-bold py-4 px-10 rounded-full shadow-xl hover:shadow-2xl transition-all duration-300 flex items-center gap-2 overflow-hidden"
+                className="group relative bg-gradient-to-r from-[#1E9BF0] to-[#1C64E0] text-white hover:from-[#1C64E0] hover:to-[#1652D6] font-bold py-4 px-10 rounded-full shadow-xl hover:shadow-2xl transition-all duration-300 flex items-center gap-2 overflow-hidden"
               >
                 <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-300" />
                 <Server className="h-5 w-5 group-hover:rotate-12 transition-transform duration-300" />
