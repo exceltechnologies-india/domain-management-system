@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Mail, MessageCircle, MapPin } from 'lucide-react';
+import { Mail, MessageCircle } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import HeroSection from '@/components/HeroSection';
 import Section from '@/components/Section';
@@ -97,18 +97,6 @@ export default function ContactPage() {
 
       {/* Map Section */}
       <Section background="gray" padding="md">
-        <div className="text-center mb-8 sm:mb-10">
-          <div className="inline-flex items-center gap-2 mb-3 bg-white border border-blue-100 rounded-full px-3 py-1.5 text-xs sm:text-sm font-semibold text-blue-700 shadow-sm">
-            <MapPin className="h-3.5 w-3.5" />
-            Find Us
-          </div>
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}>
-            Where to find us
-          </h2>
-          <p className="text-base text-gray-600 max-w-xl mx-auto">
-            Drop by our office or pin the location for later.
-          </p>
-        </div>
         <ContactMap />
       </Section>
 
