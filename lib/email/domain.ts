@@ -1,4 +1,5 @@
 import { sendEmail, SUPPORT_EMAIL } from "./transporter";
+import { sendNotificationEmail } from "./notifications";
 import { formatIndianDate } from "../dateUtils";
 
 export async function sendDomainPurchaseEmail(
@@ -387,7 +388,7 @@ export async function sendServiceReminderEmail(
       </div>
     </div>
   `;
-  return sendEmail({ to: userEmail, subject, html });
+  return sendNotificationEmail({ to: userEmail, subject, html });
 }
 
 export async function sendServiceExpiryTodayEmail(
@@ -438,7 +439,7 @@ export async function sendServiceExpiryTodayEmail(
       </div>
     </div>
   `;
-  return sendEmail({ to: userEmail, subject, html });
+  return sendNotificationEmail({ to: userEmail, subject, html });
 }
 
 export async function sendServiceSuspensionEmail(
@@ -573,7 +574,7 @@ export async function sendServiceGracePeriodEmail(
       </div>
     </div>
   `;
-  return sendEmail({ to: userEmail, subject, html });
+  return sendNotificationEmail({ to: userEmail, subject, html });
 }
 
 export async function sendDomainAvailableEmail(
@@ -617,5 +618,5 @@ export async function sendDomainAvailableEmail(
       </div>
     </div>
   `;
-  return sendEmail({ to: userEmail, subject, html });
+  return sendNotificationEmail({ to: userEmail, subject, html });
 }

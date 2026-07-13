@@ -1,4 +1,5 @@
 import { sendEmail, SUPPORT_EMAIL } from "./transporter";
+import { sendNotificationEmail } from "./notifications";
 
 export async function sendWelcomeEmail(
   userEmail: string,
@@ -398,7 +399,7 @@ export async function sendProfileCompletionEmail(
     </body>
     </html>
   `;
-  return sendEmail({
+  return sendNotificationEmail({
     to: userEmail,
     subject: "📝 Complete Your Profile - Anutech Digital Private Limited",
     html,

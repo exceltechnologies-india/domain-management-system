@@ -56,6 +56,10 @@ export interface EmailOptions {
   subject: string;
   html: string;
   text?: string;
+  // When set, adds RFC 8058 one-click unsubscribe headers so Gmail/Yahoo/
+  // Outlook render a native "Unsubscribe" control and bulk-sender rules are
+  // satisfied. Only supplied for non-essential notification emails.
+  listUnsubscribeUrl?: string;
 }
 
 export async function sendEmail(options: EmailOptions): Promise<boolean> {
@@ -65,13 +69,21 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
   }
   try {
     const transporter = await getTransporter();
-    const mailOptions = {
+    const mailOptions: nodemailer.SendMailOptions = {
       from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
       to: options.to,
       subject: options.subject,
       text: options.text,
       html: options.html,
     };
+    if (options.listUnsubscribeUrl) {
+      // RFC 8058 one-click unsubscribe. The mailto gives a fallback for
+      // clients that don't support HTTPS one-click.
+      mailOptions.headers = {
+        "List-Unsubscribe": `<${options.listUnsubscribeUrl}>, <mailto:${SUPPORT_EMAIL}?subject=unsubscribe>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      };
+    }
     await transporter.sendMail(mailOptions);
     return true;
   } catch (error) {

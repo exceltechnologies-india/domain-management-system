@@ -23,6 +23,7 @@ export interface IUser extends Document {
   phoneCc?: string; // Made optional for social login users
   whatsappNumber?: string; // Optional WhatsApp number for notifications (10 digits, India)
   whatsappOptOut?: boolean; // True when the customer replied STOP on WhatsApp — suppresses all WhatsApp sends
+  emailOptOut?: boolean; // True when the customer unsubscribed via an email footer link — suppresses non-essential notification emails
   companyName?: string; // Made optional for social login users
   gstNumber?: string; // Added optional GST number
   address?: {
@@ -146,6 +147,13 @@ const UserSchema = new Schema<IUser>(
       trim: true,
     },
     whatsappOptOut: {
+      type: Boolean,
+      default: false,
+    },
+    // True when the customer unsubscribed via an email footer link.
+    // Suppresses non-essential notification emails (marketing + service
+    // reminders). Transactional/legal/security emails ignore this flag.
+    emailOptOut: {
       type: Boolean,
       default: false,
     },

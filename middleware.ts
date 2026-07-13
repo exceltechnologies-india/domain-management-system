@@ -80,6 +80,10 @@ const PUBLIC_API_PREFIXES = [
   "/api/status",
   "/api/metrics",
   "/api/log",
+  // Email unsubscribe: clicked from an email (no session) and POSTed by mail
+  // clients via RFC 8058 one-click (no CSRF token). Authenticated by the
+  // signed HMAC token in the URL, verified inside the route.
+  "/api/notifications/unsubscribe",
   // Public chatbot: the homepage chat widget is anonymous-friendly by
   // design (pre-sales visitors haven't logged in yet). Auth-free + rate-
   // limited at the route layer (10 req/min/IP); content-screened by

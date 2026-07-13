@@ -25,6 +25,19 @@ vi.mock("@/lib/email/transporter", () => ({
   SUPPORT_EMAIL: "support@anutech.in",
 }));
 
+// sendProfileCompletionEmail routes through the non-essential notification
+// helper (opt-out + unsubscribe footer). Stub its deps so these template
+// tests still exercise the real HTML builder → sendEmail.
+vi.mock("@/lib/services/users", () => ({
+  getUserByEmail: vi.fn().mockResolvedValue(null),
+}));
+vi.mock("@/lib/unsubscribe-token", () => ({
+  unsubscribeUrl: () => "https://app.test/api/notifications/unsubscribe?token=T",
+}));
+vi.mock("@/lib/server-logger", () => ({
+  serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
 import {
   sendWelcomeEmail,
   sendPasswordResetEmail,

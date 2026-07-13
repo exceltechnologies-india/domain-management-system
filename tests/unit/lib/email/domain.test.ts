@@ -26,6 +26,19 @@ vi.mock("@/lib/email/transporter", () => ({
   SUPPORT_EMAIL: "support@anutech.in",
 }));
 
+// The non-essential senders (reminder / expiry / grace / domain-available)
+// route through the notification helper (opt-out + unsubscribe footer). Stub
+// its deps so these template tests still exercise the real builder → sendEmail.
+vi.mock("@/lib/services/users", () => ({
+  getUserByEmail: vi.fn().mockResolvedValue(null),
+}));
+vi.mock("@/lib/unsubscribe-token", () => ({
+  unsubscribeUrl: () => "https://app.test/api/notifications/unsubscribe?token=T",
+}));
+vi.mock("@/lib/server-logger", () => ({
+  serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
 vi.mock("@/lib/dateUtils", () => ({
   formatIndianDateTime: (d: Date) => d.toISOString(),
   formatIndianDateTimeLong: (d: Date) => d.toISOString(),
