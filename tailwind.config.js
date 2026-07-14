@@ -8,17 +8,20 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // Anutech brand azure — anchored on the logo/favicon blues
+        // (600 = #0177E1 dominant, 500 = #0180E5, 800 = #01489D shadow-fold).
+        // App-wide brand color-scheme token (Brand Step 2, app-wide pass).
         primary: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          300: '#93c5fd',
-          400: '#60a5fa',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
-          800: '#1e40af',
-          900: '#1e3a8a',
+          50: '#e9f4fe',
+          100: '#cfe8fd',
+          200: '#a6d4fb',
+          300: '#6db8f8',
+          400: '#2e9bf1',
+          500: '#0180e5',
+          600: '#0177e1',
+          700: '#0161be',
+          800: '#01489d',
+          900: '#0b3a7a',
         },
       },
     },

@@ -60,10 +60,10 @@
 
   /* Google Workspace Color Variables */
   :root {
-    /* Primary Colors */
-    --google-blue: #1A73E8;
-    --google-blue-hover: #1557B0;
-    --google-blue-light: #E8F0FE;
+    /* Primary Colors — Anutech brand azure (logo/favicon blues) */
+    --google-blue: #0177E1;
+    --google-blue-hover: #0161BE;
+    --google-blue-light: #E9F4FE;
 
     /* Text Colors */
     --google-text-primary: #202124;
@@ -90,7 +90,7 @@
     --google-success: #34A853;
     --google-warning: #FBBC04;
     --google-error: #EA4335;
-    --google-info: #1A73E8;
+    --google-info: #0177E1;
   }
 }
 
