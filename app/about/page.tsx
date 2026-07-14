@@ -22,7 +22,7 @@ export default function AboutPage() {
         className="pt-14 sm:pt-16"
       >
         <HeroSection
-          variant="secondary"
+          variant="brand"
           background="image"
           backgroundImage="/about-us-hero.jpg"
           overlayOpacity={0.85}
@@ -35,7 +35,7 @@ export default function AboutPage() {
               transition={{ delay: 0.15 }}
               className="inline-flex items-center gap-2 mb-5 sm:mb-6 bg-white/10 backdrop-blur-md border border-white/25 rounded-full pl-1.5 pr-4 py-1.5 shadow-lg"
             >
-              <span className="flex items-center justify-center h-6 w-6 rounded-full bg-blue-500/90">
+              <span className="flex items-center justify-center h-6 w-6 rounded-full bg-[#0180E5]/90">
                 <Award className="h-3.5 w-3.5 text-white" />
               </span>
               <span className="text-white text-[11px] sm:text-xs font-semibold tracking-[0.2em] uppercase">
