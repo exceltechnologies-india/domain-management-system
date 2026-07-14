@@ -546,19 +546,8 @@ export default function UserSettings() {
                   <SectionCard>
                     <CardHeader title="Contact Numbers" description="Used for order updates and renewal reminders" />
                     <div className="p-6 space-y-5">
-                      <div>
-                        <FieldLabel>Phone Number <span className="font-normal text-gray-400">(optional)</span></FieldLabel>
-                        <PhoneField
-                          value={user.phone || ''}
-                          onChange={v => {
-                            setUser(p => p ? { ...p, phone: v } : null);
-                            setPhoneError(v.length > 0 && v.length !== 10 ? 'Enter 10-digit mobile number' : '');
-                          }}
-                          error={phoneError}
-                          placeholder="10-digit mobile number"
-                        />
-                      </div>
-
+                      {/* WhatsApp is the PRIMARY contact — shown first to
+                          signal we prioritise it; phone follows below. */}
                       <div>
                         <FieldLabel>
                           WhatsApp Number <span className="text-red-500">*</span>{' '}
@@ -590,17 +579,32 @@ export default function UserSettings() {
                           placeholder="10-digit WhatsApp number"
                         />
                         <p className="text-xs text-gray-500 mt-1.5">Required. We use this for renewal reminders and account updates — and it doubles as your contact number for domain purposes.</p>
-                        <div className="flex items-center gap-2 mt-2">
-                          <input
-                            type="checkbox"
-                            id="wa-same"
-                            className="h-3.5 w-3.5 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                            checked={!!user.whatsappNumber && user.whatsappNumber === user.phone}
-                            onChange={e => { if (e.target.checked) setUser(p => p ? { ...p, whatsappNumber: p.phone || '' } : null); }}
-                          />
-                          <label htmlFor="wa-same" className="text-xs text-gray-500 cursor-pointer select-none">Same as phone number</label>
-                        </div>
                         <p className="text-xs text-gray-400 mt-1.5">We&apos;ll send renewal reminders and updates here. You can turn off WhatsApp messages below if you prefer email only.</p>
+
+                        {/* Phone — optional secondary contact, shown AFTER
+                            WhatsApp so the UI signals WhatsApp is prioritised. */}
+                        <div className="mt-5">
+                          <FieldLabel>Phone Number <span className="font-normal text-gray-400">(optional)</span></FieldLabel>
+                          <PhoneField
+                            value={user.phone || ''}
+                            onChange={v => {
+                              setUser(p => p ? { ...p, phone: v } : null);
+                              setPhoneError(v.length > 0 && v.length !== 10 ? 'Enter 10-digit mobile number' : '');
+                            }}
+                            error={phoneError}
+                            placeholder="10-digit mobile number"
+                          />
+                          <div className="flex items-center gap-2 mt-2">
+                            <input
+                              type="checkbox"
+                              id="phone-same-wa"
+                              className="h-3.5 w-3.5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                              checked={!!user.phone && user.phone === user.whatsappNumber}
+                              onChange={e => { if (e.target.checked) setUser(p => p ? { ...p, phone: p.whatsappNumber || '' } : null); }}
+                            />
+                            <label htmlFor="phone-same-wa" className="text-xs text-gray-500 cursor-pointer select-none">Same as WhatsApp number</label>
+                          </div>
+                        </div>
 
                         {/* WhatsApp opt-out — only meaningful once a number
                             is on file. Complements replying STOP on WhatsApp;
