@@ -54,7 +54,6 @@ export interface AbuseCheckResult {
   reason?: string;
   code?:
     | "DISPOSABLE_EMAIL"
-    | "IP_THROTTLE"
     | "DEVICE_THROTTLE"
     | "RECAPTCHA"
     | "OTP_REQUIRED";
@@ -142,23 +141,15 @@ export async function evaluateTrialAbuse(
     }
   }
 
-  // 3. IP throttle — has this IP claimed a trial within the window?
-  if (signals.ipHash) {
-    const since = new Date(Date.now() - ENFORCEMENT_WINDOW_DAYS * 24 * 60 * 60 * 1000);
-    const ipClaim = await TrialClaim.exists({
-      ipHash: signals.ipHash,
-      createdAt: { $gte: since },
-    });
-    if (ipClaim) {
-      return {
-        allowed: false,
-        code: "IP_THROTTLE",
-        reason: "A free trial has already been claimed from this network in the last 30 days. Log into your existing account or contact support if this seems wrong.",
-      };
-    }
-  }
+  // 3. IP throttle — REMOVED 2026-07-15 (operator decision). It blocked one
+  // trial per IP per 30 days, which false-positives heavily on shared
+  // networks + India mobile/CGNAT (offices, colleges, families on one public
+  // IP). Abuse is still caught at the account level (one-trial-per-account in
+  // the eligibility route) + the device-fingerprint throttle below +
+  // disposable-email + reCAPTCHA. `ipHash` is still recorded on the claim for
+  // analytics but no longer gates signup.
 
-  // 3. Device fingerprint throttle — same browser, fresh email.
+  // 4. Device fingerprint throttle — same browser, fresh email.
   if (signals.deviceFingerprint) {
     const since = new Date(Date.now() - ENFORCEMENT_WINDOW_DAYS * 24 * 60 * 60 * 1000);
     const deviceClaim = await TrialClaim.exists({

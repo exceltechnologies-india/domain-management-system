@@ -8,8 +8,8 @@
  *    (no raw IP ever persisted — DB-leak resilience)
  *  - **evaluateTrialAbuse 4-step pipeline** in order (cheapest first):
  *    1. Disposable email → DISPOSABLE_EMAIL
- *    2. IP throttle: 30-day window TrialClaim.exists({ipHash}) hit → IP_THROTTLE
- *    3. Device fingerprint throttle: same 30-day window → DEVICE_THROTTLE
+ *    2. (IP throttle REMOVED 2026-07-15 — shared-network/CGNAT false positives)
+ *    3. Device fingerprint throttle: 30-day window → DEVICE_THROTTLE
  *    4. Phone OTP: only when isTrialOtpRequired() returns true;
  *       missing otpToken → OTP_REQUIRED; verifyOtpToken invalid → OTP_REQUIRED
  *  - reCAPTCHA step was REMOVED on 2026-06-17 (full rip ahead of a fresh
@@ -134,22 +134,16 @@ describe("evaluateTrialAbuse — 4-step pipeline (cheapest first)", () => {
     expect(trialClaimExists).not.toHaveBeenCalled();
   });
 
-  it("step 2: IP throttle hit within 30-day window → IP_THROTTLE", async () => {
-    trialClaimExists.mockResolvedValueOnce({ _id: "X" });
+  it("IP throttle REMOVED (2026-07-15) — a prior claim from the same IP no longer blocks; IP is not queried", async () => {
     const result = await evaluateTrialAbuse({ ipHash: "abc123" });
-    expect(result.code).toBe("IP_THROTTLE");
-    expect(trialClaimExists).toHaveBeenCalledWith(
-      expect.objectContaining({
-        ipHash: "abc123",
-        createdAt: expect.objectContaining({ $gte: expect.any(Date) }),
-      })
-    );
+    expect(result.allowed).toBe(true);
+    // No throttle query fires when only an ipHash is supplied — IP is no
+    // longer a gating signal (shared-network/CGNAT false positives).
+    expect(trialClaimExists).not.toHaveBeenCalled();
   });
 
-  it("step 3: device fingerprint hit → DEVICE_THROTTLE (only after IP check passes)", async () => {
-    trialClaimExists
-      .mockResolvedValueOnce(null) // IP check passes
-      .mockResolvedValueOnce({ _id: "X" }); // device check hits
+  it("device fingerprint hit → DEVICE_THROTTLE", async () => {
+    trialClaimExists.mockResolvedValueOnce({ _id: "X" }); // device check hits
     const result = await evaluateTrialAbuse({
       ipHash: "abc",
       deviceFingerprint: "fp_xyz",
