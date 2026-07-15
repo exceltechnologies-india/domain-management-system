@@ -21,7 +21,6 @@ import Image from 'next/image';
 import toast from 'react-hot-toast';
 import { HOSTING_PLANS, CUSTOM_PLAN_FEATURES } from '@/config/hosting-plans';
 import { getDeviceFingerprint } from '@/lib/device-fingerprint';
-import TrialOtpModal from '@/components/hosting/TrialOtpModal';
 import { logger } from '@/lib/logger';
 import { apiClient } from '@/lib/api-client';
 
@@ -57,17 +56,10 @@ export default function HostingPage() {
     }
 
     const deviceFingerprint = await getDeviceFingerprint().catch(() => '');
-    // Pull a previously-issued OTP token from this tab's session storage.
-    // Absent unless the admin has flipped on `hosting_trial_otp_required`
-    // and the user has just completed the OTP modal.
-    const otpToken =
-      typeof window !== 'undefined'
-        ? sessionStorage.getItem('trial-otp-token') || undefined
-        : undefined;
 
-    const result = await apiClient.post<{ eligible?: boolean; code?: string; reason?: string; otpRequired?: boolean }>(
+    const result = await apiClient.post<{ eligible?: boolean; code?: string; reason?: string }>(
       '/api/v1/user/hosting/trial-eligibility',
-      { planId: plan.id, deviceFingerprint, otpToken }
+      { planId: plan.id, deviceFingerprint }
     );
 
     if (!result.ok) {
@@ -77,42 +69,11 @@ export default function HostingPage() {
     const data = result.data;
 
     if (!data.eligible) {
-      // When the OTP gate is active and the user hasn't verified yet,
-      // open the OTP modal instead of toasting an error.
-      if (data.code === 'OTP_REQUIRED') {
-        setPendingTrialPlan(plan);
-        setIsOtpModalOpen(true);
-        return;
-      }
       toast.error(data.reason || 'You are not eligible for a free trial');
       return;
     }
 
-    // Eligibility endpoint may also flag a future OTP requirement without
-    // blocking outright — present the modal proactively if so.
-    if (data.otpRequired && !otpToken) {
-      setPendingTrialPlan(plan);
-      setIsOtpModalOpen(true);
-      return;
-    }
-
     addTrialToCart(plan);
-  };
-
-  // OTP modal state — wired but inactive until admin flips the toggle.
-  const [isOtpModalOpen, setIsOtpModalOpen] = useState(false);
-  const [pendingTrialPlan, setPendingTrialPlan] = useState<
-    typeof HOSTING_PLANS[string] | null
-  >(null);
-
-  const handleOtpVerified = () => {
-    setIsOtpModalOpen(false);
-    if (pendingTrialPlan) {
-      const plan = pendingTrialPlan;
-      setPendingTrialPlan(null);
-      // Token is in sessionStorage from the modal; re-run the trial click.
-      void handleStartTrial(plan);
-    }
   };
 
   const addTrialToCart = (plan: typeof HOSTING_PLANS[string]) => {
@@ -638,16 +599,6 @@ export default function HostingPage() {
 
         <Footer />
       </motion.div>
-
-      <TrialOtpModal
-        isOpen={isOtpModalOpen}
-        defaultPhone={user ? (user as { phone?: string }).phone : undefined}
-        onClose={() => {
-          setIsOtpModalOpen(false);
-          setPendingTrialPlan(null);
-        }}
-        onVerified={handleOtpVerified}
-      />
     </div>
   );
 }

@@ -7,11 +7,9 @@
 import crypto from "crypto";
 import { NextRequest } from "next/server";
 import TrialClaim from "@/models/TrialClaim";
-import { getSettingValue } from "@/lib/services/settings";
 import { isDisposableEmail } from "@/lib/disposable-emails";
 import { RecaptchaServer } from "@/lib/recaptcha";
 import { serverLogger } from "@/lib/server-logger";
-import { verifyOtpToken } from "@/lib/trial-otp";
 
 const ENFORCEMENT_WINDOW_DAYS = 30;
 const RECAPTCHA_MIN_SCORE = 0.5;
@@ -43,10 +41,6 @@ export interface AbuseSignals {
   email?: string;
   ipHash?: string;
   deviceFingerprint?: string;
-  /** User's phone number; required when the OTP gate is active. */
-  phone?: string;
-  /** Signed token returned by /trial-otp/verify; required when OTP is active. */
-  otpToken?: string;
 }
 
 export interface AbuseCheckResult {
@@ -55,8 +49,7 @@ export interface AbuseCheckResult {
   code?:
     | "DISPOSABLE_EMAIL"
     | "DEVICE_THROTTLE"
-    | "RECAPTCHA"
-    | "OTP_REQUIRED";
+    | "RECAPTCHA";
 }
 
 /**
@@ -165,24 +158,8 @@ export async function evaluateTrialAbuse(
     }
   }
 
-  // 4. Phone OTP — only enforced when admin has flipped the toggle.
-  if (await isTrialOtpRequired()) {
-    if (!signals.otpToken) {
-      return {
-        allowed: false,
-        code: "OTP_REQUIRED",
-        reason: "Please verify your phone number before claiming the free trial.",
-      };
-    }
-    const tokenCheck = verifyOtpToken(signals.otpToken, signals.phone);
-    if (!tokenCheck.valid) {
-      return {
-        allowed: false,
-        code: "OTP_REQUIRED",
-        reason: tokenCheck.reason || "Phone verification failed. Please re-verify.",
-      };
-    }
-  }
+  // (Phone SMS OTP gate removed 2026-07-15 — feature deleted for now, may be
+  // re-added later if needed.)
 
   return { allowed: true };
 }
@@ -237,13 +214,4 @@ export async function recordTrialClaim(args: {
     // Other errors are still best-effort.
     serverLogger.error("[TrialAbuse] Failed to record trial claim:", err);
   }
-}
-
-/**
- * Phone-OTP gate. Wired but disabled by default — flip the admin setting
- * `hosting_trial_otp_required` to true when you're ready to enforce.
- */
-export async function isTrialOtpRequired(): Promise<boolean> {
-  const v = await getSettingValue("hosting_trial_otp_required");
-  return v === true || v === "true";
 }

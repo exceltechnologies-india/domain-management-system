@@ -6,34 +6,22 @@
  *  - **hashIp**: HMAC-SHA256 with AUTH_SECRET fallback → NEXTAUTH_SECRET
  *    → literal 'trial-abuse-fallback'; empty/'unknown' IP → ''
  *    (no raw IP ever persisted — DB-leak resilience)
- *  - **evaluateTrialAbuse 4-step pipeline** in order (cheapest first):
+ *  - **evaluateTrialAbuse pipeline** in order (cheapest first):
  *    1. Disposable email → DISPOSABLE_EMAIL
- *    2. (IP throttle REMOVED 2026-07-15 — shared-network/CGNAT false positives)
+ *    2. reCAPTCHA (when a token is supplied) → RECAPTCHA
  *    3. Device fingerprint throttle: 30-day window → DEVICE_THROTTLE
- *    4. Phone OTP: only when isTrialOtpRequired() returns true;
- *       missing otpToken → OTP_REQUIRED; verifyOtpToken invalid → OTP_REQUIRED
- *  - reCAPTCHA step was REMOVED on 2026-06-17 (full rip ahead of a fresh
- *    re-install). Trial abuse defences are now disposable-email + IP +
- *    device + optional phone OTP.
+ *    (IP throttle REMOVED 2026-07-15 — shared-network/CGNAT false positives;
+ *     phone SMS OTP gate REMOVED 2026-07-15 — feature deleted for now.)
  *  - All-clear → {allowed:true}
  *  - **recordTrialClaim E11000 (duplicate-key race) is SWALLOWED**
  *    (the prior insert already records the claim; this attempt is a
  *    coordinated double-claim — log + return, don't throw because user
  *    paid the ₹1 trial fee already); non-E11000 → also swallowed (logged)
- *  - **isTrialOtpRequired**: settings value true OR string 'true' → true;
- *    everything else → false
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const isDisposableEmail = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/disposable-emails", () => ({ isDisposableEmail }));
-
-
-const getSettingValue = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/services/settings", () => ({ getSettingValue }));
-
-const verifyOtpToken = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/trial-otp", () => ({ verifyOtpToken }));
 
 const trialClaimExists = vi.hoisted(() => vi.fn());
 const trialClaimCreate = vi.hoisted(() => vi.fn());
@@ -50,7 +38,6 @@ import {
   hashIp,
   evaluateTrialAbuse,
   recordTrialClaim,
-  isTrialOtpRequired,
 } from "@/lib/trial-abuse";
 
 function mockReq(headers: Record<string, string> = {}): never {
@@ -60,9 +47,6 @@ function mockReq(headers: Record<string, string> = {}): never {
 beforeEach(() => {
   isDisposableEmail.mockReset();
   isDisposableEmail.mockReturnValue(false);
-  getSettingValue.mockReset();
-  getSettingValue.mockResolvedValue(false); // OTP off by default
-  verifyOtpToken.mockReset();
   trialClaimExists.mockReset();
   trialClaimExists.mockResolvedValue(null);
   trialClaimCreate.mockReset();
@@ -151,44 +135,6 @@ describe("evaluateTrialAbuse — 4-step pipeline (cheapest first)", () => {
     expect(result.code).toBe("DEVICE_THROTTLE");
   });
 
-  it("step 4: OTP required + missing otpToken → OTP_REQUIRED", async () => {
-    getSettingValue.mockResolvedValueOnce(true);
-    const result = await evaluateTrialAbuse({});
-    expect(result.code).toBe("OTP_REQUIRED");
-    expect(result.reason).toMatch(/verify your phone/i);
-  });
-
-  it("step 4: OTP required + invalid otpToken → OTP_REQUIRED with verifier reason", async () => {
-    getSettingValue.mockResolvedValueOnce(true);
-    verifyOtpToken.mockReturnValueOnce({
-      valid: false,
-      reason: "OTP expired",
-    });
-    const result = await evaluateTrialAbuse({
-      otpToken: "stale",
-      phone: "+919999",
-    });
-    expect(result.code).toBe("OTP_REQUIRED");
-    expect(result.reason).toBe("OTP expired");
-  });
-
-  it("step 4: OTP required + valid token → passes", async () => {
-    getSettingValue.mockResolvedValueOnce(true);
-    verifyOtpToken.mockReturnValueOnce({ valid: true });
-    const result = await evaluateTrialAbuse({
-      otpToken: "good",
-      phone: "+919999",
-    });
-    expect(result.allowed).toBe(true);
-  });
-
-  it("OTP disabled (default) → OTP step skipped entirely", async () => {
-    // verifyOtpToken not called
-    const result = await evaluateTrialAbuse({});
-    expect(result.allowed).toBe(true);
-    expect(verifyOtpToken).not.toHaveBeenCalled();
-  });
-
   it("all-clear: returns {allowed:true} only", async () => {
     const result = await evaluateTrialAbuse({
       email: "u@x.test",
@@ -245,27 +191,5 @@ describe("recordTrialClaim — E11000 race tolerance", () => {
     });
     const [payload] = trialClaimCreate.mock.calls[0];
     expect(payload.ipHash).toBeUndefined();
-  });
-});
-
-describe("isTrialOtpRequired", () => {
-  it("setting value === true → returns true", async () => {
-    getSettingValue.mockResolvedValueOnce(true);
-    expect(await isTrialOtpRequired()).toBe(true);
-  });
-
-  it("setting value === 'true' (string) → returns true", async () => {
-    getSettingValue.mockResolvedValueOnce("true");
-    expect(await isTrialOtpRequired()).toBe(true);
-  });
-
-  it("setting value false → false", async () => {
-    getSettingValue.mockResolvedValueOnce(false);
-    expect(await isTrialOtpRequired()).toBe(false);
-  });
-
-  it("setting unset / undefined → false (default-off)", async () => {
-    getSettingValue.mockResolvedValueOnce(undefined);
-    expect(await isTrialOtpRequired()).toBe(false);
   });
 });

@@ -197,10 +197,6 @@ export default function AdminSettings() {
   const [hostingTrialEnabled, setHostingTrialEnabled] = useState(true);
   const [isSavingTrial, setIsSavingTrial] = useState(false);
 
-  // Trial — phone OTP gate (wired but off by default)
-  const [trialOtpRequired, setTrialOtpRequired] = useState(false);
-  const [isSavingTrialOtp, setIsSavingTrialOtp] = useState(false);
-
   // Test plan
   const [testPlanEnabled, setTestPlanEnabled] = useState(false);
   const [testPlanRazorpayId, setTestPlanRazorpayId] = useState("");
@@ -306,8 +302,6 @@ export default function AdminSettings() {
     if (!result.ok) return;
     const s = result.data.settings?.hosting_trial_enabled;
     if (s !== undefined) setHostingTrialEnabled(s.value !== false);
-    const otp = result.data.settings?.hosting_trial_otp_required;
-    if (otp !== undefined) setTrialOtpRequired(otp.value === true || otp.value === "true");
   };
 
   const loadTestPlanSettings = async () => {
@@ -394,19 +388,6 @@ export default function AdminSettings() {
     if (result.ok) showSuccessToast(`Hosting trial ${hostingTrialEnabled ? "enabled" : "disabled"}`);
     else showErrorToast("Failed to save trial settings");
     setIsSavingTrial(false);
-  };
-
-  const saveTrialOtpSettings = async () => {
-    setIsSavingTrialOtp(true);
-    const result = await apiClient.post("/api/v1/admin/settings", {
-      key: "hosting_trial_otp_required",
-      value: trialOtpRequired,
-      description: "Require phone OTP verification before claiming the hosting free trial",
-      category: "security",
-    });
-    if (result.ok) showSuccessToast(`Trial phone-OTP gate ${trialOtpRequired ? "enabled" : "disabled"}`);
-    else showErrorToast("Failed to save trial OTP settings");
-    setIsSavingTrialOtp(false);
   };
 
   const saveTestPlan = async (action: "enable" | "disable") => {
@@ -901,26 +882,6 @@ export default function AdminSettings() {
                   </div>
                   <SFooter>
                     <SaveBtn onClick={saveHostingTrialSettings} loading={isSavingTrial} label="Save Trial Settings" color="purple" />
-                  </SFooter>
-                </SCard>
-
-                {/* Trial — Phone OTP Gate (anti-abuse) */}
-                <SCard>
-                  <SCardHead
-                    title="Trial — Phone OTP Verification"
-                    description="Require an SMS OTP before a user can claim the free trial. Strongest deterrent against email-rotation abuse. Wired but currently off."
-                    action={<Toggle checked={trialOtpRequired} onChange={setTrialOtpRequired} color="purple" />}
-                  />
-                  <div className="p-6">
-                    <StatusBanner
-                      active={trialOtpRequired}
-                      color="purple"
-                      activeMsg="Phone OTP is enforced. Users must verify their mobile number before the trial button works. Make sure SMS_PROVIDER and credentials are configured."
-                      inactiveMsg="Phone OTP is off. Disposable-email and IP/device-throttle layers are still active. Flip this on once your SMS provider (MSG91) is wired up."
-                    />
-                  </div>
-                  <SFooter>
-                    <SaveBtn onClick={saveTrialOtpSettings} loading={isSavingTrialOtp} label="Save OTP Settings" color="purple" />
                   </SFooter>
                 </SCard>
 

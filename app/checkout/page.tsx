@@ -167,7 +167,6 @@ export default function CheckoutPage() {
       // Device fingerprint — used server-side for trial-abuse defenses.
       // Best-effort; absence is non-fatal for non-trial orders.
       const deviceFingerprint = await getDeviceFingerprint().catch(() => '');
-      const trialOtpToken = safeSessionStorage.getItem('trial-otp-token') || undefined;
 
       // Create payment order
       const response = await fetch('/api/v1/payments/create-order', {
@@ -178,7 +177,6 @@ export default function CheckoutPage() {
         body: JSON.stringify({
           cartItems: cartItems,
           deviceFingerprint,
-          otpToken: trialOtpToken,
         }),
         credentials: 'include',
       });

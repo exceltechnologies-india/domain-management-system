@@ -24,7 +24,7 @@
  *  - evaluateTrialAbuse.allowed=false → eligible:false with code
  *    + reason from abuse helper
  *  - planId supplied + plan missing yearly Razorpay → eligible:false
- *  - happy path → eligible:true, trialDays:15, otpRequired from setting
+ *  - happy path → eligible:true, trialDays:15
  *  - POST schema accepts the 4 optional fields; bad body → 400
  *  - GET pulls planId from ?planId query
  */
@@ -47,12 +47,10 @@ vi.mock("@/lib/services/settings", () => ({ getSettingValue }));
 const evaluateTrialAbuse = vi.hoisted(() => vi.fn());
 const getClientIp = vi.hoisted(() => vi.fn());
 const hashIp = vi.hoisted(() => vi.fn());
-const isTrialOtpRequired = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/trial-abuse", () => ({
   evaluateTrialAbuse,
   getClientIp,
   hashIp,
-  isTrialOtpRequired,
 }));
 
 vi.mock("@/lib/server-logger", () => ({
@@ -96,7 +94,6 @@ function setupHappy() {
   getClientIp.mockReturnValue("203.0.113.1");
   hashIp.mockReturnValue("hashed_ip");
   evaluateTrialAbuse.mockResolvedValue({ allowed: true });
-  isTrialOtpRequired.mockResolvedValue(false);
 }
 
 beforeEach(() => {
@@ -107,7 +104,6 @@ beforeEach(() => {
   evaluateTrialAbuse.mockReset();
   getClientIp.mockReset();
   hashIp.mockReset();
-  isTrialOtpRequired.mockReset();
 });
 
 describe("Auth gate", () => {
@@ -182,12 +178,11 @@ describe("Layer 3 — anti-abuse defenses", () => {
     expect(getPlanByPlanId).not.toHaveBeenCalled();
   });
 
-  it("abuse signals (deviceFingerprint, otpToken) passed through to evaluator", async () => {
+  it("abuse signals (deviceFingerprint) passed through to evaluator", async () => {
     setupHappy();
     await POST(
       makePost({
         deviceFingerprint: "fp-abc",
-        otpToken: "otp-tok",
       })
     );
     const [signals, opts] = evaluateTrialAbuse.mock.calls[0];
@@ -196,8 +191,6 @@ describe("Layer 3 — anti-abuse defenses", () => {
         email: "alice@example.com",
         ipHash: "hashed_ip",
         deviceFingerprint: "fp-abc",
-        phone: "9999999999",
-        otpToken: "otp-tok",
       })
     );
     expect(opts).toEqual(
@@ -300,25 +293,8 @@ describe("Layer 4 — planId yearly-Razorpay-mapping", () => {
   });
 });
 
-describe("Layer 5 — OTP-required flag", () => {
-  it("isTrialOtpRequired=true → response carries otpRequired:true", async () => {
-    setupHappy();
-    isTrialOtpRequired.mockResolvedValueOnce(true);
-    const res = await POST(makePost());
-    const body = await res.json();
-    expect(body.otpRequired).toBe(true);
-  });
-
-  it("isTrialOtpRequired=false → otpRequired:false", async () => {
-    setupHappy();
-    const res = await POST(makePost());
-    const body = await res.json();
-    expect(body.otpRequired).toBe(false);
-  });
-});
-
 describe("Happy path response shape", () => {
-  it("eligible:true with trialDays:15 + otpRequired", async () => {
+  it("eligible:true with trialDays:15", async () => {
     setupHappy();
     const res = await POST(makePost());
     expect(res.status).toBe(200);
@@ -326,7 +302,6 @@ describe("Happy path response shape", () => {
     expect(body).toEqual({
       eligible: true,
       trialDays: 15,
-      otpRequired: false,
     });
   });
 });

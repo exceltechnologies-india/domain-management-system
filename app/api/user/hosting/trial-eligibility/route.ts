@@ -9,7 +9,6 @@ import {
   evaluateTrialAbuse,
   getClientIp,
   hashIp,
-  isTrialOtpRequired,
 } from "@/lib/trial-abuse";
 import { validatedBody, z } from "@/lib/api-validation";
 
@@ -18,7 +17,6 @@ export const dynamic = "force-dynamic";
 const eligibilitySchema = z.object({
   planId: z.string().optional(),
   deviceFingerprint: z.string().optional(),
-  otpToken: z.string().optional(),
   recaptchaToken: z.string().nullable().optional(),
 });
 
@@ -59,8 +57,6 @@ async function runEligibility(
       email: user.email,
       ipHash: hashIp(clientIp),
       deviceFingerprint: body.deviceFingerprint,
-      phone: user.phone,
-      otpToken: body.otpToken,
     },
     { clientIp, recaptchaToken: body.recaptchaToken || undefined }
   );
@@ -95,14 +91,9 @@ async function runEligibility(
     }
   }
 
-  // 5. OTP gate (wired but disabled by default — flip
-  // `hosting_trial_otp_required` setting to true to enforce)
-  const otpRequired = await isTrialOtpRequired();
-
   return secureJsonResponse({
     eligible: true,
     trialDays: 15,
-    otpRequired,
   });
 }
 
