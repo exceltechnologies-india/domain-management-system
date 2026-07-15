@@ -86,7 +86,7 @@ export default function InvoicesPage() {
             email: user?.email,
             name: `${user?.firstName} ${user?.lastName}`
           },
-          theme: { color: "#2563eb" }
+          theme: { color: "#0177E1" }
         });
       } catch (err: unknown) {
         if ((err as { kind?: string })?.kind === 'dismissed') {

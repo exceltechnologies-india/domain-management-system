@@ -289,7 +289,7 @@ function GuestCheckoutInner() {
             name: `${firstName.trim()} ${lastName.trim()}`.trim(),
             contact: `+91${phone}`,
           },
-          theme: { color: '#3b82f6' },
+          theme: { color: '#0177E1' },
         });
 
         await verifyPayment(

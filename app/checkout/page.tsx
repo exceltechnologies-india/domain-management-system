@@ -305,7 +305,7 @@ export default function CheckoutPage() {
             customer_id: razorpayCustomerId,
             recurring: '1',
             prefill,
-            theme: { color: '#3b82f6' },
+            theme: { color: '#0177E1' },
           });
 
           await verifyPayment(
@@ -323,7 +323,7 @@ export default function CheckoutPage() {
             description: `Payment for ${cartItems.length} items`,
             order_id: razorpayOrderId,
             prefill,
-            theme: { color: '#3b82f6' },
+            theme: { color: '#0177E1' },
           });
 
           if (razorpaySubscriptionId) {
@@ -338,7 +338,7 @@ export default function CheckoutPage() {
             description: 'Hosting Subscription',
             subscription_id: razorpaySubscriptionId,
             prefill,
-            theme: { color: '#3b82f6' },
+            theme: { color: '#0177E1' },
           });
 
           await verifyPayment(

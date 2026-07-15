@@ -105,7 +105,7 @@ export default function HostingRenewalModal({
           description: `Renewal for ${domainName} (1 Year)`,
           order_id: data.razorpayOrderId,
           prefill: { email: session?.user?.email || '' },
-          theme: { color: '#2563eb' }
+          theme: { color: '#0177E1' }
         });
       } catch (err: unknown) {
         // User dismissed the modal, or the iframe reported an error.

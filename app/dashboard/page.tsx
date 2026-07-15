@@ -455,7 +455,7 @@ export default function UserDashboard() {
                 className="space-y-5"
               >
                 {/* Need a new domain CTA */}
-                <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-700 rounded-2xl p-6 text-white shadow-md">
+                <div className="relative overflow-hidden bg-gradient-to-br from-[#0180E5] via-[#0177E1] to-[#01489D] rounded-2xl p-6 text-white shadow-md">
                   <div className="absolute -top-6 -right-6 w-24 h-24 bg-white/10 rounded-full blur-xl" />
                   <div className="absolute -bottom-8 -left-4 w-20 h-20 bg-white/5 rounded-full blur-xl" />
                   <div className="relative">

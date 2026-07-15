@@ -109,7 +109,7 @@ export default function HostingUpgradeModal({
           description: `Upgrade to ${selectedPlan.name} for ${domainName}`,
           order_id: razorpayOrderId,
           prefill: { email: userEmail },
-          theme: { color: '#2563eb' },
+          theme: { color: '#0177E1' },
         });
       } catch (err: unknown) {
         // The iframe-checkout helper throws a tagged `{ kind: 'dismissed' }`

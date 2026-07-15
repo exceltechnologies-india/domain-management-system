@@ -217,7 +217,7 @@ export default function SupportPage() {
         <div className="space-y-6 p-6">
 
           {/* Header */}
-          <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl p-6 text-white shadow-lg">
+          <div className="bg-gradient-to-br from-[#0177E1] to-[#01489D] rounded-2xl p-6 text-white shadow-lg">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 bg-white/20 rounded-xl backdrop-blur-sm">
