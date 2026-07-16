@@ -216,8 +216,16 @@ export function useDomainSearch({
     } else {
       setResults([]);
       setSuggestions([]);
-      setError('Network error. Please check your connection and try again.');
-      toast.error('Network error. Please check your connection and try again.');
+      // Only a genuine network failure (status 0) is a "connection" problem.
+      // For a real server response (400/500/etc.) surface the server's
+      // message — otherwise a clear error like "Domain name is too short"
+      // was being mislabelled as a scary "Network error".
+      const isNetwork = quickResult.error.status === 0;
+      const msg = isNetwork
+        ? 'Network error. Please check your connection and try again.'
+        : quickResult.error.message || 'Failed to search domain. Please try again.';
+      setError(msg);
+      toast.error(msg);
       setIsSearching(false);
       return;
     }

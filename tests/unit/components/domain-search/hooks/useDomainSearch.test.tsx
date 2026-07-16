@@ -283,6 +283,24 @@ describe("useDomainSearch", () => {
     expect(toastFn.error).toHaveBeenCalledWith(expect.stringMatching(/network error/i));
   });
 
+  it("quick SERVER error (non-network, e.g. 400) → surfaces the server message, not 'Network error'", async () => {
+    apiPostMock.mockResolvedValueOnce({
+      ok: false,
+      error: { status: 400, message: "Domain name is too short" },
+    });
+    const { result } = renderHook(() => useDomainSearch({}));
+    await act(async () => {
+      result.current.handleInputChange({
+        target: { value: "example.com" },
+      } as React.ChangeEvent<HTMLInputElement>);
+    });
+    await act(async () => {
+      await result.current.handleSearch();
+    });
+    expect(result.current.error).toBe("Domain name is too short");
+    expect(result.current.error).not.toMatch(/network error/i);
+  });
+
   it("handleInputChange: 'example' (bare) → searchMode='multiple', baseDomain='example'", () => {
     const { result } = renderHook(() => useDomainSearch({}));
     act(() => {

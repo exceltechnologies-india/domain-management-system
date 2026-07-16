@@ -598,7 +598,10 @@ export class InputValidator {
 
     const sanitized = domainName.replace(/\s+/g, "").toLowerCase();
 
-    if (sanitized.length < 3) {
+    // A DNS label can be 1–63 chars; 1–2 char domains are legitimate (and all
+    // registered, so a search should show them as taken rather than erroring).
+    // The old min-of-3 blocked searches like "ff" with a hard 400.
+    if (sanitized.length < 1) {
       errors.push("Domain name is too short");
     }
 

@@ -366,8 +366,13 @@ describe("InputValidator.validateDomainName", () => {
     expect(r.sanitized).toBe("example.com");
   });
 
-  it("rejects a domain shorter than 3 characters", () => {
-    const r = InputValidator.validateDomainName("ab");
+  it("accepts a 2-character domain label (e.g. 'ff') — short labels are valid", () => {
+    const r = InputValidator.validateDomainName("ff");
+    expect(r.isValid).toBe(true);
+  });
+
+  it("rejects an empty domain", () => {
+    const r = InputValidator.validateDomainName("");
     expect(r.isValid).toBe(false);
   });
 });
