@@ -103,6 +103,15 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
     if (href === '/dashboard') {
       return pathname === '/dashboard' || pathname === '/dashboard/';
     }
+    // DNS management is reached from the Domains section ("Manage DNS"), so
+    // keep the Domains nav item highlighted there instead of dropping the
+    // active state (which made the page read as "Dashboard").
+    if (href === '/dashboard/domains') {
+      return (
+        pathname.startsWith('/dashboard/domains') ||
+        pathname.startsWith('/dashboard/dns-management')
+      );
+    }
     return pathname.startsWith(href);
   };
 
