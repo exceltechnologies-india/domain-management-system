@@ -132,6 +132,10 @@ function AdminDNSManagementContent() {
   const [ns3, setNs3] = useState("");
   const [ns4, setNs4] = useState("");
   const [nsMode, setNsMode] = useState<'default' | 'custom'>('default');
+  // True when the domain's CURRENT nameservers are already our managed
+  // defaults — used to show a "Defaults active" state instead of an active
+  // "Apply Default Nameservers" button (applying would be a no-op).
+  const [isCurrentlyDefault, setIsCurrentlyDefault] = useState(false);
   const [nameserverPropagationStatus, setNameserverPropagationStatus] = useState<'idle' | 'awaiting' | 'verified' | 'error'>('idle');
   const [nsPropagationAttempts, setNsPropagationAttempts] = useState(0);
   const [targetNs, setTargetNs] = useState<string[]>([]);
@@ -274,12 +278,18 @@ function AdminDNSManagementContent() {
       const loadedNameservers = result.data.nameservers || [];
       setNameservers(loadedNameservers);
 
-      // Auto-detect mode
-      const isDefaultNs = loadedNameservers.every((ns: string) =>
-        ns.toLowerCase().includes('deepak1299294') && ns.toLowerCase().includes('orderbox-dns.com')
-      );
+      // Auto-detect mode. Our managed/default nameservers live on
+      // `*.orderbox-dns.com` — match on that domain only (the per-customer
+      // subdomain prefix varies, so it must NOT be part of the check;
+      // hardcoding one customer's prefix here was a bug).
+      const isDefaultNs =
+        loadedNameservers.length > 0 &&
+        loadedNameservers.every((ns: string) =>
+          ns.toLowerCase().includes('orderbox-dns.com')
+        );
+      setIsCurrentlyDefault(isDefaultNs);
 
-      if (isDefaultNs && loadedNameservers.length > 0) {
+      if (isDefaultNs) {
         setNsMode('default');
         setNs1(''); setNs2(''); setNs3(''); setNs4('');
       } else if (loadedNameservers.length > 0) {
@@ -291,6 +301,7 @@ function AdminDNSManagementContent() {
       }
     } else {
       setNameservers([]);
+      setIsCurrentlyDefault(false);
     }
     setIsNameserverLoading(false);
   };
@@ -764,6 +775,18 @@ function AdminDNSManagementContent() {
 
                         {/* Apply panel — default mode */}
                         {nsMode === 'default' ? (
+                          isCurrentlyDefault ? (
+                            /* Already on our default nameservers — no action to take. */
+                            <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
+                              <div className="p-2 bg-white rounded-lg border border-green-100 shadow-sm shrink-0">
+                                <CheckCircle className="h-4 w-4 text-green-600" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-semibold text-green-800">Defaults active</p>
+                                <p className="text-xs text-green-700/80 mt-0.5">This domain is already using our managed nameservers.</p>
+                              </div>
+                            </div>
+                          ) : (
                           <div className="flex items-center justify-between gap-4 p-4 bg-gradient-to-br from-blue-50/40 to-indigo-50/40 border border-blue-100 rounded-xl flex-wrap">
                             <div className="flex items-center gap-3 min-w-0">
                               <div className="p-2 bg-white rounded-lg border border-blue-100 shadow-sm shrink-0">
@@ -787,6 +810,7 @@ function AdminDNSManagementContent() {
                               Apply Default Nameservers
                             </button>
                           </div>
+                          )
                         ) : (
                           /* Custom NS form */
                           <div className="space-y-4">
