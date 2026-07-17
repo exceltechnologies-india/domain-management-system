@@ -44,7 +44,7 @@ export default function SearchInput({
             onSearch(e as unknown as React.FormEvent);
           }
         }}
-        className="relative flex flex-row items-stretch gap-2 sm:gap-2.5"
+        className="relative flex flex-col sm:flex-row items-stretch gap-2.5 sm:gap-2.5"
       >
         {/* Input pill */}
         <div
@@ -75,10 +75,10 @@ export default function SearchInput({
           onClick={() => onSearch()}
           disabled={isSearching || !searchTerm.trim()}
           aria-label="Search domains"
-          className={`flex-shrink-0 bg-gradient-to-b from-[#0197FF] to-[#0161C4] hover:from-[#22A6FF] hover:to-[#0170DA] text-white font-bold rounded-xl sm:rounded-2xl ring-1 ring-white/30 transition-all duration-300 flex items-center justify-center gap-2 shadow-[0_8px_22px_rgba(1,73,157,0.5)] hover:shadow-[0_10px_30px_rgba(1,128,229,0.6)] disabled:opacity-60 disabled:saturate-50 active:scale-95 ${
+          className={`w-full sm:w-auto flex-shrink-0 bg-gradient-to-b from-[#0197FF] to-[#0161C4] hover:from-[#22A6FF] hover:to-[#0170DA] text-white font-bold rounded-xl sm:rounded-2xl ring-1 ring-white/30 transition-all duration-300 flex items-center justify-center gap-2 shadow-[0_8px_22px_rgba(1,73,157,0.5)] hover:shadow-[0_10px_30px_rgba(1,128,229,0.6)] disabled:opacity-60 disabled:saturate-50 active:scale-95 ${
             compact
-              ? 'px-5 py-4 sm:py-3.5 text-base sm:text-sm'
-              : 'px-6 py-4 sm:py-4 text-base'
+              ? 'py-4 sm:py-3.5 sm:px-5 text-base sm:text-sm'
+              : 'py-4 sm:py-4 sm:px-6 text-base'
           }`}
         >
           <AnimatePresence mode="wait">
