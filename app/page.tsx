@@ -1,10 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
 import { motion } from 'framer-motion';
-import { Search, Shield, CreditCard, Globe, Star, Users, Clock, Smartphone, Headphones, Mail, Phone, MapPin, ArrowRight, CheckCircle, TrendingUp, Database, Server, Wifi, ChevronDown, TrendingDown } from 'lucide-react';
+import { Search, Shield, CreditCard, Globe, Star, Users, Clock, Headphones, CheckCircle, TrendingUp, Database } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import HeroSection from '@/components/HeroSection';
 import Section from '@/components/Section';
@@ -115,7 +113,7 @@ export default function HomePage() {
                   Domain Registration & Management
                 </h2>
                 <p className="text-lg sm:text-xl text-gray-600 leading-relaxed px-4 max-w-3xl mx-auto" style={{ fontFamily: 'Roboto, system-ui, sans-serif' }}>
-                  Anutech Digital Private Limited is a professional <strong className="text-primary-700">domain registration and web hosting platform</strong> that helps individuals and businesses secure their online identity.
+                  Anutech Digital Private Limited is a professional <strong className="text-primary-700">domain registration and management platform</strong> that helps individuals and businesses secure their online identity.
                 </p>
               </motion.div>
             </div>
@@ -148,104 +146,6 @@ export default function HomePage() {
           </div>
         </Section>
 
-        {/* Web Hosting Services Section */}
-        <Section background="white" className="relative overflow-hidden">
-          {/* Decorative gradient background */}
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-50/40 via-white to-primary-50/30 pointer-events-none" />
-
-          <div className="max-w-screen-2xl mx-auto relative z-10">
-            <div className="grid lg:grid-cols-2 gap-12 items-center mb-16">
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.6 }}
-                className="text-center lg:text-left"
-              >
-                <div className="inline-flex items-center gap-2 mb-4 bg-blue-50 border border-blue-100 rounded-full px-3 py-1.5 text-xs sm:text-sm font-semibold text-blue-700">
-                  <Server className="h-3.5 w-3.5" />
-                  Powered by Google
-                </div>
-                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 mb-5" style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}>
-                  Web Hosting Services
-                </h2>
-                <p className="text-lg sm:text-xl text-gray-600 leading-relaxed mb-6" style={{ fontFamily: 'Roboto, system-ui, sans-serif' }}>
-                  Anutech Digital Private Limited provides <strong className="text-blue-700">Web Hosting backed by Google Servers</strong> - delivering enterprise-grade performance, reliability, and security for your websites and applications.
-                </p>
-                <p className="text-gray-600 leading-relaxed">
-                  Our infrastructure is designed to scale with your business, ensuring that your website remains fast and accessible even during traffic spikes.
-                </p>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.6, delay: 0.2 }}
-                className="relative"
-              >
-                <div className="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-white">
-                  <Image
-                    src="/server-infrastructure.jpg"
-                    alt="Server Infrastructure"
-                    width={800}
-                    height={600}
-                    className="w-full h-auto object-cover"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent pointer-events-none" />
-                </div>
-                {/* Decorative elements — hidden on mobile to prevent horizontal overflow */}
-                <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-blue-100 rounded-full z-[-1] opacity-50 hidden sm:block" />
-                <div className="absolute -top-6 -left-6 w-32 h-32 bg-primary-100 rounded-full z-[-1] opacity-50 hidden sm:block" />
-              </motion.div>
-            </div>
-
-            <div className="grid sm:grid-cols-2 gap-5 sm:gap-6">
-              {([
-                { title: 'Google Cloud Infrastructure', body: "Powered by Google's world-class server fleet with global data centres, delivering lightning-fast load times and a 99.9% uptime guarantee." },
-                { title: 'Scalable Performance', body: 'Automatic resource scaling, NVMe SSD storage, and distributed architecture so traffic spikes never compromise performance.' },
-                { title: 'Enterprise Security', body: 'Free SSL certificates, DDoS protection, automated backups, malware scanning, and enterprise-grade firewalls baked in.' },
-                { title: 'Easy Management', body: 'Friendly control panel, one-click WordPress installer, email hosting, and 24/7 expert support for a seamless hosting experience.' },
-              ] as const).map((card, i) => (
-                <motion.div
-                  key={card.title}
-                  initial={{ opacity: 0, y: 16 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.4, delay: i * 0.08 }}
-                  className="group bg-white rounded-2xl p-5 sm:p-6 border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-200 transition-all duration-300 text-left"
-                >
-                  <div className="flex items-start gap-3 mb-3">
-                    <div className="p-2 rounded-xl bg-blue-50 text-blue-600 group-hover:bg-blue-100 transition-colors shrink-0">
-                      <CheckCircle className="h-5 w-5" />
-                    </div>
-                    <h3 className="text-lg font-bold text-gray-900 pt-1">{card.title}</h3>
-                  </div>
-                  <p className="text-sm sm:text-base text-gray-600 leading-relaxed">{card.body}</p>
-                </motion.div>
-              ))}
-            </div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 0.5 }}
-              className="flex justify-center mt-10"
-            >
-              <Link
-                href="/hosting#pricing"
-                className="group relative bg-gradient-to-r from-[#0180E5] to-[#01489D] text-white hover:from-[#0177E1] hover:to-[#013A80] font-bold py-4 px-10 rounded-full shadow-xl hover:shadow-2xl transition-all duration-300 flex items-center gap-2 overflow-hidden"
-              >
-                <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-300" />
-                <Server className="h-5 w-5 group-hover:rotate-12 transition-transform duration-300" />
-                <span>Explore Hosting Plans</span>
-                <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform duration-300" />
-              </Link>
-            </motion.div>
-          </div>
-        </Section>
-
         <Section background="white">
           <div className="text-center mb-10 sm:mb-14">
             <div className="inline-flex items-center gap-2 mb-4 bg-primary-50 border border-primary-100 rounded-full px-3 py-1.5 text-xs sm:text-sm font-semibold text-primary-700">
@@ -253,10 +153,10 @@ export default function HomePage() {
               Everything in one place
             </div>
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}>
-              Complete Web Solutions Platform
+              Everything you need to own your domain
             </h2>
             <p className="text-base sm:text-lg text-gray-600 max-w-3xl mx-auto" style={{ fontFamily: 'Roboto, system-ui, sans-serif' }}>
-              Domain registration, reliable hosting, and the tools you need to launch and grow online — backed by 24/7 support.
+              Search, register, and manage your domains from one clean dashboard — with transparent pricing and 24/7 support.
             </p>
           </div>
 
@@ -277,19 +177,19 @@ export default function HomePage() {
               description="Buy domains securely with Razorpay payment gateway - supports credit/debit cards, UPI, net banking, and digital wallets"
             />
             <FeatureCard
-              icon={<Server className="h-8 w-8" />}
-              title="Powerful Hosting"
-              description="High-performance web hosting with free SSL, NVMe SSD storage, and one-click installers for WordPress and other apps"
+              icon={<Shield className="h-8 w-8" />}
+              title="WHOIS Privacy"
+              description="Keep your personal contact details off the public WHOIS record with built-in privacy protection on supported extensions"
+            />
+            <FeatureCard
+              icon={<Clock className="h-8 w-8" />}
+              title="Renewals & Reminders"
+              description="Never lose a domain — optional auto-renew plus timely expiration reminders keep every name you own active"
             />
             <FeatureCard
               icon={<Headphones className="h-8 w-8" />}
               title="24/7 Expert Support"
               description="Get help anytime with our dedicated support team via email, phone, or chat for domain setup, transfers, and technical assistance"
-            />
-            <FeatureCard
-              icon={<Clock className="h-8 w-8" />}
-              title="DirectAdmin Panel"
-              description="Manage your hosting with DirectAdmin - a powerful control panel for website management, email accounts, databases, and complete server control"
             />
           </div>
         </Section>
