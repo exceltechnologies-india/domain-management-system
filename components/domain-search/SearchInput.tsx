@@ -62,7 +62,7 @@ export default function SearchInput({
             onChange={onChange}
             placeholder="Register a domain name to start"
             className={`w-full px-4 sm:px-5 bg-transparent border-0 focus:ring-0 focus:outline-none font-medium text-gray-900 placeholder-gray-400 ${
-              compact ? 'py-5 sm:py-3.5 text-sm sm:text-base' : 'py-3.5 sm:py-4 text-sm sm:text-lg'
+              compact ? 'py-3 sm:py-3.5 text-sm sm:text-base' : 'py-3.5 sm:py-4 text-sm sm:text-lg'
             }`}
             style={{ fontFamily: 'Roboto, system-ui, sans-serif' }}
             disabled={isSearching}
@@ -77,7 +77,7 @@ export default function SearchInput({
           aria-label="Search domains"
           className={`flex-shrink-0 bg-gradient-to-b from-[#0197FF] to-[#0161C4] hover:from-[#22A6FF] hover:to-[#0170DA] text-white font-bold rounded-xl sm:rounded-2xl ring-1 ring-white/30 transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 shadow-[0_8px_22px_rgba(1,73,157,0.5)] hover:shadow-[0_10px_30px_rgba(1,128,229,0.6)] disabled:opacity-60 disabled:saturate-50 active:scale-95 ${
             compact
-              ? 'w-12 sm:w-auto sm:px-5 py-5 sm:py-3.5 text-sm'
+              ? 'w-12 sm:w-auto sm:px-5 py-3 sm:py-3.5 text-sm'
               : 'w-14 sm:w-auto sm:px-6 py-3.5 sm:py-4 text-base'
           }`}
         >

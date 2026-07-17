@@ -35,7 +35,7 @@ export default function HomePage() {
           backgroundImage="/domain-1.jpeg"
           variant="brand"
           overlayOpacity={0.96}
-          className="flex items-center py-12 sm:py-16 lg:min-h-[56vh]"
+          className="flex items-center py-12 sm:py-16 min-h-[80vh] lg:min-h-[56vh]"
         >
           <div className="text-center w-full max-w-3xl mx-auto">
             {/* Eyebrow */}
