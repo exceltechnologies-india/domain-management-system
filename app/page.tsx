@@ -2,12 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Shield, CreditCard, Globe, Star, Users, Clock, Headphones, CheckCircle, TrendingUp, Database } from 'lucide-react';
+import { Search, Shield, CreditCard, Globe, Star, Clock, Headphones, CheckCircle, Database } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import HeroSection from '@/components/HeroSection';
 import Section from '@/components/Section';
 import FeatureCard from '@/components/FeatureCard';
-import StatsCard from '@/components/StatsCard';
 import DomainSearch from '@/components/DomainSearch';
 import ClientOnly from '@/components/ClientOnly';
 import Footer from '@/components/Footer';
@@ -190,52 +189,6 @@ export default function HomePage() {
               icon={<Headphones className="h-8 w-8" />}
               title="24/7 Expert Support"
               description="Get help anytime with our dedicated support team via email, phone, or chat for domain setup, transfers, and technical assistance"
-            />
-          </div>
-        </Section>
-
-        <Section background="gray">
-          <div className="text-center mb-10 sm:mb-14">
-            <div className="inline-flex items-center gap-2 mb-4 bg-white border border-primary-100 rounded-full px-3 py-1.5 text-xs sm:text-sm font-semibold text-primary-700 shadow-sm">
-              <TrendingUp className="h-3.5 w-3.5" />
-              Our Impact
-            </div>
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}>
-              Trusted by thousands across India
-            </h2>
-            <p className="text-base sm:text-lg text-gray-600 max-w-2xl mx-auto">
-              Numbers that reflect a stable, growing platform — handled with the seriousness your online identity deserves.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-8">
-            <StatsCard
-              icon={<Globe className="h-6 w-6" />}
-              value="10,000+"
-              label="Domains Managed"
-              trend="up"
-              trendValue="15% this month"
-            />
-            <StatsCard
-              icon={<Users className="h-6 w-6" />}
-              value="5,000+"
-              label="Happy Customers"
-              trend="up"
-              trendValue="25% this month"
-            />
-            <StatsCard
-              icon={<Shield className="h-6 w-6" />}
-              value="99.9%"
-              label="Uptime"
-              trend="neutral"
-              trendValue="Last 30 days"
-            />
-            <StatsCard
-              icon={<Clock className="h-6 w-6" />}
-              value="24/7"
-              label="Support"
-              trend="neutral"
-              trendValue="Always available"
             />
           </div>
         </Section>
