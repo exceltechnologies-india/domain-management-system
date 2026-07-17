@@ -198,6 +198,33 @@ Eight days of focused safety-check additions are complete. Every production-faci
 
 ## In Flight
 
+### Mobile-compatibility audit + fixes (operator-requested 2026-07-17)
+
+Operator: *"Make sure our app is mobile compatible. Run comprehensive test and give me a report."* A comprehensive static responsiveness audit was run across all four surfaces of the app (57 pages total: 21 public/marketing/auth/checkout, 13 user-dashboard, 23 admin) plus the shared chrome and global CSS/Tailwind primitives, targeting 360–414px phones. **Fundamentals OK**: Next.js injects the default `width=device-width, initial-scale=1` viewport (no accessibility-harming `maximum-scale`/`user-scalable=no` override), and the recent homepage passes already handle `sm:`/`md:`/`lg:` breakpoints.
+
+- [ ] **MOBILE-AUDIT: comprehensive mobile-compatibility report + remediation** — ⏳ PENDING (report generated 2026-07-17; fixes NOT yet applied). Remediation will be batched by leverage (global primitives first → customer-facing CRITICAL/MAJOR → admin). Each batch ships + verifies on the live URL and flips to ✅ per the usual cadence. **No code shipped yet**; live revision remains `dms-00333-k26`.
+
+  **Method**: 4 parallel read-only audits (public/marketing/auth/checkout · user-dashboard · admin · global CSS/Tailwind/shared-primitives), 360–414px phone target, ~57 pages + shared chrome.
+
+  **Verdict**: the app is **mobile-first overall** — off-canvas drawer sidebars on BOTH the user dashboard (`UserLayout.tsx`) and admin (`AdminLayout.tsx`); every shared table (`AdminDataTable`, `AdminTable`) wraps in `overflow-x-auto`; the reusable `Modal.tsx` + all one-off renewal/upgrade modals are `w-full` + gutter + `max-h`/scroll (one exception, below); Tailwind mobile-first defaults intact (no custom `screens`); viewport meta is Next's default `width=device-width,initial-scale=1` with NO accessibility-harming `user-scalable=no`. So there is **no systemic breakage** — findings are localized.
+
+  **CRITICAL (2)** — cause page-level horizontal scroll on phones:
+  - **C1 · No global `overflow-x-hidden` safety net** — `app/globals.css` (@layer base) + `app/layout.tsx` html/body have no `overflow-x:hidden` / `max-width:100%`. Any single over-wide element anywhere produces full-page horizontal scroll. Highest-leverage fix (one line defends every page). Fix: `html,body{overflow-x:hidden;max-width:100%}` (safe — the header is `fixed`, not an ancestor-dependent `sticky`).
+  - **C2 · Bulk-search result rows overflow** — `app/domains/bulk-search/page.tsx:261-310`. Non-wrapping `flex` row whose fixed children (checkbox + `w-20` price + `w-28` action + badge + `px-6` + 4×`gap-4`) sum to ~419px min, so on a 360px screen the domain column is crushed to 0 and the row forces horizontal scroll. Fix: `flex-wrap` + `gap-y-2`, `px-4 sm:px-6`, fixed widths → `sm:w-20`/`sm:w-28`. (Header strip at `:217` shares the pattern.)
+
+  **MAJOR (7)** — awkward/unusable-in-part but not page-breaking:
+  - **M1 · Toaster `!important` mispositioning** — `globals.css:308-315` forces `right/bottom:80px !important`, beating the layout's inline `right:24px`; on a 360px phone a ~350px toast anchored 80px in is clipped. Fix: mobile-first `left:16px;right:16px;bottom:16px`, reserve inset for `sm:`+.
+  - **M2 · Bottom-left FAB collision** — `ScrollToTop.tsx:39` (z-40) + `ChatWidget.tsx:149` (z-50) both anchor bottom-left on phones (homepage); one covers the other, taps hit wrong control. Fix: distinct corners / vertical stack.
+  - **M3 · HostingUpgradeModal not scrollable** — `components/HostingUpgradeModal.tsx:176` has `overflow-hidden` but no `max-h`+`overflow-y-auto`; tall steps clip the Pay/Confirm button off-screen on a 360×640 phone. (Sibling `DomainRenewalModal` does it right.) Fix: add `max-h-[90vh] overflow-y-auto`.
+  - **M4 · Domain-detail nameserver radios don't stack** — `app/dashboard/domains/[id]/page.tsx:197` `flex space-x-4` never stacks; two padded cards crushed to ~150px at 360px. Fix: `flex-col sm:flex-row gap-4`.
+  - **M5 · Domain-detail header title overflow** — same file `:157-171`; `text-2xl` domain name with no `truncate`/`min-w-0` in a `justify-between` row can shove/overflow the status pill. Fix: `min-w-0`+`truncate` on h1, `shrink-0` on badge. (This detail page is the least mobile-polished file in the app.)
+  - **M6 · Admin dense icon-action clusters** — raw tables in `admin/domains:342`, `admin/dns-management:967/988`, `admin/hosting/packages:239`, `admin/hosting/pending:248` render `p-1.5` (~28px) icon buttons below the 44px tap target. Fix: `p-2.5`/`gap-2` or collapse into the existing `ActionMenu` kebab.
+  - **M7 · Admin DNS records table wide scroll** — `admin/dns-management:939/965/986` `min-w-[200px]`/`min-w-[150px]` + `whitespace-nowrap` force ~700px rows; contained in `overflow-x-auto` (no page break) but the operator must side-scroll the primary content to edit. Fix: stacked cards on mobile, or `min-w-0`+`break-all`.
+
+  **MINOR (10, polish)**: register name row `grid-cols-2` (no `sm:` base) `MultiStageRegisterForm.tsx:163`; sub-44px icon buttons on invoices `dashboard/invoices:363-384` + order rows + search "Clear"; orders header row no `flex-col sm:flex-row` `dashboard/orders:166`; support stat tiles fixed `grid-cols-3` `dashboard/support:241`; admin DNS sidebar `h-[calc(100vh-14rem)] sticky` not gated to `xl:` `admin/dns-management:529`; admin raw tables lack the `hidden sm:table-cell` column-drop that `AdminDataTable` uses; `admin/pricing-management:347` modal has no `max-h` (currently only a spinner — harmless unless reused for a form); a few hand-rolled `min-w-[...]` cells (`admin/settings:1001`, `CartItemCard:100/104`); `ChatWidget:157` uses `100vw` (clamped, low risk).
+
+  **Suggested remediation batches** (for when the operator greenlights fixes): **Batch A (global, highest leverage)** = C1 + M1 + M2 — a handful of lines in `globals.css`/`layout.tsx` + 2 FAB anchors, defends everywhere. **Batch B (customer-facing)** = C2 + M3 + M4 + M5 + the customer MINORs. **Batch C (admin)** = M6 + M7 + admin MINORs (desktop-first, lowest priority).
+
 ### Brand refresh: Anutech Digital logo + favicon + color scheme (phased, operator-requested 2026-07-13)
 
 Operator wants the app rebranded to the official **Anutech Digital** logo + favicon, and the logo's blue color scheme applied across the whole app — explicitly **"1 step at a time."** Broken into phases so each is reviewable independently. **Nothing shipped yet** (live revision remains `dms-00303-5qk`).
