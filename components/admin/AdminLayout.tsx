@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
+  LayoutTemplate,
   Users,
   FileText,
   Settings,
@@ -55,6 +56,7 @@ export default function AdminLayout({ children, user, onLogout }: AdminLayoutPro
     { name: 'Hosting', href: '/admin/hosting', icon: Server },
     { name: 'Domains', href: '/admin/domains', icon: Globe },
     { name: 'TLD Pricing', href: '/admin/pricing-management', icon: Tag },
+    { name: 'Pages', href: '/admin/page-management', icon: LayoutTemplate },
     { name: 'Settings', href: '/admin/settings', icon: Settings },
   ];
 
