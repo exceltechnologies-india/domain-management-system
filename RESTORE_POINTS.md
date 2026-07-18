@@ -32,10 +32,14 @@ like `known-good-<what-it-fixes>` (so the intent is grep-able). Use
 
 ### Applying the `stable-2026-07-18` tag (after `gcloud auth login`)
 ```bash
-export CLOUDSDK_PYTHON="C:\Program Files (x86)\Google\Cloud SDK\google-cloud-sdk\platformundledpython\python.exe"
+export CLOUDSDK_PYTHON="C:\Program Files (x86)\Google\Cloud SDK\google-cloud-sdk\platform\bundledpython\python.exe"
 # tag the currently-deployed image with a date tag + a semantic known-good tag
-gcloud artifacts docker tags add   us-central1-docker.pkg.dev/speedy-unison-453807-e9/dms/dms:ebef6f97   us-central1-docker.pkg.dev/speedy-unison-453807-e9/dms/dms:stable-2026-07-18
-gcloud artifacts docker tags add   us-central1-docker.pkg.dev/speedy-unison-453807-e9/dms/dms:ebef6f97   us-central1-docker.pkg.dev/speedy-unison-453807-e9/dms/dms:known-good-mobile-hero-readme
+gcloud artifacts docker tags add \
+  us-central1-docker.pkg.dev/speedy-unison-453807-e9/dms/dms:ebef6f97 \
+  us-central1-docker.pkg.dev/speedy-unison-453807-e9/dms/dms:stable-2026-07-18
+gcloud artifacts docker tags add \
+  us-central1-docker.pkg.dev/speedy-unison-453807-e9/dms/dms:ebef6f97 \
+  us-central1-docker.pkg.dev/speedy-unison-453807-e9/dms/dms:known-good-mobile-hero-readme
 ```
 
 ### Rollback paths (fastest first)
