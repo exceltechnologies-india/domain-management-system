@@ -18,6 +18,42 @@ like `known-good-<what-it-fixes>` (so the intent is grep-able). Use
 
 ---
 
+## 2026-07-18 — `dms-00338-6vr` / `known-good-mobile-hero-readme` (source-verified restore point)
+
+**Cloud Run revision**: `dms-00338-6vr` (serving 100%, health 200 at snapshot)
+**Deployed image tag**: `us-central1-docker.pkg.dev/speedy-unison-453807-e9/dms/dms:ebef6f97` (built from git `ebef6f9`)
+**Image digest**: ⏳ _to be filled once the `stable-2026-07-18` tag is applied (blocked on a gcloud reauth at snapshot time)._
+**Git HEAD**: `5ecb7c8` (`docs: add project README`) — HEAD is two `[skip ci]` docs-only commits (`4e74a18` TASKS flip, `5ecb7c8` README) **on top of** the last deployed code commit `ebef6f9`, so the running image does NOT contain the README/TASKS docs, but the source tree does. Rolling the image back to this revision is safe (docs aren't runtime).
+**Operator note**: Marked as a **crucial restore point** after a full local teardown + rebuild cycle. Sequence:
+
+1. Operator backed up the project source, then had `node_modules` + `.next` deleted for a clean archive.
+2. **Restore verified end-to-end** on 2026-07-18: `npm install` → 659 packages, exit 0; `npx tsc --noEmit` → clean (exit 0); `npm run build` → clean production build with full route table, exit 0; `git status` clean; HEAD pushed to origin/main.
+3. This is the known-good state at the close of the homepage domain-refocus + mobile-hero work (revisions `dms-00330`→`dms-00338`): domain-focused homepage, removed hosting/stats sections, hero search-button polish, taller mobile hero (`min-h-[80vh]`), plus the new `README.md`. The mobile-compatibility audit (2 CRITICAL / 7 MAJOR / 10 MINOR) is logged as PENDING in `TASKS.md` — none of those fixes are in this image.
+
+### Applying the `stable-2026-07-18` tag (after `gcloud auth login`)
+```bash
+export CLOUDSDK_PYTHON="C:\Program Files (x86)\Google\Cloud SDK\google-cloud-sdk\platformundledpython\python.exe"
+# tag the currently-deployed image with a date tag + a semantic known-good tag
+gcloud artifacts docker tags add   us-central1-docker.pkg.dev/speedy-unison-453807-e9/dms/dms:ebef6f97   us-central1-docker.pkg.dev/speedy-unison-453807-e9/dms/dms:stable-2026-07-18
+gcloud artifacts docker tags add   us-central1-docker.pkg.dev/speedy-unison-453807-e9/dms/dms:ebef6f97   us-central1-docker.pkg.dev/speedy-unison-453807-e9/dms/dms:known-good-mobile-hero-readme
+```
+
+### Rollback paths (fastest first)
+
+**Path 1 — Cloud Run revision traffic-shift** (no rebuild, instant):
+```bash
+gcloud run services update-traffic dms   --region=europe-west1   --to-revisions=dms-00338-6vr=100
+```
+
+**Path 2 — Re-deploy from the stable image tag** (once `stable-2026-07-18` is applied, use when the revision has been GC'd):
+```bash
+gcloud run deploy dms   --image=us-central1-docker.pkg.dev/speedy-unison-453807-e9/dms/dms:stable-2026-07-18   --region=europe-west1
+```
+
+**Path 3 — Rebuild from source** (git is the source of truth): `git checkout 5ecb7c8` (or `ebef6f9` for exactly the deployed code) then `bash scripts/deploy-cloud-run.sh`.
+
+---
+
 ## 2026-06-29 — `dms-00207-jvz` / post-MongoDB-credential-rotation
 
 **Cloud Run revision**: `dms-00207-jvz`
