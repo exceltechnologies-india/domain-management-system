@@ -308,23 +308,30 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
             <p className="text-base text-gray-600">Start with a 15-day free trial — no credit card required.</p>
           </div>
 
-          {/* Billing toggle */}
+          {/* Billing toggle — segmented control */}
           <div className="flex justify-center mb-10">
-            <div className="inline-flex items-center gap-3 bg-white border border-gray-200 rounded-full px-4 py-2 shadow-sm">
-              <span className={`text-sm font-semibold ${billingCycle === 'monthly' ? 'text-gray-900' : 'text-gray-400'}`}>Monthly</span>
+            <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full p-1">
               <button
-                role="switch"
-                aria-checked={billingCycle === 'yearly'}
-                aria-label="Toggle monthly / yearly billing"
-                onClick={() => setBillingCycle(billingCycle === 'monthly' ? 'yearly' : 'monthly')}
-                className="relative h-6 w-12 rounded-full bg-violet-600 transition-colors"
+                type="button"
+                onClick={() => setBillingCycle('monthly')}
+                aria-pressed={billingCycle === 'monthly'}
+                className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${
+                  billingCycle === 'monthly' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
               >
-                <span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow transition-transform ${billingCycle === 'yearly' ? 'translate-x-7' : 'translate-x-1'}`} />
+                Monthly
               </button>
-              <span className={`text-sm font-semibold flex items-center gap-2 ${billingCycle === 'yearly' ? 'text-gray-900' : 'text-gray-400'}`}>
+              <button
+                type="button"
+                onClick={() => setBillingCycle('yearly')}
+                aria-pressed={billingCycle === 'yearly'}
+                className={`inline-flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold transition-all ${
+                  billingCycle === 'yearly' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
                 Yearly
                 <span className="text-[10px] font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Save up to 60%</span>
-              </span>
+              </button>
             </div>
           </div>
 
