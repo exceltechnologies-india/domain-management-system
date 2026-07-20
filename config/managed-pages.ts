@@ -67,6 +67,12 @@ export const MANAGED_PAGES: ManagedPage[] = [
     path: "/contact",
     description: "Contact page with the enquiry form.",
   },
+  {
+    slug: "domains-home",
+    title: "Domains Landing",
+    path: "/domains-home",
+    description: "The domain-focused landing (former homepage). Draft it to redirect visitors to the homepage.",
+  },
 ];
 
 export function getManagedPageBySlug(slug: string): ManagedPage | undefined {
