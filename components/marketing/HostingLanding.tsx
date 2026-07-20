@@ -15,6 +15,7 @@ import FAQItem from '@/components/FAQItem';
 import Footer from '@/components/Footer';
 import ChatWidget from '@/components/ChatWidget';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { trackStartTrial } from '@/lib/journey';
 
 /** Serialized hosting plan passed from the server (subset of HostingPlan). */
 export interface LandingPlan {
@@ -106,7 +107,7 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
                   Enterprise-grade web hosting powered by Google Cloud. Free SSL, daily backups, free migration and 24×7 expert support.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3 mb-6">
-                  <Link href={TRIAL_CTA} className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-[#22C55E] to-[#16A34A] hover:from-[#16A34A] hover:to-[#15803D] text-white font-bold py-3.5 px-7 rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95">
+                  <Link href={TRIAL_CTA} onClick={() => trackStartTrial()} className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-[#22C55E] to-[#16A34A] hover:from-[#16A34A] hover:to-[#15803D] text-white font-bold py-3.5 px-7 rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95">
                     <Rocket className="h-5 w-5" />
                     Start Your 15-Day Free Trial
                   </Link>
@@ -415,7 +416,7 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
           <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-14 text-center">
             <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3" style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}>Ready to Launch Your Website?</h2>
             <p className="text-violet-100 mb-7 max-w-2xl mx-auto">Join 1,000+ businesses who trust Anutech for their online success.</p>
-            <Link href={TRIAL_CTA} className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-[#22C55E] to-[#16A34A] hover:from-[#16A34A] hover:to-[#15803D] text-white font-bold py-3.5 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95">
+            <Link href={TRIAL_CTA} onClick={() => trackStartTrial()} className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-[#22C55E] to-[#16A34A] hover:from-[#16A34A] hover:to-[#15803D] text-white font-bold py-3.5 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95">
               <Rocket className="h-5 w-5" />
               Start Your 15-Day Free Trial
               <ArrowRight className="h-5 w-5" />

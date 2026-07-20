@@ -23,6 +23,7 @@ import { HOSTING_PLANS, CUSTOM_PLAN_FEATURES } from '@/config/hosting-plans';
 import { getDeviceFingerprint } from '@/lib/device-fingerprint';
 import { logger } from '@/lib/logger';
 import { apiClient } from '@/lib/api-client';
+import { trackStartTrial } from '@/lib/journey';
 
 interface User {
   firstName: string;
@@ -50,6 +51,7 @@ export default function HostingPage() {
   const [testPlan, setTestPlan] = useState<TestPlan | null>(null);
 
   const handleStartTrial = async (plan: typeof HOSTING_PLANS[string]) => {
+    trackStartTrial();
     if (!user) {
       router.push(`/login?returnUrl=${encodeURIComponent('/hosting')}`);
       return;

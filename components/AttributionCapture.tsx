@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { ATTR_COOKIE, ANON_COOKIE } from '@/lib/attribution';
+import { trackViewContent } from '@/lib/journey';
 
 function getCookie(name: string): string | null {
   const m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
@@ -65,10 +66,11 @@ export default function AttributionCapture() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // view_content whenever the visitor lands on /hosting (incl. SPA nav).
+  // ViewContent (Pixel) + internal view_content whenever the visitor lands on
+  // /hosting (incl. SPA nav).
   useEffect(() => {
     if (pathname === '/hosting') {
-      track('view_content', getCookie(ANON_COOKIE));
+      trackViewContent();
     }
   }, [pathname]);
 

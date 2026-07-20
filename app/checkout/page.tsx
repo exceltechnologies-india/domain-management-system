@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
+import { trackInitiateCheckout } from '@/lib/journey';
 import { useLogout } from '@/lib/logout';
 import { safeSessionStorage } from '@/lib/storage';
 import { ArrowLeft, CreditCard, Shield, ShieldCheck, ShoppingCart, Globe, Info, Check, Smartphone } from 'lucide-react';
@@ -62,6 +63,11 @@ export default function CheckoutPage() {
     return 0;
   })();
   const trialYearlyPrice = trialMonthlyPrice * 12;
+
+  // Fire InitiateCheckout (Pixel) + internal checkout_started once on mount.
+  useEffect(() => {
+    trackInitiateCheckout();
+  }, []);
 
   useEffect(() => {
     // Wait for NextAuth to resolve
