@@ -24,6 +24,8 @@ import {
 } from "@/lib/services/payment/order-creator";
 import { handleVerificationError } from "@/lib/services/payment/verification-error";
 import { recordSystemLog } from "@/lib/services/system-logs";
+import { recordActivity } from "@/lib/services/analytics";
+import { sendMetaServerEvent } from "@/lib/meta-capi";
 import { withRequestLogContext } from "@/lib/request-context";
 import type { IUser } from "@/models/User";
 import type { CartItem } from "@/lib/types";
@@ -350,6 +352,34 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
     const hasDomain = cartItems.some(
       (item) => item.itemType === "domain" || !item.itemType
     );
+
+    // ── Analytics: Purchase (internal activity + Meta Conversions API). Reached
+    // only for a freshly-verified new order (already-processed / webhook-race /
+    // renewal paths return earlier). Deterministic event_id dedups retries;
+    // never blocks the payment response. ──────────────────────────────────────
+    try {
+      await recordActivity({
+        activity: "purchase",
+        userId: user._id,
+        metadata: { orderId, amount: order.amount },
+      });
+      await sendMetaServerEvent({
+        eventName: "Purchase",
+        eventId: `purchase_${orderId}`,
+        user: { email: user.email, phone: user.phone },
+        customData: {
+          currency: order.currency || "INR",
+          value: Number(order.amount) || 0,
+          order_id: orderId,
+        },
+        eventSourceUrl: request.headers.get("referer") || undefined,
+        clientIp: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
+        userAgent: request.headers.get("user-agent"),
+        fbclid: user.attribution?.fbclid || null,
+      });
+    } catch (err) {
+      serverLogger.error("[PAYMENT-VERIFY] analytics/CAPI purchase failed:", err);
+    }
 
     return NextResponse.json(
       {

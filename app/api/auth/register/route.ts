@@ -10,6 +10,7 @@ import crypto from "crypto";
 import { serverLogger } from "@/lib/server-logger";
 import { recordActivity } from "@/lib/services/analytics";
 import { parseAttributionCookie, ATTR_COOKIE } from "@/lib/attribution";
+import { sendMetaServerEvent } from "@/lib/meta-capi";
 
 // Force dynamic rendering - required for API routes
 export const dynamic = "force-dynamic";
@@ -215,6 +216,18 @@ export async function POST(request: NextRequest) {
         await user.save();
       }
       await recordActivity({ activity: "registration", userId: user._id });
+
+      // Meta Conversions API — CompleteRegistration (server event). Deterministic
+      // event_id so retries dedup. Best-effort; never blocks registration.
+      await sendMetaServerEvent({
+        eventName: "CompleteRegistration",
+        eventId: `reg_${user._id}`,
+        user: { email: user.email, phone: user.phone },
+        eventSourceUrl: request.headers.get("referer") || undefined,
+        clientIp: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
+        userAgent: request.headers.get("user-agent"),
+        fbclid: attr?.fbclid || null,
+      });
     } catch (err) {
       serverLogger.error("[REGISTRATION] analytics capture failed:", err);
     }
