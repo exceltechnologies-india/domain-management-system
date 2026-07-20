@@ -40,19 +40,29 @@ export default function PricingCard({
   buttonText = 'Choose plan',
   buttonLink = '#',
   features,
-  highlightColor = 'purple', // 'purple' | 'blue'
+  highlightColor = 'blue', // 'purple' | 'blue'
   onButtonClick,
 }: PricingCardProps) {
 
   const isPurple = highlightColor === 'purple';
+  const popularBorderCls = isPurple
+    ? 'border-2 border-[#7C3AED] shadow-[0_0_25px_-5px_rgba(124,58,237,0.25)] md:scale-105 z-10'
+    : 'border-2 border-[#0177E1] shadow-[0_0_25px_-5px_rgba(1,119,225,0.25)] md:scale-105 z-10';
+  const ribbonCls = isPurple ? 'bg-[#7C3AED]' : 'bg-[#0177E1]';
+  const buttonPopularCls = isPurple
+    ? 'bg-[#7C3AED] text-white hover:bg-[#6D28D9] shadow-md hover:shadow-lg'
+    : 'bg-[#0177E1] text-white hover:bg-[#01489D] shadow-md hover:shadow-lg';
+  const buttonPlainCls = isPurple
+    ? 'bg-white text-[#7C3AED] border-2 border-[#7C3AED] hover:bg-[#7C3AED]/5'
+    : 'bg-white text-[#0177E1] border-2 border-[#0177E1] hover:bg-[#0180E5]/5';
 
   return (
     <div className={`relative flex flex-col h-full bg-white rounded-2xl transition-all duration-500 ${isPopular
-      ? 'border-2 border-[#0177E1] shadow-[0_0_25px_-5px_rgba(1,119,225,0.25)] md:scale-105 z-10'
+      ? popularBorderCls
       : 'border border-gray-200 shadow-sm hover:shadow-xl hover:-translate-y-1'
       }`}>
       {isPopular && (
-        <div className="absolute top-0 left-0 right-0 py-1.5 bg-[#0177E1] text-white text-center text-xs font-bold uppercase tracking-wider rounded-t-xl z-20">
+        <div className={`absolute top-0 left-0 right-0 py-1.5 ${ribbonCls} text-white text-center text-xs font-bold uppercase tracking-wider rounded-t-xl z-20`}>
           Most Popular
         </div>
       )}
@@ -84,20 +94,14 @@ export default function PricingCard({
         {onButtonClick ? (
           <button
             onClick={onButtonClick}
-            className={`block w-full py-3 px-4 rounded-lg text-center font-semibold transition-all duration-200 ${isPopular
-              ? 'bg-[#0177E1] text-white hover:bg-[#01489D] shadow-md hover:shadow-lg'
-              : 'bg-white text-[#0177E1] border-2 border-[#0177E1] hover:bg-[#0180E5]/5'
-              }`}
+            className={`block w-full py-3 px-4 rounded-lg text-center font-semibold transition-all duration-200 ${isPopular ? buttonPopularCls : buttonPlainCls}`}
           >
             {buttonText}
           </button>
         ) : (
           <Link
             href={buttonLink}
-            className={`block w-full py-3 px-4 rounded-lg text-center font-semibold transition-all duration-200 ${isPopular
-              ? 'bg-[#0177E1] text-white hover:bg-[#01489D] shadow-md hover:shadow-lg'
-              : 'bg-white text-[#0177E1] border-2 border-[#0177E1] hover:bg-[#0180E5]/5'
-              }`}
+            className={`block w-full py-3 px-4 rounded-lg text-center font-semibold transition-all duration-200 ${isPopular ? buttonPopularCls : buttonPlainCls}`}
           >
             {buttonText}
           </Link>
