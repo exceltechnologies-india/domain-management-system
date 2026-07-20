@@ -18,11 +18,39 @@ like `known-good-<what-it-fixes>` (so the intent is grep-able). Use
 
 ---
 
+## 2026-07-18 — `dms-00342-zzx` / `known-good-hosting-landing` (hosting-trial landing homepage)
+
+**Cloud Run revision**: `dms-00342-zzx` (serving 100%, health 200 at snapshot)
+**Deployed image tag**: `us-central1-docker.pkg.dev/speedy-unison-453807-e9/dms/dms:833b98b0` (built from git `833b98b`)
+**Image digest**: `sha256:456b2174098406c48755c370556e86d9a5dd5c88ef88cbb777e47393541a760a`
+**Image tags**: `stable-2026-07-18-landing` + `known-good-hosting-landing`
+**Git HEAD**: `833b98b` (`feat(nav): add Domains link pointing to /domains-home`)
+**Operator note**: The state at the close of the page-manager work. Contains: the admin **Pages** publish/draft manager (Phase 1, `dms-00340-t4w`), the **hosting 15-Day Free Trial landing as the homepage** with DB-driven pricing + the domain homepage relocated to `/domains-home` (Phase 2, `dms-00341-9b8`), and the **Domains** nav link (`dms-00342-zzx`). Live smoke at snapshot: `/` (hosting landing, 3 DB plans), `/domains-home`, `/hosting`, `/about`, `/contact` → 200; admin Pages API unauth → 401.
+
+### Rollback paths (fastest first)
+
+**Path 1 — Cloud Run revision traffic-shift** (no rebuild, instant):
+```bash
+gcloud run services update-traffic dms --region=europe-west1 --to-revisions=dms-00342-zzx=100
+```
+
+**Path 2 — Re-deploy from the stable image tag** (when the revision has been GC'd):
+```bash
+gcloud run deploy dms \
+  --image=us-central1-docker.pkg.dev/speedy-unison-453807-e9/dms/dms:stable-2026-07-18-landing \
+  --region=europe-west1
+```
+
+**Path 3 — Rebuild from source**: `git checkout 833b98b` then `bash scripts/deploy-cloud-run.sh`.
+
+---
+
 ## 2026-07-18 — `dms-00338-6vr` / `known-good-mobile-hero-readme` (source-verified restore point)
 
 **Cloud Run revision**: `dms-00338-6vr` (serving 100%, health 200 at snapshot)
 **Deployed image tag**: `us-central1-docker.pkg.dev/speedy-unison-453807-e9/dms/dms:ebef6f97` (built from git `ebef6f9`)
-**Image digest**: ⏳ _to be filled once the `stable-2026-07-18` tag is applied (blocked on a gcloud reauth at snapshot time)._
+**Image digest**: `sha256:781b6c100771ea1afacc8c9ffa32a737731dfa8d66d3f1747288baf3217a8575`
+**Image tags**: `stable-2026-07-18` + `known-good-mobile-hero-readme` (applied 2026-07-18 after reauth).
 **Git HEAD**: `5ecb7c8` (`docs: add project README`) — HEAD is two `[skip ci]` docs-only commits (`4e74a18` TASKS flip, `5ecb7c8` README) **on top of** the last deployed code commit `ebef6f9`, so the running image does NOT contain the README/TASKS docs, but the source tree does. Rolling the image back to this revision is safe (docs aren't runtime).
 **Operator note**: Marked as a **crucial restore point** after a full local teardown + rebuild cycle. Sequence:
 
