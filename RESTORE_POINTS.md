@@ -18,6 +18,29 @@ like `known-good-<what-it-fixes>` (so the intent is grep-able). Use
 
 ---
 
+## 2026-07-18 — `dms-00350-92n` / `known-good-pre-meta-capi` (before the Meta CAPI / analytics build)
+
+**Cloud Run revision**: `dms-00350-92n` (serving 100%, health 200 at snapshot)
+**Image digest**: `sha256:280475f60a283df301dae411a53df849b02fcef1b21f034ad828fe89d667f5ea`
+**Image tags**: `stable-2026-07-18-analytics-base` + `known-good-pre-meta-capi`
+**Git HEAD**: `984a470` (docs) on top of deployed code `dec83cf` (`feat(tracking): SPA route-change PageView tracking + admin toggle`)
+**Operator note**: Snapshot taken **before** starting the Meta Tracking & Analytics SRS build (Meta Pixel browser events + Conversions API server events + internal customer activity/lead-scoring + UTM/fbclid attribution + event dedup). This is the clean rollback target if that build regresses. Contains the full page-manager work (Phase 1+2), the hosting-landing redesign + colour/toggle/footer work, the footer switcher, the homepage-disable swap, and the SPA-pageview tracking + admin toggle.
+
+### Rollback paths (fastest first)
+
+**Path 1 — traffic-shift** (no rebuild): `gcloud run services update-traffic dms --region=europe-west1 --to-revisions=dms-00350-92n=100`
+
+**Path 2 — redeploy the tag** (if the revision was GC'd):
+```bash
+gcloud run deploy dms \
+  --image=us-central1-docker.pkg.dev/speedy-unison-453807-e9/dms/dms:stable-2026-07-18-analytics-base \
+  --region=europe-west1
+```
+
+**Path 3 — rebuild from source**: `git checkout dec83cf` then `bash scripts/deploy-cloud-run.sh`.
+
+---
+
 ## 2026-07-18 — `dms-00342-zzx` / `known-good-hosting-landing` (hosting-trial landing homepage)
 
 **Cloud Run revision**: `dms-00342-zzx` (serving 100%, health 200 at snapshot)
