@@ -190,6 +190,17 @@ export default function Navigation({
               <span className={`absolute -bottom-1 left-0 h-0.5 transition-all duration-200 ${isActive('/') ? 'w-full' : 'w-0 group-hover:w-full'}`} style={{ backgroundColor: 'var(--google-blue)' }}></span>
             </Link>
             <Link
+              href="/domains-home"
+              className={`font-medium transition-colors duration-200 relative group ${isActive('/domains-home')
+                ? 'text-[var(--google-blue)]'
+                : 'text-[var(--google-text-primary)] hover:text-[var(--google-blue)]'
+                }`}
+              style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}
+            >
+              Domains
+              <span className={`absolute -bottom-1 left-0 h-0.5 transition-all duration-200 ${isActive('/domains-home') ? 'w-full' : 'w-0 group-hover:w-full'}`} style={{ backgroundColor: 'var(--google-blue)' }}></span>
+            </Link>
+            <Link
               href="/hosting"
               className={`font-medium transition-colors duration-200 relative group ${isActive('/hosting')
                 ? 'text-[var(--google-blue)]'
@@ -299,6 +310,17 @@ export default function Navigation({
               style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}
             >
               Home
+            </Link>
+            <Link
+              href="/domains-home"
+              onClick={closeMobileMenu}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors duration-200 ${isActive('/domains-home')
+                ? 'text-[var(--google-blue)] bg-[var(--google-blue-light)]'
+                : 'text-[var(--google-text-primary)] hover:text-[var(--google-blue)] hover:bg-[var(--google-bg-secondary)]'
+                }`}
+              style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}
+            >
+              Domains
             </Link>
             <Link
               href="/hosting"
