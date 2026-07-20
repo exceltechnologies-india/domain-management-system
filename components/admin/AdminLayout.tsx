@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
   LayoutTemplate,
+  BarChart3,
   Users,
   FileText,
   Settings,
@@ -57,6 +58,7 @@ export default function AdminLayout({ children, user, onLogout }: AdminLayoutPro
     { name: 'Domains', href: '/admin/domains', icon: Globe },
     { name: 'TLD Pricing', href: '/admin/pricing-management', icon: Tag },
     { name: 'Pages', href: '/admin/page-management', icon: LayoutTemplate },
+    { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
     { name: 'Settings', href: '/admin/settings', icon: Settings },
   ];
 

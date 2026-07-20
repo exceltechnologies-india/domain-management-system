@@ -107,6 +107,9 @@ const PUBLIC_API_PREFIXES = [
   "/api/settings/captcha-status",
   // Public footer switcher: the footer reads which template to render.
   "/api/settings/footer",
+  // Public analytics beacon: the browser records client-side journey events
+  // (landing/view/trial/checkout). Auth is best-effort inside the route.
+  "/api/analytics/track",
   // Cron and worker routes authenticate via x-cron-secret header in the route handler.
   // They must bypass middleware JWT checks so Google Cloud Scheduler/Tasks can call them.
   "/api/cron",

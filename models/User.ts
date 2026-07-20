@@ -39,6 +39,21 @@ export interface IUser extends Document {
   isActivated: boolean;
   sessionInvalidatedAt?: Date | null;
   lastActivityAt?: Date | null;
+  /** Internal customer-quality score (sum of activity weights). */
+  leadScore?: number;
+  /** First-touch marketing attribution, captured at first visit + persisted
+   * at registration. */
+  attribution?: {
+    utmSource?: string;
+    utmMedium?: string;
+    utmCampaign?: string;
+    utmContent?: string;
+    utmTerm?: string;
+    fbclid?: string;
+    landingPage?: string;
+    referrer?: string;
+    firstVisitAt?: Date;
+  };
   sessionTimeoutMinutes?: number; // 15 for admin, 30 for users
   isDeleted?: boolean;
   deletedAt?: Date;
@@ -218,6 +233,22 @@ const UserSchema = new Schema<IUser>(
     lastActivityAt: {
       type: Date,
       default: null,
+    },
+    leadScore: {
+      type: Number,
+      default: 0,
+      index: true,
+    },
+    attribution: {
+      utmSource: { type: String, default: undefined },
+      utmMedium: { type: String, default: undefined },
+      utmCampaign: { type: String, default: undefined },
+      utmContent: { type: String, default: undefined },
+      utmTerm: { type: String, default: undefined },
+      fbclid: { type: String, default: undefined },
+      landingPage: { type: String, default: undefined },
+      referrer: { type: String, default: undefined },
+      firstVisitAt: { type: Date, default: undefined },
     },
     sessionTimeoutMinutes: {
       type: Number,

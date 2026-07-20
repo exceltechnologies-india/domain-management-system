@@ -11,6 +11,7 @@ import CookieConsentBanner from '@/components/CookieConsentBanner';
 import { ConfirmDialogHost } from '@/lib/confirm-dialog';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import TrackingScripts from '@/components/TrackingScripts';
+import AttributionCapture from '@/components/AttributionCapture';
 import { headers } from 'next/headers';
 
 // Self-hosted Inter variable font — previously `Inter({ subsets: ['latin'] })`
@@ -55,6 +56,10 @@ export default async function RootLayout({
             validated IDs; no-ops when disabled. See components/TrackingScripts. */}
         <ErrorBoundary label="TrackingScripts" fallback={null}>
           <TrackingScripts />
+        </ErrorBoundary>
+        {/* First-touch attribution capture + client-side journey events. */}
+        <ErrorBoundary label="AttributionCapture" fallback={null}>
+          <AttributionCapture />
         </ErrorBoundary>
         <MotionProvider>
           <SessionProvider>

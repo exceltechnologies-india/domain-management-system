@@ -8,6 +8,8 @@ import { SecurityValidator } from "@/lib/security";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import crypto from "crypto";
 import { serverLogger } from "@/lib/server-logger";
+import { recordActivity } from "@/lib/services/analytics";
+import { parseAttributionCookie, ATTR_COOKIE } from "@/lib/attribution";
 
 // Force dynamic rendering - required for API routes
 export const dynamic = "force-dynamic";
@@ -193,6 +195,29 @@ export async function POST(request: NextRequest) {
         serverLogger.error("[REGISTRATION] External provider sync error:", err);
       }
     })();
+
+    // ── Analytics: persist first-touch attribution + record the registration
+    // milestone. Never blocks the registration response. ─────────────────────
+    try {
+      const attr = parseAttributionCookie(request.cookies.get(ATTR_COOKIE)?.value);
+      if (attr) {
+        user.attribution = {
+          utmSource: attr.utmSource,
+          utmMedium: attr.utmMedium,
+          utmCampaign: attr.utmCampaign,
+          utmContent: attr.utmContent,
+          utmTerm: attr.utmTerm,
+          fbclid: attr.fbclid,
+          landingPage: attr.landingPage,
+          referrer: attr.referrer,
+          firstVisitAt: attr.firstVisitAt ? new Date(attr.firstVisitAt) : undefined,
+        };
+        await user.save();
+      }
+      await recordActivity({ activity: "registration", userId: user._id });
+    } catch (err) {
+      serverLogger.error("[REGISTRATION] analytics capture failed:", err);
+    }
 
     /**
      * 🛡️ DEFENSE-IN-DEPTH: Security Layer 6 - Secure Reponse
