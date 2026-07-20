@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { getTrackingConfig, hasAnyTag } from "@/lib/services/tracking";
+import SpaPageViews from "@/components/SpaPageViews";
 
 /**
  * Renders analytics / marketing tags site-wide.
@@ -95,6 +96,14 @@ export default async function TrackingScripts() {
           }}
         />
       )}
+
+      {/* Client-side PageView on SPA route changes (opt-out via admin toggle). */}
+      <SpaPageViews
+        enabled={config.spaPageViews}
+        ga4Id={ga4Id}
+        googleAdsId={googleAdsId}
+        metaPixelId={metaPixelId}
+      />
     </>
   );
 }

@@ -25,6 +25,9 @@ export interface TrackingConfig {
   /** Load tags on /admin and /dashboard too. Default false — analytics
    * normally shouldn't count staff/admin sessions. */
   loadOnAdmin: boolean;
+  /** Fire a PageView on Next.js client-side (SPA) route changes, not just on
+   * full page loads. Default true — needed for accurate per-route numbers. */
+  spaPageViews: boolean;
 }
 
 export type TrackingProvider = "ga4" | "gtm" | "meta" | "googleAds";
@@ -36,6 +39,7 @@ export const TRACKING_SETTING_KEYS = {
   metaPixelId: "tracking_meta_pixel_id",
   googleAdsId: "tracking_google_ads_id",
   loadOnAdmin: "tracking_load_on_admin",
+  spaPageViews: "tracking_spa_pageviews",
 } as const;
 
 /**
@@ -120,6 +124,7 @@ export async function getTrackingConfig(): Promise<TrackingConfig> {
     metaPixelId: "",
     googleAdsId: "",
     loadOnAdmin: false,
+    spaPageViews: true,
   };
 
   try {
@@ -131,6 +136,11 @@ export async function getTrackingConfig(): Promise<TrackingConfig> {
       metaPixelId: asStr(map[TRACKING_SETTING_KEYS.metaPixelId]),
       googleAdsId: asStr(map[TRACKING_SETTING_KEYS.googleAdsId]),
       loadOnAdmin: asBool(map[TRACKING_SETTING_KEYS.loadOnAdmin]),
+      // Default ON when never set — accurate SPA tracking is the recommended
+      // behaviour; the admin can turn it off.
+      spaPageViews: map[TRACKING_SETTING_KEYS.spaPageViews] == null
+        ? true
+        : asBool(map[TRACKING_SETTING_KEYS.spaPageViews]),
     };
   } catch {
     // Fail closed — no tags rather than a render error. _cache stays null so

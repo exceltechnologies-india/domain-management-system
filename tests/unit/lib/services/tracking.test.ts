@@ -71,7 +71,7 @@ fbq('track', 'PageView');`;
 
 describe("hasAnyTag", () => {
   const base: TrackingConfig = {
-    enabled: false, ga4Id: "", gtmId: "", metaPixelId: "", googleAdsId: "", loadOnAdmin: false,
+    enabled: false, ga4Id: "", gtmId: "", metaPixelId: "", googleAdsId: "", loadOnAdmin: false, spaPageViews: true,
   };
   it("false when disabled even with an id", () => {
     expect(hasAnyTag({ ...base, ga4Id: "G-X" })).toBe(false);

@@ -232,6 +232,7 @@ export default function AdminSettings() {
   const [trMeta, setTrMeta] = useState("");
   const [trAds, setTrAds] = useState("");
   const [trLoadOnAdmin, setTrLoadOnAdmin] = useState(false);
+  const [trSpaPageViews, setTrSpaPageViews] = useState(true);
   const [isSavingTracking, setIsSavingTracking] = useState(false);
   const [isLoadingTracking, setIsLoadingTracking] = useState(false);
 
@@ -484,6 +485,8 @@ export default function AdminSettings() {
       setTrMeta(str("tracking_meta_pixel_id"));
       setTrAds(str("tracking_google_ads_id"));
       setTrLoadOnAdmin(bool("tracking_load_on_admin"));
+      // Default ON when the setting has never been saved.
+      setTrSpaPageViews(s["tracking_spa_pageviews"] === undefined ? true : bool("tracking_spa_pageviews"));
     }
     setIsLoadingTracking(false);
   };
@@ -499,6 +502,7 @@ export default function AdminSettings() {
       apiClient.post("/api/v1/admin/settings", { key: "tracking_meta_pixel_id", value: trMeta.trim(), description: "Meta/Facebook Pixel ID (extracted)", category: "tracking" }),
       apiClient.post("/api/v1/admin/settings", { key: "tracking_google_ads_id", value: trAds.trim(), description: "Google Ads conversion ID (extracted)", category: "tracking" }),
       apiClient.post("/api/v1/admin/settings", { key: "tracking_load_on_admin", value: trLoadOnAdmin, description: "Also load tags on /admin + /dashboard", category: "tracking" }),
+      apiClient.post("/api/v1/admin/settings", { key: "tracking_spa_pageviews", value: trSpaPageViews, description: "Fire PageView on SPA (client-side) route changes", category: "tracking" }),
     ]);
     if (results.every((r) => r.ok)) {
       showSuccessToast("Tracking settings saved");
@@ -1067,6 +1071,14 @@ export default function AdminSettings() {
                         <p className="text-xs text-gray-500 mt-0.5">Off by default — analytics normally shouldn&apos;t count staff/admin sessions.</p>
                       </div>
                       <Toggle checked={trLoadOnAdmin} onChange={setTrLoadOnAdmin} color="blue" />
+                    </div>
+
+                    <div className="flex items-center justify-between border-t border-gray-100 pt-5">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">Track in-app navigations (SPA page views)</p>
+                        <p className="text-xs text-gray-500 mt-0.5">On by default — fires a PageView when visitors move between pages without a full reload, so numbers stay accurate.</p>
+                      </div>
+                      <Toggle checked={trSpaPageViews} onChange={setTrSpaPageViews} color="blue" />
                     </div>
                   </div>
                   <SFooter>
