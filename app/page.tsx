@@ -1,6 +1,8 @@
 import { listActivePlans } from '@/lib/services/hosting-plans';
 import { HOSTING_PLANS } from '@/config/hosting-plans';
+import { getPageStatus } from '@/lib/services/page-visibility';
 import HostingLanding, { type LandingPlan } from '@/components/marketing/HostingLanding';
+import DomainHome from '@/components/marketing/DomainHome';
 
 // Revalidate the homepage every 5 minutes so plan/price edits made in the
 // admin reflect without a rebuild, while keeping the homepage cached.
@@ -27,6 +29,17 @@ function fallbackFeatures(name: string, quotaMB: number, bandwidthMB: number): s
 }
 
 export default async function HomePage() {
+  // If the operator disables the Homepage in Admin → Pages, the domain-focused
+  // landing takes over the homepage role. Rendering it here (rather than
+  // redirecting) keeps '/' from ever looping or going blank.
+  try {
+    if ((await getPageStatus('home')) === 'draft') {
+      return <DomainHome />;
+    }
+  } catch {
+    // fall through to the default hosting landing
+  }
+
   let plans: LandingPlan[] = [];
   try {
     const docs = await listActivePlans({ sort: 'price-asc' });

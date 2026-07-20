@@ -46,8 +46,7 @@ export const MANAGED_PAGES: ManagedPage[] = [
     slug: "home",
     title: "Homepage",
     path: "/",
-    description: "The site landing page. Always published (it is the redirect target for drafted pages).",
-    lockedPublished: true,
+    description: "The hosting-trial landing served at /. Disable it to hand the homepage over to the Domains Landing automatically (/ never breaks).",
   },
   {
     slug: "hosting",
