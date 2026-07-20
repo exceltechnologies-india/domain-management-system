@@ -105,6 +105,8 @@ const PUBLIC_API_PREFIXES = [
   "/api/check-ip",
   "/api/contact",
   "/api/settings/captcha-status",
+  // Public footer switcher: the footer reads which template to render.
+  "/api/settings/footer",
   // Cron and worker routes authenticate via x-cron-secret header in the route handler.
   // They must bypass middleware JWT checks so Google Cloud Scheduler/Tasks can call them.
   "/api/cron",

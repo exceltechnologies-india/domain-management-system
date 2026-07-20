@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import {
   LayoutTemplate, ExternalLink, Loader2, Lock, Eye, EyeOff,
-  Home, Server, Info, Mail, Globe, FileText,
+  Home, Server, Info, Mail, Globe, FileText, Palette,
 } from 'lucide-react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { AdminLayoutSkeleton, AdminGenericPageSkeleton } from '@/components/skeletons/PageSkeletons';
@@ -48,18 +48,42 @@ export default function PageManagementPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [savingSlug, setSavingSlug] = useState<string | null>(null);
+  const [footerVariant, setFooterVariant] = useState<'classic' | 'modern'>('modern');
+  const [savingFooter, setSavingFooter] = useState(false);
 
   const loadPages = useCallback(async () => {
     setIsRefreshing(true);
-    const res = await apiClient.get<{ success?: boolean; pages?: ManagedPageRow[] }>('/api/v1/admin/pages');
-    if (res.ok && res.data.success) {
-      setPages(res.data.pages || []);
+    const [pagesRes, appearanceRes] = await Promise.all([
+      apiClient.get<{ success?: boolean; pages?: ManagedPageRow[] }>('/api/v1/admin/pages'),
+      apiClient.get<{ success?: boolean; footerVariant?: 'classic' | 'modern' }>('/api/v1/admin/appearance'),
+    ]);
+    if (pagesRes.ok && pagesRes.data.success) {
+      setPages(pagesRes.data.pages || []);
     } else {
-      showErrorToast(res.ok ? 'Failed to load pages' : res.error.message || 'Failed to load pages');
+      showErrorToast(pagesRes.ok ? 'Failed to load pages' : pagesRes.error.message || 'Failed to load pages');
+    }
+    if (appearanceRes.ok && appearanceRes.data.footerVariant) {
+      setFooterVariant(appearanceRes.data.footerVariant);
     }
     setIsLoading(false);
     setIsRefreshing(false);
   }, []);
+
+  const changeFooter = async (variant: 'classic' | 'modern') => {
+    if (variant === footerVariant || savingFooter) return;
+    setSavingFooter(true);
+    const res = await apiClient.patch<{ success?: boolean; footerVariant?: 'classic' | 'modern' }>(
+      '/api/v1/admin/appearance',
+      { footerVariant: variant },
+    );
+    if (res.ok && res.data.success) {
+      setFooterVariant(res.data.footerVariant || variant);
+      showSuccessToast(`Footer set to ${variant === 'modern' ? 'Modern' : 'Classic'}.`);
+    } else {
+      showErrorToast(res.ok ? 'Update failed' : res.error.message || 'Update failed');
+    }
+    setSavingFooter(false);
+  };
 
   useEffect(() => {
     if (status === 'loading') return;
@@ -233,6 +257,41 @@ export default function PageManagementPage() {
               </div>
             );
           })}
+        </div>
+
+        {/* Appearance */}
+        <div className="mt-8">
+          <h2 className="flex items-center gap-2 text-sm font-bold text-gray-900 mb-3">
+            <Palette className="h-4 w-4 text-gray-400" />
+            Appearance
+          </h2>
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="min-w-0">
+              <h3 className="text-base font-bold text-gray-900">Footer template</h3>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Choose which footer renders across the public site. Takes effect immediately (no redeploy).
+              </p>
+            </div>
+            <div className="shrink-0 flex items-center gap-2">
+              {savingFooter && <Loader2 className="h-4 w-4 text-gray-400 animate-spin" />}
+              <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full p-1">
+                {(['modern', 'classic'] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => changeFooter(v)}
+                    disabled={savingFooter}
+                    aria-pressed={footerVariant === v}
+                    className={`px-4 py-1.5 rounded-full text-sm font-semibold capitalize transition-all disabled:opacity-60 ${
+                      footerVariant === v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </AdminLayout>
