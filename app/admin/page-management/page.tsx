@@ -4,10 +4,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
-import { LayoutTemplate, ExternalLink, Eye, EyeOff, Loader2, Lock } from 'lucide-react';
+import {
+  LayoutTemplate, ExternalLink, Loader2, Lock, Eye, EyeOff,
+  Home, Server, Info, Mail, Globe, FileText,
+} from 'lucide-react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { AdminLayoutSkeleton, AdminGenericPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import RefreshButton from '@/components/dashboard/RefreshButton';
+import { Switch } from '@/components/ui/switch';
 import { apiClient } from '@/lib/api-client';
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
 import { performLogout } from '@/lib/logout';
@@ -26,6 +30,14 @@ interface ManagedPageRow {
   lockedPublished: boolean;
   status: 'published' | 'draft';
 }
+
+const ICONS: Record<string, typeof Home> = {
+  home: Home,
+  hosting: Server,
+  about: Info,
+  contact: Mail,
+  'domains-home': Globe,
+};
 
 export default function PageManagementPage() {
   const { data: session, status } = useSession();
@@ -94,24 +106,44 @@ export default function PageManagementPage() {
     );
   }
 
+  const publishedCount = pages.filter((p) => p.status === 'published').length;
+  const draftCount = pages.length - publishedCount;
+
   return (
     <AdminLayout user={user} onLogout={performLogout}>
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div className="flex items-start gap-3">
-            <div className="p-2 rounded-xl bg-blue-50 text-blue-600 shrink-0">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
+          <div className="flex items-start gap-3.5">
+            <div className="p-2.5 rounded-2xl bg-gradient-to-br from-[#0180E5] to-[#01489D] text-white shrink-0 shadow-sm">
               <LayoutTemplate className="h-6 w-6" />
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Pages</h1>
-              <p className="text-sm text-gray-600 mt-0.5">
+              <p className="text-sm text-gray-500 mt-0.5 max-w-xl">
                 Publish or draft the public marketing pages. A drafted page redirects visitors to the
-                homepage; admins can still preview it.
+                homepage — admins can still preview it.
               </p>
             </div>
           </div>
           <RefreshButton onClick={loadPages} isLoading={isRefreshing} />
+        </div>
+
+        {/* Summary tiles */}
+        <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-6">
+          {[
+            { label: 'Published', value: publishedCount, tint: 'text-green-600', dot: 'bg-green-500' },
+            { label: 'Draft', value: draftCount, tint: 'text-amber-600', dot: 'bg-amber-500' },
+            { label: 'Total Pages', value: pages.length, tint: 'text-gray-900', dot: 'bg-gray-300' },
+          ].map((s) => (
+            <div key={s.label} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <span className={`h-2 w-2 rounded-full ${s.dot}`} />
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{s.label}</span>
+              </div>
+              <p className={`text-2xl font-extrabold ${s.tint}`}>{s.value}</p>
+            </div>
+          ))}
         </div>
 
         {/* Page list */}
@@ -119,69 +151,84 @@ export default function PageManagementPage() {
           {pages.map((row) => {
             const isPublished = row.status === 'published';
             const isSaving = savingSlug === row.slug;
+            const Icon = ICONS[row.slug] || FileText;
+            const accent = row.lockedPublished
+              ? 'bg-gray-300'
+              : isPublished
+                ? 'bg-green-400'
+                : 'bg-amber-400';
+            const iconTint = row.lockedPublished
+              ? 'bg-gray-100 text-gray-500'
+              : isPublished
+                ? 'bg-green-50 text-green-600'
+                : 'bg-amber-50 text-amber-600';
+
             return (
               <div
                 key={row.slug}
-                className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                className="relative bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all overflow-hidden"
               >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-base font-bold text-gray-900">{row.title}</h3>
-                    <span
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
-                        isPublished
-                          ? 'bg-green-50 text-green-700 border border-green-200'
-                          : 'bg-amber-50 text-amber-700 border border-amber-200'
-                      }`}
-                    >
-                      {isPublished ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                      {isPublished ? 'Published' : 'Draft'}
-                    </span>
-                    {row.lockedPublished && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
-                        <Lock className="h-3 w-3" />
-                        Locked
+                <span className={`absolute left-0 top-0 bottom-0 w-1.5 ${accent}`} aria-hidden />
+                <div className="pl-5 sm:pl-6 pr-4 sm:pr-5 py-4 sm:py-5 flex flex-col sm:flex-row sm:items-center gap-4">
+                  <div className={`p-3 rounded-xl shrink-0 ${iconTint}`}>
+                    <Icon className="h-5 w-5" />
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-base font-bold text-gray-900">{row.title}</h3>
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                          isPublished
+                            ? 'bg-green-50 text-green-700 border border-green-200'
+                            : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        }`}
+                      >
+                        {isPublished ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                        {isPublished ? 'Published' : 'Draft'}
                       </span>
+                      {row.lockedPublished && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+                          <Lock className="h-3 w-3" />
+                          Locked
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">{row.description}</p>
+                    <Link
+                      href={row.path}
+                      target="_blank"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 mt-2"
+                    >
+                      {row.path}
+                      <ExternalLink className="h-3 w-3" />
+                    </Link>
+                  </div>
+
+                  {/* Toggle */}
+                  <div className="shrink-0 flex items-center gap-3 sm:pl-4 sm:border-l sm:border-gray-100">
+                    {row.lockedPublished ? (
+                      <span className="text-xs font-medium text-gray-400">Always on</span>
+                    ) : (
+                      <>
+                        {isSaving && <Loader2 className="h-4 w-4 text-gray-400 animate-spin" />}
+                        <span
+                          className={`text-sm font-semibold w-14 text-right ${
+                            isPublished ? 'text-green-600' : 'text-amber-600'
+                          }`}
+                        >
+                          {isPublished ? 'Live' : 'Draft'}
+                        </span>
+                        <Switch
+                          checked={isPublished}
+                          onCheckedChange={() => toggleStatus(row)}
+                          disabled={isSaving}
+                          className="data-[state=checked]:bg-green-600"
+                          aria-label={`Toggle ${row.title} ${isPublished ? 'to draft' : 'to published'}`}
+                        />
+                      </>
                     )}
                   </div>
-                  <p className="text-sm text-gray-600 mt-1">{row.description}</p>
-                  <Link
-                    href={row.path}
-                    target="_blank"
-                    className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 mt-2"
-                  >
-                    {row.path}
-                    <ExternalLink className="h-3 w-3" />
-                  </Link>
-                </div>
-
-                <div className="shrink-0">
-                  {row.lockedPublished ? (
-                    <span className="text-xs text-gray-400">Always on</span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => toggleStatus(row)}
-                      disabled={isSaving}
-                      className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all min-w-[130px] disabled:opacity-60 active:scale-95 ${
-                        isPublished
-                          ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
-                          : 'bg-green-600 text-white hover:bg-green-700'
-                      }`}
-                    >
-                      {isSaving ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : isPublished ? (
-                        <>
-                          <EyeOff className="h-4 w-4" /> Set to Draft
-                        </>
-                      ) : (
-                        <>
-                          <Eye className="h-4 w-4" /> Publish
-                        </>
-                      )}
-                    </button>
-                  )}
                 </div>
               </div>
             );
