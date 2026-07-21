@@ -50,12 +50,14 @@ export default function PageManagementPage() {
   const [savingSlug, setSavingSlug] = useState<string | null>(null);
   const [footerVariant, setFooterVariant] = useState<'classic' | 'modern'>('modern');
   const [savingFooter, setSavingFooter] = useState(false);
+  const [homeVariant, setHomeVariant] = useState<'landing' | 'classic'>('landing');
+  const [savingHome, setSavingHome] = useState(false);
 
   const loadPages = useCallback(async () => {
     setIsRefreshing(true);
     const [pagesRes, appearanceRes] = await Promise.all([
       apiClient.get<{ success?: boolean; pages?: ManagedPageRow[] }>('/api/v1/admin/pages'),
-      apiClient.get<{ success?: boolean; footerVariant?: 'classic' | 'modern' }>('/api/v1/admin/appearance'),
+      apiClient.get<{ success?: boolean; footerVariant?: 'classic' | 'modern'; homeVariant?: 'landing' | 'classic' }>('/api/v1/admin/appearance'),
     ]);
     if (pagesRes.ok && pagesRes.data.success) {
       setPages(pagesRes.data.pages || []);
@@ -64,6 +66,9 @@ export default function PageManagementPage() {
     }
     if (appearanceRes.ok && appearanceRes.data.footerVariant) {
       setFooterVariant(appearanceRes.data.footerVariant);
+    }
+    if (appearanceRes.ok && appearanceRes.data.homeVariant) {
+      setHomeVariant(appearanceRes.data.homeVariant);
     }
     setIsLoading(false);
     setIsRefreshing(false);
@@ -83,6 +88,22 @@ export default function PageManagementPage() {
       showErrorToast(res.ok ? 'Update failed' : res.error.message || 'Update failed');
     }
     setSavingFooter(false);
+  };
+
+  const changeHome = async (variant: 'landing' | 'classic') => {
+    if (variant === homeVariant || savingHome) return;
+    setSavingHome(true);
+    const res = await apiClient.patch<{ success?: boolean; homeVariant?: 'landing' | 'classic' }>(
+      '/api/v1/admin/appearance',
+      { homeVariant: variant },
+    );
+    if (res.ok && res.data.success) {
+      setHomeVariant(res.data.homeVariant || variant);
+      showSuccessToast(`Homepage set to ${variant === 'landing' ? 'Landing (new)' : 'Classic (domain homepage)'}.`);
+    } else {
+      showErrorToast(res.ok ? 'Update failed' : res.error.message || 'Update failed');
+    }
+    setSavingHome(false);
   };
 
   useEffect(() => {
@@ -265,30 +286,65 @@ export default function PageManagementPage() {
             <Palette className="h-4 w-4 text-gray-400" />
             Appearance
           </h2>
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="min-w-0">
-              <h3 className="text-base font-bold text-gray-900">Footer template</h3>
-              <p className="text-sm text-gray-500 mt-0.5">
-                Choose which footer renders across the public site. Takes effect immediately (no redeploy).
-              </p>
+          <div className="space-y-3">
+            {/* Homepage design */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="min-w-0">
+                <h3 className="text-base font-bold text-gray-900">Homepage design (served at /)</h3>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  Switch which homepage renders at the root URL. The logo everywhere links to / and shows this design.
+                </p>
+              </div>
+              <div className="shrink-0 flex items-center gap-2">
+                {savingHome && <Loader2 className="h-4 w-4 text-gray-400 animate-spin" />}
+                <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full p-1">
+                  {([
+                    { v: 'landing', label: 'Landing' },
+                    { v: 'classic', label: 'Classic' },
+                  ] as const).map(({ v, label }) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => changeHome(v)}
+                      disabled={savingHome}
+                      aria-pressed={homeVariant === v}
+                      className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all disabled:opacity-60 ${
+                        homeVariant === v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
-            <div className="shrink-0 flex items-center gap-2">
-              {savingFooter && <Loader2 className="h-4 w-4 text-gray-400 animate-spin" />}
-              <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full p-1">
-                {(['modern', 'classic'] as const).map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => changeFooter(v)}
-                    disabled={savingFooter}
-                    aria-pressed={footerVariant === v}
-                    className={`px-4 py-1.5 rounded-full text-sm font-semibold capitalize transition-all disabled:opacity-60 ${
-                      footerVariant === v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    {v}
-                  </button>
-                ))}
+
+            {/* Footer template */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="min-w-0">
+                <h3 className="text-base font-bold text-gray-900">Footer template</h3>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  Choose which footer renders across the public site. Takes effect immediately (no redeploy).
+                </p>
+              </div>
+              <div className="shrink-0 flex items-center gap-2">
+                {savingFooter && <Loader2 className="h-4 w-4 text-gray-400 animate-spin" />}
+                <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full p-1">
+                  {(['modern', 'classic'] as const).map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => changeFooter(v)}
+                      disabled={savingFooter}
+                      aria-pressed={footerVariant === v}
+                      className={`px-4 py-1.5 rounded-full text-sm font-semibold capitalize transition-all disabled:opacity-60 ${
+                        footerVariant === v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

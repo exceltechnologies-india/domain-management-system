@@ -1,6 +1,6 @@
 import { listActivePlans } from '@/lib/services/hosting-plans';
 import { HOSTING_PLANS } from '@/config/hosting-plans';
-import { getPageStatus } from '@/lib/services/page-visibility';
+import { getHomeVariant } from '@/lib/services/appearance';
 import HostingLanding, { type LandingPlan } from '@/components/marketing/HostingLanding';
 import DomainHome from '@/components/marketing/DomainHome';
 
@@ -29,15 +29,15 @@ function fallbackFeatures(name: string, quotaMB: number, bandwidthMB: number): s
 }
 
 export default async function HomePage() {
-  // If the operator disables the Homepage in Admin → Pages, the domain-focused
-  // landing takes over the homepage role. Rendering it here (rather than
-  // redirecting) keeps '/' from ever looping or going blank.
+  // Homepage design is a toggle (Admin → Pages → Homepage design):
+  //   'landing' → the hosting-trial landing (default)
+  //   'classic' → the domain-focused homepage
   try {
-    if ((await getPageStatus('home')) === 'draft') {
+    if ((await getHomeVariant()) === 'classic') {
       return <DomainHome />;
     }
   } catch {
-    // fall through to the default hosting landing
+    // fall through to the default landing
   }
 
   let plans: LandingPlan[] = [];

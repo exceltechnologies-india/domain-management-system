@@ -43,12 +43,6 @@ export const DEFAULT_PAGE_STATUS: PageStatus = "published";
  */
 export const MANAGED_PAGES: ManagedPage[] = [
   {
-    slug: "home",
-    title: "Homepage",
-    path: "/",
-    description: "The hosting-trial landing served at /. Disable it to hand the homepage over to the Domains Landing automatically (/ never breaks).",
-  },
-  {
     slug: "hosting",
     title: "Hosting",
     path: "/hosting",

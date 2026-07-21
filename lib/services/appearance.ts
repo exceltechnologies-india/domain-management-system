@@ -23,3 +23,24 @@ export async function setFooterVariant(variant: FooterVariant, updatedBy = "syst
     updatedBy,
   });
 }
+
+// ── Homepage design ────────────────────────────────────────────────────────
+// 'landing' = the hosting-trial landing (new); 'classic' = the domain-focused
+// homepage (old). Whichever is selected renders at '/'.
+export type HomeVariant = "landing" | "classic";
+
+export const HOME_VARIANT_KEY = "home_variant";
+export const DEFAULT_HOME_VARIANT: HomeVariant = "landing";
+
+export async function getHomeVariant(): Promise<HomeVariant> {
+  const v = await getSettingValue<string>(HOME_VARIANT_KEY, DEFAULT_HOME_VARIANT);
+  return v === "classic" ? "classic" : "landing";
+}
+
+export async function setHomeVariant(variant: HomeVariant, updatedBy = "system"): Promise<void> {
+  await upsertSetting(HOME_VARIANT_KEY, variant, {
+    category: "appearance",
+    description: "Which homepage design renders at / (landing | classic).",
+    updatedBy,
+  });
+}
