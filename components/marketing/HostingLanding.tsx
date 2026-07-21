@@ -92,8 +92,8 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
         {/* ── Hero ─────────────────────────────────────────────────────── */}
         <section className="relative overflow-hidden bg-gradient-to-b from-violet-50/70 via-white to-white">
           <div className="absolute -top-24 -right-24 w-[30rem] h-[30rem] rounded-full bg-violet-100/50 blur-3xl pointer-events-none" />
-          <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-14 sm:py-20 relative">
-            <div className="grid lg:grid-cols-2 gap-10 lg:gap-12 items-center">
+          <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-14 sm:py-20 relative">
+            <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
               <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
                 <div className="inline-flex items-center gap-2 mb-5 text-green-600 text-[11px] sm:text-xs font-bold tracking-[0.12em] uppercase">
                   <Rocket className="h-3.5 w-3.5" />
