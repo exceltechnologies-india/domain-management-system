@@ -374,28 +374,60 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
 
         {/* ── Comparison ───────────────────────────────────────────────── */}
         <Section background="gray">
-          <div className="max-w-3xl mx-auto text-center mb-10">
-            <p className="text-xs font-bold tracking-[0.18em] uppercase text-violet-600 mb-3">Why choose Anutech?</p>
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900" style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}>Better Hosting. Better Results.</h2>
-          </div>
-          <div className="max-w-2xl mx-auto overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div className="grid grid-cols-[1fr_auto_auto]">
-              <div className="px-4 sm:px-6 py-4 bg-gray-50 border-b border-gray-200 text-sm font-semibold text-gray-500">Feature</div>
-              <div className="px-4 sm:px-6 py-4 bg-violet-600 border-b border-violet-700 text-sm font-bold text-white text-center whitespace-nowrap">Anutech</div>
-              <div className="px-4 sm:px-6 py-4 bg-gray-50 border-b border-gray-200 text-sm font-semibold text-gray-500 text-center whitespace-nowrap">Typical Host</div>
-              {COMPARISON.map((row, i) => (
-                <div key={row.feature} className="contents">
-                  <div className={`px-4 sm:px-6 py-3.5 text-sm text-gray-700 ${i < COMPARISON.length - 1 ? 'border-b border-gray-100' : ''}`}>{row.feature}</div>
-                  <div className={`px-4 sm:px-6 py-3.5 flex justify-center bg-violet-50/40 ${i < COMPARISON.length - 1 ? 'border-b border-gray-100' : ''}`}>
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                  </div>
-                  <div className={`px-4 sm:px-6 py-3.5 flex justify-center ${i < COMPARISON.length - 1 ? 'border-b border-gray-100' : ''}`}>
-                    {row.typical === 'yes' ? <CheckCircle className="h-5 w-5 text-green-500" />
-                      : row.typical === 'partial' ? <Minus className="h-5 w-5 text-amber-400" />
-                        : <XCircle className="h-5 w-5 text-gray-300" />}
+          <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+            {/* Left: heading + copy + illustration */}
+            <div>
+              <p className="text-xs font-bold tracking-[0.18em] uppercase text-violet-600 mb-3">Why choose Anutech?</p>
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 leading-[1.1]" style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}>
+                Better Hosting.<br />Better Results.
+              </h2>
+              <p className="mt-5 text-base text-gray-600 leading-relaxed max-w-md">
+                We combine the power of Google Cloud with personalized support to give your business the hosting experience it deserves.
+              </p>
+              {/* Server + cloud illustration */}
+              <div className="mt-10 hidden lg:block relative w-fit">
+                <div className="relative rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 p-6 shadow-xl">
+                  <div className="grid grid-cols-1 gap-2.5">
+                    {Array.from({ length: 4 }).map((_, r) => (
+                      <div key={r} className="flex items-center gap-2 rounded-md bg-slate-700/60 px-3 py-2">
+                        <span className="h-2 w-2 rounded-full bg-violet-400 animate-pulse" />
+                        <span className="h-1.5 flex-1 rounded-full bg-slate-500/70" />
+                        <span className="h-1.5 w-4 rounded-full bg-blue-400/80" />
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ))}
+                <div className="absolute -top-6 -right-8 h-24 w-32 rounded-[2rem] bg-white shadow-lg flex items-center justify-center">
+                  <Cloud className="h-14 w-14 text-blue-500" fill="currentColor" strokeWidth={0} />
+                  <Server className="absolute h-6 w-6 text-white" />
+                </div>
+              </div>
+            </div>
+
+            {/* Right: comparison table with elevated Anutech column */}
+            <div className="relative">
+              <div className="grid grid-cols-[1fr_auto_auto] rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden">
+                {/* Header */}
+                <div className="px-5 py-4 border-b border-gray-100" />
+                <div className="px-6 py-4 bg-gradient-to-b from-violet-600 to-violet-700 text-white text-sm font-bold text-center whitespace-nowrap rounded-t-xl shadow-lg shadow-violet-500/20">Anutech Hosting</div>
+                <div className="px-6 py-4 border-b border-gray-100 text-sm font-semibold text-gray-500 text-center whitespace-nowrap">Typical Hosting</div>
+                {COMPARISON.map((row, i) => {
+                  const last = i === COMPARISON.length - 1;
+                  return (
+                    <div key={row.feature} className="contents">
+                      <div className={`px-5 py-3.5 text-sm font-medium text-gray-800 ${!last ? 'border-b border-gray-100' : ''}`}>{row.feature}</div>
+                      <div className={`px-6 py-3.5 flex justify-center bg-violet-50/50 ${!last ? 'border-b border-violet-100/70' : 'rounded-b-xl'}`}>
+                        <CheckCircle className="h-5 w-5 text-green-500" />
+                      </div>
+                      <div className={`px-6 py-3.5 flex justify-center ${!last ? 'border-b border-gray-100' : ''}`}>
+                        {row.typical === 'yes' ? <CheckCircle className="h-5 w-5 text-green-500" />
+                          : row.typical === 'partial' ? <Minus className="h-5 w-5 text-amber-400" />
+                            : <XCircle className="h-5 w-5 text-red-400" />}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </Section>
