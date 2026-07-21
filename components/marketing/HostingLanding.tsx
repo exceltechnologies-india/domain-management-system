@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import {
-  Cloud, Zap, Lock, RefreshCw, Rocket, Headphones, CheckCircle, XCircle, Minus,
-  ArrowRight, ShieldCheck, CreditCard, Globe, Server, Star, Check,
+  Cloud, Zap, Lock, RefreshCw, Rocket, Headphones, CheckCircle, Minus,
+  ArrowRight, ShieldCheck, CreditCard, Globe, Server, Star, Check, X,
   LayoutDashboard, Bell, Mail, FileText, Database, Shield, Settings, Save, Layers, Plus, Grid3x3,
 } from 'lucide-react';
 import Navigation from '@/components/Navigation';
@@ -401,24 +401,26 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
             </div>
 
             {/* Right: comparison table with elevated Anutech column */}
-            <div className="relative">
-              <div className="grid grid-cols-[1fr_auto_auto] rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden">
+            <div className="relative pt-3">
+              {/* Floating violet card outline over the Anutech column */}
+              <div className="pointer-events-none absolute top-0 bottom-0 right-[150px] w-[150px] rounded-2xl border-2 border-violet-300 bg-violet-50/40 shadow-xl shadow-violet-500/10" />
+              <div className="relative grid grid-cols-[minmax(0,1fr)_150px_150px] rounded-2xl bg-white/60 border border-gray-200">
                 {/* Header */}
                 <div className="px-5 py-4 border-b border-gray-100" />
-                <div className="px-6 py-4 bg-gradient-to-b from-violet-600 to-violet-700 text-white text-sm font-bold text-center whitespace-nowrap rounded-t-xl shadow-lg shadow-violet-500/20">Anutech Hosting</div>
+                <div className="relative z-10 -mt-3 mx-[-1px] px-6 py-5 bg-gradient-to-b from-violet-600 to-violet-700 text-white text-sm font-bold text-center whitespace-nowrap rounded-t-2xl shadow-lg shadow-violet-500/20">Anutech Hosting</div>
                 <div className="px-6 py-4 border-b border-gray-100 text-sm font-semibold text-gray-500 text-center whitespace-nowrap">Typical Hosting</div>
                 {COMPARISON.map((row, i) => {
                   const last = i === COMPARISON.length - 1;
                   return (
                     <div key={row.feature} className="contents">
                       <div className={`px-5 py-3.5 text-sm font-medium text-gray-800 ${!last ? 'border-b border-gray-100' : ''}`}>{row.feature}</div>
-                      <div className={`px-6 py-3.5 flex justify-center bg-violet-50/50 ${!last ? 'border-b border-violet-100/70' : 'rounded-b-xl'}`}>
-                        <CheckCircle className="h-5 w-5 text-green-500" />
+                      <div className={`relative z-10 px-6 py-3.5 flex justify-center ${!last ? 'border-b border-violet-100' : ''}`}>
+                        <CheckCircle className="h-5 w-5 text-white fill-green-500" />
                       </div>
                       <div className={`px-6 py-3.5 flex justify-center ${!last ? 'border-b border-gray-100' : ''}`}>
-                        {row.typical === 'yes' ? <CheckCircle className="h-5 w-5 text-green-500" />
-                          : row.typical === 'partial' ? <Minus className="h-5 w-5 text-amber-400" />
-                            : <XCircle className="h-5 w-5 text-red-400" />}
+                        {row.typical === 'yes' ? <CheckCircle className="h-5 w-5 text-white fill-green-500" />
+                          : row.typical === 'partial' ? <Minus className="h-5 w-5 text-amber-400" strokeWidth={3} />
+                            : <X className="h-5 w-5 text-red-500" strokeWidth={3} />}
                       </div>
                     </div>
                   );
