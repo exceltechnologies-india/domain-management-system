@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import DomainSearch from '@/components/DomainSearch';
 import {
   Cloud, Zap, Lock, RefreshCw, Rocket, Headphones, CheckCircle, Minus,
   ArrowRight, ShieldCheck, CreditCard, Globe, Server, Star, Check, X,
@@ -345,6 +346,20 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
                   );
                 })}
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Domain search ────────────────────────────────────────────── */}
+        <section className="relative overflow-hidden bg-gradient-to-br from-violet-600 to-violet-700 py-14 sm:py-20">
+          <div aria-hidden className="pointer-events-none absolute -top-16 -right-16 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
+          <div aria-hidden className="pointer-events-none absolute -bottom-20 -left-10 h-64 w-64 rounded-full bg-violet-400/20 blur-3xl" />
+          <div className="relative max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <p className="text-xs font-bold tracking-[0.18em] uppercase text-violet-200 mb-3">Search for your perfect domain</p>
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-3" style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}>Find the Perfect Domain Name</h2>
+            <p className="text-violet-100/90 text-base max-w-xl mx-auto mb-8">Search across 500+ extensions and register your domain in seconds — free with select hosting plans.</p>
+            <div className="max-w-3xl mx-auto">
+              <DomainSearch redirectOnSearch theme="dark" showHeroText={false} compact className="mb-0" />
             </div>
           </div>
         </section>
