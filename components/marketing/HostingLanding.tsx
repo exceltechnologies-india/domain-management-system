@@ -326,7 +326,7 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
         </Section>
 
         {/* ── Pricing (DB-driven) ──────────────────────────────────────── */}
-        <Section background="gray" id="pricing">
+        <Section background="gray" id="pricing" className="scroll-mt-24">
           <div className="text-center mb-8 sm:mb-10">
             <p className="text-xs font-bold tracking-[0.18em] uppercase text-violet-600 mb-3">Choose the perfect plan for you</p>
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}>Simple, Transparent Pricing</h2>
