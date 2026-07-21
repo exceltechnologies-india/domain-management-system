@@ -6,7 +6,7 @@ import Link from 'next/link';
 import {
   Cloud, Zap, Lock, RefreshCw, Rocket, Headphones, CheckCircle, XCircle, Minus,
   ArrowRight, ShieldCheck, CreditCard, Globe, Server, Star, Check,
-  LayoutDashboard, Bell,
+  LayoutDashboard, Bell, Mail, FileText, Database, Shield, Settings, Save, Layers, Plus, Grid3x3,
 } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import Section from '@/components/Section';
@@ -99,8 +99,9 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
                   <Rocket className="h-3.5 w-3.5" />
                   15-Day Free Trial · No Credit Card Required
                 </div>
-                <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900 leading-[1.08] mb-5" style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}>
-                  Launch Your Business Website{' '}
+                <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-gray-900 leading-[1.05] mb-5" style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}>
+                  Launch Your<br />
+                  Business Website<br />
                   <span className="bg-gradient-to-r from-[#7C3AED] to-[#6D28D9] bg-clip-text text-transparent">FREE for 15 Days</span>
                 </h1>
                 <p className="text-base sm:text-lg text-gray-600 leading-relaxed mb-8 max-w-xl">
@@ -133,14 +134,24 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
                   </div>
                   <div className="flex">
                     {/* sidebar */}
-                    <div className="w-32 shrink-0 border-r border-gray-100 p-3 hidden xl:block">
+                    <div className="w-36 shrink-0 border-r border-gray-100 p-3 hidden xl:block">
                       <div className="flex items-center gap-1.5 mb-4 px-1">
                         <div className="h-5 w-5 rounded bg-gradient-to-br from-[#7C3AED] to-[#6D28D9]" />
                         <span className="text-[11px] font-bold text-gray-800">ANUTECH</span>
                       </div>
-                      {['Dashboard', 'Websites', 'Domains', 'Emails', 'Files', 'Databases', 'Backups', 'Security', 'Settings'].map((n, i) => (
-                        <div key={n} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg mb-0.5 text-[11px] ${i === 0 ? 'bg-violet-50 text-violet-700 font-semibold' : 'text-gray-500'}`}>
-                          <span className={`h-1.5 w-1.5 rounded-full ${i === 0 ? 'bg-violet-600' : 'bg-gray-300'}`} />
+                      {([
+                        { n: 'Dashboard', Icon: LayoutDashboard },
+                        { n: 'Websites', Icon: Layers },
+                        { n: 'Domains', Icon: Globe },
+                        { n: 'Emails', Icon: Mail },
+                        { n: 'Files', Icon: FileText },
+                        { n: 'Databases', Icon: Database },
+                        { n: 'Backups', Icon: Save },
+                        { n: 'Security', Icon: Shield },
+                        { n: 'Settings', Icon: Settings },
+                      ] as const).map(({ n, Icon }, i) => (
+                        <div key={n} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg mb-0.5 text-[11px] ${i === 0 ? 'bg-violet-50 text-violet-700 font-semibold' : 'text-gray-500'}`}>
+                          <Icon className={`h-3 w-3 ${i === 0 ? 'text-violet-600' : 'text-gray-400'}`} />
                           {n}
                         </div>
                       ))}
@@ -154,19 +165,27 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
                         </div>
                         <div className="flex items-center gap-2 text-gray-300">
                           <Bell className="h-4 w-4" />
-                          <LayoutDashboard className="h-4 w-4" />
+                          <Grid3x3 className="h-4 w-4" />
+                          <span className="h-5 w-5 rounded-full bg-gradient-to-br from-violet-300 to-violet-500" />
                         </div>
                       </div>
                       <div className="grid grid-cols-3 gap-2 mb-3">
                         {[
-                          { label: 'Website', value: 'Active', sub: 'mybusiness.com', tint: 'text-green-600' },
-                          { label: 'Storage', value: '12.6 / 20 GB', sub: '63% Used', tint: 'text-violet-600' },
-                          { label: 'Bandwidth', value: '32 / 100 GB', sub: '32% Used', tint: 'text-violet-600' },
+                          { label: 'Website', value: 'mybusiness.com', badge: 'Active', pct: null as number | null, tint: 'text-gray-900' },
+                          { label: 'Storage', value: '12.6 / 20 GB', badge: '63% Used', pct: 63, tint: 'text-gray-900' },
+                          { label: 'Bandwidth', value: '32.4 / 100 GB', badge: '32% Used', pct: 32, tint: 'text-gray-900' },
                         ].map((s) => (
                           <div key={s.label} className="rounded-lg border border-gray-100 bg-gray-50/60 p-2.5">
                             <p className="text-[9px] uppercase tracking-wide text-gray-400">{s.label}</p>
-                            <p className={`text-[11px] font-bold ${s.tint}`}>{s.value}</p>
-                            <p className="text-[9px] text-gray-400 mt-0.5">{s.sub}</p>
+                            <p className={`text-[11px] font-bold ${s.tint} truncate`}>{s.value}</p>
+                            {s.pct === null ? (
+                              <p className="text-[9px] font-semibold text-green-600 mt-0.5 flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-green-500" />{s.badge}</p>
+                            ) : (
+                              <>
+                                <div className="h-1 rounded-full bg-gray-200 mt-1.5 overflow-hidden"><div className="h-full rounded-full bg-violet-500" style={{ width: `${s.pct}%` }} /></div>
+                                <p className="text-[9px] text-gray-400 mt-0.5">{s.badge}</p>
+                              </>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -179,8 +198,13 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
                         </div>
                         <div className="rounded-lg border border-gray-100 p-3">
                           <p className="text-[10px] font-semibold text-gray-500 mb-2">Quick Actions</p>
-                          {['Create Website', 'Install WordPress', 'Add Domain', 'Manage Emails'].map((a) => (
-                            <p key={a} className="text-[9px] text-gray-500 mb-1 flex items-center gap-1"><span className="h-1 w-1 rounded-full bg-violet-500" />{a}</p>
+                          {([
+                            { a: 'Create Website', Icon: Globe },
+                            { a: 'Install WordPress', Icon: Server },
+                            { a: 'Add Domain', Icon: Plus },
+                            { a: 'Manage Emails', Icon: Mail },
+                          ] as const).map(({ a, Icon }) => (
+                            <p key={a} className="text-[9px] text-gray-600 mb-1.5 flex items-center gap-1.5"><Icon className="h-2.5 w-2.5 text-violet-500" />{a}</p>
                           ))}
                         </div>
                       </div>
