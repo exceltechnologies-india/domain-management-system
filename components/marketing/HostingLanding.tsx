@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import {
@@ -76,6 +76,8 @@ const TESTIMONIALS = [
   { quote: 'Our website migrated seamlessly and the performance boost is amazing. Great support!', name: 'Priya Mehta', role: 'Marketing Head, Crafto' },
   { quote: 'Finally, a hosting company that actually cares about its customers. 10/10!', name: 'Amit Verma', role: 'CEO, DigitalGrow' },
   { quote: 'Affordable pricing with premium features. Best decision for our business.', name: 'Sneha Iyer', role: 'Co-founder, Travelizo' },
+  { quote: 'Setup took minutes and our site has not gone down once. Rock-solid uptime.', name: 'Karan Malhotra', role: 'Owner, Brilliant Studio' },
+  { quote: 'The free migration was painless and support answered within minutes. Fantastic.', name: 'Neha Kapoor', role: 'Director, GrowMore Digital' },
 ];
 
 const FAQS = [
@@ -92,6 +94,25 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
   const router = useRouter();
   const { data: session } = useSession();
   const { addItem } = useCartStore();
+
+  // Testimonial carousel: responsive cards-per-view + autoplay + dots.
+  const [tIndex, setTIndex] = useState(0);
+  const [perView, setPerView] = useState(4);
+  useEffect(() => {
+    const calc = () => setPerView(window.innerWidth < 640 ? 1 : window.innerWidth < 1024 ? 2 : 4);
+    calc();
+    window.addEventListener('resize', calc);
+    return () => window.removeEventListener('resize', calc);
+  }, []);
+  const maxT = Math.max(0, TESTIMONIALS.length - perView);
+  useEffect(() => {
+    setTIndex((i) => Math.min(i, maxT));
+  }, [maxT]);
+  useEffect(() => {
+    if (maxT === 0) return;
+    const id = setInterval(() => setTIndex((i) => (i >= maxT ? 0 : i + 1)), 4500);
+    return () => clearInterval(id);
+  }, [maxT]);
 
   // Buy Now → build the hosting cart item and go to the cart (standard flow).
   const handleChoosePlan = (plan: LandingPlan) => {
@@ -484,22 +505,41 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
             <p className="text-xs font-bold tracking-[0.18em] uppercase text-violet-600 mb-3">What our customers say</p>
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900" style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}>Loved by 1,000+ Businesses</h2>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6">
-            {TESTIMONIALS.map((t, i) => (
-              <motion.div key={t.name} initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.4, delay: i * 0.06 }}
-                className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
-                <div className="flex gap-0.5 mb-3">{Array.from({ length: 5 }).map((_, s) => (<Star key={s} className="h-4 w-4 fill-yellow-400 text-yellow-400" />))}</div>
-                <p className="text-sm text-gray-700 leading-relaxed mb-4">&ldquo;{t.quote}&rdquo;</p>
-                <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-sm font-bold">{t.name.charAt(0)}</div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">{t.name}</p>
-                    <p className="text-xs text-gray-500">{t.role}</p>
+          <div className="relative overflow-hidden">
+            <div
+              className="flex transition-transform duration-700 ease-out"
+              style={{ transform: `translateX(-${tIndex * (100 / perView)}%)` }}
+            >
+              {TESTIMONIALS.map((t) => (
+                <div key={t.name} className="shrink-0 px-2.5 sm:px-3" style={{ flexBasis: `${100 / perView}%` }}>
+                  <div className="h-full bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+                    <div className="flex gap-0.5 mb-3">{Array.from({ length: 5 }).map((_, s) => (<Star key={s} className="h-4 w-4 fill-yellow-400 text-yellow-400" />))}</div>
+                    <p className="text-sm text-gray-700 leading-relaxed mb-4">&ldquo;{t.quote}&rdquo;</p>
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-sm font-bold">{t.name.charAt(0)}</div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">{t.name}</p>
+                        <p className="text-xs text-gray-500">{t.role}</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </motion.div>
-            ))}
+              ))}
+            </div>
           </div>
+          {maxT > 0 && (
+            <div className="flex justify-center gap-2 mt-8">
+              {Array.from({ length: maxT + 1 }).map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setTIndex(i)}
+                  aria-label={`Go to testimonial slide ${i + 1}`}
+                  className={`h-2 rounded-full transition-all ${i === tIndex ? 'w-6 bg-violet-600' : 'w-2 bg-gray-300 hover:bg-gray-400'}`}
+                />
+              ))}
+            </div>
+          )}
         </Section>
 
         {/* ── FAQ (two-column) ─────────────────────────────────────────── */}
