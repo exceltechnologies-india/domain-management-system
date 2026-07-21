@@ -384,23 +384,19 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
               <p className="mt-5 text-base text-gray-600 leading-relaxed max-w-md">
                 We combine the power of Google Cloud with personalized support to give your business the hosting experience it deserves.
               </p>
-              {/* Server + cloud illustration */}
-              <div className="mt-10 hidden lg:block relative w-fit">
-                <div className="relative rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 p-6 shadow-xl">
-                  <div className="grid grid-cols-1 gap-2.5">
-                    {Array.from({ length: 4 }).map((_, r) => (
-                      <div key={r} className="flex items-center gap-2 rounded-md bg-slate-700/60 px-3 py-2">
-                        <span className="h-2 w-2 rounded-full bg-violet-400 animate-pulse" />
-                        <span className="h-1.5 flex-1 rounded-full bg-slate-500/70" />
-                        <span className="h-1.5 w-4 rounded-full bg-blue-400/80" />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="absolute -top-6 -right-8 h-24 w-32 rounded-[2rem] bg-white shadow-lg flex items-center justify-center">
-                  <Cloud className="h-14 w-14 text-blue-500" fill="currentColor" strokeWidth={0} />
-                  <Server className="absolute h-6 w-6 text-white" />
-                </div>
+              {/* Server + Google Cloud illustration */}
+              <div className="mt-8 hidden lg:block">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/server-cloud.png"
+                  alt="Google Cloud powered hosting infrastructure"
+                  width={340}
+                  height={340}
+                  className="h-auto w-[340px] max-w-full select-none"
+                  loading="lazy"
+                  draggable={false}
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
               </div>
             </div>
 
