@@ -16,6 +16,13 @@ import Footer from '@/components/Footer';
 import ChatWidget from '@/components/ChatWidget';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { trackStartTrial } from '@/lib/journey';
+import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
+import toast from 'react-hot-toast';
+import { useCartStore } from '@/store/cartStore';
+import type { CartItem } from '@/lib/types';
+import { getDeviceFingerprint } from '@/lib/device-fingerprint';
+import { apiClient } from '@/lib/api-client';
 
 /** Serialized hosting plan passed from the server (subset of HostingPlan). */
 export interface LandingPlan {
@@ -29,7 +36,6 @@ export interface LandingPlan {
   isPopular: boolean;
 }
 
-const TRIAL_CTA = '/hosting#pricing';
 
 function symbolFor(currency: string): string {
   return currency === 'INR' ? '₹' : currency === 'USD' ? '$' : `${currency} `;
@@ -83,6 +89,78 @@ const FAQS = [
 
 export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('yearly');
+  const router = useRouter();
+  const { data: session } = useSession();
+  const { addItem } = useCartStore();
+
+  // Buy Now → build the hosting cart item and go to the cart (standard flow).
+  const handleChoosePlan = (plan: LandingPlan) => {
+    const isMonthly = billingCycle === 'monthly';
+    const finalPrice = isMonthly ? plan.price * 2 : plan.price;
+    const finalPeriod = isMonthly ? 1 : 12;
+    const item: CartItem = {
+      domainName: `hosting-${plan.planId}-${Date.now()}`,
+      price: finalPrice,
+      currency: plan.currency,
+      registrationPeriod: finalPeriod,
+      periodUnit: 'months',
+      itemType: 'hosting',
+      billingCycle,
+      hostingPlan: {
+        id: plan.planId,
+        name: `${plan.name} Hosting`,
+        period: finalPeriod,
+        features: [...plan.features, ...(isMonthly ? [] : ['30-Day Money-Back Guarantee'])],
+        serverPackage: plan.planId,
+      },
+    };
+    addItem(item);
+    toast.success(`${plan.name} added to cart!`);
+    router.push('/cart');
+  };
+
+  // Start Free Trial (yearly Starter) → eligibility check then add the ₹0 trial.
+  const handleStartTrial = async (plan: LandingPlan) => {
+    trackStartTrial();
+    if (!session?.user) {
+      router.push(`/login?returnUrl=${encodeURIComponent('/')}`);
+      return;
+    }
+    const deviceFingerprint = await getDeviceFingerprint().catch(() => '');
+    const result = await apiClient.post<{ eligible?: boolean; reason?: string }>(
+      '/api/v1/user/hosting/trial-eligibility',
+      { planId: plan.planId, deviceFingerprint },
+    );
+    if (!result.ok) {
+      toast.error('Unable to check trial eligibility. Please try again.');
+      return;
+    }
+    if (!result.data.eligible) {
+      toast.error(result.data.reason || 'You are not eligible for a free trial.');
+      return;
+    }
+    const trialItem: CartItem = {
+      domainName: `hosting-trial-${plan.planId}-${Date.now()}`,
+      price: 0,
+      currency: plan.currency,
+      registrationPeriod: 15,
+      periodUnit: 'days',
+      itemType: 'hosting',
+      billingCycle: 'yearly',
+      isTrial: true,
+      hostingPlan: {
+        id: plan.planId,
+        name: `${plan.name} Hosting`,
+        period: 15,
+        features: [...plan.features, '15-Day Free Trial', '30-Day Money-Back Guarantee'],
+        serverPackage: plan.planId,
+        price: plan.price,
+      },
+    };
+    addItem(trialItem);
+    toast.success(`${plan.name} free trial added! ₹0 today, then billed yearly after 15 days.`);
+    router.push('/cart');
+  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -108,7 +186,7 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
                   Enterprise-grade web hosting powered by Google Cloud. Free SSL, daily backups, free migration and 24×7 expert support.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3 mb-6">
-                  <Link href={TRIAL_CTA} onClick={() => trackStartTrial()} className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-[#22C55E] to-[#16A34A] hover:from-[#16A34A] hover:to-[#15803D] text-white font-bold py-3.5 px-7 rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95">
+                  <Link href="#pricing" className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-[#22C55E] to-[#16A34A] hover:from-[#16A34A] hover:to-[#15803D] text-white font-bold py-3.5 px-7 rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95">
                     <Rocket className="h-5 w-5" />
                     Start Your 15-Day Free Trial
                   </Link>
@@ -387,7 +465,7 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
                     isPopular={plan.isPopular}
                     highlightColor="purple"
                     buttonText={offersTrial ? 'Start Free Trial' : 'Buy Now'}
-                    buttonLink={TRIAL_CTA}
+                    onButtonClick={() => (offersTrial ? handleStartTrial(plan) : handleChoosePlan(plan))}
                     features={[
                       ...plan.features.map((f) => ({ text: f, included: true, highlight: plan.highlightFeatures.includes(f) })),
                       ...(!isMonthly ? [{ text: '30-Day Money-Back Guarantee', included: true, highlight: true }] : []),
@@ -444,7 +522,7 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
           <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-14 text-center">
             <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3" style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}>Ready to Launch Your Website?</h2>
             <p className="text-violet-100 mb-7 max-w-2xl mx-auto">Join 1,000+ businesses who trust Anutech for their online success.</p>
-            <Link href={TRIAL_CTA} onClick={() => trackStartTrial()} className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-[#22C55E] to-[#16A34A] hover:from-[#16A34A] hover:to-[#15803D] text-white font-bold py-3.5 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95">
+            <Link href="#pricing" className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-[#22C55E] to-[#16A34A] hover:from-[#16A34A] hover:to-[#15803D] text-white font-bold py-3.5 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95">
               <Rocket className="h-5 w-5" />
               Start Your 15-Day Free Trial
               <ArrowRight className="h-5 w-5" />
