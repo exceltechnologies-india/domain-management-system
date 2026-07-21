@@ -71,19 +71,14 @@ const STEPS = [
   { num: 4, icon: Rocket, title: 'Go Live & Upgrade', body: 'Launch your website. Upgrade anytime if you love our service!' },
 ];
 
-// Illustrated per-person avatars (keyed by name via DiceBear) — distinct
-// pictures without using stock photos of real people next to placeholder
-// testimonials. Falls back to a coloured initial if the image fails to load.
-const avatarUrl = (seed: string) =>
-  `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}&backgroundColor=ede9fe,ddd6fe,e0e7ff,fce7f3&radius=50`;
-
+// Real-people portrait photos (randomuser.me) for the testimonial avatars.
 const TESTIMONIALS = [
-  { quote: 'Anutech Hosting is fast, reliable and the support team is outstanding. Highly recommended!', name: 'Ravi Sharma', role: 'Founder, TechSolution' },
-  { quote: 'Our website migrated seamlessly and the performance boost is amazing. Great support!', name: 'Priya Mehta', role: 'Marketing Head, Crafto' },
-  { quote: 'Finally, a hosting company that actually cares about its customers. 10/10!', name: 'Amit Verma', role: 'CEO, DigitalGrow' },
-  { quote: 'Affordable pricing with premium features. Best decision for our business.', name: 'Sneha Iyer', role: 'Co-founder, Travelizo' },
-  { quote: 'Setup took minutes and our site has not gone down once. Rock-solid uptime.', name: 'Karan Malhotra', role: 'Owner, Brilliant Studio' },
-  { quote: 'The free migration was painless and support answered within minutes. Fantastic.', name: 'Neha Kapoor', role: 'Director, GrowMore Digital' },
+  { quote: 'Anutech Hosting is fast, reliable and the support team is outstanding. Highly recommended!', name: 'Ravi Sharma', role: 'Founder, TechSolution', img: 'https://randomuser.me/api/portraits/men/32.jpg' },
+  { quote: 'Our website migrated seamlessly and the performance boost is amazing. Great support!', name: 'Priya Mehta', role: 'Marketing Head, Crafto', img: 'https://randomuser.me/api/portraits/women/44.jpg' },
+  { quote: 'Finally, a hosting company that actually cares about its customers. 10/10!', name: 'Amit Verma', role: 'CEO, DigitalGrow', img: 'https://randomuser.me/api/portraits/men/54.jpg' },
+  { quote: 'Affordable pricing with premium features. Best decision for our business.', name: 'Sneha Iyer', role: 'Co-founder, Travelizo', img: 'https://randomuser.me/api/portraits/women/68.jpg' },
+  { quote: 'Setup took minutes and our site has not gone down once. Rock-solid uptime.', name: 'Karan Malhotra', role: 'Owner, Brilliant Studio', img: 'https://randomuser.me/api/portraits/men/76.jpg' },
+  { quote: 'The free migration was painless and support answered within minutes. Fantastic.', name: 'Neha Kapoor', role: 'Director, GrowMore Digital', img: 'https://randomuser.me/api/portraits/women/12.jpg' },
 ];
 
 const FAQS = [
@@ -524,7 +519,7 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
                     <div className="flex items-center gap-3">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={avatarUrl(t.name)}
+                        src={t.img}
                         alt={t.name}
                         loading="lazy"
                         className="h-11 w-11 rounded-full bg-violet-100 object-cover shrink-0"
