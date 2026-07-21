@@ -142,7 +142,7 @@ export default function FooterModern({ className = '' }: FooterProps) {
                 </span>
               ))}
             </div>
-            <p className="text-xs text-gray-500 mt-3">GSTIN: 09AAGCA1234A1ZS</p>
+            <p className="text-xs text-gray-500 mt-3">GSTIN: 07ABDCA0298H1ZP</p>
           </div>
         </div>
 
