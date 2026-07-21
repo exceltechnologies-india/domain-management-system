@@ -95,7 +95,7 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
           <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-14 sm:py-20 relative">
             <div className="grid lg:grid-cols-2 gap-10 lg:gap-12 items-center">
               <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-                <div className="inline-flex items-center gap-2 mb-5 bg-violet-100 text-violet-700 rounded-full px-3 py-1.5 text-[11px] sm:text-xs font-bold tracking-wide uppercase">
+                <div className="inline-flex items-center gap-2 mb-5 text-green-600 text-[11px] sm:text-xs font-bold tracking-[0.12em] uppercase">
                   <Rocket className="h-3.5 w-3.5" />
                   15-Day Free Trial · No Credit Card Required
                 </div>
@@ -179,7 +179,7 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
                         </div>
                         <div className="rounded-lg border border-gray-100 p-3">
                           <p className="text-[10px] font-semibold text-gray-500 mb-2">Quick Actions</p>
-                          {['Create Website', 'Install WordPress', 'Add Domain'].map((a) => (
+                          {['Create Website', 'Install WordPress', 'Add Domain', 'Manage Emails'].map((a) => (
                             <p key={a} className="text-[9px] text-gray-500 mb-1 flex items-center gap-1"><span className="h-1 w-1 rounded-full bg-violet-500" />{a}</p>
                           ))}
                         </div>
