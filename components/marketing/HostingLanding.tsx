@@ -364,8 +364,8 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
                   <div className={`inline-flex items-center justify-center h-12 w-12 rounded-full ${f.tint} mb-4`}>
                     <Icon className="h-6 w-6" />
                   </div>
-                  <h3 className="text-sm font-bold text-gray-900 mb-1.5">{f.title}</h3>
-                  <p className="text-xs text-gray-600 leading-relaxed">{f.body}</p>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">{f.title}</h3>
+                  <p className="text-sm text-gray-600 leading-relaxed">{f.body}</p>
                 </motion.div>
               );
             })}
