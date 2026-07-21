@@ -265,13 +265,10 @@ export default function Navigation({
             ) : (
               <Link
                 href={loginHref}
-                className="px-4 py-2 rounded-lg font-medium text-white transition-all duration-200 shadow-sm hover:shadow-md"
-                style={{
-                  backgroundColor: 'var(--google-blue)',
-                  borderColor: 'var(--google-blue)',
-                  fontFamily: 'Google Sans, system-ui, sans-serif'
-                }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-gray-700 bg-white border border-gray-200 hover:border-violet-300 hover:text-violet-700 shadow-sm hover:shadow-md transition-all duration-200"
+                style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}
               >
+                <User className="h-4 w-4" />
                 Login
               </Link>
             )}
