@@ -1,6 +1,8 @@
 # Domain Management Portal — Tasks
 
-**Last updated:** 21 Jul 2026 (revision `dms-00362-kqr` LIVE — HERO-WIDTH: hero container widened to max-w-screen-2xl to match the navbar width. Follows `dms-00361-lk6`.
+**Last updated:** 21 Jul 2026 (revision `dms-00363-dlm` LIVE — NAV-LOGIN-OUTLINE: Login is now an outlined white button with a user icon (violet hover) beside the purple Start Free Trial. Follows `dms-00362-kqr`.
+
+**Prior update:** 21 Jul 2026 (revision `dms-00362-kqr` LIVE — HERO-WIDTH: hero container widened to max-w-screen-2xl to match the navbar width. Follows `dms-00361-lk6`.
 
 **Prior update:** 21 Jul 2026 (revision `dms-00361-lk6` LIVE — HERO-EXACT-MATCH: 3-line H1 (Launch Your / Business Website / FREE for 15 Days) + larger; dashboard mock with real menu icons + usage progress bars; nav purple "Start Free Trial" button. Follows `dms-00360-bqt`.
 
