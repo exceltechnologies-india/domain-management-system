@@ -91,7 +91,7 @@ export default function FooterModern({ className = '' }: FooterProps) {
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="grid grid-cols-2 lg:grid-cols-12 gap-x-6 gap-y-5 mb-5">
           {/* Brand */}
-          <div className="col-span-2 lg:col-span-4">
+          <div className="col-span-2 lg:col-span-2">
             <div className="flex items-center mb-1.5">
               <Logo size="md" showText={false} variant="dark" />
             </div>
