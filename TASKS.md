@@ -1,6 +1,8 @@
 # Domain Management Portal — Tasks
 
-**Last updated:** 21 Jul 2026 (revision `dms-00360-bqt` LIVE — HERO-DESIGN-ALIGN: hero eyebrow -> green text + rocket (was violet pill), dashboard-mock Quick Actions -> 4 items (adds Manage Emails), to match the target mockup. Follows `dms-00359-ngn`.
+**Last updated:** 21 Jul 2026 (revision `dms-00361-lk6` LIVE — HERO-EXACT-MATCH: 3-line H1 (Launch Your / Business Website / FREE for 15 Days) + larger; dashboard mock with real menu icons + usage progress bars; nav purple "Start Free Trial" button. Follows `dms-00360-bqt`.
+
+**Prior update:** 21 Jul 2026 (revision `dms-00360-bqt` LIVE — HERO-DESIGN-ALIGN: hero eyebrow -> green text + rocket (was violet pill), dashboard-mock Quick Actions -> 4 items (adds Manage Emails), to match the target mockup. Follows `dms-00359-ngn`.
 
 **Prior update:** 21 Jul 2026 (revision `dms-00359-ngn` LIVE — LANDING-TRIAL-GATING: the homepage pricing now offers "Start Free Trial" only on the **yearly Starter** plan (all other plans + monthly show "Buy Now"), matching the hosting page. Also live: footer spacing restored to a comfortable middle (`dms-00358-tc9`). Follows `dms-00357-768`.
 
