@@ -345,6 +345,10 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
                 const isMonthly = billingCycle === 'monthly';
                 const monthlyPrice = plan.price * 2;
                 const displayPrice = (isMonthly ? monthlyPrice : plan.price).toFixed(2);
+                // Free trial is offered on the YEARLY STARTER plan only (matches
+                // the hosting page). Every other plan / billing cycle → Buy Now.
+                const isStarter = /starter/i.test(plan.name) || /starter/i.test(plan.planId);
+                const offersTrial = !isMonthly && isStarter;
                 return (
                   <PricingCard
                     key={plan.planId}
@@ -358,7 +362,7 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
                     renewalPrice={isMonthly ? `Renews at ${cur}${monthlyPrice.toFixed(2)}/mo` : `Renews at ${cur}${plan.price.toFixed(2)}/mo`}
                     isPopular={plan.isPopular}
                     highlightColor="purple"
-                    buttonText="Start Free Trial"
+                    buttonText={offersTrial ? 'Start Free Trial' : 'Buy Now'}
                     buttonLink={TRIAL_CTA}
                     features={[
                       ...plan.features.map((f) => ({ text: f, included: true, highlight: plan.highlightFeatures.includes(f) })),
