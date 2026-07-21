@@ -1,6 +1,8 @@
 # Domain Management Portal — Tasks
 
-**Last updated:** 21 Jul 2026 (revision `dms-00359-ngn` LIVE — LANDING-TRIAL-GATING: the homepage pricing now offers "Start Free Trial" only on the **yearly Starter** plan (all other plans + monthly show "Buy Now"), matching the hosting page. Also live: footer spacing restored to a comfortable middle (`dms-00358-tc9`). Follows `dms-00357-768`.
+**Last updated:** 21 Jul 2026 (revision `dms-00360-bqt` LIVE — HERO-DESIGN-ALIGN: hero eyebrow -> green text + rocket (was violet pill), dashboard-mock Quick Actions -> 4 items (adds Manage Emails), to match the target mockup. Follows `dms-00359-ngn`.
+
+**Prior update:** 21 Jul 2026 (revision `dms-00359-ngn` LIVE — LANDING-TRIAL-GATING: the homepage pricing now offers "Start Free Trial" only on the **yearly Starter** plan (all other plans + monthly show "Buy Now"), matching the hosting page. Also live: footer spacing restored to a comfortable middle (`dms-00358-tc9`). Follows `dms-00357-768`.
 
 **Prior update:** 21 Jul 2026 (revision `dms-00357-768` LIVE — META-EVENTS-OUTCOME-BASED: StartTrial / TrialConversion / Purchase now fire only on the CONFIRMED outcome (hosting provisioned + DA assigned / trial paid-renewal / domain registered), not on click or unfulfilled payment — separate events per operator's ad-campaign requirement. Follows `dms-00356-vhh`.
 
