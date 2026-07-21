@@ -1,6 +1,8 @@
 # Domain Management Portal — Tasks
 
-**Last updated:** 21 Jul 2026 (revision `dms-00363-dlm` LIVE — NAV-LOGIN-OUTLINE: Login is now an outlined white button with a user icon (violet hover) beside the purple Start Free Trial. Follows `dms-00362-kqr`.
+**Last updated:** 21 Jul 2026 (revision `dms-00364-wqc` LIVE — NAV-LOGIN-VIOLET: Login button restyled to violet outline (violet icon + text + light-violet border, rounded-xl) to match the design. Follows `dms-00363-dlm`.
+
+**Prior update:** 21 Jul 2026 (revision `dms-00363-dlm` LIVE — NAV-LOGIN-OUTLINE: Login is now an outlined white button with a user icon (violet hover) beside the purple Start Free Trial. Follows `dms-00362-kqr`.
 
 **Prior update:** 21 Jul 2026 (revision `dms-00362-kqr` LIVE — HERO-WIDTH: hero container widened to max-w-screen-2xl to match the navbar width. Follows `dms-00361-lk6`.
 
