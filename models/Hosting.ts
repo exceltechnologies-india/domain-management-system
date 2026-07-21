@@ -24,6 +24,7 @@ export interface IHosting extends Document {
   autoRenew: boolean;
   billingType: "subscription" | "manual";
   isTrial: boolean;
+  conversionEventSent?: boolean;
   lastSyncedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -125,6 +126,13 @@ const HostingSchema = new Schema<IHosting>(
       default: "manual",
     },
     isTrial: {
+      type: Boolean,
+      default: false,
+    },
+    // Idempotency guard so the Meta conversion event (StartTrial / Purchase)
+    // fires at most once per hosting, even across sync + async + cron
+    // provisioning paths.
+    conversionEventSent: {
       type: Boolean,
       default: false,
     },

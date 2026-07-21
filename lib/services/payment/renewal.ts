@@ -14,6 +14,7 @@ import { getCurrentDate } from "@/lib/dateUtils";
 import { serverLogger } from "@/lib/server-logger";
 import type { IUser } from "@/models/User";
 import type { RazorpayPaymentDetails } from "@/lib/types";
+import { recordTrialConversion } from "@/lib/services/analytics-conversions";
 
 export interface RenewalContext {
   razorpay_order_id: string;
@@ -200,10 +201,28 @@ export async function handleRenewalPayment(
               newExpiry.getTime() - 15 * 24 * 60 * 60 * 1000
             );
 
+            const wasTrial = hosting.isTrial === true;
             await hosting.save();
             serverLogger.info(
               `✅ [PAYMENT-VERIFY] Hosting ${hosting.domainName} renewed until ${newExpiry}`
             );
+
+            // Trial → paid conversion confirmed (payment applied + hosting
+            // renewed). Flip the trial flag off and fire the TrialConversion
+            // event. Best-effort; deterministic event_id dedups.
+            if (wasTrial) {
+              try {
+                hosting.isTrial = false;
+                await hosting.save();
+              } catch (_e) { /* flag flip is best-effort */ }
+              void recordTrialConversion({
+                userId: user.id || user._id,
+                orderId: renewalOrder.orderId,
+                value: typeof item.price === "number" ? item.price : Number(item.price) || 0,
+                currency: item.currency || "INR",
+                planName: (hosting.name as string | undefined) || hosting.planId,
+              }).catch(() => {});
+            }
 
             try {
               await EmailService.sendHostingProvisionedEmail(

@@ -31,7 +31,7 @@ function normalizePhone(value?: string | null): string | undefined {
 }
 
 export interface ServerEventArgs {
-  eventName: "CompleteRegistration" | "Purchase";
+  eventName: "CompleteRegistration" | "Purchase" | "StartTrial" | "TrialConversion";
   /** Deterministic id (e.g. reg_<userId>, purchase_<orderId>) for dedup. */
   eventId: string;
   user?: { email?: string | null; phone?: string | null };

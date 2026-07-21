@@ -61,7 +61,11 @@ export function trackViewContent(): void {
 }
 
 export function trackStartTrial(): void {
-  fireMetaEvent('StartTrial', { custom: true });
+  // NOTE: the Meta `StartTrial` conversion event is fired SERVER-side only when
+  // the trial is actually provisioned (DA account assigned + hosting active) —
+  // see lib/services/analytics-conversions.ts. The browser click records only
+  // the internal funnel activity, so the ad campaign never counts an
+  // unfulfilled trial click as a StartTrial conversion.
   trackClientActivity('start_trial');
 }
 

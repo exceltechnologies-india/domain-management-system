@@ -47,6 +47,7 @@ import { getUserById, setUserDirectAdminUsername } from "@/lib/services/users";
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import { serverLogger } from "@/lib/server-logger";
 import connectDB from "@/lib/mongodb";
+import { recordHostingProvisioned } from "@/lib/services/analytics-conversions";
 
 const MAX_USERNAME_ATTEMPTS = 3;
 
@@ -200,6 +201,11 @@ export async function provisionTokensFlowHosting(
   hosting.directAdminUsername = daUsername;
   hosting.status = "active";
   await hosting.save();
+
+  // Outcome-confirmed conversion event (StartTrial for trials / Purchase for
+  // paid) — the DA account is assigned and the hosting is now active.
+  // Idempotent + best-effort; must not block provisioning.
+  void recordHostingProvisioned(hostingId).catch(() => {});
 
   // Mirror onto User if not already set
   if (!user.directAdminUsername) {

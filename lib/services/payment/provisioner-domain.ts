@@ -20,6 +20,7 @@ import {
 import type { IUser } from "@/models/User";
 import type { CartItem } from "@/lib/types";
 import type { OrderDomain, RegistrationResult } from "./provisioner";
+import { recordDomainProvisioned } from "@/lib/services/analytics-conversions";
 
 const FIRST_REMINDER_DAYS = Math.max(...AUTOMATION_CONFIG.REMINDER_DAYS);
 
@@ -268,6 +269,15 @@ async function handleRegisteredDomain(
     serverLogger.info(
       `✅ [PAYMENT-VERIFY] Domain record created for ${item.domainName}`
     );
+    // Outcome-confirmed Purchase (domain assigned). Best-effort; deterministic
+    // event_id dedups. Must not affect provisioning.
+    void recordDomainProvisioned({
+      userId: user._id,
+      orderId: String(orderId ?? resellerClubOrderId ?? item.domainName),
+      domainName: item.domainName,
+      value: typeof item.price === "number" ? item.price : Number(item.price) || 0,
+      currency: item.currency || "INR",
+    }).catch(() => {});
   } catch (dError) {
     serverLogger.error(
       `❌ [PAYMENT-VERIFY] Failed to create Domain record:`,
