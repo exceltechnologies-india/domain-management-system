@@ -71,6 +71,12 @@ const STEPS = [
   { num: 4, icon: Rocket, title: 'Go Live & Upgrade', body: 'Launch your website. Upgrade anytime if you love our service!' },
 ];
 
+// Illustrated per-person avatars (keyed by name via DiceBear) — distinct
+// pictures without using stock photos of real people next to placeholder
+// testimonials. Falls back to a coloured initial if the image fails to load.
+const avatarUrl = (seed: string) =>
+  `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}&backgroundColor=ede9fe,ddd6fe,e0e7ff,fce7f3&radius=50`;
+
 const TESTIMONIALS = [
   { quote: 'Anutech Hosting is fast, reliable and the support team is outstanding. Highly recommended!', name: 'Ravi Sharma', role: 'Founder, TechSolution' },
   { quote: 'Our website migrated seamlessly and the performance boost is amazing. Great support!', name: 'Priya Mehta', role: 'Marketing Head, Crafto' },
@@ -516,7 +522,20 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
                     <div className="flex gap-0.5 mb-3">{Array.from({ length: 5 }).map((_, s) => (<Star key={s} className="h-4 w-4 fill-yellow-400 text-yellow-400" />))}</div>
                     <p className="text-sm text-gray-700 leading-relaxed mb-4">&ldquo;{t.quote}&rdquo;</p>
                     <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-sm font-bold">{t.name.charAt(0)}</div>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={avatarUrl(t.name)}
+                        alt={t.name}
+                        loading="lazy"
+                        className="h-11 w-11 rounded-full bg-violet-100 object-cover shrink-0"
+                        onError={(e) => {
+                          const el = e.currentTarget;
+                          el.style.display = 'none';
+                          const fb = el.nextElementSibling as HTMLElement | null;
+                          if (fb) fb.style.display = 'flex';
+                        }}
+                      />
+                      <div style={{ display: 'none' }} className="h-11 w-11 rounded-full bg-violet-100 text-violet-700 items-center justify-center text-sm font-bold shrink-0">{t.name.charAt(0)}</div>
                       <div>
                         <p className="text-sm font-semibold text-gray-900">{t.name}</p>
                         <p className="text-xs text-gray-500">{t.role}</p>
