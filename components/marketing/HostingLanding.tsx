@@ -44,12 +44,12 @@ function symbolFor(currency: string): string {
 const TRUSTED_LOGOS = ['travelizo', 'Crafto.', 'TechSolution', 'Brilliant', 'GrowMore Digital'];
 
 const FEATURES = [
-  { icon: Cloud, title: 'Google Cloud Infrastructure', body: 'Enterprise-grade infrastructure for maximum speed, security & reliability.' },
-  { icon: Zap, title: 'Lightning Fast Performance', body: 'NVMe SSD storage, LiteSpeed servers and an optimized stack for ultra-fast websites.' },
-  { icon: Lock, title: 'Free SSL Certificate', body: 'Secure your website with a free SSL certificate + HTTPS activation.' },
-  { icon: RefreshCw, title: 'Daily Backups', body: 'Automatic daily backups keep your data safe and restorable.' },
-  { icon: Rocket, title: 'Free Website Migration', body: "We'll move your website to Anutech for FREE. No technical hassle." },
-  { icon: Headphones, title: '24×7 Expert Support', body: 'Real people, real support. Get help anytime via chat, ticket or call.' },
+  { icon: Cloud, title: 'Google Cloud Infrastructure', body: 'Enterprise-grade infrastructure for maximum speed, security & reliability.', tint: 'bg-blue-50 text-blue-500' },
+  { icon: Zap, title: 'Lightning Fast Performance', body: 'NVMe SSD storage, LiteSpeed servers and an optimized stack for ultra-fast websites.', tint: 'bg-violet-50 text-violet-500' },
+  { icon: Lock, title: 'Free SSL Certificate', body: 'Secure your website with a free SSL certificate + HTTPS activation.', tint: 'bg-green-50 text-green-500' },
+  { icon: RefreshCw, title: 'Daily Backups', body: 'Automatic daily backups keep your data safe and restorable.', tint: 'bg-sky-50 text-sky-500' },
+  { icon: Rocket, title: 'Free Website Migration', body: "We'll move your website to Anutech for FREE. No technical hassle.", tint: 'bg-rose-50 text-rose-500' },
+  { icon: Headphones, title: '24×7 Expert Support', body: 'Real people, real support. Get help anytime via chat, ticket or call.', tint: 'bg-orange-50 text-orange-500' },
 ];
 
 // per-row: how a typical host compares — 'yes' | 'no' | 'partial'
@@ -361,7 +361,7 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
               return (
                 <motion.div key={f.title} initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.4, delay: i * 0.05 }}
                   className="group bg-white rounded-2xl p-5 border border-gray-200 shadow-sm hover:shadow-md hover:border-violet-200 transition-all">
-                  <div className="inline-flex p-2.5 rounded-xl bg-violet-50 text-violet-600 group-hover:bg-violet-100 transition-colors mb-3">
+                  <div className={`inline-flex p-2.5 rounded-xl ${f.tint} mb-3`}>
                     <Icon className="h-5 w-5" />
                   </div>
                   <h3 className="text-sm font-bold text-gray-900 mb-1.5">{f.title}</h3>
