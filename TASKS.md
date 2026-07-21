@@ -1,6 +1,8 @@
 # Domain Management Portal — Tasks
 
-**Last updated:** 21 Jul 2026 (revision `dms-00366-4f7` LIVE — NAV-HOSTING-SCROLL: the nav "Hosting" item now scrolls to the landing pricing section (`/#pricing`) instead of the /hosting page; pricing section given a scroll offset under the fixed navbar. Follows `dms-00365-rkp`.
+**Last updated:** 21 Jul 2026 (revision `dms-00367-7wj` LIVE — LANDING-DIRECT-CART: the homepage landing pricing now buys hosting via the standard cart flow — Buy Now + Start Free Trial add to cart/checkout directly (was linking to /hosting); hero CTAs scroll to #pricing. Landing is now self-sufficient (no /hosting needed). Follows `dms-00366-4f7`.
+
+**Prior update:** 21 Jul 2026 (revision `dms-00366-4f7` LIVE — NAV-HOSTING-SCROLL: the nav "Hosting" item now scrolls to the landing pricing section (`/#pricing`) instead of the /hosting page; pricing section given a scroll offset under the fixed navbar. Follows `dms-00365-rkp`.
 
 **Prior update:** 21 Jul 2026 (revision `dms-00365-rkp` LIVE — HOMEPAGE-DESIGN-SWITCHER: replaced the "draft the homepage" mechanic with a Landing↔Classic homepage toggle (Admin → Pages → Appearance), like the footer switcher; `/` renders the selected design and the logo links to `/` everywhere. Default = Landing. Follows `dms-00364-wqc`.
 
