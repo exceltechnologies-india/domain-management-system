@@ -361,8 +361,8 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
               return (
                 <motion.div key={f.title} initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.4, delay: i * 0.05 }}
                   className="group bg-white rounded-2xl p-5 border border-gray-200 shadow-sm hover:shadow-md hover:border-violet-200 transition-all">
-                  <div className={`inline-flex p-2.5 rounded-xl ${f.tint} mb-3`}>
-                    <Icon className="h-5 w-5" />
+                  <div className={`inline-flex items-center justify-center h-12 w-12 rounded-full ${f.tint} mb-4`}>
+                    <Icon className="h-6 w-6" />
                   </div>
                   <h3 className="text-sm font-bold text-gray-900 mb-1.5">{f.title}</h3>
                   <p className="text-xs text-gray-600 leading-relaxed">{f.body}</p>
