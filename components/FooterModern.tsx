@@ -1,5 +1,8 @@
+'use client';
+
 import Link from 'next/link';
 import Logo from './Logo';
+import { useSiteVisibility } from './hooks/useSiteVisibility';
 
 // Social icons — minimal inline SVGs (lucide dropped brand marks).
 const FacebookIcon = ({ className }: { className?: string }) => (
@@ -86,6 +89,7 @@ const PAYMENTS: { label: string; color: string }[] = [
 ];
 
 export default function FooterModern({ className = '' }: FooterProps) {
+  const { showGstin } = useSiteVisibility();
   return (
     <footer className={`bg-[#0f172a] text-white ${className}`}>
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
@@ -142,7 +146,7 @@ export default function FooterModern({ className = '' }: FooterProps) {
                 </span>
               ))}
             </div>
-            <p className="text-xs text-gray-500 mt-3">GSTIN: 07ABDCA0298H1ZP</p>
+            {showGstin && <p className="text-xs text-gray-500 mt-3">GSTIN: 07ABDCA0298H1ZP</p>}
           </div>
         </div>
 

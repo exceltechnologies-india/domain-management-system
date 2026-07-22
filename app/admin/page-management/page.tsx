@@ -54,6 +54,10 @@ export default function PageManagementPage() {
   const [savingHome, setSavingHome] = useState(false);
   const [frontendTheme, setFrontendTheme] = useState<'azure' | 'violet'>('violet');
   const [savingTheme, setSavingTheme] = useState(false);
+  const [showGstin, setShowGstin] = useState(true);
+  const [showPhone, setShowPhone] = useState(true);
+  const [savingGstin, setSavingGstin] = useState(false);
+  const [savingPhone, setSavingPhone] = useState(false);
   const [supportVariant, setSupportVariant] = useState<'chatbot' | 'whatsapp'>('chatbot');
   const [savingSupport, setSavingSupport] = useState(false);
   const [whatsappNumber, setWhatsappNumber] = useState('');
@@ -64,7 +68,7 @@ export default function PageManagementPage() {
     setIsRefreshing(true);
     const [pagesRes, appearanceRes] = await Promise.all([
       apiClient.get<{ success?: boolean; pages?: ManagedPageRow[] }>('/api/v1/admin/pages'),
-      apiClient.get<{ success?: boolean; footerVariant?: 'classic' | 'modern'; homeVariant?: 'landing' | 'classic'; frontendTheme?: 'azure' | 'violet'; supportWidgetVariant?: 'chatbot' | 'whatsapp'; supportWhatsappNumber?: string }>('/api/v1/admin/appearance'),
+      apiClient.get<{ success?: boolean; footerVariant?: 'classic' | 'modern'; homeVariant?: 'landing' | 'classic'; frontendTheme?: 'azure' | 'violet'; showGstin?: boolean; showPhone?: boolean; supportWidgetVariant?: 'chatbot' | 'whatsapp'; supportWhatsappNumber?: string }>('/api/v1/admin/appearance'),
     ]);
     if (pagesRes.ok && pagesRes.data.success) {
       setPages(pagesRes.data.pages || []);
@@ -79,6 +83,12 @@ export default function PageManagementPage() {
     }
     if (appearanceRes.ok && appearanceRes.data.frontendTheme) {
       setFrontendTheme(appearanceRes.data.frontendTheme);
+    }
+    if (appearanceRes.ok && typeof appearanceRes.data.showGstin === 'boolean') {
+      setShowGstin(appearanceRes.data.showGstin);
+    }
+    if (appearanceRes.ok && typeof appearanceRes.data.showPhone === 'boolean') {
+      setShowPhone(appearanceRes.data.showPhone);
     }
     if (appearanceRes.ok && appearanceRes.data.supportWidgetVariant) {
       setSupportVariant(appearanceRes.data.supportWidgetVariant);
@@ -137,6 +147,38 @@ export default function PageManagementPage() {
       showErrorToast(res.ok ? 'Update failed' : res.error.message || 'Update failed');
     }
     setSavingTheme(false);
+  };
+
+  const toggleGstin = async (next: boolean) => {
+    if (savingGstin) return;
+    setSavingGstin(true);
+    const res = await apiClient.patch<{ success?: boolean; showGstin?: boolean }>(
+      '/api/v1/admin/appearance',
+      { showGstin: next },
+    );
+    if (res.ok && res.data.success) {
+      setShowGstin(res.data.showGstin ?? next);
+      showSuccessToast(`GSTIN is now ${next ? 'shown' : 'hidden'}.`);
+    } else {
+      showErrorToast(res.ok ? 'Update failed' : res.error.message || 'Update failed');
+    }
+    setSavingGstin(false);
+  };
+
+  const togglePhone = async (next: boolean) => {
+    if (savingPhone) return;
+    setSavingPhone(true);
+    const res = await apiClient.patch<{ success?: boolean; showPhone?: boolean }>(
+      '/api/v1/admin/appearance',
+      { showPhone: next },
+    );
+    if (res.ok && res.data.success) {
+      setShowPhone(res.data.showPhone ?? next);
+      showSuccessToast(`Phone number is now ${next ? 'shown' : 'hidden'}.`);
+    } else {
+      showErrorToast(res.ok ? 'Update failed' : res.error.message || 'Update failed');
+    }
+    setSavingPhone(false);
   };
 
   const changeSupport = async (variant: 'chatbot' | 'whatsapp') => {
@@ -448,6 +490,41 @@ export default function PageManagementPage() {
                   ))}
                 </div>
               </div>
+            </div>
+
+            {/* Contact details visibility */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5">
+              <h3 className="text-base font-bold text-gray-900">Contact details visibility</h3>
+              <p className="text-sm text-gray-500 mt-0.5 mb-4">
+                Show or hide the public <strong>GSTIN</strong> (footer) and <strong>phone number</strong> ("Call Us" card). Takes effect immediately (no redeploy).
+              </p>
+              {([
+                { label: 'GSTIN (footer)', on: showGstin, saving: savingGstin, toggle: toggleGstin },
+                { label: 'Phone number (Call Us)', on: showPhone, saving: savingPhone, toggle: togglePhone },
+              ] as const).map((row) => (
+                <div key={row.label} className="flex items-center justify-between py-2 border-t border-gray-100 first:border-t-0">
+                  <span className="text-sm font-medium text-gray-800">{row.label}</span>
+                  <div className="flex items-center gap-2">
+                    {row.saving && <Loader2 className="h-4 w-4 text-gray-400 animate-spin" />}
+                    <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full p-1">
+                      {([true, false] as const).map((v) => (
+                        <button
+                          key={String(v)}
+                          type="button"
+                          onClick={() => row.toggle(v)}
+                          disabled={row.saving}
+                          aria-pressed={row.on === v}
+                          className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all disabled:opacity-60 ${
+                            row.on === v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                          }`}
+                        >
+                          {v ? 'Show' : 'Hide'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
 
             {/* Support widget */}

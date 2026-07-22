@@ -1,12 +1,16 @@
+'use client';
+
 import { Mail, Phone, MapPin, Clock, MessageCircle } from 'lucide-react';
 import Card from './Card';
 import { COMPANY_PHONE_DISPLAY, COMPANY_PHONE_E164, COMPANY_SUPPORT_HOURS } from '@/config/company';
+import { useSiteVisibility } from './hooks/useSiteVisibility';
 
 interface ContactInfoProps {
   className?: string;
 }
 
 export default function ContactInfo({ className = '' }: ContactInfoProps) {
+  const { showPhone } = useSiteVisibility();
   return (
     <div className={`space-y-6 text-center lg:text-left ${className}`}>
       <div>
@@ -17,6 +21,7 @@ export default function ContactInfo({ className = '' }: ContactInfoProps) {
       </div>
 
       <div className="space-y-4">
+        {showPhone && (
         <Card className="flex flex-col items-center sm:flex-row sm:items-start p-5 hover:shadow-lg transition-shadow duration-200 text-center sm:text-left">
           <div className="bg-primary-100 rounded-full p-3 mb-4 sm:mb-0 sm:mr-4 flex-shrink-0">
             <Phone className="h-6 w-6 text-primary-600" />
@@ -30,6 +35,7 @@ export default function ContactInfo({ className = '' }: ContactInfoProps) {
             </div>
           </div>
         </Card>
+        )}
 
         <Card className="flex flex-col items-center sm:flex-row sm:items-start p-5 hover:shadow-lg transition-shadow duration-200 text-center sm:text-left">
           <div className="bg-primary-100 rounded-full p-3 mb-4 sm:mb-0 sm:mr-4 flex-shrink-0">

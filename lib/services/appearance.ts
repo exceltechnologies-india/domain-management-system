@@ -69,6 +69,42 @@ export async function setFrontendTheme(theme: FrontendTheme, updatedBy = "system
   });
 }
 
+// ── Contact detail visibility ──────────────────────────────────────────────
+// Operator toggles for whether the public GSTIN (footer) and phone number
+// ("Call Us" card) are shown. Default: shown.
+export const SHOW_GSTIN_KEY = "show_gstin";
+export const SHOW_PHONE_KEY = "show_phone";
+
+function coerceBool(v: unknown, fallback: boolean): boolean {
+  if (v === true || v === "true") return true;
+  if (v === false || v === "false") return false;
+  return fallback;
+}
+
+export async function getShowGstin(): Promise<boolean> {
+  return coerceBool(await getSettingValue<unknown>(SHOW_GSTIN_KEY, true), true);
+}
+
+export async function setShowGstin(show: boolean, updatedBy = "system"): Promise<void> {
+  await upsertSetting(SHOW_GSTIN_KEY, show, {
+    category: "appearance",
+    description: "Whether the public GSTIN is shown in the footer.",
+    updatedBy,
+  });
+}
+
+export async function getShowPhone(): Promise<boolean> {
+  return coerceBool(await getSettingValue<unknown>(SHOW_PHONE_KEY, true), true);
+}
+
+export async function setShowPhone(show: boolean, updatedBy = "system"): Promise<void> {
+  await upsertSetting(SHOW_PHONE_KEY, show, {
+    category: "appearance",
+    description: "Whether the company phone number is shown publicly (Call Us card).",
+    updatedBy,
+  });
+}
+
 // ── Support widget ─────────────────────────────────────────────────────────
 // 'chatbot' = the AI chat widget (blue bubble); 'whatsapp' = a floating
 // WhatsApp button that opens a chat with the company number directly.
