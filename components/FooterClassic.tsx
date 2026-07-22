@@ -1,5 +1,8 @@
+'use client';
+
 import Link from 'next/link';
 import { Mail, Phone, MapPin, Globe, Shield, CreditCard, Database, Server, Wifi } from 'lucide-react';
+import { useSiteVisibility } from './hooks/useSiteVisibility';
 
 // Social icons removed from lucide-react v1 — use minimal inline SVGs
 const FacebookIcon = ({ className }: { className?: string }) => (
@@ -24,6 +27,7 @@ interface FooterProps {
 }
 
 export default function FooterClassic({ className = '' }: FooterProps) {
+  const { social } = useSiteVisibility();
   return (
     <footer className={`bg-gray-900 text-white ${className}`}>
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
@@ -104,27 +108,21 @@ export default function FooterClassic({ className = '' }: FooterProps) {
               Stay connected with us on social media for updates and news.
             </p>
             <div className="flex flex-wrap gap-3 justify-center md:justify-start">
-              <a
-                href="#"
-                className="bg-gray-800 hover:bg-blue-600 text-white p-2 rounded-lg transition-colors duration-200"
-                aria-label="Facebook"
-              >
-                <FacebookIcon className="h-5 w-5" />
-              </a>
-              <a
-                href="#"
-                className="bg-gray-800 hover:bg-pink-600 text-white p-2 rounded-lg transition-colors duration-200"
-                aria-label="Instagram"
-              >
-                <InstagramIcon className="h-5 w-5" />
-              </a>
-              <a
-                href="#"
-                className="bg-gray-800 hover:bg-blue-700 text-white p-2 rounded-lg transition-colors duration-200"
-                aria-label="LinkedIn"
-              >
-                <LinkedinIcon className="h-5 w-5" />
-              </a>
+              {social.linkedin?.enabled && social.linkedin?.url && (
+                <a href={social.linkedin.url} target="_blank" rel="noopener noreferrer" className="bg-gray-800 hover:bg-blue-700 text-white p-2 rounded-lg transition-colors duration-200" aria-label="LinkedIn">
+                  <LinkedinIcon className="h-5 w-5" />
+                </a>
+              )}
+              {social.facebook?.enabled && social.facebook?.url && (
+                <a href={social.facebook.url} target="_blank" rel="noopener noreferrer" className="bg-gray-800 hover:bg-blue-600 text-white p-2 rounded-lg transition-colors duration-200" aria-label="Facebook">
+                  <FacebookIcon className="h-5 w-5" />
+                </a>
+              )}
+              {social.instagram?.enabled && social.instagram?.url && (
+                <a href={social.instagram.url} target="_blank" rel="noopener noreferrer" className="bg-gray-800 hover:bg-pink-600 text-white p-2 rounded-lg transition-colors duration-200" aria-label="Instagram">
+                  <InstagramIcon className="h-5 w-5" />
+                </a>
+              )}
             </div>
           </div>
         </div>

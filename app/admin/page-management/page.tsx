@@ -58,6 +58,13 @@ export default function PageManagementPage() {
   const [showPhone, setShowPhone] = useState(true);
   const [savingGstin, setSavingGstin] = useState(false);
   const [savingPhone, setSavingPhone] = useState(false);
+  type SocialRow = { url: string; enabled: boolean };
+  const [social, setSocial] = useState<{ linkedin: SocialRow; facebook: SocialRow; instagram: SocialRow }>({
+    linkedin: { url: '', enabled: true },
+    facebook: { url: '', enabled: true },
+    instagram: { url: '', enabled: true },
+  });
+  const [savingSocial, setSavingSocial] = useState(false);
   const [supportVariant, setSupportVariant] = useState<'chatbot' | 'whatsapp'>('chatbot');
   const [savingSupport, setSavingSupport] = useState(false);
   const [whatsappNumber, setWhatsappNumber] = useState('');
@@ -68,7 +75,7 @@ export default function PageManagementPage() {
     setIsRefreshing(true);
     const [pagesRes, appearanceRes] = await Promise.all([
       apiClient.get<{ success?: boolean; pages?: ManagedPageRow[] }>('/api/v1/admin/pages'),
-      apiClient.get<{ success?: boolean; footerVariant?: 'classic' | 'modern'; homeVariant?: 'landing' | 'classic'; frontendTheme?: 'azure' | 'violet'; showGstin?: boolean; showPhone?: boolean; supportWidgetVariant?: 'chatbot' | 'whatsapp'; supportWhatsappNumber?: string }>('/api/v1/admin/appearance'),
+      apiClient.get<{ success?: boolean; footerVariant?: 'classic' | 'modern'; homeVariant?: 'landing' | 'classic'; frontendTheme?: 'azure' | 'violet'; showGstin?: boolean; showPhone?: boolean; socialLinks?: { linkedin: SocialRow; facebook: SocialRow; instagram: SocialRow }; supportWidgetVariant?: 'chatbot' | 'whatsapp'; supportWhatsappNumber?: string }>('/api/v1/admin/appearance'),
     ]);
     if (pagesRes.ok && pagesRes.data.success) {
       setPages(pagesRes.data.pages || []);
@@ -89,6 +96,9 @@ export default function PageManagementPage() {
     }
     if (appearanceRes.ok && typeof appearanceRes.data.showPhone === 'boolean') {
       setShowPhone(appearanceRes.data.showPhone);
+    }
+    if (appearanceRes.ok && appearanceRes.data.socialLinks) {
+      setSocial(appearanceRes.data.socialLinks);
     }
     if (appearanceRes.ok && appearanceRes.data.supportWidgetVariant) {
       setSupportVariant(appearanceRes.data.supportWidgetVariant);
@@ -179,6 +189,22 @@ export default function PageManagementPage() {
       showErrorToast(res.ok ? 'Update failed' : res.error.message || 'Update failed');
     }
     setSavingPhone(false);
+  };
+
+  const saveSocial = async () => {
+    if (savingSocial) return;
+    setSavingSocial(true);
+    const res = await apiClient.patch<{ success?: boolean; socialLinks?: { linkedin: SocialRow; facebook: SocialRow; instagram: SocialRow } }>(
+      '/api/v1/admin/appearance',
+      { socialLinks: social },
+    );
+    if (res.ok && res.data.success) {
+      if (res.data.socialLinks) setSocial(res.data.socialLinks);
+      showSuccessToast('Social links saved.');
+    } else {
+      showErrorToast(res.ok ? 'Update failed' : res.error.message || 'Update failed');
+    }
+    setSavingSocial(false);
   };
 
   const changeSupport = async (variant: 'chatbot' | 'whatsapp') => {
@@ -525,6 +551,56 @@ export default function PageManagementPage() {
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Social links */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5">
+              <div className="flex items-center justify-between gap-4 mb-4">
+                <div className="min-w-0">
+                  <h3 className="text-base font-bold text-gray-900">Social links</h3>
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    Set the profile URLs and show/hide each in the footer. Only LinkedIn, Facebook &amp; Instagram are shown.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={saveSocial}
+                  disabled={savingSocial}
+                  className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
+                >
+                  {savingSocial && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Save
+                </button>
+              </div>
+              <div className="space-y-3">
+                {(['linkedin', 'facebook', 'instagram'] as const).map((key) => (
+                  <div key={key} className="flex flex-col sm:flex-row sm:items-center gap-2">
+                    <span className="w-24 shrink-0 text-sm font-medium text-gray-800 capitalize">{key}</span>
+                    <input
+                      type="url"
+                      value={social[key].url}
+                      onChange={(e) => setSocial((s) => ({ ...s, [key]: { ...s[key], url: e.target.value } }))}
+                      placeholder={`https://…/${key}`}
+                      className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none"
+                    />
+                    <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full p-1 shrink-0">
+                      {([true, false] as const).map((v) => (
+                        <button
+                          key={String(v)}
+                          type="button"
+                          onClick={() => setSocial((s) => ({ ...s, [key]: { ...s[key], enabled: v } }))}
+                          aria-pressed={social[key].enabled === v}
+                          className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
+                            social[key].enabled === v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                          }`}
+                        >
+                          {v ? 'Show' : 'Hide'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Support widget */}

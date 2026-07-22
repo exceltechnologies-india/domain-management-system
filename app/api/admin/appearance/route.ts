@@ -7,6 +7,7 @@ import {
   getFrontendTheme, setFrontendTheme,
   getShowGstin, setShowGstin,
   getShowPhone, setShowPhone,
+  getSocialLinks, setSocialLinks,
   getSupportWidgetVariant, setSupportWidgetVariant,
   getSupportWhatsappNumber, setSupportWhatsappNumber,
 } from "@/lib/services/appearance";
@@ -18,10 +19,10 @@ export async function GET(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     await connectToDatabase();
-    const [footerVariant, homeVariant, frontendTheme, showGstin, showPhone, supportWidgetVariant, supportWhatsappNumber] = await Promise.all([
-      getFooterVariant(), getHomeVariant(), getFrontendTheme(), getShowGstin(), getShowPhone(), getSupportWidgetVariant(), getSupportWhatsappNumber(),
+    const [footerVariant, homeVariant, frontendTheme, showGstin, showPhone, socialLinks, supportWidgetVariant, supportWhatsappNumber] = await Promise.all([
+      getFooterVariant(), getHomeVariant(), getFrontendTheme(), getShowGstin(), getShowPhone(), getSocialLinks(), getSupportWidgetVariant(), getSupportWhatsappNumber(),
     ]);
-    return NextResponse.json({ success: true, footerVariant, homeVariant, frontendTheme, showGstin, showPhone, supportWidgetVariant, supportWhatsappNumber });
+    return NextResponse.json({ success: true, footerVariant, homeVariant, frontendTheme, showGstin, showPhone, socialLinks, supportWidgetVariant, supportWhatsappNumber });
   } catch (error) {
     serverLogger.error("Appearance fetch error:", error);
     return NextResponse.json({ error: "Failed to load appearance settings" }, { status: 500 });
@@ -34,6 +35,11 @@ const patchSchema = z.object({
   frontendTheme: z.enum(["azure", "violet"]).optional(),
   showGstin: z.boolean().optional(),
   showPhone: z.boolean().optional(),
+  socialLinks: z.object({
+    linkedin: z.object({ url: z.string().max(400), enabled: z.boolean() }).partial().optional(),
+    facebook: z.object({ url: z.string().max(400), enabled: z.boolean() }).partial().optional(),
+    instagram: z.object({ url: z.string().max(400), enabled: z.boolean() }).partial().optional(),
+  }).partial().optional(),
   supportWidgetVariant: z.enum(["chatbot", "whatsapp"]).optional(),
   supportWhatsappNumber: z.string().max(20).optional(),
 });
@@ -53,12 +59,13 @@ export async function PATCH(request: NextRequest) {
     if (validation.data.frontendTheme) await setFrontendTheme(validation.data.frontendTheme, by);
     if (validation.data.showGstin !== undefined) await setShowGstin(validation.data.showGstin, by);
     if (validation.data.showPhone !== undefined) await setShowPhone(validation.data.showPhone, by);
+    if (validation.data.socialLinks) await setSocialLinks(validation.data.socialLinks, by);
     if (validation.data.supportWidgetVariant) await setSupportWidgetVariant(validation.data.supportWidgetVariant, by);
     if (validation.data.supportWhatsappNumber !== undefined) await setSupportWhatsappNumber(validation.data.supportWhatsappNumber, by);
-    const [footerVariant, homeVariant, frontendTheme, showGstin, showPhone, supportWidgetVariant, supportWhatsappNumber] = await Promise.all([
-      getFooterVariant(), getHomeVariant(), getFrontendTheme(), getShowGstin(), getShowPhone(), getSupportWidgetVariant(), getSupportWhatsappNumber(),
+    const [footerVariant, homeVariant, frontendTheme, showGstin, showPhone, socialLinks, supportWidgetVariant, supportWhatsappNumber] = await Promise.all([
+      getFooterVariant(), getHomeVariant(), getFrontendTheme(), getShowGstin(), getShowPhone(), getSocialLinks(), getSupportWidgetVariant(), getSupportWhatsappNumber(),
     ]);
-    return NextResponse.json({ success: true, footerVariant, homeVariant, frontendTheme, showGstin, showPhone, supportWidgetVariant, supportWhatsappNumber });
+    return NextResponse.json({ success: true, footerVariant, homeVariant, frontendTheme, showGstin, showPhone, socialLinks, supportWidgetVariant, supportWhatsappNumber });
   } catch (error) {
     serverLogger.error("Appearance update error:", error);
     return NextResponse.json({ error: "Failed to update appearance settings" }, { status: 500 });
