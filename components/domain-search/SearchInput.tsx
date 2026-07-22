@@ -75,7 +75,7 @@ export default function SearchInput({
           onClick={() => onSearch()}
           disabled={isSearching || !searchTerm.trim()}
           aria-label="Search domains"
-          className={`flex-shrink-0 bg-gradient-to-b from-[#0197FF] to-[#0161C4] hover:from-[#22A6FF] hover:to-[#0170DA] text-white font-bold rounded-xl sm:rounded-2xl ring-1 ring-white/30 transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 shadow-[0_8px_22px_rgba(1,73,157,0.5)] hover:shadow-[0_10px_30px_rgba(1,128,229,0.6)] disabled:opacity-60 disabled:saturate-50 active:scale-95 ${
+          className={`flex-shrink-0 bg-gradient-to-b from-[#7C3AED] to-[#6D28D9] hover:from-[#8B5CF6] hover:to-[#7C3AED] text-white font-bold rounded-xl sm:rounded-2xl ring-1 ring-white/30 transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 shadow-[0_8px_22px_rgba(109,40,217,0.5)] hover:shadow-[0_10px_30px_rgba(124,58,237,0.6)] disabled:opacity-60 disabled:saturate-50 active:scale-95 ${
             compact
               ? 'w-12 sm:w-auto sm:px-5 py-3 sm:py-3.5 text-sm'
               : 'w-14 sm:w-auto sm:px-6 py-3.5 sm:py-4 text-base'
