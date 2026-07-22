@@ -44,3 +44,39 @@ export async function setHomeVariant(variant: HomeVariant, updatedBy = "system")
     updatedBy,
   });
 }
+
+// ── Support widget ─────────────────────────────────────────────────────────
+// 'chatbot' = the AI chat widget (blue bubble); 'whatsapp' = a floating
+// WhatsApp button that opens a chat with the company number directly.
+export type SupportWidgetVariant = "chatbot" | "whatsapp";
+
+export const SUPPORT_WIDGET_VARIANT_KEY = "support_widget_variant";
+export const DEFAULT_SUPPORT_WIDGET_VARIANT: SupportWidgetVariant = "chatbot";
+export const SUPPORT_WHATSAPP_NUMBER_KEY = "support_whatsapp_number";
+
+export async function getSupportWidgetVariant(): Promise<SupportWidgetVariant> {
+  const v = await getSettingValue<string>(SUPPORT_WIDGET_VARIANT_KEY, DEFAULT_SUPPORT_WIDGET_VARIANT);
+  return v === "whatsapp" ? "whatsapp" : "chatbot";
+}
+
+export async function setSupportWidgetVariant(variant: SupportWidgetVariant, updatedBy = "system"): Promise<void> {
+  await upsertSetting(SUPPORT_WIDGET_VARIANT_KEY, variant, {
+    category: "appearance",
+    description: "Which support widget renders on the public site (chatbot | whatsapp).",
+    updatedBy,
+  });
+}
+
+/** Company WhatsApp number in international digits only, e.g. "919876543210". */
+export async function getSupportWhatsappNumber(): Promise<string> {
+  const v = await getSettingValue<string>(SUPPORT_WHATSAPP_NUMBER_KEY, "");
+  return typeof v === "string" ? v.replace(/[^0-9]/g, "") : "";
+}
+
+export async function setSupportWhatsappNumber(num: string, updatedBy = "system"): Promise<void> {
+  await upsertSetting(SUPPORT_WHATSAPP_NUMBER_KEY, (num || "").replace(/[^0-9]/g, ""), {
+    category: "appearance",
+    description: "Company WhatsApp number (digits only) the WhatsApp support widget opens a chat with.",
+    updatedBy,
+  });
+}

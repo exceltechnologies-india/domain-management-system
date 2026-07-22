@@ -52,12 +52,17 @@ export default function PageManagementPage() {
   const [savingFooter, setSavingFooter] = useState(false);
   const [homeVariant, setHomeVariant] = useState<'landing' | 'classic'>('landing');
   const [savingHome, setSavingHome] = useState(false);
+  const [supportVariant, setSupportVariant] = useState<'chatbot' | 'whatsapp'>('chatbot');
+  const [savingSupport, setSavingSupport] = useState(false);
+  const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [whatsappInput, setWhatsappInput] = useState('');
+  const [savingNumber, setSavingNumber] = useState(false);
 
   const loadPages = useCallback(async () => {
     setIsRefreshing(true);
     const [pagesRes, appearanceRes] = await Promise.all([
       apiClient.get<{ success?: boolean; pages?: ManagedPageRow[] }>('/api/v1/admin/pages'),
-      apiClient.get<{ success?: boolean; footerVariant?: 'classic' | 'modern'; homeVariant?: 'landing' | 'classic' }>('/api/v1/admin/appearance'),
+      apiClient.get<{ success?: boolean; footerVariant?: 'classic' | 'modern'; homeVariant?: 'landing' | 'classic'; supportWidgetVariant?: 'chatbot' | 'whatsapp'; supportWhatsappNumber?: string }>('/api/v1/admin/appearance'),
     ]);
     if (pagesRes.ok && pagesRes.data.success) {
       setPages(pagesRes.data.pages || []);
@@ -69,6 +74,13 @@ export default function PageManagementPage() {
     }
     if (appearanceRes.ok && appearanceRes.data.homeVariant) {
       setHomeVariant(appearanceRes.data.homeVariant);
+    }
+    if (appearanceRes.ok && appearanceRes.data.supportWidgetVariant) {
+      setSupportVariant(appearanceRes.data.supportWidgetVariant);
+    }
+    if (appearanceRes.ok && typeof appearanceRes.data.supportWhatsappNumber === 'string') {
+      setWhatsappNumber(appearanceRes.data.supportWhatsappNumber);
+      setWhatsappInput(appearanceRes.data.supportWhatsappNumber);
     }
     setIsLoading(false);
     setIsRefreshing(false);
@@ -104,6 +116,45 @@ export default function PageManagementPage() {
       showErrorToast(res.ok ? 'Update failed' : res.error.message || 'Update failed');
     }
     setSavingHome(false);
+  };
+
+  const changeSupport = async (variant: 'chatbot' | 'whatsapp') => {
+    if (variant === supportVariant || savingSupport) return;
+    if (variant === 'whatsapp' && !whatsappNumber.trim()) {
+      showErrorToast('Add a WhatsApp number below before switching to the WhatsApp widget.');
+      return;
+    }
+    setSavingSupport(true);
+    const res = await apiClient.patch<{ success?: boolean; supportWidgetVariant?: 'chatbot' | 'whatsapp' }>(
+      '/api/v1/admin/appearance',
+      { supportWidgetVariant: variant },
+    );
+    if (res.ok && res.data.success) {
+      setSupportVariant(res.data.supportWidgetVariant || variant);
+      showSuccessToast(`Support widget set to ${variant === 'whatsapp' ? 'WhatsApp' : 'Chatbot'}.`);
+    } else {
+      showErrorToast(res.ok ? 'Update failed' : res.error.message || 'Update failed');
+    }
+    setSavingSupport(false);
+  };
+
+  const saveWhatsappNumber = async () => {
+    const digits = whatsappInput.replace(/[^0-9]/g, '');
+    if (digits === whatsappNumber || savingNumber) return;
+    setSavingNumber(true);
+    const res = await apiClient.patch<{ success?: boolean; supportWhatsappNumber?: string }>(
+      '/api/v1/admin/appearance',
+      { supportWhatsappNumber: digits },
+    );
+    if (res.ok && res.data.success) {
+      const saved = res.data.supportWhatsappNumber ?? digits;
+      setWhatsappNumber(saved);
+      setWhatsappInput(saved);
+      showSuccessToast(saved ? 'WhatsApp number saved.' : 'WhatsApp number cleared.');
+    } else {
+      showErrorToast(res.ok ? 'Update failed' : res.error.message || 'Update failed');
+    }
+    setSavingNumber(false);
   };
 
   useEffect(() => {
@@ -344,6 +395,66 @@ export default function PageManagementPage() {
                       {v}
                     </button>
                   ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Support widget */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <h3 className="text-base font-bold text-gray-900">Support widget</h3>
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    Choose the floating support button on the public site: the AI <strong>Chatbot</strong> or a
+                    <strong> WhatsApp</strong> button that opens a chat with your company number directly. Takes effect immediately (no redeploy).
+                  </p>
+                </div>
+                <div className="shrink-0 flex items-center gap-2">
+                  {savingSupport && <Loader2 className="h-4 w-4 text-gray-400 animate-spin" />}
+                  <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full p-1">
+                    {(['chatbot', 'whatsapp'] as const).map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => changeSupport(v)}
+                        disabled={savingSupport}
+                        aria-pressed={supportVariant === v}
+                        className={`px-4 py-1.5 rounded-full text-sm font-semibold capitalize transition-all disabled:opacity-60 ${
+                          supportVariant === v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        {v === 'whatsapp' ? 'WhatsApp' : 'Chatbot'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* WhatsApp number */}
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <label className="block text-sm font-semibold text-gray-800 mb-1.5">Company WhatsApp number</label>
+                <p className="text-xs text-gray-500 mb-2">
+                  International format, digits only — country code + number (e.g. <code>919876543210</code> for +91 98765 43210). Required for the WhatsApp widget.
+                </p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    value={whatsappInput}
+                    onChange={(e) => setWhatsappInput(e.target.value.replace(/[^0-9]/g, ''))}
+                    placeholder="919876543210"
+                    maxLength={20}
+                    className="w-full max-w-xs rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={saveWhatsappNumber}
+                    disabled={savingNumber || whatsappInput.replace(/[^0-9]/g, '') === whatsappNumber}
+                    className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
+                  >
+                    {savingNumber && <Loader2 className="h-4 w-4 animate-spin" />}
+                    Save
+                  </button>
                 </div>
               </div>
             </div>

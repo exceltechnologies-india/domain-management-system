@@ -107,6 +107,8 @@ const PUBLIC_API_PREFIXES = [
   "/api/settings/captcha-status",
   // Public footer switcher: the footer reads which template to render.
   "/api/settings/footer",
+  // Public support-widget switcher: chatbot vs WhatsApp + company number.
+  "/api/settings/support-widget",
   // Public analytics beacon: the browser records client-side journey events
   // (landing/view/trial/checkout). Auth is best-effort inside the route.
   "/api/analytics/track",

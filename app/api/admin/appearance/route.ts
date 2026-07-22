@@ -4,6 +4,8 @@ import { connectToDatabase } from "@/lib/mongoose";
 import {
   getFooterVariant, setFooterVariant,
   getHomeVariant, setHomeVariant,
+  getSupportWidgetVariant, setSupportWidgetVariant,
+  getSupportWhatsappNumber, setSupportWhatsappNumber,
 } from "@/lib/services/appearance";
 import { validatedBody, z } from "@/lib/api-validation";
 import { serverLogger } from "@/lib/server-logger";
@@ -13,8 +15,10 @@ export async function GET(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     await connectToDatabase();
-    const [footerVariant, homeVariant] = await Promise.all([getFooterVariant(), getHomeVariant()]);
-    return NextResponse.json({ success: true, footerVariant, homeVariant });
+    const [footerVariant, homeVariant, supportWidgetVariant, supportWhatsappNumber] = await Promise.all([
+      getFooterVariant(), getHomeVariant(), getSupportWidgetVariant(), getSupportWhatsappNumber(),
+    ]);
+    return NextResponse.json({ success: true, footerVariant, homeVariant, supportWidgetVariant, supportWhatsappNumber });
   } catch (error) {
     serverLogger.error("Appearance fetch error:", error);
     return NextResponse.json({ error: "Failed to load appearance settings" }, { status: 500 });
@@ -24,6 +28,8 @@ export async function GET(request: NextRequest) {
 const patchSchema = z.object({
   footerVariant: z.enum(["classic", "modern"]).optional(),
   homeVariant: z.enum(["landing", "classic"]).optional(),
+  supportWidgetVariant: z.enum(["chatbot", "whatsapp"]).optional(),
+  supportWhatsappNumber: z.string().max(20).optional(),
 });
 
 export async function PATCH(request: NextRequest) {
@@ -38,8 +44,12 @@ export async function PATCH(request: NextRequest) {
     const by = String(user._id ?? user.id ?? "admin");
     if (validation.data.footerVariant) await setFooterVariant(validation.data.footerVariant, by);
     if (validation.data.homeVariant) await setHomeVariant(validation.data.homeVariant, by);
-    const [footerVariant, homeVariant] = await Promise.all([getFooterVariant(), getHomeVariant()]);
-    return NextResponse.json({ success: true, footerVariant, homeVariant });
+    if (validation.data.supportWidgetVariant) await setSupportWidgetVariant(validation.data.supportWidgetVariant, by);
+    if (validation.data.supportWhatsappNumber !== undefined) await setSupportWhatsappNumber(validation.data.supportWhatsappNumber, by);
+    const [footerVariant, homeVariant, supportWidgetVariant, supportWhatsappNumber] = await Promise.all([
+      getFooterVariant(), getHomeVariant(), getSupportWidgetVariant(), getSupportWhatsappNumber(),
+    ]);
+    return NextResponse.json({ success: true, footerVariant, homeVariant, supportWidgetVariant, supportWhatsappNumber });
   } catch (error) {
     serverLogger.error("Appearance update error:", error);
     return NextResponse.json({ error: "Failed to update appearance settings" }, { status: 500 });

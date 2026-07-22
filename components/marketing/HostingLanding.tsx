@@ -14,7 +14,7 @@ import Section from '@/components/Section';
 import PricingCard from '@/components/PricingCard';
 import FAQItem from '@/components/FAQItem';
 import Footer from '@/components/Footer';
-import ChatWidget from '@/components/ChatWidget';
+import SupportWidget from '@/components/SupportWidget';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { trackStartTrial } from '@/lib/journey';
 import { useRouter } from 'next/navigation';
@@ -637,8 +637,8 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
         <Footer />
       </div>
 
-      <ErrorBoundary label="ChatWidget" fallback={null}>
-        <ChatWidget />
+      <ErrorBoundary label="SupportWidget" fallback={null}>
+        <SupportWidget />
       </ErrorBoundary>
     </div>
   );

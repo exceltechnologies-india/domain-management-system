@@ -8,7 +8,7 @@ import Section from '@/components/Section';
 import FeatureCard from '@/components/FeatureCard';
 import DomainSearch from '@/components/DomainSearch';
 import Footer from '@/components/Footer';
-import ChatWidget from '@/components/ChatWidget';
+import SupportWidget from '@/components/SupportWidget';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 /**
@@ -229,8 +229,8 @@ export default function DomainHome() {
         <Footer />
       </motion.div>
 
-      <ErrorBoundary label="ChatWidget" fallback={null}>
-        <ChatWidget />
+      <ErrorBoundary label="SupportWidget" fallback={null}>
+        <SupportWidget />
       </ErrorBoundary>
     </div>
   );
