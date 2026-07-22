@@ -1,5 +1,6 @@
 import { Mail, Phone, MapPin, Clock, MessageCircle } from 'lucide-react';
 import Card from './Card';
+import { COMPANY_PHONE_DISPLAY, COMPANY_PHONE_E164, COMPANY_SUPPORT_HOURS } from '@/config/company';
 
 interface ContactInfoProps {
   className?: string;
@@ -22,10 +23,10 @@ export default function ContactInfo({ className = '' }: ContactInfoProps) {
           </div>
           <div className="flex-1">
             <h4 className="text-lg font-semibold text-gray-900 mb-2">Call Us</h4>
-            <p className="text-gray-700 text-base font-medium mb-1">+91-777-888-9674</p>
+            <a href={`tel:${COMPANY_PHONE_E164}`} className="text-gray-700 text-base font-medium mb-1 hover:text-blue-600 transition-colors">{COMPANY_PHONE_DISPLAY}</a>
             <div className="flex items-center justify-center sm:justify-start text-sm text-gray-500 mt-2">
               <Clock className="h-4 w-4 mr-1" />
-              <span>10AM to 6PM (IST), Monday - Saturday</span>
+              <span>{COMPANY_SUPPORT_HOURS}</span>
             </div>
           </div>
         </Card>

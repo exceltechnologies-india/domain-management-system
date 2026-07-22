@@ -5,6 +5,7 @@
  */
 
 import { getSettingValue, upsertSetting } from "@/lib/services/settings";
+import { COMPANY_WHATSAPP_DIGITS } from "@/config/company";
 
 export type FooterVariant = "classic" | "modern";
 
@@ -67,10 +68,15 @@ export async function setSupportWidgetVariant(variant: SupportWidgetVariant, upd
   });
 }
 
-/** Company WhatsApp number in international digits only, e.g. "919876543210". */
+/**
+ * Company WhatsApp number in international digits only, e.g. "919876543210".
+ * Defaults to the company number from config so the WhatsApp widget works
+ * out of the box; an admin can override it in Admin → Pages → Appearance.
+ */
 export async function getSupportWhatsappNumber(): Promise<string> {
-  const v = await getSettingValue<string>(SUPPORT_WHATSAPP_NUMBER_KEY, "");
-  return typeof v === "string" ? v.replace(/[^0-9]/g, "") : "";
+  const v = await getSettingValue<string>(SUPPORT_WHATSAPP_NUMBER_KEY, COMPANY_WHATSAPP_DIGITS);
+  const digits = typeof v === "string" ? v.replace(/[^0-9]/g, "") : "";
+  return digits || COMPANY_WHATSAPP_DIGITS;
 }
 
 export async function setSupportWhatsappNumber(num: string, updatedBy = "system"): Promise<void> {

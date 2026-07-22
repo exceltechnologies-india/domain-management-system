@@ -3,6 +3,7 @@
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import ClientOnly from '@/components/ClientOnly';
+import { COMPANY_PHONE_DISPLAY } from '@/config/company';
 import { motion } from 'framer-motion';
 import { RotateCcw, Calendar, AlertCircle, CheckCircle, Clock, DollarSign } from 'lucide-react';
 import { formatIndianDate } from '@/lib/dateUtils';
@@ -231,7 +232,7 @@ export default function CancellationRefundPage() {
                   <p className="text-gray-700">
                     <strong>Anutech Digital Private Limited Support</strong><br />
                     Email: support@anutech.in<br />
-                    Phone: +91-777-888-9674<br />
+                    Phone: {COMPANY_PHONE_DISPLAY}<br />
                     Hours: Monday - Friday, 9:00 AM - 6:00 PM IST<br />
                     Address: B9-54, Rohini, Sector-5, Delhi, India
                   </p>

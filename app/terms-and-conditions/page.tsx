@@ -3,6 +3,7 @@
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import ClientOnly from '@/components/ClientOnly';
+import { COMPANY_PHONE_DISPLAY } from '@/config/company';
 import { motion } from 'framer-motion';
 import { FileText, Calendar, Shield, AlertTriangle } from 'lucide-react';
 import { formatIndianDate } from '@/lib/dateUtils';
@@ -193,7 +194,7 @@ export default function TermsPage() {
                   <p className="text-gray-700">
                     <strong>Anutech Digital Private Limited</strong><br />
                     Email: support@anutech.in<br />
-                    Phone: +91-777-888-9674<br />
+                    Phone: {COMPANY_PHONE_DISPLAY}<br />
                     Address: B9-54, Rohini, Sector-5, Delhi, India
                   </p>
                 </div>
