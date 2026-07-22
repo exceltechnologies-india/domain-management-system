@@ -41,9 +41,9 @@ export default function AuthShell({
     <div className={`min-h-screen bg-gray-50 ${className}`}>
       <div className="grid lg:grid-cols-[1.05fr_1fr] xl:grid-cols-[1.15fr_1fr] min-h-screen">
         {/* Brand panel — hidden on mobile */}
-        <aside className="hidden lg:flex relative overflow-hidden flex-col justify-between p-10 xl:p-14 text-white bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-800">
+        <aside className="hidden lg:flex relative overflow-hidden flex-col justify-between p-10 xl:p-14 text-white bg-gradient-to-br from-primary-700 via-primary-600 to-indigo-800">
           {/* Decorative blobs */}
-          <div className="absolute -top-32 -right-24 w-[28rem] h-[28rem] rounded-full bg-blue-400/25 blur-3xl pointer-events-none" />
+          <div className="absolute -top-32 -right-24 w-[28rem] h-[28rem] rounded-full bg-primary-400/25 blur-3xl pointer-events-none" />
           <div className="absolute -bottom-32 -left-24 w-[32rem] h-[32rem] rounded-full bg-indigo-500/30 blur-3xl pointer-events-none" />
           <div className="absolute top-1/3 right-1/4 w-72 h-72 rounded-full bg-violet-500/15 blur-3xl pointer-events-none" />
           <div

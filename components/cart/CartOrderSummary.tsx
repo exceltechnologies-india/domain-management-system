@@ -45,7 +45,7 @@ export default function CartOrderSummary({
   const checkoutBtnClass =
     isLoggedIn && profileCompleted !== true
       ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105'
-      : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transform hover:scale-105';
+      : 'bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white shadow-lg hover:shadow-xl transform hover:scale-105';
 
   const handleGuestContinue = () => {
     const email = guestEmail.trim().toLowerCase();
@@ -73,7 +73,7 @@ export default function CartOrderSummary({
 
       <div className="p-5 sm:p-6">
         {/* Totals breakdown */}
-        <div className="bg-gradient-to-br from-blue-50/60 to-indigo-50/40 rounded-xl p-4 border border-blue-100/60 mb-5">
+        <div className="bg-gradient-to-br from-primary-50/60 to-indigo-50/40 rounded-xl p-4 border border-primary-100/60 mb-5">
           <div className="space-y-2.5 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-600">Subtotal</span>
@@ -83,9 +83,9 @@ export default function CartOrderSummary({
               <span className="text-gray-600">GST (18%)</span>
               <span className="text-gray-900 font-medium font-mono">₹{gst.toFixed(2)}</span>
             </div>
-            <div className="border-t border-blue-200/60 pt-2.5 mt-2.5 flex justify-between items-baseline">
+            <div className="border-t border-primary-200/60 pt-2.5 mt-2.5 flex justify-between items-baseline">
               <span className="text-gray-900 font-semibold text-base">Total</span>
-              <span className="text-2xl sm:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 font-mono">
+              <span className="text-2xl sm:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-indigo-600 font-mono">
                 ₹{totalPrice.toFixed(2)}
               </span>
             </div>
@@ -109,7 +109,7 @@ export default function CartOrderSummary({
             {!showEmailInput ? (
               <button
                 onClick={() => setShowEmailInput(true)}
-                className="w-full font-semibold py-2.5 sm:py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center space-x-2 text-sm sm:text-base border border-gray-300 text-gray-700 hover:border-blue-400 hover:text-blue-700 hover:bg-blue-50/40"
+                className="w-full font-semibold py-2.5 sm:py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center space-x-2 text-sm sm:text-base border border-gray-300 text-gray-700 hover:border-primary-400 hover:text-primary-700 hover:bg-primary-50/40"
               >
                 <User className="h-4 w-4 sm:h-5 sm:w-5" />
                 <span>Continue as Guest</span>
@@ -126,7 +126,7 @@ export default function CartOrderSummary({
                     onKeyDown={(e) => e.key === 'Enter' && handleGuestContinue()}
                     placeholder="you@example.com"
                     autoFocus
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
                   />
                 </div>
                 {emailError && (
@@ -137,7 +137,7 @@ export default function CartOrderSummary({
                 <div className="flex gap-2">
                   <button
                     onClick={handleGuestContinue}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-3 rounded-lg text-sm transition-colors"
+                    className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-3 rounded-lg text-sm transition-colors"
                   >
                     Continue
                   </button>

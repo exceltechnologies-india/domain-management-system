@@ -18,12 +18,12 @@ export default function ContactInfo({ className = '' }: ContactInfoProps) {
 
       <div className="space-y-4">
         <Card className="flex flex-col items-center sm:flex-row sm:items-start p-5 hover:shadow-lg transition-shadow duration-200 text-center sm:text-left">
-          <div className="bg-blue-100 rounded-full p-3 mb-4 sm:mb-0 sm:mr-4 flex-shrink-0">
-            <Phone className="h-6 w-6 text-blue-600" />
+          <div className="bg-primary-100 rounded-full p-3 mb-4 sm:mb-0 sm:mr-4 flex-shrink-0">
+            <Phone className="h-6 w-6 text-primary-600" />
           </div>
           <div className="flex-1">
             <h4 className="text-lg font-semibold text-gray-900 mb-2">Call Us</h4>
-            <a href={`tel:${COMPANY_PHONE_E164}`} className="text-gray-700 text-base font-medium mb-1 hover:text-blue-600 transition-colors">{COMPANY_PHONE_DISPLAY}</a>
+            <a href={`tel:${COMPANY_PHONE_E164}`} className="text-gray-700 text-base font-medium mb-1 hover:text-primary-600 transition-colors">{COMPANY_PHONE_DISPLAY}</a>
             <div className="flex items-center justify-center sm:justify-start text-sm text-gray-500 mt-2">
               <Clock className="h-4 w-4 mr-1" />
               <span>{COMPANY_SUPPORT_HOURS}</span>
@@ -32,8 +32,8 @@ export default function ContactInfo({ className = '' }: ContactInfoProps) {
         </Card>
 
         <Card className="flex flex-col items-center sm:flex-row sm:items-start p-5 hover:shadow-lg transition-shadow duration-200 text-center sm:text-left">
-          <div className="bg-blue-100 rounded-full p-3 mb-4 sm:mb-0 sm:mr-4 flex-shrink-0">
-            <Mail className="h-6 w-6 text-blue-600" />
+          <div className="bg-primary-100 rounded-full p-3 mb-4 sm:mb-0 sm:mr-4 flex-shrink-0">
+            <Mail className="h-6 w-6 text-primary-600" />
           </div>
           <div className="flex-1">
             <h4 className="text-lg font-semibold text-gray-900 mb-2">Email Us</h4>
@@ -46,8 +46,8 @@ export default function ContactInfo({ className = '' }: ContactInfoProps) {
         </Card>
 
         <Card className="flex flex-col items-center sm:flex-row sm:items-start p-5 hover:shadow-lg transition-shadow duration-200 text-center sm:text-left">
-          <div className="bg-blue-100 rounded-full p-3 mb-4 sm:mb-0 sm:mr-4 flex-shrink-0">
-            <MapPin className="h-6 w-6 text-blue-600" />
+          <div className="bg-primary-100 rounded-full p-3 mb-4 sm:mb-0 sm:mr-4 flex-shrink-0">
+            <MapPin className="h-6 w-6 text-primary-600" />
           </div>
           <div className="flex-1">
             <h4 className="text-lg font-semibold text-gray-900 mb-2">Visit Us</h4>

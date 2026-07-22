@@ -22,8 +22,8 @@ export default function TermsPage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Header */}
           <div className="text-center mb-12 flex flex-col items-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-6">
-              <FileText className="h-8 w-8 text-blue-600" />
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-100 rounded-full mb-6">
+              <FileText className="h-8 w-8 text-primary-600" />
             </div>
             <h1 className="text-4xl font-bold text-gray-900 mb-4 px-4">Terms and Conditions</h1>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
@@ -42,7 +42,7 @@ export default function TermsPage() {
               {/* Introduction */}
               <section className="mb-8">
                 <h2 className="text-2xl font-semibold text-gray-900 mb-4 flex items-center">
-                  <Shield className="h-6 w-6 text-blue-600 mr-3" />
+                  <Shield className="h-6 w-6 text-primary-600 mr-3" />
                   1. Introduction
                 </h2>
                 <p className="text-gray-700 leading-relaxed">

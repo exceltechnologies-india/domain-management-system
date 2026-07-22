@@ -398,10 +398,10 @@ export default function CheckoutPage() {
         <div className="max-w-md w-full px-6 text-center">
           <div className="relative mb-10">
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="h-32 w-32 rounded-full border-4 border-blue-50 border-t-blue-600 animate-spin"></div>
+              <div className="h-32 w-32 rounded-full border-4 border-primary-50 border-t-primary-600 animate-spin"></div>
             </div>
             <div className="relative flex items-center justify-center h-32 w-32 mx-auto">
-              <ShieldCheck className="h-14 w-14 text-blue-600" />
+              <ShieldCheck className="h-14 w-14 text-primary-600" />
             </div>
           </div>
           <h2 className="text-3xl font-bold text-gray-900 mb-3 font-outfit">Finalizing Your Order</h2>
@@ -412,15 +412,15 @@ export default function CheckoutPage() {
               ? 'We are setting up your hosting account.'
               : 'We are registering your domain(s).'}
             {' '}
-            <span className="block mt-2 font-semibold text-blue-600 px-4 py-2 bg-blue-50 rounded-full inline-block">Please do not refresh or close this page.</span>
+            <span className="block mt-2 font-semibold text-primary-600 px-4 py-2 bg-primary-50 rounded-full inline-block">Please do not refresh or close this page.</span>
           </p>
-          <div className="space-y-4 text-left bg-white shadow-xl shadow-blue-900/5 p-6 rounded-2xl border border-blue-50">
+          <div className="space-y-4 text-left bg-white shadow-xl shadow-primary-900/5 p-6 rounded-2xl border border-primary-50">
             <div className="flex items-center text-sm font-medium text-gray-700">
               <div className="h-2 w-2 rounded-full bg-green-500 shadow-sm shadow-green-200 mr-3"></div>
               Payment Authorized
             </div>
             <div className="flex items-center text-sm font-medium text-gray-700">
-              <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse shadow-sm shadow-blue-200 mr-3"></div>
+              <div className="h-2 w-2 rounded-full bg-primary-500 animate-pulse shadow-sm shadow-primary-200 mr-3"></div>
               {processingLabel}
             </div>
             <div className="flex items-center text-sm font-medium text-gray-400">
@@ -474,12 +474,12 @@ export default function CheckoutPage() {
                 </div>
                 <div className="space-y-4">
                   {cartItems.map((item, index) => (
-                    <div key={index} className="group relative p-4 sm:p-6 border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all duration-200">
+                    <div key={index} className="group relative p-4 sm:p-6 border border-gray-200 rounded-lg hover:border-primary-300 hover:shadow-md transition-all duration-200">
                       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 sm:gap-6">
                         <div className="flex-1">
                           <div className="flex items-center space-x-3 mb-2">
-                            <div className="bg-blue-100 p-2 rounded-lg">
-                              <Globe className="h-5 w-5 text-blue-600" />
+                            <div className="bg-primary-100 p-2 rounded-lg">
+                              <Globe className="h-5 w-5 text-primary-600" />
                             </div>
                             <div>
                               <h3 className="text-lg font-medium text-gray-900">
@@ -488,7 +488,7 @@ export default function CheckoutPage() {
                                   : item.domainName}
                               </h3>
                               {item.itemType === 'hosting' ? (
-                                <p className="text-sm font-medium text-blue-600 mt-1">
+                                <p className="text-sm font-medium text-primary-600 mt-1">
                                   for {item.linkedDomain || item.domainName}
                                 </p>
                               ) : (
@@ -563,8 +563,8 @@ export default function CheckoutPage() {
 
               {/* What's Included - Dynamic based on cart content */}
               <div className="px-6 pb-6">
-                <div className="bg-blue-50 rounded-lg p-4">
-                  <h3 className="font-semibold text-blue-900 mb-3 flex items-center">
+                <div className="bg-primary-50 rounded-lg p-4">
+                  <h3 className="font-semibold text-primary-900 mb-3 flex items-center">
                     <Info className="h-4 w-4 mr-2" />
                     What's Included
                   </h3>
@@ -572,19 +572,19 @@ export default function CheckoutPage() {
                     {cartItems.some(item => item.itemType === 'hosting') ? (
                       // Hosting Features
                       <>
-                        <div className="flex items-center text-blue-800">
+                        <div className="flex items-center text-primary-800">
                           <Check className="h-4 w-4 mr-2 text-green-600" />
                           Hosting Control Panel
                         </div>
-                        <div className="flex items-center text-blue-800">
+                        <div className="flex items-center text-primary-800">
                           <Check className="h-4 w-4 mr-2 text-green-600" />
                           Free SSL Certificates
                         </div>
-                        <div className="flex items-center text-blue-800">
+                        <div className="flex items-center text-primary-800">
                           <Check className="h-4 w-4 mr-2 text-green-600" />
                           24/7 support
                         </div>
-                        <div className="flex items-center text-blue-800">
+                        <div className="flex items-center text-primary-800">
                           <Check className="h-4 w-4 mr-2 text-green-600" />
                           99.9% Uptime Guarantee
                         </div>
@@ -592,19 +592,19 @@ export default function CheckoutPage() {
                     ) : (
                       // Domain Features
                       <>
-                        <div className="flex items-center text-blue-800">
+                        <div className="flex items-center text-primary-800">
                           <Check className="h-4 w-4 mr-2 text-green-600" />
                           Domain Registration
                         </div>
-                        <div className="flex items-center text-blue-800">
+                        <div className="flex items-center text-primary-800">
                           <Check className="h-4 w-4 mr-2 text-green-600" />
                           DNS Management
                         </div>
-                        <div className="flex items-center text-blue-800">
+                        <div className="flex items-center text-primary-800">
                           <Check className="h-4 w-4 mr-2 text-green-600" />
                           Domain Lock
                         </div>
-                        <div className="flex items-center text-blue-800">
+                        <div className="flex items-center text-primary-800">
                           <Check className="h-4 w-4 mr-2 text-green-600" />
                           24/7 Support
                         </div>
@@ -655,7 +655,7 @@ export default function CheckoutPage() {
                 )}
 
                 {/* Payment Amount Breakdown */}
-                <div className="bg-gradient-to-br from-blue-50/50 to-indigo-50/50 rounded-xl p-5 mb-6 border border-blue-100/50">
+                <div className="bg-gradient-to-br from-primary-50/50 to-indigo-50/50 rounded-xl p-5 mb-6 border border-primary-100/50">
                   <div className="space-y-3">
                     {!hasTrial && (
                       <>
@@ -669,10 +669,10 @@ export default function CheckoutPage() {
                         </div>
                       </>
                     )}
-                     <div className={`${!hasTrial ? 'border-t border-blue-200/50 pt-3 ' : ''}flex justify-between items-baseline`}>
+                     <div className={`${!hasTrial ? 'border-t border-primary-200/50 pt-3 ' : ''}flex justify-between items-baseline`}>
                       <span className="text-base font-bold text-gray-900">{hasTrial ? 'Due Today' : 'Total Amount'}</span>
                       <div className="text-right">
-                        <span className={`text-3xl font-black font-mono tracking-tight ${hasTrial ? 'text-green-600' : 'text-blue-600'}`}>
+                        <span className={`text-3xl font-black font-mono tracking-tight ${hasTrial ? 'text-green-600' : 'text-primary-600'}`}>
                           ₹{getTotalPrice().toFixed(2)}
                         </span>
                         <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider mt-1">
@@ -710,7 +710,7 @@ export default function CheckoutPage() {
                 <button
                   onClick={handlePayment}
                   disabled={isProcessing || isPaymentInProgress || cartItems.length === 0}
-                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 mb-4 flex items-center justify-center space-x-2"
+                  className="w-full bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 mb-4 flex items-center justify-center space-x-2"
                 >
                   {isProcessing || isPaymentInProgress ? (
                     <>
@@ -751,7 +751,7 @@ export default function CheckoutPage() {
                 <div className="pt-6 border-t border-gray-200">
                   <p className="text-xs text-gray-600 text-center">
                     Need help? Contact our support team at{' '}
-                    <a href={`mailto:${SUPPORT_EMAIL}`} className="text-blue-600 hover:underline">
+                    <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary-600 hover:underline">
                       {SUPPORT_EMAIL}
                     </a>
                   </p>

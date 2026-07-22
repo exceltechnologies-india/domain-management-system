@@ -31,7 +31,7 @@ function ErrorContent() {
     HOSTING_NOT_FOUND: {
       icon: <Search className="h-16 w-16" />,
       title: "Hosting Not Found",
-      color: "from-blue-500 to-indigo-600"
+      color: "from-primary-500 to-indigo-600"
     },
     OWNERSHIP_VERIFICATION_FAILED: {
       icon: <UserX className="h-16 w-16" />,

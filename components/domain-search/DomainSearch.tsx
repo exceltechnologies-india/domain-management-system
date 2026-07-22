@@ -151,14 +151,14 @@ export default function DomainSearch({
               {title || (
                 <>
                   Your Perfect Domain{' '}
-                  <span className={theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}>Awaits</span>
+                  <span className={theme === 'dark' ? 'text-primary-400' : 'text-primary-600'}>Awaits</span>
                 </>
               )}
             </h1>
             <p
               className={`max-w-2xl mx-auto font-medium leading-relaxed transition-colors duration-300 ${
                 compact ? 'text-xs sm:text-sm mb-2 sm:mb-3' : 'text-sm sm:text-base mb-3 sm:mb-4'
-              } ${theme === 'dark' ? 'text-blue-100/80' : 'text-gray-600'}`}
+              } ${theme === 'dark' ? 'text-primary-100/80' : 'text-gray-600'}`}
             >
               {subtitle ||
                 'Secure your online identity with enterprise-grade domain registration and management tools.'}
@@ -239,7 +239,7 @@ export default function DomainSearch({
               <div className="space-y-2.5">
                 <a
                   href={`/login?returnUrl=${encodeURIComponent(`/domains/search?q=${watchSignInDomain.split('.')[0]}`)}`}
-                  className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors"
+                  className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-xl transition-colors"
                 >
                   <LogIn className="h-4 w-4" />
                   Sign In

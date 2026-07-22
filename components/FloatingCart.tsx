@@ -57,10 +57,10 @@ export default function FloatingCart() {
   return (
     <Link
       href="/cart"
-      className={`md:hidden fixed bottom-6 right-6 z-50 text-white rounded-full p-4 shadow-2xl hover:shadow-xl transition-all duration-300 transform hover:scale-110 active:scale-95 ${cartCount > 0 ? 'bg-green-600 hover:bg-green-700 animate-cart-flash' : 'bg-blue-600 hover:bg-blue-700'
+      className={`md:hidden fixed bottom-6 right-6 z-50 text-white rounded-full p-4 shadow-2xl hover:shadow-xl transition-all duration-300 transform hover:scale-110 active:scale-95 ${cartCount > 0 ? 'bg-green-600 hover:bg-green-700 animate-cart-flash' : 'bg-primary-600 hover:bg-primary-700'
         }`}
       style={{
-        boxShadow: '0 10px 40px rgba(37, 99, 235, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)',
+        boxShadow: '0 10px 40px rgb(var(--primary-600) / 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)',
       }}
       title="View Cart"
     >

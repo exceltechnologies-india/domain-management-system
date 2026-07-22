@@ -68,9 +68,9 @@ const SearchResults = React.memo(function SearchResults({
                 className="flex flex-col items-center justify-center py-20"
               >
                 <div className="relative w-16 h-16 mb-6">
-                  <div className="absolute inset-0 border-4 border-blue-100 rounded-full"></div>
-                  <div className="absolute inset-0 border-4 border-t-blue-600 rounded-full animate-spin"></div>
-                  <Globe className="absolute inset-0 m-auto h-8 w-8 text-blue-600 animate-pulse" />
+                  <div className="absolute inset-0 border-4 border-primary-100 rounded-full"></div>
+                  <div className="absolute inset-0 border-4 border-t-primary-600 rounded-full animate-spin"></div>
+                  <Globe className="absolute inset-0 m-auto h-8 w-8 text-primary-600 animate-pulse" />
                 </div>
                 <h3 className="text-lg font-bold text-gray-900 mb-1">Analyzing Availability</h3>
                 <p className="text-sm text-gray-500 text-center">
@@ -124,7 +124,7 @@ const SearchResults = React.memo(function SearchResults({
                     {results.length > 1 && (
                       <div className="pt-4 space-y-4">
                         <div className="flex items-center gap-2 px-2 pb-2">
-                          <Star className="h-4 w-4 text-blue-500 fill-blue-500" />
+                          <Star className="h-4 w-4 text-primary-500 fill-primary-500" />
                           <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest">
                             Other Popular Extensions
                           </h3>
@@ -195,7 +195,7 @@ const SearchResults = React.memo(function SearchResults({
                               onClick={() => setActiveTab(cat)}
                               className={`px-4 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${
                                 activeTab === cat
-                                  ? 'bg-white text-blue-600 shadow-sm'
+                                  ? 'bg-white text-primary-600 shadow-sm'
                                   : 'text-gray-500 hover:text-gray-900'
                               }`}
                             >
@@ -234,7 +234,7 @@ const SearchResults = React.memo(function SearchResults({
                     <button
                       onClick={onLoadMore}
                       disabled={isLoadingMore}
-                      className="group relative px-6 py-3 sm:px-12 sm:py-5 bg-blue-600 hover:bg-blue-700 rounded-xl sm:rounded-2xl font-black text-white transition-all duration-300 shadow-xl hover:shadow-blue-500/40 active:scale-95 overflow-hidden"
+                      className="group relative px-6 py-3 sm:px-12 sm:py-5 bg-primary-600 hover:bg-primary-700 rounded-xl sm:rounded-2xl font-black text-white transition-all duration-300 shadow-xl hover:shadow-primary-500/40 active:scale-95 overflow-hidden"
                     >
                       <span className="relative z-10 flex items-center gap-2">
                         {isLoadingMore ? (

@@ -283,7 +283,7 @@ export default function HostingPage() {
               transition={{ delay: 0.15 }}
               className="inline-flex items-center gap-2 mb-5 sm:mb-6 bg-white/10 backdrop-blur-md border border-white/25 rounded-full pl-1.5 pr-4 py-1.5 shadow-lg"
             >
-              <span className="flex items-center justify-center h-6 w-6 rounded-full bg-[#0180E5]/90">
+              <span className="flex items-center justify-center h-6 w-6 rounded-full bg-primary-500/90">
                 <Server className="h-3.5 w-3.5 text-white" />
               </span>
               <span className="text-white text-[11px] sm:text-xs font-semibold tracking-[0.2em] uppercase">
@@ -291,13 +291,13 @@ export default function HostingPage() {
               </span>
             </motion.div>
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-5 text-white drop-shadow-md" style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}>
-              Fast, Secure & <span className="text-blue-400">Reliable</span> Web Hosting
+              Fast, Secure & <span className="text-primary-400">Reliable</span> Web Hosting
             </h1>
             <p className="text-base sm:text-lg md:text-xl text-white/90 mb-8 max-w-2xl mx-auto leading-relaxed">
               Launch your website with a hosting provider that gives you the speed, security, and support you need to grow online.
             </p>
             <div className="flex flex-col sm:flex-row justify-center gap-3">
-              <a href="#pricing" className="inline-flex items-center justify-center gap-2 bg-white text-[#0177E1] px-7 py-3 rounded-full font-semibold text-base shadow-lg hover:shadow-xl hover:bg-gray-50 transition-all">
+              <a href="#pricing" className="inline-flex items-center justify-center gap-2 bg-white text-primary-600 px-7 py-3 rounded-full font-semibold text-base shadow-lg hover:shadow-xl hover:bg-gray-50 transition-all">
                 View Plans
                 <Sparkles className="h-4 w-4" />
               </a>
@@ -314,7 +314,7 @@ export default function HostingPage() {
         {/* Pricing Section */}
         <Section background="white" id="pricing" className="scroll-mt-20 relative overflow-hidden">
           {/* Decorative gradient background */}
-          <div className="absolute inset-0 bg-gradient-to-br from-primary-50/30 via-white to-blue-50/20 pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-br from-primary-50/30 via-white to-primary-50/20 pointer-events-none" />
 
           <div className="relative z-10">
             <div className="text-center mb-12">
@@ -344,7 +344,7 @@ export default function HostingPage() {
                     aria-label="Toggle billing cycle — currently yearly saves 50%"
                     aria-labelledby="billing-monthly-label billing-yearly-label"
                     onClick={() => setBillingCycle(billingCycle === 'monthly' ? 'yearly' : 'monthly')}
-                    className="relative inline-flex h-7 w-14 items-center rounded-full bg-[#0180E5] transition-colors focus:outline-none focus:ring-2 focus:ring-[#0177E1] focus:ring-offset-2"
+                    className="relative inline-flex h-7 w-14 items-center rounded-full bg-primary-500 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-2"
                   >
                     <span
                       className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
@@ -466,7 +466,7 @@ export default function HostingPage() {
               viewport={{ once: true }}
               transition={{ duration: 0.5 }}
             >
-              <div className="inline-flex items-center gap-2 mb-4 bg-white border border-blue-100 rounded-full px-3 py-1.5 text-xs sm:text-sm font-semibold text-blue-700 shadow-sm">
+              <div className="inline-flex items-center gap-2 mb-4 bg-white border border-primary-100 rounded-full px-3 py-1.5 text-xs sm:text-sm font-semibold text-primary-700 shadow-sm">
                 <Sparkles className="h-3.5 w-3.5" />
                 Complementary Services
               </div>
@@ -491,7 +491,7 @@ export default function HostingPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4, delay: i * 0.08 }}
-                className="group bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-200 transition-all duration-300 overflow-hidden flex flex-col"
+                className="group bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md hover:border-primary-200 transition-all duration-300 overflow-hidden flex flex-col"
               >
                 <div className="relative w-full h-44 overflow-hidden">
                   <Image
@@ -508,8 +508,8 @@ export default function HostingPage() {
                     href={svc.href}
                     className={`inline-flex items-center justify-center px-5 py-2.5 rounded-xl font-medium text-sm transition-colors ${
                       svc.variant === 'primary'
-                        ? 'bg-[#0177E1] hover:bg-[#01489D] text-white'
-                        : 'bg-white text-[#0177E1] border border-[#0180E5]/40 hover:bg-[#0180E5]/5 hover:border-[#0180E5]'
+                        ? 'bg-primary-600 hover:bg-primary-800 text-white'
+                        : 'bg-white text-primary-600 border border-primary-500/40 hover:bg-primary-500/5 hover:border-primary-500'
                     }`}
                   >
                     {svc.cta}
@@ -523,7 +523,7 @@ export default function HostingPage() {
         {/* Features Section */}
         <Section background="white" className="relative overflow-hidden">
           {/* Decorative gradient background */}
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-50/40 via-white to-primary-50/30 pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-br from-primary-50/40 via-white to-primary-50/30 pointer-events-none" />
 
           <div className="relative z-10">
             <div className="text-center mb-12">
@@ -533,7 +533,7 @@ export default function HostingPage() {
                 viewport={{ once: true }}
                 transition={{ duration: 0.6 }}
               >
-                <div className="inline-flex items-center gap-2 mb-4 bg-blue-50 border border-blue-100 rounded-full px-3 py-1.5 text-xs sm:text-sm font-semibold text-blue-700">
+                <div className="inline-flex items-center gap-2 mb-4 bg-primary-50 border border-primary-100 rounded-full px-3 py-1.5 text-xs sm:text-sm font-semibold text-primary-700">
                   <Server className="h-3.5 w-3.5" />
                   Powered by Google
                 </div>
@@ -541,7 +541,7 @@ export default function HostingPage() {
                   Built on enterprise-grade infrastructure
                 </h2>
                 <p className="text-base sm:text-lg text-gray-600 leading-relaxed max-w-3xl mx-auto" style={{ fontFamily: 'Roboto, system-ui, sans-serif' }}>
-                  <strong className="text-blue-700">Web Hosting backed by Google Servers</strong> — delivering performance, reliability, and security for everything from a personal site to a production app.
+                  <strong className="text-primary-700">Web Hosting backed by Google Servers</strong> — delivering performance, reliability, and security for everything from a personal site to a production app.
                 </p>
               </motion.div>
             </div>
@@ -554,10 +554,10 @@ export default function HostingPage() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ duration: 0.4, delay: index * 0.06 }}
-                  className="group bg-white rounded-2xl p-5 sm:p-6 border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-200 transition-all duration-300"
+                  className="group bg-white rounded-2xl p-5 sm:p-6 border border-gray-200 shadow-sm hover:shadow-md hover:border-primary-200 transition-all duration-300"
                 >
                   <div className="flex items-start gap-3 mb-3">
-                    <div className="p-2 rounded-xl bg-blue-50 text-blue-600 group-hover:bg-blue-100 transition-colors shrink-0">
+                    <div className="p-2 rounded-xl bg-primary-50 text-primary-600 group-hover:bg-primary-100 transition-colors shrink-0">
                       {feature.icon}
                     </div>
                     <h3 className="text-lg font-bold text-gray-900 pt-1">{feature.title}</h3>

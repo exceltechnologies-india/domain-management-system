@@ -40,7 +40,7 @@ export default function AddressSection({
           disabled={isDetectingLocation}
           loading={isDetectingLocation}
           icon={!isDetectingLocation && <MapPinIcon className="h-4 w-4" />}
-          className="text-blue-600"
+          className="text-primary-600"
         >
           Auto-fill
         </Button>
@@ -76,7 +76,7 @@ export default function AddressSection({
             value={formData.address.state}
             onChange={onChange}
             required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 text-gray-900 bg-white"
           >
             <option value="" disabled>
               Select state

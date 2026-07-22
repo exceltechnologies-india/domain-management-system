@@ -30,7 +30,7 @@ export default function ContactPage() {
             transition={{ delay: 0.15 }}
             className="inline-flex items-center gap-2 mb-5 sm:mb-6 bg-white/10 backdrop-blur-md border border-white/25 rounded-full pl-1.5 pr-4 py-1.5 shadow-lg"
           >
-            <span className="flex items-center justify-center h-6 w-6 rounded-full bg-[#0180E5]/90">
+            <span className="flex items-center justify-center h-6 w-6 rounded-full bg-primary-500/90">
               <Mail className="h-3.5 w-3.5 text-white" />
             </span>
             <span className="text-white text-[11px] sm:text-xs font-semibold tracking-[0.2em] uppercase">
@@ -38,7 +38,7 @@ export default function ContactPage() {
             </span>
           </motion.div>
           <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 sm:mb-5 drop-shadow-lg" style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}>
-            We&apos;re a <span className="text-blue-400">message away</span>
+            We&apos;re a <span className="text-primary-400">message away</span>
           </h1>
           <p className="text-base sm:text-lg md:text-xl text-white/90 max-w-2xl mx-auto drop-shadow-md">
             Questions, support requests, or partnership ideas — our team responds fast.
@@ -49,7 +49,7 @@ export default function ContactPage() {
 
       <Section background="white" padding="md" className="relative overflow-hidden">
         {/* Decorative gradient background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-primary-50/30 via-white to-blue-50/20 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-br from-primary-50/30 via-white to-primary-50/20 pointer-events-none" />
 
         <div className="relative z-10">
           <motion.div

@@ -133,7 +133,7 @@ export default function MultiStageRegisterForm({ className = '' }: RegisterFormP
           Already have one?{' '}
           <Link
             href={`/login${returnUrl ? `?returnUrl=${encodeURIComponent(returnUrl)}` : ''}`}
-            className="font-medium text-blue-600 hover:text-blue-500"
+            className="font-medium text-primary-600 hover:text-primary-500"
           >
             Sign in
           </Link>

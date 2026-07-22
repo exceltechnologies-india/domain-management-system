@@ -5,9 +5,9 @@ export default function EmptyCart() {
   return (
     <div className="flex-1 flex flex-col items-center justify-center py-12 sm:py-20 lg:py-24 animate-fade-in">
       <div className="relative mb-8">
-        <div className="absolute inset-0 bg-blue-500/20 blur-3xl rounded-full scale-150" />
-        <div className="relative bg-gradient-to-br from-blue-50 to-indigo-100 rounded-3xl p-8 shadow-inner border border-white">
-          <ShoppingCart className="h-12 w-12 sm:h-16 sm:w-16 text-blue-600 drop-shadow-sm" />
+        <div className="absolute inset-0 bg-primary-500/20 blur-3xl rounded-full scale-150" />
+        <div className="relative bg-gradient-to-br from-primary-50 to-indigo-100 rounded-3xl p-8 shadow-inner border border-white">
+          <ShoppingCart className="h-12 w-12 sm:h-16 sm:w-16 text-primary-600 drop-shadow-sm" />
         </div>
         <div className="absolute -bottom-2 -right-2 bg-white rounded-full p-2 shadow-md">
           <CheckCircle className="h-5 w-5 text-green-500" />
@@ -24,7 +24,7 @@ export default function EmptyCart() {
       <div className="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-4">
         <Link
           href="/domains/search"
-          className="group inline-flex items-center px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl transition-all duration-300 shadow-xl hover:shadow-2xl transform hover:-translate-y-1"
+          className="group inline-flex items-center px-8 py-4 bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 text-white font-bold rounded-xl transition-all duration-300 shadow-xl hover:shadow-2xl transform hover:-translate-y-1"
         >
           <Globe className="h-5 w-5 mr-3 group-hover:rotate-12 transition-transform duration-300" />
           Find My Domain

@@ -52,16 +52,16 @@ export default function CartItemCard({ item, onRemove, onPeriodChange }: CartIte
   const isHostingItem = item.itemType === 'hosting';
 
   return (
-    <div className="p-4 sm:p-5 bg-white border border-gray-200 rounded-xl hover:border-blue-200 hover:shadow-sm transition-all duration-200">
+    <div className="p-4 sm:p-5 bg-white border border-gray-200 rounded-xl hover:border-primary-200 hover:shadow-sm transition-all duration-200">
       {/* Single responsive layout: stacked on mobile, side-by-side on lg */}
       <div className="flex flex-col lg:flex-row lg:items-start gap-4">
 
         {/* Left: icon + info + tags */}
         <div className="flex items-start gap-3 flex-1 min-w-0">
-          <div className={`p-2 rounded-lg flex-shrink-0 ${isHostingItem ? 'bg-purple-50' : 'bg-blue-50'}`}>
+          <div className={`p-2 rounded-lg flex-shrink-0 ${isHostingItem ? 'bg-purple-50' : 'bg-primary-50'}`}>
             {isHostingItem
               ? <Server className="h-4 w-4 lg:h-5 lg:w-5 text-purple-600" />
-              : <Globe className="h-4 w-4 lg:h-5 lg:w-5 text-blue-600" />}
+              : <Globe className="h-4 w-4 lg:h-5 lg:w-5 text-primary-600" />}
           </div>
           <div className="min-w-0 flex-1">
             <h3 className="text-base lg:text-lg font-medium text-gray-900 truncate">
@@ -70,12 +70,12 @@ export default function CartItemCard({ item, onRemove, onPeriodChange }: CartIte
             <p className="text-xs lg:text-sm text-gray-600">{periodLabel}</p>
             {item.itemType === 'hosting' &&
               (item.linkedDomain || !item.domainName.startsWith('hosting-')) && (
-                <p className="text-xs lg:text-sm font-medium text-blue-600 mt-1">
+                <p className="text-xs lg:text-sm font-medium text-primary-600 mt-1">
                   Domain: {item.linkedDomain || item.domainName}
                 </p>
               )}
             <div className="flex flex-wrap gap-2 mt-2">
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary-50 text-primary-700 border border-primary-100">
                 <CheckCircle className="h-3 w-3 mr-1" />
                 Available
               </span>

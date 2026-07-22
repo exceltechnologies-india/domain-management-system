@@ -152,7 +152,7 @@ export default function PaymentResultPage() {
             <div className="space-x-4">
               <Link
                 href="/dashboard"
-                className="inline-flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors duration-200"
+                className="inline-flex items-center px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg transition-colors duration-200"
               >
                 <CreditCard className="h-5 w-5 mr-2" />
                 Go to Dashboard
@@ -331,18 +331,18 @@ export default function PaymentResultPage() {
           {result.orderId && !result.isGuest && (
             <Link
               href={`/dashboard/orders/${result.orderId}`}
-              className="flex items-center justify-between w-full px-5 py-3.5 bg-white border border-gray-200 rounded-xl hover:border-blue-300 hover:shadow-sm transition-all group"
+              className="flex items-center justify-between w-full px-5 py-3.5 bg-white border border-gray-200 rounded-xl hover:border-primary-300 hover:shadow-sm transition-all group"
             >
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors">
-                  <ReceiptText className="h-4 w-4 text-blue-600" />
+                <div className="p-2 bg-primary-50 rounded-lg group-hover:bg-primary-100 transition-colors">
+                  <ReceiptText className="h-4 w-4 text-primary-600" />
                 </div>
                 <div className="text-left">
                   <p className="text-sm font-semibold text-gray-800">Track your order</p>
                   <p className="text-xs text-gray-500">Live status updates — bookmark this page</p>
                 </div>
               </div>
-              <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-blue-600 transition-colors" />
+              <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-primary-600 transition-colors" />
             </Link>
           )}
 
@@ -376,7 +376,7 @@ export default function PaymentResultPage() {
           {!result.isGuest && (
             <button
               onClick={handleGoToDashboard}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 px-6 rounded-xl transition-colors flex items-center justify-center gap-2"
+              className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3.5 px-6 rounded-xl transition-colors flex items-center justify-center gap-2"
             >
               {hasHostingSuccess && !hasDomainSuccess ? 'View Hosting' : hasDomainSuccess ? 'View Domains' : 'Go to Dashboard'}
               <ArrowRight className="h-4 w-4" />
@@ -385,7 +385,7 @@ export default function PaymentResultPage() {
 
           <p className="text-center text-xs text-gray-400">
             Need help?{' '}
-            <a href={`mailto:${SUPPORT_EMAIL}`} className="text-blue-500 hover:text-blue-600">
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary-500 hover:text-primary-600">
               {SUPPORT_EMAIL}
             </a>
           </p>
@@ -472,7 +472,7 @@ export default function PaymentResultPage() {
             {result.errorType === 'auth_error' ? (
               <button
                 onClick={() => router.push('/login')}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors flex items-center justify-center gap-2"
+                className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors flex items-center justify-center gap-2"
               >
                 Log In and Retry
                 <ArrowRight className="h-4 w-4" />
@@ -480,7 +480,7 @@ export default function PaymentResultPage() {
             ) : result.errorType === 'duplicate_payment' ? (
               <button
                 onClick={handleGoToDashboard}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors flex items-center justify-center gap-2"
+                className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors flex items-center justify-center gap-2"
               >
                 View Dashboard
                 <ArrowRight className="h-4 w-4" />
@@ -488,7 +488,7 @@ export default function PaymentResultPage() {
             ) : (
               <button
                 onClick={handleRetryPayment}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors flex items-center justify-center gap-2"
+                className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors flex items-center justify-center gap-2"
               >
                 {result.errorType === 'network_error' ? 'Try Again' : 'Retry Payment'}
                 <ArrowRight className="h-4 w-4" />
@@ -505,7 +505,7 @@ export default function PaymentResultPage() {
 
           <p className="text-center text-xs text-gray-400 mt-6">
             Need help?{' '}
-            <a href={`mailto:${SUPPORT_EMAIL}`} className="text-blue-500 hover:text-blue-600">
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary-500 hover:text-primary-600">
               {SUPPORT_EMAIL}
             </a>
           </p>

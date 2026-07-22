@@ -225,8 +225,8 @@ export default function CartPage() {
             </Link>
             <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
               <div className="px-5 sm:px-6 py-4 sm:py-5 flex items-start gap-4">
-                <div className="p-2.5 bg-blue-50 rounded-xl shrink-0">
-                  <ShoppingCart className="h-5 w-5 text-blue-600" />
+                <div className="p-2.5 bg-primary-50 rounded-xl shrink-0">
+                  <ShoppingCart className="h-5 w-5 text-primary-600" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Shopping Cart</h1>
@@ -310,9 +310,9 @@ export default function CartPage() {
                   </div>
                   <div className="p-4 sm:p-6">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                      <div className="flex items-center gap-3 p-3 sm:p-4 border border-gray-200 rounded-xl hover:border-blue-300 hover:shadow-sm transition-all">
-                        <div className="bg-blue-50 p-2 rounded-lg flex-shrink-0">
-                          <Globe className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+                      <div className="flex items-center gap-3 p-3 sm:p-4 border border-gray-200 rounded-xl hover:border-primary-300 hover:shadow-sm transition-all">
+                        <div className="bg-primary-50 p-2 rounded-lg flex-shrink-0">
+                          <Globe className="h-4 w-4 sm:h-5 sm:w-5 text-primary-600" />
                         </div>
                         <div className="min-w-0">
                           <h4 className="text-sm sm:text-base font-medium text-gray-900 truncate">
@@ -323,7 +323,7 @@ export default function CartPage() {
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 p-3 sm:p-4 border border-gray-200 rounded-xl hover:border-blue-300 hover:shadow-sm transition-all">
+                      <div className="flex items-center gap-3 p-3 sm:p-4 border border-gray-200 rounded-xl hover:border-primary-300 hover:shadow-sm transition-all">
                         <div className="bg-purple-50 p-2 rounded-lg flex-shrink-0">
                           <Award className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600" />
                         </div>

@@ -153,7 +153,7 @@ export default function DomainSelectionModal({
               <input
                 type="text"
                 id="domainName"
-                className={`block w-full pl-10 pr-3 py-3 border rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors sm:text-sm ${error ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                className={`block w-full pl-10 pr-3 py-3 border rounded-xl shadow-sm focus:ring-primary-500 focus:border-primary-500 transition-colors sm:text-sm ${error ? 'border-red-300 bg-red-50' : 'border-gray-300'
                   }`}
                 placeholder="example.com"
                 value={domainName}
@@ -181,7 +181,7 @@ export default function DomainSelectionModal({
             <button
               onClick={handleContinue}
               disabled={isAdding}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isAdding ? 'Adding to Cart...' : 'Continue to Checkout'}
               {!isAdding && <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />}

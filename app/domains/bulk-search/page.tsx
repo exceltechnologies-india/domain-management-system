@@ -165,11 +165,11 @@ function BulkSearchContent() {
         <div className="bg-white border-b border-gray-100 shadow-sm mb-8">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 py-5">
             <nav className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">
-              <Link href="/" className="hover:text-blue-600 transition-colors">Home</Link>
+              <Link href="/" className="hover:text-primary-600 transition-colors">Home</Link>
               <ChevronRight className="h-3 w-3" />
-              <Link href="/domains/search" className="hover:text-blue-600 transition-colors">Domain Search</Link>
+              <Link href="/domains/search" className="hover:text-primary-600 transition-colors">Domain Search</Link>
               <ChevronRight className="h-3 w-3" />
-              <span className="text-blue-600">Bulk Search</span>
+              <span className="text-primary-600">Bulk Search</span>
             </nav>
             <h1 className="text-2xl font-black text-gray-900 tracking-tight">Bulk Domain Search</h1>
             <p className="text-sm text-gray-500 mt-1">Check up to {MAX_DOMAINS} domains at once</p>
@@ -187,7 +187,7 @@ function BulkSearchContent() {
               onChange={(e) => setInput(e.target.value)}
               placeholder={`example.com\nmystore.in\ncoolbrand.net`}
               rows={8}
-              className="w-full font-mono text-sm border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none text-gray-800 placeholder-gray-400"
+              className="w-full font-mono text-sm border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none text-gray-800 placeholder-gray-400"
             />
             <div className="flex items-center justify-between">
               <span className={`text-xs font-medium ${overLimit ? 'text-red-600' : 'text-gray-400'}`}>
@@ -196,7 +196,7 @@ function BulkSearchContent() {
               <button
                 onClick={handleSearch}
                 disabled={loading || validDomains.length === 0}
-                className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-sm font-bold rounded-xl transition-colors"
+                className="flex items-center gap-2 px-6 py-2.5 bg-primary-600 hover:bg-primary-700 disabled:bg-primary-300 text-white text-sm font-bold rounded-xl transition-colors"
               >
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                 {loading ? 'Checking…' : 'Check Availability'}
@@ -218,11 +218,11 @@ function BulkSearchContent() {
                   <div className="flex items-center gap-3">
                     <button
                       onClick={toggleSelectAll}
-                      className="text-gray-400 hover:text-blue-600 transition-colors"
+                      className="text-gray-400 hover:text-primary-600 transition-colors"
                       title={allAvailableSelected ? 'Deselect all' : 'Select all available'}
                     >
                       {allAvailableSelected
-                        ? <SquareCheckBig className="h-5 w-5 text-blue-600" />
+                        ? <SquareCheckBig className="h-5 w-5 text-primary-600" />
                         : <Square className="h-5 w-5" />}
                     </button>
                     <span className="text-sm font-semibold text-gray-700">
@@ -258,16 +258,16 @@ function BulkSearchContent() {
                         initial={{ opacity: 0, x: -8 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: i * 0.03 }}
-                        className={`flex items-center gap-4 px-6 py-4 hover:bg-gray-50 transition-colors ${isSelected && isAvailable ? 'bg-blue-50/40' : ''}`}
+                        className={`flex items-center gap-4 px-6 py-4 hover:bg-gray-50 transition-colors ${isSelected && isAvailable ? 'bg-primary-50/40' : ''}`}
                       >
                         {/* Checkbox */}
                         <button
                           onClick={() => isAvailable && toggleSelect(result.domainName)}
-                          className={`shrink-0 ${!isAvailable ? 'opacity-30 cursor-default' : 'text-gray-400 hover:text-blue-600 transition-colors'}`}
+                          className={`shrink-0 ${!isAvailable ? 'opacity-30 cursor-default' : 'text-gray-400 hover:text-primary-600 transition-colors'}`}
                           disabled={!isAvailable}
                         >
                           {isSelected && isAvailable
-                            ? <SquareCheckBig className="h-5 w-5 text-blue-600" />
+                            ? <SquareCheckBig className="h-5 w-5 text-primary-600" />
                             : <Square className="h-5 w-5" />}
                         </button>
 
@@ -304,7 +304,7 @@ function BulkSearchContent() {
                                   });
                                   toast.success(`${result.domainName} added`);
                                 }}
-                                className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors"
+                                className="text-xs font-semibold text-primary-600 hover:text-primary-800 transition-colors"
                               >
                                 + Add to Cart
                               </button>
@@ -332,7 +332,7 @@ export default function BulkSearchPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
+        <Loader2 className="h-10 w-10 animate-spin text-primary-600" />
       </div>
     }>
       <BulkSearchContent />

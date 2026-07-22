@@ -251,7 +251,7 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
           New here?{' '}
           <Link
             href={`/register${returnUrlParam ? `?returnUrl=${encodeURIComponent(returnUrlParam)}` : ''}`}
-            className="font-medium text-blue-600 hover:text-blue-500"
+            className="font-medium text-primary-600 hover:text-primary-500"
           >
             Create an account
           </Link>

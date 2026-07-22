@@ -41,7 +41,7 @@ export default function DomainHome() {
               transition={{ delay: 0.15 }}
               className="inline-flex items-center gap-2 mb-6 sm:mb-7 bg-white/15 border border-white/20 rounded-full px-3.5 py-1.5"
             >
-              <Globe className="h-3.5 w-3.5 text-blue-200" />
+              <Globe className="h-3.5 w-3.5 text-primary-200" />
               <span className="text-white/90 text-[11px] sm:text-xs font-semibold tracking-[0.18em] uppercase">
                 Domain Registration
               </span>
@@ -57,9 +57,9 @@ export default function DomainHome() {
                 style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}
               >
                 Claim Your Piece of the{' '}
-                <span className="text-blue-300">Digital World</span>
+                <span className="text-primary-300">Digital World</span>
               </h1>
-              <p className="text-blue-100/85 text-sm sm:text-base max-w-xl mx-auto mb-6 sm:mb-8 leading-relaxed">
+              <p className="text-primary-100/85 text-sm sm:text-base max-w-xl mx-auto mb-6 sm:mb-8 leading-relaxed">
                 Join 5,000+ customers who&apos;ve secured their identity with Anutech.
               </p>
             </motion.div>
@@ -78,7 +78,7 @@ export default function DomainHome() {
 
         {/* Clear Service Description Section */}
         <Section background="white" className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary-50/30 via-white to-blue-50/20 pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-br from-primary-50/30 via-white to-primary-50/20 pointer-events-none" />
 
           <div className="max-w-screen-2xl mx-auto relative z-10">
             <div className="text-center mb-12">
@@ -210,7 +210,7 @@ export default function DomainHome() {
                   className="relative bg-white rounded-2xl border border-gray-200 shadow-sm p-6 text-center"
                 >
                   <div className="relative w-20 h-20 mx-auto mb-4">
-                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary-50 to-blue-50" />
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary-50 to-primary-50" />
                     <div className="relative flex items-center justify-center h-full">
                       <Icon className="h-9 w-9 text-primary-600" />
                     </div>

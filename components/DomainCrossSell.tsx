@@ -101,7 +101,7 @@ export default function DomainCrossSell() {
                 setDomainQuery(e.target.value);
                 setResult(null); // Clear result on typing
               }}
-              className="block w-full pl-10 pr-24 py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition duration-150 ease-in-out"
+              className="block w-full pl-10 pr-24 py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm transition duration-150 ease-in-out"
               placeholder="Search domain (e.g. example.com)"
             />
             <div className="absolute inset-y-1 right-1">
@@ -109,7 +109,7 @@ export default function DomainCrossSell() {
                 type="button"
                 onClick={handleSearch}
                 disabled={!domainQuery.trim() || isSearching}
-                className="h-full px-4 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex items-center gap-2"
+                className="h-full px-4 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-md shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex items-center gap-2"
               >
                 {isSearching ? (
                   <>

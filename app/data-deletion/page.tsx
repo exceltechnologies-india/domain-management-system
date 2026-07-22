@@ -37,7 +37,7 @@ export default function DataDeletionPage() {
             {/* Introduction */}
             <div className="mb-8">
               <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
-                <Shield className="h-6 w-6 mr-2 text-blue-600" />
+                <Shield className="h-6 w-6 mr-2 text-primary-600" />
                 Your Data Rights
               </h2>
               <p className="text-gray-700 leading-relaxed">
@@ -50,7 +50,7 @@ export default function DataDeletionPage() {
             {/* What Data We Collect */}
             <div className="mb-8">
               <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
-                <FileText className="h-6 w-6 mr-2 text-blue-600" />
+                <FileText className="h-6 w-6 mr-2 text-primary-600" />
                 What Data We Collect (via Facebook Login)
               </h2>
               <div className="bg-blue-50 border-l-4 border-blue-600 p-4 mb-4">
@@ -94,24 +94,24 @@ export default function DataDeletionPage() {
               </p>
 
               {/* Primary Contact Method */}
-              <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg p-6 mb-4 border-2 border-blue-300">
+              <div className="bg-gradient-to-r from-primary-50 to-primary-100 rounded-lg p-6 mb-4 border-2 border-primary-300">
                 <h3 className="text-xl font-semibold text-gray-900 mb-3 flex items-center">
-                  <Mail className="h-6 w-6 mr-2 text-blue-600" />
+                  <Mail className="h-6 w-6 mr-2 text-primary-600" />
                   Email Data Deletion Request
                 </h3>
                 <p className="text-gray-700 mb-4">
                   Send your data deletion request to our support team:
                 </p>
-                <div className="flex items-center space-x-3 bg-white p-4 rounded-lg border border-blue-200 shadow-sm mb-4">
-                  <Mail className="h-6 w-6 text-blue-600 flex-shrink-0" />
+                <div className="flex items-center space-x-3 bg-white p-4 rounded-lg border border-primary-200 shadow-sm mb-4">
+                  <Mail className="h-6 w-6 text-primary-600 flex-shrink-0" />
                   <a
                     href="mailto:support@anutech.in?subject=Data Deletion Request&body=Please delete all my personal data associated with my account.%0D%0A%0D%0AEmail: [Your Email]%0D%0AFacebook/Google Account: [Your Social Login Email]%0D%0A%0D%0AThank you."
-                    className="text-blue-600 hover:underline font-semibold text-lg"
+                    className="text-primary-600 hover:underline font-semibold text-lg"
                   >
                     support@anutech.in
                   </a>
                 </div>
-                <div className="bg-white rounded-lg p-4 border border-blue-200">
+                <div className="bg-white rounded-lg p-4 border border-primary-200">
                   <p className="text-gray-700 font-medium mb-2">📧 Email Template:</p>
                   <div className="bg-gray-50 p-3 rounded text-sm text-gray-700 font-mono">
                     <p><strong>To:</strong> support@anutech.in</p>
@@ -134,7 +134,7 @@ export default function DataDeletionPage() {
               <div className="space-y-4">
                 <div className="flex items-start">
                   <div className="flex-shrink-0">
-                    <div className="flex items-center justify-center h-8 w-8 rounded-full bg-blue-100 text-blue-600 font-bold">
+                    <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary-100 text-primary-600 font-bold">
                       1
                     </div>
                   </div>
@@ -258,19 +258,19 @@ export default function DataDeletionPage() {
             </div>
 
             {/* Contact Information */}
-            <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6 border border-blue-200">
+            <div className="bg-gradient-to-r from-primary-50 to-purple-50 rounded-lg p-6 border border-primary-200">
               <h3 className="text-xl font-bold text-gray-900 mb-4">Need Help?</h3>
               <p className="text-gray-700 mb-4">
                 If you have any questions about data deletion or need assistance with the process,
                 our support team is here to help.
               </p>
-              <div className="flex items-center bg-white p-4 rounded-lg border border-blue-200">
-                <Mail className="h-6 w-6 text-blue-600 mr-3 flex-shrink-0" />
+              <div className="flex items-center bg-white p-4 rounded-lg border border-primary-200">
+                <Mail className="h-6 w-6 text-primary-600 mr-3 flex-shrink-0" />
                 <div>
                   <p className="text-sm font-medium text-gray-900 mb-1">Email Support</p>
                   <a
                     href="mailto:support@anutech.in?subject=Data Deletion Request"
-                    className="text-blue-600 hover:underline font-semibold text-lg"
+                    className="text-primary-600 hover:underline font-semibold text-lg"
                   >
                     support@anutech.in
                   </a>
@@ -285,7 +285,7 @@ export default function DataDeletionPage() {
         <div className="max-w-xl mx-auto mb-8">
           <a
             href="mailto:support@anutech.in?subject=Data Deletion Request&body=Please delete all my personal data associated with my account.%0D%0A%0D%0AEmail: [Your Email]%0D%0AFacebook/Google Account: [Your Social Login Email]%0D%0A%0D%0AThank you."
-            className="block bg-gradient-to-r from-blue-600 to-blue-700 text-white px-8 py-5 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all flex items-center justify-center font-semibold shadow-xl text-lg"
+            className="block bg-gradient-to-r from-primary-600 to-primary-700 text-white px-8 py-5 rounded-lg hover:from-primary-700 hover:to-primary-800 transition-all flex items-center justify-center font-semibold shadow-xl text-lg"
           >
             <Mail className="h-6 w-6 mr-3" />
             Send Data Deletion Request
@@ -299,15 +299,15 @@ export default function DataDeletionPage() {
         <div className="text-center text-gray-600">
           <p className="mb-2">Related Documents:</p>
           <div className="space-x-4">
-            <a href="/privacy" className="text-blue-600 hover:underline">
+            <a href="/privacy" className="text-primary-600 hover:underline">
               Privacy Policy
             </a>
             <span>•</span>
-            <a href="/terms-and-conditions" className="text-blue-600 hover:underline">
+            <a href="/terms-and-conditions" className="text-primary-600 hover:underline">
               Terms & Conditions
             </a>
             <span>•</span>
-            <a href="/contact" className="text-blue-600 hover:underline">
+            <a href="/contact" className="text-primary-600 hover:underline">
               Contact Us
             </a>
           </div>

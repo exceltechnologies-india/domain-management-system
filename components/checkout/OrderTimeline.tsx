@@ -56,13 +56,13 @@ export default function OrderTimeline({ hasDomains, hasHosting, userEmail }: Ord
 
   const statusColor: Record<TimelineStep['status'], string> = {
     instant: 'bg-green-100 text-green-700',
-    fast: 'bg-blue-100 text-blue-700',
+    fast: 'bg-primary-100 text-primary-700',
     slow: 'bg-amber-100 text-amber-700',
   };
 
   const dotColor: Record<TimelineStep['status'], string> = {
     instant: 'bg-green-500',
-    fast: 'bg-blue-500',
+    fast: 'bg-primary-500',
     slow: 'bg-amber-500',
   };
 

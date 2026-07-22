@@ -166,12 +166,12 @@ export function CompactResultCard({ result, onAdd, onShowRequirements, onWatch }
       initial={{ opacity: 0, y: 5 }}
       animate={{ opacity: 1, y: 0 }}
       className={`group bg-white hover:bg-gray-50/80 border transition-all duration-300 p-3 sm:py-2 sm:px-3 rounded-xl sm:rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-2 ${
-        isAvailable ? 'border-gray-100 hover:border-blue-200' : 'border-gray-50 opacity-75'
+        isAvailable ? 'border-gray-100 hover:border-primary-200' : 'border-gray-50 opacity-75'
       }`}
     >
       {/* Domain Info */}
       <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
-        <div className="hidden sm:flex w-8 h-8 bg-blue-50 text-blue-600 rounded-md items-center justify-center flex-shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+        <div className="hidden sm:flex w-8 h-8 bg-primary-50 text-primary-600 rounded-md items-center justify-center flex-shrink-0 group-hover:bg-primary-600 group-hover:text-white transition-colors">
           <Globe className="h-4 w-4" />
         </div>
 
@@ -195,7 +195,7 @@ export function CompactResultCard({ result, onAdd, onShowRequirements, onWatch }
               {isAvailable ? 'Available' : 'Taken'}
             </span>
             {isAvailable && result.pricingSource === 'live' && (
-              <span className="flex items-center gap-1 text-primary-500 text-[8px] font-bold uppercase tracking-widest bg-blue-50/50 px-1 rounded">
+              <span className="flex items-center gap-1 text-primary-500 text-[8px] font-bold uppercase tracking-widest bg-primary-50/50 px-1 rounded">
                 <Zap className="h-2 w-2 fill-current" />
                 Live Price
               </span>
@@ -280,8 +280,8 @@ export function DomainResultCard({
       whileHover={{ y: -6, boxShadow: '0 25px 30px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)' }}
       className={`relative group rounded-2xl sm:rounded-[1.5rem] border-2 transition-all duration-500 overflow-hidden ${
         isPrimary
-          ? 'bg-gradient-to-br from-blue-50 to-indigo-50/50 border-blue-200/50'
-          : 'bg-white border-gray-100 hover:border-blue-200'
+          ? 'bg-gradient-to-br from-primary-50 to-indigo-50/50 border-primary-200/50'
+          : 'bg-white border-gray-100 hover:border-primary-200'
       } ${!result.available ? 'opacity-80 grayscale-[0.5]' : ''}`}
     >
       <div className="p-6">
@@ -322,7 +322,7 @@ export function DomainResultCard({
                   {result.available ? 'AVAILABLE' : 'TAKEN'}
                 </span>
                 {result.available && result.pricingSource === 'live' && (
-                  <span className="flex items-center gap-1 bg-blue-100 text-blue-700 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[8px] sm:text-[10px] font-bold uppercase tracking-widest">
+                  <span className="flex items-center gap-1 bg-primary-100 text-primary-700 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[8px] sm:text-[10px] font-bold uppercase tracking-widest">
                     <Zap className="h-2 w-2 sm:h-3 sm:w-3 fill-current" />
                     LIVE PRICE
                   </span>
@@ -344,7 +344,7 @@ export function DomainResultCard({
                 </div>
                 <button
                   onClick={onAdd}
-                  className="px-4 py-2 sm:px-6 sm:py-2.5 bg-gray-900 hover:bg-blue-600 text-white font-black text-xs sm:text-sm rounded-lg sm:rounded-xl transition-all duration-300 flex items-center justify-center gap-2 sm:gap-2.5 shadow-md shadow-gray-200 hover:shadow-blue-500/20 group/btn active:scale-95 flex-1 sm:flex-none"
+                  className="px-4 py-2 sm:px-6 sm:py-2.5 bg-gray-900 hover:bg-primary-600 text-white font-black text-xs sm:text-sm rounded-lg sm:rounded-xl transition-all duration-300 flex items-center justify-center gap-2 sm:gap-2.5 shadow-md shadow-gray-200 hover:shadow-primary-500/20 group/btn active:scale-95 flex-1 sm:flex-none"
                 >
                   <ShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4 group-hover/btn:scale-110 transition-transform" />
                   <span className="whitespace-nowrap">ADD TO CART</span>
@@ -362,7 +362,7 @@ export function DomainResultCard({
       {/* Subtle indicator for primary result */}
       {isPrimary && (
         <div className="absolute top-0 right-0 p-4 opacity-10">
-          <Star className="h-12 w-12 text-blue-600 fill-blue-600" />
+          <Star className="h-12 w-12 text-primary-600 fill-primary-600" />
         </div>
       )}
     </motion.div>

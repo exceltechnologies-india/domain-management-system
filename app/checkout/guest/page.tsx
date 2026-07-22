@@ -319,7 +319,7 @@ function GuestCheckoutInner() {
   if (!mounted || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
       </div>
     );
   }
@@ -330,25 +330,25 @@ function GuestCheckoutInner() {
         <div className="max-w-md w-full px-6 text-center">
           <div className="relative mb-10">
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="h-32 w-32 rounded-full border-4 border-blue-50 border-t-blue-600 animate-spin"></div>
+              <div className="h-32 w-32 rounded-full border-4 border-primary-50 border-t-primary-600 animate-spin"></div>
             </div>
             <div className="relative flex items-center justify-center h-32 w-32 mx-auto">
-              <ShieldCheck className="h-14 w-14 text-blue-600" />
+              <ShieldCheck className="h-14 w-14 text-primary-600" />
             </div>
           </div>
           <h2 className="text-3xl font-bold text-gray-900 mb-3">Finalizing Your Order</h2>
           <p className="text-lg text-gray-600 mb-8">
             Registering your domain(s)…{' '}
-            <span className="block mt-2 font-semibold text-blue-600 px-4 py-2 bg-blue-50 rounded-full inline-block">
+            <span className="block mt-2 font-semibold text-primary-600 px-4 py-2 bg-primary-50 rounded-full inline-block">
               Please do not close this page.
             </span>
           </p>
-          <div className="space-y-4 text-left bg-white shadow-xl p-6 rounded-2xl border border-blue-50">
+          <div className="space-y-4 text-left bg-white shadow-xl p-6 rounded-2xl border border-primary-50">
             <div className="flex items-center text-sm font-medium text-gray-700">
               <div className="h-2 w-2 rounded-full bg-green-500 mr-3"></div>Payment Authorized
             </div>
             <div className="flex items-center text-sm font-medium text-gray-700">
-              <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse mr-3"></div>Registering domain(s)…
+              <div className="h-2 w-2 rounded-full bg-primary-500 animate-pulse mr-3"></div>Registering domain(s)…
             </div>
             <div className="flex items-center text-sm font-medium text-gray-400">
               <div className="h-2 w-2 rounded-full bg-gray-200 mr-3"></div>Generating confirmation
@@ -360,8 +360,8 @@ function GuestCheckoutInner() {
   }
 
   const fieldDisabled = isProcessing || isPaymentInProgress;
-  const inputCls = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500";
-  const iconInputCls = "w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500";
+  const inputCls = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-50 disabled:text-gray-500";
+  const iconInputCls = "w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-50 disabled:text-gray-500";
 
   return (
     <>
@@ -381,8 +381,8 @@ function GuestCheckoutInner() {
           </Link>
           <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
             <div className="px-5 sm:px-6 py-4 sm:py-5 flex items-start gap-4">
-              <div className="p-2.5 bg-blue-50 rounded-xl shrink-0">
-                <ShoppingCart className="h-5 w-5 text-blue-600" />
+              <div className="p-2.5 bg-primary-50 rounded-xl shrink-0">
+                <ShoppingCart className="h-5 w-5 text-primary-600" />
               </div>
               <div className="flex-1 min-w-0">
                 <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Guest Checkout</h1>
@@ -426,19 +426,19 @@ function GuestCheckoutInner() {
                     : `Domain Registration · ${item.registrationPeriod || 1} year${(item.registrationPeriod || 1) !== 1 ? 's' : ''}`;
                   const lineTotal = item.price * (item.registrationPeriod || 1);
                   return (
-                    <div key={index} className="p-4 border border-gray-200 rounded-xl hover:border-blue-200 hover:shadow-sm transition-all">
+                    <div key={index} className="p-4 border border-gray-200 rounded-xl hover:border-primary-200 hover:shadow-sm transition-all">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex items-start gap-3 min-w-0">
-                          <div className={`p-2 rounded-lg flex-shrink-0 ${isHosting ? 'bg-purple-50' : 'bg-blue-50'}`}>
+                          <div className={`p-2 rounded-lg flex-shrink-0 ${isHosting ? 'bg-purple-50' : 'bg-primary-50'}`}>
                             {isHosting
                               ? <Server className="h-5 w-5 text-purple-600" />
-                              : <Globe className="h-5 w-5 text-blue-600" />}
+                              : <Globe className="h-5 w-5 text-primary-600" />}
                           </div>
                           <div className="min-w-0">
                             <h3 className="text-base font-semibold text-gray-900 truncate">{displayName}</h3>
                             <p className="text-xs sm:text-sm text-gray-500 mt-0.5">{periodLabel}</p>
                             {isHosting && item.linkedDomain && (
-                              <p className="text-xs text-blue-600 mt-1 truncate">
+                              <p className="text-xs text-primary-600 mt-1 truncate">
                                 Domain: {item.linkedDomain}
                               </p>
                             )}
@@ -455,8 +455,8 @@ function GuestCheckoutInner() {
 
               {/* What's included — adaptive to cart contents */}
               <div className="px-5 sm:px-6 pb-5 sm:pb-6">
-                <div className="bg-blue-50/60 border border-blue-100 rounded-xl p-4">
-                  <h3 className="font-semibold text-blue-900 mb-3 flex items-center text-sm">
+                <div className="bg-primary-50/60 border border-primary-100 rounded-xl p-4">
+                  <h3 className="font-semibold text-primary-900 mb-3 flex items-center text-sm">
                     <Info className="h-4 w-4 mr-2" />
                     What's Included
                   </h3>
@@ -473,7 +473,7 @@ function GuestCheckoutInner() {
                       }
                       features.push('24/7 Support');
                       return features.map((feature) => (
-                        <div key={feature} className="flex items-center text-blue-800">
+                        <div key={feature} className="flex items-center text-primary-800">
                           <Check className="h-4 w-4 mr-2 text-green-600 flex-shrink-0" />
                           {feature}
                         </div>
@@ -491,7 +491,7 @@ function GuestCheckoutInner() {
                   <UserIcon className="h-4 w-4 text-gray-500" />
                   <h2 className="text-sm font-semibold text-gray-900">Registrant Contact Details</h2>
                 </div>
-                <ShieldCheck className="h-4 w-4 text-blue-500" />
+                <ShieldCheck className="h-4 w-4 text-primary-500" />
               </div>
               <div className="p-4 sm:p-6">
                 <p className="text-sm text-gray-500 mb-5">
@@ -557,7 +557,7 @@ function GuestCheckoutInner() {
                           onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                           placeholder="10-digit WhatsApp number"
                           disabled={fieldDisabled}
-                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-r-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
+                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-r-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-50 disabled:text-gray-500"
                         />
                       </div>
                     </div>
@@ -571,7 +571,7 @@ function GuestCheckoutInner() {
                         type="button"
                         onClick={handleDetectLocation}
                         disabled={fieldDisabled || isDetectingLocation}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-primary-700 bg-primary-50 hover:bg-primary-100 border border-primary-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Use my current location to auto-fill the address"
                       >
                         {isDetectingLocation
@@ -588,7 +588,7 @@ function GuestCheckoutInner() {
                         rows={2}
                         placeholder="Street address, building, area"
                         disabled={fieldDisabled}
-                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
+                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-50 disabled:text-gray-500"
                       />
                     </div>
                   </div>
@@ -614,7 +614,7 @@ function GuestCheckoutInner() {
                       value={state}
                       onChange={e => setState(e.target.value)}
                       disabled={fieldDisabled}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-50 disabled:text-gray-500"
                     >
                       <option value="" disabled>Select state</option>
                       {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
@@ -666,7 +666,7 @@ function GuestCheckoutInner() {
               <div className="p-5 sm:p-6 space-y-5">
 
                 {/* Amount breakdown */}
-                <div className="bg-gradient-to-br from-blue-50/50 to-indigo-50/50 rounded-xl p-5 border border-blue-100/50">
+                <div className="bg-gradient-to-br from-primary-50/50 to-indigo-50/50 rounded-xl p-5 border border-primary-100/50">
                   <div className="space-y-3">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Subtotal ({getItemCount()} item{getItemCount() !== 1 ? 's' : ''})</span>
@@ -676,9 +676,9 @@ function GuestCheckoutInner() {
                       <span className="text-gray-600">GST (18%)</span>
                       <span className="font-medium font-mono">₹{(getTotalPrice() - getTotalPrice() / 1.18).toFixed(2)}</span>
                     </div>
-                    <div className="border-t border-blue-200/50 pt-3 flex justify-between items-baseline">
+                    <div className="border-t border-primary-200/50 pt-3 flex justify-between items-baseline">
                       <span className="text-base font-bold text-gray-900">Total</span>
-                      <span className="text-3xl font-black text-blue-600 font-mono">
+                      <span className="text-3xl font-black text-primary-600 font-mono">
                         ₹{getTotalPrice().toFixed(2)}
                       </span>
                     </div>
@@ -703,7 +703,7 @@ function GuestCheckoutInner() {
                 <button
                   onClick={handlePayment}
                   disabled={isProcessing || isPaymentInProgress || cartItems.length === 0 || !detailsValid}
-                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 shadow-lg flex items-center justify-center space-x-2"
+                  className="w-full bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 shadow-lg flex items-center justify-center space-x-2"
                 >
                   {isProcessing || isPaymentInProgress ? (
                     <>
@@ -720,7 +720,7 @@ function GuestCheckoutInner() {
 
                 <p className="text-xs text-gray-500 text-center">
                   Need help?{' '}
-                  <a href={`mailto:${SUPPORT_EMAIL}`} className="text-blue-600 hover:underline">
+                  <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary-600 hover:underline">
                     {SUPPORT_EMAIL}
                   </a>
                 </p>
@@ -740,7 +740,7 @@ export default function GuestCheckoutPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
       </div>
     }>
       <GuestCheckoutInner />
