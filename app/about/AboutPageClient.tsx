@@ -54,7 +54,7 @@ export default function AboutPage() {
 
       <Section background="white" padding="md" className="relative overflow-hidden">
         {/* Decorative gradient background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-primary-50/30 via-white to-blue-50/20 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-br from-primary-50/30 via-white to-primary-50/20 pointer-events-none" />
 
         <div className="max-w-6xl mx-auto relative z-10">
           <div className="grid md:grid-cols-2 gap-12 items-center">
@@ -99,10 +99,10 @@ export default function AboutPage() {
                   height={400}
                   className="w-full h-auto object-cover"
                 />
-                <div className="absolute inset-0 bg-blue-600/5 hover:bg-transparent transition-colors duration-300" />
+                <div className="absolute inset-0 bg-primary-600/5 hover:bg-transparent transition-colors duration-300" />
               </div>
               {/* Accent decoration */}
-              <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-gradient-to-br from-primary-400/20 to-blue-500/20 rounded-full blur-3xl z-[-1]" />
+              <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-gradient-to-br from-primary-400/20 to-primary-500/20 rounded-full blur-3xl z-[-1]" />
             </motion.div>
           </div>
         </div>
@@ -110,7 +110,7 @@ export default function AboutPage() {
 
       <Section background="white" padding="md" className="relative overflow-hidden">
         {/* Decorative gradient background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/40 via-white to-primary-50/30 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-br from-primary-50/40 via-white to-primary-50/30 pointer-events-none" />
 
         <div className="relative z-10">
           <div className="text-center mb-10 sm:mb-14">
@@ -120,7 +120,7 @@ export default function AboutPage() {
               viewport={{ once: true }}
               transition={{ duration: 0.5 }}
             >
-              <div className="inline-flex items-center gap-2 mb-4 bg-blue-50 border border-blue-100 rounded-full px-3 py-1.5 text-xs sm:text-sm font-semibold text-blue-700">
+              <div className="inline-flex items-center gap-2 mb-4 bg-primary-50 border border-primary-100 rounded-full px-3 py-1.5 text-xs sm:text-sm font-semibold text-primary-700">
                 <Lightbulb className="h-3.5 w-3.5" />
                 Mission & Vision
               </div>
@@ -151,7 +151,7 @@ export default function AboutPage() {
               const Icon = card.icon;
               const colors = card.tint === 'primary'
                 ? { bg: 'bg-primary-50', text: 'text-primary-600', hover: 'group-hover:bg-primary-100', border: 'hover:border-primary-200' }
-                : { bg: 'bg-blue-50', text: 'text-blue-600', hover: 'group-hover:bg-blue-100', border: 'hover:border-blue-200' };
+                : { bg: 'bg-primary-50', text: 'text-primary-600', hover: 'group-hover:bg-primary-100', border: 'hover:border-primary-200' };
               return (
                 <motion.div
                   key={card.title}
@@ -177,7 +177,7 @@ export default function AboutPage() {
 
       <Section background="white" padding="md" className="relative overflow-hidden">
         {/* Decorative gradient background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-primary-50/30 via-white to-blue-50/20 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-br from-primary-50/30 via-white to-primary-50/20 pointer-events-none" />
 
         <div className="relative z-10">
           <div className="text-center mb-10 sm:mb-14">
