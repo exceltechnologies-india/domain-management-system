@@ -13,6 +13,12 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import TrackingScripts from '@/components/TrackingScripts';
 import AttributionCapture from '@/components/AttributionCapture';
 import { headers } from 'next/headers';
+import { getHomeVariant } from '@/lib/services/appearance';
+
+// Paths that keep the default azure brand even when the landing is the
+// homepage — the logged-in dashboard and the admin panel are out of scope
+// for the frontend violet theme.
+const NON_FRONTEND_PREFIXES = ['/dashboard', '/admin'];
 
 // Self-hosted Inter variable font — previously `Inter({ subsets: ['latin'] })`
 // from `next/font/google`. Switched to local because Google Fonts is
@@ -46,10 +52,22 @@ export default async function RootLayout({
 }) {
   // Reading x-nonce forces dynamic rendering and causes Next.js to apply the
   // nonce to all its generated inline RSC scripts, satisfying the nonce-based CSP.
-  await headers();
+  const h = await headers();
+
+  // When the landing is the homepage, public frontend pages follow its violet
+  // scheme. Scoped to frontend paths (dashboard + admin stay azure). Degrades
+  // to azure on any error so the app never renders unthemed.
+  let frontendTheme = false;
+  try {
+    const pathname = h.get('x-pathname') || '';
+    const isFrontend = !NON_FRONTEND_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'));
+    frontendTheme = isFrontend && (await getHomeVariant()) === 'landing';
+  } catch {
+    frontendTheme = false;
+  }
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning {...(frontendTheme ? { 'data-theme': 'landing' } : {})}>
       <body className={inter.className} suppressHydrationWarning>
         {/* Admin-managed analytics / marketing tags (GA4 / GTM / Meta Pixel /
             Google Ads). Renders first-party nonce'd snippets keyed on

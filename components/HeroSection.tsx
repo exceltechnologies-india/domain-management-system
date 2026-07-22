@@ -22,14 +22,14 @@ export default function HeroSection({
 }: HeroSectionProps) {
   const backgroundClasses = {
     gradient: variant === 'brand'
-      ? 'bg-gradient-to-br from-[#0180E5] to-[#01489D]'
+      ? 'bg-gradient-to-br from-primary-500 to-primary-800'
       : variant === 'primary'
       ? 'bg-gradient-to-r from-primary-600 to-primary-800'
       : variant === 'secondary'
         ? 'bg-gradient-to-r from-gray-600 to-gray-800'
         : 'bg-gradient-to-r from-gray-800 to-gray-900',
     solid: variant === 'brand'
-      ? 'bg-[#0180E5]'
+      ? 'bg-primary-500'
       : variant === 'primary'
       ? 'bg-primary-600'
       : variant === 'secondary'

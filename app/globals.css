@@ -65,6 +65,20 @@
     --google-blue-hover: #0161BE;
     --google-blue-light: #E9F4FE;
 
+    /* Tailwind `primary` palette as RGB triplets so it can be re-themed at
+       runtime (e.g. the landing-violet frontend theme below). Default = the
+       brand azure from tailwind.config (Brand Step 2). */
+    --primary-50: 233 244 254;
+    --primary-100: 207 232 253;
+    --primary-200: 166 212 251;
+    --primary-300: 109 184 248;
+    --primary-400: 46 155 241;
+    --primary-500: 1 128 229;
+    --primary-600: 1 119 225;
+    --primary-700: 1 97 190;
+    --primary-800: 1 72 157;
+    --primary-900: 11 58 122;
+
     /* Text Colors */
     --google-text-primary: #202124;
     --google-text-secondary: #5F6368;
@@ -91,6 +105,30 @@
     --google-warning: #FBBC04;
     --google-error: #EA4335;
     --google-info: #0177E1;
+  }
+
+  /* Landing-violet frontend theme. Applied to <html data-theme="landing"> by
+     the root layout for PUBLIC FRONTEND paths only (not /dashboard, /admin)
+     when the homepage variant is the violet hosting landing. Re-themes the
+     shared brand tokens + `primary` palette so marketing/auth/cart pages
+     follow the landing's violet scheme. Flip the homepage to Classic (or a
+     non-landing variant) and the app reverts to azure automatically. */
+  :root[data-theme="landing"] {
+    --google-blue: #7C3AED;
+    --google-blue-hover: #6D28D9;
+    --google-blue-light: #EDE9FE;
+    --google-info: #7C3AED;
+
+    --primary-50: 245 243 255;
+    --primary-100: 237 233 254;
+    --primary-200: 221 214 254;
+    --primary-300: 196 181 253;
+    --primary-400: 167 139 250;
+    --primary-500: 139 92 246;
+    --primary-600: 124 58 237;
+    --primary-700: 109 40 217;
+    --primary-800: 91 33 182;
+    --primary-900: 76 29 149;
   }
 }
 
