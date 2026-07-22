@@ -351,7 +351,7 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
         </section>
 
         {/* ── Domain search ────────────────────────────────────────────── */}
-        <section className="relative overflow-hidden bg-gradient-to-br from-[#312e81] via-[#4c1d95] to-[#3730a3] py-14 sm:py-20">
+        <section id="domain-search" className="scroll-mt-24 relative overflow-hidden bg-gradient-to-br from-[#312e81] via-[#4c1d95] to-[#3730a3] py-14 sm:py-20">
           <div aria-hidden className="pointer-events-none absolute -top-24 -right-16 h-72 w-72 rounded-full bg-violet-500/20 blur-3xl" />
           <div aria-hidden className="pointer-events-none absolute -bottom-24 -left-16 h-72 w-72 rounded-full bg-indigo-400/20 blur-3xl" />
           <div className="relative max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
