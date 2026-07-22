@@ -4,9 +4,10 @@ import { getHomeVariant } from '@/lib/services/appearance';
 import HostingLanding, { type LandingPlan } from '@/components/marketing/HostingLanding';
 import DomainHome from '@/components/marketing/DomainHome';
 
-// Revalidate the homepage every 5 minutes so plan/price edits made in the
-// admin reflect without a rebuild, while keeping the homepage cached.
-export const revalidate = 300;
+// Render the homepage dynamically so admin toggles (homepage variant, plan/
+// price edits, appearance) reflect instantly instead of after the ISR window.
+// DB reads here are Redis-cached (Settings + plans), so per-hit load is small.
+export const dynamic = 'force-dynamic';
 
 function gb(mb: number): string {
   return mb > 0 ? `${Math.round(mb / 1000)} GB` : 'Unmetered';
