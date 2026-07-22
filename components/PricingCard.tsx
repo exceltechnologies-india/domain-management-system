@@ -25,6 +25,9 @@ interface PricingCardProps {
   features: PricingFeature[];
   highlightColor?: string;
   onButtonClick?: () => void;
+  /** Optional second CTA rendered beside the primary button (e.g. "Buy Now" next to "Start Free Trial"). */
+  secondaryButtonText?: string;
+  onSecondaryButtonClick?: () => void;
 }
 
 export default function PricingCard({
@@ -42,6 +45,8 @@ export default function PricingCard({
   features,
   highlightColor = 'blue', // 'purple' | 'blue'
   onButtonClick,
+  secondaryButtonText,
+  onSecondaryButtonClick,
 }: PricingCardProps) {
 
   const isPurple = highlightColor === 'purple';
@@ -91,21 +96,31 @@ export default function PricingCard({
         </div>
 
 
-        {onButtonClick ? (
-          <button
-            onClick={onButtonClick}
-            className={`block w-full py-3 px-4 rounded-lg text-center font-semibold transition-all duration-200 ${isPopular ? buttonPopularCls : buttonPlainCls}`}
-          >
-            {buttonText}
-          </button>
-        ) : (
-          <Link
-            href={buttonLink}
-            className={`block w-full py-3 px-4 rounded-lg text-center font-semibold transition-all duration-200 ${isPopular ? buttonPopularCls : buttonPlainCls}`}
-          >
-            {buttonText}
-          </Link>
-        )}
+        <div className={`flex flex-col gap-2 ${secondaryButtonText ? 'sm:flex-row' : ''}`}>
+          {onButtonClick ? (
+            <button
+              onClick={onButtonClick}
+              className={`flex-1 py-3 px-4 rounded-lg text-center font-semibold transition-all duration-200 ${isPopular ? buttonPopularCls : buttonPlainCls}`}
+            >
+              {buttonText}
+            </button>
+          ) : (
+            <Link
+              href={buttonLink}
+              className={`flex-1 block py-3 px-4 rounded-lg text-center font-semibold transition-all duration-200 ${isPopular ? buttonPopularCls : buttonPlainCls}`}
+            >
+              {buttonText}
+            </Link>
+          )}
+          {secondaryButtonText && onSecondaryButtonClick && (
+            <button
+              onClick={onSecondaryButtonClick}
+              className={`flex-1 py-3 px-4 rounded-lg text-center font-semibold transition-all duration-200 ${buttonPopularCls}`}
+            >
+              {secondaryButtonText}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="p-6 pt-0 flex-grow">

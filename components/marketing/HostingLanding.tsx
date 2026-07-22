@@ -533,6 +533,8 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
                     highlightColor="purple"
                     buttonText={offersTrial ? 'Start Free Trial' : 'Buy Now'}
                     onButtonClick={() => (offersTrial ? handleStartTrial(plan) : handleChoosePlan(plan))}
+                    secondaryButtonText={offersTrial ? 'Buy Now' : undefined}
+                    onSecondaryButtonClick={offersTrial ? () => handleChoosePlan(plan) : undefined}
                     features={[
                       ...plan.features.map((f) => ({ text: f, included: true, highlight: plan.highlightFeatures.includes(f) })),
                       ...(!isMonthly ? [{ text: '30-Day Money-Back Guarantee', included: true, highlight: true }] : []),
