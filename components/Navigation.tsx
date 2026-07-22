@@ -271,7 +271,7 @@ export default function Navigation({
             )}
 
             <Link
-              href="/hosting#pricing"
+              href="/#pricing"
               className="hidden sm:inline-flex items-center px-4 py-2 rounded-lg font-semibold text-white shadow-sm hover:shadow-md transition-all bg-gradient-to-r from-[#7C3AED] to-[#6D28D9] hover:from-[#6D28D9] hover:to-[#5B21B6]"
               style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}
             >
