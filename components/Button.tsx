@@ -34,9 +34,9 @@ export default function Button({
   const baseClasses = 'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden tracking-wide active:scale-[0.985] enabled:hover:scale-[1.015]';
 
   const variantClasses = {
-    primary: 'bg-gradient-to-br from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 shadow-md hover:shadow-lg focus:ring-blue-500 border border-blue-700/50',
+    primary: 'bg-gradient-to-br from-primary-600 to-primary-700 text-white hover:from-primary-700 hover:to-primary-800 shadow-md hover:shadow-lg focus:ring-primary-500 border border-primary-700/50',
     secondary: 'bg-gray-700 text-white hover:bg-gray-800 shadow-md hover:shadow-lg focus:ring-gray-600 border border-gray-800/50',
-    outline: 'border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 focus:ring-blue-500 hover:border-blue-400 shadow-sm hover:shadow-md',
+    outline: 'border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 focus:ring-primary-500 hover:border-primary-400 shadow-sm hover:shadow-md',
     ghost: 'text-gray-600 hover:bg-gray-100 focus:ring-gray-400',
     danger: 'bg-gradient-to-br from-red-600 to-red-700 text-white hover:from-red-700 hover:to-red-800 shadow-md hover:shadow-lg focus:ring-red-500 border border-red-700/50'
   };
