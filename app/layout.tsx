@@ -13,7 +13,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import TrackingScripts from '@/components/TrackingScripts';
 import AttributionCapture from '@/components/AttributionCapture';
 import { headers } from 'next/headers';
-import { getHomeVariant } from '@/lib/services/appearance';
+import { getFrontendTheme } from '@/lib/services/appearance';
 
 // Paths that keep the default azure brand even when the landing is the
 // homepage — the logged-in dashboard and the admin panel are out of scope
@@ -54,14 +54,15 @@ export default async function RootLayout({
   // nonce to all its generated inline RSC scripts, satisfying the nonce-based CSP.
   const h = await headers();
 
-  // When the landing is the homepage, public frontend pages follow its violet
+  // Public frontend colour scheme is an admin toggle (Admin → Pages →
+  // Appearance). When set to violet, frontend pages follow the landing's
   // scheme. Scoped to frontend paths (dashboard + admin stay azure). Degrades
   // to azure on any error so the app never renders unthemed.
   let frontendTheme = false;
   try {
     const pathname = h.get('x-pathname') || '';
     const isFrontend = !NON_FRONTEND_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'));
-    frontendTheme = isFrontend && (await getHomeVariant()) === 'landing';
+    frontendTheme = isFrontend && (await getFrontendTheme()) === 'violet';
   } catch {
     frontendTheme = false;
   }

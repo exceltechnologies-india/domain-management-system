@@ -46,6 +46,29 @@ export async function setHomeVariant(variant: HomeVariant, updatedBy = "system")
   });
 }
 
+// ── Frontend theme ─────────────────────────────────────────────────────────
+// 'violet' = the landing's violet scheme; 'azure' = the classic Anutech blue.
+// Applied to public frontend paths only (not /dashboard, /admin) via
+// <html data-theme="landing">. Independent toggle so the theme can be shifted
+// alongside (or separately from) the homepage variant.
+export type FrontendTheme = "azure" | "violet";
+
+export const FRONTEND_THEME_KEY = "frontend_theme";
+export const DEFAULT_FRONTEND_THEME: FrontendTheme = "violet";
+
+export async function getFrontendTheme(): Promise<FrontendTheme> {
+  const v = await getSettingValue<string>(FRONTEND_THEME_KEY, DEFAULT_FRONTEND_THEME);
+  return v === "azure" ? "azure" : "violet";
+}
+
+export async function setFrontendTheme(theme: FrontendTheme, updatedBy = "system"): Promise<void> {
+  await upsertSetting(FRONTEND_THEME_KEY, theme, {
+    category: "appearance",
+    description: "Public frontend colour scheme (azure | violet).",
+    updatedBy,
+  });
+}
+
 // ── Support widget ─────────────────────────────────────────────────────────
 // 'chatbot' = the AI chat widget (blue bubble); 'whatsapp' = a floating
 // WhatsApp button that opens a chat with the company number directly.

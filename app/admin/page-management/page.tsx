@@ -52,6 +52,8 @@ export default function PageManagementPage() {
   const [savingFooter, setSavingFooter] = useState(false);
   const [homeVariant, setHomeVariant] = useState<'landing' | 'classic'>('landing');
   const [savingHome, setSavingHome] = useState(false);
+  const [frontendTheme, setFrontendTheme] = useState<'azure' | 'violet'>('violet');
+  const [savingTheme, setSavingTheme] = useState(false);
   const [supportVariant, setSupportVariant] = useState<'chatbot' | 'whatsapp'>('chatbot');
   const [savingSupport, setSavingSupport] = useState(false);
   const [whatsappNumber, setWhatsappNumber] = useState('');
@@ -62,7 +64,7 @@ export default function PageManagementPage() {
     setIsRefreshing(true);
     const [pagesRes, appearanceRes] = await Promise.all([
       apiClient.get<{ success?: boolean; pages?: ManagedPageRow[] }>('/api/v1/admin/pages'),
-      apiClient.get<{ success?: boolean; footerVariant?: 'classic' | 'modern'; homeVariant?: 'landing' | 'classic'; supportWidgetVariant?: 'chatbot' | 'whatsapp'; supportWhatsappNumber?: string }>('/api/v1/admin/appearance'),
+      apiClient.get<{ success?: boolean; footerVariant?: 'classic' | 'modern'; homeVariant?: 'landing' | 'classic'; frontendTheme?: 'azure' | 'violet'; supportWidgetVariant?: 'chatbot' | 'whatsapp'; supportWhatsappNumber?: string }>('/api/v1/admin/appearance'),
     ]);
     if (pagesRes.ok && pagesRes.data.success) {
       setPages(pagesRes.data.pages || []);
@@ -74,6 +76,9 @@ export default function PageManagementPage() {
     }
     if (appearanceRes.ok && appearanceRes.data.homeVariant) {
       setHomeVariant(appearanceRes.data.homeVariant);
+    }
+    if (appearanceRes.ok && appearanceRes.data.frontendTheme) {
+      setFrontendTheme(appearanceRes.data.frontendTheme);
     }
     if (appearanceRes.ok && appearanceRes.data.supportWidgetVariant) {
       setSupportVariant(appearanceRes.data.supportWidgetVariant);
@@ -116,6 +121,22 @@ export default function PageManagementPage() {
       showErrorToast(res.ok ? 'Update failed' : res.error.message || 'Update failed');
     }
     setSavingHome(false);
+  };
+
+  const changeTheme = async (theme: 'azure' | 'violet') => {
+    if (theme === frontendTheme || savingTheme) return;
+    setSavingTheme(true);
+    const res = await apiClient.patch<{ success?: boolean; frontendTheme?: 'azure' | 'violet' }>(
+      '/api/v1/admin/appearance',
+      { frontendTheme: theme },
+    );
+    if (res.ok && res.data.success) {
+      setFrontendTheme(res.data.frontendTheme || theme);
+      showSuccessToast(`Frontend theme set to ${theme === 'violet' ? 'Violet (landing)' : 'Azure (classic)'}.`);
+    } else {
+      showErrorToast(res.ok ? 'Update failed' : res.error.message || 'Update failed');
+    }
+    setSavingTheme(false);
   };
 
   const changeSupport = async (variant: 'chatbot' | 'whatsapp') => {
@@ -393,6 +414,36 @@ export default function PageManagementPage() {
                       }`}
                     >
                       {v}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Frontend theme */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="min-w-0">
+                <h3 className="text-base font-bold text-gray-900">Frontend colour theme</h3>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  Colour scheme for the public frontend (marketing, login, cart) — <strong>Violet</strong> matches the landing,
+                  <strong> Azure</strong> is the classic Anutech blue. The dashboard &amp; admin panel always stay Azure. Takes effect immediately (no redeploy).
+                </p>
+              </div>
+              <div className="shrink-0 flex items-center gap-2">
+                {savingTheme && <Loader2 className="h-4 w-4 text-gray-400 animate-spin" />}
+                <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full p-1">
+                  {(['violet', 'azure'] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => changeTheme(t)}
+                      disabled={savingTheme}
+                      aria-pressed={frontendTheme === t}
+                      className={`px-4 py-1.5 rounded-full text-sm font-semibold capitalize transition-all disabled:opacity-60 ${
+                        frontendTheme === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      {t}
                     </button>
                   ))}
                 </div>
