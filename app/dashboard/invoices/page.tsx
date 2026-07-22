@@ -18,6 +18,7 @@ import { formatIndianDate, formatIndianDateTime } from '@/lib/dateUtils';
 import RefreshButton from '@/components/dashboard/RefreshButton';
 import { logger } from '@/lib/logger';
 import { useRazorpayCheckout } from '@/components/RazorpayCheckoutFrame';
+import { razorpayThemeColor } from '@/lib/theme-color';
 
 interface Invoice {
   invoice_id: string;
@@ -86,7 +87,7 @@ export default function InvoicesPage() {
             email: user?.email,
             name: `${user?.firstName} ${user?.lastName}`
           },
-          theme: { color: "#0177E1" }
+          theme: { color: razorpayThemeColor() }
         });
       } catch (err: unknown) {
         if ((err as { kind?: string })?.kind === 'dismissed') {

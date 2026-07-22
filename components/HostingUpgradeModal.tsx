@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { useRazorpayCheckout } from '@/components/RazorpayCheckoutFrame';
 import SelectPlanStep from './hosting-upgrade/SelectPlanStep';
 import ConfirmStep from './hosting-upgrade/ConfirmStep';
+import { razorpayThemeColor } from '@/lib/theme-color';
 import type {
   EligiblePlan,
   UpgradeInfo,
@@ -109,7 +110,7 @@ export default function HostingUpgradeModal({
           description: `Upgrade to ${selectedPlan.name} for ${domainName}`,
           order_id: razorpayOrderId,
           prefill: { email: userEmail },
-          theme: { color: '#0177E1' },
+          theme: { color: razorpayThemeColor() },
         });
       } catch (err: unknown) {
         // The iframe-checkout helper throws a tagged `{ kind: 'dismissed' }`

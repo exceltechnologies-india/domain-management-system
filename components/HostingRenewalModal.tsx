@@ -8,6 +8,7 @@ import { useSession } from 'next-auth/react';
 import { safeSessionStorage } from '@/lib/storage';
 import { useRouter } from 'next/navigation';
 import { useRazorpayCheckout } from '@/components/RazorpayCheckoutFrame';
+import { razorpayThemeColor } from '@/lib/theme-color';
 
 interface HostingRenewalModalProps {
   isOpen: boolean;
@@ -105,7 +106,7 @@ export default function HostingRenewalModal({
           description: `Renewal for ${domainName} (1 Year)`,
           order_id: data.razorpayOrderId,
           prefill: { email: session?.user?.email || '' },
-          theme: { color: '#0177E1' }
+          theme: { color: razorpayThemeColor() }
         });
       } catch (err: unknown) {
         // User dismissed the modal, or the iframe reported an error.

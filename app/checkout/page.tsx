@@ -18,6 +18,7 @@ import { getMinRegistrationPeriod } from '@/lib/tld-min-periods';
 import { getDeviceFingerprint } from '@/lib/device-fingerprint';
 import { HOSTING_PLANS } from '@/config/hosting-plans';
 import type { CartItem } from '@/lib/types';
+import { razorpayThemeColor } from '@/lib/theme-color';
 import { logger } from '@/lib/logger';
 import { useRazorpayCheckout } from '@/components/RazorpayCheckoutFrame';
 
@@ -309,7 +310,7 @@ export default function CheckoutPage() {
             customer_id: razorpayCustomerId,
             recurring: '1',
             prefill,
-            theme: { color: '#0177E1' },
+            theme: { color: razorpayThemeColor() },
           });
 
           await verifyPayment(
@@ -327,7 +328,7 @@ export default function CheckoutPage() {
             description: `Payment for ${cartItems.length} items`,
             order_id: razorpayOrderId,
             prefill,
-            theme: { color: '#0177E1' },
+            theme: { color: razorpayThemeColor() },
           });
 
           if (razorpaySubscriptionId) {
@@ -342,7 +343,7 @@ export default function CheckoutPage() {
             description: 'Hosting Subscription',
             subscription_id: razorpaySubscriptionId,
             prefill,
-            theme: { color: '#0177E1' },
+            theme: { color: razorpayThemeColor() },
           });
 
           await verifyPayment(

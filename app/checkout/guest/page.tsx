@@ -13,6 +13,7 @@ import { safeSessionStorage } from '@/lib/storage';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import Link from 'next/link';
+import { razorpayThemeColor } from '@/lib/theme-color';
 import { getMinRegistrationPeriod } from '@/lib/tld-min-periods';
 import type { CartItem } from '@/lib/types';
 import { INDIAN_STATES, normaliseIndianState } from '@/lib/constants';
@@ -289,7 +290,7 @@ function GuestCheckoutInner() {
             name: `${firstName.trim()} ${lastName.trim()}`.trim(),
             contact: `+91${phone}`,
           },
-          theme: { color: '#0177E1' },
+          theme: { color: razorpayThemeColor() },
         });
 
         await verifyPayment(
