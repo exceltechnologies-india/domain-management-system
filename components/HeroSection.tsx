@@ -55,7 +55,7 @@ export default function HeroSection({
         className="absolute inset-0"
         style={{
           background: variant === 'brand'
-            ? `linear-gradient(135deg, rgba(1, 128, 229, ${overlayOpacity}) 0%, rgba(1, 72, 157, ${overlayOpacity}) 100%)`
+            ? `linear-gradient(135deg, rgb(var(--primary-500) / ${overlayOpacity}) 0%, rgb(var(--primary-800) / ${overlayOpacity}) 100%)`
             : variant === 'primary'
             ? `linear-gradient(135deg, rgba(30, 64, 175, ${overlayOpacity}) 0%, rgba(29, 78, 216, ${overlayOpacity}) 100%)`
             : variant === 'secondary'
