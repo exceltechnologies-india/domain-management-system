@@ -329,7 +329,7 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-4 gap-4 sm:gap-8">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-5 sm:gap-8">
                 {[
                   { icon: Star, value: '1,000+', label: 'Happy Customers' },
                   { icon: ShieldCheck, value: '99.99%', label: 'Uptime Guarantee' },
@@ -418,21 +418,21 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
             {/* Right: comparison table with elevated Anutech column */}
             <div className="relative pt-3">
               {/* Floating violet card outline over the Anutech column */}
-              <div className="pointer-events-none absolute top-0 bottom-0 right-[150px] w-[150px] rounded-2xl border-2 border-violet-300 bg-violet-50/40 shadow-xl shadow-violet-500/10" />
-              <div className="relative grid grid-cols-[minmax(0,1fr)_150px_150px] rounded-2xl bg-white/60 border border-gray-200">
+              <div className="pointer-events-none absolute top-0 bottom-0 right-20 w-20 sm:right-[150px] sm:w-[150px] rounded-2xl border-2 border-violet-300 bg-violet-50/40 shadow-xl shadow-violet-500/10" />
+              <div className="relative grid grid-cols-[minmax(0,1fr)_5rem_5rem] sm:grid-cols-[minmax(0,1fr)_150px_150px] rounded-2xl bg-white/60 border border-gray-200">
                 {/* Header */}
-                <div className="px-5 py-4 border-b border-gray-100" />
-                <div className="relative z-10 -mt-3 mx-[-1px] px-6 py-5 bg-gradient-to-b from-violet-600 to-violet-700 text-white text-sm font-bold text-center whitespace-nowrap rounded-t-2xl shadow-lg shadow-violet-500/20">Anutech Hosting</div>
-                <div className="px-6 py-4 border-b border-gray-100 text-sm font-semibold text-gray-500 text-center whitespace-nowrap">Typical Hosting</div>
+                <div className="px-3 sm:px-5 py-4 border-b border-gray-100" />
+                <div className="relative z-10 -mt-3 mx-[-1px] px-2 sm:px-6 py-4 sm:py-5 bg-gradient-to-b from-violet-600 to-violet-700 text-white text-xs sm:text-sm font-bold text-center leading-tight rounded-t-2xl shadow-lg shadow-violet-500/20">Anutech Hosting</div>
+                <div className="px-2 sm:px-6 py-4 border-b border-gray-100 text-xs sm:text-sm font-semibold text-gray-500 text-center leading-tight">Typical Hosting</div>
                 {COMPARISON.map((row, i) => {
                   const last = i === COMPARISON.length - 1;
                   return (
                     <div key={row.feature} className="contents">
-                      <div className={`px-5 py-3.5 text-sm font-medium text-gray-800 ${!last ? 'border-b border-gray-100' : ''}`}>{row.feature}</div>
-                      <div className={`relative z-10 px-6 py-3.5 flex justify-center ${!last ? 'border-b border-violet-100' : ''}`}>
+                      <div className={`px-3 sm:px-5 py-3.5 text-xs sm:text-sm font-medium text-gray-800 ${!last ? 'border-b border-gray-100' : ''}`}>{row.feature}</div>
+                      <div className={`relative z-10 px-2 sm:px-6 py-3.5 flex justify-center ${!last ? 'border-b border-violet-100' : ''}`}>
                         <CheckCircle className="h-5 w-5 text-white fill-green-500" />
                       </div>
-                      <div className={`px-6 py-3.5 flex justify-center ${!last ? 'border-b border-gray-100' : ''}`}>
+                      <div className={`px-2 sm:px-6 py-3.5 flex justify-center ${!last ? 'border-b border-gray-100' : ''}`}>
                         {row.typical === 'yes' ? <CheckCircle className="h-5 w-5 text-white fill-green-500" />
                           : row.typical === 'partial' ? <Minus className="h-5 w-5 text-amber-400" strokeWidth={3} />
                             : <X className="h-5 w-5 text-red-500" strokeWidth={3} />}
