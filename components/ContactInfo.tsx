@@ -9,8 +9,31 @@ interface ContactInfoProps {
   className?: string;
 }
 
+const FacebookIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
+  </svg>
+);
+const LinkedinIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" /><rect width="4" height="12" x="2" y="9" /><circle cx="4" cy="4" r="2" />
+  </svg>
+);
+const InstagramIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect width="20" height="20" x="2" y="2" rx="5" ry="5" /><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" /><line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+  </svg>
+);
+
+const SOCIAL_META = [
+  { key: 'linkedin' as const, Icon: LinkedinIcon, label: 'LinkedIn' },
+  { key: 'facebook' as const, Icon: FacebookIcon, label: 'Facebook' },
+  { key: 'instagram' as const, Icon: InstagramIcon, label: 'Instagram' },
+];
+
 export default function ContactInfo({ className = '' }: ContactInfoProps) {
-  const { showPhone } = useSiteVisibility();
+  const { showPhone, social } = useSiteVisibility();
+  const activeSocials = SOCIAL_META.filter(({ key }) => social[key]?.enabled && social[key]?.url);
   return (
     <div className={`space-y-6 text-center lg:text-left ${className}`}>
       <div>
@@ -61,6 +84,27 @@ export default function ContactInfo({ className = '' }: ContactInfoProps) {
             <p className="text-sm text-gray-500">Delhi, India</p>
           </div>
         </Card>
+
+        {activeSocials.length > 0 && (
+          <Card className="p-5 text-center sm:text-left">
+            <h4 className="text-lg font-semibold text-gray-900 mb-1">Follow Us</h4>
+            <p className="text-sm text-gray-500 mb-4">Stay connected for updates, offers and news.</p>
+            <div className="flex gap-3 justify-center sm:justify-start">
+              {activeSocials.map(({ key, Icon, label }) => (
+                <a
+                  key={key}
+                  href={social[key].url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={label}
+                  className="h-11 w-11 flex items-center justify-center rounded-full bg-primary-50 text-primary-600 hover:bg-primary-600 hover:text-white transition-colors"
+                >
+                  <Icon className="h-5 w-5" />
+                </a>
+              ))}
+            </div>
+          </Card>
+        )}
       </div>
     </div>
   );
