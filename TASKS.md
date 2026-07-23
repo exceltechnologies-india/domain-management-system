@@ -352,6 +352,8 @@ Operator wants the app rebranded to the official **Anutech Digital** logo + favi
 
 ## Recently Shipped — user-visible improvements
 
+- [x] **CONTACT-FOLLOW-US: social section on the contact page** — Operator: the contact "Get in touch" left column looked unbalanced vs the form; add a social section below "Visit Us". Added a **Follow Us** card to `ContactInfo` rendering the admin-managed social links (LinkedIn/Facebook/Instagram, enabled ones only, new-tab) as round primary-tinted icon buttons — fills the column and stays consistent with the footer socials. Deployed `dms-00396-zn6`. (Deploy needed a Docker Desktop restart + `gcloud auth login` — auth had expired again.)
+
 - [x] **HOME-INSTANT-TOGGLES: homepage rendered dynamically so admin toggles reflect instantly** — Operator wanted homepage toggles (variant, plan/price edits, appearance) to reflect immediately instead of after the ~5-min ISR window. Switched `app/page.tsx` from `revalidate=300` to `export const dynamic = 'force-dynamic'`. DB reads on `/` (Settings + active plans) are Redis-cached, so the extra per-hit cost is minimal. Deployed `dms-00395-96l`.
 
 - [x] **NAV-TRIAL-SCROLLS-PRICING: Start Free Trial always lands on the landing pricing section** — Operator: the nav "Start Free Trial" button should always go to the homepage landing pricing/trial section from any page. Repointed the CTA from `/hosting#pricing` → `/#pricing` (the landing pricing `Section id="pricing"`), so from About/Contact/etc. it loads `/` then scrolls there. Deployed `dms-00394-fcp`.
