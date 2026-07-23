@@ -36,7 +36,7 @@ export default function ScrollToTop() {
       {isVisible && (
         <button
           onClick={scrollToTop}
-          className="fixed bottom-6 left-6 z-40 bg-white hover:bg-gray-50 text-gray-700 rounded-full p-3 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-110 active:scale-95 border-2 border-gray-200 hover:border-blue-500"
+          className="hidden sm:block fixed bottom-6 left-6 z-40 bg-white hover:bg-gray-50 text-gray-700 rounded-full p-3 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-110 active:scale-95 border-2 border-gray-200 hover:border-blue-500"
           style={{
             boxShadow: '0 10px 40px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05)',
           }}
