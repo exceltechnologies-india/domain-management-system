@@ -82,17 +82,17 @@ export default function FooterModern({ className = '' }: FooterProps) {
   return (
     <footer className={`bg-[#0f172a] text-white ${className}`}>
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <div className="grid grid-cols-2 lg:grid-cols-12 gap-x-6 gap-y-8 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-12 gap-x-6 gap-y-8 mb-8 text-center lg:text-left">
           {/* Brand */}
           <div className="col-span-2 lg:col-span-2">
-            <div className="flex items-center mb-2.5">
+            <div className="flex items-center justify-center lg:justify-start mb-2.5">
               <Logo size="lg" showText={false} variant="dark" />
             </div>
             <p className="text-[11px] font-semibold tracking-wide text-gray-400 mb-1.5">Empowering Businesses Online</p>
-            <p className="text-xs text-gray-400 leading-relaxed max-w-xs mb-4">
+            <p className="text-xs text-gray-400 leading-relaxed max-w-xs mx-auto lg:mx-0 mb-4">
               Reliable, fast &amp; secure web hosting to help businesses grow online.
             </p>
-            <div className="flex gap-2">
+            <div className="flex gap-2 justify-center lg:justify-start">
               {SOCIAL_META.filter(({ key }) => social[key]?.enabled && social[key]?.url).map(({ key, Icon, label }) => (
                 <a
                   key={key}
@@ -127,7 +127,7 @@ export default function FooterModern({ className = '' }: FooterProps) {
           {/* We Accept */}
           <div className="col-span-2 lg:col-span-2">
             <h3 className="text-sm font-bold text-white mb-3.5">We Accept</h3>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 justify-center lg:justify-start">
               {PAYMENTS.map((p) => (
                 <span
                   key={p.label}
