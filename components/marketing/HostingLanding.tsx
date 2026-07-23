@@ -195,7 +195,7 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
           <div className="absolute -top-24 -right-24 w-[30rem] h-[30rem] rounded-full bg-violet-100/50 blur-3xl pointer-events-none" />
           <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-14 sm:py-20 relative">
             <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
-              <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+              <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="text-center lg:text-left">
                 <div className="inline-flex items-center gap-2 mb-5 text-green-600 text-[11px] sm:text-xs font-bold tracking-[0.12em] uppercase">
                   <Rocket className="h-3.5 w-3.5" />
                   15-Day Free Trial · No Credit Card Required
@@ -205,10 +205,10 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
                   Business Website<br />
                   <span className="bg-gradient-to-r from-[#7C3AED] to-[#6D28D9] bg-clip-text text-transparent">FREE for 15 Days</span>
                 </h1>
-                <p className="text-base sm:text-lg text-gray-600 leading-relaxed mb-8 max-w-xl">
+                <p className="text-base sm:text-lg text-gray-600 leading-relaxed mb-8 max-w-xl mx-auto lg:mx-0">
                   Enterprise-grade web hosting powered by Google Cloud. Free SSL, daily backups, free migration and 24×7 expert support.
                 </p>
-                <div className="flex flex-col sm:flex-row gap-3 mb-6">
+                <div className="flex flex-col sm:flex-row gap-3 mb-6 sm:justify-center lg:justify-start">
                   <Link href="#pricing" className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-[#22C55E] to-[#16A34A] hover:from-[#16A34A] hover:to-[#15803D] text-white font-bold py-3.5 px-7 rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95">
                     <Rocket className="h-5 w-5" />
                     Start Your 15-Day Free Trial
@@ -217,7 +217,7 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
                     View Hosting Plans
                   </Link>
                 </div>
-                <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-500">
+                <div className="flex flex-wrap justify-center lg:justify-start gap-x-5 gap-y-2 text-sm text-gray-500">
                   {['No Credit Card Required', 'Full Access to All Features', 'Cancel Anytime'].map((t) => (
                     <span key={t} className="inline-flex items-center gap-1.5"><CheckCircle className="h-4 w-4 text-green-500" />{t}</span>
                   ))}
@@ -391,12 +391,12 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
         <Section background="gray">
           <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
             {/* Left: heading + copy + illustration */}
-            <div>
+            <div className="text-center lg:text-left">
               <p className="text-xs font-bold tracking-[0.18em] uppercase text-violet-600 mb-3">Why choose Anutech?</p>
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 leading-[1.1]" style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}>
                 Better Hosting.<br />Better Results.
               </h2>
-              <p className="mt-5 text-base text-gray-600 leading-relaxed max-w-md">
+              <p className="mt-5 text-base text-gray-600 leading-relaxed max-w-md mx-auto lg:mx-0">
                 We combine the power of Google Cloud with personalized support to give your business the hosting experience it deserves.
               </p>
               {/* Server + Google Cloud illustration */}
