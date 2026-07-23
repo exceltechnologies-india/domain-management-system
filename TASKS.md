@@ -352,6 +352,8 @@ Operator wants the app rebranded to the official **Anutech Digital** logo + favi
 
 ## Recently Shipped — user-visible improvements
 
+- [x] **FAQ-CENTER-MOBILE: center the FAQ heading on mobile** — Operator: centralize the FAQ section on mobile. The two-column FAQ heading block ("Got Questions? We've Got Answers." + eyebrow) was left-aligned; added `text-center lg:text-left` (accordion items stay left-aligned as expected). Deployed `dms-00401-csx`.
+
 - [x] **SCROLLTOP-HIDE-MOBILE: hide scroll-to-top button on mobile** — Operator: the scroll-to-top FAB was covered by the chat/support widget on mobile; hide it permanently on small screens. `components/ScrollToTop.tsx` button now `hidden sm:block` (shows on ≥sm only). Deployed `dms-00400-nz2`.
 
 - [x] **FOOTER-MOBILE-CENTER: center the footer on mobile** — Operator: footer could be better centered on mobile. `FooterModern` stacked left-aligned; added `text-center lg:text-left` to the columns grid and centered the brand logo/tagline/social icons + the "We Accept" payment badges on small screens (link columns inherit centering). Desktop layout unchanged. Deployed `dms-00399-knp`.
