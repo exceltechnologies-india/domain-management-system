@@ -606,7 +606,7 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
         {/* ── FAQ (two-column) ─────────────────────────────────────────── */}
         <Section background="gray">
           <div className="grid lg:grid-cols-3 gap-8 lg:gap-12">
-            <div className="lg:col-span-1">
+            <div className="lg:col-span-1 text-center lg:text-left">
               <p className="text-xs font-bold tracking-[0.18em] uppercase text-violet-600 mb-3">Frequently asked questions</p>
               <h2 className="text-3xl sm:text-4xl font-bold text-gray-900" style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}>
                 Got Questions?<br />We&apos;ve Got Answers.
