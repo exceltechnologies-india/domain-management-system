@@ -68,9 +68,14 @@ export class DirectAdminError extends Error {
   }
 }
 
+// Nameservers assigned/displayed for new hosting accounts on server1.anutech.in
+// (OrderBox/ResellerClub DNS). Stored on the Hosting record + shown to the
+// customer; DA account creation itself uses the server default.
 export const NAMESERVERS = [
-  "ns1.server-136-115-64-54.da.direct",
-  "ns2.server-136-115-64-54.da.direct",
+  "deepak1299294.mercury.orderbox-dns.com",
+  "deepak1299294.venus.orderbox-dns.com",
+  "deepak1299294.earth.orderbox-dns.com",
+  "deepak1299294.mars.orderbox-dns.com",
 ];
 
 export const KNOWN_PACKAGES = Object.values(HOSTING_PLANS).map(p => p.serverPackage);
