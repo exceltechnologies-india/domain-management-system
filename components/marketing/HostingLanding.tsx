@@ -142,25 +142,26 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
     router.push('/cart');
   };
 
-  // Start Free Trial (yearly Starter) → eligibility check then add the ₹0 trial.
+  // Start Free Trial (yearly Starter) → add the ₹0 trial to the cart and go to
+  // the cart (standard flow). Logged-in users get an early eligibility gate for
+  // nicer UX; logged-out users go straight to the cart, where the flow prompts
+  // login or guest checkout — eligibility is enforced server-side at order time.
   const handleStartTrial = async (plan: LandingPlan) => {
     trackStartTrial();
-    if (!session?.user) {
-      router.push(`/login?returnUrl=${encodeURIComponent('/')}`);
-      return;
-    }
-    const deviceFingerprint = await getDeviceFingerprint().catch(() => '');
-    const result = await apiClient.post<{ eligible?: boolean; reason?: string }>(
-      '/api/v1/user/hosting/trial-eligibility',
-      { planId: plan.planId, deviceFingerprint },
-    );
-    if (!result.ok) {
-      toast.error('Unable to check trial eligibility. Please try again.');
-      return;
-    }
-    if (!result.data.eligible) {
-      toast.error(result.data.reason || 'You are not eligible for a free trial.');
-      return;
+    if (session?.user) {
+      const deviceFingerprint = await getDeviceFingerprint().catch(() => '');
+      const result = await apiClient.post<{ eligible?: boolean; reason?: string }>(
+        '/api/v1/user/hosting/trial-eligibility',
+        { planId: plan.planId, deviceFingerprint },
+      );
+      if (!result.ok) {
+        toast.error('Unable to check trial eligibility. Please try again.');
+        return;
+      }
+      if (!result.data.eligible) {
+        toast.error(result.data.reason || 'You are not eligible for a free trial.');
+        return;
+      }
     }
     const trialItem: CartItem = {
       domainName: `hosting-trial-${plan.planId}-${Date.now()}`,
