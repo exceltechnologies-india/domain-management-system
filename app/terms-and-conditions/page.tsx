@@ -172,7 +172,7 @@ export default function TermsPage() {
               <section className="mb-8">
                 <h2 className="text-2xl font-semibold text-gray-900 mb-4">10. Communications &amp; Notifications</h2>
                 <p className="text-gray-700 leading-relaxed">
-                  By using the Service you agree to receive communications from us relating to your account. We divide these into two categories:
+                  By using the Service you agree to receive communications from us relating to your account. <strong>Certain emails are compulsory for security reasons and to maintain your services</strong> and cannot be opted out of while you hold an account with us; <strong>only marketing and other non-essential emails can be opted out</strong>. We divide these into two categories:
                 </p>
                 <ul className="list-disc list-inside text-gray-700 leading-relaxed mt-3 space-y-2">
                   <li>
