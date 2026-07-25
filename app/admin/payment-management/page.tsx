@@ -58,10 +58,23 @@ export default function AdminPayments() {
   const [totalItems, setTotalItems] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [razorpayMode, setRazorpayMode] = useState<'test' | 'live' | null>(null);
   const router = useRouter();
   const { data: session, status } = useSession();
 
   const pageSize = 5; // Show 5 items per page
+
+  // Surface the active Razorpay mode so no one forgets prod is in TEST.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const res = await apiClient.get<{ mode?: 'test' | 'live' }>('/api/v1/admin/razorpay-mode');
+      if (active && res.ok && (res.data.mode === 'test' || res.data.mode === 'live')) {
+        setRazorpayMode(res.data.mode);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     // Wait for NextAuth to resolve
@@ -302,6 +315,23 @@ export default function AdminPayments() {
   return (
     <AdminLayout user={user} onLogout={handleLogout}>
       <div className="space-y-6">
+
+        {/* ── Razorpay mode banner ── */}
+        {razorpayMode === 'test' && (
+          <div className="flex items-start gap-3 rounded-xl border-2 border-amber-300 bg-amber-50 px-4 py-3">
+            <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <p className="font-bold text-amber-900">Razorpay is in TEST mode — no real charges are being made.</p>
+              <p className="text-amber-800 mt-0.5">Payments use test cards only. Switch to live with <code className="px-1 rounded bg-amber-100">bash scripts/switch-razorpay-mode.sh live</code> before taking real customers.</p>
+            </div>
+          </div>
+        )}
+        {razorpayMode === 'live' && (
+          <div className="flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-2.5">
+            <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+            <p className="text-sm text-green-800"><span className="font-semibold">LIVE mode</span> — real payments are being processed.</p>
+          </div>
+        )}
 
         {/* ── Page header ── */}
         <div className="flex items-start sm:items-center justify-between flex-col sm:flex-row gap-3 sm:gap-0">
