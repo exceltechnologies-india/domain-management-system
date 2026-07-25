@@ -60,6 +60,9 @@ export interface EmailOptions {
   // Outlook render a native "Unsubscribe" control and bulk-sender rules are
   // satisfied. Only supplied for non-essential notification emails.
   listUnsubscribeUrl?: string;
+  // Overrides the default Reply-To (SUPPORT_EMAIL). Emails send FROM the
+  // no-reply mailbox, but replies must land somewhere monitored.
+  replyTo?: string;
 }
 
 export async function sendEmail(options: EmailOptions): Promise<boolean> {
@@ -71,6 +74,8 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
     const transporter = await getTransporter();
     const mailOptions: nodemailer.SendMailOptions = {
       from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
+      // Replies go to a monitored inbox, not the unattended no-reply mailbox.
+      replyTo: options.replyTo || SUPPORT_EMAIL,
       to: options.to,
       subject: options.subject,
       text: options.text,
