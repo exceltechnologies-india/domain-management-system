@@ -296,16 +296,16 @@ export default function PageManagementPage() {
 
   return (
     <AdminLayout user={user} onLogout={performLogout}>
-      <div className="max-w-5xl mx-auto">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
-          <div className="flex items-start gap-3.5">
-            <div className="p-2.5 rounded-2xl bg-gradient-to-br from-[#0180E5] to-[#01489D] text-white shrink-0 shadow-sm">
-              <LayoutTemplate className="h-6 w-6" />
+      <div className="space-y-6">
+        {/* Header — matches the standard admin page header (tinted icon box + title/subtitle + refresh) */}
+        <div className="flex items-start sm:items-center justify-between flex-col sm:flex-row gap-3 sm:gap-0">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-50 rounded-xl">
+              <LayoutTemplate className="h-5 w-5 text-blue-600" />
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Pages</h1>
-              <p className="text-sm text-gray-500 mt-0.5 max-w-xl">
+              <h1 className="text-2xl font-bold text-gray-900">Pages</h1>
+              <p className="text-sm text-gray-500 mt-0.5">
                 Publish or draft the public marketing pages. A drafted page redirects visitors to the
                 homepage — admins can still preview it.
               </p>
@@ -314,21 +314,24 @@ export default function PageManagementPage() {
           <RefreshButton onClick={loadPages} isLoading={isRefreshing} />
         </div>
 
-        {/* Summary tiles */}
-        <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-6">
+        {/* Summary tiles — icon-card style shared across admin pages */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
-            { label: 'Published', value: publishedCount, tint: 'text-green-600', dot: 'bg-green-500' },
-            { label: 'Draft', value: draftCount, tint: 'text-amber-600', dot: 'bg-amber-500' },
-            { label: 'Total Pages', value: pages.length, tint: 'text-gray-900', dot: 'bg-gray-300' },
-          ].map((s) => (
-            <div key={s.label} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <span className={`h-2 w-2 rounded-full ${s.dot}`} />
-                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{s.label}</span>
+            { label: 'Published', value: publishedCount, Icon: Eye, box: 'bg-green-50', ic: 'text-green-600', val: 'text-green-600' },
+            { label: 'Draft', value: draftCount, Icon: EyeOff, box: 'bg-amber-50', ic: 'text-amber-600', val: 'text-amber-600' },
+            { label: 'Total Pages', value: pages.length, Icon: LayoutTemplate, box: 'bg-blue-50', ic: 'text-blue-600', val: 'text-gray-900' },
+          ].map((s) => {
+            const Icon = s.Icon;
+            return (
+              <div key={s.label} className="bg-white border border-gray-200 rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3">
+                <div className={`p-2 ${s.box} rounded-xl`}><Icon className={`h-4 w-4 ${s.ic}`} /></div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-gray-500">{s.label}</p>
+                  <p className={`text-xl font-bold ${s.val}`}>{s.value}</p>
+                </div>
               </div>
-              <p className={`text-2xl font-extrabold ${s.tint}`}>{s.value}</p>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Page list */}
@@ -421,7 +424,7 @@ export default function PageManagementPage() {
         </div>
 
         {/* Appearance */}
-        <div className="mt-8">
+        <div>
           <h2 className="flex items-center gap-2 text-sm font-bold text-gray-900 mb-3">
             <Palette className="h-4 w-4 text-gray-400" />
             Appearance
