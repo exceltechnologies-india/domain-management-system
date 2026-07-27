@@ -73,11 +73,36 @@ export default function IntegrationHealthPage() {
   const [data, setData] = useState<HealthResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [windowDays, setWindowDays] = useState(1);
+  const [liveDown, setLiveDown] = useState<string[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  // Active live-reachability probe — distinct from the recorded-failure feed.
+  // A provider can show "0 recorded failures" yet be currently unreachable
+  // (no live traffic to log an error), so we surface the System Health probe
+  // here too. Fire-and-forget so it never blocks the feed (a hung provider's
+  // probe can take ~30s).
+  const probeLive = useCallback(async () => {
+    try {
+      const sh = await apiClient.get<{ externalApis?: Record<string, { status?: string }> }>(
+        '/api/v1/admin/system-health',
+      );
+      if (sh.ok && sh.data.externalApis) {
+        const labels: Record<string, string> = {
+          directAdmin: 'DirectAdmin', resellerClub: 'ResellerClub', razorpay: 'Razorpay', zohoBooks: 'Zoho Books',
+        };
+        setLiveDown(
+          Object.entries(sh.data.externalApis)
+            .filter(([, v]) => v?.status === 'down')
+            .map(([k]) => labels[k] || k),
+        );
+      }
+    } catch { /* ignore probe errors — the recorded-failure feed still renders */ }
+  }, []);
   const [currentUser, setCurrentUser] = useState<{ firstName: string; lastName: string; email: string; role: string } | null>(null);
 
   const fetchData = useCallback(async (days: number) => {
     setIsLoading(true);
+    void probeLive(); // fire-and-forget; updates the live banner when it resolves
     const result = await apiClient.get<HealthResponse>(`/api/v1/admin/integration-health?windowDays=${days}`);
     if (result.ok) {
       setData(result.data);
@@ -90,7 +115,7 @@ export default function IntegrationHealthPage() {
       setExpanded(ids);
     }
     setIsLoading(false);
-  }, []);
+  }, [probeLive]);
 
   useEffect(() => {
     // Pull the cached user from localStorage so AdminLayout has a name to
@@ -165,6 +190,21 @@ export default function IntegrationHealthPage() {
           </div>
         </div>
 
+        {/* ── Live reachability banner (active probe — separate from the recorded-failure feed) ── */}
+        {liveDown.length > 0 && (
+          <div className="rounded-2xl border-2 border-red-300 bg-red-50 shadow-sm p-4 flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
+            <div>
+              <div className="text-sm font-bold text-red-900">
+                Live reachability: {liveDown.join(', ')} {liveDown.length === 1 ? 'is' : 'are'} currently UNREACHABLE (probed just now).
+              </div>
+              <div className="text-xs text-red-800/90 mt-1">
+                The feed below reports <strong>recorded operation failures</strong> — a provider with no live traffic can show &quot;all clear&quot; here yet be down. This live probe (same as Dashboard → System Health) is the source of truth for reachability.
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── Overall status banner + window filter ── */}
         {data && (
           <div className={`rounded-2xl border shadow-sm ${totalAcrossProviders > 0 ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
@@ -179,7 +219,7 @@ export default function IntegrationHealthPage() {
                   <div className={`text-sm font-semibold ${totalAcrossProviders > 0 ? 'text-amber-900' : 'text-green-900'}`}>
                     {totalAcrossProviders > 0
                       ? `${totalAcrossProviders} upstream failure${totalAcrossProviders === 1 ? '' : 's'} in the last ${data.windowDays} day${data.windowDays === 1 ? '' : 's'}`
-                      : `All upstream providers are healthy — no failures in the last ${data.windowDays} day${data.windowDays === 1 ? '' : 's'}`}
+                      : `No recorded operation failures in the last ${data.windowDays} day${data.windowDays === 1 ? '' : 's'}`}
                   </div>
                   <div className="text-xs text-gray-500 mt-1">
                     Snapshot generated {formatIndianDateTime(data.generatedAt)}.
