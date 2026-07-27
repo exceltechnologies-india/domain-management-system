@@ -185,6 +185,7 @@ export async function GET(request: NextRequest) {
       razorpayTokenId?: string | null;
       isTrial?: boolean;
       billingType?: string | null;
+      lastProvisionError?: string;
     };
     let hostingStats: HostingStatRow[] = [];
 
@@ -403,7 +404,10 @@ export async function GET(request: NextRequest) {
                  isTrial: h.isTrial ?? false,
                  billingType: h.billingType ?? null,
                  isUnlinked: !localUser, // If we have a hosting record but no user?
-                 linkedByEmail: false
+                 linkedByEmail: false,
+                 // Durable DA-provisioning failure reason (stamped by the
+                 // tokens-da provisioner). Surfaces WHY a pending row is stuck.
+                 error: h.lastProvisionError || undefined,
              };
         });
 

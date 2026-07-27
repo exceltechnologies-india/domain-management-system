@@ -44,6 +44,13 @@ vi.mock("@/models/RecurringChargeAttempt", () => ({
   __esModule: true,
 }));
 
+// Source 6: Hostings with a durable lastProvisionError (dynamic-imported).
+const HostingFind = vi.hoisted(() => vi.fn());
+vi.mock("@/models/Hosting", () => ({
+  default: { find: HostingFind },
+  __esModule: true,
+}));
+
 vi.mock("@/lib/server-logger", () => ({
   serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
@@ -78,6 +85,7 @@ beforeEach(() => {
   OrderFind.mockReset().mockReturnValue(chainable([]));
   SystemLogFind.mockReset().mockReturnValue(chainable([]));
   RCAFind.mockReset().mockReturnValue(chainable([]));
+  HostingFind.mockReset().mockReturnValue(chainable([]));
 });
 
 describe("/api/admin/integration-health — RecurringChargeAttempt source", () => {
@@ -154,6 +162,31 @@ describe("/api/admin/integration-health — RecurringChargeAttempt source", () =
       amount: 2,
     });
     expect(pattern.exemplarMessage).toContain("pay_STUCK2");
+  });
+
+  it("Hosting with lastProvisionError → DirectAdmin card with the specific DA hint + domain context", async () => {
+    const now = new Date();
+    HostingFind.mockReturnValueOnce(
+      chainable([
+        {
+          domainName: "stuck.com",
+          orderId: "ord_stuck",
+          lastProvisionError: "Cannot Create Account - That IP does not exist in your list",
+          lastProvisionErrorAt: now,
+          lastProvisionOutcome: "hard_failure",
+        },
+      ])
+    );
+    const res = await GET(makeReq());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const da = body.providers.find((p: { id: string }) => p.id === "directadmin");
+    expect(da).toBeDefined();
+    expect(da.totalErrors).toBe(1);
+    // The raw DA reason matches the "That IP does not exist" signature → its
+    // targeted DIRECTADMIN_IP remediation hint, not the generic DA one.
+    expect(da.patterns[0].hint).toMatch(/DIRECTADMIN_IP/i);
+    expect(da.patterns[0].affectedOrders[0]).toMatchObject({ domainName: "stuck.com" });
   });
 
   it("abandoned RecurringChargeAttempt → razorpay provider card with abandonment hint", async () => {

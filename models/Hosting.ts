@@ -25,6 +25,15 @@ export interface IHosting extends Document {
   billingType: "subscription" | "manual";
   isTrial: boolean;
   conversionEventSent?: boolean;
+  // DA-provisioning failure capture. Stamped (awaited) by the tokens-da
+  // provisioner when create-user hard-fails / collides / DA is unreachable,
+  // so a stuck Hosting carries WHY on the row itself — reliable even in a
+  // short-lived Cloud Run worker where the fire-and-forget serverLogger
+  // forwarder gets dropped. Cleared on successful provisioning. Read by the
+  // admin Integration Health dashboard + surfaced on the hosting admin row.
+  lastProvisionError?: string;
+  lastProvisionErrorAt?: Date;
+  lastProvisionOutcome?: "hard_failure" | "collision_exhausted" | "da_unreachable";
   lastSyncedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -135,6 +144,16 @@ const HostingSchema = new Schema<IHosting>(
     conversionEventSent: {
       type: Boolean,
       default: false,
+    },
+    lastProvisionError: {
+      type: String,
+    },
+    lastProvisionErrorAt: {
+      type: Date,
+    },
+    lastProvisionOutcome: {
+      type: String,
+      enum: ["hard_failure", "collision_exhausted", "da_unreachable"],
     },
     lastSyncedAt: {
       type: Date,

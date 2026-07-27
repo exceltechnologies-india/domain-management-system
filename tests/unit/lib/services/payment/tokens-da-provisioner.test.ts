@@ -221,28 +221,42 @@ describe("provisionTokensFlowHosting — early-exit + failure cases", () => {
     );
     expect(result.outcome).toBe("da_unreachable");
     expect(result.reason).toBe("ECONNREFUSED");
+    // Status stays 'pending' so the cron retries, but the failure reason is
+    // now stamped durably on the row (awaited save) for the health dashboard.
     expect((hosting as unknown as { status: string }).status).toBe("pending");
-    expect(hosting.save).not.toHaveBeenCalled();
+    expect(hosting.save).toHaveBeenCalledTimes(1);
+    const h = hosting as unknown as { lastProvisionError: string; lastProvisionOutcome: string; lastProvisionErrorAt: Date };
+    expect(h.lastProvisionError).toBe("ECONNREFUSED");
+    expect(h.lastProvisionOutcome).toBe("da_unreachable");
+    expect(h.lastProvisionErrorAt).toBeInstanceOf(Date);
   });
 
-  it("DA returns 'username_collision_exhausted' → 'collision_exhausted'", async () => {
+  it("DA returns 'username_collision_exhausted' → 'collision_exhausted' + stamps reason", async () => {
     daCreateUser.mockResolvedValueOnce({ kind: "username_collision_exhausted" });
+    const hosting = makeHosting();
     const result = await provisionTokensFlowHosting(
-      makeHosting() as unknown as Parameters<typeof provisionTokensFlowHosting>[0]
+      hosting as unknown as Parameters<typeof provisionTokensFlowHosting>[0]
     );
     expect(result.outcome).toBe("collision_exhausted");
+    expect(hosting.save).toHaveBeenCalledTimes(1);
+    expect((hosting as unknown as { lastProvisionOutcome: string }).lastProvisionOutcome).toBe("collision_exhausted");
   });
 
-  it("DA returns 'hard_failure' → 'hard_failure'", async () => {
+  it("DA returns 'hard_failure' → 'hard_failure' + stamps the DA reason on the row", async () => {
     daCreateUser.mockResolvedValueOnce({
       kind: "hard_failure",
       reason: "License limited",
     });
+    const hosting = makeHosting();
     const result = await provisionTokensFlowHosting(
-      makeHosting() as unknown as Parameters<typeof provisionTokensFlowHosting>[0]
+      hosting as unknown as Parameters<typeof provisionTokensFlowHosting>[0]
     );
     expect(result.outcome).toBe("hard_failure");
     expect(result.reason).toBe("License limited");
+    expect(hosting.save).toHaveBeenCalledTimes(1);
+    const h = hosting as unknown as { lastProvisionError: string; lastProvisionOutcome: string };
+    expect(h.lastProvisionError).toBe("License limited");
+    expect(h.lastProvisionOutcome).toBe("hard_failure");
   });
 
   it("welcome email failure does NOT block status flip / DA user creation", async () => {

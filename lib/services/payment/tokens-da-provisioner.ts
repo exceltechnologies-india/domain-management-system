@@ -165,20 +165,45 @@ export async function provisionTokensFlowHosting(
     usernameCandidates,
   });
 
+  // Durable failure capture: stamp the reason onto the Hosting row (awaited)
+  // so a stuck provisioning carries WHY on the record itself — reliable even
+  // in a short-lived Cloud Run worker where the fire-and-forget serverLogger
+  // forwarder gets dropped. Read by the admin Integration Health dashboard +
+  // surfaced on the hosting admin row. Best-effort: a stamp failure must never
+  // change the provisioning outcome the caller sees.
+  const stampFailure = async (
+    outcome: "hard_failure" | "collision_exhausted" | "da_unreachable",
+    reason: string
+  ) => {
+    try {
+      hosting.lastProvisionError = reason.slice(0, 500);
+      hosting.lastProvisionErrorAt = new Date();
+      hosting.lastProvisionOutcome = outcome;
+      await hosting.save();
+    } catch (e) {
+      serverLogger.warn(
+        `[TOKENS-DA-PROVISIONER] Failed to stamp lastProvisionError on ${hosting.domainName}: ${e instanceof Error ? e.message : String(e)}`
+      );
+    }
+  };
+
   if (daOutcome.kind === "username_collision_exhausted") {
     serverLogger.error(
       `❌ [TOKENS-DA-PROVISIONER] Username collisions exhausted for ${hosting.domainName} after ${MAX_USERNAME_ATTEMPTS} attempts`
     );
+    const reason = `${MAX_USERNAME_ATTEMPTS} username collisions in a row on DA`;
+    await stampFailure("collision_exhausted", reason);
     return {
       ...baseResult,
       outcome: "collision_exhausted",
-      reason: `${MAX_USERNAME_ATTEMPTS} collisions in a row`,
+      reason,
     };
   }
   if (daOutcome.kind === "da_unreachable") {
     serverLogger.warn(
       `⚠️ [TOKENS-DA-PROVISIONER] DA unreachable for ${hosting.domainName}: ${daOutcome.reason} — leaving Hosting status='pending' for next cron run`
     );
+    await stampFailure("da_unreachable", daOutcome.reason);
     return {
       ...baseResult,
       outcome: "da_unreachable",
@@ -189,6 +214,7 @@ export async function provisionTokensFlowHosting(
     serverLogger.error(
       `❌ [TOKENS-DA-PROVISIONER] Hard failure for ${hosting.domainName}: ${daOutcome.reason}`
     );
+    await stampFailure("hard_failure", daOutcome.reason);
     return {
       ...baseResult,
       outcome: "hard_failure",
@@ -196,10 +222,14 @@ export async function provisionTokensFlowHosting(
     };
   }
 
-  // Success: persist
+  // Success: persist. Clear any prior failure stamp so a Hosting that
+  // provisions on a later retry drops off the Integration Health failure feed.
   const daUsername = daOutcome.username;
   hosting.directAdminUsername = daUsername;
   hosting.status = "active";
+  hosting.lastProvisionError = undefined;
+  hosting.lastProvisionErrorAt = undefined;
+  hosting.lastProvisionOutcome = undefined;
   await hosting.save();
 
   // Outcome-confirmed conversion event (StartTrial for trials / Purchase for

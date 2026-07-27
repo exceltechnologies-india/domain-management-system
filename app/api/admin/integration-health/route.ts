@@ -683,6 +683,60 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // 6. Hostings whose DA provisioning FAILED (stamped durably on the row by
+    // lib/services/payment/tokens-da-provisioner.ts on hard_failure /
+    // collision_exhausted / da_unreachable). This is the bulletproof source
+    // for DA-provisioning failures: an awaited write on the Hosting record
+    // itself, so it survives even when the fire-and-forget serverLogger
+    // forwarder is dropped by a short-lived Cloud Run worker (exactly the gap
+    // that hid the 2026-07-27 "That IP does not exist in your list" failure).
+    // The raw reason carries DA's own error text, so the DirectAdmin provider
+    // signatures attach the right remediation hint automatically.
+    try {
+      const { default: Hosting } = await import("@/models/Hosting");
+      const failedProvisions = (await Hosting.find(
+        {
+          lastProvisionError: { $exists: true, $ne: "" },
+          lastProvisionErrorAt: { $gte: since },
+        },
+        {
+          domainName: 1,
+          orderId: 1,
+          lastProvisionError: 1,
+          lastProvisionErrorAt: 1,
+          lastProvisionOutcome: 1,
+        }
+      )
+        .sort({ lastProvisionErrorAt: -1 })
+        .limit(500)
+        .lean()) as unknown as Array<{
+        domainName: string;
+        orderId?: string;
+        lastProvisionError: string;
+        lastProvisionErrorAt: Date;
+        lastProvisionOutcome?: string;
+      }>;
+
+      for (const h of failedProvisions) {
+        // Prefix with [DA-PROVISION] so it classifies under DirectAdmin even
+        // when the raw reason is generic; the specific DA signatures (That IP /
+        // Invalid Domain / package not found) still match first and attach
+        // their targeted hint.
+        record({
+          errorText: `[DA-PROVISION] ${h.lastProvisionOutcome || "failure"} provisioning ${h.domainName}: ${h.lastProvisionError}`,
+          orderId: h.orderId || "(no order)",
+          amount: 0,
+          createdAt: h.lastProvisionErrorAt,
+          domainName: h.domainName,
+          itemType: "hosting",
+        });
+      }
+    } catch (hErr) {
+      serverLogger.warn(
+        `[integration-health] Hosting provisioning-failure query failed: ${hErr instanceof Error ? hErr.message : String(hErr)}`
+      );
+    }
+
     // Roll up buckets into provider groups. `unknown` is always present as
     // the fallback catch-all. A defensive check in the loop below routes
     // any bucket with an unseeded provider id into `unknown` rather than
