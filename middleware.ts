@@ -275,6 +275,30 @@ async function handleMiddleware(request: NextRequest, nonce: string, requestId: 
   const isPublicApi = PUBLIC_API_PREFIXES.some(p => classificationPath === p || classificationPath.startsWith(p + "/"));
   const isPublicRoute = PUBLIC_ROUTES.has(pathname) || PUBLIC_PREFIXES.some(p => pathname.startsWith(p));
 
+  // Machine-to-machine admin calls (operator scripts + cron one-offs like
+  // scripts/purge-test-users.js) authenticate via the x-cron-secret bearer
+  // header, NOT a session cookie. When a VALID cron secret is present on an
+  // admin API, bypass the browser-oriented CSRF + admin-JWT gates and let the
+  // route's own authorizeCronRequest be the boundary. Scoped strictly to admin
+  // APIs (`isAdminApi`) so it never widens auth for anything else, and the
+  // secret is a strong bearer token held only by Cloud Scheduler + operator
+  // machines — an attacker who has it doesn't need CSRF anyway. This closes the
+  // gap where /api/v1/admin/hosting/actions was BUILT to accept x-cron-secret
+  // (for the DA-delete purge script — operator machines aren't DA-whitelisted,
+  // so DA calls must originate from Cloud Run) but the isAdminApi JWT check
+  // still 401'd it before the route's cron-auth could run. Browser admin calls
+  // (no cron header) fall through to the normal CSRF + JWT gates unchanged.
+  // Placed before token-fetch so machine calls skip the getToken round-trip.
+  // See [[project_da_operations_via_prod_route]].
+  const cronSecretEnv = process.env.CRON_SECRET;
+  if (
+    isAdminApi &&
+    !!cronSecretEnv &&
+    request.headers.get("x-cron-secret") === cronSecretEnv
+  ) {
+    return addSecurityHeaders(nextWithNonce(request, nonce, requestId), { nonce, strictCSP: isStrictCSPRoute });
+  }
+
   // --- 3. Token Fetching (Single call, only when security/logic requires it) ---
   const needsToken = (isAdminApi || isAdminPage || isAuthPage || isProtectedRoute || (isApi && !isPublicApi)) && !isHeadRequest;
 
@@ -285,8 +309,6 @@ async function handleMiddleware(request: NextRequest, nonce: string, requestId: 
       secret: AUTH_SECRET,
     });
   }
-
-  // --- 4. Authorization & Redirect Logic ---
 
   // CSRF gate for every authenticated mutating /api/* request, regardless
   // of admin/user/payment classification. GET/HEAD/OPTIONS pass through

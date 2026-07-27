@@ -266,6 +266,30 @@ describe("CSRF gate — EVERY authenticated mutating /api/*", () => {
     expect(body.error).toBe("CSRF validation failed");
   });
 
+  it("admin API + valid x-cron-secret → bypasses CSRF + JWT (machine path), NO token fetch", async () => {
+    vi.stubEnv("CRON_SECRET", "s3cr3t-cron");
+    const req = makeReq("https://example.com/api/v1/admin/hosting/actions", {
+      method: "POST",
+      headers: { "x-cron-secret": "s3cr3t-cron" },
+    });
+    const res = await middleware(req);
+    expect(res.status).not.toBe(401);
+    expect(res.status).not.toBe(403);
+    expect(getToken).not.toHaveBeenCalled();
+    expect(validateCSRF).not.toHaveBeenCalled();
+  });
+
+  it("admin API + WRONG x-cron-secret → falls through to normal JWT gate (401)", async () => {
+    vi.stubEnv("CRON_SECRET", "s3cr3t-cron");
+    getToken.mockResolvedValueOnce(null);
+    const req = makeReq("https://example.com/api/v1/admin/hosting/actions", {
+      method: "POST",
+      headers: { "x-cron-secret": "wrong" },
+    });
+    const res = await middleware(req);
+    expect(res.status).toBe(401);
+  });
+
   it("PUBLIC /api/auth/* → NO CSRF check (NextAuth handles it)", async () => {
     const req = makeReq("https://example.com/api/auth/signin", {
       method: "POST",
