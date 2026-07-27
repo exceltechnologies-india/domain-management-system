@@ -55,10 +55,19 @@ export async function POST(request: NextRequest) {
     hard_failure: 0,
   };
   const errors: string[] = [];
+  // Per-hosting outcome + classified reason. The `reason` field is where the
+  // DA hard_failure / da_unreachable / collision detail lives — serverLogger
+  // is silenced in production (lib/logger.ts), so the HTTP response is the ONLY
+  // channel that surfaces WHY a provision failed. Non-'activated' outcomes are
+  // reported so an operator can diagnose stuck trials without shell access.
+  const results: Array<{ domain: string; outcome: string; reason?: string }> = [];
 
   for (const hosting of pending) {
     try {
       const result = await provisionTokensFlowHosting(hosting);
+      if (result.outcome !== "activated") {
+        results.push({ domain: result.domainName, outcome: result.outcome, reason: result.reason });
+      }
       switch (result.outcome) {
         case "activated":
           counts.activated += 1;
@@ -92,6 +101,7 @@ export async function POST(request: NextRequest) {
   return secureJsonResponse({
     success: true,
     counts,
+    results: results.length ? results : undefined,
     errors: errors.length ? errors : undefined,
   });
 }
