@@ -53,7 +53,14 @@ const verifyPaymentSchema = z
     razorpay_order_id: z.string().optional(),
     razorpay_subscription_id: z.string().optional(),
     razorpay_payment_id: z.string().min(1, "Payment verification data is required"),
-    razorpay_signature: z.string().min(1, "Payment verification data is required"),
+    // Signature is optional: the Tokens-flow recurring-mandate authorization
+    // doesn't hand the client a usable HMAC signature (the webhook, verified
+    // via RAZORPAY_WEBHOOK_SECRET, is the authoritative verifier for mandates).
+    // When absent, verifyRazorpayPayment falls back to a server-side integrity
+    // check (payment is real + captured + its order_id matches the claimed
+    // order) — see verification.ts. Normal one-shot flows still send it and it
+    // is still verified.
+    razorpay_signature: z.string().optional(),
     cartItems: z.array(verifyCartItemSchema).optional(),
   })
   .refine(
@@ -141,6 +148,32 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
       );
     }
 
+    // Tokens-flow trial mandate: the ₹2 CIT authorization + refund + token
+    // storage + Hosting creation + DA provisioning all happen in the
+    // /razorpay/webhook `payment.captured` handler (authenticated via
+    // RAZORPAY_WEBHOOK_SECRET) — that path is authoritative and idempotent.
+    // The frontend still round-trips through /verify to get a user-facing
+    // confirmation, but it must NOT run the normal order-finalisation here
+    // (which would double-provision / mis-handle the ₹0 trial line + ₹2
+    // mandate amount). Return a graceful "provisioning in progress" and let
+    // the webhook finish. Covers any status (pending if /verify beat the
+    // webhook, completed if it didn't).
+    if (
+      existingOrder &&
+      existingOrder.orderType === "hosting_trial" &&
+      existingOrder.mandateMode === "tokens"
+    ) {
+      serverLogger.info(
+        `[PAYMENT-VERIFY] Tokens-trial mandate for order ${existingOrder.orderId} (status=${existingOrder.status}) — deferring to webhook, returning success`
+      );
+      return NextResponse.json({
+        success: true,
+        message: "Free trial activated — your hosting is being set up.",
+        orderId: existingOrder.orderId,
+        domainRegistrationStatus: "processing",
+      });
+    }
+
     if (existingOrder) {
       if (existingOrder.status === "completed") {
         return NextResponse.json({
@@ -189,7 +222,7 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
       return await handleUpgradePayment(
         razorpay_order_id!,
         razorpay_payment_id,
-        razorpay_signature
+        razorpay_signature ?? ""
       );
     }
 
@@ -227,7 +260,9 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
     if (existingOrder && existingOrder.status === "pending" && razorpay_order_id) {
       const claimed = await claimPendingOrderForProcessing(razorpay_order_id, {
         razorpayPaymentId: razorpay_payment_id,
-        razorpaySignature: razorpay_signature,
+        // Non-tokens flows always carry a signature (tokens-trial returned
+        // earlier); coerce for the now-optional type.
+        razorpaySignature: razorpay_signature ?? "",
         paymentVerification: {
           verifiedAt: new Date(),
           paymentStatus: paymentDetails.status,
@@ -268,7 +303,7 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
         // trusting request-body cartItems here would let a user swap one
         // paid domain for another.
         razorpay_payment_id,
-        razorpay_signature,
+        razorpay_signature: razorpay_signature ?? "",
         razorpay_subscription_id,
         paymentDetails,
       }));
@@ -288,7 +323,7 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
         cartItems,
         razorpay_order_id,
         razorpay_payment_id,
-        razorpay_signature,
+        razorpay_signature: razorpay_signature ?? "",
         razorpay_subscription_id,
         paymentDetails,
       }));

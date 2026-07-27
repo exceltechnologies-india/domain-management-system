@@ -840,3 +840,48 @@ describe("handleVerificationError — catch path passes outer refs", () => {
     expect(args.user).toBeNull();
   });
 });
+
+describe("POST /api/payments/verify — Tokens-flow trial mandate", () => {
+  it("hosting_trial + tokens order → success 'provisioning', NO finalize/create (webhook owns it)", async () => {
+    getUserFromRequest.mockResolvedValueOnce(validUser);
+    getOrderByRazorpayOrderId.mockResolvedValueOnce({
+      _id: "OID-T",
+      orderId: "ord_trial",
+      userId: "U1",
+      orderType: "hosting_trial",
+      mandateMode: "tokens",
+      status: "pending",
+    });
+    const res = await POST(makeReq(validBody));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.orderId).toBe("ord_trial");
+    expect(body.domainRegistrationStatus).toBe("processing");
+    expect(finalizePendingOrder).not.toHaveBeenCalled();
+    expect(createCompletedOrder).not.toHaveBeenCalled();
+  });
+
+  it("tokens-trial verifies WITHOUT a client signature (mandate flow) → still 200", async () => {
+    getUserFromRequest.mockResolvedValueOnce(validUser);
+    getOrderByRazorpayOrderId.mockResolvedValueOnce({
+      _id: "OID-T",
+      orderId: "ord_trial",
+      userId: "U1",
+      orderType: "hosting_trial",
+      mandateMode: "tokens",
+      status: "completed",
+    });
+    // No razorpay_signature in the body — schema now allows it (optional).
+    const res = await POST(
+      makeReq({
+        razorpay_order_id: "order_RP1",
+        razorpay_payment_id: "pay_RP1",
+        cartItems: [{ domainName: "trial.com", price: 0, itemType: "hosting" }],
+      })
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+  });
+});

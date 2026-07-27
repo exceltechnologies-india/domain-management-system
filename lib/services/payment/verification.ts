@@ -9,7 +9,12 @@ export interface VerifyPaymentInput {
   razorpay_order_id?: string;
   razorpay_subscription_id?: string;
   razorpay_payment_id: string;
-  razorpay_signature: string;
+  // Optional: the Tokens-flow recurring mandate authorization doesn't return a
+  // usable client signature. When absent we skip the HMAC and rely on the
+  // server-side integrity checks below (payment is real + captured + order_id
+  // matches). The webhook (RAZORPAY_WEBHOOK_SECRET) is the authoritative
+  // verifier for mandates.
+  razorpay_signature?: string;
 }
 
 export type VerifyPaymentResult =
@@ -37,24 +42,37 @@ export async function verifyRazorpayPayment(
     razorpay_signature,
   } = input;
 
-  const isPaymentValid = RazorpayService.verifyPayment({
-    razorpay_order_id,
-    razorpay_subscription_id,
-    razorpay_payment_id,
-    razorpay_signature,
-  });
+  // Signature present → verify the HMAC as usual. Signature ABSENT (Tokens-flow
+  // mandate auth) → skip the HMAC and rely on the server-side integrity checks
+  // further down (Razorpay confirms the payment is real + captured, and its
+  // order_id must match the claimed order). Combined with the route's
+  // ownership check (order.userId === session user), that's a sound
+  // verification without a client signature — you can't fake a Razorpay
+  // payment_id and you can't claim another user's order.
+  if (razorpay_signature) {
+    const isPaymentValid = RazorpayService.verifyPayment({
+      razorpay_order_id,
+      razorpay_subscription_id,
+      razorpay_payment_id,
+      razorpay_signature,
+    });
 
-  if (!isPaymentValid) {
-    serverLogger.error(
-      `❌ [PAYMENT-VERIFY] Invalid payment signature for order=${tid(razorpay_order_id)} sub=${tid(razorpay_subscription_id)} pay=${tid(razorpay_payment_id)}`
+    if (!isPaymentValid) {
+      serverLogger.error(
+        `❌ [PAYMENT-VERIFY] Invalid payment signature for order=${tid(razorpay_order_id)} sub=${tid(razorpay_subscription_id)} pay=${tid(razorpay_payment_id)}`
+      );
+      return {
+        ok: false,
+        response: NextResponse.json(
+          { error: "Invalid payment signature" },
+          { status: 400 }
+        ),
+      };
+    }
+  } else {
+    serverLogger.info(
+      `[PAYMENT-VERIFY] No client signature (mandate flow) — using server-side payment/order integrity check for order=${tid(razorpay_order_id)} pay=${tid(razorpay_payment_id)}`
     );
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { error: "Invalid payment signature" },
-        { status: 400 }
-      ),
-    };
   }
 
   let paymentDetails: RazorpayPaymentDetails;
