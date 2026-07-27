@@ -84,13 +84,21 @@ export async function GET(request: NextRequest) {
             razorpayPayment
           );
 
-        // Get customer name from order data, payment details, or user lookup
-        let customerName = "Unknown";
+        // Resolve the customer NAME from our own records (Razorpay payments
+        // don't carry a name — only email + optional notes). Order-linked user
+        // → payment notes → local user-by-email, in that order. When none
+        // resolve (a guest/deleted/disposable-email payment that lives only in
+        // Razorpay's history), leave it EMPTY rather than the literal "Unknown"
+        // — the UI renders the email as the identity + a muted "No linked
+        // account" note, so an unresolved name reads as an intentional state,
+        // not a system error. (Common for test payments after the local
+        // user/order is deleted; Razorpay keeps the payment forever.)
+        let customerName = "";
         if (orderData?.userId) {
           customerName =
             `${orderData.userId.firstName || ""} ${
               orderData.userId.lastName || ""
-            }`.trim() || "Unknown";
+            }`.trim();
         } else if (paymentDetails.customerName) {
           customerName = paymentDetails.customerName;
         } else {
@@ -100,7 +108,7 @@ export async function GET(request: NextRequest) {
             customerName =
               `${userByEmail.firstName || ""} ${
                 userByEmail.lastName || ""
-              }`.trim() || "Unknown";
+              }`.trim();
           }
         }
 

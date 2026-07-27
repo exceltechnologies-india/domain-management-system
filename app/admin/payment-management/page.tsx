@@ -190,12 +190,23 @@ export default function AdminPayments() {
       label: 'Customer',
       sortable: true,
       render: (value: string, row: Payment) => (
-        <div className="min-w-0">
-          <div className="text-xs sm:text-sm font-medium text-gray-900 truncate">
-            {value || 'Unknown'}
+        // When we can't resolve a name (guest / deleted / disposable-email
+        // payment that lives only in Razorpay's history), show the email as the
+        // identity + a muted "No linked account" note instead of a scary
+        // "Unknown" that reads like a system error.
+        value ? (
+          <div className="min-w-0">
+            <div className="text-xs sm:text-sm font-medium text-gray-900 truncate">{value}</div>
+            <div className="text-xs sm:text-sm text-gray-500 truncate">{row.customerEmail}</div>
           </div>
-          <div className="text-xs sm:text-sm text-gray-500 truncate">{row.customerEmail}</div>
-        </div>
+        ) : (
+          <div className="min-w-0">
+            <div className="text-xs sm:text-sm font-medium text-gray-900 truncate">
+              {row.customerEmail || '—'}
+            </div>
+            <div className="text-xs text-gray-400 italic truncate">No linked account</div>
+          </div>
+        )
       )
     },
     {
@@ -511,7 +522,11 @@ export default function AdminPayments() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="text-sm font-medium text-gray-500">Name</label>
-                      <p className="text-lg">{selectedPayment.customerName}</p>
+                      <p className="text-lg">
+                        {selectedPayment.customerName || (
+                          <span className="text-gray-400 italic">No linked account</span>
+                        )}
+                      </p>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-500">Email</label>

@@ -207,11 +207,11 @@ describe("Customer name 3-step chain", () => {
     expect(body.payments[0].customerName).toBe("Alice Smith");
   });
 
-  it("(4) No match anywhere → 'Unknown'", async () => {
+  it("(4) No match anywhere → empty name (UI renders email + 'No linked account', not 'Unknown')", async () => {
     setupOne(makeRzpPayment(), { paymentDetails: {} });
     const res = await GET(makeReq());
     const body = await res.json();
-    expect(body.payments[0].customerName).toBe("Unknown");
+    expect(body.payments[0].customerName).toBe("");
   });
 });
 
