@@ -84,15 +84,16 @@ export default function AdminAnalyticsPage() {
 
   return (
     <AdminLayout user={user} onLogout={performLogout}>
-      <div className="max-w-6xl mx-auto">
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
-          <div className="flex items-start gap-3.5">
-            <div className="p-2.5 rounded-2xl bg-gradient-to-br from-[#0180E5] to-[#01489D] text-white shrink-0 shadow-sm">
-              <BarChart3 className="h-6 w-6" />
+      <div className="space-y-6">
+        {/* Header — standard admin header (tinted icon box + title/subtitle + refresh) */}
+        <div className="flex items-start sm:items-center justify-between flex-col sm:flex-row gap-3 sm:gap-0">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-50 rounded-xl">
+              <BarChart3 className="h-5 w-5 text-blue-600" />
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Customer Analytics</h1>
-              <p className="text-sm text-gray-500 mt-0.5 max-w-2xl">
+              <h1 className="text-2xl font-bold text-gray-900">Customer Analytics</h1>
+              <p className="text-sm text-gray-500 mt-0.5">
                 Lead scores, the customer journey activity feed, and the configurable score weights that marketing can tune.
               </p>
             </div>
@@ -100,21 +101,21 @@ export default function AdminAnalyticsPage() {
           <RefreshButton onClick={load} isLoading={isRefreshing} />
         </div>
 
-        {/* Summary tiles */}
-        <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-8">
+        {/* Summary tiles — icon-card style shared across admin pages */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
-            { label: 'Scored Customers', value: topCustomers.length, icon: Users },
-            { label: 'Top Lead Score', value: topCustomers[0]?.leadScore ?? 0, icon: TrendingUp },
-            { label: 'Activities Logged', value: totalActivities, icon: Activity },
+            { label: 'Scored Customers', value: topCustomers.length, Icon: Users, box: 'bg-blue-50', ic: 'text-blue-600' },
+            { label: 'Top Lead Score', value: topCustomers[0]?.leadScore ?? 0, Icon: TrendingUp, box: 'bg-green-50', ic: 'text-green-600' },
+            { label: 'Activities Logged', value: totalActivities, Icon: Activity, box: 'bg-violet-50', ic: 'text-violet-600' },
           ].map((s) => {
-            const Icon = s.icon;
+            const Icon = s.Icon;
             return (
-              <div key={s.label} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
-                <div className="flex items-center gap-2 mb-1 text-gray-400">
-                  <Icon className="h-4 w-4" />
-                  <span className="text-xs font-medium uppercase tracking-wide">{s.label}</span>
+              <div key={s.label} className="bg-white border border-gray-200 rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3">
+                <div className={`p-2 ${s.box} rounded-xl`}><Icon className={`h-4 w-4 ${s.ic}`} /></div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-gray-500">{s.label}</p>
+                  <p className="text-xl font-bold text-gray-900">{s.value}</p>
                 </div>
-                <p className="text-2xl font-extrabold text-gray-900">{s.value}</p>
               </div>
             );
           })}
@@ -177,7 +178,7 @@ export default function AdminAnalyticsPage() {
         </div>
 
         {/* Configurable score weights */}
-        <div className="mt-8 bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div>
               <h2 className="font-bold text-gray-900">Lead Score Weights</h2>
