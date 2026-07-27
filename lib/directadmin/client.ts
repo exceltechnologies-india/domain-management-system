@@ -23,14 +23,21 @@ export const API_KEY = process.env.DIRECTADMIN_API_KEY;
  * accounts onto the prod DA box.
  *
  * Updated 2026-06-22 from the old `136.115.64.54` fallback (the previous
- * server that's being retired) to `35.208.86.44` (the new DA server's
- * primary IP from IP Manager). The senior reviewer hit this immediately
- * after the DA server switch — every create-user call was failing with
- * "That IP does not exist in your list" because DIRECTADMIN_IP was never
- * in the deploy script's ENV_VARS list, so Cloud Run ran with the stale
- * fallback.
+ * server that's being retired) to `35.208.86.44`. The senior reviewer hit
+ * this immediately after the DA server switch — every create-user call was
+ * failing with "That IP does not exist in your list" because DIRECTADMIN_IP
+ * was never in the deploy script's ENV_VARS list, so Cloud Run ran with the
+ * stale fallback.
+ *
+ * Updated 2026-07-27 to `34.93.167.160` — the panel moved again to
+ * server1.anutech.in (DIRECTADMIN_URL) and `35.208.86.44` (the previous
+ * box) is no longer in server1's IP Manager, so trial DA provisioning was
+ * hard-failing with the exact same "That IP does not exist in your list"
+ * error. `34.93.167.160` is server1.anutech.in's primary IP. DIRECTADMIN_IP
+ * is now in the deploy script's ENV_VARS, so the .env.local value is the
+ * source of truth; this literal is only the local-dev / missing-env fallback.
  */
-const DA_FALLBACK_IP = "35.208.86.44";
+const DA_FALLBACK_IP = "34.93.167.160";
 export const DA_SERVER_IP =
   process.env.DIRECTADMIN_IP ||
   (process.env.NODE_ENV === "production"
