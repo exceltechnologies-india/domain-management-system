@@ -350,8 +350,41 @@ export class RazorpayService {
       serverLogger.info(`✅ [RAZORPAY] Customer ready: ${customer.id} (${params.email})`);
       return customer as { id: string; entity: string; name: string; email: string; contact: string };
     } catch (error: unknown) {
-      serverLogger.error("❌ [RAZORPAY] Customer create error:", error);
       const err = asRzpErr(error);
+      const desc = (err.error?.description || err.message || "").toLowerCase();
+
+      // Despite `fail_existing: 0` (documented to return the existing customer),
+      // the live Razorpay API throws "Customer already exists for the merchant"
+      // on a duplicate email/contact. Recover by fetching the existing customer
+      // so callers stay idempotent. This is hit when our User row was deleted
+      // but the Razorpay customer persists (re-testing), or a returning customer
+      // reuses their email/phone. Verified against Razorpay TEST mode in
+      // tests/integration/razorpay-tokens-live.test.ts (Phase 3).
+      if (desc.includes("already exists")) {
+        try {
+          // The typed facade only declares customers.create; the SDK also
+          // exposes .all() at runtime — cast to reach it.
+          const customersApi = razorpayClient.customers as unknown as {
+            all(opts: { count: number }): Promise<{ items?: Array<{ id?: string; email?: string }> }>;
+          };
+          const list = await customersApi.all({ count: 100 });
+          const wanted = params.email.toLowerCase();
+          const match = (list.items || []).find(
+            (c: { email?: string }) => (c.email || "").toLowerCase() === wanted
+          );
+          if (match?.id) {
+            serverLogger.info(`↩️ [RAZORPAY] Reusing existing customer ${match.id} for ${params.email}`);
+            return match as { id: string; entity: string; name: string; email: string; contact: string };
+          }
+          serverLogger.warn(
+            `[RAZORPAY] "already exists" for ${params.email} but not found in the last 100 customers — cannot recover`
+          );
+        } catch (fetchErr) {
+          serverLogger.error('❌ [RAZORPAY] Could not fetch existing customer after "already exists":', fetchErr);
+        }
+      }
+
+      serverLogger.error("❌ [RAZORPAY] Customer create error:", error);
       throw new Error(
         `Failed to create Razorpay customer: ${err.error?.description || err.message}`
       );
