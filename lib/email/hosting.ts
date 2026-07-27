@@ -73,12 +73,15 @@ export async function sendHostingProvisionedEmail(
         </div>
       `;
 
-  // Tokens-flow-specific payment-method-validity callout. Goes between
-  // the "Service Activated" green banner and the account-details table
-  // so customers see it during the post-trial-CIT-auth confirmation
-  // moment when payment expectations are top-of-mind.
+  // Tokens-flow-specific payment-method-validity callout. Shown only on the
+  // NON-trial (paid) activation email, where an auto-renewal charge is
+  // imminent. Deliberately NOT shown on the "Your Free Trial is Live" email:
+  // the trial banner above already explains the day-15 billing + suspension
+  // policy, nothing has been charged yet, and a second scary "keep your card
+  // valid or you'll be suspended" box reads as alarming on a ₹0 free trial
+  // (operator request 2026-07-27).
   const tokensFlowCallout =
-    hostingDetails.mandateMode === "tokens"
+    hostingDetails.mandateMode === "tokens" && !isTrial
       ? `
         <div style="background-color: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 20px; margin: 20px 0;">
           <h3 style="color: #92400E; margin: 0 0 10px 0; font-size: 16px;">⚠️ Important: Keep Your Payment Method Valid</h3>

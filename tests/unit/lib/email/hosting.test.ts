@@ -115,6 +115,19 @@ describe("sendHostingProvisionedEmail", () => {
       expect(html).toMatch(/re-subscribe/i);
     });
 
+    it("mandateMode='tokens' + isTrial=true → callout ABSENT (trial email already explains day-15 billing; a 2nd scary warning is alarming on a ₹0 trial)", async () => {
+      await sendHostingProvisionedEmail("u@e.test", "Ada", {
+        ...DETAILS,
+        mandateMode: "tokens",
+        isTrial: true,
+      });
+      const html = sendEmailMock.mock.calls[0][0].html;
+      expect(html).not.toContain("Keep Your Payment Method Valid");
+      expect(html).not.toContain("single charge fails");
+      // The trial banner + day-15 explainer still render.
+      expect(html).toMatch(/15-Day Free Trial is Active/i);
+    });
+
     it("mandateMode='subscriptions' → callout block ABSENT (anti-misinform existing subscription-mode customers)", async () => {
       await sendHostingProvisionedEmail("u@e.test", "Ada", {
         ...DETAILS,
@@ -213,7 +226,7 @@ describe("sendHostingProvisionedEmail", () => {
       expect(html).not.toContain("What happens at day 15");
     });
 
-    it("isTrial=true + mandateMode='tokens' → BOTH the trial banner AND the Tokens callout render (Tokens-flow trial signup)", async () => {
+    it("isTrial=true + mandateMode='tokens' → trial banner renders, Tokens payment-validity callout SUPPRESSED (operator request 2026-07-27: no scary second warning on a ₹0 trial)", async () => {
       await sendHostingProvisionedEmail("u@e.test", "Ada", {
         ...DETAILS,
         isTrial: true,
@@ -222,7 +235,7 @@ describe("sendHostingProvisionedEmail", () => {
       });
       const html = sendEmailMock.mock.calls[0][0].html;
       expect(html).toContain("Your 15-Day Free Trial is Active");
-      expect(html).toContain("Keep Your Payment Method Valid");
+      expect(html).not.toContain("Keep Your Payment Method Valid");
     });
   });
 });
