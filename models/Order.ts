@@ -110,6 +110,13 @@ export interface IOrder extends Document {
   // enables future merchant-initiated charges.
   razorpayCustomerId?: string;
   razorpayTokenId?: string;
+  // Mandate-validation (₹2 CIT) refund tracking for the tokens trial flow.
+  // Persisted by the webhook mandate handler so a silent refund failure is
+  // visible in the data. `mandateRefundStatus:'failed'` = the ₹2 is still
+  // captured and needs a manual refund from the Razorpay dashboard.
+  mandateRefundId?: string;
+  mandateRefundStatus?: 'processed' | 'failed';
+  mandateRefundedAt?: Date;
   upgradeDetails?: {
     hostingId: string;
     fromPlanId: string;
@@ -363,6 +370,16 @@ const OrderSchema = new Schema<IOrder>(
     razorpayTokenId: {
       type: String,
       index: true,
+    },
+    mandateRefundId: {
+      type: String,
+    },
+    mandateRefundStatus: {
+      type: String,
+      enum: ['processed', 'failed'],
+    },
+    mandateRefundedAt: {
+      type: Date,
     },
     upgradeDetails: {
       hostingId: String,

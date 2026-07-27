@@ -152,6 +152,8 @@ describe("handleAlreadyProcessedPayment — happy idempotent response", () => {
       _id: "ORD_DOC",
       orderId: "ORD_42",
       invoiceNumber: "INV-1",
+      amount: 50000, // paid order → invoiceable (guard passes)
+      orderType: "domain",
       zohoInvoiceId: null, // forces Zoho recovery branch
       domains: [
         { itemType: "domain", domainName: "trusted.com", status: "registered" },
@@ -179,12 +181,52 @@ describe("handleAlreadyProcessedPayment — Zoho recovery branch", () => {
     _id: "ORD_DOC",
     orderId: "ORD_42",
     invoiceNumber: "INV-1",
+    amount: 50000, // paid order → invoiceable (guard passes)
+    orderType: "domain",
     zohoInvoiceId: null,
     domains: [
       { itemType: "domain", domainName: "x.com", status: "registered" },
     ],
     successfulDomains: ["x.com"],
   };
+
+  it("TRIAL/ZERO-AMOUNT GUARD: orderType='hosting_trial' → NO claim, NO createInvoice", async () => {
+    const trialOrder = {
+      _id: "ORD_DOC",
+      orderId: "ORD_TRIAL",
+      invoiceNumber: undefined,
+      amount: 2, // ₹2 mandate-validation charge (refunded) — still a trial
+      orderType: "hosting_trial",
+      zohoInvoiceId: null,
+      domains: [
+        { itemType: "hosting", domainName: "trial.com", status: "pending" },
+      ],
+      successfulDomains: [],
+    };
+    const result = await handleAlreadyProcessedPayment(
+      makeCtx({ existingOrder: trialOrder })
+    );
+    expect(claimOrder).not.toHaveBeenCalled();
+    expect(createInvoice).not.toHaveBeenCalled();
+    const body = await (result as Response).json();
+    expect(body.success).toBe(true);
+    expect(body.orderId).toBe("ORD_TRIAL");
+  });
+
+  it("ZERO-AMOUNT GUARD: amount<=0 order → NO claim, NO createInvoice", async () => {
+    const zeroOrder = {
+      _id: "ORD_DOC",
+      orderId: "ORD_ZERO",
+      amount: 0,
+      orderType: "hosting",
+      zohoInvoiceId: null,
+      domains: [{ itemType: "hosting", domainName: "z.com", status: "registered" }],
+      successfulDomains: ["z.com"],
+    };
+    await handleAlreadyProcessedPayment(makeCtx({ existingOrder: zeroOrder }));
+    expect(claimOrder).not.toHaveBeenCalled();
+    expect(createInvoice).not.toHaveBeenCalled();
+  });
 
   it("claim returns null → skips Zoho call (another worker already claimed)", async () => {
     claimOrder.mockResolvedValueOnce(null);

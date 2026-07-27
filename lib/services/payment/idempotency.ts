@@ -61,7 +61,38 @@ export async function handleAlreadyProcessedPayment(
     existingOrder.orderId
   );
 
-  // Zoho Books recovery — ensure the invoice exists even on duplicate calls
+  // Zoho Books recovery — ensure the invoice exists even on duplicate calls.
+  //
+  // TRIAL / ZERO-AMOUNT GUARD (mirrors createZohoInvoice in post-tasks.ts):
+  // this recovery path calls zohoService.createInvoice DIRECTLY, so the guard
+  // in createZohoInvoice does NOT cover it. Without this check a ₹0 trial
+  // order (orderType='hosting_trial') that gets a duplicate /verify call —
+  // e.g. the payment-success page firing /verify after the tokens webhook has
+  // already completed the order — creates a bogus tax invoice for a free
+  // trial (Zoho coerces the ₹0 line to a ₹1 minimum). See CLAUDE.md "Trial
+  // order invoice policy" + the `project_trial_no_invoice` memory. The first
+  // real invoice fires at day-15 conversion via the renewal flow.
+  const _amt = existingOrder.amount;
+  if (!_amt || _amt <= 0 || existingOrder.orderType === "hosting_trial") {
+    serverLogger.info(
+      `⏭️ [PAYMENT-VERIFY] Skipping zero-amount/trial invoice for order ${existingOrder.orderId} ` +
+      `(amount=${_amt}, orderType=${existingOrder.orderType}) — Trial order invoice policy.`
+    );
+    return NextResponse.json({
+      success: true,
+      message: "Payment already processed",
+      orderId: existingOrder.orderId,
+      invoiceNumber: existingOrder.invoiceNumber,
+      registrationResults: existingOrder.domains.map((d: IOrder["domains"][number]) => ({
+        domainName: d.domainName,
+        status: d.status,
+        orderId: d.orderId,
+        error: d.error,
+      })),
+      successfulDomains: existingOrder.successfulDomains,
+    });
+  }
+
   try {
     if (existingOrder.zohoInvoiceId) {
       serverLogger.info(

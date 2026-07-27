@@ -195,7 +195,22 @@ async function handlePaymentCaptured(payload: PaymentCapturedPayload) {
     // skipping invoicing on the unhappy path. Stamp the resulting ids onto
     // `claimed` without saving; finalizePendingOrder will persist them in
     // its transaction below.
-    if (!claimed.zohoInvoiceId) {
+    // TRIAL / ZERO-AMOUNT GUARD (mirrors createZohoInvoice in post-tasks.ts):
+    // this webhook path calls zohoService.createInvoice DIRECTLY, bypassing the
+    // guard in createZohoInvoice. Trial (orderType='hosting_trial') + ₹0 orders
+    // must NOT get a tax invoice — see CLAUDE.md "Trial order invoice policy".
+    // (Tokens trials already return earlier via handleMandateValidationCaptured;
+    // this is defence-in-depth for any future non-trial-but-zero-amount caller.)
+    const _webhookAmt = claimed.amount;
+    const _skipInvoice =
+        !_webhookAmt || _webhookAmt <= 0 || claimed.orderType === "hosting_trial";
+    if (_skipInvoice) {
+        serverLogger.info(
+            `⏭️ [Webhook] Skipping zero-amount/trial invoice for ${claimed.orderId} ` +
+            `(amount=${_webhookAmt}, orderType=${claimed.orderType}) — Trial order invoice policy.`
+        );
+    }
+    if (!_skipInvoice && !claimed.zohoInvoiceId) {
         try {
             const zohoService = ZohoBooksService.getInstance();
             const items = claimed.domains.map((d: IOrder["domains"][number]) => ({
@@ -326,16 +341,29 @@ async function handleMandateValidationCaptured(
     // hours on cards. This is the customer-trust-critical step; if it
     // fails, surface loudly in logs but DON'T block downstream — manual
     // refund from Razorpay dashboard is the fallback.
+    // Persist the refund outcome on the order so a silent failure is visible
+    // in the data (not just in prod-silenced logs). `refundPayment` now falls
+    // back optimum→normal, so a failure here means a genuine problem worth an
+    // operator's attention — `mandateRefundStatus:'failed'` flags exactly that.
+    const orderRefund = order as IOrder & {
+        mandateRefundId?: string;
+        mandateRefundStatus?: string;
+        mandateRefundedAt?: Date;
+    };
     try {
-        await RazorpayService.refundPayment(payment.id, payment.amount, {
+        const refund = await RazorpayService.refundPayment(payment.id, payment.amount, {
             reason: "mandate_validation_refund",
             orderId: order.orderId,
         });
+        orderRefund.mandateRefundId = refund?.id;
+        orderRefund.mandateRefundStatus = "processed";
+        orderRefund.mandateRefundedAt = new Date();
         serverLogger.info(
-            `[Webhook] Refunded Rs ${payment.amount / 100} mandate-validation charge for ${order.orderId} (payment=${payment.id})`
+            `[Webhook] Refunded Rs ${payment.amount / 100} mandate-validation charge for ${order.orderId} (payment=${payment.id}, refund=${refund?.id})`
         );
     } catch (refundErr) {
         const msg = refundErr instanceof Error ? refundErr.message : String(refundErr);
+        orderRefund.mandateRefundStatus = "failed";
         serverLogger.error(
             `❌ [Webhook] Mandate-validation refund FAILED for ${order.orderId} (payment=${payment.id}): ${msg}. Manual refund needed from Razorpay dashboard.`
         );

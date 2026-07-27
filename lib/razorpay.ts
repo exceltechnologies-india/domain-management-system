@@ -578,32 +578,56 @@ export class RazorpayService {
    * `amountInPaise` is optional; if omitted, refunds the full payment amount.
    *
    * `speed: 'optimum'` returns money to the customer as fast as the rail
-   * allows — typically minutes for UPI, hours-to-days for cards.
+   * allows — typically minutes for UPI, hours-to-days for cards. BUT
+   * `optimum` requires the "Instant Refunds" feature to be enabled on the
+   * Razorpay account; when it isn't, Razorpay rejects the call with a 400
+   * "invalid request sent" (BAD_REQUEST_ERROR). That failure silently broke
+   * the tokens-trial ₹2 mandate reversal — the webhook caught + swallowed it
+   * so provisioning wasn't blocked, and the ₹2 was never returned to the
+   * customer. So we now attempt `optimum` first and, on a request-shape
+   * rejection, fall back to `normal` (standard 5-7 day refund, always
+   * available) rather than letting the reversal fail outright.
    */
   static async refundPayment(
     paymentId: string,
     amountInPaise?: number,
     notes?: Record<string, string>
   ): Promise<RazorpayRefund> {
-    try {
-      const refundOptions: { amount?: number; speed?: 'optimum' | 'normal'; notes?: Record<string, string> } = {
-        speed: 'optimum',
-        notes,
-      };
-      if (typeof amountInPaise === 'number') refundOptions.amount = amountInPaise;
+    const speeds: Array<'optimum' | 'normal'> = ['optimum', 'normal'];
+    let lastError: unknown;
+    for (const speed of speeds) {
+      try {
+        const refundOptions: { amount?: number; speed?: 'optimum' | 'normal'; notes?: Record<string, string> } = {
+          speed,
+          notes,
+        };
+        if (typeof amountInPaise === 'number') refundOptions.amount = amountInPaise;
 
-      const refund = await razorpayClient.payments.refund(paymentId, refundOptions);
-      serverLogger.info(
-        `✅ [RAZORPAY] Refund created: ${refund.id} for payment ${paymentId} (${amountInPaise ?? 'full'} paise)`
-      );
-      return refund as RazorpayRefund;
-    } catch (error: unknown) {
-      serverLogger.error("❌ [RAZORPAY] Refund error:", error);
-      const err = asRzpErr(error);
-      throw new Error(
-        `Failed to refund payment ${paymentId}: ${err.error?.description || err.message}`
-      );
+        const refund = await razorpayClient.payments.refund(paymentId, refundOptions);
+        serverLogger.info(
+          `✅ [RAZORPAY] Refund created: ${refund.id} for payment ${paymentId} (${amountInPaise ?? 'full'} paise, speed=${speed})`
+        );
+        return refund as RazorpayRefund;
+      } catch (error: unknown) {
+        lastError = error;
+        const err = asRzpErr(error);
+        // Only fall back on a request-shape rejection (e.g. Instant Refunds
+        // not enabled). Genuine failures (already refunded, insufficient
+        // balance, etc.) will fail the same way on 'normal', so the loop
+        // still surfaces them via the final throw below.
+        if (speed !== speeds[speeds.length - 1]) {
+          serverLogger.warn(
+            `⚠️ [RAZORPAY] Refund speed=${speed} rejected for ${paymentId} (${err.error?.description || err.message}) — retrying with 'normal'`
+          );
+          continue;
+        }
+        serverLogger.error("❌ [RAZORPAY] Refund error:", error);
+      }
     }
+    const err = asRzpErr(lastError);
+    throw new Error(
+      `Failed to refund payment ${paymentId}: ${err.error?.description || err.message}`
+    );
   }
 
   /**

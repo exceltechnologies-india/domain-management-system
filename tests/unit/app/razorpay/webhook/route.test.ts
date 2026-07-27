@@ -143,6 +143,7 @@ interface FakeOrder {
   razorpayPaymentId: string;
   userId: string;
   status: string;
+  amount?: number;
   orderType?: string;
   zohoInvoiceId?: string;
   invoiceNumber?: string;
@@ -163,6 +164,7 @@ function makeOrder(over: Partial<FakeOrder> = {}): FakeOrder {
     razorpayPaymentId: "pending",
     userId: "U1",
     status: "pending",
+    amount: 118000, // paid order → invoiceable (trial/zero-amount guard passes)
     domains: [
       { domainName: "alice.com", price: 1000, itemType: "domain", registrationPeriod: 1 },
     ],

@@ -72,7 +72,9 @@ beforeEach(() => {
 });
 
 const ZOHO_CTX = {
-  order: { _id: "ORDER_DOC_ID", orderId: "ORD_42" } as never,
+  // amount>0 + non-trial orderType so the zero-amount/trial guard passes and
+  // these tests exercise the actual invoice-creation + retry behavior.
+  order: { _id: "ORDER_DOC_ID", orderId: "ORD_42", amount: 50000, orderType: "domain" } as never,
   orderId: "ORD_42",
   razorpay_payment_id: "pay_xyz",
   paymentDetails: { amount: 50000 } as never,
