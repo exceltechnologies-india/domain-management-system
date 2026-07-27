@@ -126,6 +126,8 @@ export async function recordDomainProvisioned(opts: {
   try {
     const user = await loadUser(opts.userId);
     await recordActivity({ activity: "purchase", userId: opts.userId as string, metadata: { orderId: opts.orderId, domain: opts.domainName } });
+    // Mid-journey milestone — a domain landed on the account (scores once per user).
+    await recordActivity({ activity: "domain_added", userId: opts.userId as string, metadata: { orderId: opts.orderId, domain: opts.domainName } });
     await sendMetaServerEvent({
       eventName: "Purchase",
       eventId: `purchase_domain_${opts.orderId}_${opts.domainName}`,

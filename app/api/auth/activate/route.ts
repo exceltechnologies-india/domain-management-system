@@ -4,6 +4,7 @@ import { AuthService } from "@/lib/auth";
 import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { serverLogger } from "@/lib/server-logger";
 import { validatedBody, z } from "@/lib/api-validation";
+import { recordActivity } from "@/lib/services/analytics";
 
 const activateSchema = z.object({
   token: z.string().trim().min(1, "Activation token is required").max(256),
@@ -53,6 +54,11 @@ export async function POST(request: NextRequest) {
     user.activationToken = undefined;
     user.activationTokenExpiry = undefined;
     await user.save();
+
+    // Mid-journey analytics milestone (fire-and-forget; never blocks activation).
+    // Reached only on the genuine first activation — the `isActivated` guard
+    // above returns early on repeat hits.
+    void recordActivity({ activity: "email_verified", userId: user._id });
 
     // Generate JWT token for immediate login
     const jwtToken = AuthService.generateToken({

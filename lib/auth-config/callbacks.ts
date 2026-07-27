@@ -13,6 +13,8 @@ import {
   getUserProfileCompleted,
 } from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
+import { recordActivity } from "@/lib/services/analytics";
+import CustomerActivity from "@/models/CustomerActivity";
 import { updateLastActivity, checkSessionTimeout } from "@/lib/session-activity";
 import { PASSWORD_ROTATION_DAYS } from "@/config/constants";
 import { SOCIAL_PROVIDERS, extractSocialName } from "./helpers";
@@ -161,6 +163,22 @@ export const callbacks = {
 
     if (user && account) {
       await connectDB();
+
+      // Mid-journey milestone: first_login. This branch runs once per login
+      // (user+account only present at sign-in, not on token refresh). Guarded
+      // by an existence check so only the genuine first login records a row,
+      // and fire-and-forget so analytics can never block or break auth.
+      if (user.email) {
+        void (async () => {
+          try {
+            const u = await getUserByEmail(user.email);
+            if (u?._id) {
+              const seen = await CustomerActivity.exists({ userId: u._id, activity: "first_login" });
+              if (!seen) await recordActivity({ activity: "first_login", userId: String(u._id) });
+            }
+          } catch { /* analytics must never break login */ }
+        })();
+      }
 
       // Handle social login user creation/update
       if (SOCIAL_PROVIDERS.includes(account.provider)) {
