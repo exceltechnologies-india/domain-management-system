@@ -164,6 +164,10 @@ const PROVIDERS: ProviderClassifier[] = [
         hint: "A Tokens-flow MIT recurring charge failed. Under the current hard 1-attempt policy, this row should already be in status='abandoned' rather than 'failed' — `status='failed'` rows would only appear if a row was created under the older soft-grace policy (pre-this-commit) or if an operator manually edited the row. Most common root causes: card declined (insufficient funds / blocked card), customer revoked UPI mandate in their bank app, transient Razorpay 500. Open `/admin/recurring-charges` to see the row's `lastError` + pivot to Razorpay dashboard via the shown customerId/tokenId.",
       },
       {
+        needle: /\[MANDATE-REFUND\]|mandate.?validation refund (failed|not issued)|₹2 .*not refunded/i,
+        hint: "A tokens-trial ₹2 mandate-validation charge was NOT refunded — the customer paid ₹2 that should have been reversed (the 'charge-and-reverse' pattern). `refundPayment` now falls back optimum→normal, so a fresh failure here means a genuine refund problem: (a) Instant Refunds disabled AND normal also rejected, (b) a test-mode mandate-registration link-payment Razorpay refuses to refund via API ('invalid request sent'), or (c) insufficient balance. ACTION: open the Razorpay dashboard for the order's razorpayPaymentId and issue the refund manually (the dashboard handles cases the API rejects); the ₹2 sits captured until then. The Order carries mandateRefundStatus='failed'.",
+      },
+      {
         needle: /razorpay|BAD_REQUEST_ERROR|order_.*not_found|webhook.*signature/i,
         hint: "Razorpay API error or webhook signature mismatch. Verify RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET / RAZORPAY_WEBHOOK_SECRET in Secret Manager and that the key is in the right mode (test vs live) for this environment.",
       },
@@ -634,6 +638,49 @@ export async function GET(request: NextRequest) {
       serverLogger.warn(
         `[integration-health] RecurringChargeAttempt query failed: ${rcaErr instanceof Error ? rcaErr.message : String(rcaErr)}`
       );
+    }
+
+    // 5. Orders whose tokens-trial ₹2 mandate-validation refund FAILED.
+    // The webhook mandate handler now stamps `mandateRefundStatus='failed'`
+    // when the reversal doesn't go through (see lib/razorpay.ts refundPayment
+    // + app/razorpay/webhook/route.ts). Surfacing it here means a stuck ₹2
+    // can never go unnoticed — each becomes one Razorpay-provider entry with
+    // the dedicated [MANDATE-REFUND] hint. Order-derived, so it carries full
+    // affectedOrders context (email / amount / payment id).
+    interface LeanedRefundFailedOrder {
+      orderId: string;
+      userEmail?: string;
+      userName?: string;
+      amount: number;
+      createdAt: Date;
+      razorpayPaymentId?: string;
+    }
+    const refundFailedOrders = (await Order.find(
+      {
+        createdAt: { $gte: since },
+        mandateRefundStatus: "failed",
+      },
+      {
+        orderId: 1,
+        userEmail: 1,
+        userName: 1,
+        amount: 1,
+        createdAt: 1,
+        razorpayPaymentId: 1,
+      }
+    )
+      .sort({ createdAt: -1 })
+      .lean()) as unknown as LeanedRefundFailedOrder[];
+
+    for (const o of refundFailedOrders) {
+      record({
+        errorText: `[MANDATE-REFUND] ₹${o.amount} mandate-validation refund FAILED for order ${o.orderId} (payment=${o.razorpayPaymentId || "unknown"}) — the ₹${o.amount} is still captured and must be refunded manually from the Razorpay dashboard.`,
+        orderId: o.orderId,
+        userEmail: o.userEmail,
+        userName: o.userName,
+        amount: o.amount,
+        createdAt: o.createdAt,
+      });
     }
 
     // Roll up buckets into provider groups. `unknown` is always present as

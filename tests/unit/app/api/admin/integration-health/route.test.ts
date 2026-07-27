@@ -119,6 +119,43 @@ describe("/api/admin/integration-health — RecurringChargeAttempt source", () =
     expect(razorpay.patterns[0].hint).toMatch(/hard 1-attempt policy/i);
   });
 
+  it("order with mandateRefundStatus='failed' → razorpay card with [MANDATE-REFUND] hint + affectedOrder context", async () => {
+    const now = new Date();
+    // Order.find calls in route order: (1) failed-domains, (2) zoho-stuck,
+    // (3) mandate-refund-failed. Inject empty for the first two, data for #3.
+    OrderFind.mockReset()
+      .mockReturnValueOnce(chainable([])) // failed domains
+      .mockReturnValueOnce(chainable([])) // zoho creation_failed
+      .mockReturnValueOnce(
+        chainable([
+          {
+            orderId: "ord_trial_1",
+            userEmail: "trial@x.com",
+            userName: "Trial User",
+            amount: 2,
+            createdAt: now,
+            razorpayPaymentId: "pay_STUCK2",
+          },
+        ])
+      );
+    const res = await GET(makeReq());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const razorpay = body.providers.find(
+      (p: { id: string }) => p.id === "razorpay"
+    );
+    expect(razorpay).toBeDefined();
+    expect(razorpay.totalErrors).toBe(1);
+    const pattern = razorpay.patterns[0];
+    expect(pattern.hint).toMatch(/mandate-validation charge was NOT refunded/i);
+    expect(pattern.affectedOrders[0]).toMatchObject({
+      orderId: "ord_trial_1",
+      userEmail: "trial@x.com",
+      amount: 2,
+    });
+    expect(pattern.exemplarMessage).toContain("pay_STUCK2");
+  });
+
   it("abandoned RecurringChargeAttempt → razorpay provider card with abandonment hint", async () => {
     const now = new Date();
     RCAFind.mockReturnValueOnce(
