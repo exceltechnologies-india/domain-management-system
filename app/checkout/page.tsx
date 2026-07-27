@@ -265,12 +265,18 @@ export default function CheckoutPage() {
             toast.error(verifyData.error || 'Payment verification failed');
             setIsVerifying(false);
             setIsProcessing(false);
+            // Release the payment-in-progress lock so the CTA is usable again
+            // (retry / navigate away). Without this the button stays stuck on
+            // "Payment in Progress..." forever after a verify failure — even
+            // though the charge may have already succeeded server-side.
+            setIsPaymentInProgress(false);
           }
         } catch (error) {
           logger.error("Verification failed:", error);
           toast.error("An error occurred during verification.");
           setIsVerifying(false);
           setIsProcessing(false);
+          setIsPaymentInProgress(false);
         }
       };
 
