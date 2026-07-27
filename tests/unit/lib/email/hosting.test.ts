@@ -115,7 +115,7 @@ describe("sendHostingProvisionedEmail", () => {
       expect(html).toMatch(/re-subscribe/i);
     });
 
-    it("mandateMode='tokens' + isTrial=true → callout ABSENT (trial email already explains day-15 billing; a 2nd scary warning is alarming on a ₹0 trial)", async () => {
+    it("mandateMode='tokens' + isTrial=true → payment-validity callout ABSENT (no scary warning on a ₹0 trial)", async () => {
       await sendHostingProvisionedEmail("u@e.test", "Ada", {
         ...DETAILS,
         mandateMode: "tokens",
@@ -124,7 +124,7 @@ describe("sendHostingProvisionedEmail", () => {
       const html = sendEmailMock.mock.calls[0][0].html;
       expect(html).not.toContain("Keep Your Payment Method Valid");
       expect(html).not.toContain("single charge fails");
-      // The trial banner + day-15 explainer still render.
+      // The celebratory trial banner still renders.
       expect(html).toMatch(/15-Day Free Trial is Active/i);
     });
 
@@ -181,7 +181,7 @@ describe("sendHostingProvisionedEmail", () => {
       expect(opts.subject).toBe("Hosting Account Provisioned Successfully");
     });
 
-    it("isTrial=true → header + banner + day-15 explainer + amber gradient all present", async () => {
+    it("isTrial=true → header + banner + amber gradient present; day-15 billing explainer REMOVED (operator request 2026-07-27)", async () => {
       await sendHostingProvisionedEmail("u@e.test", "Ada", {
         ...DETAILS,
         isTrial: true,
@@ -191,8 +191,10 @@ describe("sendHostingProvisionedEmail", () => {
       expect(html).toContain("Your Free Trial is Live!");
       expect(html).toContain("Your 15-Day Free Trial is Active");
       expect(html).toMatch(/free until.*18 July 2026/);
-      expect(html).toMatch(/What happens at day 15/i);
-      expect(html).toMatch(/hosting will be suspended/i);
+      // Day-15 billing/suspension explainer intentionally dropped — the
+      // pre-expiry reminder email carries those details when relevant.
+      expect(html).not.toMatch(/What happens at day 15/i);
+      expect(html).not.toMatch(/hosting will be suspended/i);
       expect(html).toContain("Start Using Your Trial");
       // Amber gradient signals trial branch — non-trial uses blue.
       expect(html).toContain("#F59E0B");

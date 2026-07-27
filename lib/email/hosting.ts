@@ -44,23 +44,20 @@ export async function sendHostingProvisionedEmail(
     .map((ns) => `<li>${ns}</li>`)
     .join("");
 
-  // Trial-specific banner + day-15 explainer. Replaces the generic
-  // "Service Activated" green box when isTrial=true. Copy sets the
-  // expectation that no charge happens today + explains what to expect
-  // at day 15 + gives the customer a direct link back to convert. The
-  // Tokens-flow "1-attempt policy" callout still applies on top when
-  // mandateMode='tokens' (a trial via CIT-auth — ₹2 refunded already
-  // but the mandate is stored + will be charged at day 15).
+  // Trial-specific banner. Replaces the generic "Service Activated" green
+  // box when isTrial=true. Copy sets the expectation that no charge happens
+  // today + gives the customer a direct link back to convert. The detailed
+  // "what happens at day 15" billing explainer was removed per operator
+  // request (2026-07-27) — kept the celebratory activation message only; the
+  // day-15 reminder email (2 days before expiry) carries the conversion +
+  // suspension details when they're actually relevant.
   const trialBanner = isTrial
     ? `
         <div style="background-color: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 24px; margin: 20px 0;">
           <h3 style="color: #92400E; margin: 0 0 12px 0; font-size: 18px;">🎉 Your 15-Day Free Trial is Active</h3>
-          <p style="color: #78350F; margin: 0 0 12px 0; font-size: 14px; line-height: 1.6;">
+          <p style="color: #78350F; margin: 0; font-size: 14px; line-height: 1.6;">
             Your <strong>${planLabel}</strong> hosting for <strong>${hostingDetails.domainName}</strong> is now live${trialEndsLabel ? ` — free until <strong>${trialEndsLabel}</strong>` : ""}.
             Explore every feature: upload your site, create email accounts, install WordPress, set up databases — no charges today.
-          </p>
-          <p style="color: #78350F; margin: 0; font-size: 14px; line-height: 1.6;">
-            <strong>What happens at day 15:</strong> we'll email you a reminder 2 days before your trial ends. You can convert to a paid plan anytime from your dashboard — the yearly Starter plan is ₹599.88/year (~₹49.99/month). If you don't convert, your hosting will be suspended (your data stays on the server; convert anytime to restore).
           </p>
         </div>
       `
