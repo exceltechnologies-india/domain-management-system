@@ -110,6 +110,35 @@ export default function HostingLanding({ plans }: { plans: LandingPlan[] }) {
   useEffect(() => {
     setTIndex((i) => Math.min(i, maxT));
   }, [maxT]);
+
+  // Cross-page hash scroll (e.g. arriving at /#pricing from the nav's "Start
+  // Free Trial" on another page). Next.js App Router tries to scroll to the
+  // hash before this client-rendered landing has fully mounted + laid out
+  // (hero, lazy sections, images all shift the page), so the browser lands at
+  // the hero instead of the target section. Re-run the scroll ourselves after
+  // paint, retrying a few times until the element exists and its position is
+  // stable (scroll-mt-* on the section supplies the fixed-navbar offset).
+  useEffect(() => {
+    const id = window.location.hash.slice(1);
+    if (!id) return;
+    let tries = 0;
+    let lastTop = Number.NaN;
+    const tick = () => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const top = el.getBoundingClientRect().top;
+        // Stop once the target's position stops shifting (layout settled) or
+        // after a bounded number of attempts (~1.2s).
+        if (Math.abs(top - lastTop) < 2) return;
+        lastTop = top;
+      }
+      if (tries++ < 12) setTimeout(tick, 100);
+    };
+    // Defer past the first paint so the sections below the fold have mounted.
+    const t = setTimeout(tick, 60);
+    return () => clearTimeout(t);
+  }, []);
   useEffect(() => {
     if (maxT === 0) return;
     const id = setInterval(() => setTIndex((i) => (i >= maxT ? 0 : i + 1)), 4500);
