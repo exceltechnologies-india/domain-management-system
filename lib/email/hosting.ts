@@ -166,3 +166,52 @@ export async function sendHostingProvisionedEmail(
   `;
   return sendEmail({ to: userEmail, subject, html });
 }
+
+/**
+ * Confirmation that a customer cancelled their free trial. Sent (best-effort)
+ * from POST /api/user/hosting/cancel-trial after the hosting is terminated,
+ * the DA user suspended, and (Tokens-flow) the mandate token revoked. This is
+ * a service/transactional email (account state change), not marketing.
+ */
+export async function sendHostingTrialCancelledEmail(
+  userEmail: string,
+  userName: string,
+  details: { domainName: string }
+): Promise<boolean> {
+  const subject = `Your free trial has been cancelled — ${details.domainName}`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+      <div style="background: linear-gradient(135deg, #6b7280, #4b5563); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
+        <h1 style="margin: 0; font-size: 22px; font-weight: bold;">Free Trial Cancelled</h1>
+      </div>
+
+      <div style="padding: 30px; background-color: #ffffff;">
+        <p style="font-size: 16px; color: #374151; margin-bottom: 20px;">Hello ${userName},</p>
+
+        <p style="font-size: 14px; color: #374151; line-height: 1.6; margin: 0 0 16px 0;">
+          Your 15-day free trial for <strong>${details.domainName}</strong> has been cancelled and the hosting has been terminated. <strong>You have not been charged</strong>, and no future payment will be taken — your saved payment mandate has been cancelled.
+        </p>
+
+        <div style="background-color: #f3f4f6; border-radius: 8px; padding: 16px 20px; margin: 20px 0;">
+          <p style="color: #4b5563; margin: 0; font-size: 14px; line-height: 1.6;">
+            <strong>What this means:</strong> the hosting account is now suspended and won't renew. If you signed up a website, its files are no longer served. Nothing further is required from you.
+          </p>
+        </div>
+
+        <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin: 16px 0 0 0;">
+          Changed your mind or cancelled by accident? Reach out to us at
+          <a href="mailto:${SUPPORT_EMAIL}" style="color: #1A73E8;">${SUPPORT_EMAIL}</a> and we'll help you get set up again.
+        </p>
+      </div>
+
+      <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
+        <p style="margin: 0; font-size: 14px; color: #6b7280;">
+          Best regards,<br>
+          <strong>Anutech Digital Private Limited Team</strong>
+        </p>
+        <p style="color: #9ca3af; margin: 8px 0 0 0; font-size: 11px;">© ${new Date().getFullYear()} Anutech Digital Private Limited. All rights reserved.</p>
+      </div>
+    </div>
+  `;
+  return sendEmail({ to: userEmail, subject, html });
+}

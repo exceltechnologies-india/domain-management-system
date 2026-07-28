@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { findUserHostingById } from "@/lib/services/hostings";
 import { RazorpayService } from "@/lib/razorpay";
 import { DirectAdminService } from "@/lib/directadmin";
+import { EmailService } from "@/lib/email";
 import { AuthService } from "@/lib/auth";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
@@ -94,6 +95,19 @@ export async function POST(request: NextRequest) {
     await hosting.save();
 
     serverLogger.info(`[cancel-trial] Trial terminated for hosting ${hostingId} (user ${user.email})`);
+
+    // Cancellation confirmation email — service/transactional (account state
+    // change), so it always sends regardless of marketing opt-out. Best-effort:
+    // a mail failure must never fail the cancellation the customer just made.
+    void EmailService.sendHostingTrialCancelledEmail(
+      user.email,
+      user.firstName || "there",
+      { domainName: hosting.domainName },
+    ).catch((e) => {
+      serverLogger.error(
+        `[cancel-trial] Failed to send cancellation email to ${user.email}: ${e instanceof Error ? e.message : String(e)}`
+      );
+    });
 
     return secureJsonResponse({ success: true });
   } catch (error: unknown) {

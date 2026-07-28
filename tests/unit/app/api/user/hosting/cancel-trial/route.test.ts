@@ -58,6 +58,11 @@ vi.mock("@/lib/directadmin", () => ({
   DirectAdminService: { suspendUser },
 }));
 
+const sendHostingTrialCancelledEmail = vi.hoisted(() => vi.fn().mockResolvedValue(true));
+vi.mock("@/lib/email", () => ({
+  EmailService: { sendHostingTrialCancelledEmail },
+}));
+
 vi.mock("@/lib/server-logger", () => ({
   serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
@@ -120,6 +125,18 @@ describe("Tokens-flow trial: revokes the stored mandate token", () => {
     expect(cancelSubscription).not.toHaveBeenCalled();
     expect(h.status).toBe("terminated");
     expect((h as { razorpayTokenId?: string }).razorpayTokenId).toBeUndefined();
+  });
+
+  it("sends the cancellation confirmation email (best-effort) with (email, firstName, {domainName})", async () => {
+    const h = trial({ domainName: "jaketest.com", firstName: undefined });
+    findUserHostingById.mockResolvedValueOnce(h);
+    const res = await POST(makeReq({ hostingId: VALID_ID }));
+    expect(res.status).toBe(200);
+    expect(sendHostingTrialCancelledEmail).toHaveBeenCalledWith(
+      "alice@example.com",
+      expect.any(String),
+      { domainName: "jaketest.com" },
+    );
   });
 
   it("token revoke failure does NOT block termination (best-effort)", async () => {
