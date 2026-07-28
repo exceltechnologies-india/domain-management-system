@@ -175,6 +175,14 @@ export default function UserSettings() {
   const [totpShowDisablePassword, setTotpShowDisablePassword] = useState(false);
   const [totpIsLoading, setTotpIsLoading] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  // Per-section dirty flags for the Profile tab so each card's "Save Changes"
+  // only lights up for ITS own edits (name vs contact), and a single save
+  // spinner shows on the clicked card only — not both. (The whole user record
+  // is still persisted in one call; the WhatsApp number is required by the
+  // server, so we can't send an identity-only payload.)
+  const [identityDirty, setIdentityDirty] = useState(false);
+  const [contactDirty, setContactDirty] = useState(false);
+  const [savingSection, setSavingSection] = useState<'identity' | 'contact' | null>(null);
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -266,6 +274,23 @@ export default function UserSettings() {
   useEffect(() => {
     if (savedUserRef.current === null) return;
     setIsDirty(JSON.stringify(user) !== savedUserRef.current || !!passwordData.newPassword || !!passwordData.currentPassword);
+    // Per-section dirty: compare only each card's own fields against the
+    // last-saved snapshot so Personal Information and Contact Numbers light up
+    // (and clear) independently.
+    try {
+      const saved = JSON.parse(savedUserRef.current);
+      setIdentityDirty(
+        !!user && ((user.firstName || '') !== (saved.firstName || '') || (user.lastName || '') !== (saved.lastName || '')),
+      );
+      setContactDirty(
+        !!user && (
+          (user.whatsappNumber || '') !== (saved.whatsappNumber || '') ||
+          (user.phone || '') !== (saved.phone || '') ||
+          user.whatsappOptOut !== saved.whatsappOptOut ||
+          user.emailOptOut !== saved.emailOptOut
+        ),
+      );
+    } catch { /* snapshot not parseable yet — leave section flags as-is */ }
   }, [user, passwordData]);
 
   useEffect(() => {
@@ -352,7 +377,7 @@ export default function UserSettings() {
     setIsSaving(false);
   };
 
-  const handleUpdateProfile = async (updatedUser: Partial<User>) => {
+  const handleUpdateProfile = async (updatedUser: Partial<User>, section: 'identity' | 'contact' | null = null) => {
     // WhatsApp number is REQUIRED (used for renewal reminders + marketing).
     // The phone number is optional — it auto-fills from WhatsApp (here and on
     // the server) so one number covers both.
@@ -366,6 +391,7 @@ export default function UserSettings() {
     setWhatsappError('');
     try {
       setIsSaving(true);
+      setSavingSection(section);
       const profileData = { ...updatedUser, phoneCc: '+91', address: { ...updatedUser.address, country: 'IN' } };
       const result = await apiClient.put<{ user?: Record<string, unknown> & { profileCompleted?: boolean } }>('/api/v1/user/settings', { profile: profileData });
       if (result.ok) {
@@ -415,7 +441,7 @@ export default function UserSettings() {
         toast.error(result.error.message || 'Failed to update profile');
       }
     } catch { toast.error('Failed to update profile'); }
-    finally { setIsSaving(false); }
+    finally { setIsSaving(false); setSavingSection(null); }
   };
 
   const handleDetectLocation = () => {
@@ -539,7 +565,7 @@ export default function UserSettings() {
                         <p className="text-xs text-gray-400 mt-1">Email address cannot be changed</p>
                       </div>
                     </div>
-                    <SaveRow isDirty={isDirty} isSaving={isSaving} onClick={() => handleUpdateProfile(user)} />
+                    <SaveRow isDirty={identityDirty} isSaving={savingSection === 'identity'} onClick={() => handleUpdateProfile(user, 'identity')} />
                   </SectionCard>
 
                   {/* Contact */}
@@ -643,7 +669,7 @@ export default function UserSettings() {
                         </label>
                       </div>
                     </div>
-                    <SaveRow isDirty={isDirty} isSaving={isSaving} onClick={() => handleUpdateProfile(user)} />
+                    <SaveRow isDirty={contactDirty} isSaving={savingSection === 'contact'} onClick={() => handleUpdateProfile(user, 'contact')} />
                   </SectionCard>
                 </>
               )}
