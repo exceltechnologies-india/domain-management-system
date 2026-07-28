@@ -140,7 +140,13 @@ export function addSecurityHeaders(
       "worker-src 'self' blob: data: https://challenges.cloudflare.com https://*.cloudflare.com https://www.google.com https://recaptcha.net",
       "object-src 'none'",
       "base-uri 'self'",
-      "form-action 'self' https://api.razorpay.com https://checkout.razorpay.com https://*.razorpay.com https://accounts.google.com",
+      // www.facebook.com: the Meta Pixel (fbevents.js) falls back to submitting
+      // a hidden <form> to https://www.facebook.com/tr/ when its img/fetch
+      // beacon can't be used; without it in form-action the browser blocks the
+      // event (CSP "form-action 'self' …" violation in the console) and the
+      // Pixel event is lost. connect-src/img-src/script-src already allow
+      // Facebook for the Pixel, so this just completes the set.
+      "form-action 'self' https://api.razorpay.com https://checkout.razorpay.com https://*.razorpay.com https://accounts.google.com https://www.facebook.com",
       // Prevents this page from being embedded in foreign iframes (clickjacking).
       // Razorpay loads its checkout as a frame inside our page — that is covered by frame-src above,
       // not by frame-ancestors. SAMEORIGIN is safe here.
