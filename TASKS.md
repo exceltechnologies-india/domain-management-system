@@ -1,6 +1,6 @@
 # Domain Management Portal — Tasks
 
-**Last updated:** 28 Jul 2026 (revision `dms-00430-8v7` LIVE — EMAIL-ICONS-PERFECTED + GSTIN-REMOVED: profile-completion feature icons switched from table-based badges (rendered oval) to div circles with equal width/height/line-height for a perfect round shape; removed "GSTIN: 07ABDCA0298H1ZP" from every email footer (4 spots across auth.ts + domain.ts). A follow-up dynamic-copyright-year fix (auth footers hardcoded "© 2024" → `getFullYear()`) is deploying next. Follows `dms-00429-b65`.
+**Last updated:** 28 Jul 2026 (revision `dms-00431-4mf` LIVE — EMAIL-COPYRIGHT-YEAR: auth email footers hardcoded "© 2024" → `${new Date().getFullYear()}` (now 2026+). Bundles with `dms-00430-8v7` (email icons perfected to true div-circles + "GSTIN: 07ABDCA0298H1ZP" removed from every email footer). Follows `dms-00429-b65`.
 
 **Prior update:** 28 Jul 2026 (revision `dms-00429-b65` LIVE — PROFILE-EMAIL-ICONS: the 🛒/📊/⚙️ feature icons in the "Complete Your Profile" email were washed out on their solid medium-green circles; moved to a light emerald circle + green ring so they read clearly, still on-brand. Follows `dms-00428-975`.
 
@@ -395,7 +395,7 @@ Operator wants the app rebranded to the official **Anutech Digital** logo + favi
 
 ## Recently Shipped — user-visible improvements
 
-- [x] **EMAIL: dynamic copyright year in auth email footers (was hardcoded 2024)** — Three footers in `lib/email/auth.ts` hardcoded "© 2024"; now use `${new Date().getFullYear()}` (like `domain.ts` already did) so the year is always current (2026+) and never goes stale. Deploying (revision to follow).
+- [x] **EMAIL: dynamic copyright year in auth email footers (was hardcoded 2024)** — Three footers in `lib/email/auth.ts` hardcoded "© 2024"; now use `${new Date().getFullYear()}` (like `domain.ts` already did) so the year is always current (2026+) and never goes stale. Shipped `dms-00431-4mf`.
 
 - [x] **EMAIL: perfected the profile-icon circles + removed GSTIN from all templates** — Two operator asks on the "Complete Your Profile" email. (1) The feature-icon badges (🛒 Checkout Domains / 📊 View Orders / ⚙️ Manage DNS) were table-based, which doesn't enforce a square box, so the circles rendered slightly oval; switched each to a `div` with equal width/height/line-height (64px) → a guaranteed perfect circle, on a light emerald (`#ecfdf5`) fill with an emerald-400 ring + a larger 30px emoji (`mso-line-height-rule` for Outlook). (2) Removed the "GSTIN: 07ABDCA0298H1ZP" line from **every** email footer — 4 occurrences across `auth.ts` (welcome + 2 footers) + `domain.ts`. Verified by sending the real template to a test inbox via the actual production SMTP. Email tests green (the 1 pre-existing `transporter.test.ts` failure is unrelated — fails identically on HEAD). Shipped `dms-00430-8v7`.
 
