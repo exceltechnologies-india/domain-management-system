@@ -351,7 +351,7 @@ export async function sendProfileCompletionEmail(
             <table style="width: 100%; max-width: 500px; margin: 0 auto; border-collapse: collapse;">
               <tr>
                 <td style="text-align: center; vertical-align: top; padding: 0 10px; width: 33.33%;">
-                  <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="width: 60px; height: 60px; margin: 0 auto 8px; background: #10b981; border-radius: 50%;">
+                  <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="width: 60px; height: 60px; margin: 0 auto 8px; background: #d1fae5; border: 2px solid #10b981; border-radius: 50%;">
                     <tr>
                       <td align="center" style="text-align: center; vertical-align: middle; height: 60px; width: 60px; padding: 0;">
                         <span style="font-size: 28px; line-height: 60px; display: block; height: 60px;">🛒</span>
@@ -361,7 +361,7 @@ export async function sendProfileCompletionEmail(
                   <p style="color: #374151; margin: 0; font-size: 12px; font-weight: bold; text-align: center;">Checkout Domains</p>
                 </td>
                 <td style="text-align: center; vertical-align: top; padding: 0 10px; width: 33.33%;">
-                  <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="width: 60px; height: 60px; margin: 0 auto 8px; background: #10b981; border-radius: 50%;">
+                  <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="width: 60px; height: 60px; margin: 0 auto 8px; background: #d1fae5; border: 2px solid #10b981; border-radius: 50%;">
                     <tr>
                       <td align="center" style="text-align: center; vertical-align: middle; height: 60px; width: 60px; padding: 0;">
                         <span style="font-size: 28px; line-height: 60px; display: block; height: 60px;">📊</span>
@@ -371,7 +371,7 @@ export async function sendProfileCompletionEmail(
                   <p style="color: #374151; margin: 0; font-size: 12px; font-weight: bold; text-align: center;">View Orders</p>
                 </td>
                 <td style="text-align: center; vertical-align: top; padding: 0 10px; width: 33.33%;">
-                  <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="width: 60px; height: 60px; margin: 0 auto 8px; background: #10b981; border-radius: 50%;">
+                  <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="width: 60px; height: 60px; margin: 0 auto 8px; background: #d1fae5; border: 2px solid #10b981; border-radius: 50%;">
                     <tr>
                       <td align="center" style="text-align: center; vertical-align: middle; height: 60px; width: 60px; padding: 0;">
                         <span style="font-size: 28px; line-height: 60px; display: block; height: 60px;">⚙️</span>
