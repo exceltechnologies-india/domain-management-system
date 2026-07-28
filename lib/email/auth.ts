@@ -78,7 +78,7 @@ export async function sendPasswordResetEmail(
         </div>
         <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
           <p style="color: #6b7280; margin: 0; font-size: 14px;">Best regards,<br>Anutech Digital Private Limited Team</p>
-          <p style="color: #9ca3af; margin: 5px 0 0 0; font-size: 12px;">© 2024 Anutech Digital Private Limited. All rights reserved.</p>
+          <p style="color: #9ca3af; margin: 5px 0 0 0; font-size: 12px;">© ${new Date().getFullYear()} Anutech Digital Private Limited. All rights reserved.</p>
         </div>
       </div>
     </body>
@@ -371,7 +371,7 @@ export async function sendProfileCompletionEmail(
             This email was sent to ${userEmail}. If you have any questions, please contact our support team at <a href="mailto:${SUPPORT_EMAIL}" style="color: #10b981; font-weight: bold; text-decoration: none;">${SUPPORT_EMAIL}</a>.
           </p>
           <p style="color: #9ca3af; margin: 5px 0 0 0; font-size: 12px;">
-            © 2024 Anutech Digital Private Limited. All rights reserved.
+            © ${new Date().getFullYear()} Anutech Digital Private Limited. All rights reserved.
           </p>
         </div>
       </div>
@@ -502,7 +502,7 @@ export async function sendActivationEmail(
             This email was sent to ${userEmail}. If you didn't create an account, please ignore this email.
           </p>
           <p style="color: #9ca3af; margin: 5px 0 0 0; font-size: 12px;">
-            © 2024 Anutech Digital Private Limited. All rights reserved.
+            © ${new Date().getFullYear()} Anutech Digital Private Limited. All rights reserved.
           </p>
         </div>
       </div>
