@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Server, Plus, RefreshCw, CheckCircle, AlertTriangle, Clock, Shield, HardDrive, Wifi, Settings, RotateCcw } from 'lucide-react';
+import { Server, Plus, RefreshCw, CheckCircle, AlertTriangle, Clock, Shield, HardDrive, Wifi, Settings } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useSWR from 'swr';
 import { fetcher } from '@/lib/fetcher';
@@ -407,33 +407,13 @@ export default function HostingPage() {
             />
           )}
         </div>
+        {/* Auto-renewal is intentionally NOT shown to regular users: for
+            mandate-billed plans it's always on (the saved Razorpay mandate
+            renews automatically) and not something a customer toggles — to stop
+            future billing they cancel the plan. The user-facing auto-renew
+            toggle was removed on operator request. Enforcement still lives on
+            the API (rejects autoRenew=false for subscription plans). */}
         <div className="flex items-center gap-4 mt-1 md:mt-0 pt-2 md:pt-0 border-t md:border-0 border-gray-200/60">
-          {/* Auto-Renewal — ALWAYS ON for mandate-billed (subscription/tokens)
-              plans and NOT user-toggleable: the saved payment mandate renews
-              the plan automatically. Rendered as a locked ON indicator; to stop
-              future billing the customer cancels the plan (via Support), not by
-              flipping this off. The user auto-renew API also rejects turning it
-              off for subscription plans (defence-in-depth). */}
-          <div className="flex items-center gap-2">
-            <RotateCcw className="h-3 w-3 text-gray-400 flex-shrink-0" />
-            <span className="whitespace-nowrap">Auto-Renewal:</span>
-            {hostingStats.billingType === 'subscription' ? (
-              <span
-                className="relative inline-flex h-4 w-8 flex-shrink-0 rounded-full border-2 border-transparent bg-green-500 cursor-not-allowed opacity-95"
-                title="Auto-renewal is always on for this plan — your saved payment method renews it automatically. To stop future billing, cancel the plan (contact Support)."
-                aria-label="Auto-renewal on (always on for this plan)"
-              >
-                <span className="pointer-events-none inline-block h-3 w-3 translate-x-4 transform rounded-full bg-white shadow" />
-              </span>
-            ) : (
-              <span
-                className="text-gray-400 cursor-default"
-                title="Manual billing — renew from your dashboard when it's due"
-              >
-                Manual
-              </span>
-            )}
-          </div>
           <div className="flex items-center gap-1">
             DA User: <span className="font-mono font-medium text-gray-700 truncate max-w-[150px] sm:max-w-[200px]">{hostingStats.username}</span>
           </div>
