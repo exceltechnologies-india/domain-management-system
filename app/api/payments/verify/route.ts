@@ -69,14 +69,14 @@ const verifyPaymentSchema = z
       message: "Payment verification data is required",
       path: ["razorpay_order_id"],
     }
-  )
-  .refine(
-    (d) => Array.isArray(d.cartItems) && d.cartItems.length > 0,
-    {
-      message: "Cart items are required",
-      path: ["cartItems"],
-    }
   );
+  // NOTE: cartItems is NOT required. The pending-order path derives its items
+  // from the persisted order's `domains` (not the request body — see
+  // finalizePendingOrder), and the Tokens-flow trial is finalised entirely by
+  // the webhook. Requiring a non-empty cartItems here was rejecting the
+  // Tokens-trial /verify round-trip (the checkout may post an empty/omitted
+  // cart) with a 400 that read as "verification failed" even though the trial
+  // had already been provisioned server-side.
 
 export const dynamic = "force-dynamic";
 
@@ -109,7 +109,6 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
       razorpay_signature,
       cartItems: validatedCartItems,
     } = validation.data;
-    // Refine guarantees `validatedCartItems` is a non-empty array here.
     cartItems = (validatedCartItems ?? []) as CartItem[];
 
     // Mirror to outer-scope refs so the catch handler can pass real
@@ -119,17 +118,20 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
     razorpayOrderIdOuter = razorpay_order_id;
     razorpayPaymentIdOuter = razorpay_payment_id;
 
-    // 1) Verify signature + status + order/subscription match
-    const verifyResult = await verifyRazorpayPayment({
-      razorpay_order_id,
-      razorpay_subscription_id,
-      razorpay_payment_id,
-      razorpay_signature,
-    });
-    if (!verifyResult.ok) return verifyResult.response;
-    const { paymentDetails } = verifyResult;
-
-    // 2) Early-exit for already-completed / in-progress orders by razorpay_order_id
+    // 0) Tokens-flow trial short-circuit — BEFORE signature/amount verification.
+    // The ₹2 CIT mandate auth + refund + token storage + Hosting creation + DA
+    // provisioning are all done by the /razorpay/webhook `payment.captured`
+    // handler, which is authenticated by RAZORPAY_WEBHOOK_SECRET and is the
+    // authoritative, idempotent verifier for mandates. The recurring-mandate
+    // Razorpay Checkout does NOT hand the client a usable HMAC signature, so
+    // running the normal signature/amount checks here rejects the round-trip
+    // with a 400 ("verification failed") even though the trial is already
+    // provisioned. We only need to confirm the caller OWNS the order — the
+    // webhook did the real verification. Covers both the race-won ('completed')
+    // and race-lost ('pending') states. See dms-00423 (first attempt) — this
+    // moves the check ahead of verifyRazorpayPayment so it can't 400 first.
+    // Look the order up ONCE, up front, so both the tokens-trial short-circuit
+    // and the normal flow below reuse it (no double DB read).
     const existingOrder = razorpay_order_id
       ? await getOrderByRazorpayOrderId(razorpay_order_id)
       : null;
@@ -148,23 +150,13 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
       );
     }
 
-    // Tokens-flow trial mandate: the ₹2 CIT authorization + refund + token
-    // storage + Hosting creation + DA provisioning all happen in the
-    // /razorpay/webhook `payment.captured` handler (authenticated via
-    // RAZORPAY_WEBHOOK_SECRET) — that path is authoritative and idempotent.
-    // The frontend still round-trips through /verify to get a user-facing
-    // confirmation, but it must NOT run the normal order-finalisation here
-    // (which would double-provision / mis-handle the ₹0 trial line + ₹2
-    // mandate amount). Return a graceful "provisioning in progress" and let
-    // the webhook finish. Covers any status (pending if /verify beat the
-    // webhook, completed if it didn't).
     if (
       existingOrder &&
       existingOrder.orderType === "hosting_trial" &&
       existingOrder.mandateMode === "tokens"
     ) {
       serverLogger.info(
-        `[PAYMENT-VERIFY] Tokens-trial mandate for order ${existingOrder.orderId} (status=${existingOrder.status}) — deferring to webhook, returning success`
+        `[PAYMENT-VERIFY] Tokens-trial mandate for order ${existingOrder.orderId} (status=${existingOrder.status}) — webhook is authoritative; returning success`
       );
       return NextResponse.json({
         success: true,
@@ -173,6 +165,16 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
         domainRegistrationStatus: "processing",
       });
     }
+
+    // 1) Verify signature + status + order/subscription match (non-trial flows).
+    const verifyResult = await verifyRazorpayPayment({
+      razorpay_order_id,
+      razorpay_subscription_id,
+      razorpay_payment_id,
+      razorpay_signature,
+    });
+    if (!verifyResult.ok) return verifyResult.response;
+    const { paymentDetails } = verifyResult;
 
     if (existingOrder) {
       if (existingOrder.status === "completed") {

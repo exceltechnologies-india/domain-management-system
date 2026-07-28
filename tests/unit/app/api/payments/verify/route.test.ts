@@ -234,8 +234,9 @@ describe("Schema validation", () => {
     expect(res.status).toBeGreaterThanOrEqual(400);
   });
 
-  it("missing cartItems → validation rejected with 'Cart items are required'", async () => {
+  it("missing cartItems → ACCEPTED (cartItems is now optional; pending path derives items from the order, tokens trial from the webhook)", async () => {
     getUserFromRequest.mockResolvedValueOnce(validUser);
+    getOrderByRazorpayOrderId.mockResolvedValueOnce({ orderId: "ORD_C", userId: "U1", status: "completed" });
     const res = await POST(
       makeReq({
         razorpay_order_id: "order_1",
@@ -243,13 +244,14 @@ describe("Schema validation", () => {
         razorpay_signature: "sig_1",
       })
     );
-    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(res.status).toBe(200);
   });
 
-  it("empty cartItems array → validation rejected", async () => {
+  it("empty cartItems array → ACCEPTED (optional)", async () => {
     getUserFromRequest.mockResolvedValueOnce(validUser);
+    getOrderByRazorpayOrderId.mockResolvedValueOnce({ orderId: "ORD_C", userId: "U1", status: "completed" });
     const res = await POST(makeReq({ ...validBody, cartItems: [] }));
-    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(res.status).toBe(200);
   });
 });
 
@@ -268,7 +270,11 @@ describe("verifyRazorpayPayment — signature gate", () => {
 
     const res = await POST(makeReq(validBody));
     expect(res).toBe(stubResponse); // identity — response passes through
-    expect(getOrderByRazorpayOrderId).not.toHaveBeenCalled();
+    // NOTE: getOrderByRazorpayOrderId is now called BEFORE verifyRazorpayPayment
+    // (single up-front lookup, reused for the tokens-trial short-circuit), so it
+    // is expected to have run once here — the point of this test is that a
+    // verifyRazorpayPayment failure response is returned verbatim for non-trial
+    // orders.
   });
 
   it("success: continues to existing-order lookup", async () => {
