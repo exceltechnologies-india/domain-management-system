@@ -37,6 +37,21 @@ export async function PATCH(
       );
     }
 
+    // Auto-renewal is MANDATORY for mandate-billed (subscription / tokens)
+    // plans — the saved Razorpay mandate renews them automatically and the UI
+    // shows it as a locked "on". Reject any attempt to turn it off (the UI no
+    // longer offers the toggle, so this defends against a direct API call). To
+    // stop future billing the customer cancels the plan, not auto-renew.
+    if (autoRenew === false && hosting.billingType === "subscription") {
+      return NextResponse.json(
+        {
+          error:
+            "Auto-renewal is required for this plan and can't be turned off. To stop future billing, cancel the plan (contact support).",
+        },
+        { status: 400 }
+      );
+    }
+
     hosting.autoRenew = autoRenew;
     await hosting.save();
 

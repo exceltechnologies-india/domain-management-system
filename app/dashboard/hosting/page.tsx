@@ -80,7 +80,6 @@ export default function HostingPage() {
   const [selectedDomainName, setSelectedDomainName] = useState('');
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [upgradeDomainName, setUpgradeDomainName] = useState('');
-  const [autoRenewLoading, setAutoRenewLoading] = useState<Record<string, boolean>>({});
   const [isCancellingTrial, setIsCancellingTrial] = useState(false);
 
   const {
@@ -159,19 +158,6 @@ export default function HostingPage() {
     setIsCancellingTrial(false);
   };
 
-  const handleAutoRenewToggle = async (hostingStats: HostingStats, newValue: boolean) => {
-    if (!hostingStats.hostingId) return;
-    const key = hostingStats.domain;
-    setAutoRenewLoading(prev => ({ ...prev, [key]: true }));
-    const result = await apiClient.patch(`/api/v1/user/hosting/${hostingStats.hostingId}/auto-renew`, { autoRenew: newValue });
-    if (result.ok) {
-      toast.success(newValue ? 'Auto-renewal enabled' : 'Auto-renewal disabled');
-      void mutate();
-    } else {
-      toast.error(result.error.message || 'Failed to update auto-renewal');
-    }
-    setAutoRenewLoading(prev => ({ ...prev, [key]: false }));
-  };
 
   if (!user || isAuthLoading) {
     return <DashboardLayoutSkeleton><HostingPageSkeleton /></DashboardLayoutSkeleton>;
@@ -422,29 +408,29 @@ export default function HostingPage() {
           )}
         </div>
         <div className="flex items-center gap-4 mt-1 md:mt-0 pt-2 md:pt-0 border-t md:border-0 border-gray-200/60">
-          {/* Auto-Renewal Toggle */}
+          {/* Auto-Renewal — ALWAYS ON for mandate-billed (subscription/tokens)
+              plans and NOT user-toggleable: the saved payment mandate renews
+              the plan automatically. Rendered as a locked ON indicator; to stop
+              future billing the customer cancels the plan (via Support), not by
+              flipping this off. The user auto-renew API also rejects turning it
+              off for subscription plans (defence-in-depth). */}
           <div className="flex items-center gap-2">
             <RotateCcw className="h-3 w-3 text-gray-400 flex-shrink-0" />
             <span className="whitespace-nowrap">Auto-Renewal:</span>
-            {hostingStats.billingType === 'subscription' && hostingStats.hostingId && hostingStats.status === 'active' ? (
-              <button
-                onClick={() => handleAutoRenewToggle(hostingStats, !hostingStats.autoRenew)}
-                disabled={autoRenewLoading[hostingStats.domain]}
-                className={`relative inline-flex h-4 w-8 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:opacity-50 ${
-                  hostingStats.autoRenew ? 'bg-green-500' : 'bg-gray-300'
-                }`}
-                title={hostingStats.autoRenew ? 'Click to disable auto-renewal' : 'Click to enable auto-renewal'}
+            {hostingStats.billingType === 'subscription' ? (
+              <span
+                className="relative inline-flex h-4 w-8 flex-shrink-0 rounded-full border-2 border-transparent bg-green-500 cursor-not-allowed opacity-95"
+                title="Auto-renewal is always on for this plan — your saved payment method renews it automatically. To stop future billing, cancel the plan (contact Support)."
+                aria-label="Auto-renewal on (always on for this plan)"
               >
-                <span className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                  hostingStats.autoRenew ? 'translate-x-4' : 'translate-x-0'
-                }`} />
-              </button>
+                <span className="pointer-events-none inline-block h-3 w-3 translate-x-4 transform rounded-full bg-white shadow" />
+              </span>
             ) : (
               <span
                 className="text-gray-400 cursor-default"
-                title={hostingStats.billingType !== 'subscription' ? 'Set up a subscription plan to enable auto-renewal' : undefined}
+                title="Manual billing — renew from your dashboard when it's due"
               >
-                {hostingStats.billingType !== 'subscription' ? 'Requires subscription' : hostingStats.autoRenew ? 'On' : 'Off'}
+                Manual
               </span>
             )}
           </div>

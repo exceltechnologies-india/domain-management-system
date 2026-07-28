@@ -168,6 +168,40 @@ describe("Status precondition (active only)", () => {
   });
 });
 
+describe("Mandate plans: auto-renewal can't be turned off", () => {
+  it("billingType='subscription' + autoRenew=false → 400; NO save (mandate renews automatically)", async () => {
+    const save = vi.fn().mockResolvedValue(undefined);
+    findUserHostingById.mockResolvedValueOnce({
+      _id: "H1",
+      domainName: "alice.com",
+      status: "active",
+      autoRenew: true,
+      billingType: "subscription",
+      save,
+    });
+    const res = await PATCH(makeReq({ autoRenew: false }), paramsOf("H1"));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/required for this plan|can't be turned off/i);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("billingType='manual' + autoRenew=false → allowed (manual plans have no mandate)", async () => {
+    const save = vi.fn().mockResolvedValue(undefined);
+    findUserHostingById.mockResolvedValueOnce({
+      _id: "H1",
+      domainName: "alice.com",
+      status: "active",
+      autoRenew: true,
+      billingType: "manual",
+      save,
+    });
+    const res = await PATCH(makeReq({ autoRenew: false }), paramsOf("H1"));
+    expect(res.status).toBe(200);
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("Save + response shape", () => {
   it("autoRenew=true applied; response carries success + autoRenew + billingType only", async () => {
     const captured: { autoRenew?: boolean } = {};
