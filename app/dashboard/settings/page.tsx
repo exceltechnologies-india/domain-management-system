@@ -182,7 +182,11 @@ export default function UserSettings() {
   // server, so we can't send an identity-only payload.)
   const [identityDirty, setIdentityDirty] = useState(false);
   const [contactDirty, setContactDirty] = useState(false);
-  const [savingSection, setSavingSection] = useState<'identity' | 'contact' | null>(null);
+  // Billing tab: Business Details (company/GST) + Address are also two
+  // separate cards, each with its own Save — same per-section treatment.
+  const [businessDirty, setBusinessDirty] = useState(false);
+  const [addressDirty, setAddressDirty] = useState(false);
+  const [savingSection, setSavingSection] = useState<'identity' | 'contact' | 'business' | 'address' | null>(null);
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -290,6 +294,19 @@ export default function UserSettings() {
           user.emailOptOut !== saved.emailOptOut
         ),
       );
+      setBusinessDirty(
+        !!user && ((user.companyName || '') !== (saved.companyName || '') || (user.gstNumber || '') !== (saved.gstNumber || '')),
+      );
+      const a = user?.address || {};
+      const sa = saved.address || {};
+      setAddressDirty(
+        !!user && (
+          (a.line1 || '') !== (sa.line1 || '') ||
+          (a.city || '') !== (sa.city || '') ||
+          (a.state || '') !== (sa.state || '') ||
+          (a.zipcode || '') !== (sa.zipcode || '')
+        ),
+      );
     } catch { /* snapshot not parseable yet — leave section flags as-is */ }
   }, [user, passwordData]);
 
@@ -377,7 +394,7 @@ export default function UserSettings() {
     setIsSaving(false);
   };
 
-  const handleUpdateProfile = async (updatedUser: Partial<User>, section: 'identity' | 'contact' | null = null) => {
+  const handleUpdateProfile = async (updatedUser: Partial<User>, section: 'identity' | 'contact' | 'business' | 'address' | null = null) => {
     // WhatsApp number is REQUIRED (used for renewal reminders + marketing).
     // The phone number is optional — it auto-fills from WhatsApp (here and on
     // the server) so one number covers both.
@@ -702,7 +719,7 @@ export default function UserSettings() {
                         </div>
                       </div>
                     </div>
-                    <SaveRow isDirty={isDirty} isSaving={isSaving} onClick={() => handleUpdateProfile(user)} />
+                    <SaveRow isDirty={businessDirty} isSaving={savingSection === 'business'} onClick={() => handleUpdateProfile(user, 'business')} />
                   </SectionCard>
 
                   <SectionCard>
@@ -768,7 +785,7 @@ export default function UserSettings() {
                         </div>
                       </div>
                     </div>
-                    <SaveRow isDirty={isDirty} isSaving={isSaving} onClick={() => handleUpdateProfile(user)} />
+                    <SaveRow isDirty={addressDirty} isSaving={savingSection === 'address'} onClick={() => handleUpdateProfile(user, 'address')} />
                   </SectionCard>
                 </>
               )}
