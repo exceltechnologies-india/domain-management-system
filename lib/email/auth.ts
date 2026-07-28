@@ -79,7 +79,6 @@ export async function sendPasswordResetEmail(
         <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
           <p style="color: #6b7280; margin: 0; font-size: 14px;">Best regards,<br>Anutech Digital Private Limited Team</p>
           <p style="color: #9ca3af; margin: 5px 0 0 0; font-size: 12px;">© 2024 Anutech Digital Private Limited. All rights reserved.</p>
-          <p style="color: #9ca3af; margin: 5px 0 0 0; font-size: 11px; font-weight: 600;">GSTIN: 07ABDCA0298H1ZP</p>
         </div>
       </div>
     </body>
@@ -351,33 +350,15 @@ export async function sendProfileCompletionEmail(
             <table style="width: 100%; max-width: 500px; margin: 0 auto; border-collapse: collapse;">
               <tr>
                 <td style="text-align: center; vertical-align: top; padding: 0 10px; width: 33.33%;">
-                  <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="width: 60px; height: 60px; margin: 0 auto 8px; background: #d1fae5; border: 2px solid #10b981; border-radius: 50%;">
-                    <tr>
-                      <td align="center" style="text-align: center; vertical-align: middle; height: 60px; width: 60px; padding: 0;">
-                        <span style="font-size: 28px; line-height: 60px; display: block; height: 60px;">🛒</span>
-                      </td>
-                    </tr>
-                  </table>
+                  <div style="width: 64px; height: 64px; line-height: 64px; margin: 0 auto 12px; background-color: #ecfdf5; border: 2px solid #34d399; border-radius: 50%; text-align: center; font-size: 30px; mso-line-height-rule: exactly;">🛒</div>
                   <p style="color: #374151; margin: 0; font-size: 12px; font-weight: bold; text-align: center;">Checkout Domains</p>
                 </td>
                 <td style="text-align: center; vertical-align: top; padding: 0 10px; width: 33.33%;">
-                  <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="width: 60px; height: 60px; margin: 0 auto 8px; background: #d1fae5; border: 2px solid #10b981; border-radius: 50%;">
-                    <tr>
-                      <td align="center" style="text-align: center; vertical-align: middle; height: 60px; width: 60px; padding: 0;">
-                        <span style="font-size: 28px; line-height: 60px; display: block; height: 60px;">📊</span>
-                      </td>
-                    </tr>
-                  </table>
+                  <div style="width: 64px; height: 64px; line-height: 64px; margin: 0 auto 12px; background-color: #ecfdf5; border: 2px solid #34d399; border-radius: 50%; text-align: center; font-size: 30px; mso-line-height-rule: exactly;">📊</div>
                   <p style="color: #374151; margin: 0; font-size: 12px; font-weight: bold; text-align: center;">View Orders</p>
                 </td>
                 <td style="text-align: center; vertical-align: top; padding: 0 10px; width: 33.33%;">
-                  <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="width: 60px; height: 60px; margin: 0 auto 8px; background: #d1fae5; border: 2px solid #10b981; border-radius: 50%;">
-                    <tr>
-                      <td align="center" style="text-align: center; vertical-align: middle; height: 60px; width: 60px; padding: 0;">
-                        <span style="font-size: 28px; line-height: 60px; display: block; height: 60px;">⚙️</span>
-                      </td>
-                    </tr>
-                  </table>
+                  <div style="width: 64px; height: 64px; line-height: 64px; margin: 0 auto 12px; background-color: #ecfdf5; border: 2px solid #34d399; border-radius: 50%; text-align: center; font-size: 30px; mso-line-height-rule: exactly;">⚙️</div>
                   <p style="color: #374151; margin: 0; font-size: 12px; font-weight: bold; text-align: center;">Manage DNS</p>
                 </td>
               </tr>
@@ -391,8 +372,6 @@ export async function sendProfileCompletionEmail(
           </p>
           <p style="color: #9ca3af; margin: 5px 0 0 0; font-size: 12px;">
             © 2024 Anutech Digital Private Limited. All rights reserved.
-            <br>
-            <strong>GSTIN: 07ABDCA0298H1ZP</strong>
           </p>
         </div>
       </div>
@@ -524,8 +503,6 @@ export async function sendActivationEmail(
           </p>
           <p style="color: #9ca3af; margin: 5px 0 0 0; font-size: 12px;">
             © 2024 Anutech Digital Private Limited. All rights reserved.
-            <br>
-            <strong>GSTIN: 07ABDCA0298H1ZP</strong>
           </p>
         </div>
       </div>

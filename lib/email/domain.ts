@@ -285,7 +285,6 @@ export async function sendDomainBookingStatusEmail(
         <p style="margin: 0; font-size: 14px; color: #6b7280; font-weight: 600;">Best regards,</p>
         <p style="margin: 5px 0 0 0; font-size: 14px; color: #6b7280;">Anutech Digital Private Limited Team</p>
         <p style="margin: 15px 0 0 0; font-size: 11px; color: #9ca3af;">© ${new Date().getFullYear()} Anutech Digital Private Limited. All rights reserved.</p>
-        <p style="margin: 5px 0 0 0; font-size: 11px; color: #9ca3af; font-weight: 600;">GSTIN: 07ABDCA0298H1ZP</p>
       </div>
     </div>
   `;
