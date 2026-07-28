@@ -571,6 +571,37 @@ export class RazorpayService {
   }
 
   /**
+   * Revoke (delete) a stored recurring-payment token so the mandate is torn
+   * down cleanly — used when a Tokens-flow trial is cancelled. After this the
+   * token can no longer be used for any merchant-initiated charge.
+   *
+   * Best-effort by design: the caller (cancel-trial) has already terminated
+   * the hosting + set autoRenew=false + billingType=manual, so the
+   * recurring-charge cron won't fire regardless. Revoking the token is the
+   * clean teardown on top of that — a failure here must NOT block cancellation.
+   * Returns true on success, false on failure (already-deleted / not-found /
+   * API error), so the caller can decide whether to still clear the local id.
+   */
+  static async revokeToken(customerId: string, tokenId: string): Promise<boolean> {
+    try {
+      // Razorpay Node SDK: customers.deleteToken(customerId, tokenId).
+      await (razorpayClient.customers as unknown as {
+        deleteToken: (customerId: string, tokenId: string) => Promise<unknown>;
+      }).deleteToken(customerId, tokenId);
+      serverLogger.info(
+        `🔒 [RAZORPAY] Token revoked: customer=${customerId} token=${tokenId}`
+      );
+      return true;
+    } catch (error: unknown) {
+      const err = asRzpErr(error);
+      serverLogger.error(
+        `⚠️ [RAZORPAY] Token revoke failed (customer=${customerId} token=${tokenId}): ${err.error?.description || err.message}`
+      );
+      return false;
+    }
+  }
+
+  /**
    * Refund a payment. Used to reverse the ₹2 mandate-validation charge
    * immediately after the token is captured (the "and reverse" half of the
    * "₹2-charge-and-reverse" pattern).

@@ -388,13 +388,17 @@ describe("RazorpayService.refundPayment", () => {
     expect(callArgs.speed).toBe("optimum");
   });
 
-  it("re-throws with the Razorpay error description on failure", async () => {
-    mockRefund.mockRejectedValueOnce({
+  it("re-throws with the Razorpay error description when BOTH speeds fail", async () => {
+    // refundPayment attempts speed='optimum' then falls back to 'normal', so a
+    // genuine failure must reject on both calls (mockRejectedValue, not Once).
+    mockRefund.mockRejectedValue({
       error: { description: "Payment is not in captured state" },
     });
 
     await expect(
       RazorpayService.refundPayment("pay_bad", 200)
     ).rejects.toThrow(/Payment is not in captured state/);
+    // optimum + normal fallback = two attempts.
+    expect(mockRefund).toHaveBeenCalledTimes(2);
   });
 });

@@ -48,8 +48,9 @@ const findUserHostingById = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/hostings", () => ({ findUserHostingById }));
 
 const cancelSubscription = vi.hoisted(() => vi.fn());
+const revokeToken = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/razorpay", () => ({
-  RazorpayService: { cancelSubscription },
+  RazorpayService: { cancelSubscription, revokeToken },
 }));
 
 const suspendUser = vi.hoisted(() => vi.fn());
@@ -100,7 +101,36 @@ beforeEach(() => {
   getUserFromRequest.mockReset().mockResolvedValue(user);
   findUserHostingById.mockReset();
   cancelSubscription.mockReset();
+  revokeToken.mockReset().mockResolvedValue(true);
   suspendUser.mockReset();
+});
+
+describe("Tokens-flow trial: revokes the stored mandate token", () => {
+  it("razorpayTokenId + razorpayCustomerId → revokeToken(customer, token); clears razorpayTokenId; NO cancelSubscription", async () => {
+    const h = trial({
+      subscriptionId: undefined,
+      razorpayTokenId: "token_ABC",
+      razorpayCustomerId: "cust_XYZ",
+      directAdminUsername: "alice_da",
+    });
+    findUserHostingById.mockResolvedValueOnce(h);
+    const res = await POST(makeReq({ hostingId: VALID_ID }));
+    expect(res.status).toBe(200);
+    expect(revokeToken).toHaveBeenCalledWith("cust_XYZ", "token_ABC");
+    expect(cancelSubscription).not.toHaveBeenCalled();
+    expect(h.status).toBe("terminated");
+    expect((h as { razorpayTokenId?: string }).razorpayTokenId).toBeUndefined();
+  });
+
+  it("token revoke failure does NOT block termination (best-effort)", async () => {
+    revokeToken.mockRejectedValueOnce(new Error("razorpay down"));
+    const h = trial({ subscriptionId: undefined, razorpayTokenId: "token_ABC", razorpayCustomerId: "cust_XYZ" });
+    findUserHostingById.mockResolvedValueOnce(h);
+    const res = await POST(makeReq({ hostingId: VALID_ID }));
+    expect(res.status).toBe(200);
+    expect(h.status).toBe("terminated");
+    expect((h as { razorpayTokenId?: string }).razorpayTokenId).toBeUndefined();
+  });
 });
 
 describe("Auth gate", () => {

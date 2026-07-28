@@ -45,7 +45,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Trial is already terminated" }, { status: 409 });
     }
 
-    // 1. Cancel Razorpay subscription so no charge fires on day 15
+    // 1a. Subscriptions-flow: cancel the Razorpay subscription so no charge
+    // fires on day 15.
     if (hosting.subscriptionId) {
       try {
         await RazorpayService.cancelSubscription(hosting.subscriptionId);
@@ -54,6 +55,20 @@ export async function POST(request: NextRequest) {
         const message = err instanceof Error ? err.message : String(err);
         serverLogger.error(`[cancel-trial] Failed to cancel Razorpay subscription: ${message}`);
         // Continue — we still terminate the hosting
+      }
+    }
+
+    // 1b. Tokens-flow: revoke the stored mandate token so it's cleanly torn
+    // down (Tokens-flow trials have a razorpayTokenId, not a subscriptionId).
+    // Best-effort — terminating the hosting + autoRenew=false already stops the
+    // recurring-charge cron; this is the clean teardown on top. Clear the local
+    // id regardless so we never point at a dead/dangling token.
+    if (hosting.razorpayTokenId && hosting.razorpayCustomerId) {
+      try {
+        await RazorpayService.revokeToken(hosting.razorpayCustomerId, hosting.razorpayTokenId);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        serverLogger.error(`[cancel-trial] Failed to revoke Razorpay token: ${message}`);
       }
     }
 
@@ -74,6 +89,7 @@ export async function POST(request: NextRequest) {
     hosting.autoRenew = false;
     hosting.billingType = "manual";
     hosting.subscriptionId = undefined;
+    hosting.razorpayTokenId = undefined; // token revoked above; drop the dead id
     hosting.next_action_at = undefined;
     await hosting.save();
 
