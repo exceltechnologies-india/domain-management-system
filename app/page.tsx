@@ -45,7 +45,7 @@ export default async function HomePage() {
   try {
     const docs = await listActivePlans({ sort: 'price-asc' });
     plans = docs
-      .filter((p) => (p.price ?? 0) > 1) // exclude ₹1 test plans / placeholders
+      .filter((p) => (p.price ?? 0) > 1) // exclude ₹0/₹1 placeholder plans
       .map((p) => {
         const cfg = HOSTING_PLANS[(p.name || '').toLowerCase()];
         const features = Array.isArray(p.features) && p.features.length

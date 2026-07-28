@@ -288,7 +288,6 @@ describe("POST — Security-key step-up auth (THE BIG ONE)", () => {
   // for plain feature flags, so the admin would be stuck.
   it.each([
     "hosting_trial_enabled",
-    "hosting_test_plan_enabled",
     "tld_pricing_cache_enabled",
     "tld_pricing_cache_ttl",
   ])(

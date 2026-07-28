@@ -71,7 +71,6 @@ const SECURITY_KEYS = new Set<string>([
 // because there's no step-up UI for plain feature flags).
 const NEVER_SECURITY_KEYS = new Set<string>([
   "hosting_trial_enabled",
-  "hosting_test_plan_enabled",
   "tld_pricing_cache_enabled",
   "tld_pricing_cache_ttl",
   // WhatsApp OPERATIONAL config — none of these carry a secret (the token

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Server, Shield, Zap, Globe, Clock, Headphones,
-  Database, Cloud, CheckCircle, Check, HelpCircle, Sparkles
+  Database, Cloud, Check, HelpCircle, Sparkles
 } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import HeroSection from '@/components/HeroSection';
@@ -31,24 +31,12 @@ interface User {
   role: string;
 }
 
-interface TestPlan {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  currency: string;
-  features: string[];
-  serverPackage: string;
-  razorpayPlanMonthly?: string;
-}
-
 export default function HostingPage() {
   const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
   const { data: session } = useSession();
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('yearly');
   const { addItem, items: cartItems } = useCartStore();
-  const [testPlan, setTestPlan] = useState<TestPlan | null>(null);
 
   const handleStartTrial = async (plan: typeof HOSTING_PLANS[string]) => {
     trackStartTrial();
@@ -158,37 +146,6 @@ export default function HostingPage() {
     toast.success(`${plan.name} added to cart!`);
     router.push('/cart');
   };
-
-  const handleAddTestPlan = () => {
-    if (!testPlan) return;
-    const uniqueId = `hosting-${testPlan.id}-${Date.now()}`;
-    addItem({
-      domainName: uniqueId,
-      price: testPlan.price,
-      currency: testPlan.currency,
-      registrationPeriod: 1,
-      periodUnit: 'months',
-      itemType: 'hosting',
-      billingCycle: 'monthly',
-      hostingPlan: {
-        id: testPlan.id,
-        name: testPlan.name,
-        period: 1,
-        features: testPlan.features,
-        serverPackage: testPlan.serverPackage,
-      },
-    } as CartItem);
-    toast.success('₹1 test plan added to cart!');
-    router.push('/cart');
-  };
-
-  // Fetch ₹1 test plan status (public endpoint, no auth required)
-  useEffect(() => {
-    void (async () => {
-      const result = await apiClient.get<{ enabled?: boolean; plan?: TestPlan }>('/api/v1/public/hosting-test-plan');
-      if (result.ok && result.data.enabled && result.data.plan) setTestPlan(result.data.plan);
-    })();
-  }, []);
 
   useEffect(() => {
     if (session?.user) {
@@ -406,40 +363,6 @@ export default function HostingPage() {
                   </div>
                 );
               })}
-
-              {testPlan && (
-                <div className="group flex flex-col gap-4">
-                  <div className="relative rounded-2xl border-2 border-dashed border-orange-400 bg-orange-50/60 p-6 flex flex-col gap-3 shadow-sm">
-                    <div className="absolute -top-3 left-4">
-                      <span className="bg-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full tracking-wide uppercase">
-                        ₹1 Test Plan
-                      </span>
-                    </div>
-                    <div className="mt-2">
-                      <p className="text-xs font-semibold text-orange-700 uppercase tracking-wider mb-1">Live Payment Testing</p>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-4xl font-black text-orange-600">₹1</span>
-                        <span className="text-gray-500 text-sm">/month</span>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">Admin-only. Test live Razorpay payments safely.</p>
-                    </div>
-                    <ul className="space-y-1.5 text-sm text-gray-600">
-                      {testPlan.features.map((f, i) => (
-                        <li key={i} className="flex items-center gap-2">
-                          <CheckCircle className="h-3.5 w-3.5 text-orange-500 shrink-0" />
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
-                    <button
-                      onClick={handleAddTestPlan}
-                      className="mt-auto w-full py-2.5 px-4 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-xl transition-colors"
-                    >
-                      Add to Cart — ₹1/mo
-                    </button>
-                  </div>
-                </div>
-              )}
 
               <PricingCard
                 title="Custom"

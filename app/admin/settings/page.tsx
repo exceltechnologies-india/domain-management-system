@@ -197,13 +197,6 @@ export default function AdminSettings() {
   const [hostingTrialEnabled, setHostingTrialEnabled] = useState(true);
   const [isSavingTrial, setIsSavingTrial] = useState(false);
 
-  // Test plan
-  const [testPlanEnabled, setTestPlanEnabled] = useState(false);
-  const [testPlanRazorpayId, setTestPlanRazorpayId] = useState("");
-  const [isLoadingTestPlan, setIsLoadingTestPlan] = useState(false);
-  const [isSavingTestPlan, setIsSavingTestPlan] = useState(false);
-  const [testPlanRazorpayInput, setTestPlanRazorpayInput] = useState("");
-
   // Server info
   const [serverInfoExpanded, setServerInfoExpanded] = useState(false);
 
@@ -251,7 +244,7 @@ export default function AdminSettings() {
   // ── Data loading ──────────────────────────────────────────────────────────
   const loadAllSettings = async () => {
     setIsDataLoading(true);
-    await Promise.all([loadSavedIPData(), loadCacheSettings(), loadIPWhitelistSettings(), loadCORSSettings(), loadHostingTrialSettings(), loadTestPlanSettings(), loadWhatsAppSettings(), loadTrackingSettings()]);
+    await Promise.all([loadSavedIPData(), loadCacheSettings(), loadIPWhitelistSettings(), loadCORSSettings(), loadHostingTrialSettings(), loadWhatsAppSettings(), loadTrackingSettings()]);
     if (typeof window !== "undefined") setCurrentOrigin(window.location.origin);
     setIsDataLoading(false);
   };
@@ -303,13 +296,6 @@ export default function AdminSettings() {
     if (!result.ok) return;
     const s = result.data.settings?.hosting_trial_enabled;
     if (s !== undefined) setHostingTrialEnabled(s.value !== false);
-  };
-
-  const loadTestPlanSettings = async () => {
-    setIsLoadingTestPlan(true);
-    const result = await apiClient.get<{ enabled?: boolean; plan?: { razorpayPlans?: { monthly?: string } } }>("/api/v1/admin/hosting/test-plan");
-    if (result.ok) { setTestPlanEnabled(result.data.enabled === true); const id = result.data.plan?.razorpayPlans?.monthly || ""; setTestPlanRazorpayId(id); setTestPlanRazorpayInput(id); }
-    setIsLoadingTestPlan(false);
   };
 
   // ── Handlers ──────────────────────────────────────────────────────────────
@@ -389,21 +375,6 @@ export default function AdminSettings() {
     if (result.ok) showSuccessToast(`Hosting trial ${hostingTrialEnabled ? "enabled" : "disabled"}`);
     else showErrorToast("Failed to save trial settings");
     setIsSavingTrial(false);
-  };
-
-  const saveTestPlan = async (action: "enable" | "disable") => {
-    setIsSavingTestPlan(true);
-    const body: Record<string, string> = { action };
-    if (action === "enable" && testPlanRazorpayInput.trim()) body.razorpayPlanMonthly = testPlanRazorpayInput.trim();
-    const result = await apiClient.post<{ enabled?: boolean; razorpayPlanMonthly?: string }>("/api/v1/admin/hosting/test-plan", body);
-    if (result.ok) {
-      setTestPlanEnabled(!!result.data.enabled);
-      if (result.data.razorpayPlanMonthly) { setTestPlanRazorpayId(result.data.razorpayPlanMonthly); setTestPlanRazorpayInput(result.data.razorpayPlanMonthly); }
-      showSuccessToast(action === "enable" ? "₹1 test plan enabled" : "₹1 test plan disabled");
-    } else {
-      showErrorToast(result.error.message || "Failed");
-    }
-    setIsSavingTestPlan(false);
   };
 
   // ── WhatsApp ────────────────────────────────────────────────────────────────
@@ -521,7 +492,7 @@ export default function AdminSettings() {
   const navItems: { id: ActiveSection; label: string; icon: React.ElementType; description: string }[] = [
     { id: "performance", label: "Performance", icon: Database, description: "Cache & server info" },
     { id: "security",    label: "Security",    icon: Shield,   description: "IP whitelisting & CORS" },
-    { id: "promotions",  label: "Promotions",  icon: Tag,      description: "Trials & test plans" },
+    { id: "promotions",  label: "Promotions",  icon: Tag,      description: "Free trials" },
     { id: "integrations", label: "Integrations", icon: MessageCircle, description: "WhatsApp notifications" },
     { id: "tracking",    label: "Tracking",     icon: BarChart3, description: "Analytics & marketing tags" },
   ];
@@ -886,59 +857,6 @@ export default function AdminSettings() {
                   </div>
                   <SFooter>
                     <SaveBtn onClick={saveHostingTrialSettings} loading={isSavingTrial} label="Save Trial Settings" color="purple" />
-                  </SFooter>
-                </SCard>
-
-                {/* ₹1 Test Plan */}
-                <SCard>
-                  <SCardHead
-                    title="₹1 Live Payment Test Plan"
-                    description="A ₹1/month hosting plan for testing live Razorpay payments — auto-creates a Razorpay subscription plan if needed"
-                    action={
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold border ${testPlanEnabled ? "bg-orange-50 text-orange-700 border-orange-300" : "bg-gray-100 text-gray-500 border-gray-200"}`}>
-                        {isLoadingTestPlan ? "Loading…" : testPlanEnabled ? "ENABLED" : "DISABLED"}
-                      </span>
-                    }
-                  />
-                  <div className="p-6 space-y-5">
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                        Razorpay Plan ID <span className="font-normal text-gray-400">(optional — auto-created if blank)</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={testPlanRazorpayInput}
-                        onChange={e => setTestPlanRazorpayInput(e.target.value)}
-                        placeholder="plan_xxxxxxxxxxxxxxxx"
-                        className="w-full max-w-sm px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-orange-400"
-                      />
-                      {testPlanRazorpayId && (
-                        <p className="text-xs text-gray-400 mt-1">Active: <code className="bg-gray-50 px-1 rounded font-mono">{testPlanRazorpayId}</code></p>
-                      )}
-                    </div>
-
-                    <StatusBanner
-                      active={testPlanEnabled}
-                      color="orange"
-                      activeMsg="₹1 test plan is live on the public hosting page. Use it to verify Razorpay live keys are working, then disable it."
-                      inactiveMsg="₹1 test plan is hidden. Enable temporarily to test a live Razorpay payment of ₹1, then disable once verified."
-                    />
-                  </div>
-                  <SFooter>
-                    {!testPlanEnabled ? (
-                      <button onClick={() => saveTestPlan("enable")} disabled={isSavingTestPlan} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-orange-500 rounded-xl hover:bg-orange-600 disabled:opacity-50 transition-colors">
-                        {isSavingTestPlan ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                        {isSavingTestPlan ? "Enabling…" : "Enable ₹1 Test Plan"}
-                      </button>
-                    ) : (
-                      <button onClick={() => saveTestPlan("disable")} disabled={isSavingTestPlan} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-xl hover:bg-red-700 disabled:opacity-50 transition-colors">
-                        {isSavingTestPlan ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
-                        {isSavingTestPlan ? "Disabling…" : "Disable ₹1 Test Plan"}
-                      </button>
-                    )}
-                    <button onClick={loadTestPlanSettings} disabled={isLoadingTestPlan} className="px-3 py-2 text-sm text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 flex items-center gap-1.5 disabled:opacity-50">
-                      <RefreshCw className={`h-3.5 w-3.5 ${isLoadingTestPlan ? "animate-spin" : ""}`} /> Refresh
-                    </button>
                   </SFooter>
                 </SCard>
               </>

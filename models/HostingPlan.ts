@@ -17,7 +17,6 @@ export interface IHostingPlan extends Document {
     yearly?: string;
   };
   details?: any; // Raw DirectAdmin package details
-  isTestPlan?: boolean; // ₹1 live-mode payment test plan
 }
 
 const HostingPlanSchema = new Schema<IHostingPlan>(
@@ -83,10 +82,6 @@ const HostingPlanSchema = new Schema<IHostingPlan>(
     details: {
       type: Schema.Types.Mixed,
       default: {},
-    },
-    isTestPlan: {
-      type: Boolean,
-      default: false,
     },
   },
   {
