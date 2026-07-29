@@ -37,6 +37,14 @@ Eight days of focused safety-check additions are complete. Every production-faci
 
 ## In Flight
 
+### 🚦 Razorpay TEST → LIVE cutover checklist (operator — the last go-live gate, 2026-07-28)
+The token-based 15-day trial is verified end-to-end in **TEST mode** (signup → ₹2 mandate → refund → provision → active → cancel-with-teardown, all with emails). Before real customers, run this on the **live** Razorpay account:
+- [ ] **Switch to live**: `bash scripts/switch-razorpay-mode.sh live` (rotates the 3 Razorpay secrets + rebuilds so the build-time `NEXT_PUBLIC_RAZORPAY_KEY_ID` is the live key).
+- [ ] **One real ₹2 mandate + confirm the live refund posts** — test-mode refunds are verified; live can differ. Check the payment shows `amount_refunded=200` / `refund_status:full` on the Razorpay dashboard, and the order's `mandateRefundStatus=processed`.
+- [ ] **Verify UPI Autopay / Netbanking eMandate / eSign appear in the *live* mandate checkout** — the trial opens Razorpay with `recurring:'1'`, so only recurring-capable, activated rails show. In TEST mode only **card eMandate** is available (sandbox limitation), so this can ONLY be verified in live. Operator reports these are activated on the live account; confirm they surface in the live mandate overlay (and that UPI Autopay is enabled specifically for *Subscriptions/Recurring*, not just one-time UPI). If a rail is missing, request its per-method recurring activation in the Razorpay dashboard (NPCI/UIDAI-processed, days-to-weeks).
+- [ ] **Confirm a paid one-shot order** (domain/paid hosting) issues a **Zoho invoice** in live (trials correctly issue none).
+- [ ] After a clean live verification, wipe any live test artifacts (test user + its DA account, via the standard scoped-delete procedure).
+
 ### Email sender migration → noreply@anutech.in (operator-requested 2026-07-23)
 - [x] **`.env.local` updated** — `SMTP_USER`/`FROM_EMAIL` → `noreply@anutech.in`, `SMTP_PASS` → new Workspace app password, `FROM_NAME` → "Anutech Digital". Host stays `smtp.gmail.com:587` STARTTLS (Google Workspace). (Resolves the long-standing `project_email_sender_migration_pending` — app was sending from a consumer Gmail.)
 - [x] **✅ RESOLVED on 2026-07-25 — prod secrets rotated + redeployed (`dms-00403-gph`).** `SMTP_USER` + `SMTP_PASS` added to Google Secret Manager (v2, via stdin) and `FROM_EMAIL`/`FROM_NAME` picked up from `.env.local` in the deploy `ENV_VARS`. `FROM_NAME` quoted (`"Anutech Digital"`) so bash `source` in the deploy script doesn't truncate it at the space. **Verify:** send a test email (contact form / password reset) and confirm From = `Anutech Digital <noreply@anutech.in>` and it lands (SPF/DKIM already set for anutech.in on Workspace).
