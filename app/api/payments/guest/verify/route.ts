@@ -247,6 +247,28 @@ export async function POST(request: NextRequest) {
         provider: "credentials",
       });
       serverLogger.info(`[GuestCheckout] Created guest user: ${guestEmail}`);
+
+      // Send the "set your password" email RIGHT HERE — at account creation,
+      // BEFORE the order-claim/provisioning below. Previously this lived after
+      // provisioning, so when the /razorpay/webhook won the provisioning race,
+      // guest-verify returned "provisioning in progress" early and the setup
+      // email was NEVER sent (the guest was charged + got an account but no way
+      // to set a password). Sending it at creation makes it race-independent
+      // AND independent of whether hosting provisioning succeeds — the customer
+      // paid, so they must always be able to activate their account.
+      // Fire-and-forget: a mail failure must not fail the payment verification.
+      try {
+        const setupToken = randomBytes(32).toString("hex");
+        guestUser.resetToken = setupToken;
+        guestUser.resetTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+        await guestUser.save();
+        const setupName = `${guestUser.firstName || ""} ${guestUser.lastName || ""}`.trim() || "there";
+        EmailService.sendPasswordResetEmail(guestUser.email, setupName, setupToken, true)
+          .then((ok) => serverLogger.info(`[GuestCheckout] Setup email ${ok ? "sent" : "returned false"} for ${guestEmail}`))
+          .catch((err) => serverLogger.error(`[GuestCheckout] Setup email failed for ${guestEmail}:`, err));
+      } catch (err) {
+        serverLogger.error("[GuestCheckout] Failed to prepare setup email:", err);
+      }
     } else if (guestUser.isGuest && !guestUser.profileCompleted) {
       // Same email used again before profile completed — backfill from token.
       guestUser.firstName = guestUser.firstName || tokenPayload.firstName;
@@ -443,37 +465,9 @@ export async function POST(request: NextRequest) {
       `[GuestCheckout] Order complete: ${orderId} for ${guestEmail} — ${finalSuccessfulDomains.length} domains`
     );
 
-    // ── Proactively send a "Set Password" email for new guest accounts ──
-    // The payment-success page also surfaces a button, but if the user
-    // closes that page they'd have no way back to set their password.
-    // Mailing the link gives them a permanent path to activate the account.
-    // Only fires when the user is still in guest state (no password yet)
-    // — repeat guests using the flow on the same account won't get a
-    // duplicate email.
-    if (guestUser.isGuest === true) {
-      try {
-        const token = randomBytes(32).toString("hex");
-        guestUser.resetToken = token;
-        guestUser.resetTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h for setup
-        await guestUser.save();
-        const name = `${guestUser.firstName || ""} ${guestUser.lastName || ""}`.trim() || "there";
-        EmailService.sendPasswordResetEmail(guestUser.email, name, token, true)
-          .then((ok) => {
-            if (ok) {
-              serverLogger.info(`[GuestCheckout] Setup email sent to ${guestUser!.email}`);
-            } else {
-              serverLogger.warn(`[GuestCheckout] Setup email send returned false for ${guestUser!.email}`);
-            }
-          })
-          .catch((err) => {
-            serverLogger.error(`[GuestCheckout] Setup email failed for ${guestUser!.email}:`, err);
-          });
-      } catch (err) {
-        // Non-fatal: order is already provisioned, user can still use the
-        // payment-success page button or hit /reset-password manually.
-        serverLogger.error("[GuestCheckout] Failed to prepare setup email:", err);
-      }
-    }
+    // (Setup "set your password" email is now sent at guest-account creation
+    // above, before the provisioning claim — so it fires regardless of the
+    // verify-vs-webhook race or the provisioning outcome.)
 
     return NextResponse.json({
       success: true,
