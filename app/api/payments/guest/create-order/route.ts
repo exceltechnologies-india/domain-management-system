@@ -17,6 +17,11 @@ import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { randomBytes } from "crypto";
 import type { CartItem } from "@/lib/types";
 import { validatedBody, z } from "@/lib/api-validation";
+import {
+  isProvisionableDomain,
+  hostingItemDomain,
+  HOSTING_DOMAIN_REQUIRED_MESSAGE,
+} from "@/lib/validation/hosting-domain";
 
 // Envelope-only schema. The route has two modes:
 //   - With `guestToken`: signed token is source of truth for registrant
@@ -205,12 +210,10 @@ export async function POST(request: NextRequest) {
     }
     for (const item of cartItems) {
       if (item.itemType === "hosting") {
-        const dom = String((item.linkedDomain as string | undefined) || item.domainName || "").trim().toLowerCase();
-        if (!dom || dom.startsWith("hosting-") || !dom.includes(".")) {
+        if (!isProvisionableDomain(hostingItemDomain(item))) {
           return NextResponse.json(
             {
-              error:
-                "Please connect a domain to your hosting plan before checking out. Link a domain you already own, or register a new one — hosting can't be set up without a domain.",
+              error: HOSTING_DOMAIN_REQUIRED_MESSAGE,
               code: "HOSTING_DOMAIN_REQUIRED",
             },
             { status: 400 }

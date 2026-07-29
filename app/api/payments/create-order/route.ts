@@ -14,6 +14,11 @@ import {
   recordTrialClaim,
 } from "@/lib/trial-abuse";
 import { validatedBody, z } from "@/lib/api-validation";
+import {
+  isProvisionableDomain,
+  hostingItemDomain,
+  HOSTING_DOMAIN_REQUIRED_MESSAGE,
+} from "@/lib/validation/hosting-domain";
 
 // Per-route schema. Structural shape only — TLD-policy / trial-eligibility
 // checks are business logic that runs after the Zod gate.
@@ -106,15 +111,16 @@ export async function POST(request: NextRequest) {
     // inference above; if a hosting item STILL has no valid domain, reject the
     // whole order up front with a clear, actionable error instead of letting it
     // pay-then-fail. A real domain always has a dot and is never the
-    // `hosting-` placeholder.
+    // `hosting-` placeholder. Domain validity is checked with a shared,
+    // unit-tested hostname regex (see lib/validation/hosting-domain.ts) — NOT a
+    // naive prefix/dot check, which both false-rejects real `hosting-*.com`
+    // domains and false-accepts malformed junk DA would still choke on.
     for (const item of cartItems) {
       if (item.itemType === "hosting") {
-        const dom = (item.linkedDomain || item.domainName || "").trim().toLowerCase();
-        if (!dom || dom.startsWith("hosting-") || !dom.includes(".")) {
+        if (!isProvisionableDomain(hostingItemDomain(item))) {
           return NextResponse.json(
             {
-              error:
-                "Please connect a domain to your hosting plan before checking out. Link a domain you already own, or register a new one — hosting can't be set up without a domain.",
+              error: HOSTING_DOMAIN_REQUIRED_MESSAGE,
               code: "HOSTING_DOMAIN_REQUIRED",
             },
             { status: 400 }
