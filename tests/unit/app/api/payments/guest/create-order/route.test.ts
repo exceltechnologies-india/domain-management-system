@@ -598,6 +598,7 @@ describe("createOrder pending-row persistence", () => {
         cartItems: [
           {
             domainName: "host-x",
+            linkedDomain: "hostsite.com",
             price: 1500,
             currency: "INR",
             registrationPeriod: 12,

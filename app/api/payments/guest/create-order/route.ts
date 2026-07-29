@@ -189,6 +189,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Auto-link a single domain item to hosting items (parity with the
+    // logged-in create-order), then HARD-REQUIRE every hosting item to have a
+    // real connected domain. DirectAdmin can't create an account without a
+    // valid domain — a placeholder like `hosting-Plus-<ts>` fails with "Invalid
+    // Domain Name", leaving the guest charged + invoiced but with no hosting
+    // (exactly what happened on 2026-07-29). Reject up front with a clear error.
+    const guestDomainItems = cartItems.filter((i: CartItem) => !i.itemType || i.itemType === "domain");
+    if (guestDomainItems.length === 1) {
+      for (const item of cartItems) {
+        if (item.itemType === "hosting" && !item.linkedDomain) {
+          item.linkedDomain = guestDomainItems[0].domainName;
+        }
+      }
+    }
+    for (const item of cartItems) {
+      if (item.itemType === "hosting") {
+        const dom = String((item.linkedDomain as string | undefined) || item.domainName || "").trim().toLowerCase();
+        if (!dom || dom.startsWith("hosting-") || !dom.includes(".")) {
+          return NextResponse.json(
+            {
+              error:
+                "Please connect a domain to your hosting plan before checking out. Link a domain you already own, or register a new one — hosting can't be set up without a domain.",
+              code: "HOSTING_DOMAIN_REQUIRED",
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     for (const item of cartItems) {
       if (!item.domainName || item.price === undefined || !item.currency) {
         return NextResponse.json(

@@ -97,6 +97,32 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // HARD REQUIREMENT: every hosting item must have a real domain connected
+    // (link an existing domain OR register a new one). DirectAdmin can't create
+    // an account without a valid domain — a synthetic placeholder like
+    // `hosting-Plus-<ts>` fails with "Cannot Create Account - Invalid Domain
+    // Name", leaving the customer charged + invoiced but with no hosting (hit
+    // on a guest paid-hosting test, 2026-07-29). We attempt the single-domain
+    // inference above; if a hosting item STILL has no valid domain, reject the
+    // whole order up front with a clear, actionable error instead of letting it
+    // pay-then-fail. A real domain always has a dot and is never the
+    // `hosting-` placeholder.
+    for (const item of cartItems) {
+      if (item.itemType === "hosting") {
+        const dom = (item.linkedDomain || item.domainName || "").trim().toLowerCase();
+        if (!dom || dom.startsWith("hosting-") || !dom.includes(".")) {
+          return NextResponse.json(
+            {
+              error:
+                "Please connect a domain to your hosting plan before checking out. Link a domain you already own, or register a new one — hosting can't be set up without a domain.",
+              code: "HOSTING_DOMAIN_REQUIRED",
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     // Zod gates structural shape; the TLD policy check is business logic.
     for (const item of cartItems) {
       if (!item.itemType || item.itemType === "domain") {

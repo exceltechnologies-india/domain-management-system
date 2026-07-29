@@ -301,6 +301,7 @@ describe("Trial gates (4 distinct rejections)", () => {
     cartItems: [
       {
         domainName: "host-x",
+        linkedDomain: "trialsite.com",
         price: 0,
         currency: "INR",
         itemType: "hosting" as const,
