@@ -16,6 +16,13 @@ export function getAnonId(): string | null {
   return m ? m[1] : null;
 }
 
+/** Read a cookie by name (browser-only). */
+function readCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
 /** Stable-ish unique id shared between the browser event and any server twin. */
 export function makeEventId(name: string): string {
   return `${name}.${Date.now()}.${Math.random().toString(36).slice(2, 10)}`;
@@ -38,14 +45,32 @@ export function fireMetaEvent(
   return eventID;
 }
 
-/** Record an internal journey activity via the public beacon. */
-export function trackClientActivity(activity: string): void {
+/**
+ * Record an internal journey activity via the public beacon. When a Meta
+ * event is passed, the beacon carries the shared `eventId` + the browser's
+ * `_fbp`/`_fbc` cookies so the server can send a deduplicated Conversions API
+ * twin — the event still lands even if this browser's Pixel `/tr` beacon is
+ * blocked by an ad-blocker / ITP.
+ */
+export function trackClientActivity(
+  activity: string,
+  meta?: { metaEvent: string; eventId: string },
+): void {
   if (typeof window === 'undefined') return;
   try {
+    const body: Record<string, unknown> = { activity, anonId: getAnonId() };
+    if (meta) {
+      body.metaEvent = meta.metaEvent;
+      body.eventId = meta.eventId;
+      const fbp = readCookie('_fbp');
+      const fbc = readCookie('_fbc');
+      if (fbp) body.fbp = fbp;
+      if (fbc) body.fbc = fbc;
+    }
     fetch('/api/v1/analytics/track', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ activity, anonId: getAnonId() }),
+      body: JSON.stringify(body),
       keepalive: true,
     }).catch(() => {});
   } catch {
@@ -53,11 +78,28 @@ export function trackClientActivity(activity: string): void {
   }
 }
 
+/**
+ * Fire a journey step both as a browser Pixel event AND (via the beacon) a
+ * server CAPI twin, sharing one event_id so Meta deduplicates. This is the
+ * redundancy that makes reporting resilient to browser-side beacon blocking.
+ */
+function fireJourney(
+  metaEvent: string,
+  activity: string,
+  params?: Record<string, unknown>,
+): void {
+  const eventID = makeEventId(metaEvent);
+  fireMetaEvent(metaEvent, { params: params || {}, eventID });
+  trackClientActivity(activity, { metaEvent, eventId: eventID });
+}
+
 // ── Journey wrappers (Pixel event + internal activity) ─────────────────────
 
 export function trackViewContent(): void {
-  fireMetaEvent('ViewContent', { params: { content_category: 'hosting', content_type: 'product' } });
-  trackClientActivity('view_content');
+  fireJourney('ViewContent', 'view_content', {
+    content_category: 'hosting',
+    content_type: 'product',
+  });
 }
 
 export function trackStartTrial(): void {
@@ -70,6 +112,5 @@ export function trackStartTrial(): void {
 }
 
 export function trackInitiateCheckout(params?: Record<string, unknown>): void {
-  fireMetaEvent('InitiateCheckout', { params: params || {} });
-  trackClientActivity('checkout_started');
+  fireJourney('InitiateCheckout', 'checkout_started', params || {});
 }

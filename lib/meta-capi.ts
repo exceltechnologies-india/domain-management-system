@@ -31,7 +31,16 @@ function normalizePhone(value?: string | null): string | undefined {
 }
 
 export interface ServerEventArgs {
-  eventName: "CompleteRegistration" | "Purchase" | "StartTrial" | "TrialConversion";
+  eventName:
+    | "CompleteRegistration"
+    | "Purchase"
+    | "StartTrial"
+    | "TrialConversion"
+    // Mid-funnel events also fired by the browser Pixel — sent server-side too
+    // (with a shared event_id) so ad-blocked / ITP-suppressed browsers still
+    // register the event. Meta deduplicates on (event_name, event_id).
+    | "ViewContent"
+    | "InitiateCheckout";
   /** Deterministic id (e.g. reg_<userId>, purchase_<orderId>) for dedup. */
   eventId: string;
   user?: { email?: string | null; phone?: string | null };
@@ -40,6 +49,9 @@ export interface ServerEventArgs {
   clientIp?: string | null;
   userAgent?: string | null;
   fbclid?: string | null;
+  /** Real Meta browser cookies (_fbp / _fbc) — best match signal when present. */
+  fbp?: string | null;
+  fbc?: string | null;
 }
 
 export async function sendMetaServerEvent(args: ServerEventArgs): Promise<void> {
@@ -58,7 +70,10 @@ export async function sendMetaServerEvent(args: ServerEventArgs): Promise<void> 
     if (ph) user_data.ph = [ph];
     if (args.clientIp) user_data.client_ip_address = args.clientIp;
     if (args.userAgent) user_data.client_user_agent = args.userAgent;
-    if (args.fbclid) user_data.fbc = `fb.1.${Date.now()}.${args.fbclid}`;
+    if (args.fbp) user_data.fbp = args.fbp;
+    // Prefer the real _fbc cookie; fall back to synthesizing one from fbclid.
+    if (args.fbc) user_data.fbc = args.fbc;
+    else if (args.fbclid) user_data.fbc = `fb.1.${Date.now()}.${args.fbclid}`;
 
     const payload = {
       data: [
