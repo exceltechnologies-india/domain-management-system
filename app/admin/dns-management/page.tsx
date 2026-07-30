@@ -936,7 +936,7 @@ function AdminDNSManagementContent() {
                               <tr className="bg-gray-50/60 border-b border-gray-100">
                                 <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Type</th>
                                 <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Name</th>
-                                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[200px]">Value</th>
+                                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-0 sm:min-w-[200px]">Value</th>
                                 <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">TTL</th>
                                 <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Actions</th>
                               </tr>
@@ -962,14 +962,14 @@ function AdminDNSManagementContent() {
                                       <>
                                         <td className="px-5 py-3"><input className="w-20 px-2 py-1.5 border border-gray-200 rounded-lg text-xs font-semibold" value={editRecord.type} onChange={e => setEditRecord({ ...editRecord, type: e.target.value })} /></td>
                                         <td className="px-5 py-3"><input className="w-32 md:w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm font-mono" value={editRecord.name} onChange={e => setEditRecord({ ...editRecord, name: e.target.value })} /></td>
-                                        <td className="px-5 py-3"><input className="w-full min-w-[150px] px-2 py-1.5 border border-gray-200 rounded-lg text-sm font-mono" value={editRecord.value} onChange={e => setEditRecord({ ...editRecord, value: e.target.value })} /></td>
+                                        <td className="px-5 py-3"><input className="w-full min-w-0 sm:min-w-[150px] px-2 py-1.5 border border-gray-200 rounded-lg text-sm font-mono" value={editRecord.value} onChange={e => setEditRecord({ ...editRecord, value: e.target.value })} /></td>
                                         <td className="px-5 py-3"><input className="w-20 px-2 py-1.5 border border-gray-200 rounded-lg text-sm" type="number" value={editRecord.ttl} onChange={e => setEditRecord({ ...editRecord, ttl: parseInt(e.target.value) })} /></td>
                                         <td className="px-5 py-3 text-right whitespace-nowrap">
                                           <div className="inline-flex items-center gap-1.5">
-                                            <button onClick={handleSaveEdit} title="Save" className="p-1.5 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors">
+                                            <button onClick={handleSaveEdit} title="Save" className="p-2.5 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors">
                                               <Save className="h-4 w-4" />
                                             </button>
-                                            <button onClick={handleCancelEdit} title="Cancel" className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+                                            <button onClick={handleCancelEdit} title="Cancel" className="p-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
                                               <X className="h-4 w-4" />
                                             </button>
                                           </div>
@@ -983,14 +983,14 @@ function AdminDNSManagementContent() {
                                           </span>
                                         </td>
                                         <td className="px-5 py-3.5 text-sm font-mono text-gray-700 whitespace-nowrap">{record.name}</td>
-                                        <td className="px-5 py-3.5 text-sm text-gray-800 font-mono break-all min-w-[200px]">{record.value}</td>
+                                        <td className="px-5 py-3.5 text-sm text-gray-800 font-mono break-all min-w-0 sm:min-w-[200px]">{record.value}</td>
                                         <td className="px-5 py-3.5 text-sm text-gray-600 whitespace-nowrap font-mono">{record.ttl}s</td>
                                         <td className="px-5 py-3.5 text-right whitespace-nowrap">
                                           <div className="inline-flex items-center gap-1.5">
-                                            <button onClick={() => handleEditRecord(record)} title="Edit" className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                                            <button onClick={() => handleEditRecord(record)} title="Edit" className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
                                               <Edit3 className="h-4 w-4" />
                                             </button>
-                                            <button onClick={() => handleDeleteRecord(record.id)} title="Delete" className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                                            <button onClick={() => handleDeleteRecord(record.id)} title="Delete" className="p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
                                               <Trash2 className="h-4 w-4" />
                                             </button>
                                           </div>
