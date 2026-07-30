@@ -222,6 +222,20 @@ export const rateLimiters = {
     keyGenerator: ipKey("guest_checkout"),
   }),
 
+  // Public analytics journey beacon (/api/analytics/track). Unauthenticated,
+  // and since dms-00443 a `view_content` / `checkout_started` hit also fires a
+  // Meta Conversions API send + writes a CustomerActivity row — so an
+  // unbounded public endpoint could flood Mongo + Meta. Kept deliberately
+  // GENEROUS: real browsing (incl. many users behind one CGNAT/office IP)
+  // rarely exceeds this, and dropping an analytics beacon is low-harm
+  // (fire-and-forget; a missed event, never a broken UX). The cap only stops
+  // an egregious single-IP script.
+  analyticsBeacon: new RateLimiter({
+    windowMs: 60 * 1000, // 1 minute
+    maxRequests: 120,
+    keyGenerator: ipKey("analytics_beacon"),
+  }),
+
   // User-side hosting renew / upgrade. Authenticated, but each call mints
   // a pending Razorpay order — callers MUST use the explicit
   // `checkKey('hosting_renew:' + user._id)` form (the renew + upgrade routes

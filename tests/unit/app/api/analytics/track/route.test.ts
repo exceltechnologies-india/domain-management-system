@@ -27,6 +27,13 @@ vi.mock("next-auth/jwt", () => ({ getToken }));
 
 vi.mock("@/lib/auth-secret", () => ({ AUTH_SECRET: "test-secret" }));
 
+const beaconIsAllowed = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/rate-limit", () => ({
+  rateLimiters: { analyticsBeacon: { isAllowed: beaconIsAllowed } },
+  rateLimitResponse: () =>
+    new Response(JSON.stringify({ error: "Too many analytics events." }), { status: 429 }),
+}));
+
 vi.unmock("next/server");
 const { NextRequest, NextResponse } = await vi.importActual<
   typeof import("next/server")
@@ -46,6 +53,7 @@ function makeReq(body: Record<string, unknown>, headers: Record<string, string> 
 beforeEach(() => {
   vi.clearAllMocks();
   getToken.mockResolvedValue(null);
+  beaconIsAllowed.mockResolvedValue({ allowed: true, remaining: 119, resetTime: 0 });
 });
 
 describe("analytics/track CAPI twin", () => {
@@ -93,6 +101,14 @@ describe("analytics/track CAPI twin", () => {
   it("does NOT fire CAPI when eventId is absent (nothing to dedup)", async () => {
     await POST(makeReq({ activity: "view_content" }));
     expect(recordActivity).toHaveBeenCalledOnce();
+    expect(sendMetaServerEvent).not.toHaveBeenCalled();
+  });
+
+  it("throttles a flood → 429, no DB write, no CAPI", async () => {
+    beaconIsAllowed.mockResolvedValueOnce({ allowed: false, remaining: 0, resetTime: Date.now() + 60000 });
+    const res = await POST(makeReq({ activity: "view_content", eventId: "e1" }));
+    expect(res.status).toBe(429);
+    expect(recordActivity).not.toHaveBeenCalled();
     expect(sendMetaServerEvent).not.toHaveBeenCalled();
   });
 });

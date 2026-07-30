@@ -3,6 +3,7 @@ import { getToken } from "next-auth/jwt";
 import { AUTH_SECRET } from "@/lib/auth-secret";
 import { recordActivity } from "@/lib/services/analytics";
 import { sendMetaServerEvent } from "@/lib/meta-capi";
+import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { validatedBody, z } from "@/lib/api-validation";
 
 // Client-fireable journey events only. Server-side milestones (registration,
@@ -31,6 +32,13 @@ const schema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  // Cheapest rejection first: cap a single-IP flood before any JWT / DB / CAPI
+  // work. Generous limit — a dropped beacon is a missed event, never broken UX.
+  const rl = await rateLimiters.analyticsBeacon.isAllowed(request);
+  if (!rl.allowed) {
+    return rateLimitResponse(rl, { message: "Too many analytics events.", limit: 120 });
+  }
+
   const validation = await validatedBody(request, schema);
   if (!validation.ok) return validation.response;
 
