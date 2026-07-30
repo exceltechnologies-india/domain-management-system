@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Mobile-audit C1: global horizontal-overflow safety net. Any single
+   over-wide element would otherwise produce full-page horizontal scroll on a
+   phone. Safe because the site header is `fixed` (not `sticky`), so an
+   overflow-x ancestor does not break it. */
+html,
+body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
 /* Custom scrollbar styles for modal content */
 .modal-scrollbar::-webkit-scrollbar {
   width: 6px;
@@ -343,13 +353,26 @@
   animation: animate-leave 0.15s ease-in forwards;
 }
 
-/* Toast Container Positioning - Bottom Right */
+/* Toast Container Positioning.
+   Mobile-audit M1: on phones a ~350px toast anchored right:80px sits partly
+   off-screen (360 - 80 - 350 < 0 → left edge clipped). Mobile-first: full
+   width minus 16px gutters, lifted above the bottom-left chat FAB. From sm+
+   restore the bottom-right corner anchor. */
 .toast-container {
   z-index: 40 !important;
   position: fixed !important;
-  bottom: 80px !important;
-  right: 80px !important;
+  left: 16px !important;
+  right: 16px !important;
+  bottom: 88px !important;
   top: auto !important;
+}
+
+@media (min-width: 640px) {
+  .toast-container {
+    left: auto !important;
+    right: 80px !important;
+    bottom: 80px !important;
+  }
 }
 
 /* Individual Toast Notification */

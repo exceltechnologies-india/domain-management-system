@@ -258,7 +258,7 @@ function BulkSearchContent() {
                         initial={{ opacity: 0, x: -8 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: i * 0.03 }}
-                        className={`flex items-center gap-4 px-6 py-4 hover:bg-gray-50 transition-colors ${isSelected && isAvailable ? 'bg-primary-50/40' : ''}`}
+                        className={`flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-6 py-4 hover:bg-gray-50 transition-colors ${isSelected && isAvailable ? 'bg-primary-50/40' : ''}`}
                       >
                         {/* Checkbox */}
                         <button
@@ -272,7 +272,7 @@ function BulkSearchContent() {
                         </button>
 
                         {/* Domain name */}
-                        <span className="flex-1 font-semibold text-gray-900 text-sm truncate">
+                        <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">
                           {result.domainName}
                         </span>
 

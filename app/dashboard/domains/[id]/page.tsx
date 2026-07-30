@@ -154,17 +154,17 @@ export default function ManageDomain() {
               Back to Domains
             </button>
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <Globe className="h-8 w-8 text-blue-600 mr-3" />
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900">{domain.name}</h1>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center min-w-0">
+                <Globe className="h-8 w-8 text-blue-600 mr-3 shrink-0" />
+                <div className="min-w-0">
+                  <h1 className="text-2xl font-bold text-gray-900 truncate">{domain.name}</h1>
                   <p className="text-gray-500 text-sm">
                     Expires on {formatIndianDateTime(domain.expiryDate)}
                   </p>
                 </div>
               </div>
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${domain.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+              <span className={`shrink-0 px-3 py-1 rounded-full text-sm font-medium ${domain.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                 }`}>
                 {domain.status.toUpperCase()}
               </span>
@@ -194,7 +194,7 @@ export default function ManageDomain() {
               )}
 
               <div className="space-y-6">
-                <div className="flex space-x-4">
+                <div className="flex flex-col sm:flex-row gap-4">
                   <label className={`flex-1 relative border rounded-lg p-4 cursor-pointer transition-all ${nsMethod === 'default' ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                     }`}>
                     <input
