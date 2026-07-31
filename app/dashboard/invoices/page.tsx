@@ -363,7 +363,7 @@ export default function InvoicesPage() {
                             {invoice.invoice_id && (
                               <button
                                 onClick={() => router.push(`/dashboard/invoices/${invoice.invoice_id}/view`)}
-                                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                                 title="View invoice"
                               >
                                 <Eye className="h-4 w-4" />
@@ -373,7 +373,7 @@ export default function InvoicesPage() {
                               <button
                                 onClick={() => handleDownload(invoice.invoice_id, invoice.invoice_number)}
                                 disabled={downloadingId === invoice.invoice_id}
-                                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
+                                className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
                                 title="Download PDF"
                               >
                                 {downloadingId === invoice.invoice_id ? (
