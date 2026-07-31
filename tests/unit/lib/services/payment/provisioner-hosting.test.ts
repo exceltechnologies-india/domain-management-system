@@ -69,6 +69,9 @@ vi.mock("@/lib/services/hostings", () => ({ createHosting }));
 const createPendingHosting = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/pending-hostings", () => ({ createPendingHosting }));
 
+const recordHostingProvisioned = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/services/analytics-conversions", () => ({ recordHostingProvisioned }));
+
 const calculateHostingDates = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/hosting-dates", () => ({ calculateHostingDates }));
 
@@ -118,7 +121,10 @@ beforeEach(() => {
   setUserDirectAdminUsername.mockReset();
   getPlanByPlanId.mockReset();
   createHosting.mockReset();
+  createHosting.mockResolvedValue({ _id: "HOST_ID" });
   createPendingHosting.mockReset();
+  recordHostingProvisioned.mockReset();
+  recordHostingProvisioned.mockResolvedValue(undefined);
   calculateHostingDates.mockReset();
   calculateHostingDates.mockReturnValue({
     registeredAt: REGISTERED_AT,
@@ -445,6 +451,30 @@ describe("provisionHostingItem — side-effects + email", () => {
     daCreateUser.mockResolvedValueOnce({ kind: "created", username: "abc12345" });
     sendHostingProvisionedEmail.mockRejectedValueOnce(new Error("SMTP down"));
     createHosting.mockResolvedValueOnce({});
+    const result = await provisionHostingItem(ITEM as never, CTX as never);
+    expect(result.registrationResult.status).toBe("success");
+  });
+});
+
+describe("provisionHostingItem — conversion tracking (sync path parity)", () => {
+  it("fires recordHostingProvisioned with the created Hosting _id on success", async () => {
+    daCreateUser.mockResolvedValueOnce({ kind: "created", username: "abc12345" });
+    createHosting.mockResolvedValueOnce({ _id: "HOST_ID" });
+    await provisionHostingItem(ITEM as never, CTX as never);
+    expect(recordHostingProvisioned).toHaveBeenCalledWith("HOST_ID");
+  });
+
+  it("does NOT fire the conversion when the Hosting record fails to create", async () => {
+    daCreateUser.mockResolvedValueOnce({ kind: "created", username: "abc12345" });
+    createHosting.mockRejectedValueOnce(new Error("mongo down"));
+    await provisionHostingItem(ITEM as never, CTX as never);
+    expect(recordHostingProvisioned).not.toHaveBeenCalled();
+  });
+
+  it("a recordHostingProvisioned failure never breaks provisioning (fire-and-forget)", async () => {
+    daCreateUser.mockResolvedValueOnce({ kind: "created", username: "abc12345" });
+    createHosting.mockResolvedValueOnce({ _id: "HOST_ID" });
+    recordHostingProvisioned.mockRejectedValueOnce(new Error("meta down"));
     const result = await provisionHostingItem(ITEM as never, CTX as never);
     expect(result.registrationResult.status).toBe("success");
   });

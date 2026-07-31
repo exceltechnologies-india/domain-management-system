@@ -18,6 +18,7 @@ import {
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import { createHosting } from "@/lib/services/hostings";
 import { createPendingHosting } from "@/lib/services/pending-hostings";
+import { recordHostingProvisioned } from "@/lib/services/analytics-conversions";
 import { calculateHostingDates } from "@/lib/hosting-dates";
 import { HOSTING_PLANS } from "@/config/hosting-plans";
 import { AUTOMATION_CONFIG } from "@/config/automation";
@@ -174,7 +175,7 @@ export async function provisionHostingItem(
     const { registeredAt, expiresAt } = calculateHostingDates(safePeriod, safeUnit);
 
     try {
-      await createHosting({
+      const createdHosting = await createHosting({
         userId: user._id,
         domainName: targetDomain,
         planId: packageName,
@@ -200,6 +201,14 @@ export async function provisionHostingItem(
           razorpay_subscription_id || "None"
         })`
       );
+      // Outcome-confirmed conversion (hosting active): StartTrial for a trial,
+      // Purchase otherwise + the internal funnel activity + the Meta CAPI twin.
+      // This is the sync (non-tokens) provisioning path's equivalent of the
+      // tokens cron's recordHostingProvisioned call (tokens-da-provisioner) and
+      // the domain path's recordDomainProvisioned — so conversion tracking stays
+      // correct regardless of HOSTING_MANDATE_FLOW. Best-effort; deterministic
+      // event_id dedups; must never affect provisioning.
+      void recordHostingProvisioned(String(createdHosting._id)).catch(() => {});
     } catch (hError) {
       serverLogger.error(
         `❌ [PAYMENT-VERIFY] Failed to create Hosting record:`,
