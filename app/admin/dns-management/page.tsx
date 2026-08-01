@@ -34,44 +34,7 @@ import { performLogout } from '@/lib/logout';
 import { confirmDialog } from '@/lib/confirm-dialog';
 import { apiClient } from '@/lib/api-client';
 
-interface Domain {
-  id: string;
-  name: string;
-  price: number;
-  currency: string;
-  registrationPeriod: number;
-  status: string;
-  expiresAt: string;
-  resellerClubOrderId?: string;
-  resellerClubCustomerId?: string;
-  resellerClubContactId?: string;
-  dnsActivated?: boolean;
-  dnsActivatedAt?: string;
-  customerName?: string;
-  customerEmail?: string;
-  orderId?: string;
-}
-
-interface DNSRecord {
-  id: string;
-  type: string;
-  name: string;
-  value: string;
-  ttl: number;
-  priority?: number;
-}
-
-interface NameserverInfo {
-  nameservers: string[];
-  method: string;
-  whoisData?: {
-    registrar: string;
-    creationDate: string;
-    expirationDate: string;
-    lastUpdated: string;
-    status: string;
-  };
-}
+import type { Domain, DNSRecord } from './types';
 
 // Animated Loading Component
 const AnimatedLoading = () => {

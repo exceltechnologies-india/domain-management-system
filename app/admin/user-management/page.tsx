@@ -17,18 +17,7 @@ import { performLogout } from '@/lib/logout';
 import { logger } from '@/lib/logger';
 import { apiClient } from '@/lib/api-client';
 
-interface User {
-  _id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  role: string;
-  createdAt: string;
-  isActive?: boolean;
-  hostingCreatedAt?: string;
-  hostingExpiresAt?: string;
-  totpEnabled?: boolean;
-}
+import type { User } from './types';
 
 export default function AdminUsers() {
   const [user, setUser] = useState<User | null>(null);
