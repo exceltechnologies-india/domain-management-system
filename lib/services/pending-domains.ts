@@ -41,11 +41,13 @@ export async function getPendingDomainById(
   opts?: { populateUser?: boolean }
 ): Promise<IPendingDomain | null> {
   await connectDB();
-  const queries: Record<string, unknown>[] = [{ _id: id }];
-  if (mongoose.Types.ObjectId.isValid(id)) {
-    queries.push({ _id: new mongoose.Types.ObjectId(id) });
-  }
-  let q = PendingDomain.findOne({ $or: queries });
+  // Persisted pending-domains always have an ObjectId `_id` (the schema was
+  // tightened from Mixed → ObjectId, 2026-08-01). Ids that aren't valid
+  // ObjectIds — e.g. the synthetic `order_<id>_<domain>` rows the admin list
+  // derives from Orders (source: 'order') — never map to a stored doc, so
+  // return null rather than let Mongoose CastError on the query.
+  if (!mongoose.Types.ObjectId.isValid(id)) return null;
+  let q = PendingDomain.findById(id);
   if (opts?.populateUser) q = q.populate("userId", ADMIN_USER_PROJECTION);
   return q;
 }

@@ -1,7 +1,7 @@
 import mongoose, { Document, Schema } from "mongoose";
 
-export interface IPendingDomain extends Document<mongoose.Types.ObjectId | string> {
-  _id: mongoose.Types.ObjectId | string;
+export interface IPendingDomain extends Document<mongoose.Types.ObjectId> {
+  _id: mongoose.Types.ObjectId;
   domainName: string;
   price: number;
   currency: string;
@@ -31,7 +31,12 @@ export interface IPendingDomain extends Document<mongoose.Types.ObjectId | strin
 
 const PendingDomainSchema = new Schema<IPendingDomain>(
   {
-    _id: { type: Schema.Types.Mixed, required: true }, // Support both ObjectId and String IDs
+    // _id: default Mongoose ObjectId (auto-generated). Tightened 2026-08-01 from
+    // the legacy `Schema.Types.Mixed` ("support both ObjectId and String IDs") —
+    // a one-time audit confirmed the collection holds ONLY ObjectId _ids (the
+    // only string ids were synthetic, order-derived list rows that are never
+    // persisted through this model). See getPendingDomainById for the matching
+    // lookup hardening.
     domainName: {
       type: String,
       required: [true, "Domain name is required"],
