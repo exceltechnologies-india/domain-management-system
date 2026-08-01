@@ -526,7 +526,7 @@ function AdminDNSManagementContent() {
           {/* Domains List (Sidebar) */}
           {!deepLinkId && (
             <div className="xl:col-span-1">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col h-[calc(100vh-14rem)] sticky top-6">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col xl:h-[calc(100vh-14rem)] xl:sticky xl:top-6">
                 <div className="p-4 border-b border-gray-200 bg-gray-50/50 rounded-t-xl">
                   <h3 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
                     <Database className="h-4 w-4 text-gray-500" />
