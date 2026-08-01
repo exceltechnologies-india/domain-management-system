@@ -30,6 +30,9 @@ jobs:
       - name: Lint (errors only — warnings tracked separately to avoid GitHub annotation spam)
         run: npx next lint --quiet
 
+      - name: Accessibility gate (jsx-a11y ratchet — fails if a11y issues exceed baseline)
+        run: npm run lint:a11y
+
       - name: Type-check
         run: npx tsc --noEmit
 

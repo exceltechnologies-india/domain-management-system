@@ -26,7 +26,7 @@ export default function GlobalError({
   }, [error]);
 
   return (
-    <html suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body suppressHydrationWarning>
         <NextError statusCode={500} title="Critical Application Error" />
       </body>
