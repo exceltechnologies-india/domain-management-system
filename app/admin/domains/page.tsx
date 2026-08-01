@@ -279,7 +279,7 @@ export default function AdminDomainsPage() {
                     <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Domain</th>
                     <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
                     <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Expiry Date</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Expiry Date</th>
                     <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -328,7 +328,7 @@ export default function AdminDomainsPage() {
                             )}
                           </div>
                         </td>
-                        <td className="px-5 py-3.5 whitespace-nowrap">
+                        <td className="px-5 py-3.5 whitespace-nowrap hidden sm:table-cell">
                           <div className={`text-sm font-medium ${isExpired ? 'text-red-600' : 'text-gray-800'}`}>
                             {domain.expiresAt ? formatIndianDateTime(domain.expiresAt) : 'N/A'}
                           </div>
