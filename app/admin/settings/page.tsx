@@ -920,7 +920,7 @@ export default function AdminSettings() {
                     <div className="border-t border-gray-100 pt-5">
                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Send a test message <span className="font-normal text-gray-400">(bypasses the master toggle — validates token + template before going live)</span></label>
                       <div className="flex flex-wrap items-center gap-2">
-                        <input type="text" value={waTestNumber} onChange={e => setWaTestNumber(e.target.value)} placeholder="10-digit mobile or +91…" className="flex-1 min-w-[200px] px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        <input type="text" value={waTestNumber} onChange={e => setWaTestNumber(e.target.value)} placeholder="10-digit mobile or +91…" className="flex-1 min-w-0 sm:min-w-[200px] px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
                         <button onClick={sendWhatsAppTest} disabled={isSendingWaTest} className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-green-600 rounded-xl hover:bg-green-700 disabled:opacity-50 transition-colors">
                           {isSendingWaTest ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                           {isSendingWaTest ? "Sending…" : "Send test"}

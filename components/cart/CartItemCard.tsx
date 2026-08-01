@@ -97,11 +97,11 @@ export default function CartItemCard({ item, onRemove, onPeriodChange }: CartIte
               Registration Period:
             </label>
             {item.isTrial ? (
-              <div className="px-4 py-2 border border-gray-200 rounded-md text-sm bg-amber-50 text-amber-800 font-medium min-w-[100px] text-center">
+              <div className="px-4 py-2 border border-gray-200 rounded-md text-sm bg-amber-50 text-amber-800 font-medium sm:min-w-[100px] text-center">
                 {item.registrationPeriod} Days
               </div>
             ) : isBillingCycleLocked ? (
-              <div className="px-4 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 text-gray-700 font-medium min-w-[100px] text-center">
+              <div className="px-4 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 text-gray-700 font-medium sm:min-w-[100px] text-center">
                 {item.billingCycle === 'yearly' ? '1 Year' : '1 Month'}
               </div>
             ) : (
