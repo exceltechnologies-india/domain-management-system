@@ -41,50 +41,7 @@ import { formatBytes } from '@/lib/format-utils';
 import { getRelativeTime, formatIndianDateTime } from '@/lib/dateUtils';
 import { logger } from '@/lib/logger';
 import { apiClient } from '@/lib/api-client';
-
-interface User {
-  firstName: string;
-  lastName: string;
-  email: string;
-  role: string;
-}
-
-interface HostingUsage {
-  bandwidth: string;
-  disk: string;
-  bandwidthLimit: string;
-  diskLimit: string;
-}
-
-interface HostingData {
-  id: string;
-  dbId?: string;
-  user: { name: string; email: string };
-  domain: string;
-  status: string;
-  serverIp: string;
-  usage: HostingUsage;
-  package: string;
-  phpVersion?: string;
-
-  expiryDate: string | null;
-  createdDate: string | null;
-  daUsername: string;
-  isUnlinked?: boolean;
-  linkedByEmail?: boolean;
-  error?: string;
-  // Recurring-payment metadata. Subscriptions-API path populates
-  // `subscriptionId`; Tokens-API path populates `razorpayCustomerId`
-  // + `razorpayTokenId`. `billingType` captures the high-level mode
-  // ('subscription' | 'manual'); `isTrial` is set for active 15-day
-  // free trials. Surfaced in the detail modal so an operator triaging
-  // a stuck mandate can pivot to Razorpay dashboard via the IDs.
-  subscriptionId?: string | null;
-  razorpayCustomerId?: string | null;
-  razorpayTokenId?: string | null;
-  isTrial?: boolean;
-  billingType?: string | null;
-}
+import type { User, HostingData } from './types';
 
 // Module-scope client-side cache for /admin/hosting/stats response.
 // Populated on every completed fetch; consulted on mount so navigating
