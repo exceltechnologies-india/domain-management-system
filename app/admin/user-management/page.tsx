@@ -40,6 +40,10 @@ export default function AdminUsers() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [sendEmailNotification, setSendEmailNotification] = useState(true);
+  // Step-up re-auth: password-based admins must confirm their OWN current
+  // password to reset a user's password. Social-login admins have none and are
+  // exempted server-side (they leave this blank).
+  const [reauthPassword, setReauthPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isDeactivateModalOpen, setIsDeactivateModalOpen] = useState(false);
@@ -279,11 +283,18 @@ export default function AdminUsers() {
 
     setIsResettingPassword(true);
 
-    const result = await apiClient.post<{ emailSent?: boolean }>('/api/v1/admin/users/reset-password', {
-      userId: passwordResetUser._id,
-      newPassword,
-      sendEmail: sendEmailNotification,
-    });
+    const result = await apiClient.post<{ emailSent?: boolean }>(
+      '/api/v1/admin/users/reset-password',
+      {
+        userId: passwordResetUser._id,
+        newPassword,
+        sendEmail: sendEmailNotification,
+      },
+      undefined,
+      // Step-up re-auth: send the admin's current password when supplied.
+      // Social-login admins leave it blank and are exempted server-side.
+      reauthPassword ? { headers: { 'x-reauth-token': reauthPassword } } : {},
+    );
 
     if (result.ok) {
       showSuccessToast(
@@ -293,6 +304,7 @@ export default function AdminUsers() {
       setPasswordResetUser(null);
       setNewPassword('');
       setConfirmPassword('');
+      setReauthPassword('');
     } else {
       showErrorToast(result.error.status === 0 ? 'Failed to reset password' : `Failed to reset password: ${result.error.message || 'Unknown error'}`);
     }
@@ -304,6 +316,7 @@ export default function AdminUsers() {
     setPasswordResetUser(null);
     setNewPassword('');
     setConfirmPassword('');
+    setReauthPassword('');
     setSendEmailNotification(true);
     setShowNewPassword(false);
     setShowConfirmPassword(false);
@@ -1119,6 +1132,23 @@ export default function AdminUsers() {
                       )}
                     </button>
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Your current password
+                  </label>
+                  <input
+                    type="password"
+                    value={reauthPassword}
+                    onChange={(e) => setReauthPassword(e.target.value)}
+                    placeholder="Confirm it's really you"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    autoComplete="current-password"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Required only if your admin account uses a password. If you sign in with Google, leave this blank.
+                  </p>
                 </div>
 
                 <div className="flex items-center">
