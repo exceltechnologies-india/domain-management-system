@@ -353,32 +353,29 @@ body {
   animation: animate-leave 0.15s ease-in forwards;
 }
 
-/* Toast Container Positioning.
-   Mobile-audit M1: on phones a ~350px toast anchored right:80px sits partly
-   off-screen (360 - 80 - 350 < 0 → left edge clipped). Mobile-first: full
-   width minus 16px gutters, lifted above the bottom-left chat FAB. From sm+
-   restore the bottom-right corner anchor. */
+/* Toast Container.
+   Only the stacking context is overridden here — react-hot-toast owns the
+   horizontal/vertical placement (Toaster position="bottom-right" +
+   containerStyle bottom/right in app/layout.tsx), and it lays the container
+   out full-width with a flex end-alignment so each toast sizes to its content.
+   IMPORTANT: do NOT pin `left`/`right` on this container. A previous
+   mobile-audit tweak set `left:auto; right:80px` with no width, which made this
+   position:fixed box shrink to min-content — collapsing every toast to the
+   longest-word width (text wrapped one word per line). Clipping on small
+   screens is handled by clamping the TOAST's own width below, which is the
+   correct lever. */
 .toast-container {
   z-index: 40 !important;
-  position: fixed !important;
-  left: 16px !important;
-  right: 16px !important;
-  bottom: 88px !important;
-  top: auto !important;
 }
 
-@media (min-width: 640px) {
-  .toast-container {
-    left: auto !important;
-    right: 80px !important;
-    bottom: 80px !important;
-  }
-}
-
-/* Individual Toast Notification */
+/* Individual Toast Notification.
+   Clamp to the viewport so a toast anchored near the right edge can never be
+   clipped on a narrow phone, while keeping a comfortable single-line width on
+   desktop. This replaces the old container-repositioning approach. */
 .toast-notification {
   z-index: 40 !important;
   pointer-events: auto !important;
+  max-width: min(360px, calc(100vw - 32px)) !important;
 }
 
 /* Ensure toasts don't block interactive elements */
