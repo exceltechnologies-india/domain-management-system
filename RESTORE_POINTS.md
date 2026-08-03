@@ -18,6 +18,47 @@ like `known-good-<what-it-fixes>` (so the intent is grep-able). Use
 
 ---
 
+## 2026-08-01 — `dms-00452-z2x` / `known-good-pre-sub-reseller` (before the sub-reseller feature)
+
+**Cloud Run revision**: `dms-00452-z2x` (serving 100%, health 200 at snapshot)
+**Deployed image tag**: `us-central1-docker.pkg.dev/speedy-unison-453807-e9/dms/dms:4569110a` (built from git `4569110`)
+**Image digest**: ⏳ _pending — capture with gcloud after re-auth (see command below)_
+**Image tags to add**: `stable-2026-08-01` + `known-good-pre-sub-reseller` ⏳ _pending gcloud re-auth_
+**Git HEAD**: `deb004c` (docs) on top of deployed code `4569110` (`refactor(db): tighten PendingDomain _id`)
+**Git tag**: `restore-2026-08-01-pre-sub-reseller` (annotated, pushed — the durable source anchor)
+**Operator note**: Snapshot taken **before** starting the **sub-reseller** feature (letting our customers act as resellers under our own panel). This is the clean rollback target if that build regresses. Contains the full close-out of the backlog session: paid-hosting domain guard (airtight), guest set-password email fix, the complete Meta Analytics work (CAPI dedup + beacon rate-limit + sync-path conversions), the entire mobile audit (CRITICAL + MAJOR + all 10 MINOR), the a11y CI ratchet gate, the admin-page safe split, and the PendingDomain `_id` tightening. Razorpay still in **TEST mode** (no live cutover yet); **no sub-reseller code**.
+
+### Finish tagging the image (run after `gcloud auth login`)
+```bash
+# 1) capture the digest for the record
+gcloud run revisions describe dms-00452-z2x --region=europe-west1 --format='value(status.imageDigest)'
+# 2) add the stable + semantic tags to the deployed image
+gcloud artifacts docker tags add \
+  us-central1-docker.pkg.dev/speedy-unison-453807-e9/dms/dms:4569110a \
+  us-central1-docker.pkg.dev/speedy-unison-453807-e9/dms/dms:stable-2026-08-01
+gcloud artifacts docker tags add \
+  us-central1-docker.pkg.dev/speedy-unison-453807-e9/dms/dms:4569110a \
+  us-central1-docker.pkg.dev/speedy-unison-453807-e9/dms/dms:known-good-pre-sub-reseller
+```
+
+### Rollback paths (fastest first)
+
+**Path 1 — traffic-shift** (no rebuild, instant):
+```bash
+gcloud run services update-traffic dms --region=europe-west1 --to-revisions=dms-00452-z2x=100
+```
+
+**Path 2 — redeploy the tag** (if the revision was GC'd; after the image tags above are applied):
+```bash
+gcloud run deploy dms \
+  --image=us-central1-docker.pkg.dev/speedy-unison-453807-e9/dms/dms:known-good-pre-sub-reseller \
+  --region=europe-west1
+```
+
+**Path 3 — rebuild from source**: `git checkout restore-2026-08-01-pre-sub-reseller` (or `4569110`) then `bash scripts/deploy-cloud-run.sh`.
+
+---
+
 ## 2026-07-18 — `dms-00350-92n` / `known-good-pre-meta-capi` (before the Meta CAPI / analytics build)
 
 **Cloud Run revision**: `dms-00350-92n` (serving 100%, health 200 at snapshot)
