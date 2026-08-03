@@ -82,10 +82,14 @@ npm run recreate-admin
 npm run dev
 ```
 
+
+
 ### Environment variables
 All configuration is supplied via environment variables — see [`.env.example`](.env.example) for the full list (Mongo/Redis, NextAuth secrets, Razorpay, ResellerClub, DirectAdmin, Zoho, SMTP, reCAPTCHA, etc.).
 
 > **Note on production secrets:** local dev + build-time-public values live in `.env.local`; production runtime secrets live in **Google Secret Manager**. Rotating a secret means updating *both* stores. Never commit real secrets — a pre-commit hook (`.husky/pre-commit` → `scripts/check-staged-for-secrets.sh`) scans staged changes and blocks known secret patterns.
+
+
 
 ## Scripts
 
@@ -124,6 +128,7 @@ The script builds the image locally, pushes it to Artifact Registry, promotes a 
 ## Conventions
 
 - Project-wide working conventions and operational runbooks live in [`CLAUDE.md`](CLAUDE.md).
+
 - The active work log / audit trail is tracked in `TASKS.md`.
 
 ## License
