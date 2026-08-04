@@ -641,27 +641,28 @@ export default function UserSettings() {
                             <input
                               type="checkbox"
                               id="phone-same-wa"
-                              className="h-3.5 w-3.5 rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                              // Only meaningful once a WhatsApp number exists — otherwise
-                              // ticking it would copy an EMPTY value into Phone and wipe
-                              // whatever the user already typed there.
-                              disabled={!user.whatsappNumber}
-                              title={!user.whatsappNumber ? 'Enter a WhatsApp number first' : undefined}
+                              className="h-3.5 w-3.5 rounded border-gray-300 text-green-600 focus:ring-green-500"
                               checked={!!user.whatsappNumber && user.phone === user.whatsappNumber}
                               onChange={e => setUser(p => {
                                 if (!p) return p;
-                                setPhoneError('');
-                                // Tick → mirror WhatsApp; untick → clear so they can
-                                // enter a distinct number (makes the box actually toggle).
-                                return { ...p, phone: e.target.checked ? (p.whatsappNumber || '') : '' };
+                                if (!e.target.checked) {
+                                  // Untick → let them enter a distinct phone number.
+                                  setPhoneError('');
+                                  return { ...p, phone: '' };
+                                }
+                                // Tick → make both numbers the same, in EITHER
+                                // direction: copy whichever side is already filled
+                                // into the other (WhatsApp wins when both are set,
+                                // since it's the required/primary number). So a
+                                // phone-only user fills WhatsApp, and a WhatsApp-only
+                                // user fills Phone — one tick, no retyping.
+                                const src = p.whatsappNumber || p.phone || '';
+                                setWhatsappError(src.length === 0 ? 'WhatsApp number is required' : src.length !== 10 ? 'Enter a 10-digit WhatsApp number' : '');
+                                setPhoneError(src.length > 0 && src.length !== 10 ? 'Enter 10-digit mobile number' : '');
+                                return { ...p, whatsappNumber: src, phone: src };
                               })}
                             />
-                            <label
-                              htmlFor="phone-same-wa"
-                              className={`text-xs text-gray-500 select-none ${user.whatsappNumber ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
-                            >
-                              Same as WhatsApp number
-                            </label>
+                            <label htmlFor="phone-same-wa" className="text-xs text-gray-500 cursor-pointer select-none">Same as WhatsApp number</label>
                           </div>
                         </div>
 
