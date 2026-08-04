@@ -127,13 +127,44 @@ gcloud scheduler jobs "$ACTION" http tokens-charge-recurring \
   >/dev/null
 echo "  ✓ tokens-charge-recurring configured"
 
+# ─────────────────────────────────────────────────────────────────
+# Job 3: retry-mandate-refunds — every 30 min (offset)
+# ─────────────────────────────────────────────────────────────────
+# Re-attempts the ₹2 trial mandate-validation refunds that failed inline in
+# the webhook (Order.mandateRefundStatus='failed'). A just-captured recurring
+# -auth payment can transiently reject the refund; this sweep retries it (the
+# payment stays refundable) and is idempotent. Runs at :07 and :37 to stay
+# clear of the other two jobs.
+echo "──── Job 3: retry-mandate-refunds (every 30 min) ────"
+if gcloud scheduler jobs describe retry-mandate-refunds \
+     --location="$LOCATION" --project="$PROJECT" >/dev/null 2>&1; then
+  echo "  Job exists — updating config"
+  ACTION="update"
+else
+  echo "  Creating new job"
+  ACTION="create"
+fi
+gcloud scheduler jobs "$ACTION" http retry-mandate-refunds \
+  --project="$PROJECT" \
+  --location="$LOCATION" \
+  --schedule="7,37 * * * *" \
+  --time-zone="Etc/UTC" \
+  --uri="$APP_URL/api/workers/retry-mandate-refunds" \
+  --http-method=POST \
+  --headers="x-cron-secret=$CRON_SECRET" \
+  --message-body='{}' \
+  --attempt-deadline=300s \
+  --description="Retries failed ₹2 trial mandate-validation refunds (Order.mandateRefundStatus='failed'). Idempotent; no-ops when nothing is failed. Closes the transient-refund-failure money-loss gap." \
+  >/dev/null
+echo "  ✓ retry-mandate-refunds configured"
+
 echo ""
 echo "──────────────────────────────────────────────────────────────"
-echo "Done. Both Tokens-flow Cloud Scheduler jobs are configured."
+echo "Done. All Tokens-flow Cloud Scheduler jobs are configured."
 echo ""
 echo "Listing both jobs:"
 gcloud scheduler jobs list --project="$PROJECT" --location="$LOCATION" \
-  --filter="name:tokens-provision-pending OR name:tokens-charge-recurring" \
+  --filter="name:tokens-provision-pending OR name:tokens-charge-recurring OR name:retry-mandate-refunds" \
   --format="table(name.basename(),schedule,state)"
 echo ""
 echo "Notes:"
