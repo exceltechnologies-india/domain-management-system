@@ -95,7 +95,11 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
     { name: 'Domains', href: '/dashboard/domains', icon: Globe },
     { name: 'Hosting', href: '/dashboard/hosting', icon: Server },
     { name: 'Invoices', href: '/dashboard/invoices', icon: RupeeIcon },
-    { name: 'Support', href: '/dashboard/support', icon: MessageCircle },
+    // Phase 1 integration: hands off to the Support Panel (DSP) via
+    // lib/integrations/support-sso.ts instead of the in-app ticket page.
+    // hardNav forces a full browser navigation (see render loop below) since
+    // this is an API route that issues a cross-origin redirect, not a page.
+    { name: 'Support', href: '/api/user/support/sso', icon: MessageCircle, hardNav: true },
     { name: 'Account Settings', href: '/dashboard/settings', icon: Settings },
   ];
 
@@ -181,22 +185,50 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
           <div className="space-y-1">
             {navigation.map((item) => {
               const Icon = item.icon;
+              const linkClassName = `flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 group ${isActive(item.href)
+                ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'
+                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`;
+              const iconClassName = `h-5 w-5 mr-3 transition-colors ${isActive(item.href)
+                ? 'text-blue-700'
+                : 'text-gray-400 group-hover:text-gray-600'
+                }`;
+
+              // hardNav items (e.g. Support) redirect through an API route to
+              // an external app. Uses window.open() with a fixed window name
+              // (not a plain <a target="..."> ) so repeated clicks reuse the
+              // same tab instead of spawning a new one each time — a plain
+              // named-target anchor doesn't reliably do this once rel="noopener"
+              // is set (severs the name match in modern browsers). href is kept
+              // so right-click > "open in new tab" still works as a plain
+              // new-tab spawn, and middle-click still works normally.
+              if (item.hardNav) {
+                return (
+                  <a
+                    key={item.name}
+                    href={item.href}
+                    className={linkClassName}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setSidebarOpen(false);
+                      const w = window.open(item.href, 'dsp_support_panel');
+                      if (w) w.focus();
+                    }}
+                  >
+                    <Icon className={iconClassName} />
+                    {item.name}
+                  </a>
+                );
+              }
+
               return (
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 group ${isActive(item.href)
-                    ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                    }`}
+                  className={linkClassName}
                   onClick={() => setSidebarOpen(false)}
                 >
-                  <Icon
-                    className={`h-5 w-5 mr-3 transition-colors ${isActive(item.href)
-                      ? 'text-blue-700'
-                      : 'text-gray-400 group-hover:text-gray-600'
-                      }`}
-                  />
+                  <Icon className={iconClassName} />
                   {item.name}
                 </Link>
               );
