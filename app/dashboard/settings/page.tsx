@@ -642,8 +642,25 @@ export default function UserSettings() {
                               type="checkbox"
                               id="phone-same-wa"
                               className="h-3.5 w-3.5 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                              checked={!!user.phone && user.phone === user.whatsappNumber}
-                              onChange={e => { if (e.target.checked) setUser(p => p ? { ...p, phone: p.whatsappNumber || '' } : null); }}
+                              checked={!!user.whatsappNumber && user.phone === user.whatsappNumber}
+                              onChange={e => setUser(p => {
+                                if (!p) return p;
+                                if (!e.target.checked) {
+                                  // Untick → let them enter a distinct phone number.
+                                  setPhoneError('');
+                                  return { ...p, phone: '' };
+                                }
+                                // Tick → make both numbers the same, in EITHER
+                                // direction: copy whichever side is already filled
+                                // into the other (WhatsApp wins when both are set,
+                                // since it's the required/primary number). So a
+                                // phone-only user fills WhatsApp, and a WhatsApp-only
+                                // user fills Phone — one tick, no retyping.
+                                const src = p.whatsappNumber || p.phone || '';
+                                setWhatsappError(src.length === 0 ? 'WhatsApp number is required' : src.length !== 10 ? 'Enter a 10-digit WhatsApp number' : '');
+                                setPhoneError(src.length > 0 && src.length !== 10 ? 'Enter 10-digit mobile number' : '');
+                                return { ...p, whatsappNumber: src, phone: src };
+                              })}
                             />
                             <label htmlFor="phone-same-wa" className="text-xs text-gray-500 cursor-pointer select-none">Same as WhatsApp number</label>
                           </div>

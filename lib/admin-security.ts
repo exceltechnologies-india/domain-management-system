@@ -329,14 +329,23 @@ export async function requireReAuth(
   userId: string
 ): Promise<{ required: boolean; passed: boolean }> {
   try {
-    const currentPassword = request.headers.get("x-reauth-token");
-    if (!currentPassword) {
-      return { required: true, passed: false };
+    // Fetch first so we can distinguish password-based admins from social-login
+    // (Google/Facebook) admins. Select password explicitly; most callers strip
+    // it with select("-password").
+    const user = await getUserWithPassword(userId);
+
+    // Social-login / passwordless admins have no password to step up WITH, so a
+    // password re-auth is impossible for them — a bcrypt compare would always
+    // fail and lock them out of every sensitive action. Operator policy
+    // (2026-08-03): their already-authenticated admin session is sufficient —
+    // exempt them from the password step-up. Password-based admins still MUST
+    // re-enter their current password (below).
+    if (user && !user.password) {
+      return { required: false, passed: true };
     }
 
-    // Select password explicitly; most callers strip it with select("-password")
-    const user = await getUserWithPassword(userId);
-    if (!user || !user.password) {
+    const currentPassword = request.headers.get("x-reauth-token");
+    if (!currentPassword || !user || !user.password) {
       return { required: true, passed: false };
     }
 

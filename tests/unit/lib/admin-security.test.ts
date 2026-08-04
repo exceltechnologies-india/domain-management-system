@@ -117,13 +117,23 @@ describe("requireReAuth — fail-closed re-verification gate", () => {
     expect(bcryptCompare).not.toHaveBeenCalled();
   });
 
-  it("user has no password field → fail-closed (passed:false)", async () => {
+  it("social-login admin (no password) → EXEMPT: required:false, passed:true", async () => {
+    // Operator policy 2026-08-03 (dms-00455): passwordless / social-login admins
+    // can't do a password step-up, so their authenticated session is accepted
+    // instead of hard-blocking them. bcrypt.compare must NOT run.
     getUserWithPassword.mockResolvedValueOnce({ password: null });
     const result = await requireReAuth(
       mockReq({ headers: { "x-reauth-token": "p" } }),
       "USER_ID"
     );
-    expect(result.passed).toBe(false);
+    expect(result).toEqual({ required: false, passed: true });
+    expect(bcryptCompare).not.toHaveBeenCalled();
+  });
+
+  it("social-login admin (no password) → exempt even with NO reauth header", async () => {
+    getUserWithPassword.mockResolvedValueOnce({ password: undefined });
+    const result = await requireReAuth(mockReq({}), "USER_ID");
+    expect(result).toEqual({ required: false, passed: true });
   });
 
   it("bcrypt.compare returns true → passed:true (the happy path)", async () => {
