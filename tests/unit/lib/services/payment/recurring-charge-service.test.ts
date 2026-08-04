@@ -88,6 +88,17 @@ import {
   chargeRecurringHosting,
 } from "@/lib/services/payment/recurring-charge-service";
 
+// A CONFIRMED hard decline — the bank/card refused the charge. chargeViaToken
+// tags these `retriable:false`; only these may suspend the customer.
+function hardDecline(message: string) {
+  return Object.assign(new Error(message), { retriable: false, statusCode: 400 });
+}
+// A SOFT/INFRA failure — the charge never reached the bank (404/5xx/timeout/
+// network). chargeViaToken tags these `retriable:true`; must NOT suspend.
+function infraFailure(message: string, statusCode?: number) {
+  return Object.assign(new Error(message), { retriable: true, statusCode });
+}
+
 function makeHosting(over: Record<string, unknown> = {}) {
   const startDate = new Date("2026-06-01");
   const expiryDate = new Date("2027-06-01"); // 12 months → yearly inferred
@@ -397,7 +408,7 @@ describe("chargeRecurringHosting — failure handling", () => {
       save: vi.fn().mockResolvedValue(undefined),
     };
     RCACreate.mockResolvedValueOnce(attempt);
-    chargeViaToken.mockRejectedValueOnce(new Error("Razorpay card declined"));
+    chargeViaToken.mockRejectedValueOnce(hardDecline("Razorpay card declined"));
 
     const result = await chargeRecurringHosting(
       makeHosting() as unknown as Parameters<typeof chargeRecurringHosting>[0]
@@ -420,7 +431,7 @@ describe("chargeRecurringHosting — failure handling", () => {
       save: vi.fn().mockResolvedValue(undefined),
     };
     RCACreate.mockResolvedValueOnce(attempt);
-    chargeViaToken.mockRejectedValueOnce(new Error("Mandate revoked by customer"));
+    chargeViaToken.mockRejectedValueOnce(hardDecline("Mandate revoked by customer"));
 
     const result = await chargeRecurringHosting(
       hosting as unknown as Parameters<typeof chargeRecurringHosting>[0]
@@ -473,7 +484,7 @@ describe("chargeRecurringHosting — failure handling", () => {
       save: vi.fn().mockResolvedValue(undefined),
     };
     RCACreate.mockResolvedValueOnce(attempt);
-    chargeViaToken.mockRejectedValueOnce(new Error("Card declined"));
+    chargeViaToken.mockRejectedValueOnce(hardDecline("Card declined"));
 
     const result = await chargeRecurringHosting(
       hosting as unknown as Parameters<typeof chargeRecurringHosting>[0]
@@ -512,7 +523,7 @@ describe("chargeRecurringHosting — failure handling", () => {
       save: vi.fn().mockResolvedValue(undefined),
     };
     RCACreate.mockResolvedValueOnce(attempt);
-    chargeViaToken.mockRejectedValueOnce(new Error("Insufficient balance"));
+    chargeViaToken.mockRejectedValueOnce(hardDecline("Insufficient balance"));
 
     const result = await chargeRecurringHosting(
       hosting as unknown as Parameters<typeof chargeRecurringHosting>[0]
@@ -538,7 +549,7 @@ describe("chargeRecurringHosting — failure handling", () => {
       save: vi.fn().mockResolvedValue(undefined),
     };
     RCACreate.mockResolvedValueOnce(attempt);
-    chargeViaToken.mockRejectedValueOnce(new Error("Card declined"));
+    chargeViaToken.mockRejectedValueOnce(hardDecline("Card declined"));
 
     const result = await chargeRecurringHosting(
       hosting as unknown as Parameters<typeof chargeRecurringHosting>[0]
@@ -572,7 +583,7 @@ describe("chargeRecurringHosting — failure handling", () => {
       save: vi.fn().mockResolvedValue(undefined),
     };
     RCACreate.mockResolvedValueOnce(attempt);
-    chargeViaToken.mockRejectedValueOnce(new Error("Card declined"));
+    chargeViaToken.mockRejectedValueOnce(hardDecline("Card declined"));
 
     await chargeRecurringHosting(
       hosting as unknown as Parameters<typeof chargeRecurringHosting>[0]
@@ -593,7 +604,7 @@ describe("chargeRecurringHosting — failure handling", () => {
       save: vi.fn().mockResolvedValue(undefined),
     };
     RCACreate.mockResolvedValueOnce(attempt);
-    chargeViaToken.mockRejectedValueOnce(new Error("Card declined"));
+    chargeViaToken.mockRejectedValueOnce(hardDecline("Card declined"));
 
     const result = await chargeRecurringHosting(
       hosting as unknown as Parameters<typeof chargeRecurringHosting>[0]
@@ -613,7 +624,7 @@ describe("chargeRecurringHosting — failure handling", () => {
       save: vi.fn().mockResolvedValue(undefined),
     };
     RCACreate.mockResolvedValueOnce(attempt);
-    chargeViaToken.mockRejectedValueOnce(new Error("Card declined"));
+    chargeViaToken.mockRejectedValueOnce(hardDecline("Card declined"));
 
     const result = await chargeRecurringHosting(
       hosting as unknown as Parameters<typeof chargeRecurringHosting>[0]
@@ -622,6 +633,91 @@ describe("chargeRecurringHosting — failure handling", () => {
     expect(result.outcome).toBe("abandoned");
     expect(daSuspendUser).toHaveBeenCalled();
     expect((hosting as unknown as { status: string }).status).toBe("expired");
+  });
+});
+
+describe("chargeRecurringHosting — infra failure must NOT suspend (decline-vs-infra split)", () => {
+  // The critical fix: a soft/infra charge failure (404 recurring-not-activated,
+  // 5xx, timeout, network) is NOT a decline — suspending the customer for it is
+  // wrong and would mass-suspend every conversion during a Razorpay outage.
+  // These must schedule a retry and leave the hosting ACTIVE.
+
+  function infraExpectations(
+    result: { outcome: string },
+    hosting: { status?: string; expiryDate: Date },
+    attempt: { status: string; nextAttemptAt?: Date },
+    originalExpiry: number
+  ) {
+    expect(result.outcome).toBe("retry_scheduled");
+    // NOT suspended: no DA suspend, no expired flip, no dunning email
+    expect(daSuspendUser).not.toHaveBeenCalled();
+    expect(sendServiceSuspensionEmail).not.toHaveBeenCalled();
+    expect(hosting.status).not.toBe("expired");
+    // Retry scheduled, expiry untouched
+    expect(attempt.status).toBe("failed");
+    expect(attempt.nextAttemptAt).toBeInstanceOf(Date);
+    expect(hosting.expiryDate.getTime()).toBe(originalExpiry);
+  }
+
+  it("FIRST post-trial charge — 404 (recurring not activated) → retry_scheduled, NOT suspended", async () => {
+    RCACountDocuments.mockResolvedValueOnce(0); // first post-trial charge
+    const hosting = makeHosting({ directAdminUsername: "userxxx", isTrial: true });
+    const originalExpiry = new Date(hosting.expiryDate).getTime();
+    const attempt = { attemptCount: 1, status: "in_progress", save: vi.fn().mockResolvedValue(undefined) };
+    RCACreate.mockResolvedValueOnce(attempt);
+    chargeViaToken.mockRejectedValueOnce(
+      infraFailure("Failed to charge via token: The requested URL was not found on the server.", 404)
+    );
+
+    const result = await chargeRecurringHosting(
+      hosting as unknown as Parameters<typeof chargeRecurringHosting>[0]
+    );
+
+    infraExpectations(result, hosting as never, attempt as never, originalExpiry);
+  });
+
+  it("5xx server error → retry_scheduled, NOT suspended", async () => {
+    RCACountDocuments.mockResolvedValueOnce(0);
+    const hosting = makeHosting({ directAdminUsername: "userxxx" });
+    const originalExpiry = new Date(hosting.expiryDate).getTime();
+    const attempt = { attemptCount: 1, status: "in_progress", save: vi.fn().mockResolvedValue(undefined) };
+    RCACreate.mockResolvedValueOnce(attempt);
+    chargeViaToken.mockRejectedValueOnce(infraFailure("Razorpay 502", 502));
+
+    const result = await chargeRecurringHosting(
+      hosting as unknown as Parameters<typeof chargeRecurringHosting>[0]
+    );
+    infraExpectations(result, hosting as never, attempt as never, originalExpiry);
+  });
+
+  it("unclassified error (no retriable flag) → treated as infra, NOT suspended (safe default)", async () => {
+    // A non-Razorpay throw (our bug, a timeout with no status, etc.) must NEVER
+    // suspend a customer — only a CONFIRMED hard decline may.
+    RCACountDocuments.mockResolvedValueOnce(0);
+    const hosting = makeHosting({ directAdminUsername: "userxxx" });
+    const originalExpiry = new Date(hosting.expiryDate).getTime();
+    const attempt = { attemptCount: 1, status: "in_progress", save: vi.fn().mockResolvedValue(undefined) };
+    RCACreate.mockResolvedValueOnce(attempt);
+    chargeViaToken.mockRejectedValueOnce(new Error("some unexpected error"));
+
+    const result = await chargeRecurringHosting(
+      hosting as unknown as Parameters<typeof chargeRecurringHosting>[0]
+    );
+    infraExpectations(result, hosting as never, attempt as never, originalExpiry);
+  });
+
+  it("RENEWAL infra failure → retry_scheduled, NOT suspended", async () => {
+    RCACountDocuments.mockResolvedValueOnce(2); // established paying customer
+    const hosting = makeHosting({ directAdminUsername: "userxxx" });
+    const originalExpiry = new Date(hosting.expiryDate).getTime();
+    const attempt = { attemptCount: 1, status: "in_progress", save: vi.fn().mockResolvedValue(undefined) };
+    RCACreate.mockResolvedValueOnce(attempt);
+    chargeViaToken.mockRejectedValueOnce(infraFailure("network timeout")); // no statusCode
+
+    const result = await chargeRecurringHosting(
+      hosting as unknown as Parameters<typeof chargeRecurringHosting>[0]
+    );
+    infraExpectations(result, hosting as never, attempt as never, originalExpiry);
   });
 });
 
