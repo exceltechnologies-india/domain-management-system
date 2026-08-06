@@ -17,8 +17,9 @@ vi.mock("@/lib/mongodb", () => ({ default: connectDBMock }));
 
 const findOneMock = vi.hoisted(() => vi.fn());
 const findMock = vi.hoisted(() => vi.fn());
+const findByIdMock = vi.hoisted(() => vi.fn());
 vi.mock("@/models/PendingDomain", () => ({
-  default: { findOne: findOneMock, find: findMock },
+  default: { findOne: findOneMock, find: findMock, findById: findByIdMock },
 }));
 
 import {
@@ -32,37 +33,35 @@ beforeEach(() => {
   connectDBMock.mockReset();
   findOneMock.mockReset();
   findMock.mockReset();
+  findByIdMock.mockReset();
 });
 
+// getPendingDomainById was tightened in dms-00452 alongside the PendingDomain
+// `_id` Mixed→ObjectId schema change: persisted rows always have an ObjectId
+// _id, so it now does a plain `findById` for valid ObjectIds and returns null
+// for anything else (e.g. the synthetic `order_<id>_<domain>` admin-list ids)
+// instead of the old raw-string `$or` dual-query.
 describe("getPendingDomainById", () => {
-  it("ObjectId-valid id → $or with BOTH raw-string and ObjectId forms", async () => {
-    const validHex = "507f1f77bcf86cd799439011";
-    findOneMock.mockResolvedValueOnce({ _id: validHex, domainName: "example.com" });
+  const validHex = "507f1f77bcf86cd799439011";
+
+  it("ObjectId-valid id → findById(id)", async () => {
+    findByIdMock.mockResolvedValueOnce({ _id: validHex, domainName: "example.com" });
     await getPendingDomainById(validHex);
     expect(connectDBMock).toHaveBeenCalled();
-    const arg = findOneMock.mock.calls[0][0];
-    expect(arg).toEqual({
-      $or: [
-        { _id: validHex },
-        { _id: expect.any(mongoose.Types.ObjectId) },
-      ],
-    });
-    // Confirm the ObjectId equals the hex.
-    expect(String(arg.$or[1]._id)).toBe(validHex);
+    expect(findByIdMock).toHaveBeenCalledWith(validHex);
   });
 
-  it("non-ObjectId-valid id (legacy string) → only the raw-string match", async () => {
-    findOneMock.mockResolvedValueOnce(null);
-    await getPendingDomainById("legacy-string-id");
-    expect(findOneMock).toHaveBeenCalledWith({
-      $or: [{ _id: "legacy-string-id" }],
-    });
+  it("non-ObjectId id (synthetic/legacy string) → returns null, no query issued", async () => {
+    const result = await getPendingDomainById("order_abc_example.com");
+    expect(result).toBeNull();
+    expect(findByIdMock).not.toHaveBeenCalled();
   });
 
   it("populateUser=true populates 'userId' with the admin projection", async () => {
     const populateMock = vi.fn().mockResolvedValue({ _id: "x" });
-    findOneMock.mockReturnValue({ populate: populateMock });
-    await getPendingDomainById("legacy", { populateUser: true });
+    findByIdMock.mockReturnValue({ populate: populateMock });
+    await getPendingDomainById(validHex, { populateUser: true });
+    expect(findByIdMock).toHaveBeenCalledWith(validHex);
     expect(populateMock).toHaveBeenCalledWith(
       "userId",
       "firstName lastName email phone companyName"
@@ -70,10 +69,9 @@ describe("getPendingDomainById", () => {
   });
 
   it("populateUser=false (default) does NOT call populate", async () => {
-    findOneMock.mockResolvedValueOnce(null);
-    await getPendingDomainById("legacy");
-    // findOne result is awaited directly (no .populate chain).
-    expect(findOneMock).toHaveBeenCalled();
+    findByIdMock.mockResolvedValueOnce(null);
+    await getPendingDomainById(validHex);
+    expect(findByIdMock).toHaveBeenCalledWith(validHex);
   });
 });
 
