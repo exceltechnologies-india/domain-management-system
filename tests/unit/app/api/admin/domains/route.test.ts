@@ -54,6 +54,23 @@ vi.mock("@/lib/server-logger", () => ({
   serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
+// The route calls connectDB() + Domain.find({...}).lean() for the removed-domain
+// exclusion set. Without these mocks connectDB hangs on the placeholder test URI
+// (5s timeout on every test). Domain.find returns no removed domains by default.
+vi.mock("@/lib/mongodb", () => ({ default: vi.fn().mockResolvedValue(undefined) }));
+const DomainFind = vi.hoisted(() =>
+  vi.fn(() => {
+    // Chainable query stub: find().select().sort().lean() → [] by default.
+    const chain: Record<string, unknown> = {
+      select: () => chain,
+      sort: () => chain,
+      lean: () => Promise.resolve([]),
+    };
+    return chain;
+  })
+);
+vi.mock("@/models/Domain", () => ({ default: { find: DomainFind } }));
+
 vi.unmock("next/server");
 const { NextRequest, NextResponse } = await vi.importActual<
   typeof import("next/server")
