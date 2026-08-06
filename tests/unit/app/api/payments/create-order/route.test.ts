@@ -88,6 +88,11 @@ vi.mock("@/models/HostingPlan", () => ({
   default: { findOne: HostingPlanFindOne },
 }));
 
+// The route resolves hosting plans via getPlanByPlanId (dynamic import), which
+// calls connectDB() first. Without mocking @/lib/mongodb the real Mongoose
+// client hangs on the placeholder test URI, timing out every hosting-path test.
+vi.mock("@/lib/mongodb", () => ({ default: vi.fn().mockResolvedValue(undefined) }));
+
 const getSettingValue = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/settings", () => ({ getSettingValue }));
 
@@ -158,7 +163,7 @@ beforeEach(() => {
     .mockResolvedValue({ id: "order_tok_X", amount: 200 });
   createManualFlowTrialHosting.mockReset().mockResolvedValue({
     hostingId: "H_MANUAL_1",
-    domainName: "host-manual",
+    domainName: "host-manual.com",
     expiryDate: new Date("2026-07-12"),
     status: "pending",
   });
@@ -168,7 +173,16 @@ beforeEach(() => {
   delete process.env.HOSTING_MANDATE_FLOW;
   evaluateTrialAbuse.mockReset().mockResolvedValue({ allowed: true });
   recordTrialClaim.mockReset().mockResolvedValue(undefined);
-  HostingPlanFindOne.mockReset().mockResolvedValue(null);
+  // Default: a resolvable hosting plan with Razorpay plan ids so the
+  // subscription/tokens branches can fire. Tests exercising the "plan not
+  // found" path set `HostingPlanFindOne.mockResolvedValueOnce(null)` explicitly.
+  HostingPlanFindOne.mockReset().mockResolvedValue({
+    planId: "pro",
+    name: "Pro",
+    renewalPrice: 49.99,
+    isActive: true,
+    razorpayPlans: { yearly: "plan_yr_X", monthly: "plan_mo_X" },
+  });
   getSettingValue.mockReset().mockResolvedValue(undefined);
   getClientIp.mockReset().mockReturnValue("1.2.3.4");
   hashIp.mockReset().mockImplementation((ip: string) => `hash:${ip}`);
@@ -234,7 +248,7 @@ describe("TLD policy check", () => {
       makeReq({
         cartItems: [
           {
-            domainName: "host-pkg",
+            domainName: "host-pkg.com",
             price: 1500,
             currency: "INR",
             itemType: "hosting",
@@ -300,7 +314,7 @@ describe("Trial gates (4 distinct rejections)", () => {
   const trialCart = {
     cartItems: [
       {
-        domainName: "host-x",
+        domainName: "host-x.com",
         linkedDomain: "trialsite.com",
         price: 0,
         currency: "INR",
@@ -393,10 +407,11 @@ describe("Trial gates (4 distinct rejections)", () => {
     await POST(makeReq(trialCart));
 
     // signature: (planId, userId, domain, true, 100, isTrial ? 15 : undefined)
+    // domain = the linked domain (trialCart carries linkedDomain 'trialsite.com').
     expect(createSubscription).toHaveBeenCalledWith(
       "plan_RP_yearly",
       "U1",
-      "host-x",
+      "trialsite.com",
       true,
       100,
       15
@@ -412,7 +427,7 @@ describe("Trial gates (4 distinct rejections)", () => {
       makeReq({
         cartItems: [
           {
-            domainName: "host-x",
+            domainName: "host-x.com",
             price: 1500,
             currency: "INR",
             itemType: "hosting" as const,
@@ -441,7 +456,7 @@ describe("Subscription creation failure → falls back to one-time", () => {
       makeReq({
         cartItems: [
           {
-            domainName: "host-x",
+            domainName: "host-x.com",
             price: 1500,
             currency: "INR",
             itemType: "hosting" as const,
@@ -465,7 +480,7 @@ describe("Subscription creation failure → falls back to one-time", () => {
       makeReq({
         cartItems: [
           {
-            domainName: "host-x",
+            domainName: "host-x.com",
             price: 1500,
             currency: "INR",
             itemType: "hosting" as const,
@@ -517,7 +532,7 @@ describe("createOrder pending-row persistence", () => {
       makeReq({
         cartItems: [
           {
-            domainName: "host-x",
+            domainName: "host-x.com",
             price: 1500,
             currency: "INR",
             itemType: "hosting" as const,
@@ -544,7 +559,7 @@ describe("createOrder pending-row persistence", () => {
             itemType: "domain",
           },
           {
-            domainName: "host-x",
+            domainName: "host-x.com",
             price: 1500,
             currency: "INR",
             itemType: "hosting" as const,
@@ -578,7 +593,7 @@ describe("createOrder pending-row persistence", () => {
             itemType: "domain",
           },
           {
-            domainName: "host-x",
+            domainName: "host-x.com",
             price: 1500,
             currency: "INR",
             itemType: "hosting" as const,
@@ -635,7 +650,7 @@ describe("No payment target — caught as 500", () => {
       makeReq({
         cartItems: [
           {
-            domainName: "host-x",
+            domainName: "host-x.com",
             price: 0,
             currency: "INR",
             itemType: "hosting",
@@ -678,7 +693,7 @@ describe("Response shape — payment targets returned", () => {
       makeReq({
         cartItems: [
           {
-            domainName: "host-x",
+            domainName: "host-x.com",
             price: 1500,
             currency: "INR",
             itemType: "hosting" as const,
@@ -707,7 +722,7 @@ describe("Response shape — payment targets returned", () => {
       makeReq({
         cartItems: [
           {
-            domainName: "host-x",
+            domainName: "host-x.com",
             price: 0,
             currency: "INR",
             itemType: "hosting" as const,
@@ -746,7 +761,7 @@ describe("Tokens-flow branch (Phase 2A)", () => {
   const tokensTrialCart = {
     cartItems: [
       {
-        domainName: "host-tokens",
+        domainName: "host-tokens.com",
         price: 0,
         currency: "INR",
         itemType: "hosting" as const,
@@ -810,7 +825,7 @@ describe("Tokens-flow branch (Phase 2A)", () => {
       expect.objectContaining({
         type: "mandate_validation",
         user_id: "U1",
-        domain_name: "host-tokens",
+        domain_name: "host-tokens.com",
         plan_id: "starter",
         is_trial: "true",
         trial_days: "15",
@@ -849,7 +864,7 @@ describe("Tokens-flow branch (Phase 2A)", () => {
     const nonTrialCart = {
       cartItems: [
         {
-          domainName: "host-paid",
+          domainName: "host-paid.com",
           price: 49.99,
           currency: "INR",
           itemType: "hosting" as const,
@@ -896,7 +911,7 @@ describe("Manual-flow branch (HOSTING_MANDATE_FLOW=manual)", () => {
   const manualTrialCart = {
     cartItems: [
       {
-        domainName: "host-manual",
+        domainName: "host-manual.com",
         price: 0,
         currency: "INR",
         itemType: "hosting" as const,
@@ -931,7 +946,7 @@ describe("Manual-flow branch (HOSTING_MANDATE_FLOW=manual)", () => {
     expect(createManualFlowTrialHosting).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "U1",
-        domainName: "host-manual",
+        domainName: "host-manual.com",
         planId: "starter",
         planName: "Starter",
         orderId: expect.stringMatching(/^ord_\d+_[a-z0-9]+$/),
@@ -958,7 +973,7 @@ describe("Manual-flow branch (HOSTING_MANDATE_FLOW=manual)", () => {
     });
     // Domain shape carries the trial signal
     expect(orderArgs.domains[0]).toMatchObject({
-      domainName: "host-manual",
+      domainName: "host-manual.com",
       isTrial: true,
       itemType: "hosting",
       hostingPlan: expect.objectContaining({ planId: "starter" }),
@@ -1005,7 +1020,7 @@ describe("Manual-flow branch (HOSTING_MANDATE_FLOW=manual)", () => {
     const nonTrialCart = {
       cartItems: [
         {
-          domainName: "host-paid",
+          domainName: "host-paid.com",
           price: 49.99,
           currency: "INR",
           itemType: "hosting" as const,
