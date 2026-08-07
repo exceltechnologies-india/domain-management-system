@@ -94,6 +94,23 @@ vi.mock("@/lib/server-logger", () => ({
   serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
+// The route awaits recordActivity(...) after signup, which calls connectDB() +
+// CustomerActivity.create — unmocked it hangs on the placeholder test URI (5s
+// timeout on every test). Mock it (+ connectDB) to a no-op.
+vi.mock("@/lib/mongodb", () => ({ default: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("@/lib/services/analytics", () => ({
+  recordActivity: vi.fn().mockResolvedValue(undefined),
+}));
+// RecaptchaServer.verifyToken does a real fetch() to Google — unmocked it hangs
+// the test on the network call (5s timeout). Mock it to pass verification.
+vi.mock("@/lib/recaptcha", () => ({
+  RecaptchaServer: { verifyToken: vi.fn().mockResolvedValue({ success: true }) },
+}));
+// sendMetaServerEvent does a fetch to Meta + getTrackingConfig (DB) — mock to no-op.
+vi.mock("@/lib/meta-capi", () => ({
+  sendMetaServerEvent: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.unmock("next/server");
 const { NextRequest, NextResponse } = await vi.importActual<
   typeof import("next/server")

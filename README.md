@@ -110,10 +110,51 @@ All configuration is supplied via environment variables — see [`.env.example`]
 ## Testing
 
 ```bash
-npm test              # all unit tests
+npm test              # all unit tests (Vitest, jsdom)
 npm run test:watch    # watch mode
-npm run test:int      # integration tests
+npm run test:int      # integration tests (Vitest, node env)
 ```
+
+### Mock testing — how we test payment/provisioning logic without real charges
+
+Money-path and third-party flows (Razorpay charges/refunds, DirectAdmin
+provisioning, email) can't hit the real APIs in a unit test — that would cost
+money, mutate live data, or fail offline. Instead we **mock the external
+dependency at the module boundary and test *our* logic's reaction** to each
+outcome it can return.
+
+**The pattern** (see `tests/unit/lib/services/payment/recurring-charge-service.test.ts`
+for a full example):
+
+1. **Mock the boundary** with `vi.hoisted` + `vi.mock` so the mock is in place
+   before the module under test imports it:
+   ```ts
+   const chargeViaToken = vi.hoisted(() => vi.fn());
+   vi.mock("@/lib/razorpay", () => ({ RazorpayService: { chargeViaToken } }));
+   const daSuspendUser = vi.hoisted(() => vi.fn());
+   vi.mock("@/lib/integrations/directadmin", () => ({ suspendUser: daSuspendUser }));
+   ```
+   Also mock the DB models (`@/models/*`) and `@/lib/mongodb` so nothing tries
+   to reach Mongo — `beforeEach` resets every mock to a known-good default.
+
+2. **Drive one outcome per test** by controlling what the mock returns/throws,
+   then assert what *our* code did:
+   ```ts
+   // success → renews
+   chargeViaToken.mockResolvedValueOnce({ paymentId: "pay_x", orderId: "order_x" });
+   // hard decline → suspends (tagged retriable:false, like the real SDK)
+   chargeViaToken.mockRejectedValueOnce(Object.assign(new Error("Card declined"), { retriable: false, statusCode: 400 }));
+   // infra failure (404/5xx/timeout) → retry, must NOT suspend
+   chargeViaToken.mockRejectedValueOnce(Object.assign(new Error("404"), { retriable: true, statusCode: 404 }));
+   ```
+   This lets us prove all three day-15 branches — **renew / suspend /
+   retry-without-suspend** — deterministically, with zero live payments.
+
+**Rule of thumb:** mock the *thing you don't own* (Razorpay, DA, SMTP, the DB),
+and assert on the *behaviour you do own*. Reserve real-API calls for the
+explicitly-gated integration tests under `tests/integration/` (e.g.
+`razorpay-tokens-live.test.ts`, `razorpay-mit-charge.verify.test.ts`), which
+run only against **test-mode** keys and skip when those keys are absent.
 
 ## Deployment
 

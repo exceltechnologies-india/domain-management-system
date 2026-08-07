@@ -73,6 +73,11 @@ const CHARGE_LOOKAHEAD_DAYS = 1;
 const RETRY_BACKOFF_DAYS = [1, 3, 7] as const;
 const FIRST_CHARGE_MAX_ATTEMPTS = 1;
 const RENEWAL_MAX_ATTEMPTS = 1;
+// Soft/infra charge failures (404/5xx/timeout/network — NOT a decline) retry
+// this soon and NEVER suspend. Short so the next daily cron re-attempts; if the
+// infra issue persists the 'failed' rows pile up visibly in /admin/recurring
+// -charges for the operator to fix — far better than suspending customers.
+const INFRA_RETRY_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 export interface ChargeResult {
   hostingId: string;
@@ -258,6 +263,11 @@ export async function chargeRecurringHosting(
 
   let chargeOk = false;
   let chargeErr: string | undefined;
+  // Only a CONFIRMED hard decline may suspend the customer downstream.
+  // chargeViaToken tags soft/infra failures with `retriable:true`; anything
+  // not explicitly a hard decline (retriable !== false — infra 404/5xx/timeout,
+  // a transport error, or a non-Razorpay throw) must NOT suspend.
+  let chargeIsHardDecline = false;
   let chargePaymentId: string | undefined;
   let chargeOrderId: string | undefined;
   try {
@@ -280,6 +290,7 @@ export async function chargeRecurringHosting(
     chargeOrderId = result.orderId;
   } catch (e: unknown) {
     chargeErr = e instanceof Error ? e.message : String(e);
+    chargeIsHardDecline = (e as { retriable?: boolean })?.retriable === false;
   }
 
   // 4. Update hosting + attempt based on outcome.
@@ -341,8 +352,34 @@ export async function chargeRecurringHosting(
     return { ...baseResult, outcome: "succeeded", attemptCount: attempt.attemptCount, newExpiryDate: newExpiry };
   }
 
-  // Charge failed — schedule retry OR abandon
+  // Charge failed.
   attempt.lastError = chargeErr;
+
+  // SOFT / INFRA failure (NOT a confirmed hard decline) — the charge never
+  // actually reached "declined by the bank": a 404 (recurring not activated /
+  // wrong endpoint), 5xx, timeout, rate-limit, or transport error (see
+  // chargeViaToken's `retriable` tag). Suspending a customer for OUR / Razorpay's
+  // infra problem is wrong — and would MASS-SUSPEND every day-15 conversion
+  // during a Razorpay outage or a misconfig (exactly the recurring-404 case).
+  // So NEVER abandon/suspend here: schedule a retry, leave the hosting ACTIVE.
+  // The operator sees the piling 'failed' attempts in /admin/recurring-charges.
+  if (!chargeIsHardDecline) {
+    const nextAttempt = new Date(now.getTime() + INFRA_RETRY_MS);
+    attempt.status = "failed";
+    attempt.nextAttemptAt = nextAttempt;
+    await attempt.save();
+    serverLogger.error(
+      `⚠️ [RECURRING-CHARGE] SOFT/INFRA failure charging ${hosting.domainName} — NOT suspending; retry at ${nextAttempt.toISOString()}: ${chargeErr}`
+    );
+    return {
+      ...baseResult,
+      outcome: "retry_scheduled",
+      attemptCount: attempt.attemptCount,
+      reason: `infra/soft failure — not suspending: ${chargeErr}`,
+    };
+  }
+
+  // Hard decline — the deliberate 1-attempt-then-suspend rule.
   if (attempt.attemptCount >= maxAttempts) {
     attempt.status = "abandoned";
     attempt.abandonedAt = now;

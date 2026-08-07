@@ -564,8 +564,26 @@ export class RazorpayService {
     } catch (error: unknown) {
       serverLogger.error("❌ [RAZORPAY] MIT charge error:", error);
       const err = asRzpErr(error);
-      throw new Error(
-        `Failed to charge via token: ${err.error?.description || err.message}`
+      // Classify the failure so the caller can distinguish a genuine card/bank
+      // DECLINE (the charge reached the network and was refused → downstream
+      // suspend is legitimate) from a SOFT/INFRA failure (the charge NEVER
+      // completed: 404 endpoint/config, 408 timeout, 429 rate-limit, 5xx
+      // server, or a transport error with no HTTP status). A customer must
+      // NEVER be suspended for our / Razorpay's infra problem, so those are
+      // flagged `retriable:true` = "retry later, don't suspend". Default to
+      // retriable unless it's clearly a request-level decline (a 4xx that
+      // isn't one of the infra codes). The SDK attaches `statusCode`
+      // (node_modules/razorpay/dist/api.js).
+      const statusCode = (error as { statusCode?: number })?.statusCode;
+      const retriable =
+        typeof statusCode !== "number" || // network / timeout / no response
+        statusCode === 404 ||
+        statusCode === 408 ||
+        statusCode === 429 ||
+        statusCode >= 500;
+      throw Object.assign(
+        new Error(`Failed to charge via token: ${err.error?.description || err.message}`),
+        { retriable, statusCode }
       );
     }
   }

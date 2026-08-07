@@ -176,7 +176,12 @@ describe("POST /api/payments/verify — body validation", () => {
     expect(res.status).toBe(400);
   });
 
-  it("400s when razorpay_signature is missing", async () => {
+  // dms-00434 intentionally made `razorpay_signature` and `cartItems` OPTIONAL:
+  // the webhook-derived pending-order round-trip has no client HMAC signature
+  // and derives its items from the persisted Order, so requiring either here
+  // wrongly rejected valid verifications. These tests pin the NEW contract —
+  // a missing field is no longer a body-validation rejection.
+  it("razorpay_signature is OPTIONAL — its absence is not a validation rejection", async () => {
     const res = await POST(
       makeRequest({
         razorpay_order_id: "order_test_999",
@@ -184,19 +189,25 @@ describe("POST /api/payments/verify — body validation", () => {
         cartItems: [{ domainName: "example.com", price: 1099, registrationPeriod: 1 }],
       })
     );
-    expect(res.status).toBe(400);
+    const body = await res.json().catch(() => ({}));
+    // The missing signature is NOT itself a rejection: verifyRazorpayPayment
+    // falls back to a server-side integrity check (which, in this mocked env,
+    // succeeds → 200). Key contract: no "signature required" validation error.
+    expect(String(body.error ?? "")).not.toMatch(/signature.*required|required.*signature/i);
   });
 
-  it("400s when cartItems is missing", async () => {
+  it("cartItems is OPTIONAL — a missing cartItems reaches the signature gate, not a 'Cart items' error", async () => {
     const res = await POST(
       makeRequest({
         razorpay_order_id: "order_test_999",
         razorpay_payment_id: "pay_test_123",
-        razorpay_signature: "x",
+        razorpay_signature: "x", // invalid → signature gate rejects
       })
     );
+    const body = await res.json();
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toMatch(/Cart items/);
+    expect(String(body.error)).not.toMatch(/Cart items/); // no longer a required field
+    expect(String(body.error)).toMatch(/signature/i); // reaches the signature gate instead
   });
 
   it("400s when cartItems is empty", async () => {
