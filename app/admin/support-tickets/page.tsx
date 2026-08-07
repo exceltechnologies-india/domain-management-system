@@ -6,10 +6,9 @@ import { useSession } from "next-auth/react";
 import { toast } from "react-hot-toast";
 import {
   MessageCircle, Clock, CheckCircle2, XCircle, AlertCircle,
-  Search, ChevronRight, RefreshCw, Loader2, Inbox,
-  Tag, Server, CreditCard, Wrench, HelpCircle,
+  Search, RefreshCw, Loader2, Inbox,
+  Tag, Server, CreditCard, Wrench, HelpCircle, ExternalLink,
 } from "lucide-react";
-import Link from "next/link";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { AdminLayoutSkeleton, AdminSupportPageSkeleton } from "@/components/skeletons/PageSkeletons";
 import { performLogout } from "@/lib/logout";
@@ -32,6 +31,7 @@ interface Ticket {
   updatedAt: string;
   messageCount: number;
   lastMessage?: { authorRole: string };
+  source?: "legacy" | "support-panel";
 }
 
 const STATUS_CFG: Record<string, { label: string; cls: string; dot: string; icon: React.ElementType }> = {
@@ -151,14 +151,31 @@ export default function AdminSupportTicketsPage() {
             </h1>
             <p className="text-sm text-gray-500 mt-0.5">Manage customer support requests</p>
           </div>
-          <button
-            onClick={fetchTickets}
-            disabled={loading}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Plain link to DSP's own admin login — deliberately NOT an
+                auto-login handoff like the customer-facing Support tab.
+                Admin/agent access in DSP can see and manage every customer's
+                data, so that privilege should stay a deliberate, separately-
+                provisioned login rather than something granted automatically
+                from Customer Panel admin status. */}
+            <a
+              href={`${process.env.NEXT_PUBLIC_DSP_SUPPORT_URL || ""}/login`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-3 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Open Support Admin
+            </a>
+            <button
+              onClick={fetchTickets}
+              disabled={loading}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+          </div>
         </div>
 
         {/* Alert strips */}
@@ -282,14 +299,17 @@ export default function AdminSupportTicketsPage() {
                       <td className="px-4 py-3.5 text-xs text-gray-400 whitespace-nowrap">
                         {formatIndianDateTime(ticket.updatedAt)}
                       </td>
-                      {/* Action */}
+                      {/* No id-specific deep link exists in DSP's admin —
+                          this opens its ticket list, not this exact ticket. */}
                       <td className="px-4 py-3.5 pr-4">
-                        <Link
-                          href={`/admin/support-tickets/${ticket._id}`}
+                        <a
+                          href={`${process.env.NEXT_PUBLIC_DSP_SUPPORT_URL || ""}/admin/tickets`}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity"
                         >
-                          Open <ChevronRight className="h-3.5 w-3.5" />
-                        </Link>
+                          Open in Support Panel <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
                       </td>
                     </tr>
                   );

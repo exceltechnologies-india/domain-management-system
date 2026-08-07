@@ -54,6 +54,23 @@ export async function findUserHosting(
 }
 
 /**
+ * Look up the hosting record created by a specific order — used to find its
+ * `directAdminUsername` when reporting the order's items to an external
+ * system (e.g. Billing's renewal tracking) that needs it to actually
+ * execute a suspend later. `domainName` narrows when an order has more
+ * than one hosting line.
+ */
+export async function findHostingByOrderId(
+  orderId: string,
+  opts?: { domainName?: string }
+): Promise<IHosting | null> {
+  await connectDB();
+  const filter: Record<string, unknown> = { orderId };
+  if (opts?.domainName) filter.domainName = opts.domainName;
+  return Hosting.findOne(filter);
+}
+
+/**
  * Cheap eligibility shortcut: returns true if the user owns *any* hosting
  * record. Avoids hauling the full document just to check existence.
  */

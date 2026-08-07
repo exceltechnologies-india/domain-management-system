@@ -620,6 +620,80 @@ export async function markZohoInvoiceCreationFailed(
   );
 }
 
+// ─── Billing Panel (ResellerOS) invoice claim — same sentinel-value pattern
+// as the Zoho functions above, kept as a parallel field/set of functions
+// rather than repurposing the Zoho ones, since they're a different external
+// system with different failure modes.
+
+export async function claimOrderForBillingInvoice(
+  orderId: string | mongoose.Types.ObjectId,
+  opts?: { allowFailed?: boolean }
+): Promise<IOrder | null> {
+  await connectDB();
+  const unclaimedConditions: Record<string, unknown>[] = [
+    { billingInvoiceId: { $exists: false } },
+    { billingInvoiceId: "" },
+  ];
+  if (opts?.allowFailed) {
+    unclaimedConditions.push({ billingInvoiceId: "creation_failed" });
+  }
+  return Order.findOneAndUpdate(
+    { _id: orderId, $or: unclaimedConditions },
+    { $set: { billingInvoiceId: "pending_creation" } },
+    { new: true }
+  );
+}
+
+export async function recordBillingInvoiceForOrder(
+  orderId: string | mongoose.Types.ObjectId,
+  invoice: { invoiceId: string; invoiceNumber?: string; pdfUrl?: string }
+): Promise<void> {
+  await connectDB();
+  await Order.updateOne(
+    { _id: orderId },
+    {
+      $set: {
+        billingInvoiceId: invoice.invoiceId,
+        ...(invoice.invoiceNumber ? { billingInvoiceNumber: invoice.invoiceNumber } : {}),
+        ...(invoice.pdfUrl ? { billingInvoicePdfUrl: invoice.pdfUrl } : {}),
+      },
+    }
+  );
+}
+
+export async function releaseBillingInvoiceClaim(
+  orderId: string | mongoose.Types.ObjectId
+): Promise<void> {
+  await connectDB();
+  await Order.updateOne(
+    { _id: orderId, billingInvoiceId: "pending_creation" },
+    { $unset: { billingInvoiceId: "" } }
+  );
+}
+
+export async function markBillingInvoiceCreationFailed(
+  orderId: string | mongoose.Types.ObjectId
+): Promise<void> {
+  await connectDB();
+  await Order.updateOne(
+    { _id: orderId, billingInvoiceId: "pending_creation" },
+    { $set: { billingInvoiceId: "creation_failed" } }
+  );
+}
+
+/** Unconditional variant — used after outer retries are exhausted, when the
+ * claim may already have been released (unset), so the guarded version above
+ * would no-op. Mirrors {@link forceMarkZohoCreationFailed}. */
+export async function forceMarkBillingInvoiceCreationFailed(
+  orderId: string | mongoose.Types.ObjectId
+): Promise<void> {
+  await connectDB();
+  await Order.updateOne(
+    { _id: orderId },
+    { $set: { billingInvoiceId: "creation_failed" } }
+  );
+}
+
 // ─── Pending-order lifecycle ──────────────────────────────────────────────────
 //
 // To close the race where Razorpay's webhook arrives before our /verify
@@ -1004,6 +1078,22 @@ export async function findOrderByZohoInvoiceForUser(
   let query = Order.findOne({
     userId,
     zohoInvoiceId,
+    isDeleted: { $ne: true },
+  });
+  if (options?.select) query = query.select(options.select);
+  return query;
+}
+
+/** Same ownership lookup, for Billing Panel (ResellerOS)-backed invoices. */
+export async function findOrderByBillingInvoiceForUser(
+  userId: unknown,
+  billingInvoiceId: string,
+  options?: { select?: string }
+): Promise<IOrder | null> {
+  await connectDB();
+  let query = Order.findOne({
+    userId,
+    billingInvoiceId,
     isDeleted: { $ne: true },
   });
   if (options?.select) query = query.select(options.select);

@@ -34,6 +34,15 @@ interface Invoice {
   zoho_pending?: boolean;
 }
 
+interface Quote {
+  id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  pdfUrl: string;
+  paymentUrl: string;
+}
+
 export default function InvoicesPage() {
   const { user, isLoading: isAuthLoading } = useUser();
   const router = useRouter();
@@ -41,6 +50,7 @@ export default function InvoicesPage() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [activeTab, setActiveTab] = useState<'invoices' | 'pending'>('invoices');
 
   const {
     data: invoicesData,
@@ -54,6 +64,19 @@ export default function InvoicesPage() {
   );
 
   const invoices = invoicesData?.invoices ?? [];
+
+  const {
+    data: quotesData,
+    isLoading: isLoadingQuotes,
+    isValidating: isValidatingQuotes,
+    mutate: mutateQuotes,
+  } = useSWR<{ quotes: Quote[] }>(
+    user && activeTab === 'pending' ? '/api/v1/user/quotes' : null,
+    fetcher,
+    { revalidateOnFocus: false }
+  );
+  const quotes = quotesData?.quotes ?? [];
+  const pendingQuotes = quotes.filter((q) => q.status !== 'expired');
 
   // While any paid invoice is still being generated in the background, poll
   // every 30s so the user sees it appear without having to refresh manually.
@@ -223,15 +246,41 @@ export default function InvoicesPage() {
               <Receipt className="h-5 w-5 text-blue-600" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Invoices</h1>
-              <p className="text-sm text-gray-500 mt-0.5">View and download your billing history</p>
+              <h1 className="text-2xl font-bold text-gray-900">Billing</h1>
+              <p className="text-sm text-gray-500 mt-0.5">Your invoices and any pending amounts due</p>
             </div>
           </div>
-          <RefreshButton onClick={() => mutate()} isLoading={isValidating} />
+          <RefreshButton
+            onClick={() => (activeTab === 'invoices' ? mutate() : mutateQuotes())}
+            isLoading={activeTab === 'invoices' ? isValidating : isValidatingQuotes}
+          />
+        </div>
+
+        {/* ── Sub-tabs ── */}
+        <div className="inline-flex bg-gray-100 rounded-xl p-1">
+          <button
+            onClick={() => setActiveTab('invoices')}
+            className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+              activeTab === 'invoices' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Invoices
+          </button>
+          <button
+            onClick={() => setActiveTab('pending')}
+            className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+              activeTab === 'pending' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Pending Amount
+            {pendingQuotes.length > 0 && (
+              <span className="ml-1.5 text-amber-600">({pendingQuotes.length})</span>
+            )}
+          </button>
         </div>
 
         {/* ── Summary stats ── */}
-        {!isLoadingInvoices && invoices.length > 0 && (() => {
+        {activeTab === 'invoices' && !isLoadingInvoices && invoices.length > 0 && (() => {
           const paid = invoices.filter(i => i.status.toLowerCase() === 'paid').length;
           const due = invoices.filter(i => i.balance > 0).length;
           const totalDue = invoices.reduce((s, i) => s + (i.balance > 0 ? i.balance : 0), 0);
@@ -271,7 +320,7 @@ export default function InvoicesPage() {
         })()}
 
         {/* ── Invoices card ── */}
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className={`bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden ${activeTab !== 'invoices' ? 'hidden' : ''}`}>
           {!isLoadingInvoices && invoices.length > 0 && (
             <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -418,13 +467,106 @@ export default function InvoicesPage() {
           )}
         </div>
 
+        {/* ── Pending Amount (quotes) card ── */}
+        {activeTab === 'pending' && (
+          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+            {isLoadingQuotes ? (
+              <div className="py-16 px-6 text-center text-sm text-gray-400">Loading…</div>
+            ) : pendingQuotes.length === 0 ? (
+              <div className="py-16 px-6 text-center">
+                <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Inbox className="h-7 w-7 text-gray-400" />
+                </div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-1.5">Nothing pending</h3>
+                <p className="text-sm text-gray-500">You don't have any pending amounts due right now.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50/60 border-b border-gray-100">
+                      <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Quote</th>
+                      <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
+                      <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {pendingQuotes.map((quote) => (
+                      <tr key={quote.id} className="hover:bg-blue-50/30 transition-colors">
+                        <td className="px-5 py-3.5 whitespace-nowrap">
+                          <div className="flex items-center gap-3">
+                            <div className="flex-shrink-0 h-9 w-9 bg-amber-50 rounded-xl flex items-center justify-center">
+                              <Clock className="h-4 w-4 text-amber-600" />
+                            </div>
+                            <span className="text-sm font-mono font-semibold text-gray-900">{quote.id}</span>
+                          </div>
+                        </td>
+                        <td className="px-5 py-3.5 whitespace-nowrap">
+                          <span className="text-sm font-semibold text-gray-900 font-mono">
+                            {quote.currency} {quote.amount.toLocaleString()}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3.5 whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border border-amber-200 bg-amber-50 text-amber-700 capitalize">
+                            {quote.status}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3.5 whitespace-nowrap text-right">
+                          <div className="inline-flex items-center justify-end gap-1.5">
+                            {quote.status === 'pending' && quote.paymentUrl && (
+                              <a
+                                href={quote.paymentUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition-colors shadow-sm"
+                                title="Pay Now"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                                Pay Now
+                              </a>
+                            )}
+                            {quote.pdfUrl && (
+                              <>
+                                <a
+                                  href={quote.pdfUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors inline-flex"
+                                  title="View quote"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </a>
+                                <a
+                                  href={quote.pdfUrl}
+                                  download
+                                  className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors inline-flex"
+                                  title="Download PDF"
+                                >
+                                  <Download className="h-4 w-4" />
+                                </a>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── Sync info banner ── */}
-        <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-2xl">
-          <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
-          <p className="text-sm text-blue-800">
-            Invoices are synchronized from our accounting system. If you recently made a payment and don't see the invoice here yet, please check back in a few minutes.
-          </p>
-        </div>
+        {activeTab === 'invoices' && (
+          <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-2xl">
+            <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+            <p className="text-sm text-blue-800">
+              Invoices are synchronized from our accounting system. If you recently made a payment and don't see the invoice here yet, please check back in a few minutes.
+            </p>
+          </div>
+        )}
       </div>
     </UserLayout>
   );

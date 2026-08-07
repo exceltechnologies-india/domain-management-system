@@ -1,15 +1,22 @@
 import { NextRequest } from "next/server";
+import { randomBytes } from "crypto";
 import { AuthService } from "@/lib/auth";
 import { Schemas } from "@/lib/validation";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { z } from "zod";
+import { validatedBody } from "@/lib/api-validation";
 import { serverLogger } from "@/lib/server-logger";
+import { EmailService } from "@/lib/email";
+import { provisionBillingCustomer } from "@/lib/integrations/billing-customer";
 import {
   listUsers,
   findUserRoleById,
   updateUserRole,
   softDeleteUser,
   permanentDeleteUser,
+  getUserByEmail,
+  createUser,
+  setUserBillingCustomerId,
 } from "@/lib/services/users";
 
 // Force dynamic rendering - required for API routes
@@ -70,6 +77,96 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     return secureErrorResponse("Failed to fetch users", 500, "DATABASE_ERROR", error);
+  }
+}
+
+const createUserSchema = z.object({
+  firstName: z.string().trim().min(1).max(100),
+  lastName: z.string().trim().min(1).max(100),
+  email: Schemas.email,
+  provisionBilling: z.boolean().optional().default(false),
+});
+
+// POST - Manually create a customer (admin only). Same shape as a guest
+// checkout account (no password — a "set your password" email is sent),
+// since that's the only existing pattern for an account with no self-chosen
+// credentials yet. Optionally also provisions a Billing Panel (ResellerOS)
+// customer for the same person, mirroring the checkbox Billing already has
+// for the opposite direction.
+export async function POST(request: NextRequest) {
+  try {
+    const admin = await AuthService.getAdminFromRequest(request);
+    if (!admin) {
+      return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    const validation = await validatedBody(request, createUserSchema);
+    if (!validation.ok) return validation.response;
+    const { firstName, lastName, email, provisionBilling } = validation.data;
+
+    const existing = await getUserByEmail(email);
+    if (existing) {
+      return secureErrorResponse(
+        "A user with this email already exists",
+        409,
+        "USER_EXISTS"
+      );
+    }
+
+    const newUser = await createUser({
+      email,
+      password: randomBytes(32).toString("hex"), // unusable — set via email link below
+      firstName,
+      lastName,
+      role: "user",
+      isActive: true,
+      isActivated: true,
+      isGuest: true,
+      profileCompleted: false,
+      provider: "credentials",
+    });
+
+    try {
+      const setupToken = randomBytes(32).toString("hex");
+      newUser.resetToken = setupToken;
+      newUser.resetTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await newUser.save();
+      EmailService.sendPasswordResetEmail(
+        newUser.email,
+        firstName,
+        setupToken,
+        true,
+        "An account has been set up for you by our team. To get started, choose a password using the button below:"
+      )
+        .then((ok) => serverLogger.info(`[admin-create-user] Setup email ${ok ? "sent" : "returned false"} for ${email}`))
+        .catch((err) => serverLogger.error(`[admin-create-user] Setup email failed for ${email}:`, err));
+    } catch (err) {
+      serverLogger.error("[admin-create-user] Failed to prepare setup email:", err);
+    }
+
+    let billing: { linked: boolean; billingCustomerId?: string; error?: string } = { linked: false };
+    if (provisionBilling) {
+      const result = await provisionBillingCustomer({ name: `${firstName} ${lastName}`.trim(), email });
+      if (result) {
+        await setUserBillingCustomerId(newUser._id.toString(), result.billing_customer_id);
+        billing = { linked: true, billingCustomerId: result.billing_customer_id };
+      } else {
+        billing = { linked: false, error: "Could not reach Billing Panel — account created without a Billing link." };
+      }
+    }
+
+    return secureJsonResponse({
+      success: true,
+      user: {
+        _id: newUser._id,
+        firstName: newUser.firstName,
+        lastName: newUser.lastName,
+        email: newUser.email,
+      },
+      billing,
+    });
+  } catch (error) {
+    return secureErrorResponse("Failed to create user", 500, "DATABASE_ERROR", error);
   }
 }
 

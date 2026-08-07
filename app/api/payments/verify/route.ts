@@ -3,13 +3,13 @@ import { serverLogger } from "@/lib/server-logger";
 import { AuthService } from "@/lib/auth";
 import {
   claimPendingOrderForProcessing,
-  forceMarkZohoCreationFailed,
   getOrderByRazorpayOrderId,
+  forceMarkBillingInvoiceCreationFailed,
 } from "@/lib/services/orders";
 import { handleRenewalPayment } from "@/lib/services/payment/renewal";
 import { handleAlreadyProcessedPayment } from "@/lib/services/payment/idempotency";
 import {
-  createZohoInvoice,
+  createBillingInvoiceForOrder,
   runPostPaymentTasks,
 } from "@/lib/services/payment/post-tasks";
 import {
@@ -20,7 +20,6 @@ import {
   validateNoRestrictedDomains,
   createCompletedOrder,
   finalizePendingOrder,
-  cartItemsFromOrderDomains,
 } from "@/lib/services/payment/order-creator";
 import { handleVerificationError } from "@/lib/services/payment/verification-error";
 import { recordSystemLog } from "@/lib/services/system-logs";
@@ -331,46 +330,42 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
       }));
     }
 
-    // 9) Zoho invoice (synchronous so failures surface to the caller)
+    // 9) Billing Panel (ResellerOS) invoice — the Zoho replacement. Synchronous
+    // so failures surface to the caller, same as Zoho was. Also resolves/
+    // creates the Billing customer as part of the same call, so there's no
+    // separate identity-sync step needed here anymore.
     let invoiceCreationFailed = false;
     let invoiceCreationError: string | null = null;
     let finalInvoiceNumber = order.invoiceNumber;
 
-    // Use DB-trusted projection of the persisted order (not the request body)
-    // for Zoho line items. Batch 5a [H1] closed the swap-domain hole for
-    // provisioning by deriving cartItems from order.domains inside
-    // finalizePendingOrder; this closes the parallel gap for the invoice
-    // path so the Zoho/GST record matches what was actually sold.
-    const zohoCartItems = cartItemsFromOrderDomains(order.domains);
-
     try {
-      const { invoiceNumber: zohoNum } = await createZohoInvoice({
+      const { invoiceNumber: billingNum } = await createBillingInvoiceForOrder({
         order,
         orderId,
         razorpay_payment_id,
         paymentDetails,
         user,
-        cartItems: zohoCartItems,
+        cartItems: [], // unused by the Billing path — see attemptCreateBillingInvoice
       });
-      if (zohoNum) finalInvoiceNumber = zohoNum;
-    } catch (zohoError: unknown) {
+      if (billingNum) finalInvoiceNumber = billingNum;
+    } catch (billingError: unknown) {
       invoiceCreationFailed = true;
-      invoiceCreationError = zohoError instanceof Error ? zohoError.message : "Unknown Zoho error";
-      const stack = zohoError instanceof Error ? zohoError.stack : undefined;
+      invoiceCreationError = billingError instanceof Error ? billingError.message : "Unknown Billing error";
+      const stack = billingError instanceof Error ? billingError.stack : undefined;
       serverLogger.error(
-        `❌ [PAYMENT-VERIFY] Zoho invoice creation failed: ${invoiceCreationError}`
+        `❌ [PAYMENT-VERIFY] Billing invoice creation failed: ${invoiceCreationError}`
       );
       // Durable record so we don't depend on Cloud Logging capturing stderr.
       await recordSystemLog({
         level: "error",
-        message: `[PAYMENT-VERIFY] Zoho invoice failed after retries: ${invoiceCreationError}`,
+        message: `[PAYMENT-VERIFY] Billing invoice failed after retries: ${invoiceCreationError}`,
         source: "payments/verify",
         service: "payments",
         stack,
         metadata: { orderId, userId: String(user._id), razorpayPaymentId: razorpay_payment_id },
       }).catch(() => {});
       try {
-        await forceMarkZohoCreationFailed(String(order._id));
+        await forceMarkBillingInvoiceCreationFailed(String(order._id));
       } catch (_) {}
     }
 

@@ -10,8 +10,14 @@ import {
   claimOrderForZohoInvoice,
   recordZohoInvoiceForOrder,
   releaseZohoInvoiceClaim,
+  claimOrderForBillingInvoice,
+  recordBillingInvoiceForOrder,
+  releaseBillingInvoiceClaim,
 } from "@/lib/services/orders";
 import { inferPeriodUnit } from "@/lib/billing";
+import { createBillingInvoice } from "@/lib/integrations/billing-customer";
+import { setUserBillingCustomerId } from "@/lib/services/users";
+import { findHostingByOrderId } from "@/lib/services/hostings";
 
 export interface PostTasksContext {
   order: IOrder;
@@ -143,6 +149,136 @@ export async function createZohoInvoice(
         const msg = err instanceof Error ? err.message : String(err);
         serverLogger.warn(
           `[ZohoInvoice] Attempt ${attempt}/${maxAttempts} failed for order ${ctx.orderId}: ${msg} — retrying in ${retryDelayMs}ms`
+        );
+        await new Promise((r) => setTimeout(r, retryDelayMs));
+      }
+    }
+  }
+  throw lastError;
+}
+
+/**
+ * Single attempt at creating a Billing Panel (ResellerOS) invoice for an
+ * already-paid order — the Zoho replacement. Claims the order the same way
+ * the Zoho path does, so the two can never double-invoice the same order.
+ *
+ * Line items are collapsed into one combined line rather than mirroring
+ * Zoho's per-domain breakdown: Billing's invoice RPC adds 18% GST on top of
+ * the rate given, whereas `item.price` here is already GST-inclusive (what
+ * Razorpay actually charged) — backing that out per-line would compound
+ * rounding across items. One line at `order.amount / 1.18` reproduces the
+ * original charged total accurately; per-item itemization can be added
+ * later if the invoice needs to show a full breakdown.
+ */
+async function attemptCreateBillingInvoice(
+  ctx: ZohoInvoiceContext
+): Promise<{ invoiceId: string; invoiceNumber: string | null }> {
+  const { order, orderId, razorpay_payment_id, paymentDetails, user } = ctx;
+
+  const claimedOrder = await claimOrderForBillingInvoice(order._id);
+  if (!claimedOrder) {
+    serverLogger.info(
+      `⏭️ [PAYMENT-VERIFY] Billing invoice already claimed or exists for Order ${orderId}. Skipping.`
+    );
+    return { invoiceId: "", invoiceNumber: null };
+  }
+
+  try {
+    const totalInclusive = paymentDetails.amount;
+    const rateExclusive = Math.round((totalInclusive / 1.18) * 100) / 100;
+
+    // Stage 1: one renewal-tracking item per domain/hosting line on the
+    // order, so Billing's cron can pick each up individually later — this
+    // is separate from (and more granular than) the single combined
+    // invoice line above. Hosting items also carry their DirectAdmin
+    // username as externalRef — without it, Billing can decide a hosting
+    // account is due for suspension but has no way to tell Customer Panel
+    // WHICH account to act on.
+    const renewalItems = await Promise.all(
+      (order.domains ?? [])
+        .filter((d) => d.expiresAt)
+        .map(async (d) => {
+          const itemType = (d.itemType ?? "domain") as "domain" | "hosting";
+          const domainName = d.linkedDomain || d.domainName;
+          let externalRef: string | undefined;
+          if (itemType === "hosting") {
+            const hosting = await findHostingByOrderId(orderId, { domainName });
+            externalRef = hosting?.directAdminUsername;
+          }
+          return {
+            itemType,
+            domainName,
+            renewalDate: new Date(d.expiresAt as Date).toISOString().slice(0, 10),
+            amount: d.price ?? 0,
+            ...(externalRef ? { externalRef } : {}),
+          };
+        })
+    );
+
+    const result = await createBillingInvoice({
+      email: user.email,
+      name: `${user.firstName} ${user.lastName}`.trim(),
+      lineItems: [
+        {
+          description: `Order ${orderId} — domain/hosting purchase`,
+          qty: 1,
+          rate: rateExclusive,
+        },
+      ],
+      amount: totalInclusive,
+      razorpayPaymentId: razorpay_payment_id,
+      renewalItems: renewalItems.length > 0 ? renewalItems : undefined,
+    });
+
+    await recordBillingInvoiceForOrder(order._id, {
+      invoiceId: result.invoiceId,
+      invoiceNumber: result.invoiceNumber,
+      pdfUrl: result.pdfUrl,
+    });
+    if (result.billingCustomerId && !user.billingCustomerId) {
+      await setUserBillingCustomerId(String(user._id), result.billingCustomerId);
+    }
+
+    serverLogger.info(
+      `✅ [PAYMENT-VERIFY] Billing invoice created: ${result.invoiceId} (${result.invoiceNumber}) for Order ${orderId}`
+    );
+    return { invoiceId: result.invoiceId, invoiceNumber: result.invoiceNumber };
+  } catch (err) {
+    await releaseBillingInvoiceClaim(order._id);
+    throw err;
+  }
+}
+
+/**
+ * Creates a Billing Panel invoice synchronously with the same outer-retry
+ * shape as {@link createZohoInvoice}, and the same zero-amount/trial skip.
+ */
+export async function createBillingInvoiceForOrder(
+  ctx: ZohoInvoiceContext,
+  options: { maxAttempts?: number; retryDelayMs?: number } = {}
+): Promise<{ invoiceId: string; invoiceNumber: string | null }> {
+  const orderAmount = ctx.order?.amount;
+  const orderType = ctx.order?.orderType;
+  if (!orderAmount || orderAmount <= 0 || orderType === "hosting_trial") {
+    serverLogger.info(
+      `⏭️ [BillingInvoice] Skipping zero-amount/trial order ${ctx.orderId} (amount=${orderAmount}, orderType=${orderType}).`
+    );
+    return { invoiceId: "", invoiceNumber: null };
+  }
+
+  const maxAttempts = options.maxAttempts ?? 2;
+  const retryDelayMs = options.retryDelayMs ?? 1500;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await attemptCreateBillingInvoice(ctx);
+    } catch (err) {
+      lastError = err;
+      if (attempt < maxAttempts) {
+        const msg = err instanceof Error ? err.message : String(err);
+        serverLogger.warn(
+          `[BillingInvoice] Attempt ${attempt}/${maxAttempts} failed for order ${ctx.orderId}: ${msg} — retrying in ${retryDelayMs}ms`
         );
         await new Promise((r) => setTimeout(r, retryDelayMs));
       }

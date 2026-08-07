@@ -32,13 +32,16 @@ export async function sendPasswordResetEmail(
   resetToken: string,
   /** When true, the email is framed as a first-time account setup
    * (guest → full account) rather than a recovery flow. */
-  isSetup: boolean = false
+  isSetup: boolean = false,
+  /** Overrides the default "Thanks for your recent purchase!" setup intro
+   * for accounts created without a purchase (e.g. provisioned from Billing). */
+  setupIntroOverride?: string
 ): Promise<boolean> {
   const subject = isSetup ? "Set up your account password" : "Password Reset Request";
   const resetUrl = `${process.env.NEXTAUTH_URL}/reset-password?token=${resetToken}${isSetup ? "&setup=1" : ""}`;
   const headline = isSetup ? "🔑 Set Up Your Password" : "🔒 Password Reset Request";
   const intro = isSetup
-    ? "Thanks for your recent purchase! To finish setting up your account, choose a password using the button below:"
+    ? setupIntroOverride ?? "Thanks for your recent purchase! To finish setting up your account, choose a password using the button below:"
     : "You requested to reset your password. Click the button below to reset it:";
   const buttonLabel = isSetup ? "Set Password" : "Reset Password";
   const warningText = isSetup

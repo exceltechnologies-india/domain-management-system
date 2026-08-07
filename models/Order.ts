@@ -101,6 +101,9 @@ export interface IOrder extends Document {
   updatedAt: Date;
   invoiceNumber?: string;
   zohoInvoiceId?: string;
+  billingInvoiceId?: string;
+  billingInvoiceNumber?: string;
+  billingInvoicePdfUrl?: string;
   orderType?: 'domain' | 'hosting' | 'bundle' | 'renewal' | 'hosting_upgrade' | 'hosting_trial' | 'unknown';
   // Razorpay recurring-payment mode: 'subscription' uses the Subscriptions
   // API (current default), 'tokens' uses the Tokens API (Google ₹2-and-reverse
@@ -332,6 +335,17 @@ const OrderSchema = new Schema<IOrder>(
       type: String, // ID of the invoice in Zoho Books
       sparse: true,
     },
+    billingInvoiceId: {
+      type: String, // ID of the invoice in Billing Panel (ResellerOS)
+      sparse: true,
+    },
+    billingInvoiceNumber: {
+      type: String,
+      sparse: true,
+    },
+    billingInvoicePdfUrl: {
+      type: String,
+    },
     isDeleted: {
       type: Boolean,
       default: false,
@@ -409,6 +423,7 @@ OrderSchema.index({ userId: 1, status: 1 });                    // status filter
 OrderSchema.index({ razorpayPaymentId: 1 }, { sparse: true });
 OrderSchema.index({ razorpayOrderId: 1 }, { sparse: true });
 OrderSchema.index({ zohoInvoiceId: 1 }, { sparse: true });
+OrderSchema.index({ billingInvoiceId: 1 }, { sparse: true });
 
 /**
  * Pre-save Database Hook for Orders

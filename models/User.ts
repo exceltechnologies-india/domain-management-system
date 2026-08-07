@@ -74,6 +74,7 @@ export interface IUser extends Document {
   directAdminUsername?: string; // DirectAdmin username for hosting operations
   hostingCreatedAt?: Date; // When hosting was provisioned
   hostingExpiresAt?: Date; // When hosting expires
+  billingCustomerId?: string; // Billing Panel (ResellerOS) customer_number, e.g. "C-00001"
   cart?: Array<{
     domainName: string;
     price: number;
@@ -291,6 +292,10 @@ const UserSchema = new Schema<IUser>(
     hostingExpiresAt: {
       type: Date,
     },
+    billingCustomerId: {
+      type: String,
+      trim: true,
+    },
     isDeleted: {
       type: Boolean,
       default: false,
@@ -443,6 +448,7 @@ UserSchema.index({ resetToken: 1 }, { sparse: true });
 UserSchema.index({ pendingEmailToken: 1 }, { sparse: true });
 UserSchema.index({ directAdminUsername: 1 }, { sparse: true });
 UserSchema.index({ resellerClubCustomerId: 1 }, { sparse: true });
+UserSchema.index({ billingCustomerId: 1 }, { sparse: true });
 
 UserSchema.pre("save", async function (next) {
   if (!this.isModified("password") || !this.password) return next();

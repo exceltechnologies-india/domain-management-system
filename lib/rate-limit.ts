@@ -246,6 +246,15 @@ export const rateLimiters = {
     maxRequests: 5,
     keyGenerator: ipKey("hosting_renew_fallback"),
   }),
+
+  // Server-to-server: Billing Panel provisioning a Customer Panel account.
+  // Single trusted caller, but still bounded in case a key leaks or Billing
+  // has a bug that retries in a loop.
+  billingProvision: new RateLimiter({
+    windowMs: 60 * 1000, // 1 minute
+    maxRequests: 20,
+    keyGenerator: ipKey("billing_provision"),
+  }),
 };
 
 /**

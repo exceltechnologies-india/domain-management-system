@@ -122,6 +122,10 @@ const PUBLIC_API_PREFIXES = [
   "/api/user/settings/verify-email-change",
   // Guest checkout: no account required — route handler validates guest JWT token
   "/api/payments/guest",
+  // Server-to-server: Billing Panel provisioning a Customer Panel account.
+  // No NextAuth session (Billing's backend is the caller, not a browser) —
+  // authenticated via X-Integration-Key inside the route handler instead.
+  "/api/integrations/billing",
 ];
 
 // --- Helpers ---
@@ -295,6 +299,23 @@ async function handleMiddleware(request: NextRequest, nonce: string, requestId: 
     isAdminApi &&
     !!cronSecretEnv &&
     request.headers.get("x-cron-secret") === cronSecretEnv
+  ) {
+    return addSecurityHeaders(nextWithNonce(request, nonce, requestId), { nonce, strictCSP: isStrictCSPRoute });
+  }
+
+  // Same shape as the cron-secret bypass above, scoped tightly to the two
+  // paths Billing Panel calls to trigger real domain/hosting execution
+  // (renew/suspend/delete) — NOT a blanket admin-API bypass, since this key
+  // should only ever authorize those specific actions. The route itself
+  // still does its own timing-safe compare (lib/integrations/billing-provision-auth.ts)
+  // — this is just the fast-path gate so the request reaches the route at all.
+  const BILLING_COMMAND_PATHS = new Set(["/api/admin/hosting/actions", "/api/admin/domains/renew"]);
+  const billingCommandKeyEnv = process.env.BILLING_COMMAND_API_KEY;
+  if (
+    isAdminApi &&
+    BILLING_COMMAND_PATHS.has(classificationPath) &&
+    !!billingCommandKeyEnv &&
+    request.headers.get("x-integration-key") === billingCommandKeyEnv
   ) {
     return addSecurityHeaders(nextWithNonce(request, nonce, requestId), { nonce, strictCSP: isStrictCSPRoute });
   }

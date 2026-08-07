@@ -12,6 +12,7 @@ import { deleteHostingsByIdOrUsername } from "@/lib/services/hostings";
 import { RazorpayService } from "@/lib/razorpay";
 import { validatedBody, z } from "@/lib/api-validation";
 import { authorizeCronRequest } from "@/lib/cron-auth";
+import { authorizeBillingCommandRequest } from "@/lib/integrations/billing-provision-auth";
 
 // Discriminated union per action. suspend/unsuspend require username
 // (the typed DA wrappers can't operate without it — the previous
@@ -58,9 +59,10 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: NextRequest) {
   try {
-    // 1. Authenticate: cron-secret header OR admin session cookie.
+    // 1. Authenticate: cron-secret header OR Billing command key OR admin session cookie.
     const isCron = authorizeCronRequest(request);
-    if (!isCron) {
+    const isBillingCommand = authorizeBillingCommandRequest(request);
+    if (!isCron && !isBillingCommand) {
       const isAdmin = await AuthService.isAdmin(request);
       if (!isAdmin) {
         return secureErrorResponse("Unauthorized. Admin access required.", 403, "FORBIDDEN");

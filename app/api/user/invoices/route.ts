@@ -3,6 +3,8 @@ import { AuthService } from "@/lib/auth";
 import { listUserInvoiceOrders } from "@/lib/services/orders";
 import { serverLogger } from "@/lib/server-logger";
 import { selfHealUserInvoices } from "@/lib/zoho-invoice-retry";
+import { getBillingInvoices } from "@/lib/integrations/billing-customer";
+import { resolveUserBillingCustomerId } from "@/lib/services/users";
 
 export const dynamic = "force-dynamic";
 
@@ -15,16 +17,24 @@ const ORDER_STATUS_TO_INVOICE: Record<string, string> = {
   refunded:  "void",
 };
 
-// Sentinel values written by the invoice-creation flow — not real Zoho IDs
-const ZOHO_SENTINEL = new Set(["pending_creation", "creation_failed"]);
+// Sentinel values written by the invoice-creation flow — not real invoice IDs
+const INVOICE_SENTINEL = new Set(["pending_creation", "creation_failed"]);
 
 type OrderRow = Awaited<ReturnType<typeof listUserInvoiceOrders>>[number];
 
 function mapOrdersToInvoices(orders: OrderRow[]) {
   let hasStuck = false;
   const invoices = orders.map((order) => {
+    // Billing Panel (ResellerOS) is the live path going forward; Zoho is the
+    // legacy fallback for invoices created before the cutover.
+    const rawBillingId = order.billingInvoiceId as string | undefined;
     const rawZohoId = order.zohoInvoiceId as string | undefined;
-    const invoiceId = rawZohoId && !ZOHO_SENTINEL.has(rawZohoId) ? rawZohoId : "";
+    const invoiceId =
+      rawBillingId && !INVOICE_SENTINEL.has(rawBillingId)
+        ? rawBillingId
+        : rawZohoId && !INVOICE_SENTINEL.has(rawZohoId)
+          ? rawZohoId
+          : "";
     const isPaid = ["completed", "paid"].includes(order.status as string);
     const date = (order.createdAt as Date).toISOString();
     if (!invoiceId && isPaid) hasStuck = true;
@@ -67,6 +77,31 @@ export async function GET(request: NextRequest) {
       if (results.some((r) => r.ok)) {
         const refreshed = await listUserInvoiceOrders(user._id);
         ({ invoices } = mapOrdersToInvoices(refreshed));
+      }
+    }
+
+    // Billing-native invoices — created directly in Billing's own UI (e.g.
+    // by staff), so there's no Customer Panel Order row for them at all.
+    // Without this fetch they'd never appear here even though they're real,
+    // paid invoices for this customer.
+    const billingCustomerId = await resolveUserBillingCustomerId(user);
+    if (billingCustomerId) {
+      const knownIds = new Set(invoices.map((inv) => inv.invoice_id).filter(Boolean));
+      const billingInvoices = await getBillingInvoices(billingCustomerId);
+      for (const inv of billingInvoices) {
+        if (knownIds.has(inv.id)) continue; // already surfaced via an Order row
+        invoices.push({
+          invoice_id: inv.id,
+          invoice_number: inv.number,
+          date: inv.issue_date,
+          due_date: inv.due_date,
+          total: inv.amount,
+          balance: inv.status === "paid" ? 0 : inv.amount,
+          status: inv.status,
+          currency_code: inv.currency,
+          created_time: inv.issue_date,
+          zoho_pending: false,
+        });
       }
     }
 

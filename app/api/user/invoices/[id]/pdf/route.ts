@@ -3,13 +3,40 @@ import { AuthService } from "@/lib/auth";
 import { ZohoBooksService } from "@/lib/zohobooks";
 import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { serverLogger } from "@/lib/server-logger";
-import { findOrderByZohoInvoiceForUser } from "@/lib/services/orders";
+import {
+  findOrderByZohoInvoiceForUser,
+  findOrderByBillingInvoiceForUser,
+} from "@/lib/services/orders";
+import { getBillingInvoices } from "@/lib/integrations/billing-customer";
+import { resolveUserBillingCustomerId } from "@/lib/services/users";
 
 // Force dynamic rendering
 export const dynamic = "force-dynamic";
 
-// Sentinel values written by the invoice-creation flow — not real Zoho IDs
-const ZOHO_SENTINEL = new Set(["pending_creation", "creation_failed"]);
+// Sentinel values written by the invoice-creation flow — not real invoice IDs
+const INVOICE_SENTINEL = new Set(["pending_creation", "creation_failed"]);
+
+// Fetch the PDF server-side and return the bytes under Customer Panel's own
+// origin, rather than redirecting the browser to Billing's origin directly.
+// A redirect works fine for a plain navigation/download link, but the
+// inline viewer reads the response via fetch().blob() — a cross-origin
+// redirect there hits the browser's CORS check on Billing's response,
+// which doesn't (and doesn't need to) send Customer-Panel-facing CORS
+// headers. Proxying server-side sidesteps that entirely: the browser only
+// ever talks to Customer Panel's own origin.
+async function proxyPdf(url: string, filename: string): Promise<NextResponse> {
+  const res = await fetch(url);
+  if (!res.ok) {
+    return NextResponse.json({ error: "Invoice not available" }, { status: 404 });
+  }
+  const buffer = Buffer.from(await res.arrayBuffer());
+  return new NextResponse(buffer, {
+    headers: {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `inline; filename="${filename}.pdf"`,
+    },
+  });
+}
 
 export async function GET(
   request: NextRequest,
@@ -31,11 +58,37 @@ export async function GET(
       });
     }
 
-    if (ZOHO_SENTINEL.has(id)) {
+    if (INVOICE_SENTINEL.has(id)) {
       return NextResponse.json({ error: "Invoice not available" }, { status: 404 });
     }
 
-    // Security check: verify ownership via MongoDB — avoids 2 round-trips to Zoho
+    // Billing Panel (ResellerOS) invoices carry their own signed, ready-to-open
+    // PDF link — no server-side proxy needed, just redirect. Checked first
+    // since this is the live path for every order going forward.
+    const billingOrder = await findOrderByBillingInvoiceForUser(user._id, id, {
+      select: "billingInvoicePdfUrl",
+    });
+    if (billingOrder) {
+      if (!billingOrder.billingInvoicePdfUrl) {
+        return NextResponse.json({ error: "Invoice not available" }, { status: 404 });
+      }
+      return proxyPdf(billingOrder.billingInvoicePdfUrl, `Invoice-${id}`);
+    }
+
+    // Billing-native invoice with no Order row at all (created directly in
+    // Billing's own UI, e.g. by staff) — verify ownership against Billing's
+    // own invoice list for this customer instead of a local Order.
+    const billingCustomerId = await resolveUserBillingCustomerId(user);
+    if (billingCustomerId) {
+      const billingInvoices = await getBillingInvoices(billingCustomerId);
+      const match = billingInvoices.find((inv) => inv.id === id);
+      if (match) {
+        if (!match.pdf_url) return NextResponse.json({ error: "Invoice not available" }, { status: 404 });
+        return proxyPdf(match.pdf_url, `Invoice-${id}`);
+      }
+    }
+
+    // Legacy path — invoices created before the Billing Panel cutover.
     const order = await findOrderByZohoInvoiceForUser(user._id, id, { select: "_id" });
     if (!order) {
       serverLogger.warn(`[Security] Unauthorized PDF access attempt by ${user.email} for invoice ${id}`);

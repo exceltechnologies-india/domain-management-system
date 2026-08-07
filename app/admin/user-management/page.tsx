@@ -4,13 +4,14 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Search, Filter, MoreVertical, Trash2, Eye, EyeOff, RefreshCw, Key, UserCheck, XCircle, CheckCircle, Server, Shield, Unlock, ShieldOff, Users, UserX, Cog, ExternalLink, Download } from 'lucide-react';
+import { Search, Filter, MoreVertical, Trash2, Eye, EyeOff, RefreshCw, Key, UserCheck, XCircle, CheckCircle, Server, Shield, Unlock, ShieldOff, Users, UserX, Cog, ExternalLink, Download, UserPlus } from 'lucide-react';
 import RefreshButton from '@/components/dashboard/RefreshButton';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { AdminLayoutSkeleton, AdminUsersPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import AdminDataTable from '@/components/admin/AdminDataTable';
 import ActionMenu from '@/components/admin/ActionMenu';
 import Modal from '@/components/Modal';
+import CustomerBillingPanel from '@/components/admin/CustomerBillingPanel';
 import { formatIndianDate, formatIndianLongDateTime, formatIndianDateTime } from '@/lib/dateUtils';
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
 import { performLogout } from '@/lib/logout';
@@ -34,6 +35,12 @@ export default function AdminUsers() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
+  const [newCustomerFirstName, setNewCustomerFirstName] = useState('');
+  const [newCustomerLastName, setNewCustomerLastName] = useState('');
+  const [newCustomerEmail, setNewCustomerEmail] = useState('');
+  const [newCustomerProvisionBilling, setNewCustomerProvisionBilling] = useState(false);
+  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
   const [isPasswordResetModalOpen, setIsPasswordResetModalOpen] = useState(false);
   const [passwordResetUser, setPasswordResetUser] = useState<User | null>(null);
   const [newPassword, setNewPassword] = useState('');
@@ -161,6 +168,48 @@ export default function AdminUsers() {
 
   const handleLogout = () => {
     void performLogout();
+  };
+
+  const resetAddCustomerForm = () => {
+    setNewCustomerFirstName('');
+    setNewCustomerLastName('');
+    setNewCustomerEmail('');
+    setNewCustomerProvisionBilling(false);
+  };
+
+  const handleCreateCustomer = async () => {
+    if (!newCustomerFirstName.trim() || !newCustomerLastName.trim() || !newCustomerEmail.trim()) {
+      showErrorToast('First name, last name, and email are required');
+      return;
+    }
+    setIsCreatingCustomer(true);
+    const result = await apiClient.post<{
+      user: { firstName: string; lastName: string; email: string };
+      billing: { linked: boolean; error?: string };
+    }>('/api/v1/admin/users', {
+      firstName: newCustomerFirstName.trim(),
+      lastName: newCustomerLastName.trim(),
+      email: newCustomerEmail.trim(),
+      provisionBilling: newCustomerProvisionBilling,
+    });
+    setIsCreatingCustomer(false);
+
+    if (!result.ok) {
+      showErrorToast(result.error.message || 'Could not create customer');
+      return;
+    }
+
+    if (newCustomerProvisionBilling && !result.data.billing.linked) {
+      showErrorToast(result.data.billing.error || 'Customer created, but Billing linking failed');
+    } else if (newCustomerProvisionBilling) {
+      showSuccessToast('Customer created — Billing account linked, setup email sent');
+    } else {
+      showSuccessToast('Customer created — setup email sent');
+    }
+
+    setIsAddCustomerModalOpen(false);
+    resetAddCustomerForm();
+    void loadUsers();
   };
 
   const handleViewUser = (userId: string) => {
@@ -885,6 +934,13 @@ export default function AdminUsers() {
               </h3>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
+              <button
+                onClick={() => setIsAddCustomerModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+              >
+                <UserPlus className="h-3.5 w-3.5" />
+                Add Customer
+              </button>
               <div className="inline-flex bg-gray-100 rounded-xl p-1">
                 {[
                   { id: 'active',      label: 'Active',      count: users.length },
@@ -1031,6 +1087,7 @@ export default function AdminUsers() {
                 </p>
               </div>
 
+              <CustomerBillingPanel userId={selectedUser._id} />
 
             </div>
 
@@ -1048,6 +1105,71 @@ export default function AdminUsers() {
             <p className="text-gray-500">No user selected</p>
           </div>
         )}
+      </Modal>
+
+      {/* Add Customer Modal */}
+      <Modal
+        isOpen={isAddCustomerModalOpen}
+        onClose={() => { setIsAddCustomerModalOpen(false); resetAddCustomerForm(); }}
+        title="Add Customer"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+            <input
+              type="text"
+              value={newCustomerFirstName}
+              onChange={(e) => setNewCustomerFirstName(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+            <input
+              type="text"
+              value={newCustomerLastName}
+              onChange={(e) => setNewCustomerLastName(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+            <input
+              type="email"
+              value={newCustomerEmail}
+              onChange={(e) => setNewCustomerEmail(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          <p className="text-xs text-gray-500">
+            No password is set here — the customer gets an email to set up their own password.
+          </p>
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={newCustomerProvisionBilling}
+              onChange={(e) => setNewCustomerProvisionBilling(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300"
+            />
+            Also create Billing account for this customer
+          </label>
+
+          <div className="mt-6 flex justify-end space-x-3">
+            <button
+              onClick={() => { setIsAddCustomerModalOpen(false); resetAddCustomerForm(); }}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => void handleCreateCustomer()}
+              disabled={isCreatingCustomer}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+            >
+              {isCreatingCustomer ? 'Creating…' : 'Create Customer'}
+            </button>
+          </div>
+        </div>
       </Modal>
 
       {/* Password Reset Modal */}

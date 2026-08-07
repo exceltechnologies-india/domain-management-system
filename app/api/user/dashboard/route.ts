@@ -11,6 +11,7 @@ import { AuthService } from "@/lib/auth";
 import { DirectAdminService } from "@/lib/directadmin";
 import { getToken } from "next-auth/jwt";
 import { formatDateIN } from "@/lib/dateUtils";
+import { getSupportTicketSummary } from "@/lib/integrations/support-ticket-summary";
 
 // Force dynamic rendering - required for API routes
 export const dynamic = 'force-dynamic';
@@ -57,12 +58,13 @@ export async function GET(request: NextRequest) {
       return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
     }
 
-    // Get user's orders, domains, and hosting
-    const [orders, domains, pendingDomainsRaw, hostings] = await Promise.all([
+    // Get user's orders, domains, hosting, and Support Panel ticket summary
+    const [orders, domains, pendingDomainsRaw, hostings, supportTickets] = await Promise.all([
       listOrdersForUser(user._id, { limit: 0, populateUser: false }),
       listDomainsForUser(String(user._id)),
       listActivePendingDomainsForUser(String(user._id)),
-      listHostingsForUser(user._id, { limit: 0 })
+      listHostingsForUser(user._id, { limit: 0 }),
+      getSupportTicketSummary(String(user._id))
     ]);
     
     // --- Synchronization Logic Start ---
@@ -199,6 +201,7 @@ export async function GET(request: NextRequest) {
             }, new Map())
             .values()
         ),
+        openSupportTickets: supportTickets.openTickets,
       },
       serviceStatus: {
         hasDomains: domains.length > 0,

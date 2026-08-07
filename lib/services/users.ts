@@ -13,6 +13,7 @@
 
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
+import { notifyBillingCustomerStatus, lookupBillingCustomerByEmail } from "@/lib/integrations/billing-customer";
 import type { IUser } from "@/models/User";
 
 // ─── Reads ────────────────────────────────────────────────────────────────────
@@ -316,7 +317,7 @@ export async function updateUserRole(
  */
 export async function softDeleteUser(id: string): Promise<IUser | null> {
   await connectDB();
-  return User.findByIdAndUpdate(
+  const user = await User.findByIdAndUpdate(
     id,
     {
       isActive: false,
@@ -326,6 +327,10 @@ export async function softDeleteUser(id: string): Promise<IUser | null> {
     },
     { new: true }
   );
+  if (user?.billingCustomerId) {
+    await notifyBillingCustomerStatus(user.billingCustomerId, false);
+  }
+  return user;
 }
 
 /**
@@ -346,10 +351,11 @@ export async function permanentDeleteUser(id: string): Promise<{
   let ordersSnapshotted = 0;
   try {
     const Order = (await import("@/models/Order")).default;
-    const user = await User.findById(id).select("firstName lastName email").lean<{
+    const user = await User.findById(id).select("firstName lastName email billingCustomerId").lean<{
       firstName?: string;
       lastName?: string;
       email?: string;
+      billingCustomerId?: string;
     }>();
     if (user) {
       const fullName = `${user.firstName || ""} ${user.lastName || ""}`.trim();
@@ -359,6 +365,9 @@ export async function permanentDeleteUser(id: string): Promise<{
         { $set: { userName: fullName, userEmail: email } }
       );
       ordersSnapshotted = result.modifiedCount ?? 0;
+      if (user.billingCustomerId) {
+        await notifyBillingCustomerStatus(user.billingCustomerId, false);
+      }
     }
   } catch {
     /* swallow — admin explicitly requested deletion; failure logged by caller */
@@ -399,18 +408,24 @@ export async function applyUserPatch(
   if (patch.role !== undefined && ["user", "admin"].includes(patch.role)) {
     user.role = patch.role;
   }
+  let statusChanged: boolean | null = null;
   if (typeof patch.isActive === "boolean") {
     user.isActive = patch.isActive;
     if (!patch.isActive && wasActive) {
       // Disabling → invalidate sessions immediately.
       (user as IUser & { sessionInvalidatedAt: Date | null }).sessionInvalidatedAt = new Date();
+      statusChanged = false;
     } else if (patch.isActive && !wasActive) {
       // Re-enabling → clear the invalidation stamp.
       (user as IUser & { sessionInvalidatedAt: Date | null }).sessionInvalidatedAt = null;
+      statusChanged = true;
     }
   }
 
   await user.save();
+  if (statusChanged !== null && user.billingCustomerId) {
+    await notifyBillingCustomerStatus(user.billingCustomerId, statusChanged);
+  }
   return user;
 }
 
@@ -421,7 +436,7 @@ export async function applyUserPatch(
  */
 export async function reactivateUser(id: string): Promise<IUser | null> {
   await connectDB();
-  return User.findByIdAndUpdate(
+  const user = await User.findByIdAndUpdate(
     id,
     {
       isActive: true,
@@ -431,6 +446,10 @@ export async function reactivateUser(id: string): Promise<IUser | null> {
     },
     { new: true }
   );
+  if (user?.billingCustomerId) {
+    await notifyBillingCustomerStatus(user.billingCustomerId, true);
+  }
+  return user;
 }
 
 /**
@@ -555,6 +574,62 @@ export async function setUserResellerClubIds(
   if (Object.keys(update).length === 0) return;
   await connectDB();
   await User.updateOne({ _id: userId }, { $set: update });
+}
+
+/**
+ * Persist the Billing Panel (ResellerOS) customer_number onto the user once
+ * matched by email (see lib/integrations/billing-customer.ts). Lazy — only
+ * ever written after a successful lookup, never guessed or bulk-assigned.
+ */
+export async function setUserBillingCustomerId(
+  userId: string,
+  billingCustomerId: string
+): Promise<void> {
+  await connectDB();
+  await User.updateOne({ _id: userId }, { $set: { billingCustomerId } });
+}
+
+/**
+ * Resolve this user's billingCustomerId, lazily matching by email if it
+ * isn't already stored. Needed because a Billing customer can come to
+ * exist for someone's email WITHOUT ever going through one of our
+ * provisioning flows — e.g. staff creating the customer directly in
+ * Billing's own UI. Without this, the customer-facing Billing tabs (My
+ * Services, Pending Amount) would show nothing for that person forever,
+ * even though a real, matching Billing account exists. Mirrors the same
+ * lazy-match already used by the admin Billing tab.
+ */
+export async function resolveUserBillingCustomerId(user: {
+  _id: unknown;
+  email: string;
+  billingCustomerId?: string;
+}): Promise<string | null> {
+  if (user.billingCustomerId) return user.billingCustomerId;
+  const match = await lookupBillingCustomerByEmail(user.email);
+  if (!match) return null;
+  await setUserBillingCustomerId(String(user._id), match.billing_customer_id);
+  return match.billing_customer_id;
+}
+
+/**
+ * Unlink a Billing Panel customer from whichever Customer Panel user(s)
+ * currently reference it — used when that customer was deleted on Billing's
+ * side (see docs/... Billing's delete_customer RPC). Only clears the
+ * reference; never touches the Customer Panel account itself, since a
+ * person can stop being a Billing customer while remaining a legitimate
+ * Customer Panel customer for something Billing doesn't track (e.g. a
+ * domain/hosting-only customer). Returns how many users were unlinked
+ * (0 or 1 in practice, but not enforced as unique).
+ */
+export async function unlinkUsersFromBillingCustomerId(
+  billingCustomerId: string
+): Promise<number> {
+  await connectDB();
+  const result = await User.updateMany(
+    { billingCustomerId },
+    { $unset: { billingCustomerId: "" } }
+  );
+  return result.modifiedCount ?? 0;
 }
 
 /**

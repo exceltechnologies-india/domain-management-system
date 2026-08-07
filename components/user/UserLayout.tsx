@@ -20,6 +20,7 @@ import {
   Server,
   Network, // Importing Network instead of Share2 as it's more appropriate for DNS
   MessageCircle,
+  Package,
 } from 'lucide-react';
 import RupeeIcon from '@/components/icons/RupeeIcon';
 import ProfileCompletionWarning from '@/components/ProfileCompletionWarning';
@@ -94,7 +95,8 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Domains', href: '/dashboard/domains', icon: Globe },
     { name: 'Hosting', href: '/dashboard/hosting', icon: Server },
-    { name: 'Invoices', href: '/dashboard/invoices', icon: RupeeIcon },
+    { name: 'My Services', href: '/dashboard/services', icon: Package },
+    { name: 'Billing', href: '/dashboard/invoices', icon: RupeeIcon },
     // Phase 1 integration: hands off to the Support Panel (DSP) via
     // lib/integrations/support-sso.ts instead of the in-app ticket page.
     // hardNav forces a full browser navigation (see render loop below) since
@@ -138,17 +140,17 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
           borderRight: '1px solid #e5e7eb'
         }}
       >
-        {/* Sidebar Header */}
-        <div className="flex items-center justify-between h-16 px-6 bg-gradient-to-r from-blue-600 to-blue-700 border-b border-blue-500">
+        {/* Sidebar Header — white so the logo's dark/blue text (baked into the
+            image, not currentColor) reads naturally instead of needing an
+            inset backdrop chip. Matches the white sidebar body below it. */}
+        <div className="flex items-center justify-between h-16 px-6 bg-white border-b border-gray-200">
           <div className="flex items-center">
-            <div className="p-2 bg-white bg-opacity-20 rounded-lg">
-              <User className="h-6 w-6 text-white" />
-            </div>
-            <span className="ml-3 text-xl font-bold text-white">User Panel</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/anutech-logo-full.png" alt="Anutech Digital" className="h-8 w-auto" />
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden text-white hover:text-gray-200 transition-colors"
+            className="lg:hidden text-gray-500 hover:text-gray-700 transition-colors"
           >
             <X className="h-6 w-6" />
           </button>

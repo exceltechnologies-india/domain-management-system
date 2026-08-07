@@ -9,7 +9,7 @@ import useSWR from 'swr';
 import {
   Globe, ShoppingCart, TrendingUp, Clock, CheckCircle,
   AlertTriangle, Calendar, ArrowRight, Plus, RefreshCw, Server, FileText, HardDrive,
-  LayoutDashboard, Sparkles, Settings as SettingsIcon, Inbox, Search,
+  LayoutDashboard, Sparkles, Settings as SettingsIcon, Inbox, Search, MessageCircle,
 } from 'lucide-react';
 import RupeeIcon from '@/components/icons/RupeeIcon';
 import { useCartStore } from '@/store/cartStore';
@@ -82,6 +82,7 @@ interface DashboardStats {
   recentDomains: RecentDomainSummary[];
   upcomingRenewals: UpcomingRenewal[];
   activeHostings?: ActiveHosting[];
+  openSupportTickets?: number;
 }
 
 interface ServiceStatus {
@@ -258,7 +259,7 @@ export default function UserDashboard() {
         ) : (
           <>
             {/* ── Overview stat cards ── */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
               {/* Domains */}
               <motion.div
                 initial={{ opacity: 0, y: 16 }}
@@ -361,6 +362,47 @@ export default function UserDashboard() {
                     )}
                   </div>
                 )}
+              </motion.div>
+
+              {/* Active Tickets — Phase 2 integration. Count comes from the
+                  Support Panel (DSP) via a server-to-server lookup; clicking
+                  hands the customer off to DSP the same way the Support nav
+                  link does (same named window, so it reuses an already-open
+                  Support tab instead of spawning a new one). */}
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                onClick={() => {
+                  const w = window.open('/api/user/support/sso', 'dsp_support_panel');
+                  if (w) w.focus();
+                }}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    const w = window.open('/api/user/support/sso', 'dsp_support_panel');
+                    if (w) w.focus();
+                  }
+                }}
+                className="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 hover:shadow-md transition-shadow cursor-pointer"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="p-2 bg-indigo-50 rounded-xl">
+                    <MessageCircle className="h-5 w-5 text-indigo-600" />
+                  </div>
+                  <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-full">
+                    Support
+                  </span>
+                </div>
+                <p className="text-3xl font-bold text-gray-900">{stats?.openSupportTickets || 0}</p>
+                <div className="flex items-center justify-between mt-2">
+                  <p className="text-xs font-medium text-gray-500">Active Tickets</p>
+                  <span className="text-xs font-semibold text-indigo-600 inline-flex items-center gap-1">
+                    Open
+                    <ArrowRight className="h-3 w-3" />
+                  </span>
+                </div>
               </motion.div>
             </div>
 
