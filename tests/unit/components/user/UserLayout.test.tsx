@@ -1,8 +1,8 @@
 /**
  * Component tests for the user dashboard <UserLayout> (rescan-4 M14).
  * Pins:
- *  - 6-item nav (Dashboard / Domains / Hosting / Invoices / Support /
- *    Account Settings) with active-link routing
+ *  - 7-item nav (Dashboard / Domains / Hosting / My Services / Billing /
+ *    Support / Account Settings) with active-link routing
  *  - Top-bar heading reflects the active nav item
  *  - User info block: name + email when user present; 'Loading...' when
  *    user=null OR isLoading=true
@@ -52,21 +52,21 @@ beforeEach(() => {
 });
 
 describe("<UserLayout>", () => {
-  it("renders all 6 nav items", () => {
+  it("renders all 7 nav items", () => {
     render(
       <UserLayout user={USER}>
         <div data-testid="page" />
       </UserLayout>
     );
-    // Anchored exact-match for most labels, but Invoices uses RupeeIcon
+    // Anchored exact-match for most labels, but Billing uses RupeeIcon
     // (which renders ₹ as text content in its SVG) so the link's accessible
-    // name is '₹Invoices' — use a substring match for that one.
-    for (const label of ["Dashboard", "Domains", "Hosting", "Support", "Account Settings"]) {
+    // name is '₹Billing' — use a substring match for that one.
+    for (const label of ["Dashboard", "Domains", "Hosting", "My Services", "Support", "Account Settings"]) {
       expect(
         screen.getByRole("link", { name: new RegExp(`^${label}$`, "i") })
       ).toBeInTheDocument();
     }
-    expect(screen.getByRole("link", { name: /Invoices/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Billing/i })).toBeInTheDocument();
   });
 
   it("active link picks up the blue text + border classes", () => {

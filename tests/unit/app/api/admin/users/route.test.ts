@@ -59,6 +59,17 @@ vi.mock("@/lib/server-logger", () => ({
   serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
+// Only reached by this route's POST handler (not exercised by this file's
+// tests — GET/PUT/DELETE only). Mocked purely so importing the route module
+// doesn't trigger lib/email/transporter's real "SMTP env vars missing" throw
+// at import time.
+vi.mock("@/lib/email", () => ({
+  EmailService: { sendPasswordResetEmail: vi.fn() },
+}));
+vi.mock("@/lib/integrations/billing-customer", () => ({
+  provisionBillingCustomer: vi.fn(),
+}));
+
 vi.unmock("next/server");
 const { NextRequest, NextResponse } = await vi.importActual<
   typeof import("next/server")

@@ -46,7 +46,21 @@ vi.mock("@/lib/rate-limit", () => ({
 }));
 
 const findOrderByZohoInvoiceForUser = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/services/orders", () => ({ findOrderByZohoInvoiceForUser }));
+const findOrderByBillingInvoiceForUser = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/services/orders", () => ({
+  findOrderByZohoInvoiceForUser,
+  findOrderByBillingInvoiceForUser,
+}));
+
+// Billing Panel (ResellerOS) lookups checked BEFORE the legacy Zoho path.
+// Every existing test in this file targets the Zoho path, so both default
+// to "no Billing match" (null / no linked account) — that's what makes the
+// route fall through to the exact legacy behaviour these tests pin.
+const resolveUserBillingCustomerId = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/services/users", () => ({ resolveUserBillingCustomerId }));
+
+const getBillingInvoices = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/integrations/billing-customer", () => ({ getBillingInvoices }));
 
 const getInvoicePdf = vi.hoisted(() => vi.fn());
 const getInstance = vi.hoisted(() => vi.fn(() => ({ getInvoicePdf })));
@@ -83,6 +97,9 @@ beforeEach(() => {
   checkKey.mockReset().mockResolvedValue({ allowed: true });
   rateLimitResponse.mockReset();
   findOrderByZohoInvoiceForUser.mockReset();
+  findOrderByBillingInvoiceForUser.mockReset().mockResolvedValue(null);
+  resolveUserBillingCustomerId.mockReset().mockResolvedValue(null);
+  getBillingInvoices.mockReset().mockResolvedValue([]);
   getInvoicePdf.mockReset();
 });
 

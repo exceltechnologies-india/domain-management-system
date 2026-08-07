@@ -3,7 +3,7 @@
  * THE payment-verification entry point. Orchestrates signature
  * verification → ownership check → amount-match → renewal/upgrade/
  * idempotency forks → restricted-domain reject → pending-order claim
- * → Zoho invoice → post-payment tasks. Pins:
+ * → Billing invoice → post-payment tasks. Pins:
  *  - **Auth gate**: AuthService.getUserFromRequest returns null → 401
  *    'Unauthorized' (FIRST check — no other side effects)
  *  - **Schema validation 'order_id OR subscription_id required'**
@@ -36,12 +36,14 @@
  *  - **finalizePendingOrder vs createCompletedOrder fork**: pending
  *    order → finalize (DB-trusted cart from order.domains); no
  *    pending → createCompleted (legacy path)
- *  - **cartItemsFromOrderDomains used for Zoho** — NOT request-body
- *    cartItems (the H1 fix for swap-domain-for-Zoho-line-items)
- *  - **Zoho failure SWALLOWED** → invoiceCreationFailed:true, status
- *    207 multi-status, error message in body
- *  - **forceMarkZohoCreationFailed called on Zoho throw** (durable
- *    DB record of the failure so retry layer picks it up)
+ *  - **createBillingInvoiceForOrder called with cartItems: []** — the
+ *    Billing path derives its own line items from the DB-trusted order,
+ *    not from request-body/cart-derived items (the Zoho-era H1 fix's
+ *    successor: still never trusts caller-supplied line items)
+ *  - **Billing invoice failure SWALLOWED** → invoiceCreationFailed:true,
+ *    status 207 multi-status, error message in body
+ *  - **forceMarkBillingInvoiceCreationFailed called on Billing throw**
+ *    (durable DB record of the failure so retry layer picks it up)
  *  - **handleVerificationError catch path**: passes outer-scope refs
  *    (razorpay_order_id + payment_id + existingOrderRef) so it
  *    updates the right pending Order instead of creating a duplicate
@@ -55,11 +57,11 @@ vi.mock("@/lib/auth", () => ({
 }));
 
 const claimPendingOrderForProcessing = vi.hoisted(() => vi.fn());
-const forceMarkZohoCreationFailed = vi.hoisted(() => vi.fn());
+const forceMarkBillingInvoiceCreationFailed = vi.hoisted(() => vi.fn());
 const getOrderByRazorpayOrderId = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/orders", () => ({
   claimPendingOrderForProcessing,
-  forceMarkZohoCreationFailed,
+  forceMarkBillingInvoiceCreationFailed,
   getOrderByRazorpayOrderId,
 }));
 
@@ -71,10 +73,10 @@ vi.mock("@/lib/services/payment/idempotency", () => ({
   handleAlreadyProcessedPayment,
 }));
 
-const createZohoInvoice = vi.hoisted(() => vi.fn());
+const createBillingInvoiceForOrder = vi.hoisted(() => vi.fn());
 const runPostPaymentTasks = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/payment/post-tasks", () => ({
-  createZohoInvoice,
+  createBillingInvoiceForOrder,
   runPostPaymentTasks,
 }));
 
@@ -88,12 +90,10 @@ vi.mock("@/lib/services/payment/verification", () => ({
 const validateNoRestrictedDomains = vi.hoisted(() => vi.fn());
 const createCompletedOrder = vi.hoisted(() => vi.fn());
 const finalizePendingOrder = vi.hoisted(() => vi.fn());
-const cartItemsFromOrderDomains = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/payment/order-creator", () => ({
   validateNoRestrictedDomains,
   createCompletedOrder,
   finalizePendingOrder,
-  cartItemsFromOrderDomains,
 }));
 
 const handleVerificationError = vi.hoisted(() => vi.fn());
@@ -155,11 +155,11 @@ const validPaymentDetails = {
 beforeEach(() => {
   getUserFromRequest.mockReset();
   claimPendingOrderForProcessing.mockReset();
-  forceMarkZohoCreationFailed.mockReset();
+  forceMarkBillingInvoiceCreationFailed.mockReset();
   getOrderByRazorpayOrderId.mockReset();
   handleRenewalPayment.mockReset().mockResolvedValue(null);
   handleAlreadyProcessedPayment.mockReset().mockResolvedValue(null);
-  createZohoInvoice.mockReset().mockResolvedValue({ invoiceNumber: "INV-1" });
+  createBillingInvoiceForOrder.mockReset().mockResolvedValue({ invoiceNumber: "INV-1" });
   runPostPaymentTasks.mockReset().mockResolvedValue(undefined);
   verifyRazorpayPayment
     .mockReset()
@@ -170,7 +170,6 @@ beforeEach(() => {
   validateNoRestrictedDomains.mockReset().mockReturnValue({ ok: true });
   createCompletedOrder.mockReset();
   finalizePendingOrder.mockReset();
-  cartItemsFromOrderDomains.mockReset().mockReturnValue([]);
   handleVerificationError.mockReset();
   recordSystemLog.mockReset().mockResolvedValue(undefined);
   handleUpgradePayment.mockReset();
@@ -317,7 +316,7 @@ describe("Ownership check — 404 'Order not found' on cross-account claim", () 
 
 // ─── Already-completed early-exit ──────────────────────────────────
 describe("Already-completed early-exit — idempotency", () => {
-  it("status 'completed' → success message; NO claim, NO Zoho", async () => {
+  it("status 'completed' → success message; NO claim, NO Billing invoice call", async () => {
     getUserFromRequest.mockResolvedValueOnce(validUser);
     getOrderByRazorpayOrderId.mockResolvedValueOnce({
       userId: "U1",
@@ -332,7 +331,7 @@ describe("Already-completed early-exit — idempotency", () => {
     expect(body.message).toBe("Order already completed.");
     expect(body.orderId).toBe("ORD-1");
     expect(claimPendingOrderForProcessing).not.toHaveBeenCalled();
-    expect(createZohoInvoice).not.toHaveBeenCalled();
+    expect(createBillingInvoiceForOrder).not.toHaveBeenCalled();
   });
 });
 
@@ -398,7 +397,7 @@ describe("Renewal flow short-circuit", () => {
 
     const res = await POST(makeReq(validBody));
     expect(res).toBe(renewalResp);
-    expect(createZohoInvoice).not.toHaveBeenCalled();
+    expect(createBillingInvoiceForOrder).not.toHaveBeenCalled();
     expect(handleAlreadyProcessedPayment).not.toHaveBeenCalled();
   });
 });
@@ -562,19 +561,20 @@ describe("createCompletedOrder — legacy / no-pending fallback", () => {
   });
 });
 
-// ─── Zoho invoice + cartItemsFromOrderDomains ──────────────────────
-describe("Zoho invoice — DB-trusted line items (H1 fix)", () => {
-  it("cartItemsFromOrderDomains called with order.domains (NOT request-body cartItems)", async () => {
+// ─── Billing Panel invoice (the Zoho replacement) ──────────────────
+describe("Billing invoice — DB-trusted order, empty cartItems (H1 fix successor)", () => {
+  it("createBillingInvoiceForOrder called with the DB-trusted order + cartItems: [] (NOT request-body cartItems)", async () => {
     getUserFromRequest.mockResolvedValueOnce(validUser);
     getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
     const dbDomains = [{ domainName: "real.com", price: 500 }];
+    const dbOrder = {
+      _id: "OID-1",
+      orderId: "ORD-1",
+      domains: dbDomains,
+      invoiceNumber: "INV-1",
+    };
     createCompletedOrder.mockResolvedValueOnce({
-      order: {
-        _id: "OID-1",
-        orderId: "ORD-1",
-        domains: dbDomains,
-        invoiceNumber: "INV-1",
-      },
+      order: dbOrder,
       orderId: "ORD-1",
       registrationResults: [],
       finalSuccessfulDomains: ["real.com"],
@@ -583,20 +583,19 @@ describe("Zoho invoice — DB-trusted line items (H1 fix)", () => {
       orderDomains: dbDomains,
       orderStatus: "completed",
     });
-    cartItemsFromOrderDomains.mockReturnValueOnce([
-      { domainName: "real.com", price: 500 },
-    ]);
 
     await POST(makeReq(validBody));
-    expect(cartItemsFromOrderDomains).toHaveBeenCalledWith(dbDomains);
+    expect(createBillingInvoiceForOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ order: dbOrder, cartItems: [] })
+    );
   });
 
-  it("Zoho failure SWALLOWED → invoiceCreationFailed:true, status 207", async () => {
+  it("Billing invoice failure SWALLOWED → invoiceCreationFailed:true, status 207", async () => {
     getUserFromRequest.mockResolvedValueOnce(validUser);
     getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
     setupCompletedOrderHappyPath();
-    createZohoInvoice.mockRejectedValueOnce(new Error("Zoho down"));
-    forceMarkZohoCreationFailed.mockResolvedValueOnce(undefined);
+    createBillingInvoiceForOrder.mockRejectedValueOnce(new Error("Billing down"));
+    forceMarkBillingInvoiceCreationFailed.mockResolvedValueOnce(undefined);
 
     const res = await POST(makeReq(validBody));
     expect(res.status).toBe(207);
@@ -605,23 +604,23 @@ describe("Zoho invoice — DB-trusted line items (H1 fix)", () => {
     expect(body.invoiceCreationError).toMatch(/contact support/i);
   });
 
-  it("**forceMarkZohoCreationFailed called on Zoho throw** (durable DB record)", async () => {
+  it("**forceMarkBillingInvoiceCreationFailed called on Billing throw** (durable DB record)", async () => {
     getUserFromRequest.mockResolvedValueOnce(validUser);
     getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
     setupCompletedOrderHappyPath();
-    createZohoInvoice.mockRejectedValueOnce(new Error("Zoho down"));
-    forceMarkZohoCreationFailed.mockResolvedValueOnce(undefined);
+    createBillingInvoiceForOrder.mockRejectedValueOnce(new Error("Billing down"));
+    forceMarkBillingInvoiceCreationFailed.mockResolvedValueOnce(undefined);
 
     await POST(makeReq(validBody));
-    expect(forceMarkZohoCreationFailed).toHaveBeenCalledWith("OID-1");
+    expect(forceMarkBillingInvoiceCreationFailed).toHaveBeenCalledWith("OID-1");
   });
 
-  it("Zoho throw → recordSystemLog called with durable failure record", async () => {
+  it("Billing throw → recordSystemLog called with durable failure record", async () => {
     getUserFromRequest.mockResolvedValueOnce(validUser);
     getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
     setupCompletedOrderHappyPath();
-    createZohoInvoice.mockRejectedValueOnce(new Error("Zoho down"));
-    forceMarkZohoCreationFailed.mockResolvedValueOnce(undefined);
+    createBillingInvoiceForOrder.mockRejectedValueOnce(new Error("Billing down"));
+    forceMarkBillingInvoiceCreationFailed.mockResolvedValueOnce(undefined);
 
     await POST(makeReq(validBody));
     expect(recordSystemLog).toHaveBeenCalledWith(
@@ -633,26 +632,26 @@ describe("Zoho invoice — DB-trusted line items (H1 fix)", () => {
     );
   });
 
-  it("Zoho returns no invoiceNumber → falls back to local order.invoiceNumber", async () => {
+  it("Billing returns no invoiceNumber → falls back to local order.invoiceNumber", async () => {
     getUserFromRequest.mockResolvedValueOnce(validUser);
     getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
     setupCompletedOrderHappyPath();
-    createZohoInvoice.mockResolvedValueOnce({ invoiceNumber: null });
+    createBillingInvoiceForOrder.mockResolvedValueOnce({ invoiceNumber: null });
 
     const res = await POST(makeReq(validBody));
     const body = await res.json();
     expect(body.invoiceNumber).toBe("INV-LOCAL-1"); // local fallback
   });
 
-  it("Zoho success: finalInvoiceNumber set from Zoho return", async () => {
+  it("Billing success: finalInvoiceNumber set from Billing return", async () => {
     getUserFromRequest.mockResolvedValueOnce(validUser);
     getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
     setupCompletedOrderHappyPath();
-    createZohoInvoice.mockResolvedValueOnce({ invoiceNumber: "ZOHO-999" });
+    createBillingInvoiceForOrder.mockResolvedValueOnce({ invoiceNumber: "BILLING-999" });
 
     const res = await POST(makeReq(validBody));
     const body = await res.json();
-    expect(body.invoiceNumber).toBe("ZOHO-999");
+    expect(body.invoiceNumber).toBe("BILLING-999");
     expect(body.invoiceStatus).toBe("created");
     expect(res.status).toBe(200); // 200 — not 207
   });
@@ -660,7 +659,7 @@ describe("Zoho invoice — DB-trusted line items (H1 fix)", () => {
 
 // ─── Status code: 207 vs 200 ───────────────────────────────────────
 describe("Status code", () => {
-  it("Zoho success → 200", async () => {
+  it("Billing invoice success → 200", async () => {
     getUserFromRequest.mockResolvedValueOnce(validUser);
     getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
     setupCompletedOrderHappyPath();
@@ -668,12 +667,12 @@ describe("Status code", () => {
     expect(res.status).toBe(200);
   });
 
-  it("Zoho failure → 207 (multi-status — payment succeeded, invoice didn't)", async () => {
+  it("Billing invoice failure → 207 (multi-status — payment succeeded, invoice didn't)", async () => {
     getUserFromRequest.mockResolvedValueOnce(validUser);
     getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
     setupCompletedOrderHappyPath();
-    createZohoInvoice.mockRejectedValueOnce(new Error("Zoho down"));
-    forceMarkZohoCreationFailed.mockResolvedValueOnce(undefined);
+    createBillingInvoiceForOrder.mockRejectedValueOnce(new Error("Billing down"));
+    forceMarkBillingInvoiceCreationFailed.mockResolvedValueOnce(undefined);
     const res = await POST(makeReq(validBody));
     expect(res.status).toBe(207);
   });
@@ -799,12 +798,12 @@ describe("Response message — hosting vs domain composition", () => {
 
 // ─── Post-payment tasks ────────────────────────────────────────────
 describe("runPostPaymentTasks — non-critical tasks", () => {
-  it("called after Zoho (even on Zoho failure, post-tasks still run — email/notifications)", async () => {
+  it("called after the Billing invoice attempt (even on failure, post-tasks still run — email/notifications)", async () => {
     getUserFromRequest.mockResolvedValueOnce(validUser);
     getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
     setupCompletedOrderHappyPath();
-    createZohoInvoice.mockRejectedValueOnce(new Error("Zoho down"));
-    forceMarkZohoCreationFailed.mockResolvedValueOnce(undefined);
+    createBillingInvoiceForOrder.mockRejectedValueOnce(new Error("Billing down"));
+    forceMarkBillingInvoiceCreationFailed.mockResolvedValueOnce(undefined);
 
     await POST(makeReq(validBody));
     expect(runPostPaymentTasks).toHaveBeenCalled();

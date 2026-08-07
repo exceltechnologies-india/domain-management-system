@@ -2,19 +2,24 @@
  * Tests for `app/api/admin/support-tickets/route.ts` (slice 7go,
  * part 2). Admin list of all customer support tickets.
  *
+ * Rewritten for the Phase 2 DSP hand-off: legacy Mongo-backed pagination
+ * (listTicketsForAdmin / page / perPage) was intentionally dropped from this
+ * route — tickets now come from getDspTicketsForAdmin(status), which is a
+ * best-effort call that never throws (DSP-unreachable resolves to []
+ * internally, not an exception). Response shape is always
+ * { tickets, total: tickets.length, page: 1, pages: 1 }.
+ *
  * Pins:
  *  - Admin gate via AuthService.isAdmin → 403 FORBIDDEN on non-
  *    admin (uses 403, not 401 — pinned alongside the deactivated-
  *    users 401 for the harmony audit)
- *  - Query params: status (optional, passed through), page
- *    (default 1, **clamped to min 1** via Math.max(1, ...) — anti-
- *    negative-offset)
- *  - listTicketsForAdmin called with `{ status, page, perPage: 25 }`
- *    — perPage is HARD-CODED at 25 (no per_page query param —
- *    pinned so a future "expose perPage" change goes through a
- *    review for DoS impact)
- *  - Response: `{ tickets, total, page, pages }`
- *  - Outer catch → 500 SERVER_ERROR (generic)
+ *  - Query param: status, defaults to "all" (not undefined) when absent
+ *  - getDspTicketsForAdmin called with just the status string — no
+ *    page/perPage (pagination removed, DSP fetches a flat capped list)
+ *  - Response: `{ tickets, total, page: 1, pages: 1 }` — total derives
+ *    from tickets.length, page/pages are always 1 (no pagination anymore)
+ *  - Outer catch → 500 SERVER_ERROR (generic) — still real protective
+ *    code even though the current getDspTicketsForAdmin never throws
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -23,8 +28,8 @@ vi.mock("@/lib/auth", () => ({
   AuthService: { isAdmin },
 }));
 
-const listTicketsForAdmin = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/services/support-tickets", () => ({ listTicketsForAdmin }));
+const getDspTicketsForAdmin = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/integrations/support-tickets-admin", () => ({ getDspTicketsForAdmin }));
 
 vi.mock("@/lib/server-logger", () => ({
   serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -47,7 +52,7 @@ function makeReq(qs = "") {
 
 beforeEach(() => {
   isAdmin.mockReset();
-  listTicketsForAdmin.mockReset();
+  getDspTicketsForAdmin.mockReset();
 });
 
 describe("Admin gate (returns 403)", () => {
@@ -57,96 +62,58 @@ describe("Admin gate (returns 403)", () => {
     expect(res.status).toBe(403);
     const body = await res.json();
     expect(body.code).toBe("FORBIDDEN");
-    expect(listTicketsForAdmin).not.toHaveBeenCalled();
+    expect(getDspTicketsForAdmin).not.toHaveBeenCalled();
   });
 });
 
 describe("Query parsing", () => {
   beforeEach(() => {
     isAdmin.mockResolvedValue(true);
-    listTicketsForAdmin.mockResolvedValue({
-      tickets: [],
-      total: 0,
-      page: 1,
-      pages: 0,
-    });
+    getDspTicketsForAdmin.mockResolvedValue([]);
   });
 
-  it("defaults: status=undefined, page=1, perPage:25 (HARD-CODED)", async () => {
+  it("no status param → defaults to 'all'", async () => {
     await GET(makeReq());
-    expect(listTicketsForAdmin).toHaveBeenCalledWith({
-      status: undefined,
-      page: 1,
-      perPage: 25,
-    });
+    expect(getDspTicketsForAdmin).toHaveBeenCalledWith("all");
   });
 
   it("?status=open passes through", async () => {
     await GET(makeReq("status=open"));
-    expect(listTicketsForAdmin).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "open" })
-    );
-  });
-
-  it("?page=3 parsed as integer", async () => {
-    await GET(makeReq("page=3"));
-    expect(listTicketsForAdmin).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 3 })
-    );
-  });
-
-  it("?page=-5 clamped to min 1 (anti-negative-offset)", async () => {
-    await GET(makeReq("page=-5"));
-    expect(listTicketsForAdmin).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 1 })
-    );
-  });
-
-  it("?page=0 clamped to 1", async () => {
-    await GET(makeReq("page=0"));
-    expect(listTicketsForAdmin).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 1 })
-    );
-  });
-
-  it("?page=garbage (NaN) — current behaviour leaks NaN through (Math.max(1, NaN)=NaN). Pinned for review.", async () => {
-    await GET(makeReq("page=abc"));
-    // ACTUAL current behaviour: parseInt('abc') → NaN, then
-    // Math.max(1, NaN) === NaN (any compare with NaN is false). So
-    // NaN reaches listTicketsForAdmin. This is a known quirk worth
-    // pinning explicitly — a fix that adds Number.isFinite() guard
-    // would change page to 1 here.
-    expect(listTicketsForAdmin).toHaveBeenCalledWith(
-      expect.objectContaining({ page: NaN })
-    );
+    expect(getDspTicketsForAdmin).toHaveBeenCalledWith("open");
   });
 });
 
 describe("Response shape", () => {
-  it("returns { tickets, total, page, pages }", async () => {
+  it("returns { tickets, total, page: 1, pages: 1 } — total from tickets.length", async () => {
     isAdmin.mockResolvedValueOnce(true);
-    listTicketsForAdmin.mockResolvedValueOnce({
-      tickets: [{ ticketNumber: "T-1" }],
-      total: 42,
-      page: 2,
-      pages: 5,
-    });
-    const res = await GET(makeReq("page=2"));
+    getDspTicketsForAdmin.mockResolvedValueOnce([
+      { ticketNumber: "DSP-1" },
+      { ticketNumber: "DSP-2" },
+    ]);
+    const res = await GET(makeReq());
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toEqual({
-      tickets: [{ ticketNumber: "T-1" }],
-      total: 42,
-      page: 2,
-      pages: 5,
+      tickets: [{ ticketNumber: "DSP-1" }, { ticketNumber: "DSP-2" }],
+      total: 2,
+      page: 1,
+      pages: 1,
     });
+  });
+
+  it("no tickets → total: 0, still page 1 / pages 1", async () => {
+    isAdmin.mockResolvedValueOnce(true);
+    getDspTicketsForAdmin.mockResolvedValueOnce([]);
+    const res = await GET(makeReq());
+    const body = await res.json();
+    expect(body).toEqual({ tickets: [], total: 0, page: 1, pages: 1 });
   });
 });
 
 describe("Error handling", () => {
   it("service throw → 500 SERVER_ERROR (generic, no leak)", async () => {
     isAdmin.mockResolvedValueOnce(true);
-    listTicketsForAdmin.mockRejectedValueOnce(new Error("DB blew up"));
+    getDspTicketsForAdmin.mockRejectedValueOnce(new Error("DB blew up"));
     const res = await GET(makeReq());
     expect(res.status).toBe(500);
     const body = await res.json();
