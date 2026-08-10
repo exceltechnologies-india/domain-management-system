@@ -24,8 +24,11 @@ import { execSync } from "node:child_process";
 // (2026-08-01); dropped to 139 after fixing global-error <html lang> +
 // CardTitle heading-content; dropped to 138 (2026-08-10) after associating the
 // AdminPasswordReset new/confirm-password labels with their inputs (htmlFor/id)
-// — the dms-00455 step-up field had regressed the count to 140.
-const BASELINE = Number(process.env.A11Y_BASELINE ?? 138);
+// — the dms-00455 step-up field had regressed the count to 140. Dropped to 126
+// (2026-08-10) after a customer-facing form-a11y batch: label↔control
+// associations (register/cart/domain-setup/nameserver/renewal) + removed a
+// guest-email autoFocus. (7 div-onKeyDown → <form> conversions still pending.)
+const BASELINE = Number(process.env.A11Y_BASELINE ?? 126);
 
 function runLintJson() {
   try {

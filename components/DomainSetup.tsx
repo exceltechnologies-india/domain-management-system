@@ -152,13 +152,14 @@ export default function DomainSetup({ hostingItem, onUpdateDomain, onAddDomainTo
         <div className="max-w-3xl">
           {activeTab === 'link' ? (
             <div className="animate-in fade-in slide-in-from-left-4 duration-300">
-              <label className="block text-sm font-semibold text-gray-700 mb-3 ml-1">
+              <label htmlFor="domain-link-input" className="block text-sm font-semibold text-gray-700 mb-3 ml-1">
                 Enter your existing domain name
               </label>
               <div className="flex items-start gap-3">
                 <div className="flex-grow">
                   <div className="relative group">
                     <input
+                      id="domain-link-input"
                       type="text"
                       value={domainInput}
                       onChange={(e) => {
@@ -209,7 +210,7 @@ export default function DomainSetup({ hostingItem, onUpdateDomain, onAddDomainTo
             </div>
           ) : (
             <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-              <label className="block text-sm font-semibold text-gray-700 mb-3 ml-1">
+              <label htmlFor="domain-search-input" className="block text-sm font-semibold text-gray-700 mb-3 ml-1">
                 Search for an available domain
               </label>
               <form onSubmit={handleSearch} className="relative mb-6">
@@ -218,6 +219,7 @@ export default function DomainSetup({ hostingItem, onUpdateDomain, onAddDomainTo
                     <Search className="h-5 w-5 text-gray-400 group-focus-within:text-indigo-500 transition-colors" />
                   </div>
                   <input
+                    id="domain-search-input"
                     type="text"
                     value={searchQuery}
                     onChange={(e) => {

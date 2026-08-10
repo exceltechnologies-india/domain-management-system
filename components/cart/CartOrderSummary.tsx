@@ -125,7 +125,6 @@ export default function CartOrderSummary({
                     onChange={(e) => { setGuestEmail(e.target.value); setEmailError(''); }}
                     onKeyDown={(e) => e.key === 'Enter' && handleGuestContinue()}
                     placeholder="you@example.com"
-                    autoFocus
                     className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
                   />
                 </div>

@@ -68,10 +68,11 @@ export default function AddressSection({
           fullWidth
         />
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="address-state" className="block text-sm font-medium text-gray-700 mb-1">
             State/Province
           </label>
           <select
+            id="address-state"
             name="address.state"
             value={formData.address.state}
             onChange={onChange}
@@ -92,9 +93,11 @@ export default function AddressSection({
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          {/* Country is fixed to India (read-only display + hidden input), not an
+              editable control — use a plain styled span, not a <label>. */}
+          <span className="block text-sm font-medium text-gray-700 mb-1">
             Country
-          </label>
+          </span>
           <div className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 text-gray-700 font-medium">
             🇮🇳 India
           </div>

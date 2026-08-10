@@ -93,9 +93,12 @@ export default function CartItemCard({ item, onRemove, onPeriodChange }: CartIte
         <div className="flex items-end justify-between lg:items-center gap-4 sm:gap-6 border-t lg:border-t-0 pt-4 lg:pt-0 flex-shrink-0">
           {/* Period selector */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs sm:text-sm font-medium text-gray-700">
+            {/* The period control is conditional (static div for trial/locked,
+                select otherwise) — use a span so the label isn't tied to a
+                sometimes-absent control. */}
+            <span className="text-xs sm:text-sm font-medium text-gray-700">
               Registration Period:
-            </label>
+            </span>
             {item.isTrial ? (
               <div className="px-4 py-2 border border-gray-200 rounded-md text-sm bg-amber-50 text-amber-800 font-medium sm:min-w-[100px] text-center">
                 {item.registrationPeriod} Days

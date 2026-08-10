@@ -155,13 +155,13 @@ export default function DomainRenewalModal({
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-500">Expiry Date</label>
+                    <span className="block text-sm font-medium text-gray-500">Expiry Date</span>
                     <p className="text-lg font-semibold text-gray-900">
                       {formatDate(expiryDate)}
                     </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-500">Days Until Expiry</label>
+                    <span className="block text-sm font-medium text-gray-500">Days Until Expiry</span>
                     <p className={`text-lg font-semibold ${isExpiringSoon ? 'text-red-600' : 'text-gray-900'}`}>
                       {daysUntilExpiry} days
                       {isExpiringSoon && (
@@ -189,10 +189,11 @@ export default function DomainRenewalModal({
                   Renewal Options
                 </h3>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {/* Labels a button group (not a single control) — span, not label. */}
+                  <span className="block text-sm font-medium text-gray-700 mb-2">
                     Select Renewal Period
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
+                  </span>
+                  <div className="grid grid-cols-3 gap-2" role="group" aria-label="Select renewal period">
                     {renewalYears.map((years) => (
                       <button
                         key={years}

@@ -65,9 +65,11 @@ export default function PersonalInfoSection({ formData, onChange }: Props) {
 
       <div className="grid grid-cols-3 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          {/* Country code is fixed to +91 (read-only display + hidden input),
+              not an editable control — use a plain styled span, not a <label>. */}
+          <span className="block text-sm font-medium text-gray-700 mb-1">
             Country Code
-          </label>
+          </span>
           <div className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 text-gray-700 font-medium">
             🇮🇳 +91 (India)
           </div>

@@ -194,10 +194,11 @@ export default function NameServerManagement() {
           </h3>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-[var(--google-text-primary)] mb-2" style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}>
+              <label htmlFor="ns-config-name" className="block text-sm font-medium text-[var(--google-text-primary)] mb-2" style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}>
                 Configuration Name
               </label>
               <input
+                id="ns-config-name"
                 type="text"
                 value={newConfig.name}
                 onChange={(e) => setNewConfig(prev => ({ ...prev, name: e.target.value }))}
@@ -207,10 +208,11 @@ export default function NameServerManagement() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-[var(--google-text-primary)] mb-2" style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}>
+              {/* Labels a dynamic group of nameserver inputs, not one control. */}
+              <span className="block text-sm font-medium text-[var(--google-text-primary)] mb-2" style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}>
                 Nameservers
-              </label>
-              <div className="space-y-2">
+              </span>
+              <div className="space-y-2" role="group" aria-label="Nameservers">
                 {newConfig.servers.map((server, index) => (
                   <div key={index} className="flex gap-2">
                     <input
