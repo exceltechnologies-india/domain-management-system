@@ -330,7 +330,9 @@ const OrderSchema = new Schema<IOrder>(
     },
     zohoInvoiceId: {
       type: String, // ID of the invoice in Zoho Books
-      sparse: true,
+      // Index defined explicitly below via OrderSchema.index(..., { sparse: true }).
+      // Don't add `sparse`/`index` here too — that builds a duplicate index
+      // (Mongoose "Duplicate schema index on {zohoInvoiceId:1}" warning).
     },
     isDeleted: {
       type: Boolean,
