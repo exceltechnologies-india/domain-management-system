@@ -17,6 +17,17 @@
 #                                                  # without rebuilding
 #   ./scripts/deploy-cloud-run.sh --skip-ci-check  # bypass the CI-green gate
 #                                                  # (emergency hotfixes)
+#   ./scripts/deploy-cloud-run.sh --preview=<tag>  # deploy as a NEW revision
+#                                                  # with --no-traffic --tag=<tag>
+#                                                  # instead of cutting over
+#                                                  # production. Gets its own
+#                                                  # URL (https://<tag>---dms-
+#                                                  # <hash>.<region>.run.app);
+#                                                  # 100% of real traffic stays
+#                                                  # on the current revision.
+#                                                  # Skips the git deploy-tag
+#                                                  # step (that's for real
+#                                                  # releases only).
 #
 # Local-build prerequisites (one-time, done 2026-06-17):
 #   - Docker installed on the VPS (docker-ce 29+)
@@ -87,12 +98,15 @@ trap 'rc=$?; if [ "$DEPLOY_LOGGED" = "false" ]; then log_deploy "failed_exit_${r
 SKIP_BUILD=false
 SKIP_CI_CHECK=false
 BUILD_MODE=local   # `local` (docker build on this VPS) or `cloud` (gcloud builds submit)
+PREVIEW_TAG=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-build) SKIP_BUILD=true; shift ;;
     --skip-ci-check) SKIP_CI_CHECK=true; shift ;;
     --cloud-build) BUILD_MODE=cloud; shift ;;
     --local-build) BUILD_MODE=local; shift ;;
+    --preview=*) PREVIEW_TAG="${1#--preview=}"; shift ;;
+    --preview) PREVIEW_TAG="$2"; shift 2 ;;
     -h|--help)
       sed -n '2,/^set -uo/p' "$0" | sed 's/^# \{0,1\}//'
       exit 0 ;;
@@ -187,12 +201,19 @@ check_ci_green() {
 DEPLOY_STAGE="ci_gate"
 check_ci_green
 
-PROJECT=speedy-unison-453807-e9
-REGION=europe-west1
+# All overridable via env var (defaults are the real production target) —
+# used to deploy an experimental preview into a DIFFERENT GCP project
+# without touching this file's production defaults, e.g.:
+#   DEPLOY_PROJECT=other-project DEPLOY_VPC_CONNECTOR= DEPLOY_SERVICE_ACCOUNT=other-sa@... \
+#     ./scripts/deploy-cloud-run.sh --preview=x
+# An empty DEPLOY_VPC_CONNECTOR means "don't attach a VPC connector at all"
+# (fine — Redis/rate-limiting is a soft dependency, see lib/rate-limit.ts).
+PROJECT="${DEPLOY_PROJECT:-speedy-unison-453807-e9}"
+REGION="${DEPLOY_REGION:-europe-west1}"
 SERVICE=dms
 IMAGE="us-central1-docker.pkg.dev/${PROJECT}/dms/dms:latest"
-VPC_CONNECTOR=dms-vpc-eu
-SERVICE_ACCOUNT="721945682828-compute@developer.gserviceaccount.com"
+VPC_CONNECTOR="${DEPLOY_VPC_CONNECTOR-dms-vpc-eu}"
+SERVICE_ACCOUNT="${DEPLOY_SERVICE_ACCOUNT:-721945682828-compute@developer.gserviceaccount.com}"
 
 # ── Pre-flight ────────────────────────────────────────────────────────────────
 gcloud config set project "$PROJECT" --quiet >/dev/null 2>&1
@@ -207,6 +228,9 @@ echo "  Region:    $REGION"
 echo "  Service:   $SERVICE"
 echo "  Image:     $IMAGE"
 echo "  Build:     ${BUILD_MODE}$($SKIP_BUILD && echo " (skipped via --skip-build)")"
+if [ -n "$PREVIEW_TAG" ]; then
+  echo "  Mode:      PREVIEW (tag=$PREVIEW_TAG) — no-traffic, production untouched"
+fi
 echo "════════════════════════════════════════"
 
 # ── Step 1: build ─────────────────────────────────────────────────────────────
@@ -342,35 +366,88 @@ TRIAL_ABUSE_DISABLED="${CURRENT_TRIAL_ABUSE_DISABLED:-${TRIAL_ABUSE_DISABLED:-}}
 echo "   TRIAL_ABUSE_DISABLED resolved to: ${TRIAL_ABUSE_DISABLED:-<unset>}"
 
 # Build the env-vars string. ^|^ delimiter handles commas in values defensively.
-ENV_VARS="ADMIN_EMAIL=${ADMIN_EMAIL:-}|APP_URL=${APP_URL:-}|DIRECTADMIN_IP=${DIRECTADMIN_IP:-}|FROM_EMAIL=${FROM_EMAIL:-}|FROM_NAME=${FROM_NAME:-}|GCP_PROJECT_ID=${PROJECT}|GCP_QUEUE_LOCATION=${GCP_QUEUE_LOCATION:-us-central1}|GCP_QUEUE_NAME=${GCP_QUEUE_NAME:-}|HOSTING_MANDATE_FLOW=${HOSTING_MANDATE_FLOW}|NEXTAUTH_URL=${NEXTAUTH_URL:-}|NEXT_PUBLIC_FACEBOOK_ENABLED=${NEXT_PUBLIC_FACEBOOK_ENABLED:-false}|NEXT_PUBLIC_GITHUB_ENABLED=${NEXT_PUBLIC_GITHUB_ENABLED:-false}|NEXT_PUBLIC_RAZORPAY_KEY_ID=${NEXT_PUBLIC_RAZORPAY_KEY_ID:-}|NEXT_PUBLIC_RECAPTCHA_SITE_KEY=${NEXT_PUBLIC_RECAPTCHA_SITE_KEY:-}|REDIS_HOST=10.70.203.51|REDIS_PORT=6379|RESELLERCLUB_API_URL=${RESELLERCLUB_API_URL:-https://httpapi.com}|SMTP_HOST=${SMTP_HOST:-}|SMTP_PORT=${SMTP_PORT:-587}|SMTP_SECURE=${SMTP_SECURE:-false}|SUPPORT_EMAIL=${SUPPORT_EMAIL:-}|TRIAL_ABUSE_DISABLED=${TRIAL_ABUSE_DISABLED}|ZOHO_DC=${ZOHO_DC:-.in}|ZOHO_LOCATION_ID=${ZOHO_LOCATION_ID:-}|ZOHO_ORG_ID=${ZOHO_ORG_ID:-}|ZOHO_ORG_STATE=${ZOHO_ORG_STATE:-}|ZOHO_TAX_ID_GST18=${ZOHO_TAX_ID_GST18:-}|ZOHO_TAX_ID_IGST18=${ZOHO_TAX_ID_IGST18:-}"
+# Empty DEPLOY_REDIS_HOST means "omit REDIS_HOST/PORT entirely" — lib/rate-limit.ts
+# treats a missing host as "not configured" and fails open immediately, vs.
+# pointing at an unreachable private IP (e.g. no VPC connector in this target
+# project) which would fail open only after a real connection timeout per request.
+REDIS_HOST="${DEPLOY_REDIS_HOST-10.70.203.51}"
+REDIS_ENV_SEGMENT=""
+if [ -n "$REDIS_HOST" ]; then
+  REDIS_ENV_SEGMENT="REDIS_HOST=${REDIS_HOST}|REDIS_PORT=${DEPLOY_REDIS_PORT:-6379}|"
+fi
+
+# Override when the actual serving URL differs from .env.local's dev value
+# (e.g. a Cloud Run preview deploy) — otherwise auth/redirect logic that
+# builds URLs from these bakes in localhost and sends users back to your
+# machine instead of the deployed app.
+APP_URL_RESOLVED="${DEPLOY_APP_URL:-${APP_URL:-}}"
+NEXTAUTH_URL_RESOLVED="${DEPLOY_NEXTAUTH_URL:-${NEXTAUTH_URL:-}}"
+
+# Cross-service URLs — override when the target Billing/DSP instance for
+# this deploy isn't the same one .env.local points at locally (e.g. this
+# Customer Panel preview should talk to a Billing preview, not localhost).
+BILLING_API_URL_RESOLVED="${DEPLOY_BILLING_API_URL:-${BILLING_API_URL:-}}"
+DSP_API_URL_RESOLVED="${DEPLOY_DSP_API_URL:-${DSP_API_URL:-}}"
+DSP_SUPPORT_URL_RESOLVED="${DEPLOY_DSP_SUPPORT_URL:-${DSP_SUPPORT_URL:-}}"
+NEXT_PUBLIC_DSP_SUPPORT_URL_RESOLVED="${DEPLOY_DSP_SUPPORT_URL:-${NEXT_PUBLIC_DSP_SUPPORT_URL:-}}"
+
+ENV_VARS="ADMIN_EMAIL=${ADMIN_EMAIL:-}|APP_URL=${APP_URL_RESOLVED}|BILLING_API_URL=${BILLING_API_URL_RESOLVED}|BILLING_INTEGRATION_API_KEY=${BILLING_INTEGRATION_API_KEY:-}|BILLING_PROVISION_API_KEY=${BILLING_PROVISION_API_KEY:-}|BILLING_COMMAND_API_KEY=${BILLING_COMMAND_API_KEY:-}|DSP_API_URL=${DSP_API_URL_RESOLVED}|DSP_INTEGRATION_API_KEY=${DSP_INTEGRATION_API_KEY:-}|DSP_SUPPORT_URL=${DSP_SUPPORT_URL_RESOLVED}|NEXT_PUBLIC_DSP_SUPPORT_URL=${NEXT_PUBLIC_DSP_SUPPORT_URL_RESOLVED}|SSO_SHARED_SECRET=${SSO_SHARED_SECRET:-}|DIRECTADMIN_IP=${DIRECTADMIN_IP:-}|FROM_EMAIL=${FROM_EMAIL:-}|FROM_NAME=${FROM_NAME:-}|GCP_PROJECT_ID=${PROJECT}|GCP_QUEUE_LOCATION=${GCP_QUEUE_LOCATION:-us-central1}|GCP_QUEUE_NAME=${GCP_QUEUE_NAME:-}|HOSTING_MANDATE_FLOW=${HOSTING_MANDATE_FLOW}|NEXTAUTH_URL=${NEXTAUTH_URL_RESOLVED}|NEXT_PUBLIC_FACEBOOK_ENABLED=${NEXT_PUBLIC_FACEBOOK_ENABLED:-false}|NEXT_PUBLIC_GITHUB_ENABLED=${NEXT_PUBLIC_GITHUB_ENABLED:-false}|NEXT_PUBLIC_RAZORPAY_KEY_ID=${NEXT_PUBLIC_RAZORPAY_KEY_ID:-}|NEXT_PUBLIC_RECAPTCHA_SITE_KEY=${NEXT_PUBLIC_RECAPTCHA_SITE_KEY:-}|${REDIS_ENV_SEGMENT}RESELLERCLUB_API_URL=${RESELLERCLUB_API_URL:-https://httpapi.com}|SMTP_HOST=${SMTP_HOST:-}|SMTP_PORT=${SMTP_PORT:-587}|SMTP_SECURE=${SMTP_SECURE:-false}|SUPPORT_EMAIL=${SUPPORT_EMAIL:-}|TRIAL_ABUSE_DISABLED=${TRIAL_ABUSE_DISABLED}|ZOHO_DC=${ZOHO_DC:-.in}|ZOHO_LOCATION_ID=${ZOHO_LOCATION_ID:-}|ZOHO_ORG_ID=${ZOHO_ORG_ID:-}|ZOHO_ORG_STATE=${ZOHO_ORG_STATE:-}|ZOHO_TAX_ID_GST18=${ZOHO_TAX_ID_GST18:-}|ZOHO_TAX_ID_IGST18=${ZOHO_TAX_ID_IGST18:-}"
 
 SECRETS_FLAG="ADMIN_PASSWORD=ADMIN_PASSWORD:latest,ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,CRON_SECRET=CRON_SECRET:latest,DIRECTADMIN_ADMIN_USER=DIRECTADMIN_ADMIN_USER:latest,DIRECTADMIN_API_KEY=DIRECTADMIN_API_KEY:latest,DIRECTADMIN_URL=DIRECTADMIN_URL:latest,FACEBOOK_CLIENT_ID=FACEBOOK_CLIENT_ID:latest,FACEBOOK_CLIENT_SECRET=FACEBOOK_CLIENT_SECRET:latest,GITHUB_CLIENT_ID=GITHUB_CLIENT_ID:latest,GITHUB_CLIENT_SECRET=GITHUB_CLIENT_SECRET:latest,GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest,JWT_SECRET=JWT_SECRET:latest,MONGODB_URI=MONGODB_URI:latest,NEXTAUTH_SECRET=NEXTAUTH_SECRET:latest,RAZORPAY_KEY_ID=RAZORPAY_KEY_ID:latest,RAZORPAY_KEY_SECRET=RAZORPAY_KEY_SECRET:latest,RAZORPAY_WEBHOOK_SECRET=RAZORPAY_WEBHOOK_SECRET:latest,RECAPTCHA_SECRET_KEY=RECAPTCHA_SECRET_KEY:latest,RESELLERCLUB_ID=RESELLERCLUB_ID:latest,RESELLERCLUB_RESELLER_ID=RESELLERCLUB_RESELLER_ID:latest,RESELLERCLUB_SECRET=RESELLERCLUB_SECRET:latest,SMTP_PASS=SMTP_PASS:latest,SMTP_USER=SMTP_USER:latest,ZOHO_CLIENT_ID=ZOHO_CLIENT_ID:latest,ZOHO_CLIENT_SECRET=ZOHO_CLIENT_SECRET:latest,ZOHO_REFRESH_TOKEN=ZOHO_REFRESH_TOKEN:latest,META_CAPI_ACCESS_TOKEN=META_CAPI_ACCESS_TOKEN:latest"
 
-gcloud run deploy "$SERVICE" \
-  --image="$IMAGE" \
-  --region="$REGION" \
-  --platform=managed \
-  --allow-unauthenticated \
-  --memory=1Gi \
-  --cpu=1 \
-  --min-instances=0 \
-  --max-instances=5 \
-  --timeout=300 \
-  --concurrency=80 \
-  `# concurrency is paired with lib/mongodb.ts:maxPoolSize (currently 50).` \
-  `# Bumping concurrency without raising maxPoolSize will queue requests` \
-  `# behind the pool and add latency proportional to query duration.` \
-  --service-account="$SERVICE_ACCOUNT" \
-  --vpc-connector="$VPC_CONNECTOR" \
-  --vpc-egress=all-traffic \
-  --set-secrets="$SECRETS_FLAG" \
-  --set-env-vars="^|^${ENV_VARS}" \
-  --quiet 2>&1 | tail -5
+DEPLOY_ARGS=(
+  --image="$IMAGE"
+  --region="$REGION"
+  --platform=managed
+  --allow-unauthenticated
+  --memory=1Gi
+  --cpu=1
+  --min-instances=0
+  --max-instances=5
+  --timeout=300
+  --concurrency=80
+  --service-account="$SERVICE_ACCOUNT"
+  --set-secrets="$SECRETS_FLAG"
+  --set-env-vars="^|^${ENV_VARS}"
+  --quiet
+)
+# concurrency is paired with lib/mongodb.ts:maxPoolSize (currently 50).
+# Bumping concurrency without raising maxPoolSize will queue requests
+# behind the pool and add latency proportional to query duration.
+
+if [ -n "$VPC_CONNECTOR" ]; then
+  DEPLOY_ARGS+=(--vpc-connector="$VPC_CONNECTOR" --vpc-egress=all-traffic)
+fi
+
+if [ -n "$PREVIEW_TAG" ]; then
+  # Cloud Run refuses --no-traffic when the service doesn't exist yet (there's
+  # no existing revision for traffic to stay pinned to). On a genuinely first
+  # deploy there's no production traffic to protect anyway, so just do a
+  # normal deploy and skip the tag/no-traffic flags for this one call.
+  if gcloud run services describe "$SERVICE" --project="$PROJECT" --region="$REGION" >/dev/null 2>&1; then
+    # New revision gets its own URL and zero production traffic — the
+    # currently-serving revision keeps 100% until someone explicitly shifts
+    # traffic (or does a normal, non-preview deploy).
+    DEPLOY_ARGS+=(--no-traffic --tag="$PREVIEW_TAG")
+  else
+    echo "ℹ️  Service '$SERVICE' doesn't exist yet in $PROJECT — first deploy, --preview tag skipped (nothing to protect)."
+    PREVIEW_TAG=""
+  fi
+fi
+
+gcloud run deploy "$SERVICE" "${DEPLOY_ARGS[@]}" 2>&1 | tail -5
 
 # ── Smoke test ────────────────────────────────────────────────────────────────
 DEPLOY_STAGE="smoke_test"
-URL=$(gcloud run services describe "$SERVICE" --region="$REGION" --format='value(status.url)')
 DEPLOY_REVISION=$(gcloud run services describe "$SERVICE" --region="$REGION" --format='value(status.latestReadyRevisionName)' 2>/dev/null || echo "unknown")
+if [ -n "$PREVIEW_TAG" ]; then
+  # Tagged-revision URLs follow https://<tag>---<service>-<hash>.<region>.run.app.
+  # Derive it from the service's base URL rather than hardcoding the hash.
+  BASE_URL=$(gcloud run services describe "$SERVICE" --region="$REGION" --format='value(status.url)')
+  URL="${BASE_URL/https:\/\//https://${PREVIEW_TAG}---}"
+else
+  URL=$(gcloud run services describe "$SERVICE" --region="$REGION" --format='value(status.url)')
+fi
 echo ""
 echo "📍 Smoke test:"
 HTTP=$(curl -sS -o /dev/null -w "%{http_code}" "$URL/api/health")
@@ -383,10 +460,17 @@ else
 fi
 
 echo ""
-echo "✅ Deployed: $URL"
-echo "   Revision: $DEPLOY_REVISION"
-echo "   Roll back with: gcloud run services update-traffic $SERVICE --region=$REGION --to-revisions=<previous-revision>=100"
-echo "   List revisions: gcloud run revisions list --service=$SERVICE --region=$REGION"
+if [ -n "$PREVIEW_TAG" ]; then
+  echo "✅ Preview deployed (production traffic untouched): $URL"
+  echo "   Revision: $DEPLOY_REVISION (tag: $PREVIEW_TAG, --no-traffic)"
+  echo "   Promote to production later with:"
+  echo "     gcloud run services update-traffic $SERVICE --region=$REGION --to-revisions=$DEPLOY_REVISION=100"
+else
+  echo "✅ Deployed: $URL"
+  echo "   Revision: $DEPLOY_REVISION"
+  echo "   Roll back with: gcloud run services update-traffic $SERVICE --region=$REGION --to-revisions=<previous-revision>=100"
+  echo "   List revisions: gcloud run revisions list --service=$SERVICE --region=$REGION"
+fi
 
 log_deploy "success"
 echo "   Logged to: $DEPLOY_LOG"
@@ -400,7 +484,7 @@ echo "   Logged to: $DEPLOY_LOG"
 # commit is "unknown" (we couldn't resolve HEAD earlier), or if `git tag` /
 # `git push` fails — the deploy already succeeded, tag noise is cosmetic.
 # Set `DEPLOY_SKIP_TAG=true` to opt out entirely.
-if [ "${DEPLOY_SKIP_TAG:-false}" != "true" ] && [ "$DEPLOY_HEAD_SHA" != "unknown" ]; then
+if [ -z "$PREVIEW_TAG" ] && [ "${DEPLOY_SKIP_TAG:-false}" != "true" ] && [ "$DEPLOY_HEAD_SHA" != "unknown" ]; then
   TAG_NAME="deploy-$(date -u -d "$DEPLOY_START_TS" +%Y%m%d-%H%M%SZ 2>/dev/null || date -u +%Y%m%d-%H%M%SZ)-${DEPLOY_HEAD_SHA:0:8}"
   TAG_MSG="status=success revision=$DEPLOY_REVISION actor=$DEPLOY_ACTOR duration_s=$(( SECONDS - DEPLOY_START_SEC )) branch=$DEPLOY_BRANCH commit=$DEPLOY_HEAD_SHA url=$URL"
   if git tag -a "$TAG_NAME" -m "$TAG_MSG" "$DEPLOY_HEAD_SHA" 2>/dev/null; then

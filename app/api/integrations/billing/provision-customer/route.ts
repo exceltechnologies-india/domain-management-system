@@ -56,7 +56,9 @@ export async function POST(request: NextRequest) {
       serverLogger.info(
         `[billing-provision] Linked existing Customer Panel user ${email} to Billing ${billingCustomerId}`
       );
-      return NextResponse.json({ created: false, linked: true, userId: existing._id.toString() });
+      // No setup email — they already have a password. Explicit false (not
+      // omitted) so the caller can render a consistent message either way.
+      return NextResponse.json({ created: false, linked: true, userId: existing._id.toString(), emailSent: false });
     }
 
     const { firstName, lastName } = splitName(name);
@@ -77,27 +79,31 @@ export async function POST(request: NextRequest) {
       `[billing-provision] Created Customer Panel user ${email} for Billing ${billingCustomerId}`
     );
 
+    // Awaited (was fire-and-forget) — the caller (Billing) needs the real
+    // outcome to tell the admin whether the customer actually got their
+    // setup email, instead of assuming success just because the account
+    // was created. A transient SMTP failure here used to be invisible:
+    // this endpoint returned before the send even resolved, so Billing
+    // always showed "setup email sent" regardless of what really happened.
+    let emailSent = false;
     try {
       const setupToken = randomBytes(32).toString("hex");
       newUser.resetToken = setupToken;
       newUser.resetTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await newUser.save();
-      EmailService.sendPasswordResetEmail(
+      emailSent = await EmailService.sendPasswordResetEmail(
         newUser.email,
         firstName,
         setupToken,
         true,
         "An account has been set up for you. To get started, choose a password using the button below:"
-      )
-        .then((ok) =>
-          serverLogger.info(`[billing-provision] Setup email ${ok ? "sent" : "returned false"} for ${email}`)
-        )
-        .catch((err) => serverLogger.error(`[billing-provision] Setup email failed for ${email}:`, err));
+      );
+      serverLogger.info(`[billing-provision] Setup email ${emailSent ? "sent" : "failed"} for ${email}`);
     } catch (err) {
-      serverLogger.error("[billing-provision] Failed to prepare setup email:", err);
+      serverLogger.error("[billing-provision] Failed to send setup email:", err);
     }
 
-    return NextResponse.json({ created: true, linked: true, userId: newUser._id.toString() });
+    return NextResponse.json({ created: true, linked: true, userId: newUser._id.toString(), emailSent });
   } catch (error) {
     serverLogger.error("[billing-provision] Failed:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
