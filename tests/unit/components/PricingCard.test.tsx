@@ -64,7 +64,7 @@ describe("<PricingCard>", () => {
     );
     expect(screen.getByText(/most popular/i)).toBeInTheDocument();
     // The outer wrapper picks up the indigo ring + border-2 class set.
-    expect((container.firstChild as HTMLElement).className).toMatch(/border-indigo-600/);
+    expect((container.firstChild as HTMLElement).className).toMatch(/border-primary-600/);
   });
 
   it("onButtonClick present → renders a <button> that fires the callback", async () => {

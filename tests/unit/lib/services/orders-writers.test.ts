@@ -365,12 +365,16 @@ describe("listAllOrdersForAdminDomains", () => {
 });
 
 describe("userHasPriorTrialOrder", () => {
-  it("uses Order.exists (cheap) + filter userId + orderType:'hosting_trial'", async () => {
+  it("uses Order.exists (cheap) + filter userId + orderType:'hosting_trial', excluding abandoned mandates", async () => {
     Order.exists.mockResolvedValueOnce({ _id: "X" });
     expect(await userHasPriorTrialOrder("USER_ID")).toBe(true);
+    // The $nor clause excludes the abandoned-at-mandate shape
+    // ({status:'pending', razorpayPaymentId:'pending'}) so a closed Razorpay
+    // overlay never locks a user out of a trial they never began.
     expect(Order.exists).toHaveBeenCalledWith({
       userId: "USER_ID",
       orderType: "hosting_trial",
+      $nor: [{ status: "pending", razorpayPaymentId: "pending" }],
     });
   });
 

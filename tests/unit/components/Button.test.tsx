@@ -15,8 +15,8 @@ describe("<Button> (custom)", () => {
     render(<Button>Submit</Button>);
     const btn = screen.getByRole("button", { name: "Submit" });
     expect(btn.tagName).toBe("BUTTON");
-    expect(btn.className).toMatch(/from-blue-600/);
-    expect(btn.className).toMatch(/to-blue-700/);
+    expect(btn.className).toMatch(/from-primary-600/);
+    expect(btn.className).toMatch(/to-primary-700/);
     expect(btn.className).toMatch(/px-5/);
     expect(btn.className).toMatch(/py-2\.5/);
   });

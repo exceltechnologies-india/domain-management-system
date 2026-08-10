@@ -165,6 +165,8 @@ describe("sendEmail", () => {
       subject: "Welcome",
       text: "Hi",
       html: "<p>Hi</p>",
+      // Defaults to SUPPORT_EMAIL (support@anutech.in) when caller omits replyTo.
+      replyTo: "support@anutech.in",
     });
   });
 

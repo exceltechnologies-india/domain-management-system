@@ -125,10 +125,12 @@ describe("module-level constants", () => {
     expect(DA_SERVER_IP.length).toBeGreaterThan(0);
   });
 
-  it("NAMESERVERS has the ns1+ns2 entries", () => {
+  it("NAMESERVERS has the four orderbox-dns entries", () => {
     expect(NAMESERVERS).toEqual([
-      "ns1.server-136-115-64-54.da.direct",
-      "ns2.server-136-115-64-54.da.direct",
+      "deepak1299294.mercury.orderbox-dns.com",
+      "deepak1299294.venus.orderbox-dns.com",
+      "deepak1299294.earth.orderbox-dns.com",
+      "deepak1299294.mars.orderbox-dns.com",
     ]);
   });
 

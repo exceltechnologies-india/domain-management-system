@@ -10,25 +10,20 @@ import { describe, it, expect } from "vitest";
 import Footer from "@/components/Footer";
 
 describe("<Footer>", () => {
-  it("renders the company description + the Quick Links list with hrefs", () => {
+  it("renders the brand tagline + the Company/Support link columns with hrefs", () => {
     render(<Footer />);
-    expect(screen.getByText(/Anutech Digital Private Limited provides/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /^home$/i })).toHaveAttribute("href", "/");
+    // FooterModern (default variant) — brand tagline replaces the old prose.
+    expect(screen.getByText(/Empowering Businesses Online/i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^about us$/i })).toHaveAttribute("href", "/about");
     expect(screen.getByRole("link", { name: /^contact us$/i })).toHaveAttribute("href", "/contact");
-    expect(screen.getByRole("link", { name: /^login$/i })).toHaveAttribute("href", "/login");
-    expect(screen.getByRole("link", { name: /^register$/i })).toHaveAttribute("href", "/register");
+    expect(screen.getByRole("link", { name: /^help center$/i })).toHaveAttribute("href", "/contact");
   });
 
-  it("renders the Services section with Web Hosting linked to /hosting", () => {
+  it("renders the Hosting + Domain columns with Web Hosting linked to /hosting", () => {
     render(<Footer />);
-    // Domain Registration / DNS Management also appear inside the company
-    // intro copy (lowercase 'management') — use exact text match so the
-    // case-insensitive regex doesn't double-match.
-    expect(screen.getByText("Domain Registration")).toBeInTheDocument();
-    expect(screen.getByText("DNS Management")).toBeInTheDocument();
-    expect(screen.getByText("SSL Certificates")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^web hosting$/i })).toHaveAttribute("href", "/hosting");
+    expect(screen.getByRole("link", { name: /^domain search$/i })).toHaveAttribute("href", "/domains-home");
+    expect(screen.getByRole("link", { name: /^transfer domain$/i })).toHaveAttribute("href", "/domains-home");
   });
 
   it("renders the four policy links in the bottom strip", () => {

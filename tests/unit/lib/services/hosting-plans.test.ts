@@ -50,18 +50,22 @@ beforeEach(() => {
 });
 
 describe("getPlanByPlanId", () => {
-  it("default: filters by planId only (no isActive filter)", async () => {
+  // planId lookups are case-insensitive (live DB has mixed-case planIds) — the
+  // filter is an anchored, regex-escaped `^<planId>$` with the `i` option.
+  it("default: filters by planId (case-insensitive regex, no isActive filter)", async () => {
     findOneMock.mockResolvedValueOnce({ planId: "starter" });
     await getPlanByPlanId("starter");
     expect(connectDBMock).toHaveBeenCalled();
-    expect(findOneMock).toHaveBeenCalledWith({ planId: "starter" });
+    expect(findOneMock).toHaveBeenCalledWith({
+      planId: { $regex: "^starter$", $options: "i" },
+    });
   });
 
   it("activeOnly:true adds isActive:true to the filter", async () => {
     findOneMock.mockResolvedValueOnce(null);
     await getPlanByPlanId("starter", { activeOnly: true });
     expect(findOneMock).toHaveBeenCalledWith({
-      planId: "starter",
+      planId: { $regex: "^starter$", $options: "i" },
       isActive: true,
     });
   });
@@ -117,7 +121,9 @@ describe("getPlanByPlanIdLean", () => {
     const leanMock = vi.fn().mockResolvedValue({ planId: "starter" });
     findOneMock.mockReturnValue({ lean: leanMock });
     await getPlanByPlanIdLean("starter");
-    expect(findOneMock).toHaveBeenCalledWith({ planId: "starter" });
+    expect(findOneMock).toHaveBeenCalledWith({
+      planId: { $regex: "^starter$", $options: "i" },
+    });
     expect(leanMock).toHaveBeenCalled();
   });
 });

@@ -42,6 +42,10 @@ vi.mock("next-auth/react", () => ({ useSession: mockUseSession }));
 vi.mock("@/store/cartStore", () => ({ useCartStore: mockUseCartStore }));
 vi.mock("react-hot-toast", () => ({ default: mockToast, toast: mockToast }));
 vi.mock("@/lib/logout", () => ({ useLogout: () => vi.fn() }));
+// The page fires trackInitiateCheckout() (Pixel + internal analytics fetch) once
+// on mount, independent of the redirect logic under test — stub it so it doesn't
+// pollute the fetch spy these tests assert on.
+vi.mock("@/lib/journey", () => ({ trackInitiateCheckout: vi.fn() }));
 vi.mock("@/lib/storage", () => ({
   safeSessionStorage: { getItem: vi.fn(), setItem: vi.fn(), removeItem: vi.fn() },
   safeLocalStorage: { getItem: vi.fn(), setItem: vi.fn(), removeItem: vi.fn() },
@@ -150,7 +154,11 @@ describe("CheckoutPage redirect gating (first useEffect)", () => {
   it("stays on the page (no redirect) for an authenticated user with a completed profile", async () => {
     const store = buildCartStore();
     mockUseCartStore.mockReturnValue(store);
-    mockFetch.mockResolvedValue(jsonResponse({ user: { role: "user", profileCompleted: true } }));
+    // Checkout now also requires a WhatsApp number — supply one so the user
+    // passes the gate and stays on the page.
+    mockFetch.mockResolvedValue(
+      jsonResponse({ user: { role: "user", profileCompleted: true, whatsappNumber: "+919876543210" } })
+    );
     render(<CheckoutPage />);
     await waitFor(() => expect(store.syncWithServer).toHaveBeenCalled());
     expect(mockRouter.push).not.toHaveBeenCalled();
@@ -162,7 +170,11 @@ describe("CheckoutPage empty-cart redirect (second useEffect)", () => {
     mockUseCartStore.mockReturnValue(
       buildCartStore({ items: [], isLoading: false, getItemCount: () => 0 })
     );
-    mockFetch.mockResolvedValue(jsonResponse({ user: { role: "user", profileCompleted: true } }));
+    // User must clear the profile + WhatsApp gates for `user` to be set, which
+    // the empty-cart effect depends on before it replaces to /dashboard.
+    mockFetch.mockResolvedValue(
+      jsonResponse({ user: { role: "user", profileCompleted: true, whatsappNumber: "+919876543210" } })
+    );
     render(<CheckoutPage />);
     await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith("/dashboard"));
   });

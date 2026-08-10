@@ -71,8 +71,11 @@ describe("/api/workers/tokens-provision-pending", () => {
     expect(findPendingTokensFlowHostings).not.toHaveBeenCalled();
   });
 
-  it("HOSTING_MANDATE_FLOW != 'tokens' → no-op 200 with all-zero counts", async () => {
+  it("flow-agnostic: still sweeps pending even under a non-tokens flow (gate removed 2026-07-02)", async () => {
+    // The HOSTING_MANDATE_FLOW gate was removed so the worker also drains
+    // pending trials provisioned under the manual flow. It now always queries.
     process.env.HOSTING_MANDATE_FLOW = "subscriptions";
+    findPendingTokensFlowHostings.mockResolvedValueOnce([]);
     const res = await provisionPOST(makeReq());
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -83,7 +86,7 @@ describe("/api/workers/tokens-provision-pending", () => {
       collision_exhausted: 0,
       hard_failure: 0,
     });
-    expect(findPendingTokensFlowHostings).not.toHaveBeenCalled();
+    expect(findPendingTokensFlowHostings).toHaveBeenCalledWith({ limit: 100 });
   });
 
   it("happy path: counts each outcome and returns summary", async () => {

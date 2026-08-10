@@ -692,7 +692,7 @@ describe("Tokens-flow / Subscriptions-flow fields contract (5f93f85 + a570a7d)",
       ])
     );
     // DA unreachable → route enters DB fallback path
-    listDAUsers.mockRejectedValueOnce(new Error("ECONNREFUSED"));
+    listDAUsers.mockRejectedValue(new Error("ECONNREFUSED"));
 
     const res = await GET(makeReq());
     const body = await res.json();
@@ -824,7 +824,7 @@ describe("DA unreachable → FALLBACK DB mode", () => {
     hostingFind.mockReturnValueOnce(
       chainableHostingFind([makeHostingRecord()])
     );
-    listDAUsers.mockRejectedValueOnce(new Error("DA connection refused"));
+    listDAUsers.mockRejectedValue(new Error("DA connection refused"));
 
     const res = await GET(makeReq());
     expect(res.status).toBe(200);
@@ -841,7 +841,7 @@ describe("DA unreachable → FALLBACK DB mode", () => {
     hostingFind.mockReturnValueOnce(
       chainableHostingFind([makeHostingRecord()])
     );
-    listDAUsers.mockRejectedValueOnce(new Error("DA down"));
+    listDAUsers.mockRejectedValue(new Error("DA down"));
 
     const res = await GET(makeReq());
     const body = await res.json();
@@ -864,7 +864,7 @@ describe("DA unreachable → FALLBACK DB mode", () => {
     hostingFind.mockReturnValueOnce(
       chainableHostingFind([makeHostingRecord()])
     );
-    listDAUsers.mockRejectedValueOnce(new Error("DA down"));
+    listDAUsers.mockRejectedValue(new Error("DA down"));
 
     const res = await GET(makeReq());
     const body = await res.json();
@@ -874,7 +874,7 @@ describe("DA unreachable → FALLBACK DB mode", () => {
 });
 
 // ─── 5-second DA timeout ───────────────────────────────────────────
-describe("5s DA timeout", () => {
+describe("DA upfront timeout (10s per attempt + one retry)", () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -882,22 +882,24 @@ describe("5s DA timeout", () => {
     vi.useRealTimers();
   });
 
-  it("DA hang past 5s → fallback mode with 'timed out (5s limit)' message", async () => {
+  it("DA hangs on both attempts → fallback mode with the 2-attempt timeout message", async () => {
     listUsersWithDirectAdmin.mockResolvedValueOnce([]);
     hostingFind.mockReturnValueOnce(chainableHostingFind([]));
-    // DA never resolves
-    listDAUsers.mockImplementationOnce(() => new Promise(() => {}));
-    getAllUserUsage.mockImplementationOnce(() => new Promise(() => {}));
-    getServerInfo.mockImplementationOnce(() => new Promise(() => {}));
+    // DA never resolves — persistent (not Once) so BOTH the initial attempt
+    // and the silent retry hang out to their 10s DA_TIMEOUT.
+    listDAUsers.mockImplementation(() => new Promise(() => {}));
+    getAllUserUsage.mockImplementation(() => new Promise(() => {}));
+    getServerInfo.mockImplementation(() => new Promise(() => {}));
 
     const pending = GET(makeReq());
-    await vi.advanceTimersByTimeAsync(5001);
+    // Worst case: 10s (attempt 1) + 500ms backoff + 10s (attempt 2) = 20.5s.
+    await vi.advanceTimersByTimeAsync(20_600);
     const res = await pending;
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.isDaConnected).toBe(false);
     expect(body.daError).toBe(
-      "Connection attempt to DirectAdmin timed out (5s limit)"
+      "DirectAdmin timed out after 2 attempts (10s each). Server may be under load — click Refresh to retry."
     );
   });
 });
@@ -926,7 +928,7 @@ describe("daMode detection", () => {
     vi.stubEnv("DIRECTADMIN_URL", "http://localhost:2222");
     listUsersWithDirectAdmin.mockResolvedValueOnce([]);
     hostingFind.mockReturnValueOnce(chainableHostingFind([]));
-    listDAUsers.mockRejectedValueOnce(new Error("DA down"));
+    listDAUsers.mockRejectedValue(new Error("DA down"));
 
     const res = await GET(makeReq());
     const body = await res.json();
