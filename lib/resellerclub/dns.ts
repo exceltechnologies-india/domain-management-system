@@ -340,14 +340,14 @@ export async function setCustomNameservers(
         "order-id": orderId,
         ns: nameservers,
       },
-      paramsSerializer: (params) => {
+      paramsSerializer: (params: Record<string, unknown>) => {
         const searchParams = new URLSearchParams();
         Object.keys(params).forEach((key) => {
           const value = params[key];
           if (Array.isArray(value)) {
-            value.forEach((val) => searchParams.append(key, val));
+            value.forEach((val) => searchParams.append(key, String(val)));
           } else {
-            searchParams.append(key, value);
+            searchParams.append(key, String(value));
           }
         });
         return searchParams.toString();
