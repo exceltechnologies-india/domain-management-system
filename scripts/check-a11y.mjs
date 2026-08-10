@@ -22,8 +22,10 @@ import { execSync } from "node:child_process";
 // Frozen debt baseline. ONLY ever lower this — never raise it to make a red
 // build pass. Lowering it after fixes locks in the progress. Started at 141
 // (2026-08-01); dropped to 139 after fixing global-error <html lang> +
-// CardTitle heading-content.
-const BASELINE = Number(process.env.A11Y_BASELINE ?? 139);
+// CardTitle heading-content; dropped to 138 (2026-08-10) after associating the
+// AdminPasswordReset new/confirm-password labels with their inputs (htmlFor/id)
+// — the dms-00455 step-up field had regressed the count to 140.
+const BASELINE = Number(process.env.A11Y_BASELINE ?? 138);
 
 function runLintJson() {
   try {
