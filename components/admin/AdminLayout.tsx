@@ -26,6 +26,7 @@ import {
   ShieldAlert,
   RefreshCcw,
   CalendarClock,
+  Store,
 } from 'lucide-react';
 import SessionExpiredBanner from '@/components/admin/SessionExpiredBanner';
 
@@ -54,6 +55,7 @@ export default function AdminLayout({ children, user, onLogout }: AdminLayoutPro
     { name: 'Recurring Charges', href: '/admin/recurring-charges', icon: RefreshCcw },
     { name: 'Renewals', href: '/admin/renewals', icon: CalendarClock },
     { name: 'Support Tickets', href: '/admin/support-tickets', icon: MessageCircle },
+    { name: 'Resellers', href: '/admin/resellers', icon: Store },
     { name: 'Hosting', href: '/admin/hosting', icon: Server },
     { name: 'Domains', href: '/admin/domains', icon: Globe },
     { name: 'TLD Pricing', href: '/admin/pricing-management', icon: Tag },

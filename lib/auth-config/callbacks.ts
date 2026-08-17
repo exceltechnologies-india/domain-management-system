@@ -469,7 +469,7 @@ export const callbacks = {
       }
 
       session.user.id = token.id ?? "";
-      session.user.role = (token.role as "admin" | "user") ?? "user";
+      session.user.role = (token.role as "admin" | "user" | "reseller") ?? "user";
       session.user.profileCompleted = token.profileCompleted;
       session.user.provider = token.provider;
       if (token.passwordExpired !== undefined) {

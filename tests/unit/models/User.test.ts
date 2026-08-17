@@ -55,9 +55,10 @@ describe("User password hashing logic (bcrypt)", () => {
 describe("User role values", () => {
   it("defines the expected role strings", () => {
     // Validate the role enum values match the IUser interface
-    const validRoles: Array<"admin" | "user"> = ["admin", "user"];
+    const validRoles: Array<"admin" | "user" | "reseller"> = ["admin", "user", "reseller"];
     expect(validRoles).toContain("admin");
     expect(validRoles).toContain("user");
-    expect(validRoles.length).toBe(2);
+    expect(validRoles).toContain("reseller");
+    expect(validRoles.length).toBe(3);
   });
 });

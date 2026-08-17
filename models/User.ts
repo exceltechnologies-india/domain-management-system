@@ -7,6 +7,15 @@ import {
 } from "@/config/constants";
 
 /**
+ * Single source of truth for user roles. The interface field, the schema enum,
+ * and the NextAuth type augmentation all derive from this so they can't drift.
+ * `reseller` (added for the sub-reseller feature) is a normal login account with
+ * a scoped panel — it is NOT an admin (admin gating stays strict `=== "admin"`).
+ */
+export const USER_ROLES = ["admin", "user", "reseller"] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+
+/**
  * Mongoose User Document Interface
  * 
  * Defines the TypeScript structure for the User model. It encompasses standard authentication
@@ -34,7 +43,7 @@ export interface IUser extends Document {
     country: string;
     zipcode: string;
   };
-  role: "admin" | "user";
+  role: UserRole;
   isActive: boolean;
   isActivated: boolean;
   sessionInvalidatedAt?: Date | null;
@@ -215,7 +224,7 @@ const UserSchema = new Schema<IUser>(
     },
     role: {
       type: String,
-      enum: ["admin", "user"],
+      enum: [...USER_ROLES],
       default: "user",
     },
     isActive: {
