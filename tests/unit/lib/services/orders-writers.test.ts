@@ -437,8 +437,11 @@ describe("listUserInvoiceOrders", () => {
     expect(filter.invoiceNumber).toEqual({ $exists: true, $ne: null });
     expect(filter.isDeleted).toEqual({ $ne: true });
     expect(filter.status).toEqual({ $ne: "pending" });
+    // orderId + invoiceProvider were added 2026-09-02 so the invoice list can
+    // render a primary-engine tax invoice (no zohoInvoiceId) and link its PDF
+    // via the orderId-keyed route.
     expect(select).toHaveBeenCalledWith(
-      "invoiceNumber zohoInvoiceId amount currency status createdAt"
+      "orderId invoiceNumber zohoInvoiceId invoiceProvider amount currency status createdAt"
     );
   });
 });

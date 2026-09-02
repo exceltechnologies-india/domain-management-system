@@ -13,6 +13,26 @@ import {
 import { createZohoInvoice, type ZohoClaimOptions, type ZohoInvoiceContext } from "@/lib/services/payment/post-tasks";
 
 /**
+ * Which engine actually issued the invoice on this call.
+ *  - 'primary' — our own GST engine minted a TI/... tax invoice
+ *  - 'zoho'    — the fallback issued it (or the flag is off)
+ *  - 'skipped' — nothing was issued (zero-amount/trial order, or a
+ *                concurrent request already holds the claim)
+ *
+ * Callers holding an in-memory Order document MUST use this to sync the
+ * issued number back onto that document before saving it — see the
+ * webhook's payment.captured handler for why (the Order pre-save hook
+ * mints a legacy invoiceNumber on the pending->completed transition when
+ * the in-memory doc still looks un-invoiced, silently overwriting a real
+ * tax-invoice number written to the DB by this function).
+ */
+export interface PrimaryInvoiceResult {
+  invoiceId: string;
+  invoiceNumber: string | null;
+  provider: "primary" | "zoho" | "skipped";
+}
+
+/**
  * The primary GST engine's own attempt: claim -> compute -> allocate ->
  * persist. Returns null when a concurrent request already claimed/issued
  * this order's invoice (silent skip, not a failure — mirrors
@@ -105,31 +125,35 @@ export async function createPrimaryInvoice(
     retryDelayMs?: number;
     claimOptions?: ZohoClaimOptions;
   } = {}
-): Promise<{ invoiceId: string; invoiceNumber: string | null }> {
+): Promise<PrimaryInvoiceResult> {
   // Same zero-amount/trial skip as createZohoInvoice — applies before we
   // even decide which engine would issue the invoice. See CLAUDE.md "Trial
   // order invoice policy".
   const orderAmount = ctx.order?.amount;
   const orderType = ctx.order?.orderType;
   if (!orderAmount || orderAmount <= 0 || orderType === "hosting_trial") {
-    return { invoiceId: "", invoiceNumber: null };
+    return { invoiceId: "", invoiceNumber: null, provider: "skipped" };
   }
 
   if (!isPrimaryBillingEnabled()) {
-    return createZohoInvoice(ctx, options);
+    return { ...(await createZohoInvoice(ctx, options)), provider: "zoho" };
   }
 
   try {
     const result = await attemptCreatePrimaryInvoice(ctx.order, ctx.user);
     if (!result) {
-      return { invoiceId: "", invoiceNumber: null };
+      return { invoiceId: "", invoiceNumber: null, provider: "skipped" };
     }
-    return { invoiceId: result.invoiceNumber, invoiceNumber: result.invoiceNumber };
+    return {
+      invoiceId: result.invoiceNumber,
+      invoiceNumber: result.invoiceNumber,
+      provider: "primary",
+    };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     serverLogger.error(
       `❌ [PrimaryInvoice] Engine failed for order ${ctx.orderId} — falling back to Zoho: ${message}`
     );
-    return createZohoInvoice(ctx, options);
+    return { ...(await createZohoInvoice(ctx, options)), provider: "zoho" };
   }
 }

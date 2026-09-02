@@ -97,7 +97,7 @@ beforeEach(() => {
 describe("flag OFF (default)", () => {
   it("delegates straight to createZohoInvoice; no primary machinery touched", async () => {
     const result = await createPrimaryInvoice(baseCtx());
-    expect(result).toEqual({ invoiceId: "zoho-1", invoiceNumber: "ZOHO-1" });
+    expect(result).toEqual({ invoiceId: "zoho-1", invoiceNumber: "ZOHO-1", provider: "zoho" });
     expect(createZohoInvoice).toHaveBeenCalledWith(baseCtx(), {});
     expect(claimOrderForPrimaryInvoice).not.toHaveBeenCalled();
     expect(allocateInvoiceNumber).not.toHaveBeenCalled();
@@ -114,7 +114,7 @@ describe("zero-amount / trial skip (applies regardless of flag)", () => {
   it("amount <= 0 -> skipped silently, Zoho never called", async () => {
     isPrimaryBillingEnabled.mockReturnValue(true);
     const result = await createPrimaryInvoice(baseCtx({ order: { ...order, amount: 0 } }));
-    expect(result).toEqual({ invoiceId: "", invoiceNumber: null });
+    expect(result).toEqual({ invoiceId: "", invoiceNumber: null, provider: "skipped" });
     expect(createZohoInvoice).not.toHaveBeenCalled();
     expect(claimOrderForPrimaryInvoice).not.toHaveBeenCalled();
   });
@@ -124,7 +124,7 @@ describe("zero-amount / trial skip (applies regardless of flag)", () => {
     const result = await createPrimaryInvoice(
       baseCtx({ order: { ...order, orderType: "hosting_trial" } })
     );
-    expect(result).toEqual({ invoiceId: "", invoiceNumber: null });
+    expect(result).toEqual({ invoiceId: "", invoiceNumber: null, provider: "skipped" });
     expect(createZohoInvoice).not.toHaveBeenCalled();
   });
 });
@@ -134,7 +134,7 @@ describe("flag ON — claim contention", () => {
     isPrimaryBillingEnabled.mockReturnValue(true);
     claimOrderForPrimaryInvoice.mockResolvedValue(false);
     const result = await createPrimaryInvoice(baseCtx());
-    expect(result).toEqual({ invoiceId: "", invoiceNumber: null });
+    expect(result).toEqual({ invoiceId: "", invoiceNumber: null, provider: "skipped" });
     expect(createZohoInvoice).not.toHaveBeenCalled();
     expect(allocateInvoiceNumber).not.toHaveBeenCalled();
   });
@@ -144,7 +144,11 @@ describe("flag ON — happy path", () => {
   it("computes breakdown, allocates a number, records it, and never calls Zoho", async () => {
     isPrimaryBillingEnabled.mockReturnValue(true);
     const result = await createPrimaryInvoice(baseCtx());
-    expect(result).toEqual({ invoiceId: "TI/2026-27/00001", invoiceNumber: "TI/2026-27/00001" });
+    expect(result).toEqual({
+      invoiceId: "TI/2026-27/00001",
+      invoiceNumber: "TI/2026-27/00001",
+      provider: "primary",
+    });
     expect(claimOrderForPrimaryInvoice).toHaveBeenCalledWith("OID-1");
     expect(computeGstBreakdown).toHaveBeenCalledWith(1180, "Delhi", "Maharashtra");
     expect(recordPrimaryInvoiceForOrder).toHaveBeenCalledWith("OID-1", {
@@ -167,7 +171,7 @@ describe("flag ON — falls back to Zoho on any failure", () => {
     isPrimaryBillingEnabled.mockReturnValue(true);
     getCompanyProfile.mockReturnValue({ state: "", name: "Co", gstin: "07X" });
     const result = await createPrimaryInvoice(baseCtx());
-    expect(result).toEqual({ invoiceId: "zoho-1", invoiceNumber: "ZOHO-1" });
+    expect(result).toEqual({ invoiceId: "zoho-1", invoiceNumber: "ZOHO-1", provider: "zoho" });
     expect(releasePrimaryInvoiceClaim).toHaveBeenCalledWith("OID-1");
     expect(createZohoInvoice).toHaveBeenCalled();
     expect(recordPrimaryInvoiceForOrder).not.toHaveBeenCalled();
@@ -177,7 +181,7 @@ describe("flag ON — falls back to Zoho on any failure", () => {
     isPrimaryBillingEnabled.mockReturnValue(true);
     allocateInvoiceNumber.mockRejectedValue(new Error("counter unreachable"));
     const result = await createPrimaryInvoice(baseCtx());
-    expect(result).toEqual({ invoiceId: "zoho-1", invoiceNumber: "ZOHO-1" });
+    expect(result).toEqual({ invoiceId: "zoho-1", invoiceNumber: "ZOHO-1", provider: "zoho" });
     expect(releasePrimaryInvoiceClaim).toHaveBeenCalledWith("OID-1");
   });
 
@@ -185,7 +189,7 @@ describe("flag ON — falls back to Zoho on any failure", () => {
     isPrimaryBillingEnabled.mockReturnValue(true);
     recordPrimaryInvoiceForOrder.mockRejectedValue(new Error("db write failed"));
     const result = await createPrimaryInvoice(baseCtx());
-    expect(result).toEqual({ invoiceId: "zoho-1", invoiceNumber: "ZOHO-1" });
+    expect(result).toEqual({ invoiceId: "zoho-1", invoiceNumber: "ZOHO-1", provider: "zoho" });
     expect(releasePrimaryInvoiceClaim).toHaveBeenCalledWith("OID-1");
   });
 

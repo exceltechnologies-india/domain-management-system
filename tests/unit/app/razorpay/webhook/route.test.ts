@@ -583,11 +583,69 @@ describe("payment.captured — invoice creation via createPrimaryInvoice", () =>
 
   it("createPrimaryInvoice success → NO forceMarkZohoCreationFailed call; provisioning runs", async () => {
     setupReadyForInvoice();
-    createPrimaryInvoice.mockResolvedValueOnce({ invoiceId: "TI-1", invoiceNumber: "TI/2026-27/00001" });
+    createPrimaryInvoice.mockResolvedValueOnce({
+      invoiceId: "TI-1",
+      invoiceNumber: "TI/2026-27/00001",
+      provider: "primary",
+    });
     const res = await POST(makeReq({ body: paymentCapturedPayload() }));
     expect(res.status).toBe(200);
     expect(forceMarkZohoCreationFailed).not.toHaveBeenCalled();
     expect(finalizePendingOrder).toHaveBeenCalled();
+  });
+
+  // ── REGRESSION (2026-09-02): the primary tax-invoice number was being
+  // silently overwritten by the Order pre-save hook's legacy random number.
+  // createPrimaryInvoice persists via a targeted updateOne, but `claimed` was
+  // loaded BEFORE that write, so when finalizePendingOrder flipped status to
+  // 'completed' and called order.save(), the hook saw `!this.invoiceNumber`
+  // and minted `INV-<ts>-<hex>` over the real TI/... number. Caught by an
+  // end-to-end purchase test. The handler must sync the issued invoice back
+  // onto the in-memory doc BEFORE finalizePendingOrder runs.
+  it("REGRESSION: stamps the primary invoice number onto the in-memory order before finalize (hook can't clobber it)", async () => {
+    const claimed = setupReadyForInvoice({ invoiceNumber: undefined });
+    createPrimaryInvoice.mockResolvedValueOnce({
+      invoiceId: "TI/2026-27/00007",
+      invoiceNumber: "TI/2026-27/00007",
+      provider: "primary",
+    });
+
+    await POST(makeReq({ body: paymentCapturedPayload() }));
+
+    expect(claimed.invoiceNumber).toBe("TI/2026-27/00007");
+    expect((claimed as { invoiceProvider?: string }).invoiceProvider).toBe("primary");
+    // ...and it was stamped BEFORE provisioning/finalisation ran
+    expect(finalizePendingOrder).toHaveBeenCalled();
+    const orderPassedToFinalize = finalizePendingOrder.mock.calls[0][0].order;
+    expect(orderPassedToFinalize.invoiceNumber).toBe("TI/2026-27/00007");
+  });
+
+  it("REGRESSION: stamps the Zoho ids onto the in-memory order when the fallback issued the invoice", async () => {
+    const claimed = setupReadyForInvoice({ invoiceNumber: undefined, zohoInvoiceId: undefined });
+    createPrimaryInvoice.mockResolvedValueOnce({
+      invoiceId: "zoho_inv_99",
+      invoiceNumber: "INV-000099",
+      provider: "zoho",
+    });
+
+    await POST(makeReq({ body: paymentCapturedPayload() }));
+
+    expect(claimed.zohoInvoiceId).toBe("zoho_inv_99");
+    expect(claimed.invoiceNumber).toBe("INV-000099");
+  });
+
+  it("REGRESSION: a skipped invoice (zero-amount/claim contention) leaves the in-memory order untouched", async () => {
+    const claimed = setupReadyForInvoice({ invoiceNumber: undefined });
+    createPrimaryInvoice.mockResolvedValueOnce({
+      invoiceId: "",
+      invoiceNumber: null,
+      provider: "skipped",
+    });
+
+    await POST(makeReq({ body: paymentCapturedPayload() }));
+
+    expect(claimed.invoiceNumber).toBeUndefined();
+    expect((claimed as { invoiceProvider?: string }).invoiceProvider).toBeUndefined();
   });
 });
 

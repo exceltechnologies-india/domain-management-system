@@ -34,6 +34,7 @@ import {
   listOrdersForUser,
   listRecentCompletedOrdersForUser,
   listStuckCompletedOrders,
+  listStuckZohoInvoiceOrders,
   listUserInvoiceOrders,
   recordPrimaryInvoiceForOrder,
   recordZohoInvoiceForOrder,
@@ -793,6 +794,36 @@ describe("claimOrderForPrimaryInvoice / releasePrimaryInvoiceClaim / recordPrima
     const found = await Order.findById(order._id);
     expect(found?.invoiceProvider).toBe("primary");
     expect(found?.primaryInvoiceClaimedAt).toBeInstanceOf(Date);
+  });
+
+  // REGRESSION (2026-09-02): a primary-issued invoice has NO zohoInvoiceId by
+  // design, so the Zoho self-heal's "stuck order" query matched it and would
+  // have issued a SECOND tax invoice for the same payment — double-billing the
+  // customer. Caught by an end-to-end purchase test.
+  it("REGRESSION: listStuckZohoInvoiceOrders excludes primary-invoiced orders (no double-billing)", async () => {
+    const userId = validUserId();
+    // A genuinely stuck order (Zoho never issued) — SHOULD be listed.
+    await createOrder(
+      buildOrderPayload({ orderId: "ord_stuck_zoho", userId, status: "completed" })
+    );
+    // A primary-invoiced order — must NOT be listed.
+    const primaryOrder = await createOrder(
+      buildOrderPayload({ orderId: "ord_primary_done", userId, status: "completed" })
+    );
+    await recordPrimaryInvoiceForOrder(primaryOrder._id, {
+      invoiceNumber: "TI/2026-27/00009",
+      gstRate: 18,
+      taxableValue: 1000,
+      cgst: 90,
+      sgst: 90,
+      igst: 0,
+      placeOfSupply: "Delhi",
+    });
+
+    const stuck = await listStuckZohoInvoiceOrders(String(userId));
+    const ids = stuck.map((o) => o.orderId);
+    expect(ids).toContain("ord_stuck_zoho");
+    expect(ids).not.toContain("ord_primary_done");
   });
 
   it("recordPrimaryInvoiceForOrder persists the full GST breakdown + provider", async () => {

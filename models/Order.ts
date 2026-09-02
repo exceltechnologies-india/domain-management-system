@@ -491,7 +491,20 @@ OrderSchema.pre("save", function (next) {
   // Fires on both fresh creates and on the `pending → completed` transition
   // used by the new pending-order lifecycle (orders persisted at
   // /create-order, finalised by /verify or /razorpay/webhook).
-  if (this.status === "completed" && !this.invoiceNumber) {
+  //
+  // The `invoiceProvider !== "primary"` guard is defence-in-depth for the
+  // Primary Billing Integration: a primary-issued order already carries a
+  // legally sequential TI/YYYY-YY/NNNNN number written by
+  // recordPrimaryInvoiceForOrder. If a caller saves a doc that was loaded
+  // BEFORE that write, `this.invoiceNumber` looks empty here and this hook
+  // would overwrite the real tax-invoice number with a random legacy one.
+  // Call sites holding such a doc must sync the number back (see the
+  // webhook's payment.captured handler); this guard catches the rest.
+  if (
+    this.status === "completed" &&
+    !this.invoiceNumber &&
+    this.invoiceProvider !== "primary"
+  ) {
     const timestamp = Date.now().toString().slice(-6);
     this.invoiceNumber = `INV-${timestamp}-${randomSuffix()}`;
   }

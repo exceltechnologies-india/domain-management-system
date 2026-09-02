@@ -145,6 +145,9 @@ export async function listStuckZohoInvoiceOrdersAdmin(opts?: { limit?: number; s
   let query = Order.find({
     status: { $in: ["completed", "paid"] },
     isDeleted: { $ne: true },
+    // Primary-engine invoices have no zohoInvoiceId by design — they are not
+    // "stuck". See listStuckZohoInvoiceOrders for the double-billing hazard.
+    invoiceProvider: { $ne: "primary" },
     $or: [
       { zohoInvoiceId: { $exists: false } },
       { zohoInvoiceId: null },
@@ -949,6 +952,12 @@ export async function listStuckZohoInvoiceOrders(
     userId,
     status: { $in: ["completed", "paid"] },
     isDeleted: { $ne: true },
+    // An order billed by the primary GST engine legitimately has NO
+    // zohoInvoiceId — it is NOT stuck, it already has a valid tax invoice.
+    // Without this exclusion the self-heal would issue a SECOND (Zoho) tax
+    // invoice for the same payment, double-billing the customer. Caught by
+    // an end-to-end purchase test, 2026-09-02.
+    invoiceProvider: { $ne: "primary" },
     $or: [
       { zohoInvoiceId: { $exists: false } },
       { zohoInvoiceId: null },
@@ -1205,6 +1214,9 @@ export async function listUserInvoiceOrders(userId: unknown): Promise<IOrder[]> 
     status: { $ne: "pending" },
   })
     .sort({ createdAt: -1 })
-    .select("invoiceNumber zohoInvoiceId amount currency status createdAt")
+    // orderId + invoiceProvider are needed so the invoice list can render a
+    // primary-engine tax invoice (which has no zohoInvoiceId) and link its
+    // PDF via the orderId-keyed route.
+    .select("orderId invoiceNumber zohoInvoiceId invoiceProvider amount currency status createdAt")
     .lean<IOrder[]>();
 }

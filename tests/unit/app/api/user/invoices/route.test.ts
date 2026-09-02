@@ -219,6 +219,57 @@ describe("Self-heal flow (hasStuck → inline retry)", () => {
   });
 });
 
+// REGRESSION (2026-09-02): a primary-engine invoice has NO zohoInvoiceId by
+// design. The list was reporting it as `zoho_pending: true` (so the dashboard
+// showed "Generating invoice…" forever for a bill that was already issued),
+// and — worse — counted it as "stuck", which fires selfHealUserInvoices and
+// would issue a SECOND (Zoho) tax invoice for the same payment. Caught by an
+// end-to-end purchase test.
+describe("REGRESSION: primary-engine invoices are reported as issued, not pending", () => {
+  const primaryOrder = () =>
+    order({
+      zohoInvoiceId: undefined,
+      invoiceProvider: "primary",
+      invoiceNumber: "TI/2026-27/00001",
+      status: "completed",
+    });
+
+  it("zoho_pending is FALSE for a primary invoice (bill is issued, not generating)", async () => {
+    listUserInvoiceOrders.mockResolvedValueOnce([primaryOrder()]);
+    const res = await GET(makeReq());
+    const body = await res.json();
+    expect(body.invoices[0].zoho_pending).toBe(false);
+    expect(body.invoices[0].invoice_number).toBe("TI/2026-27/00001");
+    expect(body.invoices[0].status).toBe("paid");
+    expect(body.invoices[0].balance).toBe(0);
+  });
+
+  it("exposes provider + order_id so the client can fetch the primary PDF", async () => {
+    listUserInvoiceOrders.mockResolvedValueOnce([primaryOrder()]);
+    const res = await GET(makeReq());
+    const body = await res.json();
+    expect(body.invoices[0].provider).toBe("primary");
+    expect(body.invoices[0].order_id).toBe("ORD-1");
+  });
+
+  it("does NOT trigger the Zoho self-heal for a primary invoice (no duplicate bill)", async () => {
+    listUserInvoiceOrders.mockResolvedValueOnce([primaryOrder()]);
+    await GET(makeReq());
+    expect(selfHealUserInvoices).not.toHaveBeenCalled();
+  });
+
+  it("still flags a genuinely stuck Zoho order as pending and self-heals it", async () => {
+    listUserInvoiceOrders.mockResolvedValueOnce([
+      order({ zohoInvoiceId: undefined, invoiceProvider: undefined, status: "completed" }),
+    ]);
+    selfHealUserInvoices.mockResolvedValueOnce([]);
+    const res = await GET(makeReq());
+    const body = await res.json();
+    expect(body.invoices[0].zoho_pending).toBe(true);
+    expect(selfHealUserInvoices).toHaveBeenCalled();
+  });
+});
+
 describe("Outer catch", () => {
   it("listUserInvoiceOrders throw → 500 'Internal Server Error' (no leak)", async () => {
     listUserInvoiceOrders.mockRejectedValueOnce(new Error("Mongo timeout"));

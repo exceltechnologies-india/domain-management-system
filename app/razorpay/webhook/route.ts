@@ -240,7 +240,7 @@ async function handlePaymentCaptured(payload: PaymentCapturedPayload) {
                 hostingPlan: d.hostingPlan,
             }));
 
-            await createPrimaryInvoice({
+            const invoiceResult = await createPrimaryInvoice({
                 order: claimed,
                 orderId: claimed.orderId,
                 razorpay_payment_id: payment.id,
@@ -248,6 +248,26 @@ async function handlePaymentCaptured(payload: PaymentCapturedPayload) {
                 user,
                 cartItems: items,
             });
+
+            // CRITICAL: sync the issued invoice back onto the in-memory doc.
+            // createPrimaryInvoice persists via a targeted `Order.updateOne`,
+            // but `claimed` was loaded BEFORE that write, so it still looks
+            // un-invoiced. finalizePendingOrder below flips status to
+            // 'completed' and calls order.save() — which fires the Order
+            // pre-save hook, and that hook mints a legacy `INV-<ts>-<hex>`
+            // number whenever `status === 'completed' && !this.invoiceNumber`.
+            // Without this sync the hook silently OVERWRITES the real
+            // TI/YYYY-YY/NNNNN tax-invoice number (or the Zoho one) that was
+            // just written to the database — destroying the legally
+            // sequential number while leaving the GST breakdown in place.
+            // Caught by an end-to-end purchase test, 2026-09-02.
+            if (invoiceResult.provider === "primary") {
+                if (invoiceResult.invoiceNumber) claimed.invoiceNumber = invoiceResult.invoiceNumber;
+                claimed.invoiceProvider = "primary";
+            } else if (invoiceResult.provider === "zoho") {
+                if (invoiceResult.invoiceId) claimed.zohoInvoiceId = invoiceResult.invoiceId;
+                if (invoiceResult.invoiceNumber) claimed.invoiceNumber = invoiceResult.invoiceNumber;
+            }
         } catch (error) {
             // Don't rethrow — let provisioning proceed. The self-heal cron
             // picks up `creation_failed` orders later. Throwing here would

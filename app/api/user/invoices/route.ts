@@ -27,7 +27,12 @@ function mapOrdersToInvoices(orders: OrderRow[]) {
     const invoiceId = rawZohoId && !ZOHO_SENTINEL.has(rawZohoId) ? rawZohoId : "";
     const isPaid = ["completed", "paid"].includes(order.status as string);
     const date = (order.createdAt as Date).toISOString();
-    if (!invoiceId && isPaid) hasStuck = true;
+    // An order billed by the primary GST engine carries a real, issued tax
+    // invoice and has NO zohoInvoiceId by design. It must not be reported as
+    // "generating…", and must not be handed to the Zoho self-heal below —
+    // that would issue a SECOND tax invoice for the same payment.
+    const isPrimary = order.invoiceProvider === "primary";
+    if (!invoiceId && isPaid && !isPrimary) hasStuck = true;
 
     return {
       invoice_id:     invoiceId,
@@ -39,9 +44,14 @@ function mapOrdersToInvoices(orders: OrderRow[]) {
       status:         ORDER_STATUS_TO_INVOICE[order.status as string] ?? "draft",
       currency_code:  order.currency as string,
       created_time:   date,
+      // Which engine issued it — tells the client where the PDF lives: a
+      // 'primary' invoice downloads via the orderId-keyed route, a Zoho one
+      // via the zohoInvoiceId-keyed route.
+      provider:       isPrimary ? "primary" : "zoho",
+      order_id:       order.orderId as string,
       // Surface to the client so it can render a "Generating invoice…"
       // pill instead of the empty-action fallback.
-      zoho_pending:   !invoiceId && isPaid,
+      zoho_pending:   !invoiceId && isPaid && !isPrimary,
     };
   });
   return { invoices, hasStuck };
