@@ -620,6 +620,90 @@ export async function markZohoInvoiceCreationFailed(
   );
 }
 
+// ─── Primary-invoice claim (see lib/services/billing/createPrimaryInvoice.ts) ──
+//
+// Same atomic-claim shape as the Zoho helpers above, but on its own field:
+// `invoiceProvider` only ever records a FINAL successful outcome, so it can't
+// double as an in-flight sentinel the way `zohoInvoiceId: "pending_creation"`
+// does for Zoho.
+
+/**
+ * Atomically claims an order for primary-invoice creation. Returns false if
+ * the order already has a final `invoiceProvider` (invoice already issued,
+ * by either engine) or is already claimed by a concurrent request —
+ * callers must treat `false` as "skip silently", not as a failure.
+ */
+export async function claimOrderForPrimaryInvoice(
+  orderId: string | mongoose.Types.ObjectId
+): Promise<boolean> {
+  await connectDB();
+  const result = await Order.updateOne(
+    {
+      _id: orderId,
+      invoiceProvider: { $exists: false },
+      primaryInvoiceClaimedAt: { $exists: false },
+    },
+    { $set: { primaryInvoiceClaimedAt: new Date() } }
+  );
+  return result.modifiedCount === 1;
+}
+
+/**
+ * Releases a primary-invoice claim after a failed attempt, so a later retry
+ * (fallback-to-Zoho happens in the same request; this only matters for a
+ * possible future retry cron) isn't permanently blocked. No-ops if the order
+ * already has a final `invoiceProvider` — never undo a completed invoice.
+ */
+export async function releasePrimaryInvoiceClaim(
+  orderId: string | mongoose.Types.ObjectId
+): Promise<void> {
+  await connectDB();
+  await Order.updateOne(
+    { _id: orderId, invoiceProvider: { $exists: false } },
+    { $unset: { primaryInvoiceClaimedAt: "" } }
+  );
+}
+
+export interface PrimaryInvoiceRecord {
+  invoiceNumber: string;
+  gstRate: number;
+  taxableValue: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+  placeOfSupply: string;
+  customerGstin?: string;
+}
+
+/**
+ * Persists a successfully-issued primary invoice. Uses a targeted
+ * `updateOne` (not `.save()` on an in-memory doc) so this can't clobber
+ * fields the caller mutated on its own in-memory `order` object earlier in
+ * the same request — same reasoning as `recordZohoInvoiceForOrder`.
+ */
+export async function recordPrimaryInvoiceForOrder(
+  orderId: string | mongoose.Types.ObjectId,
+  record: PrimaryInvoiceRecord
+): Promise<void> {
+  await connectDB();
+  await Order.updateOne(
+    { _id: orderId },
+    {
+      $set: {
+        invoiceProvider: "primary",
+        invoiceNumber: record.invoiceNumber,
+        gstRate: record.gstRate,
+        taxableValue: record.taxableValue,
+        cgst: record.cgst,
+        sgst: record.sgst,
+        igst: record.igst,
+        placeOfSupply: record.placeOfSupply,
+        ...(record.customerGstin ? { customerGstin: record.customerGstin } : {}),
+      },
+    }
+  );
+}
+
 // ─── Pending-order lifecycle ──────────────────────────────────────────────────
 //
 // To close the race where Razorpay's webhook arrives before our /verify

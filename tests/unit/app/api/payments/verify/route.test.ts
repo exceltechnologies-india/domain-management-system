@@ -78,6 +78,19 @@ vi.mock("@/lib/services/payment/post-tasks", () => ({
   runPostPaymentTasks,
 }));
 
+// createPrimaryInvoice is PRIMARY_BILLING_ENABLED-gated pass-through to
+// createZohoInvoice when the flag is off (the default, and this test suite
+// never sets it) — forward to the same mock so every existing
+// createZohoInvoice.mockResolvedValueOnce/mockRejectedValueOnce assertion
+// below keeps working unchanged, without loading the real billing-engine
+// module graph (models/Counter, mongodb connect, etc.) into a route unit test.
+const createPrimaryInvoice = vi.hoisted(() =>
+  vi.fn((ctx: unknown, opts: unknown) => createZohoInvoice(ctx, opts))
+);
+vi.mock("@/lib/services/billing/createPrimaryInvoice", () => ({
+  createPrimaryInvoice,
+}));
+
 const verifyRazorpayPayment = vi.hoisted(() => vi.fn());
 const validateOrderAmountMatchesRazorpay = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/payment/verification", () => ({
@@ -182,6 +195,13 @@ function setupCompletedOrderHappyPath() {
       _id: "OID-1",
       orderId: "ORD-1",
       invoiceNumber: "INV-LOCAL-1",
+      // amount/orderType matter now: createPrimaryInvoice (the real,
+      // unmocked pass-through in front of the mocked createZohoInvoice)
+      // carries its own zero-amount/trial skip guard — an order fixture
+      // without a positive amount would silently short-circuit before the
+      // mocked createZohoInvoice is ever called.
+      amount: 999,
+      orderType: "domain",
       domains: [{ domainName: "ex.com" }],
     },
     orderId: "ORD-1",

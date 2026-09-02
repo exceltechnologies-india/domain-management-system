@@ -121,6 +121,11 @@ export interface IOrder extends Document {
   igst?: number;
   placeOfSupply?: string;
   customerGstin?: string;
+  // Atomic-claim marker for the primary invoice engine (mirrors the
+  // zohoInvoiceId="pending_creation" sentinel pattern used for Zoho, but on
+  // its own field since invoiceProvider only records a FINAL outcome).
+  // Cleared on release; left behind harmlessly once invoiceProvider is set.
+  primaryInvoiceClaimedAt?: Date;
   orderType?: 'domain' | 'hosting' | 'bundle' | 'renewal' | 'hosting_upgrade' | 'hosting_trial' | 'unknown';
   // Razorpay recurring-payment mode: 'subscription' uses the Subscriptions
   // API (current default), 'tokens' uses the Tokens API (Google ₹2-and-reverse
@@ -365,6 +370,7 @@ const OrderSchema = new Schema<IOrder>(
     igst: Number,
     placeOfSupply: String,
     customerGstin: String,
+    primaryInvoiceClaimedAt: Date,
     isDeleted: {
       type: Boolean,
       default: false,

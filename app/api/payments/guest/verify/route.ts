@@ -14,7 +14,8 @@ import {
   cartItemsFromOrderDomains,
 } from "@/lib/services/payment/order-creator";
 import { validateOrderAmountMatchesRazorpay } from "@/lib/services/payment/verification";
-import { createZohoInvoice, runPostPaymentTasks } from "@/lib/services/payment/post-tasks";
+import { runPostPaymentTasks } from "@/lib/services/payment/post-tasks";
+import { createPrimaryInvoice } from "@/lib/services/billing/createPrimaryInvoice";
 import { recordSystemLog } from "@/lib/services/system-logs";
 import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { isDomainSupported, requiresAdditionalDetails } from "@/lib/domainRequirements";
@@ -428,7 +429,7 @@ export async function POST(request: NextRequest) {
     const zohoCartItems = cartItemsFromOrderDomains(order.domains);
 
     try {
-      await createZohoInvoice({
+      await createPrimaryInvoice({
         order,
         orderId,
         razorpay_payment_id,

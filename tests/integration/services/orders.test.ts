@@ -15,6 +15,7 @@ import mongoose from "mongoose";
 import { clearAllCollections } from "../setup";
 import Order from "@/models/Order";
 import {
+  claimOrderForPrimaryInvoice,
   claimOrderForZohoInvoice,
   claimPendingOrderForProcessing,
   clearOrderInvoiceNumber,
@@ -34,7 +35,9 @@ import {
   listRecentCompletedOrdersForUser,
   listStuckCompletedOrders,
   listUserInvoiceOrders,
+  recordPrimaryInvoiceForOrder,
   recordZohoInvoiceForOrder,
+  releasePrimaryInvoiceClaim,
   releaseZohoInvoiceClaim,
   userHasPriorTrialOrder,
 } from "@/lib/services/orders";
@@ -727,5 +730,91 @@ describe("claimPendingOrderForProcessing (pending → processing race)", () => {
     });
     expect(claimed?.paymentVerification?.paymentStatus).toBe("captured");
     expect(claimed?.paymentVerification?.paymentAmount).toBe(12345);
+  });
+});
+
+// ─── Primary-invoice claim (Primary Billing Integration Phase 1c) ──────────────
+describe("claimOrderForPrimaryInvoice / releasePrimaryInvoiceClaim / recordPrimaryInvoiceForOrder", () => {
+  it("claims an unclaimed, unissued order", async () => {
+    const order = await createOrder(buildOrderPayload({ orderId: "ord_claim_1" }));
+    const claimed = await claimOrderForPrimaryInvoice(order._id);
+    expect(claimed).toBe(true);
+
+    const found = await Order.findById(order._id);
+    expect(found?.primaryInvoiceClaimedAt).toBeInstanceOf(Date);
+  });
+
+  it("refuses a second concurrent claim on the same order", async () => {
+    const order = await createOrder(buildOrderPayload({ orderId: "ord_claim_2" }));
+    expect(await claimOrderForPrimaryInvoice(order._id)).toBe(true);
+    expect(await claimOrderForPrimaryInvoice(order._id)).toBe(false);
+  });
+
+  it("never double-claims under real concurrency (10-way race, exactly one winner)", async () => {
+    const order = await createOrder(buildOrderPayload({ orderId: "ord_claim_race" }));
+    const results = await Promise.all(
+      Array.from({ length: 10 }, () => claimOrderForPrimaryInvoice(order._id))
+    );
+    expect(results.filter(Boolean).length).toBe(1);
+  });
+
+  it("refuses a claim once invoiceProvider is already set (invoice already issued)", async () => {
+    const order = await createOrder(
+      buildOrderPayload({ orderId: "ord_claim_3", invoiceProvider: "zoho" as never })
+    );
+    expect(await claimOrderForPrimaryInvoice(order._id)).toBe(false);
+  });
+
+  it("releasePrimaryInvoiceClaim clears the claim so a later attempt can retry", async () => {
+    const order = await createOrder(buildOrderPayload({ orderId: "ord_release_1" }));
+    await claimOrderForPrimaryInvoice(order._id);
+    await releasePrimaryInvoiceClaim(order._id);
+
+    const found = await Order.findById(order._id);
+    expect(found?.primaryInvoiceClaimedAt).toBeUndefined();
+    expect(await claimOrderForPrimaryInvoice(order._id)).toBe(true);
+  });
+
+  it("releasePrimaryInvoiceClaim is a no-op once invoiceProvider is set (never undoes a completed invoice)", async () => {
+    const order = await createOrder(buildOrderPayload({ orderId: "ord_release_2" }));
+    await claimOrderForPrimaryInvoice(order._id);
+    await recordPrimaryInvoiceForOrder(order._id, {
+      invoiceNumber: "TI/2026-27/00001",
+      gstRate: 18,
+      taxableValue: 1000,
+      cgst: 90,
+      sgst: 90,
+      igst: 0,
+      placeOfSupply: "Delhi",
+    });
+
+    await releasePrimaryInvoiceClaim(order._id);
+
+    const found = await Order.findById(order._id);
+    expect(found?.invoiceProvider).toBe("primary");
+    expect(found?.primaryInvoiceClaimedAt).toBeInstanceOf(Date);
+  });
+
+  it("recordPrimaryInvoiceForOrder persists the full GST breakdown + provider", async () => {
+    const order = await createOrder(buildOrderPayload({ orderId: "ord_record_1" }));
+    await claimOrderForPrimaryInvoice(order._id);
+    await recordPrimaryInvoiceForOrder(order._id, {
+      invoiceNumber: "TI/2026-27/00042",
+      gstRate: 18,
+      taxableValue: 1000,
+      cgst: 0,
+      sgst: 0,
+      igst: 180,
+      placeOfSupply: "Maharashtra",
+      customerGstin: "27AAAAA0000A1Z5",
+    });
+
+    const found = await Order.findById(order._id);
+    expect(found?.invoiceProvider).toBe("primary");
+    expect(found?.invoiceNumber).toBe("TI/2026-27/00042");
+    expect(found?.taxableValue).toBe(1000);
+    expect(found?.igst).toBe(180);
+    expect(found?.placeOfSupply).toBe("Maharashtra");
+    expect(found?.customerGstin).toBe("27AAAAA0000A1Z5");
   });
 });

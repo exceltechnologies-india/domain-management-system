@@ -124,6 +124,20 @@ vi.mock("@/lib/services/payment/post-tasks", () => ({
   runPostPaymentTasks,
 }));
 
+// createPrimaryInvoice is PRIMARY_BILLING_ENABLED-gated pass-through to
+// createZohoInvoice when the flag is off (the default, and this test suite
+// never sets it) — forward to the same mock so every existing
+// createZohoInvoice assertion below keeps working unchanged, without
+// loading the real billing-engine module graph (models/Counter, mongoose
+// Schema, mongodb connect) into a route unit test that already replaces
+// mongoose with a minimal transaction-only stub above.
+const createPrimaryInvoice = vi.hoisted(() =>
+  vi.fn((ctx: unknown, opts: unknown) => createZohoInvoice(ctx, opts))
+);
+vi.mock("@/lib/services/billing/createPrimaryInvoice", () => ({
+  createPrimaryInvoice,
+}));
+
 const recordSystemLog = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/system-logs", () => ({ recordSystemLog }));
 

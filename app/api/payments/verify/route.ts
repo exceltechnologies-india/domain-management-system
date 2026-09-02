@@ -8,10 +8,8 @@ import {
 } from "@/lib/services/orders";
 import { handleRenewalPayment } from "@/lib/services/payment/renewal";
 import { handleAlreadyProcessedPayment } from "@/lib/services/payment/idempotency";
-import {
-  createZohoInvoice,
-  runPostPaymentTasks,
-} from "@/lib/services/payment/post-tasks";
+import { runPostPaymentTasks } from "@/lib/services/payment/post-tasks";
+import { createPrimaryInvoice } from "@/lib/services/billing/createPrimaryInvoice";
 import {
   verifyRazorpayPayment,
   validateOrderAmountMatchesRazorpay,
@@ -344,7 +342,7 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
     const zohoCartItems = cartItemsFromOrderDomains(order.domains);
 
     try {
-      const { invoiceNumber: zohoNum } = await createZohoInvoice({
+      const { invoiceNumber: zohoNum } = await createPrimaryInvoice({
         order,
         orderId,
         razorpay_payment_id,

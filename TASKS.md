@@ -77,7 +77,7 @@ large resellers.)
 FIRST; sub-reselling is a post-launch revenue feature (Phases 2–5 are weeks of work). Phase 1 was built
 now because it's fully additive/flag-gated and doesn't touch the go-live path.
 
-### 🆕 Primary Billing Integration — our own GST tax-invoice engine, Zoho as fallback (Phase 1b code-complete 2026-09-02; branch-only, not merged)
+### 🆕 Primary Billing Integration — our own GST tax-invoice engine, Zoho as fallback (Phase 1c-1 code-complete 2026-09-02; branch-only, not merged; flag OFF)
 
 **What it is:** ported the invoicing *concept* (not the code — anutechbilling is Postgres/Supabase RLS,
 we're MongoDB) from a sibling Anutech app, `anutechbilling` (ResellerOS), so we stop depending on Zoho
@@ -103,13 +103,24 @@ explicitly approved for merge, existing Zoho flow is untouched until the Phase 1
   a real in-memory MongoDB); `tsc --noEmit` clean.
 - [x] **Phase 1b — real tax-invoice PDF.** ✅ code-complete 2026-09-02 (branch-only). See "PRIMARY-BILLING
   Phase 1b" under Recently Shipped for the full breakdown.
-- [ ] **Phase 1c — chokepoint + live wiring (the risky step, behind `PRIMARY_BILLING_ENABLED`).** New
-  `lib/services/billing/createPrimaryInvoice.ts`: try our engine, fall back to the existing
-  `createZohoInvoice` (`lib/services/payment/post-tasks.ts`) on any thrown error. Redirect the real call
-  sites — `/api/payments/verify`, `/api/payments/guest/verify`, the webhook's inline
-  `zohoService.createInvoice` call (`app/razorpay/webhook/route.ts`), `renewal.ts`, `idempotency.ts` —
-  through this one chokepoint so "Zoho is the fallback" is actually true everywhere, not just at the two
-  verify routes. Ships flag-OFF; flips on only after review.
+- [x] **Phase 1c-1 — chokepoint + wiring for NEW-ORDER checkout (the two verify routes).** ✅ code-complete
+  2026-09-02 (branch-only, flag OFF). See "PRIMARY-BILLING Phase 1c-1" under Recently Shipped for the full
+  breakdown. **Scope note (read before enabling the flag):** only `/api/payments/verify` and
+  `/api/payments/guest/verify` — the new-order checkout path — go through `createPrimaryInvoice`. Three
+  other Zoho call sites deliberately still call Zoho directly and are UNAFFECTED by the flag:
+  `app/razorpay/webhook/route.ts`'s inline `zohoService.createInvoice` (payment.captured handler),
+  `lib/services/payment/renewal.ts` (renewal/invoice-payment flow — also does `applyPaymentToInvoice`
+  against a pre-existing invoice id, which has no primary-engine equivalent yet), and
+  `lib/services/payment/idempotency.ts`'s duplicate-`/verify`-call recovery path. Each has a materially
+  different call shape (pay-existing-invoice by id; claim-based recovery) that deserves its own design
+  rather than being rushed into this batch — tracked as Phase 1c-2 below. Until that lands, enabling
+  `PRIMARY_BILLING_ENABLED=true` means: brand-new domain/hosting orders get a primary tax invoice (or
+  Zoho on failure), while renewals and the webhook's own payment-captured path still ALWAYS use Zoho. Not
+  a bug — just an incomplete rollout — but don't flip the flag without knowing this.
+- [ ] **Phase 1c-2 — extend the chokepoint to renewal.ts, idempotency.ts, and the webhook's inline call.**
+  Needs its own design pass for the pay-existing-invoice branch in `renewal.ts` (what does "apply payment
+  to an existing primary invoice" mean when there's no external gateway invoice to apply against?) before
+  touching those three call sites.
 - [ ] **Phase 2 — renewal-reminder cadence + invoice dunning**, scoped down from anutechbilling's
   quote-before-payment model to fit ours (payment-first via Razorpay one-shot checkout): mostly rides the
   *existing* hosting-expiry reminder cadence (`config/automation.ts` `REMINDER_DAYS`,
@@ -240,6 +251,22 @@ Operator wants the app rebranded to the official **Anutech Digital** logo + favi
 - [x] **~~Hosting provisioning blocked by DirectAdmin license cap — operator action needed (2-of-2 user-account quota reached on the DA server)~~** — ✅ RESOLVED on 2026-06-22 by switching to a fresh DirectAdmin server entirely (see the "DA server switch" Recently-Shipped entry below for the secrets rotation + verification chain). Original investigation summary preserved verbatim for the audit trail: every hosting-checkout the senior reviewer placed today was failing with the generic "Hosting provisioning failed. Our team has been notified..." red banner. We finally surfaced the actual reason via the diagnostic chain shipped in `dms-00194-mlz` + `dms-00195-wsk`: the DirectAdmin server at `server-136-115-64-54.da.direct:2222` returned **"Cannot Execute Your Request - License is limited to 2 accounts, and you currently have 2"** on every `create-user` API call. The DA admin panel was healthy and reachable; our code was sending well-formed `create-user` requests with the correct linkedDomain (the `dms-00191-wgk` inference patch landed and works end-to-end); the IP whitelisting was intact (per the 4-layer DA whitelist auto-memory note). The blocker was purely the **DA license tier** — the original license allowed up to 2 user accounts, and there were already 2 existing accounts on the server. No code fix could have bypassed it; rather than upgrade the old server's license, the operator switched to a new DA server entirely with higher capacity. The 3 DA secrets (URL / ADMIN_USER / API_KEY) were rotated in Google Secret Manager, the service redeployed, and the next test checkout reached the new server cleanly (confirming whitelist + auth work). The next-layer error there (package-name mismatch) is now flagged as the new In-Flight item above. **Still owed by Claude after the new-DA package-name issue resolves**: backfill `linkedDomain` on the 4 stuck orders so admin Re-sync can retry them on the new server — each has a paid Razorpay transaction + a working Zoho invoice + just-needs-DA-provisioning to complete.
 
 ## Recently Shipped — user-visible improvements
+
+- [x] **PRIMARY-BILLING Phase 1c-1 — chokepoint + new-order checkout wiring, flag-gated OFF (branch `primary-billing-integration`, NOT merged/deployed)** — Third slice of the Primary Billing Integration (roadmap above). This is the batch that actually CAN change production behavior — but only once `PRIMARY_BILLING_ENABLED` is explicitly set; unset (the default, and the only state that exists anywhere today) makes every call site below byte-identical to before this feature existed.
+
+  **What was built:**
+  1. **`lib/primary-billing-flag.ts`** — `isPrimaryBillingEnabled()`, env-only, **default OFF** (the inverse of this repo's usual flag convention — see `RESELLER_FEATURE_ENABLED` default ON — because flipping this ONE changes which engine issues a real GST tax invoice on a live payment, not a UI surface).
+  2. **`lib/services/orders.ts` additions** — `claimOrderForPrimaryInvoice` / `releasePrimaryInvoiceClaim` / `recordPrimaryInvoiceForOrder`, an atomic-claim triple mirroring the existing Zoho claim pattern (`claimOrderForZohoInvoice` etc.) but on its own `Order.primaryInvoiceClaimedAt` field, since `invoiceProvider` only ever records a FINAL outcome and can't double as an in-flight sentinel the way `zohoInvoiceId: "pending_creation"` does.
+  3. **`lib/services/billing/createPrimaryInvoice.ts`** — the chokepoint. Same `{invoiceId, invoiceNumber}` contract as `createZohoInvoice`, so it's a drop-in replacement at call sites. Flag off → calls `createZohoInvoice` directly. Flag on → claims the order, computes the GST breakdown (Phase 1a), allocates a `TI/...` number (Phase 1a), persists it (Phase 1b's PDF path picks it up automatically) — and on ANY failure (missing org state, allocation error, DB write error), releases the claim and falls back to `createZohoInvoice`, so a bug in the new engine can never leave a payment un-invoiced.
+  4. **Wired `/api/payments/verify` and `/api/payments/guest/verify`** — the two new-order checkout routes — to call `createPrimaryInvoice` instead of `createZohoInvoice` directly. See the roadmap block above for exactly which 3 other call sites are deliberately NOT yet wired (Phase 1c-2).
+
+  **How it was verified:**
+  1. New `tests/unit/lib/primary-billing-flag.test.ts` (10 tests) + `tests/unit/lib/services/billing/createPrimaryInvoice.test.ts` (13 tests, every collaborator mocked) — pins the flag-off passthrough, the zero-amount/trial skip firing BEFORE the flag check, claim contention returning a silent skip (not a Zoho fallback), the happy path never touching Zoho, and fallback-to-Zoho on every distinct failure mode (missing state, allocation throw, DB-write throw, and the double-failure case where Zoho ALSO throws).
+  2. New integration tests in `tests/integration/services/orders.test.ts` (7 tests, real MongoDB) — including a 10-way concurrent claim race asserting exactly one winner, and confirming `releasePrimaryInvoiceClaim` is a no-op once an invoice is actually recorded (never undoes a completed invoice).
+  3. **Fixed the existing route unit tests** (`payments/verify`, `payments/guest/verify`) to mock the new `createPrimaryInvoice` module (forwarding to the same `createZohoInvoice` mock they already used) instead of letting the real chokepoint module load — this is the correct pattern for a route unit test (mock the immediate dependency, don't drag in the billing-engine's module graph) and it also surfaced a real gap in one shared order fixture (`setupCompletedOrderHappyPath`) that was missing `amount`/`orderType`, which the new chokepoint's inline zero-amount/trial guard exposed for the first time — fixed by adding realistic values.
+  4. Full sweep: **unit 6226/6226** (424 files, +23 from this batch), **integration 180/1-skip** (+7), `tsc --noEmit` clean, `eslint` clean (1 pre-existing unrelated warning), **production build 75/75 pages**.
+
+  **Not done / known gap (see Phase 1c-2 in the roadmap above):** the webhook's inline Zoho call, `renewal.ts`, and `idempotency.ts` still call Zoho directly regardless of the flag — "Zoho is the fallback everywhere" is not yet fully true, only for new-order checkout. Do not flip `PRIMARY_BILLING_ENABLED` in production without reading that scope note.
 
 - [x] **PRIMARY-BILLING Phase 1b — real GST tax-invoice PDF + closed the user-PDF no-fallback gap (branch `primary-billing-integration`, NOT merged/deployed)** — Second slice of the Primary Billing Integration (roadmap above). Still zero visible behavior change for any existing order — the new "Tax Invoice" rendering path only activates for `invoiceProvider === 'primary'` orders, none of which exist yet (Phase 1c hasn't wired live creation).
 
