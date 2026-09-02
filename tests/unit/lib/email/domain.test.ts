@@ -50,6 +50,7 @@ import {
   sendDomainRegistrationEmail,
   sendDomainRegistrationFailureEmail,
   sendRenewalInvoiceEmail,
+  sendRenewalPaymentPendingEmail,
   sendDomainBookingStatusEmail,
   sendServiceReminderEmail,
   sendServiceExpiryTodayEmail,
@@ -134,6 +135,52 @@ describe("sendRenewalInvoiceEmail", () => {
     expect(sendEmailMock.mock.calls[0][0].subject).toBe(
       "Hosting Renewal Reminder - myhost.com"
     );
+  });
+});
+
+describe("sendRenewalPaymentPendingEmail — Primary Billing Integration Phase 2 dunning", () => {
+  it("non-final stage → plain reminder subject, no 🚨 prefix", async () => {
+    await sendRenewalPaymentPendingEmail("user@x.test", "Alice", {
+      domainName: "myhost.com",
+      planName: "Starter",
+      amount: 1500,
+      currency: "INR",
+      stageHours: 24,
+      isFinalStage: false,
+    });
+    const call = sendEmailMock.mock.calls[0][0];
+    expect(call.subject).toBe(
+      "Reminder: your myhost.com renewal payment is incomplete"
+    );
+    expect(call.subject).not.toContain("🚨");
+    expect(call.html).toContain("myhost.com");
+    expect(call.html).toContain("Starter");
+  });
+
+  it("final stage → urgent 🚨 'Last reminder' subject", async () => {
+    await sendRenewalPaymentPendingEmail("user@x.test", "Alice", {
+      domainName: "myhost.com",
+      planName: "Starter",
+      amount: 1500,
+      currency: "INR",
+      stageHours: 168,
+      isFinalStage: true,
+    });
+    const call = sendEmailMock.mock.calls[0][0];
+    expect(call.subject).toMatch(/🚨.*Last reminder.*myhost\.com/);
+  });
+
+  it("does not claim the hosting has been suspended (distinct from sendRenewalInvoiceEmail)", async () => {
+    await sendRenewalPaymentPendingEmail("user@x.test", "Alice", {
+      domainName: "myhost.com",
+      planName: "Starter",
+      amount: 1500,
+      currency: "INR",
+      stageHours: 24,
+      isFinalStage: false,
+    });
+    const html = sendEmailMock.mock.calls[0][0].html as string;
+    expect(html).not.toMatch(/suspend/i);
   });
 });
 

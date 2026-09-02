@@ -126,6 +126,17 @@ export interface IOrder extends Document {
   // its own field since invoiceProvider only records a FINAL outcome).
   // Cleared on release; left behind harmlessly once invoiceProvider is set.
   primaryInvoiceClaimedAt?: Date;
+  // Renewal-payment dunning (Primary Billing Integration Phase 2) — tracks
+  // which escalation stage (hours since createdAt, from
+  // AUTOMATION_CONFIG.RENEWAL_DUNNING_HOURS) was last emailed for a renewal
+  // Order stuck in status='pending' (customer started but never completed
+  // Razorpay checkout). Set only on orderType='renewal' orders.
+  dunningLastStageHours?: number;
+  // Set once the LAST dunning stage has been sent — stops further reminder
+  // emails for this order. Does NOT change `status`; the order stays
+  // 'pending' (an operator/future cron can decide separately whether to
+  // void long-abandoned orders).
+  dunningAbandonedAt?: Date;
   orderType?: 'domain' | 'hosting' | 'bundle' | 'renewal' | 'hosting_upgrade' | 'hosting_trial' | 'unknown';
   // Razorpay recurring-payment mode: 'subscription' uses the Subscriptions
   // API (current default), 'tokens' uses the Tokens API (Google ₹2-and-reverse
@@ -371,6 +382,8 @@ const OrderSchema = new Schema<IOrder>(
     placeOfSupply: String,
     customerGstin: String,
     primaryInvoiceClaimedAt: Date,
+    dunningLastStageHours: Number,
+    dunningAbandonedAt: Date,
     isDeleted: {
       type: Boolean,
       default: false,
@@ -439,6 +452,11 @@ OrderSchema.index({ "domains.domainName": 1 });
 // Compound indexes for high-frequency query patterns
 OrderSchema.index({ userId: 1, orderType: 1, createdAt: -1 }); // order history
 OrderSchema.index({ userId: 1, status: 1 });                    // status filtering
+
+// Renewal-payment dunning cron scan (app/api/cron/renewal-payment-dunning) —
+// finds pending renewal orders not yet fully chased. Without this the query
+// COLLSCANs the whole Order collection on every run.
+OrderSchema.index({ status: 1, orderType: 1, dunningAbandonedAt: 1, createdAt: 1 });
 
 // Razorpay / Zoho identifier lookups — touched by every webhook, payment-verify
 // idempotency check, and Zoho retry cron. Without these the queries COLLSCAN.

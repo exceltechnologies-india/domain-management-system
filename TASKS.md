@@ -77,7 +77,7 @@ large resellers.)
 FIRST; sub-reselling is a post-launch revenue feature (Phases 2–5 are weeks of work). Phase 1 was built
 now because it's fully additive/flag-gated and doesn't touch the go-live path.
 
-### 🆕 Primary Billing Integration — our own GST tax-invoice engine, Zoho as fallback (Phase 1c-3 code-complete 2026-09-02; branch-only, not merged; flag OFF)
+### 🆕 Primary Billing Integration — our own GST tax-invoice engine, Zoho as fallback (Phase 2 code-complete 2026-09-02; branch-only, not merged; flag OFF)
 
 **What it is:** ported the invoicing *concept* (not the code — anutechbilling is Postgres/Supabase RLS,
 we're MongoDB) from a sibling Anutech app, `anutechbilling` (ResellerOS), so we stop depending on Zoho
@@ -132,18 +132,28 @@ explicitly approved for merge, existing Zoho flow is untouched until the Phase 1
   `createPrimaryInvoice`** — new-order checkout (both verify routes), renewal creation, duplicate-verify
   recovery, and the webhook's payment.captured handler. The only remaining Zoho-direct call site is
   `renewal.ts`'s pay-existing-invoice branch, which is correctly Zoho-only (see above, not a gap).
-- [ ] **Phase 2 — renewal-reminder cadence + invoice dunning**, scoped down from anutechbilling's
-  quote-before-payment model to fit ours (payment-first via Razorpay one-shot checkout): mostly rides the
-  *existing* hosting-expiry reminder cadence (`config/automation.ts` `REMINDER_DAYS`,
-  `app/api/workers/process-service-expiry/route.ts`) rather than duplicating it; true "unpaid invoice
-  dunning" only applies to the admin/manual-payment invoice flows where an invoice can exist before
-  payment. Deliberately sequenced AFTER Phase 1 is live + stable — don't stack more payment-critical risk
-  on the same batch as the GST-numbering change.
+- [x] **Phase 2 — renewal-payment dunning.** ✅ code-complete 2026-09-02 (branch-only). Investigated the
+  system first rather than assuming anutechbilling's quote-before-payment dunning model would translate:
+  this app has **no separate Invoice collection** — every "invoice" a customer sees is just an `Order`
+  (`app/api/user/invoices/route.ts`'s `ORDER_STATUS_TO_INVOICE` map), and a `status:'pending'` Order
+  already displays as an unpaid invoice. So the one real "unpaid invoice" population in the current
+  payment-first model is an **abandoned renewal checkout**: `/api/user/hosting/renew` mints a brand-new
+  pending Order + Razorpay order on every call with no dedup or expiry, and until this batch nothing ever
+  followed up if the customer closed the checkout without paying. Operator-confirmed scope (2026-09-02):
+  chase exactly this population; the pre-expiry reminder cadence (`REMINDER_DAYS`,
+  `process-service-expiry`) already existed and needed no changes. See "PRIMARY-BILLING Phase 2" under
+  Recently Shipped for the full breakdown.
+- [ ] **Phase 3 (possible follow-up, not yet scoped)** — decide whether long-abandoned renewal Orders
+  (final dunning stage sent, still `status:'pending'`) should eventually be voided/expired rather than
+  left pending forever. Deliberately NOT done in Phase 2 — changing `status` semantics touches order
+  history/reporting broadly and deserves its own explicit decision.
 
 **Why the phase split:** Phase 1a/1b are pure-addition, zero blast radius even if buggy (nothing reads the
 new fields or calls the new modules yet). Phase 1c is the one that touches live payment/GST-compliance
 code, so it ships flag-gated and gets reviewed on its own before any customer sees a `TI/...` invoice
-number.
+number. Phase 2 is independent of the flag (it's plain reminder emails, not invoicing) but still shipped
+after Phase 1c closed, per the original sequencing intent of not stacking unrelated payment-adjacent
+changes into the same review pass.
 
 ### ⚠️ Paid hosting without a linked domain fails to provision (needs product decision, 2026-07-29)
 - [x] **✅ RESOLVED on 2026-07-29 (`dms-00441-d7x`) — chose Option A (require a linked/registered domain before hosting checkout).** A paid **hosting** order could complete + invoice but then **fail DA provisioning** with `Cannot Create Account - Invalid Domain Name` when **no real domain was linked** — the hosting item carried a placeholder domain (`hosting-Plus-<ts>`), which DA rejects. Surfaced on a guest paid-hosting test (order `ord_1785303670791_oxjhlz`, INV-000030 created, ₹2246.40 charged in test, hosting **not** provisioned). Fix: both `create-order` and `guest/create-order` now infer the linked domain when the cart has exactly one domain item, then reject the whole order up front (400 `HOSTING_DOMAIN_REQUIRED`, clear actionable message) if any hosting item still lacks a real domain (empty, `hosting-` placeholder, or no dot). The logged-in cart already blocks unlinked hosting client-side; guest checkout surfaces the 400 as a toast + resets state (no stuck screen). Trials are covered by the same guard. See "FIXED: paid hosting requires a real domain" in Recently Shipped.
@@ -262,6 +272,22 @@ Operator wants the app rebranded to the official **Anutech Digital** logo + favi
 - [x] **~~Hosting provisioning blocked by DirectAdmin license cap — operator action needed (2-of-2 user-account quota reached on the DA server)~~** — ✅ RESOLVED on 2026-06-22 by switching to a fresh DirectAdmin server entirely (see the "DA server switch" Recently-Shipped entry below for the secrets rotation + verification chain). Original investigation summary preserved verbatim for the audit trail: every hosting-checkout the senior reviewer placed today was failing with the generic "Hosting provisioning failed. Our team has been notified..." red banner. We finally surfaced the actual reason via the diagnostic chain shipped in `dms-00194-mlz` + `dms-00195-wsk`: the DirectAdmin server at `server-136-115-64-54.da.direct:2222` returned **"Cannot Execute Your Request - License is limited to 2 accounts, and you currently have 2"** on every `create-user` API call. The DA admin panel was healthy and reachable; our code was sending well-formed `create-user` requests with the correct linkedDomain (the `dms-00191-wgk` inference patch landed and works end-to-end); the IP whitelisting was intact (per the 4-layer DA whitelist auto-memory note). The blocker was purely the **DA license tier** — the original license allowed up to 2 user accounts, and there were already 2 existing accounts on the server. No code fix could have bypassed it; rather than upgrade the old server's license, the operator switched to a new DA server entirely with higher capacity. The 3 DA secrets (URL / ADMIN_USER / API_KEY) were rotated in Google Secret Manager, the service redeployed, and the next test checkout reached the new server cleanly (confirming whitelist + auth work). The next-layer error there (package-name mismatch) is now flagged as the new In-Flight item above. **Still owed by Claude after the new-DA package-name issue resolves**: backfill `linkedDomain` on the 4 stuck orders so admin Re-sync can retry them on the new server — each has a paid Razorpay transaction + a working Zoho invoice + just-needs-DA-provisioning to complete.
 
 ## Recently Shipped — user-visible improvements
+
+- [x] **PRIMARY-BILLING Phase 2 — renewal-payment dunning for abandoned checkouts (branch `primary-billing-integration`, NOT merged/deployed)** — Sixth slice of the Primary Billing Integration and the last item on the current roadmap. Independent of `PRIMARY_BILLING_ENABLED` (plain reminder emails, not invoicing) but dormant until the new cron is wired up in Cloud Scheduler — an operator-side step, not yet done.
+
+  **What was built:**
+  1. **Scoping investigation first.** Confirmed there's no standing "Invoice" collection to dun against — checked `app/api/user/invoices/route.ts`'s `ORDER_STATUS_TO_INVOICE` map and confirmed every customer-visible "invoice" is a projection of an `Order` document. Then confirmed `/api/user/hosting/renew` creates a fresh pending Order + Razorpay order on every call with zero dedup/expiry — the one real abandoned-payment population in this payment-first (not quote-then-invoice) model. Operator confirmed this scope over two alternatives (skip dunning entirely; or hunt for a different unpaid-invoice population) before any code was written.
+  2. **`config/automation.ts`** — new `RENEWAL_DUNNING_HOURS` (default `[24, 72, 168]` = 1/3/7 days), env-overridable, following the exact pattern of the existing `REMINDER_DAYS`.
+  3. **`models/Order.ts`** — two new fields: `dunningLastStageHours` (idempotency marker, mirrors Hosting's `last_reminder_sent` pattern) and `dunningAbandonedAt` (set once the final stage fires — stops further reminders). Deliberately does NOT touch `status`; a fully-dunned order stays `pending` (see the new Phase 3 backlog item above for why voiding it is a separate decision). New compound index `{status, orderType, dunningAbandonedAt, createdAt}` for the cron's scan.
+  4. **`lib/email/domain.ts`** — new `sendRenewalPaymentPendingEmail`, modeled on the existing `sendServiceReminderEmail`'s urgency-tiered visual convention (amber → red gradient, escalating subject) but with copy that does NOT claim the hosting has been suspended — unlike the existing `sendRenewalInvoiceEmail` (fires post-suspension), this fires for an order that may still be well within its active renewal window.
+  5. **`app/api/cron/renewal-payment-dunning/route.ts`** — new cron, modeled on the simpler single-route shape of `pending-sweeper` (find + notify inline) rather than the cron+Cloud-Tasks-worker split used for high-volume crons, since abandoned renewal checkouts are expected to be low-volume. Walks the configured hour-thresholds descending per candidate order, sends the highest unsent stage, and marks `dunningAbandonedAt` after the final stage. Dual auth (cron-secret or admin session), matching every other cron in the app.
+
+  **How it was verified:**
+  1. New `tests/unit/app/api/cron/renewal-payment-dunning/route.test.ts` (13 tests) — auth gate, query shape, stage escalation (including "already sent 24h, now 80h old → sends 72h not 24h again"), final-stage abandonment marking, missing-email and per-order-send-failure resilience, empty-set and DB-throw edge cases.
+  2. New tests in `tests/unit/lib/email/domain.test.ts` (3 tests) — subject escalation, and an explicit check that the email body never claims suspension.
+  3. Full sweep: **unit 6243/6243** (425 files, +16 from this batch), **integration 180/1-skip** (unchanged — no concurrency-sensitive claim mechanism needed here, unlike Phase 1c's invoice claims), `tsc --noEmit` clean, `eslint` clean, **production build 75/75 pages**.
+
+  **Not done yet:** the cron isn't wired to Cloud Scheduler in production (operator step, `gcloud scheduler jobs create http` documented in the route's header comment) — code ships dormant until that's run, same pattern as every other new cron in this codebase's history.
 
 - [x] **PRIMARY-BILLING Phase 1c-3 — webhook wiring, ALL invoice-creation call sites now flag-aware, flag still OFF (branch `primary-billing-integration`, NOT merged/deployed)** — Fifth and final slice of Phase 1. Still zero visible behavior change today — this batch closes the last gap in WHICH call sites are flag-aware; the flag's default (OFF) is untouched.
 

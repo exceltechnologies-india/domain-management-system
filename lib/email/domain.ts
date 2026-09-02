@@ -188,6 +188,99 @@ export async function sendRenewalInvoiceEmail(
   return sendEmail({ to: userEmail, subject, html });
 }
 
+/**
+ * Renewal-payment dunning email (Primary Billing Integration Phase 2) —
+ * fires when a customer started a hosting renewal (opened the Razorpay
+ * checkout via /api/user/hosting/renew) but never completed payment, so the
+ * internal Order is still sitting in status='pending'. Distinct from
+ * `sendRenewalInvoiceEmail` above, which fires AFTER a service has already
+ * been suspended — this email's hosting may well still be active (renewal
+ * is offered from 15 days before expiry), so it must not claim otherwise.
+ */
+export async function sendRenewalPaymentPendingEmail(
+  userEmail: string,
+  userName: string,
+  details: {
+    domainName: string;
+    planName: string;
+    amount: number;
+    currency: string;
+    /** Hours since the order was created — the dunning stage that triggered this send. */
+    stageHours: number;
+    /** True when this is the LAST configured stage (final reminder). */
+    isFinalStage: boolean;
+  }
+): Promise<boolean> {
+  const isUrgent = details.isFinalStage;
+  const headerBg = isUrgent
+    ? "linear-gradient(135deg, #DC2626, #991B1B)"
+    : "linear-gradient(135deg, #F59E0B, #D97706)";
+  const badgeBg = isUrgent ? "#FEE2E2" : "#FEF3C7";
+  const badgeBorder = isUrgent ? "#DC2626" : "#F59E0B";
+  const badgeText = isUrgent ? "#991B1B" : "#92400E";
+  const urgencyIcon = isUrgent ? "🚨" : "⏳";
+
+  const dashboardUrl = `${process.env.NEXTAUTH_URL || ""}/dashboard/hosting`;
+  const subject = isUrgent
+    ? `🚨 Last reminder: your ${details.domainName} renewal payment is still incomplete`
+    : `Reminder: your ${details.domainName} renewal payment is incomplete`;
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+      <div style="background: ${headerBg}; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
+        <h1 style="margin: 0; font-size: 24px; font-weight: bold;">${urgencyIcon} Renewal Payment Incomplete</h1>
+        <p style="margin: 10px 0 0 0; opacity: 0.9;">${isUrgent ? "Final reminder — please complete payment" : "Action needed to finish your renewal"}</p>
+      </div>
+
+      <div style="padding: 30px; background-color: #ffffff;">
+        <p style="font-size: 16px; color: #374151; margin-bottom: 20px;">Hello ${userName},</p>
+
+        <div style="background-color: ${badgeBg}; border: 1px solid ${badgeBorder}; border-radius: 8px; padding: 20px; margin: 20px 0;">
+          <h3 style="color: ${badgeText}; margin: 0 0 10px 0; font-size: 18px;">${urgencyIcon} Payment not completed</h3>
+          <p style="color: ${badgeText}; margin: 0; font-size: 14px;">
+            You started renewing hosting for <strong>${details.domainName}</strong>, but the payment was never completed.
+            Please finish the renewal to keep your hosting active without interruption.
+          </p>
+        </div>
+
+        <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
+          <h3 style="color: #1f2937; margin: 0 0 15px 0; font-size: 16px;">Renewal Details</h3>
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; color: #6b7280; width: 140px;">Domain:</td>
+              <td style="padding: 8px 0; font-weight: 600; color: #1f2937;">${details.domainName}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #6b7280;">Plan:</td>
+              <td style="padding: 8px 0; font-weight: 600; color: #1f2937;">${details.planName}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #6b7280;">Amount Due:</td>
+              <td style="padding: 8px 0; font-weight: 600; color: #1f2937;">₹${details.amount.toLocaleString()} ${details.currency}</td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${dashboardUrl}" style="display: inline-block; background: ${headerBg}; color: #ffffff; padding: 16px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.15);">Complete Renewal</a>
+        </div>
+
+        <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">
+          If you have any questions, please contact our support team at <a href="mailto:${SUPPORT_EMAIL}" style="color: #1A73E8;">${SUPPORT_EMAIL}</a>.
+        </p>
+      </div>
+
+      <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
+        <p style="margin: 0; font-size: 14px; color: #6b7280;">
+          Best regards,<br>
+          <strong>Anutech Digital Private Limited Team</strong>
+        </p>
+      </div>
+    </div>
+  `;
+  return sendNotificationEmail({ to: userEmail, subject, html });
+}
+
 export async function sendDomainBookingStatusEmail(
   userEmail: string,
   userName: string,
