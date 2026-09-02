@@ -30,6 +30,12 @@ export interface ZohoInvoiceContext {
   cartItems: CartItem[];
 }
 
+export interface ZohoClaimOptions {
+  staleClaimAfterMs?: number;
+  allowNull?: boolean;
+  allowFailed?: boolean;
+}
+
 /**
  * Single attempt at creating a Zoho Books invoice. Claims the order,
  * issues the Zoho call, and on any failure releases the claim and rethrows.
@@ -38,13 +44,20 @@ export interface ZohoInvoiceContext {
  * `createZohoInvoice` covers cold-start races, token-refresh blips, and any
  * other case where re-running the whole flow (re-claim + re-fetch contact +
  * re-issue) is the right move.
+ *
+ * `claimOptions` is passed straight through to `claimOrderForZohoInvoice` —
+ * callers recovering a possibly-stuck order (e.g. the duplicate-/verify-call
+ * idempotency path) pass `staleClaimAfterMs` so a crashed prior attempt's
+ * claim doesn't block them forever; the normal synchronous verify-route path
+ * omits it and gets the strict default (never re-claim mid-flight).
  */
 async function attemptCreateZohoInvoice(
-  ctx: ZohoInvoiceContext
+  ctx: ZohoInvoiceContext,
+  claimOptions?: ZohoClaimOptions
 ): Promise<{ invoiceId: string; invoiceNumber: string | null }> {
   const { order, orderId, razorpay_payment_id, paymentDetails, user, cartItems } = ctx;
 
-  const claimedOrder = await claimOrderForZohoInvoice(order._id);
+  const claimedOrder = await claimOrderForZohoInvoice(order._id, claimOptions);
   if (!claimedOrder) {
     serverLogger.info(
       `⏭️ [PAYMENT-VERIFY] Zoho invoice already claimed or exists for Order ${orderId}. Skipping.`
@@ -117,7 +130,11 @@ async function attemptCreateZohoInvoice(
  */
 export async function createZohoInvoice(
   ctx: ZohoInvoiceContext,
-  options: { maxAttempts?: number; retryDelayMs?: number } = {}
+  options: {
+    maxAttempts?: number;
+    retryDelayMs?: number;
+    claimOptions?: ZohoClaimOptions;
+  } = {}
 ): Promise<{ invoiceId: string; invoiceNumber: string | null }> {
   const orderAmount = ctx.order?.amount;
   const orderType = ctx.order?.orderType;
@@ -136,7 +153,7 @@ export async function createZohoInvoice(
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      return await attemptCreateZohoInvoice(ctx);
+      return await attemptCreateZohoInvoice(ctx, options.claimOptions);
     } catch (err) {
       lastError = err;
       if (attempt < maxAttempts) {

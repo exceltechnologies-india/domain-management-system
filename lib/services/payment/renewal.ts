@@ -7,8 +7,8 @@ import type { IOrder } from "@/models/Order";
 import {
   getOrderByOrderId,
   getOrderByRazorpayOrderId,
-  recordZohoInvoiceForOrder,
 } from "@/lib/services/orders";
+import { createPrimaryInvoice } from "@/lib/services/billing/createPrimaryInvoice";
 import { listHostingsForUser } from "@/lib/services/hostings";
 import { getCurrentDate } from "@/lib/dateUtils";
 import { serverLogger } from "@/lib/server-logger";
@@ -56,55 +56,48 @@ export async function handleRenewalPayment(
   const zohoService = ZohoBooksService.getInstance();
   let invoiceId = paymentDetails?.notes?.invoice_id;
 
-  // 1. Create and Pay Zoho Invoice
+  // 1. Create and pay the renewal invoice — primary engine first (when
+  // PRIMARY_BILLING_ENABLED), Zoho as automatic fallback on any failure.
+  // createInvoice's own defaults (paymentMode='Razorpay', shouldApplyPayment=
+  // true) are what this used to call explicitly — the chokepoint preserves
+  // that behavior on the Zoho path, so this is a same-behavior swap when the
+  // flag is off (the only state that exists in production today).
   if (!invoiceId && renewalOrder) {
     try {
       serverLogger.info(
-        `📊 [PAYMENT-VERIFY] Creating Zoho Invoice for renewal order: ${renewalOrder.orderId}`
+        `📊 [PAYMENT-VERIFY] Creating invoice for renewal order: ${renewalOrder.orderId}`
       );
 
       const invoiceItems = renewalOrder.domains.map((d: IOrder['domains'][number]) => ({
         itemType: d.itemType || "domain",
         domainName: d.domainName,
         price: d.price,
+        currency: d.currency || renewalOrder!.currency,
         registrationPeriod: d.registrationPeriod || 1,
         periodUnit:
           d.periodUnit || (d.itemType === "hosting" ? "months" : "years"),
         hostingPlan: d.hostingPlan,
       }));
 
-      const invoice = await zohoService.createInvoice(
-        {
-          orderId: renewalOrder.orderId,
-          razorpayPaymentId: razorpay_payment_id,
-          total: paymentDetails.amount,
-        },
+      const result = await createPrimaryInvoice({
+        order: renewalOrder,
+        orderId: renewalOrder.orderId,
+        razorpay_payment_id,
+        paymentDetails,
         user,
-        invoiceItems,
-        "Razorpay",
-        true
-      );
+        cartItems: invoiceItems,
+      });
 
-      if (invoice && invoice.invoice_id) {
-        invoiceId = invoice.invoice_id;
-        // Use the service helper so the E11000 collision-on-invoiceNumber
-        // path is the same one /api/payments/verify uses (graceful fall-back
-        // to invoiceId-only when the number is already taken).
-        await recordZohoInvoiceForOrder(String(renewalOrder._id), {
-          invoiceId: invoice.invoice_id,
-          invoiceNumber: invoice.invoice_number,
-        });
-        // Keep the in-memory doc in sync so downstream reads see the new ids.
-        renewalOrder.zohoInvoiceId = invoice.invoice_id;
-        renewalOrder.invoiceNumber = invoice.invoice_number;
+      if (result.invoiceId) {
+        invoiceId = result.invoiceId;
         serverLogger.info(
-          `✅ [PAYMENT-VERIFY] Zoho Invoice created and paid for renewal: ${invoiceId}`
+          `✅ [PAYMENT-VERIFY] Invoice created and paid for renewal: ${invoiceId}`
         );
       }
     } catch (err: unknown) {
       const errMessage = err instanceof Error ? err.message : String(err);
       serverLogger.error(
-        `❌ [PAYMENT-VERIFY] Failed to create Zoho Invoice for renewal:`,
+        `❌ [PAYMENT-VERIFY] Failed to create invoice for renewal:`,
         errMessage
       );
     }

@@ -8,15 +8,22 @@
  *    new-order flow)
  *  - Order lookup tries Razorpay-id FIRST then internal-orderId
  *    fallback (verify route may pass either)
- *  - **Zoho invoice creation branch** (no existing invoiceId): builds
- *    invoiceItems from renewalOrder.domains with periodUnit defaulting
- *    to 'months' for hosting / 'years' for domain; calls
- *    recordZohoInvoiceForOrder (NOT direct order.save) so the E11000
- *    fallback path is the SAME helper used by /api/payments/verify;
- *    Zoho throw is SWALLOWED (renewal still proceeds — payment captured)
+ *  - **Invoice creation branch** (no existing invoiceId): builds
+ *    cartItems from renewalOrder.domains with periodUnit defaulting
+ *    to 'months' for hosting / 'years' for domain, and delegates to
+ *    `createPrimaryInvoice` (Primary Billing Integration Phase 1c-2) —
+ *    the chokepoint that tries the primary GST engine first and falls
+ *    back to Zoho on failure. This is the SAME chokepoint
+ *    `/api/payments/verify` uses; its own decision logic is covered by
+ *    tests/unit/lib/services/billing/createPrimaryInvoice.test.ts, so
+ *    this suite only pins that renewal.ts calls it with the right
+ *    context and reacts correctly to its result. A throw is SWALLOWED
+ *    (renewal still proceeds — payment captured).
  *  - **Existing invoiceId branch** (notes.invoice_id present): applies
- *    payment to the existing invoice via applyPaymentToInvoice; amount
- *    converted from paise to rupees via Math.round/100
+ *    payment to the existing invoice via applyPaymentToInvoice (still
+ *    Zoho-direct — no primary-engine equivalent for "pay an existing
+ *    pre-issued invoice" yet); amount converted from paise to rupees
+ *    via Math.round/100
  *  - **Hosting reactivation pre-fetches ALL user hostings once** + maps
  *    by domainName (O(N+M) instead of N round-trips per item)
  *  - daUnsuspendUser only called when status is 'expired' OR 'suspended'
@@ -45,22 +52,31 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const getOrderByRazorpayOrderId = vi.hoisted(() => vi.fn());
 const getOrderByOrderId = vi.hoisted(() => vi.fn());
-const recordZohoInvoiceForOrder = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/orders", () => ({
   getOrderByRazorpayOrderId,
   getOrderByOrderId,
-  recordZohoInvoiceForOrder,
 }));
 
 const listHostingsForUser = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/hostings", () => ({ listHostingsForUser }));
 
-const createInvoice = vi.hoisted(() => vi.fn());
+// applyPaymentToInvoice stays Zoho-direct — renewal.ts's "pay an existing
+// pre-issued invoice" branch has no primary-engine equivalent yet.
 const applyPaymentToInvoice = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/zohobooks", () => ({
   ZohoBooksService: {
-    getInstance: () => ({ createInvoice, applyPaymentToInvoice }),
+    getInstance: () => ({ applyPaymentToInvoice }),
   },
+}));
+
+// createPrimaryInvoice is the chokepoint renewal.ts now calls for the
+// create-a-new-invoice branch (Phase 1c-2). Its own decision logic (flag
+// check, zero-amount skip, fallback-to-Zoho) is covered by
+// createPrimaryInvoice.test.ts — this suite just pins that renewal.ts calls
+// it correctly and reacts correctly to {invoiceId, invoiceNumber}.
+const createPrimaryInvoice = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/services/billing/createPrimaryInvoice", () => ({
+  createPrimaryInvoice,
 }));
 
 const daUnsuspendUser = vi.hoisted(() => vi.fn());
@@ -98,9 +114,13 @@ const NOW = new Date("2026-06-01T00:00:00Z");
 beforeEach(() => {
   getOrderByRazorpayOrderId.mockReset();
   getOrderByOrderId.mockReset();
-  recordZohoInvoiceForOrder.mockReset();
   listHostingsForUser.mockReset();
-  createInvoice.mockReset();
+  // Default: invoice creation succeeds — tests that only care about
+  // reactivation/completion behavior don't need to restate this.
+  createPrimaryInvoice.mockReset().mockResolvedValue({
+    invoiceId: "INV",
+    invoiceNumber: "INV-NUM",
+  });
   applyPaymentToInvoice.mockReset();
   daUnsuspendUser.mockReset();
   sendHostingProvisionedEmail.mockReset();
@@ -184,62 +204,65 @@ describe("handleRenewalPayment — order lookup fallback chain", () => {
   });
 });
 
-describe("handleRenewalPayment — Zoho invoice handling", () => {
-  it("no existing invoice_id: createInvoice called + recordZohoInvoiceForOrder (NOT direct order.save)", async () => {
+describe("handleRenewalPayment — invoice handling", () => {
+  it("no existing invoice_id: createPrimaryInvoice called with order/user/cartItems context", async () => {
     const order = {
       _id: "O1",
       orderId: "rnw_42",
+      currency: "INR",
       domains: [
         {
           itemType: "hosting",
           domainName: "x.com",
           price: 500,
+          currency: "INR",
           registrationPeriod: 1,
         },
       ],
       save: vi.fn().mockResolvedValue(undefined),
     };
     getOrderByRazorpayOrderId.mockResolvedValueOnce(order);
-    createInvoice.mockResolvedValueOnce({
-      invoice_id: "INV_99",
-      invoice_number: "INV-099",
-    });
     listHostingsForUser.mockResolvedValueOnce([]);
     await handleRenewalPayment(makeCtx("rnw_42"));
-    expect(recordZohoInvoiceForOrder).toHaveBeenCalledWith("O1", {
-      invoiceId: "INV_99",
-      invoiceNumber: "INV-099",
-    });
+
+    expect(createPrimaryInvoice).toHaveBeenCalledTimes(1);
+    const ctx = createPrimaryInvoice.mock.calls[0][0];
+    expect(ctx.order).toBe(order);
+    expect(ctx.orderId).toBe("rnw_42");
+    expect(ctx.razorpay_payment_id).toBe("pay_xyz");
+    expect(ctx.user).toBe(USER);
+    expect(ctx.cartItems[0]).toMatchObject({ domainName: "x.com", price: 500 });
   });
 
-  it("invoiceItems periodUnit defaults: hosting → 'months', domain → 'years'", async () => {
+  it("cartItems periodUnit defaults: hosting → 'months', domain → 'years'", async () => {
     const order = {
       _id: "O1",
       orderId: "rnw_42",
+      currency: "INR",
       domains: [
-        { itemType: "hosting", domainName: "h", price: 500, registrationPeriod: 1 },
-        { itemType: "domain", domainName: "d.com", price: 500, registrationPeriod: 1 },
+        { itemType: "hosting", domainName: "h", price: 500, currency: "INR", registrationPeriod: 1 },
+        { itemType: "domain", domainName: "d.com", price: 500, currency: "INR", registrationPeriod: 1 },
       ],
       save: vi.fn().mockResolvedValue(undefined),
     };
     getOrderByRazorpayOrderId.mockResolvedValueOnce(order);
-    createInvoice.mockResolvedValueOnce({ invoice_id: "INV_99" });
     listHostingsForUser.mockResolvedValueOnce([]);
     await handleRenewalPayment(makeCtx("rnw_42"));
-    const [, , invoiceItems] = createInvoice.mock.calls[0];
-    expect(invoiceItems[0].periodUnit).toBe("months");
-    expect(invoiceItems[1].periodUnit).toBe("years");
+    const { cartItems } = createPrimaryInvoice.mock.calls[0][0];
+    expect(cartItems[0].periodUnit).toBe("months");
+    expect(cartItems[1].periodUnit).toBe("years");
   });
 
-  it("createInvoice throw SWALLOWED — flow continues to reactivation", async () => {
+  it("createPrimaryInvoice throw SWALLOWED — flow continues to reactivation", async () => {
     const order = {
       _id: "O1",
       orderId: "rnw_42",
+      currency: "INR",
       domains: [],
       save: vi.fn().mockResolvedValue(undefined),
     };
     getOrderByRazorpayOrderId.mockResolvedValueOnce(order);
-    createInvoice.mockRejectedValueOnce(new Error("Zoho 503"));
+    createPrimaryInvoice.mockRejectedValueOnce(new Error("both engines down"));
     listHostingsForUser.mockResolvedValueOnce([]);
     const result = await handleRenewalPayment(makeCtx("rnw_42"));
     expect(result).not.toBeNull();
@@ -247,7 +270,7 @@ describe("handleRenewalPayment — Zoho invoice handling", () => {
     expect(body.success).toBe(true);
   });
 
-  it("existing invoice_id in notes: applies payment + amount converted paise→rupees", async () => {
+  it("existing invoice_id in notes: applies payment + amount converted paise→rupees; createPrimaryInvoice NOT called", async () => {
     getOrderByRazorpayOrderId.mockResolvedValueOnce({
       _id: "O1",
       orderId: "rnw_42",
@@ -264,8 +287,7 @@ describe("handleRenewalPayment — Zoho invoice handling", () => {
       "Razorpay",
       "pay_xyz"
     );
-    // createInvoice should NOT be called when invoice_id is supplied
-    expect(createInvoice).not.toHaveBeenCalled();
+    expect(createPrimaryInvoice).not.toHaveBeenCalled();
   });
 });
 
@@ -282,7 +304,6 @@ describe("handleRenewalPayment — hosting reactivation", () => {
       save: vi.fn().mockResolvedValue(undefined),
     };
     getOrderByRazorpayOrderId.mockResolvedValueOnce(order);
-    createInvoice.mockResolvedValueOnce({ invoice_id: "INV" });
     listHostingsForUser.mockResolvedValueOnce([
       {
         domainName: "a.com",
@@ -320,7 +341,6 @@ describe("handleRenewalPayment — hosting reactivation", () => {
       save: vi.fn().mockResolvedValue(undefined),
     };
     getOrderByRazorpayOrderId.mockResolvedValueOnce(order);
-    createInvoice.mockResolvedValueOnce({ invoice_id: "INV" });
     listHostingsForUser.mockResolvedValueOnce([
       {
         domainName: "a.com",
@@ -370,7 +390,6 @@ describe("handleRenewalPayment — hosting reactivation", () => {
       save: vi.fn().mockResolvedValue(undefined),
     };
     getOrderByRazorpayOrderId.mockResolvedValueOnce(order);
-    createInvoice.mockResolvedValueOnce({ invoice_id: "INV" });
     listHostingsForUser.mockResolvedValueOnce([futureHosting, pastHosting]);
     await handleRenewalPayment(makeCtx("rnw_42"));
     // future hosting: stacks +1 month from 2027-01-01
@@ -409,7 +428,6 @@ describe("handleRenewalPayment — hosting reactivation", () => {
         save: vi.fn().mockResolvedValue(undefined),
       };
       getOrderByRazorpayOrderId.mockResolvedValueOnce(order);
-      createInvoice.mockResolvedValueOnce({ invoice_id: "INV" });
       listHostingsForUser.mockResolvedValueOnce([hosting]);
       await handleRenewalPayment(makeCtx("rnw_42"));
       expect(hosting.expiryDate).not.toBeNull();
@@ -442,7 +460,7 @@ describe("handleRenewalPayment — hosting reactivation", () => {
       save: vi.fn().mockResolvedValue(undefined),
     };
     getOrderByRazorpayOrderId.mockResolvedValueOnce(order);
-    createInvoice.mockResolvedValueOnce({ invoice_id: "INV_99" });
+    createPrimaryInvoice.mockResolvedValueOnce({ invoiceId: "INV_99", invoiceNumber: "INV-099" });
     listHostingsForUser.mockResolvedValueOnce([hosting]);
     await handleRenewalPayment(makeCtx("rnw_42"));
     expect(hosting.status).toBe("active");
@@ -494,7 +512,6 @@ describe("handleRenewalPayment — order completion + error tolerance", () => {
       status: undefined as string | undefined,
     };
     getOrderByRazorpayOrderId.mockResolvedValueOnce(order);
-    createInvoice.mockResolvedValueOnce({ invoice_id: "INV" });
     listHostingsForUser.mockResolvedValueOnce([]);
     await handleRenewalPayment(makeCtx("rnw_42"));
     expect(order.status).toBe("completed");
@@ -517,7 +534,6 @@ describe("handleRenewalPayment — order completion + error tolerance", () => {
       save: vi.fn().mockResolvedValue(undefined),
     };
     getOrderByRazorpayOrderId.mockResolvedValueOnce(order);
-    createInvoice.mockResolvedValueOnce({ invoice_id: "INV" });
     listHostingsForUser.mockRejectedValueOnce(new Error("db down"));
     const result = await handleRenewalPayment(makeCtx("rnw_42"));
     const body = await result!.json();
@@ -532,7 +548,6 @@ describe("handleRenewalPayment — order completion + error tolerance", () => {
       save: vi.fn().mockRejectedValue(new Error("save conflict")),
     };
     getOrderByRazorpayOrderId.mockResolvedValueOnce(order);
-    createInvoice.mockResolvedValueOnce({ invoice_id: "INV" });
     listHostingsForUser.mockResolvedValueOnce([]);
     const result = await handleRenewalPayment(makeCtx("rnw_42"));
     const body = await result!.json();

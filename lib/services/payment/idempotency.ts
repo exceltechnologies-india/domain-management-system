@@ -1,14 +1,9 @@
 import { NextResponse } from "next/server";
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
-import { ZohoBooksService } from "@/lib/zohobooks";
 import { serverLogger } from "@/lib/server-logger";
 import { isHostingItem } from "@/lib/billing";
-import {
-  claimOrderForZohoInvoice,
-  getOrderByRazorpayPaymentId,
-  recordZohoInvoiceForOrder,
-  releaseZohoInvoiceClaim,
-} from "@/lib/services/orders";
+import { getOrderByRazorpayPaymentId } from "@/lib/services/orders";
+import { createPrimaryInvoice } from "@/lib/services/billing/createPrimaryInvoice";
 import type { CartItem, RazorpayPaymentDetails } from "@/lib/types";
 import type { IUser } from "@/models/User";
 import type { IOrder } from "@/models/Order";
@@ -94,13 +89,17 @@ export async function handleAlreadyProcessedPayment(
   }
 
   try {
-    if (existingOrder.zohoInvoiceId) {
+    // Covers BOTH engines — an order with a primary-issued invoice has no
+    // zohoInvoiceId at all, so checking that field alone would have this
+    // recovery path attempt (and duplicate) an invoice that already exists.
+    const hasInvoice = existingOrder.zohoInvoiceId || existingOrder.invoiceProvider;
+    if (hasInvoice) {
       serverLogger.info(
-        `⏭️ [PAYMENT-VERIFY] Zoho Invoice already exists for order ${existingOrder.orderId}: ${existingOrder.invoiceNumber}. Skipping.`
+        `⏭️ [PAYMENT-VERIFY] Invoice already exists for order ${existingOrder.orderId}: ${existingOrder.invoiceNumber}. Skipping.`
       );
     } else {
       serverLogger.info(
-        "📊 [PAYMENT-VERIFY] Syncing with Zoho Books (Recovery)..."
+        "📊 [PAYMENT-VERIFY] Syncing invoice (Recovery)..."
       );
 
       // Enrich cart items with friendly plan names
@@ -117,56 +116,30 @@ export async function handleAlreadyProcessedPayment(
         }
       }
 
-      const updatedOrder = await claimOrderForZohoInvoice(existingOrder._id, {
-        staleClaimAfterMs: 5 * 60 * 1000,
-      });
-
-      if (!updatedOrder) {
-        serverLogger.info(
-          `⏭️ [PAYMENT-VERIFY] Zoho Invoice already claimed or exists for order ${existingOrder.orderId}. Skipping.`
-        );
-      } else {
-        serverLogger.info(
-          `📊 [PAYMENT-VERIFY] Starting Zoho Invoice creation/sync for order ${existingOrder.orderId}...`
-        );
-        const zohoService = ZohoBooksService.getInstance();
-        try {
-          const invoice = await zohoService.createInvoice(
-            {
-              orderId: existingOrder.orderId,
-              razorpayPaymentId: razorpay_payment_id,
-              total: paymentDetails.amount,
-            },
-            user,
-            resolvedCartItems.map((item) => ({
-              ...item,
-              periodUnit:
-                item.periodUnit ||
-                (item.itemType === "hosting" ? "months" : "years"),
-            }))
-          );
-
-          if (invoice?.invoice_id) {
-            await recordZohoInvoiceForOrder(existingOrder._id, {
-              invoiceId: invoice.invoice_id,
-              invoiceNumber:
-                invoice.invoice_number || existingOrder.invoiceNumber,
-            });
-            serverLogger.info(
-              `✅ [PAYMENT-VERIFY] Saved Zoho Invoice ID (Recovery): ${invoice.invoice_id}`
-            );
-          } else {
-            await releaseZohoInvoiceClaim(existingOrder._id);
-          }
-        } catch (innerError) {
-          await releaseZohoInvoiceClaim(existingOrder._id);
-          throw innerError;
-        }
-      }
+      // staleClaimAfterMs: this recovery path exists specifically because a
+      // prior /verify call may have crashed mid-claim — without it, a
+      // genuinely stuck "pending_creation"/primary claim would block this
+      // recovery attempt forever instead of being the thing that unsticks it.
+      await createPrimaryInvoice(
+        {
+          order: existingOrder,
+          orderId: existingOrder.orderId,
+          razorpay_payment_id,
+          paymentDetails,
+          user,
+          cartItems: resolvedCartItems.map((item) => ({
+            ...item,
+            periodUnit:
+              item.periodUnit ||
+              (item.itemType === "hosting" ? "months" : "years"),
+          })),
+        },
+        { claimOptions: { staleClaimAfterMs: 5 * 60 * 1000 } }
+      );
     }
   } catch (zohoError) {
     serverLogger.error(
-      "❌ [PAYMENT-VERIFY] Zoho Books Sync Failed (Recovery):",
+      "❌ [PAYMENT-VERIFY] Invoice Sync Failed (Recovery):",
       zohoError
     );
   }

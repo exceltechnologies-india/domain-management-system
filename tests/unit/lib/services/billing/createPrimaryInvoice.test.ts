@@ -102,6 +102,12 @@ describe("flag OFF (default)", () => {
     expect(claimOrderForPrimaryInvoice).not.toHaveBeenCalled();
     expect(allocateInvoiceNumber).not.toHaveBeenCalled();
   });
+
+  it("forwards options.claimOptions to createZohoInvoice (recovery-path support)", async () => {
+    const options = { claimOptions: { staleClaimAfterMs: 5 * 60 * 1000 } };
+    await createPrimaryInvoice(baseCtx(), options);
+    expect(createZohoInvoice).toHaveBeenCalledWith(baseCtx(), options);
+  });
 });
 
 describe("zero-amount / trial skip (applies regardless of flag)", () => {

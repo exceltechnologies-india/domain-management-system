@@ -10,7 +10,7 @@ import {
   releasePrimaryInvoiceClaim,
   recordPrimaryInvoiceForOrder,
 } from "@/lib/services/orders";
-import { createZohoInvoice, type ZohoInvoiceContext } from "@/lib/services/payment/post-tasks";
+import { createZohoInvoice, type ZohoClaimOptions, type ZohoInvoiceContext } from "@/lib/services/payment/post-tasks";
 
 /**
  * The primary GST engine's own attempt: claim -> compute -> allocate ->
@@ -88,10 +88,23 @@ async function attemptCreatePrimaryInvoice(
  * (there's no external gateway id) — set to the same value as
  * `invoiceNumber` for callers that log it, none of which currently branch
  * on its value.
+ *
+ * `options.claimOptions` (e.g. `{staleClaimAfterMs}`) is forwarded to the
+ * Zoho path only — recovery callers (idempotency.ts) that need to re-claim
+ * a possibly-stuck order pass it so a crashed prior Zoho attempt doesn't
+ * block them forever. The primary engine's own claim
+ * (`claimOrderForPrimaryInvoice`) doesn't support stale-claim recovery yet:
+ * every primary attempt today runs synchronously inside one request, so a
+ * stuck claim can only mean a mid-request crash, not a background retry
+ * gap — revisit if/when a primary-invoice retry cron is added.
  */
 export async function createPrimaryInvoice(
   ctx: ZohoInvoiceContext,
-  options: { maxAttempts?: number; retryDelayMs?: number } = {}
+  options: {
+    maxAttempts?: number;
+    retryDelayMs?: number;
+    claimOptions?: ZohoClaimOptions;
+  } = {}
 ): Promise<{ invoiceId: string; invoiceNumber: string | null }> {
   // Same zero-amount/trial skip as createZohoInvoice — applies before we
   // even decide which engine would issue the invoice. See CLAUDE.md "Trial

@@ -1,5 +1,6 @@
 /**
- * Tests for `@/lib/services/payment/idempotency` (rescan-4 slice 7ej).
+ * Tests for `@/lib/services/payment/idempotency` (rescan-4 slice 7ej;
+ * updated for Primary Billing Integration Phase 1c-2).
  * handleAlreadyProcessedPayment — payment-verify idempotency guard.
  * Pins:
  *  - existingOrder null + lookup-by-paymentId null → returns null (new
@@ -10,29 +11,27 @@
  *  - **F13 trust-DB-cart override**: when existingOrder.domains is
  *    non-empty, the trusted DB rows REPLACE the client-supplied cartItems
  *    (defense vs client-tampered cart on a re-fired verify)
- *  - Zoho-recovery branch (no existing zohoInvoiceId): runs
- *    claimOrderForZohoInvoice with **staleClaimAfterMs:5*60*1000** —
- *    allows a 5-minute-old stalled claim to be re-stolen
- *  - claimOrderForZohoInvoice null → skips Zoho call (already claimed
- *    by another worker)
- *  - createInvoice success → recordZohoInvoiceForOrder + log
- *  - createInvoice resolves with no invoice_id → releaseZohoInvoiceClaim
- *    (the orphan-claim guard)
- *  - createInvoice throw → releaseZohoInvoiceClaim + rethrow into outer
- *    try (which CATCHES — Zoho failure NEVER blocks the
- *    already-processed response)
- *  - existingOrder already has zohoInvoiceId → fast-path skip, no
- *    claim/createInvoice call
+ *  - **Fast-path skip covers BOTH engines**: an order with EITHER
+ *    `zohoInvoiceId` OR `invoiceProvider` already set skips invoice
+ *    recovery entirely — checking `zohoInvoiceId` alone would have this
+ *    recovery path attempt (and duplicate) a primary-issued invoice, which
+ *    has no `zohoInvoiceId` at all.
+ *  - Recovery branch delegates to `createPrimaryInvoice` (the same
+ *    chokepoint `/api/payments/verify` uses) with
+ *    `claimOptions:{staleClaimAfterMs:5*60*1000}` — allows a 5-minute-old
+ *    stalled claim to be re-stolen by this recovery attempt. The
+ *    chokepoint's own decision logic (flag check, fallback-to-Zoho, claim
+ *    atomicity) is covered by createPrimaryInvoice.test.ts; this suite only
+ *    pins that idempotency.ts calls it correctly and tolerates its failure.
+ *  - createPrimaryInvoice throw → swallowed by the outer try/catch (Zoho/
+ *    primary failure NEVER blocks the already-processed response)
+ *  - TRIAL/ZERO-AMOUNT GUARD (idempotency.ts's OWN early return, before the
+ *    recovery branch is even entered) → NO createPrimaryInvoice call
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const getPlanByPlanId = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/hosting-plans", () => ({ getPlanByPlanId }));
-
-const createInvoice = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/zohobooks", () => ({
-  ZohoBooksService: { getInstance: () => ({ createInvoice }) },
-}));
 
 vi.mock("@/lib/server-logger", () => ({
   serverLogger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
@@ -43,15 +42,17 @@ const isHostingItem = vi.hoisted(() =>
 );
 vi.mock("@/lib/billing", () => ({ isHostingItem }));
 
-const claimOrder = vi.hoisted(() => vi.fn());
 const getOrderByRazorpayPaymentId = vi.hoisted(() => vi.fn());
-const recordInvoice = vi.hoisted(() => vi.fn());
-const releaseClaim = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/orders", () => ({
-  claimOrderForZohoInvoice: claimOrder,
   getOrderByRazorpayPaymentId,
-  recordZohoInvoiceForOrder: recordInvoice,
-  releaseZohoInvoiceClaim: releaseClaim,
+}));
+
+// createPrimaryInvoice is the chokepoint idempotency.ts now delegates
+// invoice recovery to (Phase 1c-2) — its own claim/retry/fallback logic is
+// covered by createPrimaryInvoice.test.ts.
+const createPrimaryInvoice = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/services/billing/createPrimaryInvoice", () => ({
+  createPrimaryInvoice,
 }));
 
 vi.unmock("next/server");
@@ -66,12 +67,12 @@ import { handleAlreadyProcessedPayment } from "@/lib/services/payment/idempotenc
 
 beforeEach(() => {
   getPlanByPlanId.mockReset();
-  createInvoice.mockReset();
   isHostingItem.mockClear();
-  claimOrder.mockReset();
   getOrderByRazorpayPaymentId.mockReset();
-  recordInvoice.mockReset();
-  releaseClaim.mockReset();
+  createPrimaryInvoice.mockReset().mockResolvedValue({
+    invoiceId: "INV",
+    invoiceNumber: "INV-NUM",
+  });
 });
 
 const USER = { firstName: "A", lastName: "B", email: "a@x.test" } as never;
@@ -95,13 +96,12 @@ describe("handleAlreadyProcessedPayment — early-return null (new payment)", ()
     const result = await handleAlreadyProcessedPayment(makeCtx());
     expect(result).toBeNull();
     expect(getOrderByRazorpayPaymentId).toHaveBeenCalledWith("pay_xyz");
-    // No Zoho work fired.
-    expect(claimOrder).not.toHaveBeenCalled();
+    expect(createPrimaryInvoice).not.toHaveBeenCalled();
   });
 });
 
 describe("handleAlreadyProcessedPayment — happy idempotent response", () => {
-  it("existingOrder with zohoInvoiceId already set → fast-path: NO claim, NO createInvoice", async () => {
+  it("existingOrder with zohoInvoiceId already set → fast-path: NO createPrimaryInvoice call", async () => {
     const order = {
       _id: "ORD_DOC",
       orderId: "ORD_42",
@@ -116,13 +116,32 @@ describe("handleAlreadyProcessedPayment — happy idempotent response", () => {
       makeCtx({ existingOrder: order })
     );
     expect(result).toBeInstanceOf(Response);
-    expect(claimOrder).not.toHaveBeenCalled();
-    expect(createInvoice).not.toHaveBeenCalled();
+    expect(createPrimaryInvoice).not.toHaveBeenCalled();
     const body = await (result as Response).json();
     expect(body.success).toBe(true);
     expect(body.orderId).toBe("ORD_42");
     expect(body.invoiceNumber).toBe("INV-1");
     expect(body.successfulDomains).toEqual(["x.com"]);
+  });
+
+  it("existingOrder with invoiceProvider:'primary' already set (no zohoInvoiceId) → also fast-path skips", async () => {
+    const order = {
+      _id: "ORD_DOC",
+      orderId: "ORD_42",
+      invoiceNumber: "TI/2026-27/00001",
+      invoiceProvider: "primary",
+      zohoInvoiceId: undefined,
+      domains: [
+        { domainName: "x.com", status: "registered", orderId: "rc_1" },
+      ],
+      successfulDomains: ["x.com"],
+    };
+    const result = await handleAlreadyProcessedPayment(
+      makeCtx({ existingOrder: order })
+    );
+    expect(createPrimaryInvoice).not.toHaveBeenCalled();
+    const body = await (result as Response).json();
+    expect(body.invoiceNumber).toBe("TI/2026-27/00001");
   });
 
   it("response includes registrationResults projected from order.domains", async () => {
@@ -147,20 +166,19 @@ describe("handleAlreadyProcessedPayment — happy idempotent response", () => {
     ]);
   });
 
-  it("F13 — trusted DB cart REPLACES client-supplied cartItems for the Zoho-recovery branch", async () => {
+  it("F13 — trusted DB cart REPLACES client-supplied cartItems for the invoice-recovery branch", async () => {
     const order = {
       _id: "ORD_DOC",
       orderId: "ORD_42",
       invoiceNumber: "INV-1",
       amount: 50000, // paid order → invoiceable (guard passes)
       orderType: "domain",
-      zohoInvoiceId: null, // forces Zoho recovery branch
+      zohoInvoiceId: null, // forces recovery branch
       domains: [
         { itemType: "domain", domainName: "trusted.com", status: "registered" },
       ],
       successfulDomains: ["trusted.com"],
     };
-    claimOrder.mockResolvedValueOnce(null); // skip past invoice creation
     await handleAlreadyProcessedPayment(
       makeCtx({
         existingOrder: order,
@@ -168,15 +186,17 @@ describe("handleAlreadyProcessedPayment — happy idempotent response", () => {
         cartItems: [{ itemType: "domain", domainName: "evil.com" }],
       })
     );
-    // claimOrder is reached (Zoho recovery path), proving we didn't
-    // short-circuit on the client cart.
-    expect(claimOrder).toHaveBeenCalledWith("ORD_DOC", {
-      staleClaimAfterMs: 5 * 60 * 1000,
-    });
+    expect(createPrimaryInvoice).toHaveBeenCalledTimes(1);
+    const ctx = createPrimaryInvoice.mock.calls[0][0];
+    // cartItems pass through a periodUnit-defaulting .map() before reaching
+    // createPrimaryInvoice — domain items default to "years".
+    expect(ctx.cartItems).toEqual([
+      { itemType: "domain", domainName: "trusted.com", status: "registered", periodUnit: "years" },
+    ]);
   });
 });
 
-describe("handleAlreadyProcessedPayment — Zoho recovery branch", () => {
+describe("handleAlreadyProcessedPayment — invoice recovery branch", () => {
   const ORDER_NO_INVOICE = {
     _id: "ORD_DOC",
     orderId: "ORD_42",
@@ -190,7 +210,7 @@ describe("handleAlreadyProcessedPayment — Zoho recovery branch", () => {
     successfulDomains: ["x.com"],
   };
 
-  it("TRIAL/ZERO-AMOUNT GUARD: orderType='hosting_trial' → NO claim, NO createInvoice", async () => {
+  it("TRIAL/ZERO-AMOUNT GUARD: orderType='hosting_trial' → NO createPrimaryInvoice call", async () => {
     const trialOrder = {
       _id: "ORD_DOC",
       orderId: "ORD_TRIAL",
@@ -206,14 +226,13 @@ describe("handleAlreadyProcessedPayment — Zoho recovery branch", () => {
     const result = await handleAlreadyProcessedPayment(
       makeCtx({ existingOrder: trialOrder })
     );
-    expect(claimOrder).not.toHaveBeenCalled();
-    expect(createInvoice).not.toHaveBeenCalled();
+    expect(createPrimaryInvoice).not.toHaveBeenCalled();
     const body = await (result as Response).json();
     expect(body.success).toBe(true);
     expect(body.orderId).toBe("ORD_TRIAL");
   });
 
-  it("ZERO-AMOUNT GUARD: amount<=0 order → NO claim, NO createInvoice", async () => {
+  it("ZERO-AMOUNT GUARD: amount<=0 order → NO createPrimaryInvoice call", async () => {
     const zeroOrder = {
       _id: "ORD_DOC",
       orderId: "ORD_ZERO",
@@ -224,65 +243,32 @@ describe("handleAlreadyProcessedPayment — Zoho recovery branch", () => {
       successfulDomains: ["z.com"],
     };
     await handleAlreadyProcessedPayment(makeCtx({ existingOrder: zeroOrder }));
-    expect(claimOrder).not.toHaveBeenCalled();
-    expect(createInvoice).not.toHaveBeenCalled();
+    expect(createPrimaryInvoice).not.toHaveBeenCalled();
   });
 
-  it("claim returns null → skips Zoho call (another worker already claimed)", async () => {
-    claimOrder.mockResolvedValueOnce(null);
-    const result = await handleAlreadyProcessedPayment(
-      makeCtx({ existingOrder: ORDER_NO_INVOICE })
-    );
-    expect(createInvoice).not.toHaveBeenCalled();
-    // Response still returned (idempotency-OK).
-    const body = await (result as Response).json();
-    expect(body.success).toBe(true);
-  });
-
-  it("claim succeeds → createInvoice + recordZohoInvoiceForOrder on success", async () => {
-    claimOrder.mockResolvedValueOnce({ _id: "ORD_DOC" });
-    createInvoice.mockResolvedValueOnce({
-      invoice_id: "ZOHO_INV_NEW",
-      invoice_number: "INV-NEW",
-    });
+  it("calls createPrimaryInvoice with the order context + staleClaimAfterMs claim option", async () => {
     await handleAlreadyProcessedPayment(
       makeCtx({ existingOrder: ORDER_NO_INVOICE })
     );
-    expect(recordInvoice).toHaveBeenCalledWith("ORD_DOC", {
-      invoiceId: "ZOHO_INV_NEW",
-      invoiceNumber: "INV-NEW",
-    });
+    expect(createPrimaryInvoice).toHaveBeenCalledTimes(1);
+    const [ctx, options] = createPrimaryInvoice.mock.calls[0];
+    expect(ctx.order).toBe(ORDER_NO_INVOICE);
+    expect(ctx.orderId).toBe("ORD_42");
+    expect(ctx.razorpay_payment_id).toBe("pay_xyz");
+    expect(options).toEqual({ claimOptions: { staleClaimAfterMs: 5 * 60 * 1000 } });
   });
 
-  it("createInvoice resolves with no invoice_id → releaseClaim (orphan-claim guard)", async () => {
-    claimOrder.mockResolvedValueOnce({ _id: "ORD_DOC" });
-    createInvoice.mockResolvedValueOnce({ invoice_id: null });
-    await handleAlreadyProcessedPayment(
-      makeCtx({ existingOrder: ORDER_NO_INVOICE })
-    );
-    expect(releaseClaim).toHaveBeenCalledWith("ORD_DOC");
-    expect(recordInvoice).not.toHaveBeenCalled();
-  });
-
-  it("createInvoice THROW → releaseClaim AND the outer catch swallows (response still 200)", async () => {
-    claimOrder.mockResolvedValueOnce({ _id: "ORD_DOC" });
-    createInvoice.mockRejectedValueOnce(new Error("token expired"));
+  it("createPrimaryInvoice throw → swallowed by outer catch (response still 200)", async () => {
+    createPrimaryInvoice.mockRejectedValueOnce(new Error("both engines down"));
     const result = await handleAlreadyProcessedPayment(
       makeCtx({ existingOrder: ORDER_NO_INVOICE })
     );
-    expect(releaseClaim).toHaveBeenCalledWith("ORD_DOC");
-    // Zoho failure NEVER blocks the response — caller still gets 200.
     expect(result).toBeInstanceOf(Response);
     const body = await (result as Response).json();
     expect(body.success).toBe(true);
   });
 
-  it("hosting cart item: enriches name via getPlanByPlanId (best-effort, swallow plan errors)", async () => {
-    claimOrder.mockResolvedValueOnce({ _id: "ORD_DOC" });
-    createInvoice.mockResolvedValueOnce({
-      invoice_id: "X",
-      invoice_number: "Y",
-    });
+  it("hosting cart item: enriches name via getPlanByPlanId (best-effort, swallow plan errors) BEFORE calling createPrimaryInvoice", async () => {
     getPlanByPlanId.mockResolvedValueOnce({ name: "Pretty Plan Name" });
     const hostingOrder = {
       ...ORDER_NO_INVOICE,
@@ -298,5 +284,7 @@ describe("handleAlreadyProcessedPayment — Zoho recovery branch", () => {
       makeCtx({ existingOrder: hostingOrder })
     );
     expect(getPlanByPlanId).toHaveBeenCalledWith("starter");
+    const { cartItems } = createPrimaryInvoice.mock.calls[0][0];
+    expect(cartItems[0].hostingPlan.name).toBe("Pretty Plan Name");
   });
 });

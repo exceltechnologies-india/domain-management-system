@@ -90,13 +90,26 @@ describe("createZohoInvoice — happy path", () => {
       invoice_number: "INV-001",
     });
     const result = await createZohoInvoice(ZOHO_CTX);
-    expect(claimOrder).toHaveBeenCalledWith("ORDER_DOC_ID");
+    // Second arg is claimOptions, forwarded from options.claimOptions
+    // (Phase 1c-2) — undefined here since no options were passed.
+    expect(claimOrder).toHaveBeenCalledWith("ORDER_DOC_ID", undefined);
     expect(createInvoice).toHaveBeenCalled();
     expect(recordInvoice).toHaveBeenCalledWith("ORDER_DOC_ID", {
       invoiceId: "INV_1",
       invoiceNumber: "INV-001",
     });
     expect(result).toEqual({ invoiceId: "INV_1", invoiceNumber: "INV-001" });
+  });
+
+  it("options.claimOptions is forwarded to claimOrderForZohoInvoice (Phase 1c-2 recovery-path support)", async () => {
+    claimOrder.mockResolvedValueOnce({ _id: "ORDER_DOC_ID" });
+    createInvoice.mockResolvedValueOnce({ invoice_id: "INV_1" });
+    await createZohoInvoice(ZOHO_CTX, {
+      claimOptions: { staleClaimAfterMs: 5 * 60 * 1000 },
+    });
+    expect(claimOrder).toHaveBeenCalledWith("ORDER_DOC_ID", {
+      staleClaimAfterMs: 5 * 60 * 1000,
+    });
   });
 
   it("cartItems are mapped through inferPeriodUnit before going to Zoho", async () => {
