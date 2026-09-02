@@ -77,7 +77,7 @@ large resellers.)
 FIRST; sub-reselling is a post-launch revenue feature (Phases 2–5 are weeks of work). Phase 1 was built
 now because it's fully additive/flag-gated and doesn't touch the go-live path.
 
-### 🆕 Primary Billing Integration — our own GST tax-invoice engine, Zoho as fallback (Phase 1a code-complete 2026-09-02; branch-only, not merged)
+### 🆕 Primary Billing Integration — our own GST tax-invoice engine, Zoho as fallback (Phase 1b code-complete 2026-09-02; branch-only, not merged)
 
 **What it is:** ported the invoicing *concept* (not the code — anutechbilling is Postgres/Supabase RLS,
 we're MongoDB) from a sibling Anutech app, `anutechbilling` (ResellerOS), so we stop depending on Zoho
@@ -101,12 +101,8 @@ explicitly approved for merge, existing Zoho flow is untouched until the Phase 1
   `placeOfSupply`, `customerGstin`) — no existing field's behavior changed, nothing wired into any live
   payment path yet. 42 new tests (38 unit + 4 integration incl. a concurrent-allocation race test against
   a real in-memory MongoDB); `tsc --noEmit` clean.
-- [ ] **Phase 1b — real tax-invoice PDF.** Upgrade the existing jsPDF generator
-  (`app/api/admin/orders/[id]/invoice/route.ts` `generateCustomPdf`) to render an actual GST breakdown
-  (currently shows one flat total, no CGST/SGST/IGST lines) and label itself "Tax Invoice" instead of
-  "Proforma Invoice" for `invoiceProvider === 'primary'` orders; also close the gap where
-  `app/api/user/invoices/[id]/pdf/route.ts` has no local-PDF fallback at all today (a Zoho outage = the
-  customer's own PDF download 500s).
+- [x] **Phase 1b — real tax-invoice PDF.** ✅ code-complete 2026-09-02 (branch-only). See "PRIMARY-BILLING
+  Phase 1b" under Recently Shipped for the full breakdown.
 - [ ] **Phase 1c — chokepoint + live wiring (the risky step, behind `PRIMARY_BILLING_ENABLED`).** New
   `lib/services/billing/createPrimaryInvoice.ts`: try our engine, fall back to the existing
   `createZohoInvoice` (`lib/services/payment/post-tasks.ts`) on any thrown error. Redirect the real call
@@ -244,6 +240,21 @@ Operator wants the app rebranded to the official **Anutech Digital** logo + favi
 - [x] **~~Hosting provisioning blocked by DirectAdmin license cap — operator action needed (2-of-2 user-account quota reached on the DA server)~~** — ✅ RESOLVED on 2026-06-22 by switching to a fresh DirectAdmin server entirely (see the "DA server switch" Recently-Shipped entry below for the secrets rotation + verification chain). Original investigation summary preserved verbatim for the audit trail: every hosting-checkout the senior reviewer placed today was failing with the generic "Hosting provisioning failed. Our team has been notified..." red banner. We finally surfaced the actual reason via the diagnostic chain shipped in `dms-00194-mlz` + `dms-00195-wsk`: the DirectAdmin server at `server-136-115-64-54.da.direct:2222` returned **"Cannot Execute Your Request - License is limited to 2 accounts, and you currently have 2"** on every `create-user` API call. The DA admin panel was healthy and reachable; our code was sending well-formed `create-user` requests with the correct linkedDomain (the `dms-00191-wgk` inference patch landed and works end-to-end); the IP whitelisting was intact (per the 4-layer DA whitelist auto-memory note). The blocker was purely the **DA license tier** — the original license allowed up to 2 user accounts, and there were already 2 existing accounts on the server. No code fix could have bypassed it; rather than upgrade the old server's license, the operator switched to a new DA server entirely with higher capacity. The 3 DA secrets (URL / ADMIN_USER / API_KEY) were rotated in Google Secret Manager, the service redeployed, and the next test checkout reached the new server cleanly (confirming whitelist + auth work). The next-layer error there (package-name mismatch) is now flagged as the new In-Flight item above. **Still owed by Claude after the new-DA package-name issue resolves**: backfill `linkedDomain` on the 4 stuck orders so admin Re-sync can retry them on the new server — each has a paid Razorpay transaction + a working Zoho invoice + just-needs-DA-provisioning to complete.
 
 ## Recently Shipped — user-visible improvements
+
+- [x] **PRIMARY-BILLING Phase 1b — real GST tax-invoice PDF + closed the user-PDF no-fallback gap (branch `primary-billing-integration`, NOT merged/deployed)** — Second slice of the Primary Billing Integration (roadmap above). Still zero visible behavior change for any existing order — the new "Tax Invoice" rendering path only activates for `invoiceProvider === 'primary'` orders, none of which exist yet (Phase 1c hasn't wired live creation).
+
+  **What was built:**
+  1. **`lib/billing/pdf.ts`** — new single `generateInvoicePdf()`, replacing three near-duplicate ~180-line `generateCustomPdf` copies that had drifted slightly out of sync (`app/api/admin/orders/[id]/invoice/route.ts`, `app/api/orders/[id]/invoice/route.ts`, and a third that would have been copy-pasted into the fallback below). Company name/GSTIN now come from `lib/billing/companyProfile.ts` instead of a literal string repeated in each file.
+  2. **Tax Invoice rendering** — when `order.invoiceProvider === 'primary'` AND a GST breakdown is present (`taxableValue` set), the PDF titles itself "Tax Invoice" (not "Proforma Invoice") and renders Taxable Value + CGST/SGST (or IGST) lines above the total, using the Phase 1a fields. A `primary`-flagged order with no breakdown (half-populated / bug guard) falls back to the existing Proforma rendering rather than claiming to be a tax document it can't back up.
+  3. **Closed the fallback gap** — `app/api/user/invoices/[id]/pdf/route.ts` previously had NO local-PDF fallback: a Zoho `getInvoicePdf` failure was a bare 500 on the customer's own invoice download. It now falls back to `generateInvoicePdf` (Proforma copy, since this route is always Zoho-issued — it's looked up by `zohoInvoiceId`) matching the resilience the admin and legacy user routes already had. Required widening `findOrderByZohoInvoiceForUser` from a `{select:'_id'}` minimal projection to the full order doc (the fallback needs `domains`/`amount`/etc).
+  4. **`lib/billing/companyProfile.ts` fix** — `state` no longer throws when `ZOHO_ORG_STATE` is unset (a bug caught by the pre-existing route tests, which don't stub that env var): a missing state must not break PDF *rendering* on the very fallback path that exists to survive misconfiguration. Actual GST math (Phase 1c) will validate state explicitly before computing a tax split — failing loud belongs at calculation time, not display time.
+
+  **How it was verified:**
+  1. New `tests/unit/lib/billing/pdf.test.ts` (7 tests) — Proforma filename/title unchanged, Tax Invoice filename/title for a primary order, inter-state IGST-only rendering, and the half-populated-order fallback guard.
+  2. Updated the 3 existing route test suites for the two intentional behavior changes (full-doc projection instead of `{select:'_id'}`; Zoho-null-buffer now returns 200 with a proforma PDF instead of 500) — all previously-pinned assertions for unchanged behavior still pass untouched.
+  3. Full sweep: **unit 6203/6203** (422 files, +19 from this + Phase 1a), **integration 173/1-skip** (+4), `tsc --noEmit` clean, `eslint` clean on all changed files.
+
+  **Not done yet:** no live wiring, no `PRIMARY_BILLING_ENABLED` flag yet (Phase 1c) — this batch stays invisible until then.
 
 - [x] **PRIMARY-BILLING Phase 1a — GST tax engine + atomic invoice numbering (branch `primary-billing-integration`, NOT merged/deployed)** — First slice of porting anutechbilling's invoicing concept into our own MongoDB-based engine (roadmap in the "🆕 Primary Billing Integration" block above). Purely additive: no existing behavior changed, nothing wired into a live payment path.
 

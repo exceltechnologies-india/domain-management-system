@@ -13,16 +13,20 @@
  *    written by the invoice-creation flow when Zoho is unreachable;
  *    they're NOT real Zoho invoice IDs, so the route refuses to
  *    even try the Zoho call.
- *  - **IDOR via findOrderByZohoInvoiceForUser(user._id, id,
- *    {select:'_id'})** — Mongo lookup runs BEFORE the Zoho call
- *    (anti-Zoho-enumeration; saves a Zoho round-trip on bad IDs);
- *    field allow-list `select:'_id'` pinned (minimal projection —
- *    no order data needed for this gate)
+ *  - **IDOR via findOrderByZohoInvoiceForUser(user._id, id)** — Mongo
+ *    lookup runs BEFORE the Zoho call (anti-Zoho-enumeration; saves
+ *    a Zoho round-trip on bad IDs). Fetches the FULL order (no
+ *    `select` projection) — needed by the local-PDF fallback below,
+ *    which can't render a proforma copy from just an `_id`.
  *  - Non-owner → **403 'Forbidden: You do not have access to this
  *    invoice'** (NOT 404 — distinct from sentinel-id 404 because
  *    here the invoice DOES exist; the user just doesn't own it,
  *    and the security-warn log records the attempt)
- *  - Zoho null buffer → 500 'Failed to generate PDF'
+ *  - Zoho null buffer → falls back to `generateInvoicePdf` (local
+ *    jsPDF proforma copy) instead of a bare 500 — this order was
+ *    looked up BY zohoInvoiceId, so it's necessarily Zoho-issued;
+ *    the fallback always renders "Proforma Invoice", never "Tax
+ *    Invoice"
  *  - **Binary PDF response with INLINE disposition** (NOT
  *    attachment): Content-Type application/pdf; Content-Disposition
  *    `inline; filename="Invoice-${id}.pdf"`. Inline = render in
@@ -137,13 +141,12 @@ describe("Sentinel-id guard", () => {
 });
 
 describe("IDOR via MongoDB before Zoho", () => {
-  it("findOrderByZohoInvoiceForUser called with (user._id, id, {select:'_id'}) — minimal projection pinned", async () => {
+  it("findOrderByZohoInvoiceForUser called with (user._id, id) — full doc, no projection", async () => {
     findOrderByZohoInvoiceForUser.mockResolvedValueOnce(null);
     await GET(makeReq(), paramsOf("INV-OTHER-USER"));
     expect(findOrderByZohoInvoiceForUser).toHaveBeenCalledWith(
       "U1",
-      "INV-OTHER-USER",
-      { select: "_id" }
+      "INV-OTHER-USER"
     );
   });
 
@@ -166,13 +169,22 @@ describe("Zoho PDF fetch", () => {
     expect(getInvoicePdf).toHaveBeenCalledWith("INV-CUSTOMER-A");
   });
 
-  it("null buffer → 500 'Failed to generate PDF'", async () => {
-    findOrderByZohoInvoiceForUser.mockResolvedValueOnce({ _id: "O1" });
+  it("null buffer → falls back to a local proforma PDF (200, NOT 500)", async () => {
+    findOrderByZohoInvoiceForUser.mockResolvedValueOnce({
+      _id: "O1",
+      orderId: "ORD-1",
+      invoiceNumber: "INV-000001",
+      currency: "INR",
+      amount: 1180,
+      createdAt: new Date("2026-01-01"),
+      domains: [],
+    });
     getInvoicePdf.mockResolvedValueOnce(null);
     const res = await GET(makeReq(), paramsOf("INV-1"));
-    expect(res.status).toBe(500);
-    const body = await res.json();
-    expect(body.error).toBe("Failed to generate PDF");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("application/pdf");
+    const buf = Buffer.from(await res.arrayBuffer());
+    expect(buf.slice(0, 5).toString()).toBe("%PDF-");
   });
 });
 

@@ -4,6 +4,7 @@ import { ZohoBooksService } from "@/lib/zohobooks";
 import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { serverLogger } from "@/lib/server-logger";
 import { findOrderByZohoInvoiceForUser } from "@/lib/services/orders";
+import { generateInvoicePdf } from "@/lib/billing/pdf";
 
 // Force dynamic rendering
 export const dynamic = "force-dynamic";
@@ -35,8 +36,9 @@ export async function GET(
       return NextResponse.json({ error: "Invoice not available" }, { status: 404 });
     }
 
-    // Security check: verify ownership via MongoDB — avoids 2 round-trips to Zoho
-    const order = await findOrderByZohoInvoiceForUser(user._id, id, { select: "_id" });
+    // Full doc (not just _id) — the local-PDF fallback below needs domains/
+    // amount/currency/etc if Zoho's own PDF fetch fails.
+    const order = await findOrderByZohoInvoiceForUser(user._id, id);
     if (!order) {
       serverLogger.warn(`[Security] Unauthorized PDF access attempt by ${user.email} for invoice ${id}`);
       return NextResponse.json(
@@ -49,7 +51,13 @@ export async function GET(
     const pdfBuffer = await zohoService.getInvoicePdf(id);
 
     if (!pdfBuffer) {
-      return NextResponse.json({ error: "Failed to generate PDF" }, { status: 500 });
+      // Zoho is down/misconfigured — don't leave the customer with a bare
+      // 500 on their own invoice download. This order is necessarily
+      // Zoho-issued (it's looked up BY zohoInvoiceId), so the fallback
+      // renders as a Proforma copy, not a Tax Invoice.
+      return generateInvoicePdf(order, user, {
+        message: "System is syncing your invoice. This is a proforma copy.",
+      });
     }
 
     return new NextResponse(pdfBuffer, {
