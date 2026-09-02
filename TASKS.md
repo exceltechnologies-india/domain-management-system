@@ -285,6 +285,8 @@ Operator wants the app rebranded to the official **Anutech Digital** logo + favi
 
   **Takeaway worth keeping:** unit tests, integration tests, `tsc`, lint and a green build all passed on this code before this session — every one of these three bugs lived in the seams *between* components, and only a full journey test surfaced them.
 
+  **The harness is now permanent** (operator-requested): `tests/integration/e2e/purchase-to-invoice.test.ts`, 9 tests covering the whole chain — register → create-order → HMAC-signed webhook → real provisioning → completed order → issued bill → customer list + PDF download, plus the intra/inter-state GST split, bundle carts, duplicate webhook delivery, sequential numbering, the stuck-order exclusion, and the Zoho fallback. It boots its own `MongoMemoryReplSet` (the shared setup's standalone mongod can't run the transaction `finalizePendingOrder` needs) and mocks only external SaaS. Cost turned out to be far lower than the ~10s estimated: the replset boots in parallel with the other files, so the whole integration suite still finishes in **~6s** (181 → 190 tests). Verified stable over three consecutive runs. **If you change anything in the purchase→invoice chain, this is the test that tells you whether a real customer still gets a correct bill.**
+
 - [x] **PRIMARY-BILLING Phase 2 — renewal-payment dunning for abandoned checkouts (branch `primary-billing-integration`, NOT merged/deployed)** — Sixth slice of the Primary Billing Integration and the last item on the current roadmap. Independent of `PRIMARY_BILLING_ENABLED` (plain reminder emails, not invoicing) but dormant until the new cron is wired up in Cloud Scheduler — an operator-side step, not yet done.
 
   **What was built:**
