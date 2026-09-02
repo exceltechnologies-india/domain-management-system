@@ -77,7 +77,7 @@ large resellers.)
 FIRST; sub-reselling is a post-launch revenue feature (Phases 2–5 are weeks of work). Phase 1 was built
 now because it's fully additive/flag-gated and doesn't touch the go-live path.
 
-### 🆕 Primary Billing Integration — our own GST tax-invoice engine, Zoho as fallback (Phase 1c-2 code-complete 2026-09-02; branch-only, not merged; flag OFF)
+### 🆕 Primary Billing Integration — our own GST tax-invoice engine, Zoho as fallback (Phase 1c-3 code-complete 2026-09-02; branch-only, not merged; flag OFF)
 
 **What it is:** ported the invoicing *concept* (not the code — anutechbilling is Postgres/Supabase RLS,
 we're MongoDB) from a sibling Anutech app, `anutechbilling` (ResellerOS), so we stop depending on Zoho
@@ -115,15 +115,23 @@ explicitly approved for merge, existing Zoho flow is untouched until the Phase 1
      `paymentDetails.notes.invoice_id` is already known) — this only ever fires for a Zoho-issued invoice
      id in the first place (nothing today mints a primary invoice ahead of payment), so it's correctly
      Zoho-only, not an oversight.
-  2. **`app/razorpay/webhook/route.ts`'s inline `payment.captured` handler** — genuinely deferred, not
-     just unfinished. That handler mutates an in-memory pre-transaction order object and only persists via
-     `finalizePendingOrder`'s later DB transaction; `createPrimaryInvoice`'s primary-engine path writes
-     immediately via `Order.updateOne` (claim-now-persist-now). Wiring it as-is risks a race between the
-     immediate write and the pending transaction. Needs its own design (likely: defer the primary attempt
-     until after the transaction commits, or extend the transaction to cover it) — tracked as Phase 1c-3.
-  Until Phase 1c-3 lands, enabling `PRIMARY_BILLING_ENABLED=true` covers new-order checkout AND renewals/
-  recovery, but the webhook's own payment.captured path still ALWAYS uses Zoho for that specific race.
-- [ ] **Phase 1c-3 — webhook wiring**, needs the transaction-timing design above before any code changes.
+  2. **`app/razorpay/webhook/route.ts`'s inline `payment.captured` handler** — was deferred here pending a
+     transaction-timing design question, since flagged as **resolved, not a real conflict** (see Phase
+     1c-3 below): the handler is now wired too.
+- [x] **Phase 1c-3 — webhook wiring.** ✅ code-complete 2026-09-02 (branch-only, flag OFF). The
+  transaction-timing concern raised in Phase 1c-2 turned out to be unfounded once `finalizePendingOrder`'s
+  actual persistence was read closely: it calls `order.save({session})` inside its transaction, and
+  Mongoose's `.save()` only sends `{$set}` for paths MODIFIED on the in-memory document (confirmed by that
+  function's own comment: "save() emits only the status transition... plus the Payment row"). Since
+  `createPrimaryInvoice`'s immediate `Order.updateOne` writes fields (`invoiceProvider`/`gstRate`/etc. or
+  `zohoInvoiceId`) that are never touched on the in-memory `claimed` object, the later transactional save
+  can't clobber them — no race exists. Combined with `claimPendingOrderForProcessing` already giving the
+  webhook exclusive ownership of the order before this code runs, it's safe to call the same
+  `createPrimaryInvoice` chokepoint here as everywhere else. See "PRIMARY-BILLING Phase 1c-3" under
+  Recently Shipped for the full breakdown. **All four Zoho-invoice-creation call sites now go through
+  `createPrimaryInvoice`** — new-order checkout (both verify routes), renewal creation, duplicate-verify
+  recovery, and the webhook's payment.captured handler. The only remaining Zoho-direct call site is
+  `renewal.ts`'s pay-existing-invoice branch, which is correctly Zoho-only (see above, not a gap).
 - [ ] **Phase 2 — renewal-reminder cadence + invoice dunning**, scoped down from anutechbilling's
   quote-before-payment model to fit ours (payment-first via Razorpay one-shot checkout): mostly rides the
   *existing* hosting-expiry reminder cadence (`config/automation.ts` `REMINDER_DAYS`,
@@ -254,6 +262,18 @@ Operator wants the app rebranded to the official **Anutech Digital** logo + favi
 - [x] **~~Hosting provisioning blocked by DirectAdmin license cap — operator action needed (2-of-2 user-account quota reached on the DA server)~~** — ✅ RESOLVED on 2026-06-22 by switching to a fresh DirectAdmin server entirely (see the "DA server switch" Recently-Shipped entry below for the secrets rotation + verification chain). Original investigation summary preserved verbatim for the audit trail: every hosting-checkout the senior reviewer placed today was failing with the generic "Hosting provisioning failed. Our team has been notified..." red banner. We finally surfaced the actual reason via the diagnostic chain shipped in `dms-00194-mlz` + `dms-00195-wsk`: the DirectAdmin server at `server-136-115-64-54.da.direct:2222` returned **"Cannot Execute Your Request - License is limited to 2 accounts, and you currently have 2"** on every `create-user` API call. The DA admin panel was healthy and reachable; our code was sending well-formed `create-user` requests with the correct linkedDomain (the `dms-00191-wgk` inference patch landed and works end-to-end); the IP whitelisting was intact (per the 4-layer DA whitelist auto-memory note). The blocker was purely the **DA license tier** — the original license allowed up to 2 user accounts, and there were already 2 existing accounts on the server. No code fix could have bypassed it; rather than upgrade the old server's license, the operator switched to a new DA server entirely with higher capacity. The 3 DA secrets (URL / ADMIN_USER / API_KEY) were rotated in Google Secret Manager, the service redeployed, and the next test checkout reached the new server cleanly (confirming whitelist + auth work). The next-layer error there (package-name mismatch) is now flagged as the new In-Flight item above. **Still owed by Claude after the new-DA package-name issue resolves**: backfill `linkedDomain` on the 4 stuck orders so admin Re-sync can retry them on the new server — each has a paid Razorpay transaction + a working Zoho invoice + just-needs-DA-provisioning to complete.
 
 ## Recently Shipped — user-visible improvements
+
+- [x] **PRIMARY-BILLING Phase 1c-3 — webhook wiring, ALL invoice-creation call sites now flag-aware, flag still OFF (branch `primary-billing-integration`, NOT merged/deployed)** — Fifth and final slice of Phase 1. Still zero visible behavior change today — this batch closes the last gap in WHICH call sites are flag-aware; the flag's default (OFF) is untouched.
+
+  **What was built:**
+  1. **Corrected the Phase 1c-2 deferral.** That batch left the webhook's `payment.captured` handler on Zoho-only, citing a suspected race between `createPrimaryInvoice`'s immediate `Order.updateOne` writes and `finalizePendingOrder`'s later transactional `order.save()`. Reading `finalizePendingOrder`'s actual source (and its own comment: *"save() emits only the status transition... plus the Payment row"*) confirmed Mongoose's `.save()` only sends `$set` for paths MODIFIED on the in-memory document — fields written by a separate targeted `updateOne` that were never touched on the in-memory `claimed` object can't be clobbered by it. No race exists. Combined with `claimPendingOrderForProcessing` already giving the webhook exclusive ownership of the order before this code runs, wiring it through the same chokepoint as every other call site is safe.
+  2. **`app/razorpay/webhook/route.ts`** — the inline `zohoService.createInvoice` call in `handlePaymentCaptured` is replaced with `createPrimaryInvoice`. Two behavior simplifications: (a) the old code stamped `claimed.zohoInvoiceId`/`invoiceNumber` in-memory for `finalizePendingOrder`'s later save to pick up — no longer needed, since the chokepoint persists directly; (b) the old `!claimed.zohoInvoiceId` outer guard is removed — redundant, since `claimOrderForZohoInvoice`/`claimOrderForPrimaryInvoice`'s own atomic claim query already no-ops on an order that already has an invoice. On a terminal failure (both engines down), the handler now calls `forceMarkZohoCreationFailed` directly (previously this was implicit via the in-memory-stamp-then-save pattern).
+
+  **How it was verified:**
+  1. Rewrote the "inline Zoho invoice creation" describe block in `tests/unit/app/razorpay/webhook/route.test.ts` (renamed to reflect the new chokepoint) — pins the context shape passed to `createPrimaryInvoice`, the zero-amount/trial skip, the terminal-failure path calling `forceMarkZohoCreationFailed` with provisioning still proceeding, and the success path. All 50 tests in the file pass, most unaffected since they don't touch invoice creation.
+  2. Full sweep: **unit 6227/6227** (424 files, unchanged count — tests rewritten in place, not net-added this batch), **integration 180/1-skip** (unchanged), `tsc --noEmit` clean, `eslint` clean, **production build 75/75 pages**.
+
+  **This closes Phase 1.** Every invoice-creation call site in the app (`/api/payments/verify`, `/api/payments/guest/verify`, `renewal.ts`'s create-branch, `idempotency.ts`'s recovery path, and the webhook's `payment.captured` handler) now routes through `createPrimaryInvoice`, flag-gated OFF by default. Next up per the roadmap: Phase 2 (renewal cadence + invoice dunning), sequenced after this phase is reviewed and the flag is deliberately flipped in production.
 
 - [x] **PRIMARY-BILLING Phase 1c-2 — extended the chokepoint to renewals + verify-call recovery, flag still OFF (branch `primary-billing-integration`, NOT merged/deployed)** — Fourth slice of the Primary Billing Integration. Still zero visible behavior change today; extends WHICH call sites are flag-aware, doesn't touch the flag's default.
 

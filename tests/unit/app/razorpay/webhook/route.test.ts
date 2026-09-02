@@ -65,15 +65,27 @@ vi.mock("@/lib/services/users", () => ({ getUserById }));
 const claimPendingOrderForProcessing = vi.hoisted(() => vi.fn());
 const findOrderByRazorpayOrderIdOrInternalId = vi.hoisted(() => vi.fn());
 const getOrderByRazorpayPaymentId = vi.hoisted(() => vi.fn());
+const forceMarkZohoCreationFailed = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/orders", () => ({
   claimPendingOrderForProcessing,
   findOrderByRazorpayOrderIdOrInternalId,
   getOrderByRazorpayPaymentId,
+  forceMarkZohoCreationFailed,
 }));
 
 const finalizePendingOrder = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/payment/order-creator", () => ({
   finalizePendingOrder,
+}));
+
+// createPrimaryInvoice is the chokepoint the webhook now delegates invoice
+// creation to (Primary Billing Integration Phase 1c-3) — its own claim/
+// retry/fallback-to-Zoho decision logic is covered by
+// createPrimaryInvoice.test.ts; this suite only pins that the webhook calls
+// it correctly and reacts correctly to success/failure.
+const createPrimaryInvoice = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/services/billing/createPrimaryInvoice", () => ({
+  createPrimaryInvoice,
 }));
 
 const refundPayment = vi.hoisted(() => vi.fn());
@@ -227,7 +239,9 @@ beforeEach(() => {
   claimPendingOrderForProcessing.mockReset();
   findOrderByRazorpayOrderIdOrInternalId.mockReset();
   getOrderByRazorpayPaymentId.mockReset();
+  forceMarkZohoCreationFailed.mockReset();
   finalizePendingOrder.mockReset();
+  createPrimaryInvoice.mockReset();
   zohoCreateInvoice.mockReset();
   zohoCreateCreditNote.mockReset();
   zohoGetContactByEmail.mockReset();
@@ -508,10 +522,11 @@ describe("payment.captured — user-not-found is fatal (Razorpay retries)", () =
 });
 
 // ═══════════════════════════════════════════════════════════════════
-// payment.captured — inline Zoho invoice creation
+// payment.captured — invoice creation via createPrimaryInvoice
+// (Primary Billing Integration Phase 1c-3)
 // ═══════════════════════════════════════════════════════════════════
-describe("payment.captured — inline Zoho invoice creation", () => {
-  function setupReadyForZoho(claimedOver: Partial<FakeOrder> = {}) {
+describe("payment.captured — invoice creation via createPrimaryInvoice", () => {
+  function setupReadyForInvoice(claimedOver: Partial<FakeOrder> = {}) {
     const order = makeOrder({ status: "pending" });
     const claimed = { ...makeOrder({ status: "processing" }), ...claimedOver };
     findOrderByRazorpayOrderIdOrInternalId.mockResolvedValueOnce(order);
@@ -525,60 +540,53 @@ describe("payment.captured — inline Zoho invoice creation", () => {
     return claimed;
   }
 
-  it("claimed.zohoInvoiceId NOT set → calls createInvoice with order/user/items shape", async () => {
-    const claimed = setupReadyForZoho({ zohoInvoiceId: undefined });
-    zohoCreateInvoice.mockResolvedValueOnce({
-      invoice_id: "ZINV-7",
-      invoice_number: "INV/2026/7",
-    });
+  it("calls createPrimaryInvoice with order/orderId/razorpay_payment_id/paymentDetails/user/cartItems", async () => {
+    const claimed = setupReadyForInvoice();
+    createPrimaryInvoice.mockResolvedValueOnce({ invoiceId: "TI-1", invoiceNumber: "TI/2026-27/00001" });
     await POST(makeReq({ body: paymentCapturedPayload({ paymentId: "pay_Z", amount: 118000 }) }));
-    expect(zohoCreateInvoice).toHaveBeenCalledTimes(1);
-    expect(claimed.zohoInvoiceId).toBe("ZINV-7");
-    expect(claimed.invoiceNumber).toBe("INV/2026/7");
-  });
-
-  it("createInvoice args: {orderId, razorpayPaymentId, total} + user + items[]", async () => {
-    setupReadyForZoho({ zohoInvoiceId: undefined });
-    zohoCreateInvoice.mockResolvedValueOnce({
-      invoice_id: "ZINV-7",
-      invoice_number: "INV/2026/7",
-    });
-    await POST(makeReq({ body: paymentCapturedPayload({ paymentId: "pay_Z", amount: 118000 }) }));
-    expect(zohoCreateInvoice).toHaveBeenCalledWith(
-      expect.objectContaining({
-        orderId: "ORD-1",
-        razorpayPaymentId: "pay_Z",
-        total: 118000,
-      }),
-      expect.objectContaining({ email: "u@x.com" }),
-      expect.arrayContaining([
-        expect.objectContaining({ domainName: "alice.com", price: 1000 }),
-      ])
+    expect(createPrimaryInvoice).toHaveBeenCalledTimes(1);
+    const ctx = createPrimaryInvoice.mock.calls[0][0];
+    expect(ctx.order).toBe(claimed);
+    expect(ctx.orderId).toBe("ORD-1");
+    expect(ctx.razorpay_payment_id).toBe("pay_Z");
+    expect(ctx.paymentDetails).toEqual(
+      expect.objectContaining({ id: "pay_Z", amount: 118000, status: "captured" })
+    );
+    expect(ctx.user).toEqual(expect.objectContaining({ email: "u@x.com" }));
+    expect(ctx.cartItems).toEqual(
+      expect.arrayContaining([expect.objectContaining({ domainName: "alice.com", price: 1000 })])
     );
   });
 
-  it("claimed.zohoInvoiceId ALREADY set → Zoho NOT called (idempotent)", async () => {
-    setupReadyForZoho({ zohoInvoiceId: "ZINV-OLD" });
-    await POST(makeReq({ body: paymentCapturedPayload() }));
-    expect(zohoCreateInvoice).not.toHaveBeenCalled();
-    expect(zohoGetInstance).not.toHaveBeenCalled();
-  });
-
-  it("createInvoice throws → SWALLOWED; zohoInvoiceId='creation_failed' sentinel; provisioning STILL runs", async () => {
-    const claimed = setupReadyForZoho({ zohoInvoiceId: undefined });
-    zohoCreateInvoice.mockRejectedValueOnce(new Error("Zoho 401"));
+  it("zero-amount order → createPrimaryInvoice NOT called; provisioning still runs", async () => {
+    setupReadyForInvoice({ amount: 0 });
     const res = await POST(makeReq({ body: paymentCapturedPayload() }));
     expect(res.status).toBe(200);
-    expect(claimed.zohoInvoiceId).toBe("creation_failed");
+    expect(createPrimaryInvoice).not.toHaveBeenCalled();
     expect(finalizePendingOrder).toHaveBeenCalled();
   });
 
-  it("createInvoice returns null/no-id → SWALLOWED; sentinel set; provisioning still runs", async () => {
-    const claimed = setupReadyForZoho({ zohoInvoiceId: undefined });
-    zohoCreateInvoice.mockResolvedValueOnce(null);
+  it("orderType='hosting_trial' → createPrimaryInvoice NOT called", async () => {
+    setupReadyForInvoice({ orderType: "hosting_trial" });
+    await POST(makeReq({ body: paymentCapturedPayload() }));
+    expect(createPrimaryInvoice).not.toHaveBeenCalled();
+  });
+
+  it("createPrimaryInvoice throws (both engines failed) → SWALLOWED; forceMarkZohoCreationFailed called; provisioning STILL runs", async () => {
+    setupReadyForInvoice();
+    createPrimaryInvoice.mockRejectedValueOnce(new Error("both engines down"));
     const res = await POST(makeReq({ body: paymentCapturedPayload() }));
     expect(res.status).toBe(200);
-    expect(claimed.zohoInvoiceId).toBe("creation_failed");
+    expect(forceMarkZohoCreationFailed).toHaveBeenCalledTimes(1);
+    expect(finalizePendingOrder).toHaveBeenCalled();
+  });
+
+  it("createPrimaryInvoice success → NO forceMarkZohoCreationFailed call; provisioning runs", async () => {
+    setupReadyForInvoice();
+    createPrimaryInvoice.mockResolvedValueOnce({ invoiceId: "TI-1", invoiceNumber: "TI/2026-27/00001" });
+    const res = await POST(makeReq({ body: paymentCapturedPayload() }));
+    expect(res.status).toBe(200);
+    expect(forceMarkZohoCreationFailed).not.toHaveBeenCalled();
     expect(finalizePendingOrder).toHaveBeenCalled();
   });
 });
