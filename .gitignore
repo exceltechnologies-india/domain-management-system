@@ -64,3 +64,4 @@ logs/
 # One-off migration state snapshots (e.g. pre-cutover Razorpay plan IDs).
 # These are recovery artefacts — kept on the operator's machine, not in git.
 scripts/*-backup-*.json
+.playwright-cli/

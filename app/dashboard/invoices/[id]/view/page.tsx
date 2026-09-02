@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, use } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { ArrowLeft, Download, FileText, Loader2, ExternalLink, RefreshCw } from 'lucide-react';
 import UserLayout from '@/components/user/UserLayout';
@@ -19,6 +19,14 @@ interface User {
 
 export default function ViewInvoicePage({ params }: { params: Promise<{ id: string }> }) {
   const { id: invoiceId } = use(params);
+  // `?src=order` means the id in the path is an Order id, not a Zoho invoice
+  // id — that's how a primary-engine (own GST engine) invoice is addressed,
+  // since it has no Zoho id at all. The invoices list sets this.
+  const searchParams = useSearchParams();
+  const pdfEndpoint =
+    searchParams.get('src') === 'order'
+      ? `/api/v1/orders/${invoiceId}/invoice`
+      : `/api/v1/user/invoices/${invoiceId}/pdf`;
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -61,7 +69,7 @@ export default function ViewInvoicePage({ params }: { params: Promise<{ id: stri
       setIsLoadingPdf(true);
       setPdfError(null);
       try {
-        const res = await fetch(`/api/v1/user/invoices/${invoiceId}/pdf`, { credentials: 'include' });
+        const res = await fetch(pdfEndpoint, { credentials: 'include' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const blob = await res.blob();
         if (cancelled) return;
@@ -84,7 +92,7 @@ export default function ViewInvoicePage({ params }: { params: Promise<{ id: stri
         blobUrlRef.current = null;
       }
     };
-  }, [user, invoiceId]);
+  }, [user, invoiceId, pdfEndpoint]);
 
   const handleDownload = async () => {
     try {
@@ -101,7 +109,7 @@ export default function ViewInvoicePage({ params }: { params: Promise<{ id: stri
         return;
       }
       // Fallback: fetch fresh
-      const response = await fetch(`/api/v1/user/invoices/${invoiceId}/pdf`, { credentials: 'include' });
+      const response = await fetch(pdfEndpoint, { credentials: 'include' });
       if (!response.ok) { showErrorToast('Failed to download invoice'); return; }
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -134,7 +142,7 @@ export default function ViewInvoicePage({ params }: { params: Promise<{ id: stri
     // Re-trigger effect by bumping a counter would be cleaner, but simply
     // re-fetching here is fine since user is already set.
     setIsLoadingPdf(true);
-    fetch(`/api/v1/user/invoices/${invoiceId}/pdf`, { credentials: 'include' })
+    fetch(pdfEndpoint, { credentials: 'include' })
       .then(r => { if (!r.ok) throw new Error(); return r.blob(); })
       .then(blob => {
         const url = URL.createObjectURL(blob);

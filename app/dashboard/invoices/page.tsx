@@ -32,6 +32,14 @@ interface Invoice {
   invoice_url?: string;
   created_time?: string;
   zoho_pending?: boolean;
+  /**
+   * Which engine issued the invoice. A 'primary' (own GST engine) invoice has
+   * NO `invoice_id` — that field only ever holds a Zoho id — so every action
+   * below must key off `order_id` instead for those rows. Without this the
+   * customer sees a paid invoice with no view/download action at all.
+   */
+  provider?: 'primary' | 'zoho';
+  order_id?: string;
 }
 
 export default function InvoicesPage() {
@@ -154,10 +162,20 @@ export default function InvoicesPage() {
     setIsSyncing(false);
   };
 
-  const handleDownload = async (invoiceId: string, invoiceNumber: string) => {
+  const handleDownload = async (
+    invoiceId: string,
+    invoiceNumber: string,
+    // Primary-engine invoices have no Zoho id, so their PDF is served by the
+    // orderId-keyed route instead of the zohoInvoiceId-keyed one.
+    fromOrder = false
+  ) => {
     try {
       setDownloadingId(invoiceId);
-      const response = await fetch(`/api/v1/user/invoices/${invoiceId}/pdf`);
+      const response = await fetch(
+        fromOrder
+          ? `/api/v1/orders/${invoiceId}/invoice`
+          : `/api/v1/user/invoices/${invoiceId}/pdf`
+      );
 
       if (response.ok) {
         const blob = await response.blob();
@@ -312,8 +330,17 @@ export default function InvoicesPage() {
                     const StatusIcon = statusCfg.icon;
                     const canPay = invoice.invoice_id && invoice.balance > 0 &&
                       ['sent', 'open', 'overdue'].includes(invoice.status.toLowerCase());
+                    // A primary-engine invoice carries no Zoho id — its
+                    // document is addressed by order id instead. `docId` is
+                    // whichever identifier this row's actions should use.
+                    const isPrimary = invoice.provider === 'primary';
+                    const docId = invoice.invoice_id || (isPrimary ? invoice.order_id ?? '' : '');
+                    const hasDocument = Boolean(docId);
                     return (
-                      <tr key={invoice.invoice_id} className="hover:bg-blue-50/30 transition-colors group">
+                      <tr
+                        key={docId || invoice.invoice_number}
+                        className="hover:bg-blue-50/30 transition-colors group"
+                      >
                         {/* Invoice number */}
                         <td className="px-5 py-3.5 whitespace-nowrap">
                           <div className="flex items-center gap-3">
@@ -360,30 +387,39 @@ export default function InvoicesPage() {
                                 Pay Now
                               </button>
                             )}
-                            {invoice.invoice_id && (
+                            {hasDocument && (
                               <button
-                                onClick={() => router.push(`/dashboard/invoices/${invoice.invoice_id}/view`)}
+                                onClick={() =>
+                                  router.push(
+                                    `/dashboard/invoices/${docId}/view${isPrimary ? '?src=order' : ''}`
+                                  )
+                                }
                                 className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                                 title="View invoice"
                               >
                                 <Eye className="h-4 w-4" />
                               </button>
                             )}
-                            {invoice.invoice_id && (
+                            {hasDocument && (
                               <button
-                                onClick={() => handleDownload(invoice.invoice_id, invoice.invoice_number)}
-                                disabled={downloadingId === invoice.invoice_id}
+                                onClick={() => handleDownload(docId, invoice.invoice_number, isPrimary)}
+                                disabled={downloadingId === docId}
                                 className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
                                 title="Download PDF"
                               >
-                                {downloadingId === invoice.invoice_id ? (
+                                {downloadingId === docId ? (
                                   <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full" />
                                 ) : (
                                   <Download className="h-4 w-4" />
                                 )}
                               </button>
                             )}
-                            {!invoice.invoice_id && (
+                            {/* Only a genuinely un-issued (Zoho-pending) invoice
+                                offers the retry pill. A primary invoice is
+                                already issued — showing "we're finalising the
+                                accounting invoice" there would be false, and
+                                clicking it would run the Zoho self-heal. */}
+                            {!hasDocument && invoice.zoho_pending && (
                               <button
                                 type="button"
                                 onClick={handleSyncNow}
