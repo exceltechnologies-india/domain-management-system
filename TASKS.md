@@ -77,6 +77,56 @@ large resellers.)
 FIRST; sub-reselling is a post-launch revenue feature (Phases 2–5 are weeks of work). Phase 1 was built
 now because it's fully additive/flag-gated and doesn't touch the go-live path.
 
+### 🆕 Primary Billing Integration — our own GST tax-invoice engine, Zoho as fallback (Phase 1a code-complete 2026-09-02; branch-only, not merged)
+
+**What it is:** ported the invoicing *concept* (not the code — anutechbilling is Postgres/Supabase RLS,
+we're MongoDB) from a sibling Anutech app, `anutechbilling` (ResellerOS), so we stop depending on Zoho
+Books as the sole invoice issuer. Our engine becomes **primary** — it mints the real, legally-numbered GST
+tax invoice — and Zoho becomes an automatic **fallback**, called only if our engine throws. Operator
+decision 2026-09-02: this is NOT a customer-facing-only mirror with Zoho still authoritative — our numbers
+ARE the tax invoice of record when the primary path succeeds. Two invoice-number series now coexist under
+the same GSTIN (ours `TI/YYYY-YY/NNNNN`, Zoho's own auto-numbers on fallback) — **both series need to be
+reported in GSTR-1 filings going forward; flag this to the CA once Phase 1 wiring goes live.**
+
+**Ground rules (all phases):** additive + flag-gated (`PRIMARY_BILLING_ENABLED`, default OFF until
+reviewed/tested), all work lands on the `primary-billing-integration` branch and stays off `main` until
+explicitly approved for merge, existing Zoho flow is untouched until the Phase 1c wiring step.
+
+**Phased rollout — step by step:**
+- [x] **Phase 1a — data model + GST tax engine + invoice numbering (additive, dormant).** New
+  `models/Counter.ts` (atomic per-fiscal-year sequence), `lib/billing/gst.ts` (CGST/SGST vs IGST split +
+  place-of-supply), `lib/billing/invoiceNumber.ts` (`TI/2026-27/00001`-style allocator, Apr–Mar fiscal
+  year), `lib/billing/companyProfile.ts` (our GSTIN/state, reuses existing `ZOHO_ORG_STATE`), and new
+  `Order` schema fields (`invoiceProvider`, `gstRate`, `taxableValue`, `cgst`/`sgst`/`igst`,
+  `placeOfSupply`, `customerGstin`) — no existing field's behavior changed, nothing wired into any live
+  payment path yet. 42 new tests (38 unit + 4 integration incl. a concurrent-allocation race test against
+  a real in-memory MongoDB); `tsc --noEmit` clean.
+- [ ] **Phase 1b — real tax-invoice PDF.** Upgrade the existing jsPDF generator
+  (`app/api/admin/orders/[id]/invoice/route.ts` `generateCustomPdf`) to render an actual GST breakdown
+  (currently shows one flat total, no CGST/SGST/IGST lines) and label itself "Tax Invoice" instead of
+  "Proforma Invoice" for `invoiceProvider === 'primary'` orders; also close the gap where
+  `app/api/user/invoices/[id]/pdf/route.ts` has no local-PDF fallback at all today (a Zoho outage = the
+  customer's own PDF download 500s).
+- [ ] **Phase 1c — chokepoint + live wiring (the risky step, behind `PRIMARY_BILLING_ENABLED`).** New
+  `lib/services/billing/createPrimaryInvoice.ts`: try our engine, fall back to the existing
+  `createZohoInvoice` (`lib/services/payment/post-tasks.ts`) on any thrown error. Redirect the real call
+  sites — `/api/payments/verify`, `/api/payments/guest/verify`, the webhook's inline
+  `zohoService.createInvoice` call (`app/razorpay/webhook/route.ts`), `renewal.ts`, `idempotency.ts` —
+  through this one chokepoint so "Zoho is the fallback" is actually true everywhere, not just at the two
+  verify routes. Ships flag-OFF; flips on only after review.
+- [ ] **Phase 2 — renewal-reminder cadence + invoice dunning**, scoped down from anutechbilling's
+  quote-before-payment model to fit ours (payment-first via Razorpay one-shot checkout): mostly rides the
+  *existing* hosting-expiry reminder cadence (`config/automation.ts` `REMINDER_DAYS`,
+  `app/api/workers/process-service-expiry/route.ts`) rather than duplicating it; true "unpaid invoice
+  dunning" only applies to the admin/manual-payment invoice flows where an invoice can exist before
+  payment. Deliberately sequenced AFTER Phase 1 is live + stable — don't stack more payment-critical risk
+  on the same batch as the GST-numbering change.
+
+**Why the phase split:** Phase 1a/1b are pure-addition, zero blast radius even if buggy (nothing reads the
+new fields or calls the new modules yet). Phase 1c is the one that touches live payment/GST-compliance
+code, so it ships flag-gated and gets reviewed on its own before any customer sees a `TI/...` invoice
+number.
+
 ### ⚠️ Paid hosting without a linked domain fails to provision (needs product decision, 2026-07-29)
 - [x] **✅ RESOLVED on 2026-07-29 (`dms-00441-d7x`) — chose Option A (require a linked/registered domain before hosting checkout).** A paid **hosting** order could complete + invoice but then **fail DA provisioning** with `Cannot Create Account - Invalid Domain Name` when **no real domain was linked** — the hosting item carried a placeholder domain (`hosting-Plus-<ts>`), which DA rejects. Surfaced on a guest paid-hosting test (order `ord_1785303670791_oxjhlz`, INV-000030 created, ₹2246.40 charged in test, hosting **not** provisioned). Fix: both `create-order` and `guest/create-order` now infer the linked domain when the cart has exactly one domain item, then reject the whole order up front (400 `HOSTING_DOMAIN_REQUIRED`, clear actionable message) if any hosting item still lacks a real domain (empty, `hosting-` placeholder, or no dot). The logged-in cart already blocks unlinked hosting client-side; guest checkout surfaces the 400 as a toast + resets state (no stuck screen). Trials are covered by the same guard. See "FIXED: paid hosting requires a real domain" in Recently Shipped.
 
@@ -194,6 +244,22 @@ Operator wants the app rebranded to the official **Anutech Digital** logo + favi
 - [x] **~~Hosting provisioning blocked by DirectAdmin license cap — operator action needed (2-of-2 user-account quota reached on the DA server)~~** — ✅ RESOLVED on 2026-06-22 by switching to a fresh DirectAdmin server entirely (see the "DA server switch" Recently-Shipped entry below for the secrets rotation + verification chain). Original investigation summary preserved verbatim for the audit trail: every hosting-checkout the senior reviewer placed today was failing with the generic "Hosting provisioning failed. Our team has been notified..." red banner. We finally surfaced the actual reason via the diagnostic chain shipped in `dms-00194-mlz` + `dms-00195-wsk`: the DirectAdmin server at `server-136-115-64-54.da.direct:2222` returned **"Cannot Execute Your Request - License is limited to 2 accounts, and you currently have 2"** on every `create-user` API call. The DA admin panel was healthy and reachable; our code was sending well-formed `create-user` requests with the correct linkedDomain (the `dms-00191-wgk` inference patch landed and works end-to-end); the IP whitelisting was intact (per the 4-layer DA whitelist auto-memory note). The blocker was purely the **DA license tier** — the original license allowed up to 2 user accounts, and there were already 2 existing accounts on the server. No code fix could have bypassed it; rather than upgrade the old server's license, the operator switched to a new DA server entirely with higher capacity. The 3 DA secrets (URL / ADMIN_USER / API_KEY) were rotated in Google Secret Manager, the service redeployed, and the next test checkout reached the new server cleanly (confirming whitelist + auth work). The next-layer error there (package-name mismatch) is now flagged as the new In-Flight item above. **Still owed by Claude after the new-DA package-name issue resolves**: backfill `linkedDomain` on the 4 stuck orders so admin Re-sync can retry them on the new server — each has a paid Razorpay transaction + a working Zoho invoice + just-needs-DA-provisioning to complete.
 
 ## Recently Shipped — user-visible improvements
+
+- [x] **PRIMARY-BILLING Phase 1a — GST tax engine + atomic invoice numbering (branch `primary-billing-integration`, NOT merged/deployed)** — First slice of porting anutechbilling's invoicing concept into our own MongoDB-based engine (roadmap in the "🆕 Primary Billing Integration" block above). Purely additive: no existing behavior changed, nothing wired into a live payment path.
+
+  **What was built:**
+  1. **`models/Counter.ts`** — generic atomic sequence counter (`findOneAndUpdate` + `$inc`), backing a gapless GST-compliant numbering series (a random/hex scheme, like the existing legacy `Order.invoiceNumber` generator, can't guarantee that).
+  2. **`lib/billing/gst.ts`** — CGST/SGST vs IGST split + place-of-supply, computed independently of `lib/zohobooks.ts` (this becomes the system of record when `invoiceProvider === 'primary'`, not a Zoho mirror). No customer state on file → treated as intra-state (matches the existing Zoho-integration fallback). `cgst + sgst` always reconciles exactly to `totalTax` (remainder-based split, not a naive halve-twice).
+  3. **`lib/billing/invoiceNumber.ts`** — `allocateInvoiceNumber()` issues `TI/YYYY-YY/NNNNN` (Indian fiscal year, Apr–Mar), atomically via the new Counter model.
+  4. **`lib/billing/companyProfile.ts`** — our GSTIN/state/SAC profile, reusing the already-required `ZOHO_ORG_STATE` env var rather than adding a duplicate.
+  5. **`models/Order.ts` additions** — `invoiceProvider: 'primary' | 'zoho'` (audit trail of which engine issued the invoice) + `gstRate`/`taxableValue`/`cgst`/`sgst`/`igst`/`placeOfSupply`/`customerGstin`. All optional, no default that could affect an existing save; the pre-save hook's legacy `invoiceNumber` generator is untouched.
+
+  **How it was verified:**
+  1. 38 new unit tests (`tests/unit/lib/billing/gst.test.ts`, `fiscal-year.test.ts`) — intra/inter-state split, case/whitespace-insensitive state comparison, missing-state fallback, rounding reconciliation, fiscal-year boundary (31 Mar → 1 Apr rollover).
+  2. 4 new integration tests (`tests/integration/lib/billing/invoiceNumber.test.ts`, real in-memory MongoDB) — sequential allocation, fiscal-year-rollover reset, and a 25-way concurrent-allocation race producing 25 unique numbers with no gaps.
+  3. `npx tsc --noEmit` clean across the whole project.
+
+  **Not done yet:** no PDF changes, no live wiring, no flag exists yet (added in Phase 1c) — this batch is invisible even on this branch until Phase 1b/1c land.
 
 - [x] **A11Y: customer-facing form-label batch — ratchet baseline 138 → 126 (LIVE `dms-00462-7c2`)** — Started paying down the jsx-a11y debt, focusing on the components **real end-users hit with a screen reader** (no admin pages this batch). Cleared **12**: **11 `label-has-associated-control`** — `register/AddressSection` (State `<select>` given `htmlFor`/`id`; the read-only Country display + hidden input corrected from `<label>` to `<span>`), `register/PersonalInfoSection` (read-only Country Code → `<span>`), `DomainRenewalModal` (Expiry Date + Days-Until-Expiry value displays → `<span>`; "Select Renewal Period" labels a button *group* → `<span>` + `role="group"`), `DomainSetup` (link + search domain inputs given `htmlFor`/`id`), `NameServerManagement` (config-name given `htmlFor`/`id`; "Nameservers" labels a dynamic input group → `<span>` + `role="group"`), `cart/CartItemCard` (period label targets a sometimes-absent control → `<span>`); plus **1 `no-autofocus`** (removed `autoFocus` on the guest-email input in `cart/CartOrderSummary`). Lowered `A11Y_BASELINE` **138→126** to lock it in. All fixes are semantic corrections (label↔control association or the right element for a value display) — **no behavior change**. Verified: unit 6157/6157, tsc clean, build 73/73, a11y 126 at baseline. Deployed `dms-00468-a11y` → **live `dms-00462-7c2`** (100% traffic, `/api/health` 200, tag `deploy-20260810-094829Z-636aeaab`). **Deferred (tracked):** 7 `no-static-element-interactions` — `<div onKeyDown>` "fake form" wrappers (ContactForm, DomainCrossSell, Forgot/Login/Register/ResetPassword forms, domain-search/SearchInput) that need proper `<form onSubmit>` conversion + submit-behavior testing; and ~119 remaining across the large admin `page.tsx` files (lower user impact, higher edit-risk). Remaining a11y count: **126**.
 

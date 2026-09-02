@@ -101,6 +101,26 @@ export interface IOrder extends Document {
   updatedAt: Date;
   invoiceNumber?: string;
   zohoInvoiceId?: string;
+  /**
+   * Which engine actually issued this order's tax invoice. 'primary' means
+   * `invoiceNumber` is a TI/YYYY-YY/NNNNN number from our own GST engine
+   * (lib/billing) and IS the legal tax invoice — no Zoho invoice exists.
+   * 'zoho' means the primary engine failed (or hasn't been enabled yet) and
+   * Zoho Books issued the invoice as before, referenced by `zohoInvoiceId`.
+   * Undefined on orders created before this field existed.
+   */
+  invoiceProvider?: 'primary' | 'zoho';
+  // GST breakdown for invoiceProvider === 'primary' orders. Populated by
+  // lib/services/billing/createPrimaryInvoice.ts at invoice-issue time;
+  // absent on Zoho-issued invoices, whose tax breakdown lives in Zoho, not
+  // here.
+  gstRate?: number;
+  taxableValue?: number;
+  cgst?: number;
+  sgst?: number;
+  igst?: number;
+  placeOfSupply?: string;
+  customerGstin?: string;
   orderType?: 'domain' | 'hosting' | 'bundle' | 'renewal' | 'hosting_upgrade' | 'hosting_trial' | 'unknown';
   // Razorpay recurring-payment mode: 'subscription' uses the Subscriptions
   // API (current default), 'tokens' uses the Tokens API (Google ₹2-and-reverse
@@ -334,6 +354,17 @@ const OrderSchema = new Schema<IOrder>(
       // Don't add `sparse`/`index` here too — that builds a duplicate index
       // (Mongoose "Duplicate schema index on {zohoInvoiceId:1}" warning).
     },
+    invoiceProvider: {
+      type: String,
+      enum: ['primary', 'zoho'],
+    },
+    gstRate: Number,
+    taxableValue: Number,
+    cgst: Number,
+    sgst: Number,
+    igst: Number,
+    placeOfSupply: String,
+    customerGstin: String,
     isDeleted: {
       type: Boolean,
       default: false,
