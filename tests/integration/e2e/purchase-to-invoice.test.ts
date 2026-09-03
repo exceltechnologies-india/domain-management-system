@@ -42,7 +42,13 @@ import mongoose from "mongoose";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import type { IOrder } from "@/models/Order";
 
-process.env.PRIMARY_BILLING_ENABLED = "true";
+// Deliberately UNSET rather than forced to "true": the flag defaults ON as
+// of 2026-09-03, so leaving it alone means this whole journey runs on the
+// real production default. Forcing it would let the default silently
+// regress to OFF without a single test noticing — the flag's own unit tests
+// pin the boolean, but only this suite proves a real customer purchase ends
+// up with a TI/... tax invoice when nobody sets anything.
+delete process.env.PRIMARY_BILLING_ENABLED;
 process.env.ZOHO_ORG_STATE = "Delhi";
 const WEBHOOK_SECRET = "e2e_purchase_journey_secret";
 process.env.RAZORPAY_WEBHOOK_SECRET = WEBHOOK_SECRET;

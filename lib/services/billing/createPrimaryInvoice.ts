@@ -99,11 +99,14 @@ async function attemptCreatePrimaryInvoice(
  * Drop-in replacement for `createZohoInvoice` (same context shape, same
  * `{invoiceId, invoiceNumber}` return contract) that call sites can swap to
  * directly. Behavior:
- *  - `PRIMARY_BILLING_ENABLED` unset/false (default): calls `createZohoInvoice`
- *    directly — byte-identical to every call site's pre-existing behavior.
- *  - Enabled: tries the primary GST engine first; ANY failure (thrown error)
- *    falls back to `createZohoInvoice` so a customer's payment never goes
- *    un-invoiced just because the new engine hit a bug.
+ *  - Enabled (DEFAULT as of 2026-09-03): tries the primary GST engine first;
+ *    ANY failure (thrown error) falls back to `createZohoInvoice` so a
+ *    customer's payment never goes un-invoiced just because the new engine
+ *    hit a bug. This is the normal path — our TI/... number is the tax
+ *    invoice of record and Zoho is the safety net.
+ *  - `PRIMARY_BILLING_ENABLED` explicitly falsey (`false`/`0`/`no`/`off`):
+ *    calls `createZohoInvoice` directly — byte-identical to every call
+ *    site's behavior before this feature existed. The emergency rollback.
  *
  * `invoiceId` in the returned pair has no meaning for a primary invoice
  * (there's no external gateway id) — set to the same value as

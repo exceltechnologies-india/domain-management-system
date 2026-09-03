@@ -341,34 +341,34 @@ CURRENT_TRIAL_ABUSE_DISABLED=$(read_current_env_var "TRIAL_ABUSE_DISABLED")
 TRIAL_ABUSE_DISABLED="${CURRENT_TRIAL_ABUSE_DISABLED:-${TRIAL_ABUSE_DISABLED:-}}"
 echo "   TRIAL_ABUSE_DISABLED resolved to: ${TRIAL_ABUSE_DISABLED:-<unset>}"
 
-# Same sticky-flag pattern for the primary-billing kill switch. This is the
-# flag the operator flips ON in production (via `gcloud run services update
-# --update-env-vars PRIMARY_BILLING_ENABLED=true`) once the primary GST
-# engine has been reviewed end-to-end. Without preservation the very next
-# full deploy would silently revert it to unset → OFF, and customers would
-# quietly go back to Zoho-numbered invoices mid-cutover — the same class of
-# silent revert that bit HOSTING_MANDATE_FLOW on 2026-06-29.
+# Same sticky-flag pattern for the primary-billing kill switch.
 #
-# Default is empty (unset) = OFF, which is the correct default until the
-# operator makes that call. See lib/primary-billing-flag.ts.
+# DEFAULT ON as of 2026-09-03 — unset/empty means the primary GST engine
+# issues the tax invoice and Zoho is the automatic fallback. The value is
+# still preserved across deploys because the operator may DISABLE it in
+# production, and without preservation the next full deploy would silently
+# re-enable the engine mid-incident — the same class of silent revert that
+# bit HOSTING_MANDATE_FLOW on 2026-06-29. See lib/primary-billing-flag.ts.
 #
 # ROLLBACK GOTCHA — read before disabling in production. The `:-` chain
 # treats an EMPTY Cloud Run value as "not set" and falls through to the
-# shell value, i.e. whatever `.env.local` happens to say. So rolling back
-# by REMOVING the var (`--remove-env-vars PRIMARY_BILLING_ENABLED`) works
-# until the next full deploy, which would silently re-enable the primary
-# engine from a developer's local file. Roll back by setting the literal
-# string instead:
+# shell value, i.e. whatever `.env.local` happens to say — and since the
+# flag now DEFAULTS ON, an empty value means enabled. So rolling back by
+# REMOVING the var (`--remove-env-vars PRIMARY_BILLING_ENABLED`) does not
+# disable anything at all. Roll back by setting the literal string
+# instead:
 #
 #     gcloud run services update ... --update-env-vars PRIMARY_BILLING_ENABLED=false
 #
-# "false" is non-empty, so it wins the chain and sticks across deploys.
+# "false" is non-empty, so it wins the chain, is read as an explicit
+# disable by isPrimaryBillingEnabled(), and sticks across deploys. It is
+# the ONLY correct way to turn the GST engine off.
 # (Same caveat applies to HOSTING_MANDATE_FLOW / TRIAL_ABUSE_DISABLED
 # above; it just matters more here, because turning this flag off IS the
 # emergency rollback if the GST engine misbehaves on live payments.)
 CURRENT_PRIMARY_BILLING_ENABLED=$(read_current_env_var "PRIMARY_BILLING_ENABLED")
 PRIMARY_BILLING_ENABLED="${CURRENT_PRIMARY_BILLING_ENABLED:-${PRIMARY_BILLING_ENABLED:-}}"
-echo "   PRIMARY_BILLING_ENABLED resolved to: ${PRIMARY_BILLING_ENABLED:-<unset — Zoho remains the invoice issuer>}"
+echo "   PRIMARY_BILLING_ENABLED resolved to: ${PRIMARY_BILLING_ENABLED:-<unset — default ON, our GST engine issues tax invoices>}"
 
 # Same sticky-flag pattern for the dunning cadence. Not a toggle, but it IS
 # operator-tunable at runtime (`--update-env-vars RENEWAL_DUNNING_HOURS=...`)
