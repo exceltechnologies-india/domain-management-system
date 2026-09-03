@@ -10,6 +10,12 @@
  *    (caller convenience)
  *  - Order not found → 404 'Order not found'
  *  - getUserById null → 404 'Associated user not found'
+ *  - **Primary-engine double-billing guard**: an order with
+ *    invoiceProvider === 'primary' already holds a real GST tax
+ *    invoice (TI/YYYY-YY/NNNNN) and has NO zohoInvoiceId by design.
+ *    Re-syncing it would mint a SECOND invoice under the same GSTIN
+ *    for one payment. Route returns 409 PRIMARY_INVOICE_EXISTS before
+ *    touching Zoho. Fires BEFORE the pending_creation reset.
  *  - **Stuck-status reset**: order.zohoInvoiceId === 'pending_creation'
  *    is cleared to undefined BEFORE the Zoho retry. Pinned because
  *    without this, the retry would see the sentinel and short-
@@ -142,6 +148,112 @@ describe("Order + user lookup", () => {
     const body = await res.json();
     expect(body.error).toBe("Associated user not found");
     expect(createInvoice).not.toHaveBeenCalled();
+  });
+});
+
+describe("Primary-engine double-billing guard", () => {
+  it("invoiceProvider === 'primary' → 409, Zoho NEVER called, order NOT saved", async () => {
+    const order = freshOrder({
+      invoiceProvider: "primary",
+      invoiceNumber: "TI/2026-27/00001",
+      zohoInvoiceId: undefined,
+    });
+    getOrderByIdOrOrderId.mockResolvedValueOnce(order);
+    getUserById.mockResolvedValueOnce(userRow);
+
+    const res = await POST(makeReq(), paramsOf("ORD-1"));
+
+    expect(res.status).toBe(409);
+    // The whole point: no second tax invoice under the same GSTIN.
+    expect(createInvoice).not.toHaveBeenCalled();
+    expect(order.save).not.toHaveBeenCalled();
+    expect(order.zohoInvoiceId).toBeUndefined();
+    expect(order.invoiceNumber).toBe("TI/2026-27/00001");
+  });
+
+  it("409 body carries the machine code + the primary invoice number", async () => {
+    getOrderByIdOrOrderId.mockResolvedValueOnce(
+      freshOrder({
+        invoiceProvider: "primary",
+        invoiceNumber: "TI/2026-27/00042",
+      })
+    );
+    getUserById.mockResolvedValueOnce(userRow);
+
+    const res = await POST(makeReq(), paramsOf("ORD-1"));
+    const body = await res.json();
+
+    expect(body.code).toBe("PRIMARY_INVOICE_EXISTS");
+    expect(body.invoiceProvider).toBe("primary");
+    expect(body.invoice_number).toBe("TI/2026-27/00042");
+    // Admin toast renders `error` — it must name the order and the number.
+    expect(body.error).toContain("ORD-USER-FACING");
+    expect(body.error).toContain("TI/2026-27/00042");
+    expect(body.error).toContain("not a stuck order");
+  });
+
+  it("guard fires even when invoiceNumber is missing (no crash, no Zoho call)", async () => {
+    const order = freshOrder({
+      invoiceProvider: "primary",
+      invoiceNumber: undefined,
+    });
+    getOrderByIdOrOrderId.mockResolvedValueOnce(order);
+    getUserById.mockResolvedValueOnce(userRow);
+
+    const res = await POST(makeReq(), paramsOf("ORD-1"));
+    expect(res.status).toBe(409);
+    expect(createInvoice).not.toHaveBeenCalled();
+    const body = await res.json();
+    // No trailing "( )" fragment when there's no number to name.
+    expect(body.error).not.toContain("()");
+  });
+
+  it("guard fires BEFORE the 'pending_creation' reset — a primary order carrying a stale sentinel is still refused", async () => {
+    const order = freshOrder({
+      invoiceProvider: "primary",
+      invoiceNumber: "TI/2026-27/00007",
+      zohoInvoiceId: "pending_creation",
+    });
+    getOrderByIdOrOrderId.mockResolvedValueOnce(order);
+    getUserById.mockResolvedValueOnce(userRow);
+
+    const res = await POST(makeReq(), paramsOf("ORD-1"));
+    expect(res.status).toBe(409);
+    expect(createInvoice).not.toHaveBeenCalled();
+    // The sentinel is left untouched — the guard returns before the reset.
+    expect(order.zohoInvoiceId).toBe("pending_creation");
+  });
+
+  it("invoiceProvider === 'zoho' is NOT guarded — a genuinely stuck Zoho order still re-syncs", async () => {
+    const order = freshOrder({
+      invoiceProvider: "zoho",
+      zohoInvoiceId: "creation_failed",
+    });
+    getOrderByIdOrOrderId.mockResolvedValueOnce(order);
+    getUserById.mockResolvedValueOnce(userRow);
+    createInvoice.mockResolvedValueOnce({
+      invoice_id: "zoho-recovered",
+      invoice_number: "INV-RECOVERED",
+    });
+
+    const res = await POST(makeReq(), paramsOf("ORD-1"));
+    expect(res.status).toBe(200);
+    expect(createInvoice).toHaveBeenCalledTimes(1);
+    expect(order.zohoInvoiceId).toBe("zoho-recovered");
+  });
+
+  it("legacy order with NO invoiceProvider is NOT guarded (pre-primary rows still recoverable)", async () => {
+    const order = freshOrder({ invoiceProvider: undefined });
+    getOrderByIdOrOrderId.mockResolvedValueOnce(order);
+    getUserById.mockResolvedValueOnce(userRow);
+    createInvoice.mockResolvedValueOnce({
+      invoice_id: "zoho-legacy",
+      invoice_number: "INV-LEGACY",
+    });
+
+    const res = await POST(makeReq(), paramsOf("ORD-1"));
+    expect(res.status).toBe(200);
+    expect(createInvoice).toHaveBeenCalledTimes(1);
   });
 });
 

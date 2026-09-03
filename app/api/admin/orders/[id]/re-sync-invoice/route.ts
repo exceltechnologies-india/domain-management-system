@@ -36,6 +36,38 @@ export async function POST(
         return NextResponse.json({ error: "Associated user not found" }, { status: 404 });
     }
 
+    // ── Double-billing guard: never re-sync an order the primary GST engine
+    // has already invoiced ───────────────────────────────────────────────────
+    //
+    // A primary-engine order legitimately has NO `zohoInvoiceId` — its tax
+    // invoice is our own `TI/YYYY-YY/NNNNN`, held on `invoiceNumber` with
+    // `invoiceProvider: 'primary'`. Without this check the re-sync below reads
+    // "no Zoho invoice" as "stuck" and mints a SECOND tax invoice, under the
+    // same GSTIN, for the same payment — double-billing the customer and
+    // putting two invoices for one supply into GSTR-1.
+    //
+    // The stuck-orders list feeding this route's UI already excludes primary
+    // orders (`listStuckZohoInvoiceOrdersAdmin`, lib/services/orders.ts), so
+    // this is defence-in-depth for a hand-typed orderId or a direct API call.
+    if (order.invoiceProvider === 'primary') {
+      serverLogger.warn(
+        `🛑 [ADMIN] Re-sync refused for order ${order.orderId} — already invoiced by the primary GST engine (${order.invoiceNumber || 'no number recorded'})`
+      );
+      return NextResponse.json(
+        {
+          error:
+            `Order ${order.orderId} already has a tax invoice from our own GST engine` +
+            `${order.invoiceNumber ? ` (${order.invoiceNumber})` : ''}. ` +
+            `Re-syncing would issue a second invoice for the same payment. ` +
+            `It has no Zoho invoice by design — this is not a stuck order.`,
+          code: 'PRIMARY_INVOICE_EXISTS',
+          invoiceProvider: 'primary',
+          invoice_number: order.invoiceNumber,
+        },
+        { status: 409 }
+      );
+    }
+
     // Reset stuck status if necessary
     if (order.zohoInvoiceId === 'pending_creation') {
         serverLogger.info(`🔓 [ADMIN] Clearing stuck 'pending_creation' status for order ${order.orderId}`);
