@@ -28,6 +28,7 @@ import {
   flagCreditNotePending,
   listCreditNotePendingOrders,
   forceMarkZohoCreationFailed,
+  getOrderById,
   getOrderByIdOrOrderId,
   getOrderByOrderId,
   getOrderByRazorpayOrderId,
@@ -1281,5 +1282,66 @@ describe("flagCreditNotePending / listCreditNotePendingOrders", () => {
   it("returns an empty list rather than throwing when nothing is outstanding", async () => {
     await primaryInvoicedOrder("ord_cn_none", "TI/2026-27/00060");
     expect(await listCreditNotePendingOrders()).toEqual([]);
+  });
+});
+
+// ─── Admin order lookup: _id vs user-facing orderId ─────────────────────────
+//
+// REGRESSION (2026-09-03). `app/api/admin/orders/[id]/invoice` used
+// `getOrderById`, i.e. `Order.findById()` ONLY. That is fine for a 24-hex
+// `_id` and throws a Mongoose CastError for anything else — which the route's
+// catch turned into a 500.
+//
+// It became reachable when the admin invoices page grew its GST-engine tab:
+// a primary-engine invoice has no Zoho id, so its View/Download link by the
+// user-facing `orderId` string (e.g. `ORD-RNW-…`), and every one 500'd. Found
+// by driving the real admin UI in a browser — the page's component tests mock
+// the fetch, so they could not see it.
+//
+// These tests pin the actual mechanism, against a real database, so the
+// distinction can't be lost again.
+describe("getOrderById vs getOrderByIdOrOrderId (admin PDF route regression)", () => {
+  it("**getOrderById THROWS on a user-facing orderId** — this was the 500", async () => {
+    await createOrder(buildOrderPayload({ orderId: "ORD-RNW-1757000000-abcd" }));
+    await expect(getOrderById("ORD-RNW-1757000000-abcd")).rejects.toThrow();
+  });
+
+  it("**getOrderByIdOrOrderId resolves the same string** — the fix", async () => {
+    const created = await createOrder(
+      buildOrderPayload({ orderId: "ORD-RNW-1757000000-efgh" })
+    );
+    const found = await getOrderByIdOrOrderId("ORD-RNW-1757000000-efgh");
+    expect(found).not.toBeNull();
+    expect(String(found!._id)).toBe(String(created._id));
+  });
+
+  it("both resolve a 24-hex _id, so the swap loses nothing", async () => {
+    const created = await createOrder(buildOrderPayload({ orderId: "ORD-hex-1" }));
+    const byId = await getOrderById(String(created._id));
+    const byEither = await getOrderByIdOrOrderId(String(created._id));
+    expect(byId?.orderId).toBe("ORD-hex-1");
+    expect(byEither?.orderId).toBe("ORD-hex-1");
+  });
+
+  it("a primary-invoiced order is reachable by its orderId — the exact shape the GST tab links", async () => {
+    const created = await createOrder(
+      buildOrderPayload({ orderId: "ORD-primary-ui", status: "completed" })
+    );
+    await recordPrimaryInvoiceForOrder(created._id, {
+      invoiceNumber: "TI/2026-27/00001",
+      gstRate: 18,
+      taxableValue: 1000,
+      cgst: 0,
+      sgst: 0,
+      igst: 180,
+      placeOfSupply: "Maharashtra",
+    });
+
+    const found = await getOrderByIdOrOrderId("ORD-primary-ui");
+    expect(found?.invoiceProvider).toBe("primary");
+    expect(found?.invoiceNumber).toBe("TI/2026-27/00001");
+    // No Zoho id by design — which is why the admin route must fall through
+    // to the local PDF generator rather than querying Zoho.
+    expect(found?.zohoInvoiceId).toBeUndefined();
   });
 });

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
-import { getOrderById } from "@/lib/services/orders";
+import { getOrderByIdOrOrderId } from "@/lib/services/orders";
 import { ZohoBooksService } from "@/lib/zohobooks";
 import { generateInvoicePdf } from "@/lib/billing/pdf";
 import { getUserById } from "@/lib/services/users";
@@ -20,7 +20,14 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const order = await getOrderById(id);
+    // Accepts EITHER a Mongo `_id` or the user-facing `orderId` string.
+    // This used `getOrderById` (findById only), which threw a CastError ->
+    // 500 for any non-ObjectId id. That became reachable when the admin
+    // invoices page grew a GST-engine tab (9558706): a primary invoice has
+    // no Zoho id, so its View/Download link by `orderId`, and every one of
+    // them 500'd. Mirrors `findUserOrder` on the customer route and
+    // `getOrderByIdOrOrderId` on the re-sync route.
+    const order = await getOrderByIdOrOrderId(id);
 
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
