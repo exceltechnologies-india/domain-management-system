@@ -124,7 +124,7 @@ vi.mock("@/lib/services/payment/post-tasks", () => ({
   runPostPaymentTasks,
 }));
 
-// createPrimaryInvoice is PRIMARY_BILLING_ENABLED-gated pass-through to
+// createPrimaryInvoice is the ungated chokepoint that delegates to
 // createZohoInvoice when the flag is off (the default, and this test suite
 // never sets it) — forward to the same mock so every existing
 // createZohoInvoice assertion below keeps working unchanged, without

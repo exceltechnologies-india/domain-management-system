@@ -42,13 +42,11 @@ import mongoose from "mongoose";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import type { IOrder } from "@/models/Order";
 
-// Deliberately UNSET rather than forced to "true": the flag defaults ON as
-// of 2026-09-03, so leaving it alone means this whole journey runs on the
-// real production default. Forcing it would let the default silently
-// regress to OFF without a single test noticing — the flag's own unit tests
-// pin the boolean, but only this suite proves a real customer purchase ends
-// up with a TI/... tax invoice when nobody sets anything.
-delete process.env.PRIMARY_BILLING_ENABLED;
+// No invoicing flag is set on purpose. The primary GST engine is PERMANENT
+// as of 2026-09-03 — there is no switch that bypasses it — and the Zoho
+// fallback defaults on. So this whole journey runs exactly as production
+// does with nothing configured, which is the point: only this suite proves a
+// real customer purchase ends up holding a TI/... tax invoice.
 process.env.ZOHO_ORG_STATE = "Delhi";
 const WEBHOOK_SECRET = "e2e_purchase_journey_secret";
 process.env.RAZORPAY_WEBHOOK_SECRET = WEBHOOK_SECRET;

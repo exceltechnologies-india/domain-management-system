@@ -77,7 +77,7 @@ large resellers.)
 FIRST; sub-reselling is a post-launch revenue feature (Phases 2–5 are weeks of work). Phase 1 was built
 now because it's fully additive/flag-gated and doesn't touch the go-live path.
 
-### 🆕 Primary Billing Integration — our own GST tax-invoice engine, Zoho as fallback (Phase 2 code-complete 2026-09-02; post-Phase-2 audit 2026-09-03 found **6 gaps: 5 closed, 1 deferred-by-decision (credit-note engine)**; **flag now DEFAULT ON — our GST engine is primary, Zoho is the fallback**; remaining work is merge → deploy → `scripts/setup-cloud-scheduler-billing.sh`; branch-only, NOT deployed)
+### 🆕 Primary Billing Integration — our own GST tax-invoice engine, Zoho as fallback (Phase 2 code-complete 2026-09-02; post-Phase-2 audit 2026-09-03 found **6 gaps: 5 closed, 1 deferred-by-decision (credit-note engine)**; **our GST engine is PERMANENT and ungated; only the Zoho fallback is toggleable (`ZOHO_INVOICE_FALLBACK_ENABLED`, default ON)**; remaining work is merge → deploy → `scripts/setup-cloud-scheduler-billing.sh`; branch-only, NOT deployed)
 
 **What it is:** ported the invoicing *concept* (not the code — anutechbilling is Postgres/Supabase RLS,
 we're MongoDB) from a sibling Anutech app, `anutechbilling` (ResellerOS), so we stop depending on Zoho
@@ -88,11 +88,12 @@ ARE the tax invoice of record when the primary path succeeds. Two invoice-number
 the same GSTIN (ours `TI/YYYY-YY/NNNNN`, Zoho's own auto-numbers on fallback) — **both series need to be
 reported in GSTR-1 filings going forward; flag this to the CA once Phase 1 wiring goes live.**
 
-**Ground rules (all phases):** additive + flag-gated (`PRIMARY_BILLING_ENABLED`). The flag shipped
-default OFF while the engine was under review and was flipped to **default ON on 2026-09-03** once the
-post-Phase-2 audit closed; it is now an opt-OUT kill switch (disable with the literal `false`, NOT by
-removing the var). All work lands on the `primary-billing-integration` branch; existing Zoho flow is
-untouched except as the automatic fallback.
+**Ground rules (all phases):** shipped additive + flag-gated behind `PRIMARY_BILLING_ENABLED` while the
+engine was under review. That gate was **removed on 2026-09-03**: the primary GST engine is now
+permanent and ungated — nothing can turn it off. The only switch left is `ZOHO_INVOICE_FALLBACK_ENABLED`
+(default ON), which governs whether Zoho acts as the safety net when our engine fails; disable it with
+the literal `false`, NOT by removing the var. All work lands on the `primary-billing-integration`
+branch; the Zoho flow is untouched except as that fallback.
 
 **Phased rollout — step by step:**
 - [x] **Phase 1a — data model + GST tax engine + invoice numbering (additive, dormant).** New
@@ -282,6 +283,22 @@ Operator wants the app rebranded to the official **Anutech Digital** logo + favi
 - [x] **~~Hosting provisioning blocked by DirectAdmin license cap — operator action needed (2-of-2 user-account quota reached on the DA server)~~** — ✅ RESOLVED on 2026-06-22 by switching to a fresh DirectAdmin server entirely (see the "DA server switch" Recently-Shipped entry below for the secrets rotation + verification chain). Original investigation summary preserved verbatim for the audit trail: every hosting-checkout the senior reviewer placed today was failing with the generic "Hosting provisioning failed. Our team has been notified..." red banner. We finally surfaced the actual reason via the diagnostic chain shipped in `dms-00194-mlz` + `dms-00195-wsk`: the DirectAdmin server at `server-136-115-64-54.da.direct:2222` returned **"Cannot Execute Your Request - License is limited to 2 accounts, and you currently have 2"** on every `create-user` API call. The DA admin panel was healthy and reachable; our code was sending well-formed `create-user` requests with the correct linkedDomain (the `dms-00191-wgk` inference patch landed and works end-to-end); the IP whitelisting was intact (per the 4-layer DA whitelist auto-memory note). The blocker was purely the **DA license tier** — the original license allowed up to 2 user accounts, and there were already 2 existing accounts on the server. No code fix could have bypassed it; rather than upgrade the old server's license, the operator switched to a new DA server entirely with higher capacity. The 3 DA secrets (URL / ADMIN_USER / API_KEY) were rotated in Google Secret Manager, the service redeployed, and the next test checkout reached the new server cleanly (confirming whitelist + auth work). The next-layer error there (package-name mismatch) is now flagged as the new In-Flight item above. **Still owed by Claude after the new-DA package-name issue resolves**: backfill `linkedDomain` on the 4 stuck orders so admin Re-sync can retry them on the new server — each has a paid Razorpay transaction + a working Zoho invoice + just-needs-DA-provisioning to complete.
 
 ## Recently Shipped — user-visible improvements
+
+- [x] **PRIMARY BILLING IS NOW PERMANENT — the toggle moved to the Zoho FALLBACK (branch `primary-billing-integration`, NOT merged/deployed)** — Operator decision 2026-09-03, superseding the default-ON flip earlier the same day. The switch was on the wrong thing: gating the primary engine meant a config slip could quietly stop issuing our own legally-numbered `TI/YYYY-YY/NNNNN` tax invoices. The engine is reviewed, audited and E2E-tested — it shouldn't be something a stray env var can turn off. The genuinely operational question is *what to do when it fails*, and that is now what the flag answers.
+
+  **`PRIMARY_BILLING_ENABLED` is deleted**, along with `lib/primary-billing-flag.ts` and its test. The primary GST engine always runs. There is deliberately **no** configuration that bypasses it, and two new tests pin exactly that — one asserts the engine still runs with the fallback flag off, the other asserts the fallback flag isn't even *consulted* on the happy path.
+
+  **New `ZOHO_INVOICE_FALLBACK_ENABLED`** (`lib/zoho-fallback-flag.ts`), default **ON**, same opt-out shape as `RESELLER_FEATURE_ENABLED`. It governs only the failure path: when the primary engine throws, does Zoho Books issue the invoice as a safety net?
+
+  **What disabling it actually does — the part worth understanding before using it.** The failure stops being papered over. `createPrimaryInvoice` **rethrows**, which lands in the callers' *existing* error handling: a durable SystemLog row, `zohoInvoiceId: 'creation_failed'` on the Order, and the order surfacing in admin integration-health as a stuck invoice. So a customer whose payment **succeeded** can be left temporarily uninvoiced. That is the deliberate trade — no second-series Zoho invoice enters your GSTIN automatically, at the cost of manual operator recovery. The log line names the flag and says "left UNINVOICED" so nobody has to guess why. Leave it ON unless you specifically want that.
+
+  **Fail-open preserved, and it means the opposite thing now.** An unrecognised value resolves to ENABLED, which keeps the safety net — a typo'd disable degrades to "the customer still gets an invoice", never to "a paid customer silently gets none".
+
+  **Deliberately unchanged by the flag:** the zero-amount/trial skip (still a silent no-op, not a throw — see the trial-invoice policy) and claim contention (a concurrent claim is still a silent skip). Both pinned, because it would be easy to make either start throwing when the fallback is off.
+
+  **Every surface updated, not just the code**: `.env.example` (the primary-billing block now states the engine is ungated and documents the new fallback var, including that `--remove-env-vars` disables nothing since unset means enabled), the sticky-var block in `scripts/deploy-cloud-run.sh` (`PRIMARY_BILLING_ENABLED` swapped out of `ENV_VARS` for `ZOHO_INVOICE_FALLBACK_ENABLED`, comments and the resolved-value echo rewritten), `CLAUDE.md`, plus the stale comments in `renewal.ts`, the sync-zoho-invoice worker and both verify-route test headers that still described a flag-gated primary engine.
+
+  **How it was verified:** 19 flag unit tests (new file) + 7 new chokepoint tests covering the rethrow, the claim still being released before the rethrow, the ORIGINAL error being preserved rather than wrapped, the log naming the flag, and the three behaviours that must NOT change. The E2E purchase suite now sets **no invoicing config at all** — it previously deleted `PRIMARY_BILLING_ENABLED`, and before that forced it true — so all 9 journeys prove a real customer purchase yields a `TI/...` tax invoice with nothing configured, exactly as production runs. Sticky resolution for the new var verified with the same harness used for the flag it replaced (operator disable survives a deploy, and survives a conflicting `.env.local`). Full sweep: unit **6326/6326** (+6), integration **217/1-skip**, `tsc` clean, `eslint` clean, build **75/75**.
 
 - [x] **PRIMARY BILLING IS NOW THE DEFAULT — our GST engine is primary, Zoho is the backup (branch `primary-billing-integration`, NOT merged/deployed)** — Operator decision 2026-09-03: flip `PRIMARY_BILLING_ENABLED` from **default OFF (opt-in)** to **default ON (opt-out)**, now that the post-Phase-2 audit has closed 5 of its 6 gaps and the 6th is a recorded deferral. From the next deploy, a real customer payment is invoiced by **our** engine with a legally-numbered `TI/YYYY-YY/NNNNN` tax invoice, and Zoho Books is called only when our engine throws.
 

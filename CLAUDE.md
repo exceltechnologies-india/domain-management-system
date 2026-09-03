@@ -62,23 +62,27 @@ The customer's FIRST tax invoice fires at day 15+ when the trial converts via th
 
 If a customer ASKS for a trial-period invoice: there is none. Canned response: *"No invoice is issued for the free trial period since there's no charge. Your first invoice will be generated automatically when your trial converts on day 15 — that's when your card / UPI mandate is charged for the first time."*
 
-## Primary billing is ON by default (operator decision 2026-09-03)
+## Primary billing is PERMANENT; only the Zoho fallback is toggleable (operator decision 2026-09-03)
 
-`PRIMARY_BILLING_ENABLED` **defaults ON**. Our own GST engine is the primary invoice issuer — it mints the legally-numbered `TI/YYYY-YY/NNNNN` tax invoice — and Zoho Books is the automatic **fallback**, called only when our engine throws. Same opt-out shape as `RESELLER_FEATURE_ENABLED`: enabled unless the var is explicitly `false`/`0`/`no`/`off`.
+Our own GST engine **always** issues the tax invoice — the legally-numbered `TI/YYYY-YY/NNNNN`. It is ungated: the former `PRIMARY_BILLING_ENABLED` var was **removed**, because a config slip should never be able to stop issuing our own tax invoices. Do not reintroduce a switch for it.
 
-**To disable (the emergency rollback if the engine misbehaves on live payments):**
+What remains operator-controlled is the **safety net**: `ZOHO_INVOICE_FALLBACK_ENABLED` (default **ON**, opt-out shape like `RESELLER_FEATURE_ENABLED`). When the primary engine throws, Zoho Books issues the invoice instead so a paid customer is never left without one.
+
+**To disable the fallback:**
 
 ```bash
-gcloud run services update dms --region=europe-west1   --update-env-vars PRIMARY_BILLING_ENABLED=false
+gcloud run services update dms --region=europe-west1   --update-env-vars ZOHO_INVOICE_FALLBACK_ENABLED=false
 ```
 
-**`--remove-env-vars` does NOT disable it.** With the default inverted, an absent var means enabled — and `deploy-cloud-run.sh`'s `:-` chain treats an empty Cloud Run value as unset anyway. Only the literal string `false` works.
+`--remove-env-vars` does **not** disable it — unset means enabled, and `deploy-cloud-run.sh`'s `:-` chain treats an empty Cloud Run value as unset anyway. Only the literal `false` works.
 
-**Disabling does not unwind invoices already issued.** Orders carrying `invoiceProvider: 'primary'` keep their `TI/...` numbers; those are issued tax documents. The guards in `app/api/admin/orders/[id]/re-sync-invoice` and `app/api/workers/sync-zoho-invoice` exist so a flag flip-flop can't re-invoice them through Zoho and double-bill.
+**What disabling actually costs you:** a primary-engine failure stops being papered over. `createPrimaryInvoice` rethrows, the caller writes a durable SystemLog row and marks the Order `zohoInvoiceId='creation_failed'`, and it surfaces in admin integration-health as a stuck invoice. A customer whose payment **succeeded** is then temporarily uninvoiced until an operator fixes it. That is the deliberate trade — no second-series Zoho invoice enters the GSTIN automatically, at the cost of manual recovery. Leave it ON unless you specifically want that.
 
-**Prerequisite:** `ZOHO_ORG_STATE` must be set, or `attemptCreatePrimaryInvoice` throws by design (GST place-of-supply can't be computed) and every invoice silently falls back to Zoho — the flag looks on and does nothing.
+**Prerequisite for the primary engine:** `ZOHO_ORG_STATE` must be set, or `attemptCreatePrimaryInvoice` throws by design (GST place-of-supply is unknowable, so CGST/SGST vs IGST can't be trusted) and every invoice falls through to the fallback.
 
-**GSTR-1:** two invoice-number series now coexist under one GSTIN (ours, plus Zoho's own on fallback). **Both must be reported.** Keep the CA informed.
+**A disabled fallback does not unwind issued invoices.** Orders carrying `invoiceProvider: 'primary'` keep their `TI/...` numbers; those are issued tax documents. The guards in `app/api/admin/orders/[id]/re-sync-invoice` and `app/api/workers/sync-zoho-invoice` stop anything re-invoicing them through Zoho and double-billing.
+
+**GSTR-1:** two invoice-number series coexist under one GSTIN (ours, plus Zoho's own whenever the fallback fires). **Both must be reported.** Keep the CA informed.
 
 ## Primary-invoice refunds — credit notes are MANUAL (operator decision 2026-09-03)
 

@@ -57,7 +57,7 @@ export async function handleRenewalPayment(
   let invoiceId = paymentDetails?.notes?.invoice_id;
 
   // 1. Create and pay the renewal invoice — primary engine first (when
-  // PRIMARY_BILLING_ENABLED), Zoho as automatic fallback on any failure.
+  // ungated), Zoho as automatic fallback on any failure.
   // createInvoice's own defaults (paymentMode='Razorpay', shouldApplyPayment=
   // true) are what this used to call explicitly — the chokepoint preserves
   // that behavior on the Zoho path, so this is a same-behavior swap when the

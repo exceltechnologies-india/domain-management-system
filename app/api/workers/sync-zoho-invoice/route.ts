@@ -44,8 +44,8 @@ export const dynamic = "force-dynamic";
  * The route NAME is historical. As of the Phase 1c audit this worker no longer
  * calls Zoho directly: it goes through `createPrimaryInvoice`, the same
  * chokepoint as the four synchronous call sites, so a renewal gets a primary
- * TI/... tax invoice when PRIMARY_BILLING_ENABLED is on and falls back to Zoho
- * otherwise. It is deliberately NOT renamed — the path is baked into the
+ * TI/... tax invoice from our own GST engine, with Zoho as the automatic
+ * fallback (gated by ZOHO_INVOICE_FALLBACK_ENABLED, default on). It is deliberately NOT renamed — the path is baked into the
  * enqueue URL in webhook-handlers.ts and into tasks already sitting in the
  * Cloud Tasks queue.
  *
@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
     ] as unknown as CartItem[];
 
     // 4. Issue the invoice through the single chokepoint — primary GST engine
-    //    first (when PRIMARY_BILLING_ENABLED), Zoho as automatic fallback.
+    //    first (always — it is ungated), Zoho as automatic fallback.
     //
     //    NO CLAIM IS TAKEN HERE, deliberately. This worker used to call
     //    `claimOrderForZohoInvoice` itself and then hit Zoho directly. Both

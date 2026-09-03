@@ -341,34 +341,33 @@ CURRENT_TRIAL_ABUSE_DISABLED=$(read_current_env_var "TRIAL_ABUSE_DISABLED")
 TRIAL_ABUSE_DISABLED="${CURRENT_TRIAL_ABUSE_DISABLED:-${TRIAL_ABUSE_DISABLED:-}}"
 echo "   TRIAL_ABUSE_DISABLED resolved to: ${TRIAL_ABUSE_DISABLED:-<unset>}"
 
-# Same sticky-flag pattern for the primary-billing kill switch.
+# Same sticky-flag pattern for the Zoho invoice FALLBACK.
 #
-# DEFAULT ON as of 2026-09-03 — unset/empty means the primary GST engine
-# issues the tax invoice and Zoho is the automatic fallback. The value is
-# still preserved across deploys because the operator may DISABLE it in
-# production, and without preservation the next full deploy would silently
-# re-enable the engine mid-incident — the same class of silent revert that
-# bit HOSTING_MANDATE_FLOW on 2026-06-29. See lib/primary-billing-flag.ts.
+# Note what this is NOT: there is no switch for the primary GST engine. It is
+# permanent and ungated as of 2026-09-03 (the old PRIMARY_BILLING_ENABLED var
+# was removed), because a config slip should not be able to stop issuing our
+# own tax invoices. What remains operator-controlled is whether Zoho acts as
+# the safety net when our engine fails.
 #
-# ROLLBACK GOTCHA — read before disabling in production. The `:-` chain
-# treats an EMPTY Cloud Run value as "not set" and falls through to the
-# shell value, i.e. whatever `.env.local` happens to say — and since the
-# flag now DEFAULTS ON, an empty value means enabled. So rolling back by
-# REMOVING the var (`--remove-env-vars PRIMARY_BILLING_ENABLED`) does not
-# disable anything at all. Roll back by setting the literal string
-# instead:
+# DEFAULT ON — unset/empty means the fallback is active. Preserved across
+# deploys because an operator may DISABLE it in production, and without
+# preservation the next full deploy would silently re-enable it mid-incident
+# — the same class of silent revert that bit HOSTING_MANDATE_FLOW on
+# 2026-06-29. See lib/zoho-fallback-flag.ts.
 #
-#     gcloud run services update ... --update-env-vars PRIMARY_BILLING_ENABLED=false
+# ROLLBACK GOTCHA. The `:-` chain treats an EMPTY Cloud Run value as "not
+# set" and falls through to the shell value, i.e. whatever `.env.local` says
+# — and since this defaults ON, an empty value means enabled. So
+# `--remove-env-vars ZOHO_INVOICE_FALLBACK_ENABLED` does not disable
+# anything. Disable with the literal string instead:
 #
-# "false" is non-empty, so it wins the chain, is read as an explicit
-# disable by isPrimaryBillingEnabled(), and sticks across deploys. It is
-# the ONLY correct way to turn the GST engine off.
-# (Same caveat applies to HOSTING_MANDATE_FLOW / TRIAL_ABUSE_DISABLED
-# above; it just matters more here, because turning this flag off IS the
-# emergency rollback if the GST engine misbehaves on live payments.)
-CURRENT_PRIMARY_BILLING_ENABLED=$(read_current_env_var "PRIMARY_BILLING_ENABLED")
-PRIMARY_BILLING_ENABLED="${CURRENT_PRIMARY_BILLING_ENABLED:-${PRIMARY_BILLING_ENABLED:-}}"
-echo "   PRIMARY_BILLING_ENABLED resolved to: ${PRIMARY_BILLING_ENABLED:-<unset — default ON, our GST engine issues tax invoices>}"
+#     gcloud run services update ... --update-env-vars ZOHO_INVOICE_FALLBACK_ENABLED=false
+#
+# "false" is non-empty, so it wins the chain, is read as an explicit disable
+# by isZohoInvoiceFallbackEnabled(), and sticks across deploys.
+CURRENT_ZOHO_INVOICE_FALLBACK_ENABLED=$(read_current_env_var "ZOHO_INVOICE_FALLBACK_ENABLED")
+ZOHO_INVOICE_FALLBACK_ENABLED="${CURRENT_ZOHO_INVOICE_FALLBACK_ENABLED:-${ZOHO_INVOICE_FALLBACK_ENABLED:-}}"
+echo "   ZOHO_INVOICE_FALLBACK_ENABLED resolved to: ${ZOHO_INVOICE_FALLBACK_ENABLED:-<unset — default ON, Zoho is the safety net>}"
 
 # Same sticky-flag pattern for the dunning cadence. Not a toggle, but it IS
 # operator-tunable at runtime (`--update-env-vars RENEWAL_DUNNING_HOURS=...`)
@@ -379,7 +378,7 @@ RENEWAL_DUNNING_HOURS="${CURRENT_RENEWAL_DUNNING_HOURS:-${RENEWAL_DUNNING_HOURS:
 echo "   RENEWAL_DUNNING_HOURS resolved to: ${RENEWAL_DUNNING_HOURS:-<unset — default 24h/72h/7d>}"
 
 # Build the env-vars string. ^|^ delimiter handles commas in values defensively.
-ENV_VARS="ADMIN_EMAIL=${ADMIN_EMAIL:-}|APP_URL=${APP_URL:-}|DIRECTADMIN_IP=${DIRECTADMIN_IP:-}|FROM_EMAIL=${FROM_EMAIL:-}|FROM_NAME=${FROM_NAME:-}|GCP_PROJECT_ID=${PROJECT}|GCP_QUEUE_LOCATION=${GCP_QUEUE_LOCATION:-us-central1}|GCP_QUEUE_NAME=${GCP_QUEUE_NAME:-}|HOSTING_MANDATE_FLOW=${HOSTING_MANDATE_FLOW}|NEXTAUTH_URL=${NEXTAUTH_URL:-}|NEXT_PUBLIC_FACEBOOK_ENABLED=${NEXT_PUBLIC_FACEBOOK_ENABLED:-false}|NEXT_PUBLIC_GITHUB_ENABLED=${NEXT_PUBLIC_GITHUB_ENABLED:-false}|NEXT_PUBLIC_RAZORPAY_KEY_ID=${NEXT_PUBLIC_RAZORPAY_KEY_ID:-}|NEXT_PUBLIC_RECAPTCHA_SITE_KEY=${NEXT_PUBLIC_RECAPTCHA_SITE_KEY:-}|PRIMARY_BILLING_ENABLED=${PRIMARY_BILLING_ENABLED}|REDIS_HOST=10.70.203.51|REDIS_PORT=6379|RENEWAL_DUNNING_HOURS=${RENEWAL_DUNNING_HOURS}|RESELLERCLUB_API_URL=${RESELLERCLUB_API_URL:-https://httpapi.com}|SMTP_HOST=${SMTP_HOST:-}|SMTP_PORT=${SMTP_PORT:-587}|SMTP_SECURE=${SMTP_SECURE:-false}|SUPPORT_EMAIL=${SUPPORT_EMAIL:-}|TRIAL_ABUSE_DISABLED=${TRIAL_ABUSE_DISABLED}|ZOHO_DC=${ZOHO_DC:-.in}|ZOHO_LOCATION_ID=${ZOHO_LOCATION_ID:-}|ZOHO_ORG_ID=${ZOHO_ORG_ID:-}|ZOHO_ORG_STATE=${ZOHO_ORG_STATE:-}|ZOHO_TAX_ID_GST18=${ZOHO_TAX_ID_GST18:-}|ZOHO_TAX_ID_IGST18=${ZOHO_TAX_ID_IGST18:-}"
+ENV_VARS="ADMIN_EMAIL=${ADMIN_EMAIL:-}|APP_URL=${APP_URL:-}|DIRECTADMIN_IP=${DIRECTADMIN_IP:-}|FROM_EMAIL=${FROM_EMAIL:-}|FROM_NAME=${FROM_NAME:-}|GCP_PROJECT_ID=${PROJECT}|GCP_QUEUE_LOCATION=${GCP_QUEUE_LOCATION:-us-central1}|GCP_QUEUE_NAME=${GCP_QUEUE_NAME:-}|HOSTING_MANDATE_FLOW=${HOSTING_MANDATE_FLOW}|NEXTAUTH_URL=${NEXTAUTH_URL:-}|NEXT_PUBLIC_FACEBOOK_ENABLED=${NEXT_PUBLIC_FACEBOOK_ENABLED:-false}|NEXT_PUBLIC_GITHUB_ENABLED=${NEXT_PUBLIC_GITHUB_ENABLED:-false}|NEXT_PUBLIC_RAZORPAY_KEY_ID=${NEXT_PUBLIC_RAZORPAY_KEY_ID:-}|NEXT_PUBLIC_RECAPTCHA_SITE_KEY=${NEXT_PUBLIC_RECAPTCHA_SITE_KEY:-}|REDIS_HOST=10.70.203.51|REDIS_PORT=6379|RENEWAL_DUNNING_HOURS=${RENEWAL_DUNNING_HOURS}|RESELLERCLUB_API_URL=${RESELLERCLUB_API_URL:-https://httpapi.com}|SMTP_HOST=${SMTP_HOST:-}|SMTP_PORT=${SMTP_PORT:-587}|SMTP_SECURE=${SMTP_SECURE:-false}|SUPPORT_EMAIL=${SUPPORT_EMAIL:-}|TRIAL_ABUSE_DISABLED=${TRIAL_ABUSE_DISABLED}|ZOHO_DC=${ZOHO_DC:-.in}|ZOHO_INVOICE_FALLBACK_ENABLED=${ZOHO_INVOICE_FALLBACK_ENABLED}|ZOHO_LOCATION_ID=${ZOHO_LOCATION_ID:-}|ZOHO_ORG_ID=${ZOHO_ORG_ID:-}|ZOHO_ORG_STATE=${ZOHO_ORG_STATE:-}|ZOHO_TAX_ID_GST18=${ZOHO_TAX_ID_GST18:-}|ZOHO_TAX_ID_IGST18=${ZOHO_TAX_ID_IGST18:-}"
 
 SECRETS_FLAG="ADMIN_PASSWORD=ADMIN_PASSWORD:latest,ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,CRON_SECRET=CRON_SECRET:latest,DIRECTADMIN_ADMIN_USER=DIRECTADMIN_ADMIN_USER:latest,DIRECTADMIN_API_KEY=DIRECTADMIN_API_KEY:latest,DIRECTADMIN_URL=DIRECTADMIN_URL:latest,FACEBOOK_CLIENT_ID=FACEBOOK_CLIENT_ID:latest,FACEBOOK_CLIENT_SECRET=FACEBOOK_CLIENT_SECRET:latest,GITHUB_CLIENT_ID=GITHUB_CLIENT_ID:latest,GITHUB_CLIENT_SECRET=GITHUB_CLIENT_SECRET:latest,GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest,JWT_SECRET=JWT_SECRET:latest,MONGODB_URI=MONGODB_URI:latest,NEXTAUTH_SECRET=NEXTAUTH_SECRET:latest,RAZORPAY_KEY_ID=RAZORPAY_KEY_ID:latest,RAZORPAY_KEY_SECRET=RAZORPAY_KEY_SECRET:latest,RAZORPAY_WEBHOOK_SECRET=RAZORPAY_WEBHOOK_SECRET:latest,RECAPTCHA_SECRET_KEY=RECAPTCHA_SECRET_KEY:latest,RESELLERCLUB_ID=RESELLERCLUB_ID:latest,RESELLERCLUB_RESELLER_ID=RESELLERCLUB_RESELLER_ID:latest,RESELLERCLUB_SECRET=RESELLERCLUB_SECRET:latest,SMTP_PASS=SMTP_PASS:latest,SMTP_USER=SMTP_USER:latest,ZOHO_CLIENT_ID=ZOHO_CLIENT_ID:latest,ZOHO_CLIENT_SECRET=ZOHO_CLIENT_SECRET:latest,ZOHO_REFRESH_TOKEN=ZOHO_REFRESH_TOKEN:latest,META_CAPI_ACCESS_TOKEN=META_CAPI_ACCESS_TOKEN:latest"
 

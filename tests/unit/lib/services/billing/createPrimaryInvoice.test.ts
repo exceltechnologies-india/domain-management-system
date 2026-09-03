@@ -21,8 +21,8 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const isPrimaryBillingEnabled = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/primary-billing-flag", () => ({ isPrimaryBillingEnabled }));
+const isZohoInvoiceFallbackEnabled = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/zoho-fallback-flag", () => ({ isZohoInvoiceFallbackEnabled }));
 
 const getCompanyProfile = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/billing/companyProfile", () => ({ getCompanyProfile }));
@@ -46,9 +46,14 @@ vi.mock("@/lib/services/orders", () => ({
 const createZohoInvoice = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/payment/post-tasks", () => ({ createZohoInvoice }));
 
-vi.mock("@/lib/server-logger", () => ({
-  serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+// Hoisted so the fallback-disabled tests can assert on the ERROR text — the
+// loud "left UNINVOICED" line IS the deliverable of that branch.
+const serverLogger = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
 }));
+vi.mock("@/lib/server-logger", () => ({ serverLogger }));
 
 const { createPrimaryInvoice } = await import("@/lib/services/billing/createPrimaryInvoice");
 
@@ -78,7 +83,9 @@ function baseCtx(overrides: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
-  isPrimaryBillingEnabled.mockReset().mockReturnValue(false);
+  // Fallback defaults ON, matching production.
+  isZohoInvoiceFallbackEnabled.mockReset().mockReturnValue(true);
+  serverLogger.error.mockReset();
   getCompanyProfile.mockReset().mockReturnValue({ state: "Delhi", name: "Co", gstin: "07X" });
   computeGstBreakdown.mockReset().mockReturnValue({
     gstRate: 18,
@@ -94,25 +101,28 @@ beforeEach(() => {
   createZohoInvoice.mockReset().mockResolvedValue({ invoiceId: "zoho-1", invoiceNumber: "ZOHO-1" });
 });
 
-describe("flag OFF (default)", () => {
-  it("delegates straight to createZohoInvoice; no primary machinery touched", async () => {
+// The primary engine is PERMANENT as of 2026-09-03 — the old
+// PRIMARY_BILLING_ENABLED gate was removed, so there is deliberately no
+// configuration that bypasses it. These pin that there is no way back to
+// "Zoho issues the invoice directly".
+describe("primary engine is ungated", () => {
+  it("**always runs the primary engine, whatever the fallback flag says**", async () => {
+    isZohoInvoiceFallbackEnabled.mockReturnValue(false);
     const result = await createPrimaryInvoice(baseCtx());
-    expect(result).toEqual({ invoiceId: "zoho-1", invoiceNumber: "ZOHO-1", provider: "zoho" });
-    expect(createZohoInvoice).toHaveBeenCalledWith(baseCtx(), {});
-    expect(claimOrderForPrimaryInvoice).not.toHaveBeenCalled();
-    expect(allocateInvoiceNumber).not.toHaveBeenCalled();
+    expect(result.provider).toBe("primary");
+    expect(claimOrderForPrimaryInvoice).toHaveBeenCalled();
+    expect(allocateInvoiceNumber).toHaveBeenCalled();
+    expect(createZohoInvoice).not.toHaveBeenCalled();
   });
 
-  it("forwards options.claimOptions to createZohoInvoice (recovery-path support)", async () => {
-    const options = { claimOptions: { staleClaimAfterMs: 5 * 60 * 1000 } };
-    await createPrimaryInvoice(baseCtx(), options);
-    expect(createZohoInvoice).toHaveBeenCalledWith(baseCtx(), options);
+  it("the fallback flag is not even consulted on the happy path — it only governs failure", async () => {
+    await createPrimaryInvoice(baseCtx());
+    expect(isZohoInvoiceFallbackEnabled).not.toHaveBeenCalled();
   });
 });
 
-describe("zero-amount / trial skip (applies regardless of flag)", () => {
+describe("zero-amount / trial skip (applies before either engine)", () => {
   it("amount <= 0 -> skipped silently, Zoho never called", async () => {
-    isPrimaryBillingEnabled.mockReturnValue(true);
     const result = await createPrimaryInvoice(baseCtx({ order: { ...order, amount: 0 } }));
     expect(result).toEqual({ invoiceId: "", invoiceNumber: null, provider: "skipped" });
     expect(createZohoInvoice).not.toHaveBeenCalled();
@@ -120,7 +130,6 @@ describe("zero-amount / trial skip (applies regardless of flag)", () => {
   });
 
   it("orderType hosting_trial -> skipped silently", async () => {
-    isPrimaryBillingEnabled.mockReturnValue(true);
     const result = await createPrimaryInvoice(
       baseCtx({ order: { ...order, orderType: "hosting_trial" } })
     );
@@ -129,9 +138,8 @@ describe("zero-amount / trial skip (applies regardless of flag)", () => {
   });
 });
 
-describe("flag ON — claim contention", () => {
+describe("claim contention", () => {
   it("claim fails (already claimed/issued) -> silent skip, NOT a Zoho fallback", async () => {
-    isPrimaryBillingEnabled.mockReturnValue(true);
     claimOrderForPrimaryInvoice.mockResolvedValue(false);
     const result = await createPrimaryInvoice(baseCtx());
     expect(result).toEqual({ invoiceId: "", invoiceNumber: null, provider: "skipped" });
@@ -140,9 +148,8 @@ describe("flag ON — claim contention", () => {
   });
 });
 
-describe("flag ON — happy path", () => {
+describe("happy path", () => {
   it("computes breakdown, allocates a number, records it, and never calls Zoho", async () => {
-    isPrimaryBillingEnabled.mockReturnValue(true);
     const result = await createPrimaryInvoice(baseCtx());
     expect(result).toEqual({
       invoiceId: "TI/2026-27/00001",
@@ -166,9 +173,8 @@ describe("flag ON — happy path", () => {
   });
 });
 
-describe("flag ON — claimOptions forwarding (Phase 1c audit, 2026-09-03)", () => {
+describe("claimOptions forwarding (Phase 1c audit, 2026-09-03)", () => {
   it("**forwards claimOptions to the PRIMARY claim too**, not just to the Zoho fallback — the async sync-zoho-invoice worker needs stale-claim recovery on both engines", async () => {
-    isPrimaryBillingEnabled.mockReturnValue(true);
     const claimOptions = { allowNull: true, staleClaimAfterMs: 5 * 60 * 1000 };
     await createPrimaryInvoice(baseCtx(), { claimOptions });
     expect(claimOrderForPrimaryInvoice).toHaveBeenCalledWith(
@@ -178,14 +184,12 @@ describe("flag ON — claimOptions forwarding (Phase 1c audit, 2026-09-03)", () 
   });
 
   it("synchronous callers (no claimOptions) still get the strict no-stealing default", async () => {
-    isPrimaryBillingEnabled.mockReturnValue(true);
     await createPrimaryInvoice(baseCtx());
     const opts = claimOrderForPrimaryInvoice.mock.calls[0][1];
     expect(opts?.staleClaimAfterMs).toBeUndefined();
   });
 
   it("claimOptions still reach the Zoho fallback when the primary engine fails", async () => {
-    isPrimaryBillingEnabled.mockReturnValue(true);
     getCompanyProfile.mockReturnValue({ state: "", name: "Co", gstin: "07X" });
     const claimOptions = { allowNull: true, staleClaimAfterMs: 5 * 60 * 1000 };
     await createPrimaryInvoice(baseCtx(), { claimOptions });
@@ -196,9 +200,8 @@ describe("flag ON — claimOptions forwarding (Phase 1c audit, 2026-09-03)", () 
   });
 });
 
-describe("flag ON — falls back to Zoho on any failure", () => {
+describe("falls back to Zoho on any failure (fallback ON, the default)", () => {
   it("missing company state -> releases claim, falls back to Zoho", async () => {
-    isPrimaryBillingEnabled.mockReturnValue(true);
     getCompanyProfile.mockReturnValue({ state: "", name: "Co", gstin: "07X" });
     const result = await createPrimaryInvoice(baseCtx());
     expect(result).toEqual({ invoiceId: "zoho-1", invoiceNumber: "ZOHO-1", provider: "zoho" });
@@ -208,7 +211,6 @@ describe("flag ON — falls back to Zoho on any failure", () => {
   });
 
   it("allocateInvoiceNumber throws -> releases claim, falls back to Zoho", async () => {
-    isPrimaryBillingEnabled.mockReturnValue(true);
     allocateInvoiceNumber.mockRejectedValue(new Error("counter unreachable"));
     const result = await createPrimaryInvoice(baseCtx());
     expect(result).toEqual({ invoiceId: "zoho-1", invoiceNumber: "ZOHO-1", provider: "zoho" });
@@ -216,7 +218,6 @@ describe("flag ON — falls back to Zoho on any failure", () => {
   });
 
   it("recordPrimaryInvoiceForOrder throws -> releases claim, falls back to Zoho", async () => {
-    isPrimaryBillingEnabled.mockReturnValue(true);
     recordPrimaryInvoiceForOrder.mockRejectedValue(new Error("db write failed"));
     const result = await createPrimaryInvoice(baseCtx());
     expect(result).toEqual({ invoiceId: "zoho-1", invoiceNumber: "ZOHO-1", provider: "zoho" });
@@ -224,9 +225,61 @@ describe("flag ON — falls back to Zoho on any failure", () => {
   });
 
   it("even the Zoho fallback throwing propagates (both engines failed)", async () => {
-    isPrimaryBillingEnabled.mockReturnValue(true);
     allocateInvoiceNumber.mockRejectedValue(new Error("counter unreachable"));
     createZohoInvoice.mockRejectedValue(new Error("Zoho also down"));
     await expect(createPrimaryInvoice(baseCtx())).rejects.toThrow("Zoho also down");
+  });
+});
+
+describe("fallback DISABLED — failures surface instead of being papered over", () => {
+  beforeEach(() => {
+    isZohoInvoiceFallbackEnabled.mockReturnValue(false);
+  });
+
+  it("**rethrows instead of issuing a Zoho invoice**, so the caller records it and the order shows up in integration-health", async () => {
+    getCompanyProfile.mockReturnValue({ state: "", name: "Co", gstin: "07X" });
+    await expect(createPrimaryInvoice(baseCtx())).rejects.toThrow(
+      /ZOHO_ORG_STATE is not configured/
+    );
+    expect(createZohoInvoice).not.toHaveBeenCalled();
+  });
+
+  it("still releases the primary claim before rethrowing — a retry must not be blocked by the failed attempt", async () => {
+    getCompanyProfile.mockReturnValue({ state: "", name: "Co", gstin: "07X" });
+    await expect(createPrimaryInvoice(baseCtx())).rejects.toThrow();
+    expect(releasePrimaryInvoiceClaim).toHaveBeenCalledWith("OID-1");
+  });
+
+  it("preserves the ORIGINAL error, not a wrapped one — the caller logs the real reason", async () => {
+    allocateInvoiceNumber.mockRejectedValueOnce(new Error("Counter shard timeout"));
+    await expect(createPrimaryInvoice(baseCtx())).rejects.toThrow("Counter shard timeout");
+  });
+
+  it("logs the uninvoiced consequence explicitly, naming the flag", async () => {
+    getCompanyProfile.mockReturnValue({ state: "", name: "Co", gstin: "07X" });
+    await expect(createPrimaryInvoice(baseCtx())).rejects.toThrow();
+    const logged = serverLogger.error.mock.calls.map((c) => String(c[0])).join("\n");
+    expect(logged).toContain("ZOHO_INVOICE_FALLBACK_ENABLED");
+    expect(logged).toContain("UNINVOICED");
+  });
+
+  it("**does NOT affect the happy path** — a working primary engine is unchanged with the fallback off", async () => {
+    const result = await createPrimaryInvoice(baseCtx());
+    expect(result.provider).toBe("primary");
+    expect(createZohoInvoice).not.toHaveBeenCalled();
+  });
+
+  it("does NOT affect the zero-amount/trial skip — still a silent no-op, not a throw", async () => {
+    const result = await createPrimaryInvoice(
+      baseCtx({ order: { ...order, amount: 0 } })
+    );
+    expect(result).toEqual({ invoiceId: "", invoiceNumber: null, provider: "skipped" });
+  });
+
+  it("does NOT affect claim contention — a concurrent claim is still a silent skip, not a throw", async () => {
+    claimOrderForPrimaryInvoice.mockResolvedValue(false);
+    const result = await createPrimaryInvoice(baseCtx());
+    expect(result).toEqual({ invoiceId: "", invoiceNumber: null, provider: "skipped" });
+    expect(createZohoInvoice).not.toHaveBeenCalled();
   });
 });

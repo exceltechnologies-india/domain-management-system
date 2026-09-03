@@ -1,7 +1,7 @@
 import type { IOrder } from "@/models/Order";
 import type { IUser } from "@/models/User";
 import { serverLogger } from "@/lib/server-logger";
-import { isPrimaryBillingEnabled } from "@/lib/primary-billing-flag";
+import { isZohoInvoiceFallbackEnabled } from "@/lib/zoho-fallback-flag";
 import { getCompanyProfile } from "@/lib/billing/companyProfile";
 import { computeGstBreakdown, placeOfSupply } from "@/lib/billing/gst";
 import { allocateInvoiceNumber } from "@/lib/billing/invoiceNumber";
@@ -99,14 +99,15 @@ async function attemptCreatePrimaryInvoice(
  * Drop-in replacement for `createZohoInvoice` (same context shape, same
  * `{invoiceId, invoiceNumber}` return contract) that call sites can swap to
  * directly. Behavior:
- *  - Enabled (DEFAULT as of 2026-09-03): tries the primary GST engine first;
- *    ANY failure (thrown error) falls back to `createZohoInvoice` so a
- *    customer's payment never goes un-invoiced just because the new engine
- *    hit a bug. This is the normal path — our TI/... number is the tax
- *    invoice of record and Zoho is the safety net.
- *  - `PRIMARY_BILLING_ENABLED` explicitly falsey (`false`/`0`/`no`/`off`):
- *    calls `createZohoInvoice` directly — byte-identical to every call
- *    site's behavior before this feature existed. The emergency rollback.
+ *  - The primary GST engine ALWAYS runs. It is permanent and ungated as of
+ *    2026-09-03 — our `TI/...` number is the tax invoice of record. There is
+ *    no switch that turns it off.
+ *  - On ANY failure (thrown error), behaviour depends on
+ *    `ZOHO_INVOICE_FALLBACK_ENABLED` (default ON): the fallback issues a
+ *    Zoho invoice so a customer's payment never goes un-invoiced because our
+ *    engine hit a bug. With the fallback explicitly disabled, the error is
+ *    rethrown for the caller to record and surface instead — see
+ *    lib/zoho-fallback-flag.ts for that trade-off.
  *
  * `invoiceId` in the returned pair has no meaning for a primary invoice
  * (there's no external gateway id) — set to the same value as
@@ -146,10 +147,6 @@ export async function createPrimaryInvoice(
     return { invoiceId: "", invoiceNumber: null, provider: "skipped" };
   }
 
-  if (!isPrimaryBillingEnabled()) {
-    return { ...(await createZohoInvoice(ctx, options)), provider: "zoho" };
-  }
-
   try {
     // Passed through whole; the primary claim reads only `staleClaimAfterMs`
     // and ignores the Zoho-specific `allowNull`/`allowFailed`.
@@ -168,6 +165,21 @@ export async function createPrimaryInvoice(
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+
+    // Fallback disabled: do NOT paper over the failure with a Zoho-numbered
+    // invoice. Rethrow so the caller's existing handling records it durably
+    // (SystemLog + `zohoInvoiceId: 'creation_failed'`) and the order shows up
+    // in admin integration-health. The customer's payment succeeded but is
+    // temporarily uninvoiced — that is the documented trade of turning the
+    // fallback off, and it needs an operator, not silence.
+    if (!isZohoInvoiceFallbackEnabled()) {
+      serverLogger.error(
+        `❌ [PrimaryInvoice] Engine failed for order ${ctx.orderId} and the Zoho fallback is DISABLED ` +
+        `(ZOHO_INVOICE_FALLBACK_ENABLED) — order will be left UNINVOICED pending operator action: ${message}`
+      );
+      throw err;
+    }
+
     serverLogger.error(
       `❌ [PrimaryInvoice] Engine failed for order ${ctx.orderId} — falling back to Zoho: ${message}`
     );
