@@ -33,14 +33,19 @@ export const dynamic = "force-dynamic";
  * renewal checkouts are expected to be a low-volume population.
  *
  * Auth: x-cron-secret header (timing-safe) OR admin session.
- * Recommended schedule: a few times a day (reminders are hour-granularity).
  *
- * Cloud Scheduler example (every 6 hours):
- *   gcloud scheduler jobs create http renewal-payment-dunning \
- *     --schedule="0 0,6,12,18 * * *" --time-zone="Asia/Kolkata" \
- *     --uri="https://app.anutech.in/api/cron/renewal-payment-dunning" \
- *     --http-method=GET \
- *     --headers="x-cron-secret=$CRON_SECRET"
+ * NOT SELF-STARTING. This route does nothing until a Cloud Scheduler job
+ * invokes it. Provision that with the idempotent setup script rather than a
+ * hand-typed gcloud command:
+ *
+ *   bash scripts/setup-cloud-scheduler-billing.sh
+ *
+ * The script preflights the endpoint and refuses to create a job pointing at
+ * a 404 - this route is branch-only until `primary-billing-integration`
+ * merges, and a job created too early fails silently on every run.
+ *
+ * Full operator guide (scheduling, tuning RENEWAL_DUNNING_HOURS, verifying a
+ * run, pausing): docs/renewal-payment-dunning.md
  */
 
 const HOURS_MS = 60 * 60 * 1000;

@@ -106,6 +106,8 @@ All configuration is supplied via environment variables — see [`.env.example`]
 | `npm run migrate` / `migrate:status` / `migrate:dry` | Database migrations |
 | `npm run init-db` / `recreate-admin` | DB bootstrap helpers |
 | `npm run deps:check` | `npm audit` + `npm outdated` |
+| `bash scripts/setup-cloud-scheduler-tokens.sh` | Provision the Tokens-flow Cloud Scheduler jobs (idempotent) |
+| `bash scripts/setup-cloud-scheduler-billing.sh` | Provision the billing Cloud Scheduler jobs — renewal-payment dunning (idempotent; see [docs/renewal-payment-dunning.md](docs/renewal-payment-dunning.md)) |
 
 ## Testing
 
@@ -165,6 +167,20 @@ bash scripts/deploy-cloud-run.sh
 ```
 
 The script builds the image locally, pushes it to Artifact Registry, promotes a new Cloud Run revision, and runs a health smoke-test. Runtime secrets are injected from Google Secret Manager. See `docs/` for deeper technical notes.
+
+### Scheduled jobs
+
+Cron endpoints under `app/api/cron/` and `app/api/workers/` are **not self-starting** — each
+needs a Google Cloud Scheduler job. Those are provisioned by idempotent scripts, not by hand,
+so the schedule and headers stay version-controlled:
+
+```bash
+bash scripts/setup-cloud-scheduler-tokens.sh    # Tokens flow: provisioning, recurring charge, mandate-refund retry
+bash scripts/setup-cloud-scheduler-billing.sh   # Billing: renewal-payment dunning
+```
+
+Deploy **before** running these — the billing script preflights its endpoint and refuses to
+create a job pointing at a route that isn't live yet.
 
 ## Conventions
 
