@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, use } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { ArrowLeft, Download, FileText, Loader2, ExternalLink, RefreshCw } from 'lucide-react';
 import AdminLayout from '@/components/admin/AdminLayout';
@@ -19,6 +19,16 @@ interface User {
 
 export default function AdminViewInvoicePage({ params }: { params: Promise<{ id: string }> }) {
   const { id: invoiceId } = use(params);
+  const searchParams = useSearchParams();
+  // A primary-engine tax invoice has no Zoho id, so the Zoho-keyed PDF route
+  // can't serve it — the list links here with `?src=order` and the id in the
+  // path is then an Order id, served by the orderId-keyed admin route (which
+  // falls through to generateInvoicePdf and is already provider-aware).
+  // Mirrors the customer-side viewer fix in a19e841.
+  const isOrderSource = searchParams.get('src') === 'order';
+  const pdfUrl = isOrderSource
+    ? `/api/v1/admin/orders/${encodeURIComponent(invoiceId)}/invoice`
+    : `/api/v1/admin/invoices/${encodeURIComponent(invoiceId)}/pdf`;
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -64,7 +74,7 @@ export default function AdminViewInvoicePage({ params }: { params: Promise<{ id:
       setIsLoadingPdf(true);
       setPdfError(null);
       try {
-        const res = await fetch(`/api/v1/admin/invoices/${invoiceId}/pdf`, { credentials: 'include' });
+        const res = await fetch(pdfUrl, { credentials: 'include' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const blob = await res.blob();
         if (cancelled) return;
@@ -87,7 +97,7 @@ export default function AdminViewInvoicePage({ params }: { params: Promise<{ id:
         blobUrlRef.current = null;
       }
     };
-  }, [user, invoiceId]);
+  }, [user, pdfUrl]);
 
   const handleDownload = async () => {
     try {
@@ -102,7 +112,7 @@ export default function AdminViewInvoicePage({ params }: { params: Promise<{ id:
         showSuccessToast('Invoice downloaded successfully');
         return;
       }
-      const response = await fetch(`/api/v1/admin/invoices/${invoiceId}/pdf`, { credentials: 'include' });
+      const response = await fetch(pdfUrl, { credentials: 'include' });
       if (!response.ok) { showErrorToast('Failed to download invoice'); return; }
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -133,7 +143,7 @@ export default function AdminViewInvoicePage({ params }: { params: Promise<{ id:
       blobUrlRef.current = null;
     }
     setIsLoadingPdf(true);
-    fetch(`/api/v1/admin/invoices/${invoiceId}/pdf`, { credentials: 'include' })
+    fetch(pdfUrl, { credentials: 'include' })
       .then(r => { if (!r.ok) throw new Error(); return r.blob(); })
       .then(blob => {
         const url = URL.createObjectURL(blob);

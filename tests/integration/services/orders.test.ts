@@ -32,6 +32,7 @@ import {
   listAllOrdersForAdminDomains,
   listOrdersByRazorpayPaymentIds,
   listOrdersForUser,
+  listPrimaryInvoiceOrdersAdmin,
   listRecentCompletedOrdersForUser,
   listStuckCompletedOrders,
   listStuckZohoInvoiceOrders,
@@ -952,5 +953,183 @@ describe("claimOrderForPrimaryInvoice / releasePrimaryInvoiceClaim / recordPrima
     expect(found?.igst).toBe(180);
     expect(found?.placeOfSupply).toBe("Maharashtra");
     expect(found?.customerGstin).toBe("27AAAAA0000A1Z5");
+  });
+});
+
+// ─── Admin primary-invoice listing (Phase 1c audit, 2026-09-03) ───────────────
+// The admin invoices page is otherwise a pure Zoho passthrough, so a
+// primary-engine invoice — which exists only in our DB — was invisible to the
+// admin: no lookup, no download, for a bill the customer legally holds.
+describe("listPrimaryInvoiceOrdersAdmin", () => {
+  /** Creates a completed order and stamps a primary invoice on it. */
+  async function primaryInvoiced(
+    orderId: string,
+    invoiceNumber: string,
+    overrides: Record<string, unknown> = {}
+  ) {
+    const order = await createOrder(
+      buildOrderPayload({ orderId, status: "completed", ...overrides })
+    );
+    await recordPrimaryInvoiceForOrder(order._id, {
+      invoiceNumber,
+      gstRate: 18,
+      taxableValue: 1000,
+      cgst: 90,
+      sgst: 90,
+      igst: 0,
+      placeOfSupply: "Delhi",
+    });
+    return order;
+  }
+
+  it("returns only primary-engine invoices — Zoho-invoiced orders are excluded", async () => {
+    await primaryInvoiced("ord_admin_primary", "TI/2026-27/00001");
+    const zohoOrder = await createOrder(
+      buildOrderPayload({ orderId: "ord_admin_zoho", status: "completed" })
+    );
+    await recordZohoInvoiceForOrder(zohoOrder._id, {
+      invoiceId: "zoho-1",
+      invoiceNumber: "INV-000123",
+    });
+
+    const { orders } = await listPrimaryInvoiceOrdersAdmin(1, 20);
+    const ids = orders.map((o) => o.orderId);
+    expect(ids).toContain("ord_admin_primary");
+    expect(ids).not.toContain("ord_admin_zoho");
+  });
+
+  it("spans all users — this is the ADMIN view, not a per-customer list", async () => {
+    const a = await createOrder(
+      buildOrderPayload({ orderId: "ord_u1", userId: validUserId(), status: "completed" })
+    );
+    const b = await createOrder(
+      buildOrderPayload({ orderId: "ord_u2", userId: validUserId(), status: "completed" })
+    );
+    for (const [o, n] of [[a, "TI/2026-27/00010"], [b, "TI/2026-27/00011"]] as const) {
+      await recordPrimaryInvoiceForOrder(o._id, {
+        invoiceNumber: n,
+        gstRate: 18,
+        taxableValue: 1000,
+        cgst: 90,
+        sgst: 90,
+        igst: 0,
+        placeOfSupply: "Delhi",
+      });
+    }
+    const { orders } = await listPrimaryInvoiceOrdersAdmin(1, 20);
+    const ids = orders.map((o) => o.orderId);
+    expect(ids).toContain("ord_u1");
+    expect(ids).toContain("ord_u2");
+  });
+
+  it("excludes soft-deleted orders", async () => {
+    const order = await primaryInvoiced("ord_deleted", "TI/2026-27/00020");
+    await Order.updateOne({ _id: order._id }, { $set: { isDeleted: true } });
+
+    const { orders } = await listPrimaryInvoiceOrdersAdmin(1, 20);
+    expect(orders.map((o) => o.orderId)).not.toContain("ord_deleted");
+  });
+
+  it("sorts newest first", async () => {
+    await primaryInvoiced("ord_older", "TI/2026-27/00030");
+    await primaryInvoiced("ord_newer", "TI/2026-27/00031");
+    // Force a deterministic ordering rather than relying on clock resolution.
+    await Order.updateOne(
+      { orderId: "ord_older" },
+      { $set: { createdAt: new Date("2026-01-01T00:00:00Z") } }
+    );
+    await Order.updateOne(
+      { orderId: "ord_newer" },
+      { $set: { createdAt: new Date("2026-06-01T00:00:00Z") } }
+    );
+
+    const { orders } = await listPrimaryInvoiceOrdersAdmin(1, 20);
+    const ids = orders.map((o) => o.orderId);
+    expect(ids.indexOf("ord_newer")).toBeLessThan(ids.indexOf("ord_older"));
+  });
+
+  it("**paginates without overlap and reports hasMore correctly**", async () => {
+    for (let i = 1; i <= 5; i++) {
+      await primaryInvoiced(`ord_page_${i}`, `TI/2026-27/0004${i}`);
+      await Order.updateOne(
+        { orderId: `ord_page_${i}` },
+        { $set: { createdAt: new Date(`2026-0${i}-01T00:00:00Z`) } }
+      );
+    }
+
+    const p1 = await listPrimaryInvoiceOrdersAdmin(1, 2);
+    const p2 = await listPrimaryInvoiceOrdersAdmin(2, 2);
+    const p3 = await listPrimaryInvoiceOrdersAdmin(3, 2);
+
+    expect(p1.orders).toHaveLength(2);
+    expect(p1.hasMore).toBe(true);
+    expect(p2.orders).toHaveLength(2);
+    expect(p2.hasMore).toBe(true);
+    expect(p3.orders).toHaveLength(1);
+    // Exactly 5 rows exist, so the last page must NOT claim another one.
+    expect(p3.hasMore).toBe(false);
+
+    // No row appears on two pages.
+    const all = [...p1.orders, ...p2.orders, ...p3.orders].map((o) => o.orderId);
+    expect(new Set(all).size).toBe(5);
+  });
+
+  it("never returns the extra look-ahead row it fetches to compute hasMore", async () => {
+    for (let i = 1; i <= 3; i++) {
+      await primaryInvoiced(`ord_look_${i}`, `TI/2026-27/0005${i}`);
+    }
+    const { orders, hasMore } = await listPrimaryInvoiceOrdersAdmin(1, 2);
+    expect(orders).toHaveLength(2);
+    expect(hasMore).toBe(true);
+  });
+
+  it("clamps a garbage page/perPage instead of passing NaN to Mongo", async () => {
+    await primaryInvoiced("ord_clamp", "TI/2026-27/00060");
+    // NaN would make .skip()/.limit() throw or return nothing.
+    const { orders } = await listPrimaryInvoiceOrdersAdmin(NaN, NaN);
+    expect(orders.map((o) => o.orderId)).toContain("ord_clamp");
+
+    const negative = await listPrimaryInvoiceOrdersAdmin(-5, -5);
+    expect(negative.orders.map((o) => o.orderId)).toContain("ord_clamp");
+  });
+
+  it("caps perPage at 100 so a hand-crafted request can't pull the whole collection", async () => {
+    await primaryInvoiced("ord_cap", "TI/2026-27/00070");
+    const { orders } = await listPrimaryInvoiceOrdersAdmin(1, 100000);
+    // Can't assert the limit directly through the public API; assert it still
+    // returns correctly and doesn't throw, and that the page is bounded.
+    expect(orders.length).toBeLessThanOrEqual(100);
+  });
+
+  it("selects the fields the admin row needs (invoice number, customer, amount)", async () => {
+    // buildOrderPayload leaves the customer fields unset, so they're supplied
+    // here — otherwise the assertion would pass vacuously whether or not the
+    // projection actually includes them.
+    await primaryInvoiced("ord_fields", "TI/2026-27/00080", {
+      userName: "Alice Anderson",
+      userEmail: "alice@example.com",
+    });
+    const { orders } = await listPrimaryInvoiceOrdersAdmin(1, 20);
+    const row = orders.find((o) => o.orderId === "ord_fields")!;
+    expect(row.invoiceNumber).toBe("TI/2026-27/00080");
+    expect(row.userName).toBe("Alice Anderson");
+    expect(row.userEmail).toBe("alice@example.com");
+    expect(row.amount).toBe(1000);
+    expect(row.createdAt).toBeInstanceOf(Date);
+  });
+
+  it("does NOT leak fields outside the projection (e.g. razorpaySignature)", async () => {
+    await primaryInvoiced("ord_proj", "TI/2026-27/00090");
+    const { orders } = await listPrimaryInvoiceOrdersAdmin(1, 20);
+    const row = orders.find((o) => o.orderId === "ord_proj")! as unknown as Record<string, unknown>;
+    expect(row.razorpaySignature).toBeUndefined();
+    expect(row.paymentVerification).toBeUndefined();
+  });
+
+  it("returns an empty page rather than throwing when nothing is primary-invoiced", async () => {
+    await createOrder(buildOrderPayload({ orderId: "ord_none", status: "completed" }));
+    const { orders, hasMore } = await listPrimaryInvoiceOrdersAdmin(1, 20);
+    expect(orders).toEqual([]);
+    expect(hasMore).toBe(false);
   });
 });

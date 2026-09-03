@@ -1205,6 +1205,50 @@ export async function findPriorHostingOrderForUser(
 }
 
 /**
+ * Admin invoice listing for the PRIMARY GST engine.
+ *
+ * The admin invoices page is otherwise a straight passthrough to Zoho Books
+ * (`zohoService.getAllInvoices`). A primary-engine invoice exists ONLY in our
+ * own database — Zoho never sees it — so without this it is invisible to the
+ * admin, who can neither look it up nor download it for a customer.
+ *
+ * Deliberately NOT merged into the Zoho list: Zoho paginates server-side, so
+ * a single interleaved page would need every Zoho page pulled first. The two
+ * sources are paginated independently and the UI presents them as tabs, which
+ * keeps both page counts honest.
+ *
+ * Returns one page plus `hasMore`, matching the `page_context.has_more_page`
+ * contract the page already consumes for the Zoho source. Fetches `perPage+1`
+ * rows to determine `hasMore` without a second count query.
+ */
+export async function listPrimaryInvoiceOrdersAdmin(
+  page = 1,
+  perPage = 20
+): Promise<{ orders: IOrder[]; hasMore: boolean }> {
+  await connectDB();
+  const safePage = Math.max(1, Math.floor(page) || 1);
+  const safePerPage = Math.min(100, Math.max(1, Math.floor(perPage) || 20));
+
+  const rows = await Order.find({
+    invoiceProvider: "primary",
+    invoiceNumber: { $exists: true, $ne: null },
+    isDeleted: { $ne: true },
+  })
+    .sort({ createdAt: -1 })
+    .skip((safePage - 1) * safePerPage)
+    .limit(safePerPage + 1)
+    .select(
+      "orderId invoiceNumber userName userEmail amount currency status createdAt gstRate taxableValue cgst sgst igst placeOfSupply"
+    )
+    .lean<IOrder[]>();
+
+  return {
+    orders: rows.slice(0, safePerPage),
+    hasMore: rows.length > safePerPage,
+  };
+}
+
+/**
  * Recent completed orders for a user, used by the dashboard "domains in
  * process" view. `withinDays` defaults to 14 — matches the prior inline
  * default. Sorted oldest first so newer entries can overwrite stale ones

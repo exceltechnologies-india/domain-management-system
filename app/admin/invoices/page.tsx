@@ -29,9 +29,15 @@ import InvoiceDiagnostics from '@/components/admin/InvoiceDiagnostics';
 import { logger } from '@/lib/logger';
 import { apiClient } from '@/lib/api-client';
 
+type InvoiceSource = 'zoho' | 'primary';
+
 interface Invoice {
   invoice_id: string;
   invoice_number: string;
+  // Which engine issued it. Tells us where the PDF lives: a 'primary' tax
+  // invoice has no Zoho id and is served by the orderId-keyed route.
+  provider?: InvoiceSource;
+  order_id?: string;
   customer_name: string;
   email?: string;
   date: string;
@@ -48,9 +54,13 @@ export default function AdminInvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [source, setSource] = useState<InvoiceSource>('zoho');
   const [hasMore, setHasMore] = useState(false);
-  const invoicesCache = useRef<Record<number, { data: Invoice[], hasMore: boolean }>>({});
-  const fetchingPages = useRef<Set<number>>(new Set());
+  // Cache + in-flight keys carry the source: the two tabs are separate
+  // paginated lists, so page 1 of Zoho and page 1 of primary are different
+  // rows and must not share a slot.
+  const invoicesCache = useRef<Record<string, { data: Invoice[], hasMore: boolean }>>({});
+  const fetchingPages = useRef<Set<string>>(new Set());
 
   // Split loading states
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -74,7 +84,7 @@ export default function AdminInvoicesPage() {
         return;
       }
       setIsAuthLoading(false);
-      void fetchInvoices(page);
+      void fetchInvoices(page, false, false, source);
       return;
     }
 
@@ -82,64 +92,95 @@ export default function AdminInvoicesPage() {
     // fallback read values no auth route ever wrote — dead code.
     router.push('/login');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router, status, session?.user?.email, page]);
+  }, [router, status, session?.user?.email, page, source]);
 
-  const fetchInvoices = async (targetPage: number = page, isBackground: boolean = false, forceRefresh: boolean = false) => {
+  /** Cache/in-flight key. Tabs are independent lists, so the source is part of it. */
+  const cacheKey = (targetPage: number, src: InvoiceSource) => `${src}:${targetPage}`;
+
+  const fetchInvoices = async (
+    targetPage: number = page,
+    isBackground: boolean = false,
+    forceRefresh: boolean = false,
+    src: InvoiceSource = source
+  ) => {
+    const key = cacheKey(targetPage, src);
     if (forceRefresh) {
-      delete invoicesCache.current[targetPage];
+      delete invoicesCache.current[key];
     }
 
-    if (!isBackground && invoicesCache.current[targetPage]) {
-      setInvoices(invoicesCache.current[targetPage].data);
-      setHasMore(invoicesCache.current[targetPage].hasMore);
+    if (!isBackground && invoicesCache.current[key]) {
+      setInvoices(invoicesCache.current[key].data);
+      setHasMore(invoicesCache.current[key].hasMore);
       setIsDataLoading(false);
-      prefetchAdjacent(targetPage, invoicesCache.current[targetPage].hasMore);
+      prefetchAdjacent(targetPage, invoicesCache.current[key].hasMore, src);
       return;
     }
 
-    if (fetchingPages.current.has(targetPage)) return;
+    if (fetchingPages.current.has(key)) return;
 
     try {
       if (!isBackground) setIsDataLoading(true);
-      fetchingPages.current.add(targetPage);
+      fetchingPages.current.add(key);
 
       const result = await apiClient.get<{ invoices?: Invoice[]; page_context?: { has_more_page?: boolean } }>(
-        `/api/v1/admin/invoices?page=${targetPage}&per_page=10`
+        `/api/v1/admin/invoices?page=${targetPage}&per_page=10&source=${src}`
       );
 
       if (result.ok) {
         const newInvoices = result.data.invoices || [];
         const hasMorePage = result.data.page_context?.has_more_page || false;
 
-        invoicesCache.current[targetPage] = { data: newInvoices, hasMore: hasMorePage };
+        invoicesCache.current[key] = { data: newInvoices, hasMore: hasMorePage };
 
         if (!isBackground) {
           setInvoices(newInvoices);
           setHasMore(hasMorePage);
-          prefetchAdjacent(targetPage, hasMorePage);
+          prefetchAdjacent(targetPage, hasMorePage, src);
         }
       } else if (!isBackground) {
         showErrorToast('Failed to fetch invoices');
       }
     } finally {
-      fetchingPages.current.delete(targetPage);
+      fetchingPages.current.delete(key);
       if (!isBackground) setIsDataLoading(false);
     }
   };
 
-  const prefetchAdjacent = (currentPage: number, currentHasMore: boolean) => {
-    if (currentHasMore && !invoicesCache.current[currentPage + 1] && !fetchingPages.current.has(currentPage + 1)) {
-      void fetchInvoices(currentPage + 1, true);
+  const prefetchAdjacent = (currentPage: number, currentHasMore: boolean, src: InvoiceSource) => {
+    const next = cacheKey(currentPage + 1, src);
+    const prev = cacheKey(currentPage - 1, src);
+    if (currentHasMore && !invoicesCache.current[next] && !fetchingPages.current.has(next)) {
+      void fetchInvoices(currentPage + 1, true, false, src);
     }
-    if (currentPage > 1 && !invoicesCache.current[currentPage - 1] && !fetchingPages.current.has(currentPage - 1)) {
-      void fetchInvoices(currentPage - 1, true);
+    if (currentPage > 1 && !invoicesCache.current[prev] && !fetchingPages.current.has(prev)) {
+      void fetchInvoices(currentPage - 1, true, false, src);
     }
   };
 
-  const handleDownload = async (invoiceId: string, invoiceNumber: string) => {
+  const handleSourceChange = (next: InvoiceSource) => {
+    if (next === source) return;
+    setSource(next);
+    // Both tabs start at page 1. Setting page also re-triggers the auth
+    // effect's fetch when it isn't already 1, so guard against a double
+    // fetch by only calling through when the page is unchanged.
+    if (page === 1) {
+      void fetchInvoices(1, false, false, next);
+    } else {
+      setPage(1);
+    }
+  };
+
+  const handleDownload = async (row: Invoice) => {
+    const invoiceId = row.invoice_id || row.order_id || '';
+    const invoiceNumber = row.invoice_number;
     try {
       setDownloadingId(invoiceId);
-      const response = await fetch(`/api/v1/admin/invoices/${invoiceId}/pdf`);
+      // A primary tax invoice has no Zoho id; its PDF is generated locally
+      // and served by the orderId-keyed admin route.
+      const url = row.provider === 'primary' && row.order_id
+        ? `/api/v1/admin/orders/${encodeURIComponent(row.order_id)}/invoice`
+        : `/api/v1/admin/invoices/${encodeURIComponent(invoiceId)}/pdf`;
+      const response = await fetch(url);
 
       if (response.ok) {
         const blob = await response.blob();
@@ -179,9 +220,17 @@ export default function AdminInvoicesPage() {
       label: 'Invoice #',
       sortable: true,
       render: (value: string, row: Invoice) => (
-        <div className="flex items-center font-medium text-gray-900">
-          <FileText className="h-4 w-4 mr-2 text-blue-500" />
-          {value}
+        <div className="flex items-center gap-2 font-medium text-gray-900">
+          <FileText className="h-4 w-4 text-blue-500 shrink-0" />
+          <span>{value}</span>
+          {row.provider === 'primary' && (
+            <span
+              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200"
+              title="Issued by our own GST engine — this number is the tax invoice of record and has no Zoho counterpart"
+            >
+              GST
+            </span>
+          )}
         </div>
       )
     },
@@ -234,24 +283,35 @@ export default function AdminInvoicesPage() {
       key: 'actions',
       label: 'Actions',
       sortable: false,
-      render: (_value: unknown, row: Invoice) => (
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={() => router.push(`/admin/invoices/${row.invoice_id}/view`)}
-            className="text-blue-600 hover:text-blue-900"
-            title="View Invoice"
-          >
-            <Eye className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => handleDownload(row.invoice_id, row.invoice_number)}
-            className="text-blue-600 hover:text-blue-900"
-            title="Download PDF"
-          >
-            <Download className="h-4 w-4" />
-          </button>
-        </div>
-      )
+      render: (_value: unknown, row: Invoice) => {
+        const isPrimary = row.provider === 'primary';
+        // Key actions off whichever id this row actually has: a Zoho invoice
+        // has invoice_id, a primary one only ever has order_id.
+        const docId = row.invoice_id || row.order_id || '';
+        const viewHref = isPrimary
+          ? `/admin/invoices/${encodeURIComponent(docId)}/view?src=order`
+          : `/admin/invoices/${encodeURIComponent(docId)}/view`;
+        return (
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => router.push(viewHref)}
+              disabled={!docId}
+              className="text-blue-600 hover:text-blue-900 disabled:text-gray-300 disabled:cursor-not-allowed"
+              title="View Invoice"
+            >
+              <Eye className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => handleDownload(row)}
+              disabled={!docId || downloadingId === docId}
+              className="text-blue-600 hover:text-blue-900 disabled:text-gray-300 disabled:cursor-not-allowed"
+              title="Download PDF"
+            >
+              <Download className="h-4 w-4" />
+            </button>
+          </div>
+        );
+      }
     }
   ];
 
@@ -305,7 +365,7 @@ export default function AdminInvoicesPage() {
               <p className="text-sm text-gray-500 mt-0.5">Manage all invoices across the system</p>
             </div>
           </div>
-          <RefreshButton onClick={() => fetchInvoices(page, false, true)} isLoading={isDataLoading} />
+          <RefreshButton onClick={() => fetchInvoices(page, false, true, source)} isLoading={isDataLoading} />
         </div>
 
         {/* ── Summary stat cards ── */}
@@ -350,7 +410,11 @@ export default function AdminInvoicesPage() {
         })()}
 
         {/* ── Diagnostics panel ── */}
-        <InvoiceDiagnostics />
+        {/* Zoho-only: the diagnostics panel finds orders whose ZOHO invoice
+            never issued. Primary invoices have no zohoInvoiceId by design and
+            are excluded from those queries, so the panel is meaningless (and
+            misleading) on the GST tab. */}
+        {source === 'zoho' && <InvoiceDiagnostics />}
 
         {/* ── Invoices card ── */}
         <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
@@ -359,6 +423,30 @@ export default function AdminInvoicesPage() {
             <div className="flex items-center gap-2.5">
               <FileText className="h-4 w-4 text-gray-500" />
               <h3 className="text-sm font-semibold text-gray-900">Billing History</h3>
+            </div>
+            {/* Source tabs. The two lists are paginated independently — Zoho
+                paginates server-side, primary invoices live only in our DB —
+                so they're shown side by side rather than merged into one list
+                whose page numbers would silently repeat or skip rows. */}
+            <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-0.5">
+              {([
+                { id: 'zoho' as const,    label: 'Zoho Books' },
+                { id: 'primary' as const, label: 'GST engine' },
+              ]).map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => handleSourceChange(tab.id)}
+                  aria-pressed={source === tab.id}
+                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
+                    source === tab.id
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
             <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 bg-white border border-gray-200 px-2.5 py-1 rounded-full">
               {invoices.length} on this page
