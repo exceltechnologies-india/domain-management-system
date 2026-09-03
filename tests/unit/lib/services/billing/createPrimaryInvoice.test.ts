@@ -149,7 +149,7 @@ describe("flag ON — happy path", () => {
       invoiceNumber: "TI/2026-27/00001",
       provider: "primary",
     });
-    expect(claimOrderForPrimaryInvoice).toHaveBeenCalledWith("OID-1");
+    expect(claimOrderForPrimaryInvoice).toHaveBeenCalledWith("OID-1", undefined);
     expect(computeGstBreakdown).toHaveBeenCalledWith(1180, "Delhi", "Maharashtra");
     expect(recordPrimaryInvoiceForOrder).toHaveBeenCalledWith("OID-1", {
       invoiceNumber: "TI/2026-27/00001",
@@ -163,6 +163,36 @@ describe("flag ON — happy path", () => {
     });
     expect(createZohoInvoice).not.toHaveBeenCalled();
     expect(releasePrimaryInvoiceClaim).not.toHaveBeenCalled();
+  });
+});
+
+describe("flag ON — claimOptions forwarding (Phase 1c audit, 2026-09-03)", () => {
+  it("**forwards claimOptions to the PRIMARY claim too**, not just to the Zoho fallback — the async sync-zoho-invoice worker needs stale-claim recovery on both engines", async () => {
+    isPrimaryBillingEnabled.mockReturnValue(true);
+    const claimOptions = { allowNull: true, staleClaimAfterMs: 5 * 60 * 1000 };
+    await createPrimaryInvoice(baseCtx(), { claimOptions });
+    expect(claimOrderForPrimaryInvoice).toHaveBeenCalledWith(
+      "OID-1",
+      expect.objectContaining({ staleClaimAfterMs: 5 * 60 * 1000 })
+    );
+  });
+
+  it("synchronous callers (no claimOptions) still get the strict no-stealing default", async () => {
+    isPrimaryBillingEnabled.mockReturnValue(true);
+    await createPrimaryInvoice(baseCtx());
+    const opts = claimOrderForPrimaryInvoice.mock.calls[0][1];
+    expect(opts?.staleClaimAfterMs).toBeUndefined();
+  });
+
+  it("claimOptions still reach the Zoho fallback when the primary engine fails", async () => {
+    isPrimaryBillingEnabled.mockReturnValue(true);
+    getCompanyProfile.mockReturnValue({ state: "", name: "Co", gstin: "07X" });
+    const claimOptions = { allowNull: true, staleClaimAfterMs: 5 * 60 * 1000 };
+    await createPrimaryInvoice(baseCtx(), { claimOptions });
+    expect(createZohoInvoice).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ claimOptions })
+    );
   });
 });
 

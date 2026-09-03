@@ -73,6 +73,13 @@ async function attemptCreateZohoInvoice(
         orderId,
         razorpayPaymentId: razorpay_payment_id,
         total: paymentDetails.amount,
+        // Zoho derives the invoice's service-period start from `createdAt`,
+        // falling back to `new Date()` when absent. For the synchronous
+        // callers that's the same instant either way, but the async
+        // sync-zoho-invoice worker can run minutes-to-hours after the order
+        // (Cloud Tasks retries), which would silently shift the billed
+        // period start to whenever the retry happened to land.
+        createdAt: order.createdAt,
       },
       user,
       cartItems.map((item) => ({

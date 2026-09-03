@@ -6,14 +6,14 @@ import {
 import { serverLogger } from "@/lib/server-logger";
 import { authorizeCronRequest } from "@/lib/cron-auth";
 import {
-  claimOrderForZohoInvoice,
   getOrderById,
-  recordZohoInvoiceForOrder,
-  releaseZohoInvoiceClaim,
 } from "@/lib/services/orders";
 import { getUserById } from "@/lib/services/users";
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
-import { ZohoBooksService } from "@/lib/zohobooks";
+import { createPrimaryInvoice } from "@/lib/services/billing/createPrimaryInvoice";
+import type { IOrder } from "@/models/Order";
+import type { IUser } from "@/models/User";
+import type { CartItem, RazorpayPaymentDetails } from "@/lib/types";
 import { validatedBody, z } from "@/lib/api-validation";
 
 const syncZohoInvoiceSchema = z.object({
@@ -33,11 +33,30 @@ export const dynamic = "force-dynamic";
 /**
  * POST /api/workers/sync-zoho-invoice
  *
- * Async background worker invoked via Cloud Tasks to create a Zoho Books invoice
- * for a completed renewal. Completely decoupled from the payment webhook — Zoho
- * failures here do NOT affect service activation (that already happened).
+ * Async background worker invoked via Cloud Tasks to issue the invoice for a
+ * completed mandate/autopay renewal (enqueued by `handleSubscriptionCharged`
+ * in lib/services/payment/webhook-handlers.ts). Completely decoupled from the
+ * payment webhook — invoicing failures here do NOT affect service activation
+ * (that already happened).
  *
  * Cloud Tasks will automatically retry on non-2xx responses.
+ *
+ * The route NAME is historical. As of the Phase 1c audit this worker no longer
+ * calls Zoho directly: it goes through `createPrimaryInvoice`, the same
+ * chokepoint as the four synchronous call sites, so a renewal gets a primary
+ * TI/... tax invoice when PRIMARY_BILLING_ENABLED is on and falls back to Zoho
+ * otherwise. It is deliberately NOT renamed — the path is baked into the
+ * enqueue URL in webhook-handlers.ts and into tasks already sitting in the
+ * Cloud Tasks queue.
+ *
+ * Response contract (Cloud Tasks reads only the status code):
+ *  - 200 — invoice issued, OR nothing to do (already invoiced by either
+ *          engine, claim held by a concurrent request, zero-amount/trial
+ *          order, order row missing). Stop retrying.
+ *  - 404 — user row missing. Pre-existing behaviour, left as-is: it makes
+ *          Cloud Tasks retry, which only helps if the read was a transient
+ *          replica miss.
+ *  - 500 — both engines failed. Retry.
  *
  * Auth: x-cron-secret header (same as other workers)
  *
@@ -75,7 +94,7 @@ export async function POST(request: NextRequest) {
       durationMonths,
     } = validation.data;
 
-    // 1. Check if Zoho invoice already exists (idempotency guard)
+    // 1. Idempotency guard — has this order already been invoiced?
     const order = await getOrderById(orderId);
     if (!order) {
       serverLogger.warn(`[ZohoWorker] Order ${orderId} not found — skipping`);
@@ -83,6 +102,24 @@ export async function POST(request: NextRequest) {
       return secureJsonResponse({
         success: false,
         message: "Order not found — skipped",
+      });
+    }
+
+    // A primary-engine invoice legitimately has NO zohoInvoiceId — its tax
+    // invoice is our own TI/... number. Without this check, a flag flip-flop
+    // (order invoiced by the primary engine, flag later turned OFF, Cloud
+    // Tasks retries this task) would send us down the Zoho path and issue a
+    // SECOND tax invoice under the same GSTIN for one payment. Same bug
+    // class as the admin re-sync guard.
+    if (order.invoiceProvider === "primary") {
+      serverLogger.info(
+        `[ZohoWorker] Order ${orderId} already invoiced by the primary GST engine (${order.invoiceNumber}) — skipping`
+      );
+      return secureJsonResponse({
+        success: true,
+        message: "Already invoiced by the primary engine",
+        provider: "primary",
+        invoiceNumber: order.invoiceNumber,
       });
     }
 
@@ -100,31 +137,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 2. Atomic claim — mark as pending so parallel retries don't double-create.
-    // `allowNull` covers legacy rows; the cron retry path passes `allowFailed`
-    // separately, but this worker should only see pending_creation/unset values.
-    const claimed = await claimOrderForZohoInvoice(String(order._id), {
-      allowNull: true,
-    });
-
-    if (!claimed) {
-      serverLogger.info(
-        `[ZohoWorker] Claim failed for order ${orderId} — another worker is processing it`
-      );
-      // Return 200 to stop Cloud Tasks from retrying; the other worker has it
-      return secureJsonResponse({ success: true, message: "Already claimed" });
-    }
-
-    // 3. Load user
+    // 2. Load user
     const user = await getUserById(userId);
     if (!user) {
-      // Cleanup claim and let Cloud Tasks retry
-      await releaseZohoInvoiceClaim(String(order._id));
       serverLogger.error(`[ZohoWorker] User ${userId} not found`);
       return secureErrorResponse("User not found", 404, "USER_NOT_FOUND");
     }
 
-    // 4. Build line items
+    // 3. Build line items
     let hostingPlan: Awaited<ReturnType<typeof getPlanByPlanId>> = null;
     if (serviceType === "hosting" && hostingPlanId) {
       hostingPlan = await getPlanByPlanId(hostingPlanId);
@@ -133,57 +153,93 @@ export async function POST(request: NextRequest) {
     const periodUnit = durationMonths === 12 ? "years" : "months";
     const periodQty = durationMonths === 12 ? 1 : durationMonths || 1;
 
-    const items = [
+    // `periodUnit` is set explicitly, so the chokepoint's `inferPeriodUnit`
+    // pass-through preserves it verbatim.
+    const cartItems = [
       {
         itemType: serviceType,
-        domainName: domainName,
+        domainName,
         hostingPlan: hostingPlan || undefined,
         price: amount,
         currency: currency || "INR",
         registrationPeriod: periodQty,
         periodUnit,
       },
-    ];
+    ] as unknown as CartItem[];
 
-    // 5. Create Zoho Invoice — ZohoOrderInput is structurally compatible with
-    // IOrder; the index-signature widening is the only TS friction.
-    const zohoService = ZohoBooksService.getInstance();
-    const invoice = await zohoService.createInvoice(
-      order as unknown as Parameters<typeof zohoService.createInvoice>[0],
-      user,
-      items,
-      "Razorpay", // paymentMode
-      true        // shouldApplyPayment
+    // 4. Issue the invoice through the single chokepoint — primary GST engine
+    //    first (when PRIMARY_BILLING_ENABLED), Zoho as automatic fallback.
+    //
+    //    NO CLAIM IS TAKEN HERE, deliberately. This worker used to call
+    //    `claimOrderForZohoInvoice` itself and then hit Zoho directly. Both
+    //    engines behind the chokepoint take their OWN claim, so claiming here
+    //    too would make the inner Zoho claim see this worker's own
+    //    `pending_creation` sentinel, log "already claimed — skipping", and
+    //    return an empty result — the worker would report 200 success having
+    //    issued no invoice at all.
+    //
+    //    `staleClaimAfterMs` matters here in a way it doesn't for the four
+    //    synchronous call sites: this worker runs out of band and Cloud Tasks
+    //    retries it. Without stealing, a crash between claim and persist
+    //    strands the order behind a claim no retry can take, and the renewal
+    //    stays permanently uninvoiced. 5 min matches idempotency.ts. Neither
+    //    engine can re-issue a COMPLETED invoice regardless — both claims
+    //    also filter on the final-outcome field.
+    //
+    //    `allowNull` preserves the previous behaviour of treating a legacy
+    //    `zohoInvoiceId: null` row as unclaimed.
+    const paymentDetails = {
+      id: razorpayPaymentId,
+      amount,
+      currency: currency || "INR",
+    } as unknown as RazorpayPaymentDetails;
+
+    const result = await createPrimaryInvoice(
+      {
+        order: order as unknown as IOrder,
+        orderId: order.orderId,
+        razorpay_payment_id: razorpayPaymentId,
+        paymentDetails,
+        user: user as unknown as IUser,
+        cartItems,
+      },
+      {
+        claimOptions: {
+          allowNull: true,
+          staleClaimAfterMs: 5 * 60 * 1000,
+        },
+      }
     );
 
-    if (invoice && invoice.invoice_id) {
-      await recordZohoInvoiceForOrder(String(order._id), {
-        invoiceId: invoice.invoice_id,
-        invoiceNumber: invoice.invoice_number,
-      });
+    // `skipped` means a concurrent request holds the claim, or the order is a
+    // zero-amount/trial row. Neither is a failure and neither is fixed by
+    // retrying — 200 so Cloud Tasks stops.
+    if (result.provider === "skipped") {
       serverLogger.info(
-        `[ZohoWorker] Invoice ${invoice.invoice_number} created for order ${orderId}`
+        `[ZohoWorker] Nothing issued for order ${orderId} (already claimed, or zero-amount/trial) — skipping`
       );
       return secureJsonResponse({
         success: true,
-        zohoInvoiceId: invoice.invoice_id,
-        invoiceNumber: invoice.invoice_number,
+        message: "Skipped — already claimed or non-invoiceable order",
+        provider: "skipped",
       });
     }
 
-    // Zoho returned null — release the claim and let Cloud Tasks retry
-    await releaseZohoInvoiceClaim(String(order._id));
-    serverLogger.warn(`[ZohoWorker] Invoice creation returned null for order ${orderId}`);
-    // Return 500 so Cloud Tasks retries this task
-    return secureErrorResponse(
-      "Zoho invoice creation returned null",
-      500,
-      "ZOHO_NULL_RESPONSE"
+    serverLogger.info(
+      `[ZohoWorker] Invoice ${result.invoiceNumber} created for order ${orderId} via ${result.provider}`
     );
+    return secureJsonResponse({
+      success: true,
+      provider: result.provider,
+      zohoInvoiceId: result.provider === "zoho" ? result.invoiceId : undefined,
+      invoiceNumber: result.invoiceNumber,
+    });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     serverLogger.error("[ZohoWorker] Unhandled error:", message);
-    // Return 500 so Cloud Tasks retries
+    // Both engines failed (the chokepoint only throws once Zoho's own retries
+    // are exhausted too) and each released its own claim on the way out.
+    // Return 500 so Cloud Tasks retries.
     return secureErrorResponse(
       "Internal error during Zoho sync",
       500,

@@ -635,16 +635,39 @@ export async function markZohoInvoiceCreationFailed(
  * the order already has a final `invoiceProvider` (invoice already issued,
  * by either engine) or is already claimed by a concurrent request —
  * callers must treat `false` as "skip silently", not as a failure.
+ *
+ * `opts.staleClaimAfterMs` lets an ASYNCHRONOUS, retried caller steal a
+ * `primaryInvoiceClaimedAt` older than the supplied threshold — the exact
+ * mirror of `claimOrderForZohoInvoice`'s option. Synchronous callers must
+ * omit it and get the strict default (never steal a claim mid-flight): for
+ * them a concurrent in-flight claim is the same as a successful one.
+ *
+ * Why this exists: the sync-zoho-invoice Cloud Tasks worker is the first
+ * caller of the chokepoint that runs OUT of band and is retried by the
+ * queue. Without stealing, a crash between the claim and
+ * `recordPrimaryInvoiceForOrder` strands the order — `invoiceProvider`
+ * never gets set, so every retry claims `false`, reports "skipped", and the
+ * renewal stays permanently uninvoiced. The `invoiceProvider` check stays
+ * in the filter either way, so a SUCCESSFUL invoice can never be stolen
+ * and re-issued no matter how large the threshold.
  */
 export async function claimOrderForPrimaryInvoice(
-  orderId: string | mongoose.Types.ObjectId
+  orderId: string | mongoose.Types.ObjectId,
+  opts?: { staleClaimAfterMs?: number }
 ): Promise<boolean> {
   await connectDB();
+  const unclaimedConditions: Record<string, unknown>[] = [
+    { primaryInvoiceClaimedAt: { $exists: false } },
+  ];
+  if (opts?.staleClaimAfterMs && opts.staleClaimAfterMs > 0) {
+    const cutoff = new Date(Date.now() - opts.staleClaimAfterMs);
+    unclaimedConditions.push({ primaryInvoiceClaimedAt: { $lt: cutoff } });
+  }
   const result = await Order.updateOne(
     {
       _id: orderId,
       invoiceProvider: { $exists: false },
-      primaryInvoiceClaimedAt: { $exists: false },
+      $or: unclaimedConditions,
     },
     { $set: { primaryInvoiceClaimedAt: new Date() } }
   );

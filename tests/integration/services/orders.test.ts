@@ -766,6 +766,111 @@ describe("claimOrderForPrimaryInvoice / releasePrimaryInvoiceClaim / recordPrima
     expect(await claimOrderForPrimaryInvoice(order._id)).toBe(false);
   });
 
+  // Stale-claim recovery (Phase 1c audit, 2026-09-03). Added when the
+  // sync-zoho-invoice Cloud Tasks worker became the first ASYNCHRONOUS,
+  // queue-retried caller of the chokepoint: without stealing, a crash between
+  // claim and persist strands the order behind a lease no retry can take, and
+  // the renewal stays permanently uninvoiced.
+  describe("staleClaimAfterMs", () => {
+    /** Backdates an existing claim so it looks abandoned. */
+    async function ageClaim(orderId: mongoose.Types.ObjectId, ms: number) {
+      await Order.updateOne(
+        { _id: orderId },
+        { $set: { primaryInvoiceClaimedAt: new Date(Date.now() - ms) } }
+      );
+    }
+
+    it("steals a claim older than the threshold", async () => {
+      const order = await createOrder(buildOrderPayload({ orderId: "ord_stale_1" }));
+      expect(await claimOrderForPrimaryInvoice(order._id)).toBe(true);
+      await ageClaim(order._id, 10 * 60 * 1000);
+
+      expect(
+        await claimOrderForPrimaryInvoice(order._id, {
+          staleClaimAfterMs: 5 * 60 * 1000,
+        })
+      ).toBe(true);
+    });
+
+    it("re-stamps primaryInvoiceClaimedAt when it steals, so the stealer's own claim starts fresh", async () => {
+      const order = await createOrder(buildOrderPayload({ orderId: "ord_stale_2" }));
+      await claimOrderForPrimaryInvoice(order._id);
+      await ageClaim(order._id, 10 * 60 * 1000);
+      const before = (await Order.findById(order._id))?.primaryInvoiceClaimedAt;
+
+      await claimOrderForPrimaryInvoice(order._id, {
+        staleClaimAfterMs: 5 * 60 * 1000,
+      });
+
+      const after = (await Order.findById(order._id))?.primaryInvoiceClaimedAt;
+      expect(after!.getTime()).toBeGreaterThan(before!.getTime());
+    });
+
+    it("does NOT steal a claim younger than the threshold (a genuinely in-flight attempt is left alone)", async () => {
+      const order = await createOrder(buildOrderPayload({ orderId: "ord_stale_3" }));
+      expect(await claimOrderForPrimaryInvoice(order._id)).toBe(true);
+      await ageClaim(order._id, 60 * 1000);
+
+      expect(
+        await claimOrderForPrimaryInvoice(order._id, {
+          staleClaimAfterMs: 5 * 60 * 1000,
+        })
+      ).toBe(false);
+    });
+
+    it("the DEFAULT (no opts) never steals, however old the claim — synchronous callers must keep skipping", async () => {
+      const order = await createOrder(buildOrderPayload({ orderId: "ord_stale_4" }));
+      await claimOrderForPrimaryInvoice(order._id);
+      await ageClaim(order._id, 24 * 60 * 60 * 1000);
+
+      expect(await claimOrderForPrimaryInvoice(order._id)).toBe(false);
+    });
+
+    it("staleClaimAfterMs: 0 is treated as 'no stealing' (falsy guard), not as 'steal everything'", async () => {
+      const order = await createOrder(buildOrderPayload({ orderId: "ord_stale_5" }));
+      await claimOrderForPrimaryInvoice(order._id);
+      await ageClaim(order._id, 24 * 60 * 60 * 1000);
+
+      expect(
+        await claimOrderForPrimaryInvoice(order._id, { staleClaimAfterMs: 0 })
+      ).toBe(false);
+    });
+
+    it("**can NEVER steal a COMPLETED invoice, however large the threshold** — the invoiceProvider filter still applies, so no payment can be invoiced twice", async () => {
+      const order = await createOrder(buildOrderPayload({ orderId: "ord_stale_6" }));
+      await claimOrderForPrimaryInvoice(order._id);
+      await recordPrimaryInvoiceForOrder(order._id, {
+        invoiceNumber: "TI/2026-27/00011",
+        gstRate: 18,
+        taxableValue: 1000,
+        cgst: 90,
+        sgst: 90,
+        igst: 0,
+        placeOfSupply: "Delhi",
+      });
+      await ageClaim(order._id, 365 * 24 * 60 * 60 * 1000);
+
+      expect(
+        await claimOrderForPrimaryInvoice(order._id, { staleClaimAfterMs: 1 })
+      ).toBe(false);
+    });
+
+    it("stealing is still atomic — 10 concurrent stealers, exactly one winner", async () => {
+      const order = await createOrder(buildOrderPayload({ orderId: "ord_stale_race" }));
+      await claimOrderForPrimaryInvoice(order._id);
+      await ageClaim(order._id, 10 * 60 * 1000);
+
+      const results = await Promise.all(
+        Array.from({ length: 10 }, () =>
+          claimOrderForPrimaryInvoice(order._id, {
+            staleClaimAfterMs: 5 * 60 * 1000,
+          })
+        )
+      );
+      expect(results.filter(Boolean).length).toBe(1);
+    });
+  });
+
   it("releasePrimaryInvoiceClaim clears the claim so a later attempt can retry", async () => {
     const order = await createOrder(buildOrderPayload({ orderId: "ord_release_1" }));
     await claimOrderForPrimaryInvoice(order._id);

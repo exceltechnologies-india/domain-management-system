@@ -42,9 +42,10 @@ export interface PrimaryInvoiceResult {
  */
 async function attemptCreatePrimaryInvoice(
   order: IOrder,
-  user: IUser
+  user: IUser,
+  claimOptions?: ZohoClaimOptions
 ): Promise<{ invoiceNumber: string } | null> {
-  const claimed = await claimOrderForPrimaryInvoice(order._id);
+  const claimed = await claimOrderForPrimaryInvoice(order._id, claimOptions);
   if (!claimed) {
     serverLogger.info(
       `⏭️ [PrimaryInvoice] Order ${order.orderId} already claimed/issued. Skipping.`
@@ -109,14 +110,21 @@ async function attemptCreatePrimaryInvoice(
  * `invoiceNumber` for callers that log it, none of which currently branch
  * on its value.
  *
- * `options.claimOptions` (e.g. `{staleClaimAfterMs}`) is forwarded to the
- * Zoho path only — recovery callers (idempotency.ts) that need to re-claim
- * a possibly-stuck order pass it so a crashed prior Zoho attempt doesn't
- * block them forever. The primary engine's own claim
- * (`claimOrderForPrimaryInvoice`) doesn't support stale-claim recovery yet:
- * every primary attempt today runs synchronously inside one request, so a
- * stuck claim can only mean a mid-request crash, not a background retry
- * gap — revisit if/when a primary-invoice retry cron is added.
+ * `options.claimOptions` is forwarded to BOTH engines: the full object
+ * (`allowNull`/`allowFailed`/`staleClaimAfterMs`) to the Zoho path, and
+ * `staleClaimAfterMs` alone to the primary path — the only one of the three
+ * that has a primary-claim equivalent. Recovery callers (idempotency.ts) and
+ * asynchronous, queue-retried callers (the sync-zoho-invoice Cloud Tasks
+ * worker) pass it so a crashed prior attempt's claim doesn't block them
+ * forever.
+ *
+ * Synchronous call sites (both verify routes, renewal.ts, the webhook
+ * handler) deliberately omit it: they run inside one request, so a
+ * concurrent in-flight claim genuinely means another request is issuing the
+ * invoice right now and skipping is correct. Stealing there would risk two
+ * engines issuing for one payment. Note that stealing can never re-issue a
+ * COMPLETED invoice under either engine — both claims also filter on the
+ * final-outcome field (`invoiceProvider` / `zohoInvoiceId`).
  */
 export async function createPrimaryInvoice(
   ctx: ZohoInvoiceContext,
@@ -140,7 +148,13 @@ export async function createPrimaryInvoice(
   }
 
   try {
-    const result = await attemptCreatePrimaryInvoice(ctx.order, ctx.user);
+    // Passed through whole; the primary claim reads only `staleClaimAfterMs`
+    // and ignores the Zoho-specific `allowNull`/`allowFailed`.
+    const result = await attemptCreatePrimaryInvoice(
+      ctx.order,
+      ctx.user,
+      options.claimOptions
+    );
     if (!result) {
       return { invoiceId: "", invoiceNumber: null, provider: "skipped" };
     }
