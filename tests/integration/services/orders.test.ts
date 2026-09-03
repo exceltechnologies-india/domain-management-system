@@ -25,6 +25,8 @@ import {
   findOrderByRazorpayPaymentField,
   findOrderByZohoInvoiceForUser,
   findPriorHostingOrderForUser,
+  flagCreditNotePending,
+  listCreditNotePendingOrders,
   forceMarkZohoCreationFailed,
   getOrderByIdOrOrderId,
   getOrderByOrderId,
@@ -1131,5 +1133,153 @@ describe("listPrimaryInvoiceOrdersAdmin", () => {
     const { orders, hasMore } = await listPrimaryInvoiceOrdersAdmin(1, 20);
     expect(orders).toEqual([]);
     expect(hasMore).toBe(false);
+  });
+});
+
+// ─── Manual credit-note obligation (Primary Billing Integration) ──────────────
+// The primary GST engine has no credit-note counterpart (deferred by operator
+// decision 2026-09-03), so a refund against a primary invoice leaves a real
+// statutory obligation that an operator discharges by hand in Zoho Books.
+// These helpers make that obligation queryable rather than log-only.
+describe("flagCreditNotePending / listCreditNotePendingOrders", () => {
+  async function primaryInvoicedOrder(orderId: string, invoiceNumber: string) {
+    const order = await createOrder(
+      buildOrderPayload({ orderId, status: "completed", userEmail: "a@x.test" })
+    );
+    await recordPrimaryInvoiceForOrder(order._id, {
+      invoiceNumber,
+      gstRate: 18,
+      taxableValue: 1000,
+      cgst: 90,
+      sgst: 90,
+      igst: 0,
+      placeOfSupply: "Delhi",
+    });
+    return order;
+  }
+
+  it("stamps the obligation with the refund id, amount in paise and a timestamp", async () => {
+    const order = await primaryInvoicedOrder("ord_cn_1", "TI/2026-27/00001");
+    await flagCreditNotePending(order._id, {
+      refundId: "rfnd_1",
+      refundAmountPaise: 118000,
+    });
+
+    const found = await Order.findById(order._id);
+    expect(found?.creditNotePending).toBe(true);
+    expect(found?.creditNotePendingRefundId).toBe("rfnd_1");
+    // Paise, deliberately unconverted, so it matches the Razorpay record the
+    // operator is looking at.
+    expect(found?.creditNotePendingAmountPaise).toBe(118000);
+    expect(found?.creditNotePendingAt).toBeInstanceOf(Date);
+  });
+
+  it("**is idempotent for the SAME refund id** — a redelivered webhook must not reset how long the obligation has been outstanding", async () => {
+    const order = await primaryInvoicedOrder("ord_cn_2", "TI/2026-27/00002");
+    await flagCreditNotePending(order._id, {
+      refundId: "rfnd_dup",
+      refundAmountPaise: 5000,
+    });
+    const first = (await Order.findById(order._id))?.creditNotePendingAt;
+
+    await new Promise((r) => setTimeout(r, 5));
+    await flagCreditNotePending(order._id, {
+      refundId: "rfnd_dup",
+      refundAmountPaise: 5000,
+    });
+
+    const second = (await Order.findById(order._id))?.creditNotePendingAt;
+    expect(second!.getTime()).toBe(first!.getTime());
+  });
+
+  it("a DIFFERENT refund id overwrites — a second partial refund is a fresh obligation", async () => {
+    const order = await primaryInvoicedOrder("ord_cn_3", "TI/2026-27/00003");
+    await flagCreditNotePending(order._id, {
+      refundId: "rfnd_a",
+      refundAmountPaise: 5000,
+    });
+    await flagCreditNotePending(order._id, {
+      refundId: "rfnd_b",
+      refundAmountPaise: 7000,
+    });
+
+    const found = await Order.findById(order._id);
+    expect(found?.creditNotePendingRefundId).toBe("rfnd_b");
+    expect(found?.creditNotePendingAmountPaise).toBe(7000);
+  });
+
+  it("lists only flagged orders", async () => {
+    const flagged = await primaryInvoicedOrder("ord_cn_listed", "TI/2026-27/00010");
+    await primaryInvoicedOrder("ord_cn_clean", "TI/2026-27/00011");
+    await flagCreditNotePending(flagged._id, {
+      refundId: "rfnd_l",
+      refundAmountPaise: 1000,
+    });
+
+    const rows = await listCreditNotePendingOrders();
+    const ids = rows.map((o) => o.orderId);
+    expect(ids).toContain("ord_cn_listed");
+    expect(ids).not.toContain("ord_cn_clean");
+  });
+
+  it("**lists OLDEST first** — the longest-outstanding obligation is the most urgent (GST credit notes are due by 30 Nov following the FY end)", async () => {
+    const older = await primaryInvoicedOrder("ord_cn_older", "TI/2026-27/00020");
+    const newer = await primaryInvoicedOrder("ord_cn_newer", "TI/2026-27/00021");
+    await flagCreditNotePending(older._id, { refundId: "r1", refundAmountPaise: 100 });
+    await flagCreditNotePending(newer._id, { refundId: "r2", refundAmountPaise: 100 });
+    await Order.updateOne(
+      { _id: older._id },
+      { $set: { creditNotePendingAt: new Date("2026-01-01T00:00:00Z") } }
+    );
+    await Order.updateOne(
+      { _id: newer._id },
+      { $set: { creditNotePendingAt: new Date("2026-08-01T00:00:00Z") } }
+    );
+
+    const ids = (await listCreditNotePendingOrders()).map((o) => o.orderId);
+    expect(ids.indexOf("ord_cn_older")).toBeLessThan(ids.indexOf("ord_cn_newer"));
+  });
+
+  it("excludes soft-deleted orders", async () => {
+    const order = await primaryInvoicedOrder("ord_cn_deleted", "TI/2026-27/00030");
+    await flagCreditNotePending(order._id, { refundId: "r", refundAmountPaise: 100 });
+    await Order.updateOne({ _id: order._id }, { $set: { isDeleted: true } });
+
+    const ids = (await listCreditNotePendingOrders()).map((o) => o.orderId);
+    expect(ids).not.toContain("ord_cn_deleted");
+  });
+
+  it("carries the fields the admin report renders (invoice number, refund id, amount, email)", async () => {
+    const order = await primaryInvoicedOrder("ord_cn_fields", "TI/2026-27/00040");
+    await flagCreditNotePending(order._id, {
+      refundId: "rfnd_f",
+      refundAmountPaise: 24600,
+    });
+
+    const row = (await listCreditNotePendingOrders()).find(
+      (o) => o.orderId === "ord_cn_fields"
+    )!;
+    expect(row.invoiceNumber).toBe("TI/2026-27/00040");
+    expect(row.invoiceProvider).toBe("primary");
+    expect(row.creditNotePendingRefundId).toBe("rfnd_f");
+    expect(row.creditNotePendingAmountPaise).toBe(24600);
+    expect(row.userEmail).toBe("a@x.test");
+  });
+
+  it("clearing the flag removes it from the report — an operator who raised the credit note stops being nagged", async () => {
+    const order = await primaryInvoicedOrder("ord_cn_cleared", "TI/2026-27/00050");
+    await flagCreditNotePending(order._id, { refundId: "r", refundAmountPaise: 100 });
+    await Order.updateOne(
+      { _id: order._id },
+      { $set: { creditNotePending: false } }
+    );
+
+    const ids = (await listCreditNotePendingOrders()).map((o) => o.orderId);
+    expect(ids).not.toContain("ord_cn_cleared");
+  });
+
+  it("returns an empty list rather than throwing when nothing is outstanding", async () => {
+    await primaryInvoicedOrder("ord_cn_none", "TI/2026-27/00060");
+    expect(await listCreditNotePendingOrders()).toEqual([]);
   });
 });

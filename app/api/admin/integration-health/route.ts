@@ -32,6 +32,7 @@ import { serverLogger } from "@/lib/server-logger";
 import Order from "@/models/Order";
 import SystemLog from "@/models/SystemLog";
 import connectDB from "@/lib/mongodb";
+import { listCreditNotePendingOrders } from "@/lib/services/orders";
 
 export const dynamic = "force-dynamic";
 
@@ -119,6 +120,13 @@ const PROVIDERS: ProviderClassifier[] = [
     id: "zoho",
     label: "Zoho Books",
     signatures: [
+      // MUST stay ahead of the generic /Zoho|invoice_id/ signature below —
+      // classify() returns the first match and this errorText names Zoho
+      // Books, so a later position would silently get the wrong hint.
+      {
+        needle: /\[CREDIT-NOTE\]|credit note OWED/i,
+        hint: "A refund was processed against a tax invoice issued by OUR OWN GST engine (TI/YYYY-YY/NNNNN). That engine has no credit-note counterpart yet (deferred by operator decision 2026-09-03), so nothing was issued automatically and the customer is owed a GST credit note we have not raised. ACTION: in Zoho Books, raise a credit note for the refunded amount referencing the primary invoice number shown, then clear `creditNotePending` on the Order. This entry is NOT time-windowed and will keep appearing until cleared — GST credit notes must be issued by 30 November following the end of the financial year, so an old one is more urgent, not less.",
+      },
       {
         needle: /\(code 1016\)|some of the taxes have been deleted/i,
         hint: "A tax_id this code is sending to Zoho is no longer registered in the org. Run a read-only Zoho probe (GET /api/v3/settings/taxes), confirm the active GST18 / IGST18 IDs match `ZOHO_TAX_ID_GST18` / `ZOHO_TAX_ID_IGST18` in .env.local AND in deploy-cloud-run.sh's ENV_VARS line. Redeploy after fixing.",
@@ -681,6 +689,50 @@ export async function GET(request: NextRequest) {
         amount: o.amount,
         createdAt: o.createdAt,
       });
+    }
+
+    // 5b. Orders owing a MANUALLY-raised GST credit note.
+    //
+    // Our primary GST engine issues tax invoices but has no credit-note
+    // counterpart (operator decision 2026-09-03 — deferred until real refund
+    // volume exists rather than shipping an unexercised reverse-numbering
+    // series). The refund webhook stamps `creditNotePending` on any order
+    // refunded against a primary-issued invoice; until an operator raises the
+    // credit note by hand in Zoho Books, the customer is owed a tax document
+    // we have not issued.
+    //
+    // DELIBERATELY NOT time-windowed, unlike every other check here. `since`
+    // bounds the log-derived checks because old errors stop being actionable;
+    // an unfulfilled statutory obligation does not. GST credit notes must be
+    // issued by 30 November following the end of the financial year, so an
+    // old one is MORE urgent, not less — ageing it out of this report is
+    // exactly the failure mode this check exists to prevent.
+    try {
+      const pendingCreditNotes = await listCreditNotePendingOrders({ limit: 50 });
+      for (const o of pendingCreditNotes) {
+        const refundRupees = (o.creditNotePendingAmountPaise ?? 0) / 100;
+        const owedSince = (o.creditNotePendingAt as Date | undefined) ?? new Date();
+        const daysOwed = Math.floor(
+          (Date.now() - owedSince.getTime()) / (24 * 60 * 60 * 1000)
+        );
+        record({
+          errorText:
+            `[CREDIT-NOTE] GST credit note OWED for order ${o.orderId} — ₹${refundRupees} refunded ` +
+            `(refund ${o.creditNotePendingRefundId || "unknown"}) against primary tax invoice ` +
+            `${o.invoiceNumber || "(number missing)"}, outstanding ${daysOwed} day(s). ` +
+            `Our GST engine cannot issue credit notes; it must be raised manually in Zoho Books.`,
+          orderId: o.orderId as string,
+          userEmail: o.userEmail as string | undefined,
+          amount: o.amount as number,
+          createdAt: owedSince,
+        });
+      }
+    } catch (cnErr) {
+      // Same containment as the RecurringChargeAttempt block above — one
+      // failing query must not take down the whole report.
+      serverLogger.warn(
+        `[integration-health] creditNotePending query failed: ${cnErr instanceof Error ? cnErr.message : String(cnErr)}`
+      );
     }
 
     // 6. Hostings whose DA provisioning FAILED (stamped durably on the row by

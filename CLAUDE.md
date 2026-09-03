@@ -62,6 +62,20 @@ The customer's FIRST tax invoice fires at day 15+ when the trial converts via th
 
 If a customer ASKS for a trial-period invoice: there is none. Canned response: *"No invoice is issued for the free trial period since there's no charge. Your first invoice will be generated automatically when your trial converts on day 15 — that's when your card / UPI mandate is charged for the first time."*
 
+## Primary-invoice refunds — credit notes are MANUAL (operator decision 2026-09-03)
+
+Our primary GST engine mints tax invoices (`TI/YYYY-YY/NNNNN`) but has **no credit-note counterpart**. Building a reverse-numbering series was deliberately deferred: no primary invoice exists in production yet, there is no in-app refund at all (`handleRefundPayment` in the admin payment page is an empty stub — every real refund is issued by hand from the Razorpay dashboard), and the only automated refund is the ₹2 mandate-validation reversal on a trial order, which never gets an invoice in the first place.
+
+**Consequence:** a refund against a primary-issued invoice leaves a real GST obligation that a human must discharge.
+
+**The flow:** `refund.processed` in `app/razorpay/webhook/route.ts` branches on `invoiceProvider === 'primary'` BEFORE the benign no-invoice skip, logs at ERROR with the order id / `TI/...` number / refund id / rupee amount / ACTION line, and stamps `creditNotePending` (+ refund id, amount in paise, timestamp) on the Order. `app/api/admin/integration-health` lists every flagged order on the **Zoho Books** card.
+
+**Operator action when a `[CREDIT-NOTE]` entry appears:** raise a credit note in Zoho Books against the named `TI/...` invoice for the named amount, then clear `creditNotePending` on the Order.
+
+**Do NOT time-window that health check.** Every other source there is bounded by `since` because stale errors stop being actionable; this one is the opposite — GST credit notes must be issued by **30 November following the end of the financial year**, so an outstanding one gets *more* urgent with age. Ageing it out is the exact failure the check exists to prevent.
+
+Building the engine properly (its own Counter, reverse-numbered series, PDF, wiring into the refund handler) stays open as item 3 of the post-Phase-2 audit in `TASKS.md` — do it when real refund volume justifies it, not before.
+
 ## Other persistent conventions
 
 - Do not surface credential/key rotation as a next step — the user has opted out for this project (see auto-memory `feedback_key_rotation_skip`). **Exception**: active leaks discovered via security review override this preference; rotate immediately, don't ask twice.

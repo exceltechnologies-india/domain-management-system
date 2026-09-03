@@ -10,6 +10,7 @@ import {
   findOrderByRazorpayOrderIdOrInternalId,
   forceMarkZohoCreationFailed,
   getOrderByRazorpayPaymentId,
+  flagCreditNotePending,
 } from "@/lib/services/orders";
 import { finalizePendingOrder } from "@/lib/services/payment/order-creator";
 import { createPrimaryInvoice } from "@/lib/services/billing/createPrimaryInvoice";
@@ -469,8 +470,53 @@ async function handleRefundProcessed(payload: RefundProcessedPayload) {
     return;
   }
 
+  // ── Primary-engine invoice: a credit note is OWED, but we can't issue it ──
+  //
+  // Our GST engine mints tax invoices and has no credit-note counterpart yet
+  // (operator decision 2026-09-03 — deferred until real refund volume exists
+  // rather than shipping an unexercised reverse-numbering series). The refund
+  // has already happened at Razorpay; the customer is legally owed a GST
+  // credit note referencing the original TI/... invoice, raised by hand in
+  // Zoho Books.
+  //
+  // This MUST be distinguishable from the benign skip below. Both cases have
+  // no `zohoInvoiceId`, and until this branch existed they logged the same
+  // bland "no Zoho invoice — skipping credit note" line: a real compliance
+  // obligation was indistinguishable from a ₹2 trial reversal that never
+  // needed a credit note at all. Hence a loud, distinct log AND a persisted
+  // flag — Cloud Logging rolls over, the Order row doesn't, and
+  // `app/api/admin/integration-health` reports on it until an operator clears
+  // it.
+  if (order.invoiceProvider === "primary") {
+    serverLogger.error(
+      `🧾 [Webhook] CREDIT NOTE OWED — refund ${refundId} (₹${refundAmountPaise / 100}) processed against PRIMARY tax invoice ` +
+      `${order.invoiceNumber || "(number missing)"} on order ${order.orderId}. Our GST engine cannot issue credit notes yet. ` +
+      `ACTION: raise a credit note manually in Zoho Books against invoice ${order.invoiceNumber || "(number missing)"} for ₹${refundAmountPaise / 100}. ` +
+      `Flagged on the Order as creditNotePending and listed in admin integration-health until cleared.`
+    );
+    try {
+      await flagCreditNotePending(String(order._id), {
+        refundId,
+        refundAmountPaise,
+      });
+    } catch (flagErr: unknown) {
+      // Never throw out of the refund webhook — the refund itself already
+      // succeeded and Razorpay must not retry for a bookkeeping failure. But
+      // a failure HERE means the obligation is now log-only, so say so.
+      const msg = flagErr instanceof Error ? flagErr.message : String(flagErr);
+      serverLogger.error(
+        `❌ [Webhook] Could NOT persist the credit-note obligation for order ${order.orderId} (refund ${refundId}): ${msg}. ` +
+        `It will NOT appear in integration-health — action it from this log line.`
+      );
+    }
+    return;
+  }
+
   if (!order.zohoInvoiceId || order.zohoInvoiceId === "creation_failed") {
-    serverLogger.warn(`[Webhook] refund.processed: order ${order.orderId} has no Zoho invoice — skipping credit note`);
+    // Benign in the common case: ₹0 trial orders never get an invoice at all
+    // (see CLAUDE.md "Trial order invoice policy"), and the ₹2 mandate-
+    // validation reversal lands here every time. Nothing is owed.
+    serverLogger.warn(`[Webhook] refund.processed: order ${order.orderId} has no invoice from either engine — nothing to credit`);
     return;
   }
 

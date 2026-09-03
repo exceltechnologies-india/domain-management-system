@@ -126,6 +126,26 @@ export interface IOrder extends Document {
   // its own field since invoiceProvider only records a FINAL outcome).
   // Cleared on release; left behind harmlessly once invoiceProvider is set.
   primaryInvoiceClaimedAt?: Date;
+  // ── Manual credit-note obligation (Primary Billing Integration) ───────────
+  //
+  // Our GST engine mints tax invoices but has NO credit-note counterpart yet
+  // (operator decision 2026-09-03: deferred until real refund volume exists,
+  // rather than shipping an unexercised reverse-numbering series). A refund
+  // against a primary-issued invoice therefore still owes the customer a GST
+  // credit note, which an operator has to raise by hand in Zoho Books.
+  //
+  // These fields exist so that obligation is visible IN THE DATA rather than
+  // only in prod-silenced logs — same reasoning as `mandateRefundStatus`.
+  // `app/api/admin/integration-health` surfaces any order carrying
+  // `creditNotePending: true` with the manual ACTION to take. Cleared by an
+  // operator (or by the credit-note engine, if/when it's built).
+  creditNotePending?: boolean;
+  creditNotePendingRefundId?: string;
+  // Refund amount in PAISE, as Razorpay reports it — deliberately not
+  // converted, so the value the operator types into Zoho matches the refund
+  // record they're looking at.
+  creditNotePendingAmountPaise?: number;
+  creditNotePendingAt?: Date;
   // Renewal-payment dunning (Primary Billing Integration Phase 2) — tracks
   // which escalation stage (hours since createdAt, from
   // AUTOMATION_CONFIG.RENEWAL_DUNNING_HOURS) was last emailed for a renewal
@@ -382,6 +402,10 @@ const OrderSchema = new Schema<IOrder>(
     placeOfSupply: String,
     customerGstin: String,
     primaryInvoiceClaimedAt: Date,
+    creditNotePending: Boolean,
+    creditNotePendingRefundId: String,
+    creditNotePendingAmountPaise: Number,
+    creditNotePendingAt: Date,
     dunningLastStageHours: Number,
     dunningAbandonedAt: Date,
     isDeleted: {

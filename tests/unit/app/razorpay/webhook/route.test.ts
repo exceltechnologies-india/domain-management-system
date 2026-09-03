@@ -66,11 +66,13 @@ const claimPendingOrderForProcessing = vi.hoisted(() => vi.fn());
 const findOrderByRazorpayOrderIdOrInternalId = vi.hoisted(() => vi.fn());
 const getOrderByRazorpayPaymentId = vi.hoisted(() => vi.fn());
 const forceMarkZohoCreationFailed = vi.hoisted(() => vi.fn());
+const flagCreditNotePending = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/orders", () => ({
   claimPendingOrderForProcessing,
   findOrderByRazorpayOrderIdOrInternalId,
   getOrderByRazorpayPaymentId,
   forceMarkZohoCreationFailed,
+  flagCreditNotePending,
 }));
 
 const finalizePendingOrder = vi.hoisted(() => vi.fn());
@@ -117,9 +119,14 @@ vi.mock("@/lib/zohobooks", () => ({
   ZohoBooksService: { getInstance: zohoGetInstance },
 }));
 
-vi.mock("@/lib/server-logger", () => ({
-  serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+// Hoisted (not inline) so the credit-note tests can assert on the ERROR text
+// — a loud, actionable log IS the deliverable for that branch.
+const serverLogger = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
 }));
+vi.mock("@/lib/server-logger", () => ({ serverLogger }));
 
 vi.unmock("next/server");
 const { NextRequest, NextResponse } = await vi.importActual<
@@ -159,6 +166,8 @@ interface FakeOrder {
   orderType?: string;
   zohoInvoiceId?: string;
   invoiceNumber?: string;
+  invoiceProvider?: 'primary' | 'zoho';
+  _id?: string;
   domains: Array<{
     domainName: string;
     price: number;
@@ -240,6 +249,10 @@ beforeEach(() => {
   findOrderByRazorpayOrderIdOrInternalId.mockReset();
   getOrderByRazorpayPaymentId.mockReset();
   forceMarkZohoCreationFailed.mockReset();
+  flagCreditNotePending.mockReset().mockResolvedValue(undefined);
+  serverLogger.info.mockReset();
+  serverLogger.warn.mockReset();
+  serverLogger.error.mockReset();
   finalizePendingOrder.mockReset();
   createPrimaryInvoice.mockReset();
   zohoCreateInvoice.mockReset();
@@ -1046,5 +1059,117 @@ describe("Tokens-flow mandate validation (mandateMode='tokens')", () => {
 
     // Regular handler path: NO refund (refundPayment not called by the regular branch)
     expect(refundPayment).not.toHaveBeenCalled();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// refund.processed — primary invoice: credit note OWED but not issuable
+// ═══════════════════════════════════════════════════════════════════
+//
+// Our GST engine issues tax invoices but has no credit-note counterpart
+// (deferred by operator decision 2026-09-03). A refund against a primary
+// invoice therefore leaves a real GST obligation that an operator must
+// discharge by hand in Zoho Books.
+//
+// Before this branch existed, a primary-invoice refund and a benign ₹2 trial
+// reversal BOTH fell into the same `!zohoInvoiceId` skip and logged the same
+// bland line — a compliance obligation was indistinguishable from a no-op.
+describe("refund.processed — primary-engine invoice (manual credit note owed)", () => {
+  function primaryOrder(over: Partial<FakeOrder> = {}) {
+    return makeOrder({
+      // A primary invoice has NO zohoInvoiceId by design.
+      zohoInvoiceId: undefined,
+      invoiceProvider: "primary",
+      invoiceNumber: "TI/2026-27/00001",
+      _id: "OID-1",
+      ...over,
+    } as Partial<FakeOrder>);
+  }
+
+  it("**flags the obligation on the Order** so it survives log rotation", async () => {
+    getOrderByRazorpayPaymentId.mockResolvedValueOnce(primaryOrder());
+    const res = await POST(
+      makeReq({
+        body: refundProcessedPayload({ refundId: "rfnd_P", paymentId: "pay_P", amount: 118000 }),
+      })
+    );
+    expect(res.status).toBe(200);
+    expect(flagCreditNotePending).toHaveBeenCalledWith("OID-1", {
+      refundId: "rfnd_P",
+      refundAmountPaise: 118000,
+    });
+  });
+
+  it("**never attempts a Zoho credit note** — there is no Zoho invoice to credit against", async () => {
+    getOrderByRazorpayPaymentId.mockResolvedValueOnce(primaryOrder());
+    await POST(makeReq({ body: refundProcessedPayload() }));
+    expect(zohoCreateCreditNote).not.toHaveBeenCalled();
+    expect(zohoGetContactByEmail).not.toHaveBeenCalled();
+  });
+
+  it("**logs at ERROR with the invoice number and the manual ACTION** — distinct from the benign no-invoice skip", async () => {
+    getOrderByRazorpayPaymentId.mockResolvedValueOnce(primaryOrder());
+    await POST(
+      makeReq({
+        body: refundProcessedPayload({ refundId: "rfnd_P", amount: 118000 }),
+      })
+    );
+    const logged = serverLogger.error.mock.calls.map((c) => String(c[0])).join("\n");
+    expect(logged).toContain("CREDIT NOTE OWED");
+    expect(logged).toContain("TI/2026-27/00001");
+    expect(logged).toContain("ORD-1");
+    expect(logged).toContain("ACTION");
+    // The rupee amount, not the paise figure, so it matches what an operator
+    // types into Zoho.
+    expect(logged).toContain("1180");
+  });
+
+  it("takes the primary branch even when a stale zohoInvoiceId is present — invoiceProvider is the authority on which engine issued the tax invoice", async () => {
+    getOrderByRazorpayPaymentId.mockResolvedValueOnce(
+      primaryOrder({ zohoInvoiceId: "ZINV-STALE" } as Partial<FakeOrder>)
+    );
+    await POST(makeReq({ body: refundProcessedPayload() }));
+    expect(zohoCreateCreditNote).not.toHaveBeenCalled();
+    expect(flagCreditNotePending).toHaveBeenCalled();
+  });
+
+  it("doesn't crash when the invoice number is somehow missing", async () => {
+    getOrderByRazorpayPaymentId.mockResolvedValueOnce(
+      primaryOrder({ invoiceNumber: undefined } as Partial<FakeOrder>)
+    );
+    const res = await POST(makeReq({ body: refundProcessedPayload() }));
+    expect(res.status).toBe(200);
+    expect(flagCreditNotePending).toHaveBeenCalled();
+  });
+
+  it("**a failed flag write is swallowed but logged loudly** — the refund already succeeded, so Razorpay must not retry, but the obligation is now log-only and must say so", async () => {
+    getOrderByRazorpayPaymentId.mockResolvedValueOnce(primaryOrder());
+    flagCreditNotePending.mockRejectedValueOnce(new Error("Mongo down"));
+    const res = await POST(makeReq({ body: refundProcessedPayload() }));
+    expect(res.status).toBe(200);
+    const logged = serverLogger.error.mock.calls.map((c) => String(c[0])).join("\n");
+    expect(logged).toContain("Could NOT persist the credit-note obligation");
+    expect(logged).toContain("will NOT appear in integration-health");
+  });
+
+  it("a ZOHO-invoiced order is unaffected — still creates the credit note automatically", async () => {
+    getOrderByRazorpayPaymentId.mockResolvedValueOnce(
+      makeOrder({ zohoInvoiceId: "ZINV-7", invoiceProvider: "zoho", userId: "U1" } as Partial<FakeOrder>)
+    );
+    getUserById.mockResolvedValueOnce({ _id: "U1", email: "u@x.com" });
+    zohoGetContactByEmail.mockResolvedValueOnce({ contact_id: "ZC-1" });
+    zohoCreateCreditNote.mockResolvedValueOnce({ credit_note_id: "CN-1" });
+    await POST(makeReq({ body: refundProcessedPayload() }));
+    expect(zohoCreateCreditNote).toHaveBeenCalled();
+    expect(flagCreditNotePending).not.toHaveBeenCalled();
+  });
+
+  it("a trial / uninvoiced order is unaffected — nothing owed, nothing flagged", async () => {
+    getOrderByRazorpayPaymentId.mockResolvedValueOnce(
+      makeOrder({ zohoInvoiceId: undefined, invoiceProvider: undefined } as Partial<FakeOrder>)
+    );
+    await POST(makeReq({ body: refundProcessedPayload() }));
+    expect(zohoCreateCreditNote).not.toHaveBeenCalled();
+    expect(flagCreditNotePending).not.toHaveBeenCalled();
   });
 });

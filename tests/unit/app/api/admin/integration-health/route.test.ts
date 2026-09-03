@@ -51,6 +51,12 @@ vi.mock("@/models/Hosting", () => ({
   __esModule: true,
 }));
 
+// Source 5b: orders owing a manually-raised GST credit note. Mocked at the
+// service boundary so this file controls the branch directly — the real
+// helper's query behaviour is covered by the orders integration suite.
+const listCreditNotePendingOrders = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/services/orders", () => ({ listCreditNotePendingOrders }));
+
 vi.mock("@/lib/server-logger", () => ({
   serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
@@ -86,6 +92,7 @@ beforeEach(() => {
   SystemLogFind.mockReset().mockReturnValue(chainable([]));
   RCAFind.mockReset().mockReturnValue(chainable([]));
   HostingFind.mockReset().mockReturnValue(chainable([]));
+  listCreditNotePendingOrders.mockReset().mockResolvedValue([]);
 });
 
 describe("/api/admin/integration-health — RecurringChargeAttempt source", () => {
@@ -428,5 +435,88 @@ describe("/api/admin/integration-health — Application provider", () => {
     const unknown = body.providers.find((p: { id: string }) => p.id === "unknown");
     expect(unknown).toBeDefined();
     expect(unknown.totalErrors).toBe(1);
+  });
+});
+
+describe("/api/admin/integration-health — pending GST credit notes", () => {
+  const owed = (o: Record<string, unknown> = {}) => ({
+    orderId: "ORD-CN-1",
+    userEmail: "alice@example.com",
+    invoiceNumber: "TI/2026-27/00001",
+    invoiceProvider: "primary",
+    amount: 1180,
+    currency: "INR",
+    creditNotePendingRefundId: "rfnd_1",
+    creditNotePendingAmountPaise: 118000,
+    creditNotePendingAt: new Date("2026-08-01T00:00:00.000Z"),
+    ...o,
+  });
+
+  it("**a pending credit note lands on the Zoho Books card, not Razorpay** — the manual action is taken in Zoho", async () => {
+    listCreditNotePendingOrders.mockResolvedValueOnce([owed()]);
+    const res = await GET(makeReq());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const zoho = body.providers.find((p: { id: string }) => p.id === "zoho");
+    expect(zoho).toBeDefined();
+    expect(zoho.totalErrors).toBe(1);
+  });
+
+  it("**gets the CREDIT-NOTE hint, not the generic Zoho one** — the errorText names Zoho Books, so a mis-ordered signature list would silently attach the wrong remediation", async () => {
+    listCreditNotePendingOrders.mockResolvedValueOnce([owed()]);
+    const body = await (await GET(makeReq())).json();
+    const zoho = body.providers.find((p: { id: string }) => p.id === "zoho");
+    const hint = zoho.patterns[0].hint as string;
+    expect(hint).toMatch(/raise a credit note/i);
+    expect(hint).toMatch(/30 November/i);
+    // The generic Zoho signature would have told the operator to click
+    // "Re-sync" — which is exactly the wrong action here.
+    expect(hint).not.toMatch(/Re-sync/i);
+  });
+
+  it("the entry names the order, invoice number, refund id and rupee amount so it's actionable without opening the DB", async () => {
+    listCreditNotePendingOrders.mockResolvedValueOnce([owed()]);
+    const body = await (await GET(makeReq())).json();
+    const zoho = body.providers.find((p: { id: string }) => p.id === "zoho");
+    const text = JSON.stringify(zoho);
+    expect(text).toContain("ORD-CN-1");
+    expect(text).toContain("TI/2026-27/00001");
+    expect(text).toContain("rfnd_1");
+    // Rupees, matching what gets typed into Zoho — not the paise figure.
+    expect(text).toContain("1180");
+  });
+
+  it("carries the customer context on the affected order", async () => {
+    listCreditNotePendingOrders.mockResolvedValueOnce([owed()]);
+    const body = await (await GET(makeReq())).json();
+    const zoho = body.providers.find((p: { id: string }) => p.id === "zoho");
+    expect(zoho.patterns[0].affectedOrders[0]).toEqual(
+      expect.objectContaining({ orderId: "ORD-CN-1", userEmail: "alice@example.com" })
+    );
+  });
+
+  it("tolerates a missing invoice number / amount without crashing the report", async () => {
+    listCreditNotePendingOrders.mockResolvedValueOnce([
+      owed({ invoiceNumber: undefined, creditNotePendingAmountPaise: undefined }),
+    ]);
+    const res = await GET(makeReq());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.providers.find((p: { id: string }) => p.id === "zoho")).toBeDefined();
+  });
+
+  it("**a query failure does NOT crash the whole report** — one bad source must not hide every other provider", async () => {
+    listCreditNotePendingOrders.mockRejectedValueOnce(new Error("Mongo down"));
+    const res = await GET(makeReq());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(Array.isArray(body.providers)).toBe(true);
+  });
+
+  it("nothing outstanding → no Zoho card raised from this source", async () => {
+    listCreditNotePendingOrders.mockResolvedValueOnce([]);
+    const body = await (await GET(makeReq())).json();
+    const zoho = body.providers.find((p: { id: string }) => p.id === "zoho");
+    expect(zoho === undefined || zoho.totalErrors === 0).toBe(true);
   });
 });
