@@ -67,6 +67,14 @@ docs/           Technical docs
 
 ### Setup
 
+> **Running locally?** Use `bash scripts/run-local.sh`. reCAPTCHA's site key is
+> domain-locked to production, so on localhost the widget errors and the Sign in
+> button stays disabled; the script blanks the reCAPTCHA keys **for that process
+> only** and points `APP_URL`/`NEXTAUTH_URL` at localhost so activation emails
+> don't link to production. Do *not* blank the keys in `.env.local` —
+> `deploy-cloud-run.sh` reads the site key from there and would ship the blank
+> to production.
+
 ```bash
 # 1. Install dependencies
 npm install
@@ -106,6 +114,7 @@ All configuration is supplied via environment variables — see [`.env.example`]
 | `npm run migrate` / `migrate:status` / `migrate:dry` | Database migrations |
 | `npm run init-db` / `recreate-admin` | DB bootstrap helpers |
 | `npm run deps:check` | `npm audit` + `npm outdated` |
+| `bash scripts/run-local.sh` | Run locally with reCAPTCHA disabled and emails pointed at localhost (`--prod` for a standalone build) |
 | `bash scripts/setup-cloud-scheduler-tokens.sh` | Provision the Tokens-flow Cloud Scheduler jobs (idempotent) |
 | `bash scripts/setup-cloud-scheduler-billing.sh` | Provision the billing Cloud Scheduler jobs — renewal-payment dunning (idempotent; see [docs/renewal-payment-dunning.md](docs/renewal-payment-dunning.md)) |
 
