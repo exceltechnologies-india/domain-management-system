@@ -250,8 +250,17 @@ async function buyHostingWithLinkedDomain(token: string) {
   return res.json();
 }
 
-/** Drives the REAL verify route exactly as Razorpay Checkout's handler does. */
-async function browserConfirmsPayment(token: string) {
+/**
+ * Drives the REAL verify route exactly as Razorpay Checkout's handler does.
+ *
+ * `signature` defaults to the normal one-shot case. Pass `undefined` explicitly
+ * via { omitSignature: true } to model the mandate/Tokens flow, where Razorpay
+ * hands the client no usable HMAC and the route normalises it to "".
+ */
+async function browserConfirmsPayment(
+  token: string,
+  opts: { omitSignature?: boolean } = {}
+) {
   rzpGetPaymentDetails.mockResolvedValue({
     id: PAYMENT_ID,
     order_id: RZP_ORDER,
@@ -270,7 +279,9 @@ async function browserConfirmsPayment(token: string) {
       body: JSON.stringify({
         razorpay_order_id: RZP_ORDER,
         razorpay_payment_id: PAYMENT_ID,
-        razorpay_signature: "valid_signature_mocked_true",
+        ...(opts.omitSignature
+          ? {}
+          : { razorpay_signature: "valid_signature_mocked_true" }),
         cartItems: [
           {
             domainName: "hosting-Standard-1788502345704",
@@ -408,6 +419,49 @@ describe("purchase via /api/payments/verify (the browser's path)", () => {
         invoiceNumber: { $exists: true, $ne: null },
       });
       expect(numbered).toBe(1);
+    });
+
+    // ── Regression: the mandate flow's missing client signature ────────────
+    //
+    // Razorpay's recurring/Tokens authorization hands the client no usable
+    // HMAC, so /verify normalises it to `razorpay_signature ?? ""`. The Order
+    // schema had `razorpaySignature: { required: true }`, and Mongoose rejects
+    // an empty string for a required String — so finalizePendingOrder's
+    // `order.save()` threw "Path `razorpaySignature` is required" AFTER
+    // provisioning had already run. Reproduced on 2026-09-04 against a real
+    // captured Razorpay test payment: the DirectAdmin account was created, the
+    // Hosting row written and the welcome email sent, then the save blew up,
+    // the catch marked the order for support, and /verify still answered
+    // HTTP 200 `success: true`. The customer's order sat at "processing" with
+    // no invoice, and the dashboard showed nothing.
+    //
+    // Everything the paying customer is owed must survive an absent signature.
+    it("**completes the order and invoices it when the client sends NO signature**", async () => {
+      await seedStandardPlan();
+      const { token } = await registerCustomer("verify-e2e8@example.test", "Maharashtra");
+      await buyHostingWithLinkedDomain(token);
+
+      const res = await browserConfirmsPayment(token, { omitSignature: true });
+      expect(res.status).toBe(200);
+
+      const order = await reloadOrder();
+      expect(order!.status).toBe("completed");
+      expect(order!.invoiceNumber).toMatch(/^TI\/\d{4}-\d{2}\/\d{5}$/);
+      expect(order!.invoiceProvider).toBe("primary");
+      // The order must NOT be left stranded for support.
+      expect(order!.paymentVerification?.paymentStatus).not.toBe(
+        "captured_pending_support"
+      );
+    });
+
+    it("provisions hosting when the client sends NO signature", async () => {
+      await seedStandardPlan();
+      const { token } = await registerCustomer("verify-e2e9@example.test", "Maharashtra");
+      await buyHostingWithLinkedDomain(token);
+
+      await browserConfirmsPayment(token, { omitSignature: true });
+
+      expect(await Hosting.countDocuments({ domainName: "verify-e2e.com" })).toBe(1);
     });
   });
 });

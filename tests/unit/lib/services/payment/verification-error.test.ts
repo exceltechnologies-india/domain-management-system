@@ -28,6 +28,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const connectDB = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/mongodb", () => ({ default: connectDB }));
 
+// Durable failure record. Unmocked it opens a real DB connection and every
+// test in this file times out at 5s.
+const recordSystemLog = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+vi.mock("@/lib/services/system-logs", () => ({ recordSystemLog }));
+
 const OrderCtor = vi.hoisted(() => vi.fn());
 const Order = vi.hoisted(() => ({
   updateOne: vi.fn(),
@@ -77,6 +82,49 @@ beforeEach(() => {
   connectDB.mockReset();
   OrderCtor.mockReset();
   Order.updateOne.mockReset();
+  recordSystemLog.mockClear();
+});
+
+describe("handleVerificationError — durable failure record", () => {
+  // Every path below answers HTTP 200 with `success: true`, so a provisioning
+  // failure leaves no trace the team ever looks at. That is exactly how a paid
+  // order stranded at "processing" with no invoice went unnoticed on
+  // 2026-09-04 — the only signal was a console line on one dev machine.
+  it("writes a SystemLog carrying the cause and the order/payment ids", async () => {
+    Order.updateOne.mockResolvedValueOnce({});
+    await handleVerificationError({
+      error: new Error("Order validation failed: razorpaySignature: Path `razorpaySignature` is required."),
+      user: USER,
+      cartItems: HOSTING_ITEMS,
+      existingOrder: { _id: "O1", orderId: "ord_42" } as never,
+      razorpay_order_id: "order_ABC",
+      razorpay_payment_id: "pay_XYZ",
+    });
+
+    expect(recordSystemLog).toHaveBeenCalledTimes(1);
+    const entry = recordSystemLog.mock.calls[0][0];
+    expect(entry.level).toBe("error");
+    expect(entry.source).toBe("payments/verify");
+    expect(entry.message).toMatch(/razorpaySignature/);
+    expect(entry.metadata).toMatchObject({
+      orderId: "ord_42",
+      razorpayOrderId: "order_ABC",
+      razorpayPaymentId: "pay_XYZ",
+    });
+  });
+
+  it("a SystemLog write failure never masks the user-facing response", async () => {
+    Order.updateOne.mockResolvedValueOnce({});
+    recordSystemLog.mockRejectedValueOnce(new Error("system-logs down"));
+    const result = await handleVerificationError({
+      error: new Error("rc broke"),
+      user: USER,
+      cartItems: HOSTING_ITEMS,
+      existingOrder: { _id: "O1", orderId: "ord_42" } as never,
+    });
+    expect(result.status).toBe(200);
+    expect((await result.json()).requiresSupport).toBe(true);
+  });
 });
 
 describe("handleVerificationError — user-facing message branching", () => {

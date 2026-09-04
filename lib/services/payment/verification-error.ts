@@ -3,6 +3,7 @@ import connectDB from "@/lib/mongodb";
 import Order from "@/models/Order";
 import type { IOrder } from "@/models/Order";
 import { serverLogger } from "@/lib/server-logger";
+import { recordSystemLog } from "@/lib/services/system-logs";
 import type { IUser } from "@/models/User";
 import type { CartItem } from "@/lib/types";
 
@@ -61,6 +62,29 @@ export async function handleVerificationError(
   serverLogger.warn(
     "⚠️ [PAYMENT-VERIFY] Payment verified but provisioning encountered errors — recording failure state"
   );
+
+  // Durable record. Everything below returns HTTP 200 with `success: true` so
+  // the customer isn't shown a scary error for a payment that DID succeed — but
+  // that also means a provisioning failure leaves no trace anywhere the team
+  // looks. A paid order stranded at "processing" with no invoice went unnoticed
+  // on 2026-09-04 for exactly this reason: the only signal was a console line on
+  // one dev machine. Mirrors the Zoho-failure SystemLog the caller already
+  // writes, so admin integration-health surfaces both.
+  await recordSystemLog({
+    level: "error",
+    message:
+      `[PAYMENT-VERIFY] Payment captured but provisioning failed: ` +
+      (error instanceof Error ? error.message : String(error)),
+    source: "payments/verify",
+    service: "payments",
+    stack: error instanceof Error ? error.stack : undefined,
+    metadata: {
+      orderId: existingOrder?.orderId,
+      userId: user?._id ? String(user._id) : undefined,
+      razorpayOrderId: razorpay_order_id,
+      razorpayPaymentId: razorpay_payment_id,
+    },
+  }).catch(() => {});
 
   try {
     if (!user || !user._id) {

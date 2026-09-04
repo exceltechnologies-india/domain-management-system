@@ -234,7 +234,25 @@ const OrderSchema = new Schema<IOrder>(
     },
     razorpaySignature: {
       type: String,
-      required: true,
+      // NOT required. The client HMAC is genuinely absent on some real flows:
+      // the Tokens/recurring-mandate authorization returns no usable signature
+      // (see verification.ts — the webhook, verified via
+      // RAZORPAY_WEBHOOK_SECRET, is the authoritative verifier there), and both
+      // /api/payments/verify and lib/services/payment/upgrade.ts already
+      // normalise a missing one to `razorpay_signature ?? ""`.
+      //
+      // With `required: true` Mongoose rejects that empty string, so
+      // finalizePendingOrder's `order.save()` threw
+      // "Path `razorpaySignature` is required" AFTER provisioning had already
+      // run — DirectAdmin account created, Hosting row written, welcome email
+      // sent — leaving the Order stranded at status "processing" with no
+      // invoice while /verify still answered 200 "success". Reproduced against
+      // a real captured test payment on 2026-09-04.
+      //
+      // This field is an audit record of what the client sent; nothing branches
+      // on its value. An empty string is the honest record of "no signature".
+      required: false,
+      default: "",
     },
     amount: {
       type: Number,
