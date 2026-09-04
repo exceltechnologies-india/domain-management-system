@@ -284,6 +284,29 @@ Operator wants the app rebranded to the official **Anutech Digital** logo + favi
 
 ## Recently Shipped — user-visible improvements
 
+- [x] **Full-app regression sweep before the next test purchase — 60 surfaces checked, one customer-facing invoice defect found and fixed (branch `primary-billing-integration`, NOT merged/deployed)** — Operator: *"Test that other things in that works fine first."* Swept the running build end-to-end with real logged-in sessions (probe admin + probe customer, cloned accounts with known passwords, removed afterwards) rather than assuming the two `/verify` fixes left everything else intact.
+
+  **What was checked, all green:** 14 public pages + **every internal link the homepage actually renders** (zero non-200/307); 26 admin pages; 9 customer dashboard pages; auth boundaries (7 protected endpoints correctly 401 to an anonymous caller, all `/dashboard/*` and `/admin/*` correctly 307); admin APIs (orders, both invoice tabs, integration-health); customer APIs (me, domains, invoices, cart); and `/checkout`, `/cart`, `/hosting`, `/domains-home` as a signed-in customer. Several "404s" in the first pass were **my own invented paths**, not broken routes — verified against the actual route tree before reporting anything (`/domains` doesn't exist, it's `/domains-home`; `/terms` is `/terms-and-conditions`; there is no `/api/v1/hosting-plans`, plans render server-side). No nav or footer link points at a missing route.
+
+  **The defect: our tax invoice printed an internal id where the domain should be.** The rendered `TI/2026-27/00001` PDF read:
+
+  ```
+  1 Web Hosting - Standard
+      Domain Name: hosting-Standard-1788506428638
+  ```
+
+  A hosting cart row stores a **synthetic cart-store id** in `domainName`; the domain the customer actually bought the plan for lives in `linkedDomain`. `lib/billing/pdf.ts` printed `item.domainName` raw, so a legally-numbered GST tax invoice showed an internal identifier to the customer. **Zoho's builder already got this right** (`item.linkedDomain || item.domainName` in `lib/zohobooks/invoices.ts`), so only our own engine was affected — exactly the kind of divergence that appears when a second issuer is introduced. `linkedDomain` was already declared on the Order subdoc and already carried through `cartItemsFromOrderDomains`, so the fix is one resolution line matching Zoho's, with domain rows still using `domainName` (there it IS the real domain). Re-rendered against the live server: **`Domain Name: testing.com`**.
+
+  **Verified on the real documents, not fixtures:** both primary invoices download from the admin route as genuine PDFs (**HTTP 200, `application/pdf`, `%PDF` magic**), the viewer page renders, and the extracted text is a correct GST tax invoice — "Tax Invoice", GSTIN `07ABDCA0298H1ZP`, `TI/2026-27/00001`, Place of Supply Delhi, SAC 998319, **Taxable ₹1,271.19 + CGST @9% ₹114.41 + SGST @9% ₹114.40 = ₹1,500.00** (Delhi→Delhi intra-state, so CGST/SGST and no IGST is right). The customer-side surface was proven the same way against real data — invoice list, PDF download and the viewer page all correct.
+
+  **Also confirmed empirically:** the SystemLog added in `db226d8` really does reach the operator view — inserting one and re-reading `/api/admin/integration-health` showed it surfacing under the **Razorpay** card. That claim is now tested, not assumed. (`service: "payments"` isn't in `SERVICE_TO_PROVIDER`, so it routes via the keyword classifier — which is the more accurate path for a source whose failures span provisioning, DB and payment causes.)
+
+  **Regression net:** 3 unit tests in `tests/unit/lib/billing/pdf.test.ts` pin the line-item domain — linked domain wins for hosting, `domainName` is the fallback when there's no linked domain, and domain rows keep `domainName`. Red-before-green confirmed by reverting the fix.
+
+  **Noted, not a bug:** the integration suite failed once when run back-to-back with the 427-file unit suite in a single command (resource contention on the in-memory MongoDB instances); three standalone runs are clean at 230/1-skip.
+
+  **Verified:** unit **6334/6334** (+3), integration **230 + 1 skip**, `tsc` clean, `eslint` clean. All probe accounts, probe log rows and probe DirectAdmin accounts removed; the customer's two orders and their `testing.com` hosting are untouched and intact.
+
 - [x] **SECOND checkout bug, found the same way: the order was provisioned, then thrown away by its own schema — `razorpaySignature` was `required` but the app writes `""` (branch `primary-billing-integration`, NOT merged/deployed)** — After the `de7a1ad` idempotency fix, two more real Razorpay test purchases (₹1,500 each) still left the customer's dashboard empty: **0 Active Hosting, 0 invoices, "No services yet."** The orders sat at `status: "processing"` with no invoice, and `/verify` answered **HTTP 200 `success: true`** both times. `de7a1ad` was working — the claim now runs — but the flow died one step later.
 
   **Root cause.** `models/Order.ts` declared `razorpaySignature: { type: String, required: true }`. Mongoose rejects `""` for a required String. But the app itself writes an empty string: Razorpay's recurring/Tokens mandate authorization hands the client **no usable HMAC**, so `/api/payments/verify` (and `lib/services/payment/upgrade.ts`) normalise it to `razorpay_signature ?? ""`. `finalizePendingOrder` assigns that onto the doc and calls `order.save()` — which threw:

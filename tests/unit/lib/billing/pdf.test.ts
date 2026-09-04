@@ -79,6 +79,77 @@ describe("generateInvoicePdf — Proforma path (no primary GST breakdown)", () =
   });
 });
 
+describe("generateInvoicePdf — the domain shown on the line item", () => {
+  // A hosting row's `domainName` is a SYNTHETIC cart-store id
+  // ("hosting-Standard-1788506428638"); the domain the customer actually
+  // bought the plan for is `linkedDomain`. Printing the raw id put an
+  // internal identifier on a legally-numbered GST tax invoice — found on a
+  // real rendered TI/2026-27/00001 on 2026-09-04. Zoho's builder already
+  // resolved this correctly, so only our own engine was affected.
+  const hostingOrder = () =>
+    baseOrder({
+      invoiceProvider: "primary",
+      invoiceNumber: "TI/2026-27/00001",
+      taxableValue: 1271.19,
+      gstRate: 18,
+      cgst: 114.41,
+      sgst: 114.4,
+      igst: 0,
+      placeOfSupply: "Delhi",
+      domains: [
+        {
+          domainName: "hosting-Standard-1788506428638",
+          linkedDomain: "testing.com",
+          price: 125,
+          currency: "INR",
+          registrationPeriod: 12,
+          periodUnit: "months",
+          itemType: "hosting",
+          hostingPlan: { name: "Standard" },
+        },
+      ],
+    } as unknown as Partial<IOrder>);
+
+  it("shows the linked domain for a hosting item, never the synthetic cart id", async () => {
+    const bytes = await readPdfBytes(generateInvoicePdf(hostingOrder(), baseUser()));
+    const text = bytes.toString("latin1");
+    expect(text).toContain("testing.com");
+    expect(text).not.toContain("hosting-Standard-1788506428638");
+  });
+
+  it("falls back to domainName when a hosting item has no linkedDomain", async () => {
+    const order = hostingOrder();
+    delete (order.domains[0] as { linkedDomain?: string }).linkedDomain;
+    const bytes = await readPdfBytes(generateInvoicePdf(order, baseUser()));
+    expect(bytes.toString("latin1")).toContain("hosting-Standard-1788506428638");
+  });
+
+  it("keeps domainName for a DOMAIN item, where it is the real domain", async () => {
+    const order = baseOrder({
+      invoiceProvider: "primary",
+      invoiceNumber: "TI/2026-27/00002",
+      taxableValue: 1000,
+      gstRate: 18,
+      cgst: 90,
+      sgst: 90,
+      igst: 0,
+      placeOfSupply: "Delhi",
+      domains: [
+        {
+          domainName: "realdomain.com",
+          price: 1000,
+          currency: "INR",
+          registrationPeriod: 1,
+          periodUnit: "years",
+          itemType: "domain",
+        },
+      ],
+    } as unknown as Partial<IOrder>);
+    const bytes = await readPdfBytes(generateInvoicePdf(order, baseUser()));
+    expect(bytes.toString("latin1")).toContain("realdomain.com");
+  });
+});
+
 describe("generateInvoicePdf — Tax Invoice path (invoiceProvider === 'primary')", () => {
   it("uses the Tax-Invoice filename keyed on invoiceNumber", async () => {
     const order = baseOrder({

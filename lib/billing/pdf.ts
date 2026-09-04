@@ -158,7 +158,16 @@ export function generateInvoicePdf(
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(9);
     y += 5;
-    pdf.text(`Domain Name: ${item.domainName}`, margin + 12, y + 6);
+    // Hosting rows carry a SYNTHETIC cart-store id in `domainName`
+    // (e.g. "hosting-Standard-1788506428638"); the domain the customer
+    // actually bought the plan for lives in `linkedDomain`. Zoho's builder
+    // already resolves it this way (`item.linkedDomain || item.domainName`
+    // in lib/zohobooks/invoices.ts) — this is the primary engine matching
+    // that, so our own tax invoice never shows an internal id to a customer.
+    // Domain rows keep `domainName`: there it IS the real domain.
+    const displayDomain =
+      (isDomain ? item.domainName : item.linkedDomain || item.domainName) || "";
+    pdf.text(`Domain Name: ${displayDomain}`, margin + 12, y + 6);
     y += 4;
 
     const periodText = formatSubscriptionPeriod(new Date(order.createdAt), item.registrationPeriod, item.periodUnit || "years");
