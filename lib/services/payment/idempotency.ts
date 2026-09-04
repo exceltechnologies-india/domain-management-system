@@ -51,6 +51,31 @@ export async function handleAlreadyProcessedPayment(
 
   if (!existingOrder) return null;
 
+  // A `pending` order is the NORMAL pre-payment state: /create-order persists
+  // one BEFORE the customer ever reaches Razorpay Checkout. Its mere existence
+  // is therefore not evidence the payment was already processed — and treating
+  // it as such short-circuits the FIRST, legitimate /verify call, before the
+  // atomic claim, finalisation and provisioning ever run.
+  //
+  // The damage that caused (reproduced by
+  // tests/integration/e2e/verify-path-purchase.test.ts): the customer was
+  // charged, a legally-numbered TI/... tax invoice WAS issued by the recovery
+  // path below, and yet the order stayed `status: "pending"` with
+  // `razorpayPaymentId: "pending"` and no Hosting record — a tax document for
+  // a service never delivered.
+  //
+  // It stayed invisible in production because the Razorpay webhook reaches
+  // app.anutech.in moments later and completes the order; the pre-existing E2E
+  // suite drives that webhook and never exercised /verify. It surfaced on a
+  // developer machine, where no webhook can arrive.
+  //
+  // Falling through here is safe under concurrency: the very next step is
+  // `claimPendingOrderForProcessing`, an atomic findOneAndUpdate — exactly one
+  // caller wins, and the loser gets the "provisioning in progress" response.
+  // Genuine duplicates (processing / paid / completed) still short-circuit
+  // below and still get the invoice-recovery pass.
+  if (existingOrder.status === "pending") return null;
+
   serverLogger.warn(
     "⚠️ [PAYMENT-VERIFY] Payment already processed. Order ID:",
     existingOrder.orderId

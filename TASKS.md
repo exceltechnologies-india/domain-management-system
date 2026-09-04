@@ -284,6 +284,27 @@ Operator wants the app rebranded to the official **Anutech Digital** logo + favi
 
 ## Recently Shipped — user-visible improvements
 
+- [x] **CRITICAL: the browser's checkout path issued a tax invoice and then abandoned the order — found by a real Razorpay test payment (branch `primary-billing-integration`, NOT merged/deployed)** — A genuine Razorpay test-mode purchase from a browser (`pay_TXrc4NyzAXMGuw`, ₹1,500) returned **HTTP 200** and left the customer with nothing: order stuck, no hosting, and — on the reproduction — a legally-numbered `TI/...` tax invoice issued against it anyway. No error was logged and no SystemLog row was written, so nothing anywhere flagged it.
+
+  **Root cause.** `handleAlreadyProcessedPayment` (`lib/services/payment/idempotency.ts`) treated the mere EXISTENCE of an Order as proof the payment had already been processed:
+
+  ```js
+  if (!existingOrder) return null;
+  serverLogger.warn("⚠️ [PAYMENT-VERIFY] Payment already processed. Order ID:", …);
+  ```
+
+  But `/api/payments/create-order` **always** persists a `status: "pending"` Order *before* the customer ever reaches Razorpay Checkout, and the verify route passes that Order straight into the guard. So the **first, entirely legitimate** `/api/payments/verify` call short-circuited — returning "Payment already processed" before the atomic claim, `finalizePendingOrder` and provisioning ever ran. Reproduced state: `status: "pending"`, `razorpayPaymentId: "pending"`, **no Hosting record**, and `invoiceNumber: TI/2026-27/00001` issued by the guard's own invoice-recovery pass. A tax document for a service never delivered — worse than failing outright.
+
+  **Why it never showed in production, and why that matters.** The Razorpay **webhook** reaches `app.anutech.in` moments later, claims the order and completes it — permanently masking the defect. It only surfaced on a developer machine, where no webhook can arrive. That also means production has been relying on the webhook as the *only* working completion path while `/verify` silently did nothing, with no alarm if a webhook were ever delayed, misconfigured or dropped.
+
+  **Why every existing test passed.** `tests/integration/e2e/purchase-to-invoice.test.ts` drives `/razorpay/webhook` and contains **zero** references to `payments/verify` (verified by grep: `razorpay/webhook` ×3, `payments/verify` ×0). The route a real browser actually calls had **no end-to-end coverage at all** — only per-component unit tests, which cannot see a guard that wrongly returns early. Same seam-bug class as the three found on 2026-09-02, and the same lesson: only a full journey through the real handlers finds them.
+
+  **The fix** is one status check, with the reasoning recorded inline: a `pending` order is the normal pre-payment state, not evidence of prior processing, so the guard now falls through for it. Safe under concurrency — the very next step is `claimPendingOrderForProcessing`, an atomic `findOneAndUpdate`, so exactly one caller wins and the loser gets the "provisioning in progress" response. Genuine duplicates (`processing` / `paid` / `completed`) still short-circuit and still get the invoice-recovery pass.
+
+  **New permanent regression net:** `tests/integration/e2e/verify-path-purchase.test.ts` — 7 tests driving register → create-order → **/api/payments/verify** → the customer's invoice list, on its own in-memory replica set with only external SaaS stubbed. It pins what a paying customer is owed: order reaches `completed`, the real payment id is recorded (not the `"pending"` placeholder), GST computes inter-state (Delhi seller → Maharashtra customer = IGST only, and taxable + tax reconciles to exactly ₹1,500), the Hosting record is created for the linked domain, and the invoice is visible in the customer's list. Plus two stranding regressions: a **repeated** verify call and two **concurrent** verify calls must each still leave a completed order with exactly **one** invoice number — one payment must never consume two numbers in the legal series.
+
+  **Verified:** the new suite went **6-of-7 red → 7/7 green** on the fix. The existing webhook E2E still passes **9/9**, proving the path production currently relies on is undisturbed, and the idempotency unit tests stay **10/10**. Full sweep: unit **6329/6329**, integration **228/1-skip** (+7), `tsc` clean, `eslint` clean, build **75/75**.
+
 - [x] **BILLING INTEGRATION CONFIRMED WORKING END-TO-END IN A REAL BROWSER — the last verification gaps are closed (branch `primary-billing-integration`, NOT merged/deployed)** — Operator: *"No need to deploy until we confirm our integration with the new billing app works correctly."* This closes the three gaps left open by the previous pass, driving the **production-faithful standalone build** (the same entrypoint Cloud Run uses) with real logged-in sessions against a throwaway in-memory database seeded with a customer, an admin, and two primary-engine tax invoices.
 
   **Customer side — the surface that regressed twice before:**
