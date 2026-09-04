@@ -22,7 +22,19 @@
 #      (The secret is safe either way — production takes it from Secret
 #      Manager — but the site key is not.)
 #
-#   3. APP_URL / NEXTAUTH_URL default to https://app.anutech.in in
+#   3. --prod serves a PRODUCTION build, and lib/security/headers.ts gates its
+#      security headers on NODE_ENV === 'production'. Over plain HTTP that is
+#      actively hostile: the CSP carries `upgrade-insecure-requests` (Chrome
+#      rewrites every http:// request to https://, which fails with
+#      ERR_SSL_PROTOCOL_ERROR against this HTTP-only server) and the response
+#      also sets `Strict-Transport-Security: max-age=31536000`. HSTS is
+#      HOST-scoped, not port-scoped, so once Chrome caches it for `localhost`
+#      it force-upgrades EVERY localhost port for a year — including a dev
+#      server on :3000. Recovery is manual: chrome://net-internals/#hsts ->
+#      "Delete domain security policies" -> localhost. Default dev mode runs
+#      NODE_ENV=development and sends none of these. Bit us on 2026-09-04.
+#
+#   4. APP_URL / NEXTAUTH_URL default to https://app.anutech.in in
 #      .env.local. Activation and password-reset emails are built from
 #      `APP_URL || NEXTAUTH_URL` (lib/email/auth.ts), so running locally
 #      WITHOUT overriding APP_URL sends real mail whose links point at
@@ -61,7 +73,7 @@ while [ $# -gt 0 ]; do
     --port) PORT="$2"; shift 2 ;;
     --prod) MODE=prod; shift ;;
     --no-build) BUILD=0; shift ;;
-    -h|--help) sed -n '1,40p' "$0"; exit 0 ;;
+    -h|--help) sed -n '1,64p' "$0"; exit 0 ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
@@ -117,6 +129,16 @@ if [ "$MODE" = "prod" ]; then
     echo "→ Reusing existing .next build"
     if grep -rq "NEXT_PUBLIC_RECAPTCHA_SITE_KEY" .next/static 2>/dev/null; then :; fi
   fi
+  echo ""
+  echo "  ⚠  PRODUCTION MODE OVER PLAIN HTTP"
+  echo "     This build sends Strict-Transport-Security and a CSP containing"
+  echo "     upgrade-insecure-requests. Chrome will force http://localhost to"
+  echo "     https:// and fail with ERR_SSL_PROTOCOL_ERROR — and HSTS is"
+  echo "     host-scoped, so it will affect EVERY localhost port for a year."
+  echo "     If that happens: chrome://net-internals/#hsts -> Delete domain"
+  echo "     security policies -> localhost."
+  echo "     For interactive clicking-around, use dev mode (drop --prod)."
+  echo ""
   # `next start` does not work with output: standalone — use the standalone
   # server, which is also what Cloud Run runs.
   echo "→ Starting standalone server on $ORIGIN"
