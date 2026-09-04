@@ -472,13 +472,34 @@ export default function UserSettings() {
           const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1&accept-language=en`, { headers: { 'Accept': 'application/json', 'User-Agent': 'Anutech Digital Private Limited' } });
           if (!res.ok) throw new Error();
           const data = await res.json();
-          const addr = data.address;
+          const addr = data.address || {};
+
+          // Address line 1 — be permissive. Indian residential pin-points
+          // often lack house_number/road in Nominatim (desktop geolocation is
+          // WiFi/IP-based, so the fix is coarse) but DO return suburb,
+          // neighbourhood, quarter, residential or building. Chain through the
+          // common shapes, then fall back to the first two display_name
+          // segments, so Line 1 is never left blank while city/state/PIN fill.
+          // Mirrors the same fix already shipped in app/checkout/guest/page.tsx
+          // — this copy was missed. Reported 2026-09-04 (Delhi 110085: only
+          // suburb/city_district returned, so Line 1 stayed empty).
+          const lineParts = [
+            addr.house_number,
+            addr.road || addr.street || addr.pedestrian || addr.path,
+            addr.building,
+            addr.neighbourhood || addr.suburb || addr.quarter ||
+              addr.residential || addr.hamlet,
+          ].filter(Boolean);
+          const detectedLine1 =
+            lineParts.length > 0
+              ? lineParts.join(', ')
+              : (data.display_name?.split(',').slice(0, 2).join(',').trim() || '');
           // Normalise the reverse-geocoded state against INDIAN_STATES so
           // "NCT of Delhi" / "Orissa" / etc. resolve to the dropdown's
           // canonical option. Empty string keeps the existing value
           // unchanged — never poisons the dropdown with a non-matching
           // raw string (was the bug on 2026-06-22).
-          setUser(prev => prev ? { ...prev, address: { ...prev.address, line1: [addr.house_number, addr.road || addr.street, addr.neighbourhood].filter(Boolean).join(', ') || prev.address?.line1 || '', city: addr.city || addr.town || addr.village || prev.address?.city || '', state: normaliseIndianState(addr.state) || prev.address?.state || '', zipcode: addr.postcode || prev.address?.zipcode || '', country: 'IN' } } : null);
+          setUser(prev => prev ? { ...prev, address: { ...prev.address, line1: detectedLine1 || prev.address?.line1 || '', city: addr.city || addr.town || addr.village || prev.address?.city || '', state: normaliseIndianState(addr.state) || prev.address?.state || '', zipcode: addr.postcode || prev.address?.zipcode || '', country: 'IN' } } : null);
           toast.success('Location detected!', { id: t });
         } catch { toast.error('Could not get address from location', { id: t }); }
         finally { setIsDetectingLocation(false); }
