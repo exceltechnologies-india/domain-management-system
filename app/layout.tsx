@@ -67,8 +67,19 @@ export default async function RootLayout({
     frontendTheme = false;
   }
 
+  // data-scroll-behavior: app/globals.css sets `scroll-behavior: smooth` on
+  // <html>. Next.js currently disables that during route transitions so
+  // navigations jump straight to the top; a future version stops doing so and
+  // warns until the intent is declared. Declaring it keeps today's behaviour
+  // AND is forward-compatible.
+  // See https://nextjs.org/docs/messages/missing-data-scroll-behavior
   return (
-    <html lang="en" suppressHydrationWarning {...(frontendTheme ? { 'data-theme': 'landing' } : {})}>
+    <html
+      lang="en"
+      data-scroll-behavior="smooth"
+      suppressHydrationWarning
+      {...(frontendTheme ? { 'data-theme': 'landing' } : {})}
+    >
       <body className={inter.className} suppressHydrationWarning>
         {/* Admin-managed analytics / marketing tags (GA4 / GTM / Meta Pixel /
             Google Ads). Renders first-party nonce'd snippets keyed on
