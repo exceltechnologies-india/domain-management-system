@@ -14,6 +14,24 @@
  */
 import { defineConfig } from "vitest/config";
 import path from "path";
+import os from "os";
+
+/**
+ * Bound worker parallelism.
+ *
+ * Every integration file boots its OWN MongoMemoryServer — a real `mongod`
+ * child process — in tests/integration/setup.ts's beforeAll. Vitest defaults
+ * maxWorkers to the CPU count, so on a 28-core box that is up to 20 mongod
+ * processes plus 20 node forks at once. Under memory pressure the workers get
+ * killed before the beforeAll hook resolves and every file fails with
+ * "Vitest failed to find the current suite", reporting `Tests no tests`.
+ *
+ * It presented as flakiness because it is load-dependent: clean on an idle
+ * machine, failing when the dev server was up or the 427-file unit suite had
+ * just run. 4 is enough to keep the wall-clock win while staying well inside
+ * memory, and stays CPU-aware for small CI runners.
+ */
+const WORKERS = Math.max(1, Math.min(4, os.cpus().length - 1));
 
 export default defineConfig({
   test: {
@@ -34,6 +52,10 @@ export default defineConfig({
     // grows; raising the count to ~30 files should show real parallel
     // savings.
     fileParallelism: true,
+    // ...but bounded. See WORKERS above: one mongod per file means unbounded
+    // parallelism is a memory cliff, not a speedup.
+    pool: "forks",
+    maxWorkers: WORKERS,
   },
   resolve: {
     alias: {

@@ -284,6 +284,36 @@ Operator wants the app rebranded to the official **Anutech Digital** logo + favi
 
 ## Recently Shipped — user-visible improvements
 
+- [x] **The "flaky" test suites were never flaky — unbounded worker parallelism was OOM-killing them (branch `primary-billing-integration`, NOT merged/deployed)** — Both suites died together during the previous batch's sweep with `Vitest failed to find the current suite` and `Tests no tests` — every file failing at once, before a single assertion ran. This is the same symptom TASKS.md recorded on 2026-08-11 (*"the full `vitest run` OOMs under default parallelism … use `--pool=forks --maxWorkers=4` … worth baking into the `test` script/CI"*) — noted then, never actioned. Now actioned.
+
+  **Root cause.** Neither `vitest.config.ts` nor `vitest.integration.config.ts` bounded `maxWorkers`, so Vitest defaulted it to the CPU count — **28 on this box**. That means up to 28 concurrent forks, each paying a per-worker cost the suites can't afford:
+
+  - **unit** (427 files) boots a **jsdom environment** per worker;
+  - **integration** boots its own **`MongoMemoryServer` — a real `mongod` child process** — per file, in `tests/integration/setup.ts`'s `beforeAll`.
+
+  Workers were killed before that `beforeAll` resolved, which is precisely why the error pointed at `setup.ts:35` and why *no tests* ran rather than some failing.
+
+  **Why it read as flakiness:** it is load-dependent, not random. Clean on an idle machine; failing when the dev server was up, or when the other suite had just run, or when both ran at once. That's the trap — a load-dependent failure looks like a haunted test until you measure it.
+
+  **Measured, not assumed.** Peak concurrent processes and RSS sampled during real runs, dev server stopped for a clean read:
+
+  | Suite | Before (default) | After (capped) |
+  |---|---|---|
+  | unit — node procs / peak RSS | 39 / **7.2 GB** | 22 / **4.8 GB** |
+  | integration — concurrent `mongod` | **15** | **5** |
+
+  The unit suite's 2.4 GB (-33%) is the memory cliff; the integration suite's `mongod` count is the process/port/file-handle cliff (its peak RSS was unchanged at 5.8 GB — the mongod instances are individually small, so **memory was not that suite's binding constraint**, contention on concurrent database boots was).
+
+  **The fix** is a bounded, CPU-aware cap in each config — `min(8, cpus-1)` for unit, `min(4, cpus-1)` for integration — with the reasoning recorded inline so nobody "optimises" it back. It stays correct on small runners: a 2-core CI box resolves to 1 worker each, a 4-core to 3, rather than oversubscribing.
+
+  **Honest limit on the verification:** the original failure could **not** be forced on demand — re-running the exact concurrent scenario with the caps removed passed. So this is not a red-before-green proof. What it is: two observed failures under the old config today, **zero across ~10 runs under the new one** (3 sequential back-to-back cycles, plus both suites running *concurrently while the dev server was up* — the worst case, 10.4 GB free), plus the measured mechanism above, plus the same symptom independently recorded a month ago.
+
+  **One incidental fix required to land it:** `tsconfig.json` excluded `vitest.config.ts` but not its sibling `vitest.integration.config.ts`, so the type-aware ESLint parser refused the former (*"file was not found in any of the provided project(s)"*) and the pre-commit hook would have rejected any change to it. Removed the exclusion — `tsc` and the production build both pass with the file in the project, and the two configs are now treated consistently.
+
+  **Not done, deliberately:** the integration suite could drop to a *single* shared `MongoMemoryServer` via `globalSetup` and remove per-file mongod entirely, but the existing config comment deliberately wants per-file isolation so suites can't step on each other's data. Capping keeps that guarantee; consolidating would trade it away for speed the suite doesn't need at 14s.
+
+  **Verified:** unit **6334/6334**, integration **230 + 1 skip**, `tsc` clean, `eslint` clean (both configs now lint), production build **75/75**.
+
 - [x] **Full-app regression sweep before the next test purchase — 60 surfaces checked, one customer-facing invoice defect found and fixed (branch `primary-billing-integration`, NOT merged/deployed)** — Operator: *"Test that other things in that works fine first."* Swept the running build end-to-end with real logged-in sessions (probe admin + probe customer, cloned accounts with known passwords, removed afterwards) rather than assuming the two `/verify` fixes left everything else intact.
 
   **What was checked, all green:** 14 public pages + **every internal link the homepage actually renders** (zero non-200/307); 26 admin pages; 9 customer dashboard pages; auth boundaries (7 protected endpoints correctly 401 to an anonymous caller, all `/dashboard/*` and `/admin/*` correctly 307); admin APIs (orders, both invoice tabs, integration-health); customer APIs (me, domains, invoices, cart); and `/checkout`, `/cart`, `/hosting`, `/domains-home` as a signed-in customer. Several "404s" in the first pass were **my own invented paths**, not broken routes — verified against the actual route tree before reporting anything (`/domains` doesn't exist, it's `/domains-home`; `/terms` is `/terms-and-conditions`; there is no `/api/v1/hosting-plans`, plans render server-side). No nav or footer link points at a missing route.
