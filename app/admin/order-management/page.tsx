@@ -686,7 +686,8 @@ export default function AdminOrders() {
                     searchable={true}
                     pagination={true}
                     pageSize={10}
-                    totalItems={activeHasMore ? (activePage * 10) + 10 : activePage * 10}
+                    totalItems={counts?.active || undefined}
+                    hasMore={activeHasMore}
                     currentPage={activePage}
                     onPageChange={(p) => { setActivePage(p); void fetchOrders('active', p); }}
                     onRowContextMenu={handleContextMenu}
@@ -700,7 +701,8 @@ export default function AdminOrders() {
                     searchable={true}
                     pagination={true}
                     pageSize={10}
-                    totalItems={trialHasMore ? (trialPage * 10) + 10 : trialPage * 10}
+                    totalItems={counts?.trial || undefined}
+                    hasMore={trialHasMore}
                     currentPage={trialPage}
                     onPageChange={(p) => { setTrialPage(p); void fetchOrders('trial', p); }}
                     onRowContextMenu={handleContextMenu}
@@ -714,7 +716,8 @@ export default function AdminOrders() {
                     searchable={true}
                     pagination={true}
                     pageSize={10}
-                    totalItems={archivedHasMore ? (archivedPage * 10) + 10 : archivedPage * 10}
+                    totalItems={counts?.archived || undefined}
+                    hasMore={archivedHasMore}
                     currentPage={archivedPage}
                     onPageChange={(p) => { setArchivedPage(p); void fetchOrders('archived', p); }}
                     onRowContextMenu={handleContextMenu}

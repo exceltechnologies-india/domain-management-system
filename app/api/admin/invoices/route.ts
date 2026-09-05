@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
     const source = searchParams.get("source") === "primary" ? "primary" : "zoho";
 
     if (source === "primary") {
-      const { orders, hasMore } = await listPrimaryInvoiceOrdersAdmin(page, perPage);
+      const { orders, hasMore, total } = await listPrimaryInvoiceOrdersAdmin(page, perPage);
       serverLogger.info(
         `[AdminAPI] fetching primary-engine invoices from the local DB (page ${page}, ${orders.length} rows)`
       );
@@ -89,7 +89,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         invoices,
-        page_context: { page, per_page: perPage, has_more_page: hasMore },
+        // `total` is a REAL count here (our own collection). The Zoho branch
+        // below can only pass through whatever Zoho sent, which often omits
+        // it — the admin table renders a cursor-style pager in that case
+        // rather than inventing a number.
+        page_context: { page, per_page: perPage, has_more_page: hasMore, total },
       });
     }
 

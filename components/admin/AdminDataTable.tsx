@@ -27,8 +27,20 @@ export interface AdminDataTableProps<T = unknown> {
   searchable?: boolean;
   pagination?: boolean;
   pageSize?: number;
-  // Server-side pagination props
+  // Server-side pagination props.
+  //
+  // `totalItems` is for sources that genuinely KNOW their row count (our own
+  // Mongo-backed lists return one). Leave it undefined for a cursor-paginated
+  // source that only knows whether another page exists — e.g. Zoho Books,
+  // whose page_context carries `has_more_page` and only sometimes `total` —
+  // and pass `hasMore` instead. The pager then shows an honest
+  // "Showing 1 to 10" with Prev/Next rather than inventing a total.
+  //
+  // Callers used to synthesise `hasMore ? page*10+10 : page*10`, which
+  // rendered a fabricated "of 20 results" plus fabricated page numbers on
+  // every cursor-paginated admin table.
   totalItems?: number;
+  hasMore?: boolean;
   currentPage?: number;
   onPageChange?: (page: number) => void;
   onSearch?: (searchTerm: string) => void;
@@ -44,6 +56,7 @@ export default function AdminDataTable<T>({
   pagination = true,
   pageSize = 10,
   totalItems,
+  hasMore,
   currentPage: externalCurrentPage,
   onPageChange,
   onSearch,
@@ -61,11 +74,21 @@ export default function AdminDataTable<T>({
   }, [data]);
 
   // Use external pagination if provided, otherwise use internal
-  const isServerSidePagination = totalItems !== undefined && onPageChange !== undefined;
+  const isServerSidePagination =
+    onPageChange !== undefined &&
+    (totalItems !== undefined || hasMore !== undefined);
+  // Does the source actually know how many rows exist? Client-side pagination
+  // always does — it holds every row. A server-side CURSOR source does not,
+  // and must not be made to guess.
+  const knowsTotal = isServerSidePagination ? totalItems !== undefined : true;
   const currentPage = isServerSidePagination ? (externalCurrentPage || 1) : internalCurrentPage;
   const totalPages = isServerSidePagination
-    ? Math.ceil((totalItems || 0) / pageSize)
+    ? (knowsTotal ? Math.ceil((totalItems || 0) / pageSize) : 0)
     : Math.ceil(data.length / pageSize);
+  // In cursor mode the only honest answer to "is there a next page" is what
+  // the API told us.
+  const canGoNext =
+    isServerSidePagination && !knowsTotal ? Boolean(hasMore) : currentPage < totalPages;
 
   // For server-side pagination, use data as-is. For client-side, filter and sort
   const displayData = isServerSidePagination
@@ -225,7 +248,11 @@ export default function AdminDataTable<T>({
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
             <div className="text-xs sm:text-sm text-gray-700 text-center sm:text-left">
               {isServerSidePagination ? (
-                `Showing ${startIndex + 1} to ${Math.min(startIndex + pageSize, totalItems || 0)} of ${totalItems || 0} results`
+                knowsTotal
+                  ? `Showing ${startIndex + 1} to ${Math.min(startIndex + pageSize, totalItems || 0)} of ${totalItems || 0} results`
+                  // Cursor-paginated: we know which rows are on screen, and
+                  // nothing more. Don't claim a total we were never given.
+                  : `Showing ${startIndex + 1} to ${startIndex + data.length}`
               ) : (
                 `Showing ${startIndex + 1} to ${Math.min(startIndex + pageSize, data.length)} of ${data.length} results`
               )}
@@ -241,7 +268,7 @@ export default function AdminDataTable<T>({
               </button>
 
               {/* Page numbers */}
-              {totalPages > 1 ? (
+              {knowsTotal && totalPages > 1 ? (
                 <div className="flex items-center space-x-0.5 sm:space-x-1">
                   {(() => {
                     const pages = [];
@@ -307,13 +334,15 @@ export default function AdminDataTable<T>({
                 </div>
               ) : (
                 <span className="text-xs sm:text-sm text-gray-700 px-1 sm:px-2">
-                  Page {currentPage} of {totalPages}
+                  {knowsTotal ? `Page ${currentPage} of ${totalPages}` : `Page ${currentPage}`}
                 </span>
               )}
 
               <button
-                onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
-                disabled={currentPage === totalPages || isLoading}
+                onClick={() =>
+                  handlePageChange(knowsTotal ? Math.min(totalPages, currentPage + 1) : currentPage + 1)
+                }
+                disabled={!canGoNext || isLoading}
                 className="p-1.5 sm:p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg hover:bg-gray-100 transition-colors relative z-10"
                 type="button"
               >

@@ -34,6 +34,8 @@ import os from "os";
 const WORKERS = Math.max(1, Math.min(4, os.cpus().length - 1));
 
 export default defineConfig({
+  // Own cache bucket — see the matching note in vitest.config.ts.
+  cacheDir: "node_modules/.vite/vitest-integration",
   test: {
     environment: "node", // integration tests don't need jsdom
     globals: true,

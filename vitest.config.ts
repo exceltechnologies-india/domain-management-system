@@ -20,6 +20,12 @@ const WORKERS = Math.max(1, Math.min(8, os.cpus().length - 1));
 
 export default defineConfig({
   plugins: [react()],
+  // Own cache bucket. Both vitest configs otherwise resolve to the SAME
+  // node_modules/.vite/vitest/<hash> directory, so a unit run and an
+  // integration run touching it at once contend on Vite's dep-optimizer
+  // cache. Cheap to separate; removes one shared-mutable-state hazard
+  // between two suites that are frequently run back-to-back.
+  cacheDir: "node_modules/.vite/vitest-unit",
   test: {
     environment: "jsdom",
     globals: true,

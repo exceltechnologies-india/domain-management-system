@@ -284,6 +284,26 @@ Operator wants the app rebranded to the official **Anutech Digital** logo + favi
 
 ## Recently Shipped — user-visible improvements
 
+- [x] **Admin tables stopped inventing their result count — and the "fixed" test flakiness was not actually fixed (branch `primary-billing-integration`, NOT merged/deployed)** — Two things in one batch: the fabricated pagination count the operator asked for, and an honest correction to the previous batch's claim.
+
+  **1. The fabricated count.** Four admin tables passed `totalItems={hasMore ? (page*10)+10 : page*10}` — a total *synthesised from a cursor flag* — so `AdminDataTable` rendered `Showing 1 to 10 of 20 results` and a matching set of invented page numbers. On `/admin/invoices` the Primary tab holds **2** invoices and the table claimed **"of 10 results"**.
+
+  The sources split cleanly, so the fix does too:
+
+  - **We own the data → state the real number.** `listPrimaryInvoiceOrdersAdmin` now also returns a `total` (one indexed `countDocuments` on the filter it already builds), surfaced as `page_context.total`. Verified live: `{"has_more_page":false,"total":2}` for the 2 real invoices.
+  - **`/admin/order-management` already HAD the real totals** — it fetches `page_context.total` for its stat cards into `counts` — and was synthesising one anyway for the table beside them. Now passes `counts.active` / `.trial` / `.archived` (verified live: 4 / 1 / 0).
+  - **Zoho genuinely cannot tell us.** Its `page_context` came back `{has_more_page: true, report_name, applied_filter, sort_column…}` — **no `total`**, confirmed against the live API. So `AdminDataTable` gained an honest cursor mode: pass `hasMore` without `totalItems` and it renders `Showing 1 to 10` with Prev/Next and `Page 3`, disabling Next on `hasMore === false` — no invented total, no invented page numbers. A real `totalItems` still wins when both are supplied.
+
+  **A near-miss worth recording:** the first cut gated the numbered-page block on `knowsTotal`, which silently disabled paging for every *client-side* table too — where the total is perfectly well known from `data.length`. The existing suite caught it immediately (`knowsTotal` is now `isServerSidePagination ? totalItems !== undefined : true`). Exactly the regression a component test earns its keep on.
+
+  Left alone deliberately: `/admin/payment-management` passes a synthesised value too, but with `pagination={false}` the pager never renders, so nothing user-visible is wrong there.
+
+  **2. Correcting the previous batch.** `5b0d434` claimed the suite flakiness was fixed. It was not — a later run failed **427 of 427 files** with the same `Vitest failed to find the runner`, *with* the worker caps in place and **14 GB free**, so memory pressure alone never was the whole story. Found the second cause: both configs resolve to the **same** `node_modules/.vite/vitest/<hash>` bucket (the hash is SHA1 of the empty string, so they collide exactly), meaning a unit run and an integration run share Vite's dep-optimizer cache. That fits the observed signature precisely — a partial failure, then a *wholesale* failure, then a clean pass once the cache rebuilt. Each config now has its own `cacheDir`.
+
+  **Still an honest mitigation, not a proof.** The failure cannot be forced on demand: 3 concurrent cycles on the old shared-cache config all passed. What can be shown is the mechanism removed (two suites no longer share mutable cache state), the measured worker reduction from last batch, and **4/4 clean concurrent cycles** afterwards. Worker cap stays at 8 rather than the 4 in the 2026-08-11 note: 8 runs in **76s** vs **123s** at 4 (+62%) and peaks at 4.8 GB on a 34 GB box.
+
+  **Verified:** unit **6340/6340** (+6), integration **230 + 1 skip**, `tsc` clean, `eslint` clean, build **75/75**; live-checked the real `total` values through the running app on all three data sources.
+
 - [x] **The "flaky" test suites were never flaky — unbounded worker parallelism was OOM-killing them (branch `primary-billing-integration`, NOT merged/deployed)** — Both suites died together during the previous batch's sweep with `Vitest failed to find the current suite` and `Tests no tests` — every file failing at once, before a single assertion ran. This is the same symptom TASKS.md recorded on 2026-08-11 (*"the full `vitest run` OOMs under default parallelism … use `--pool=forks --maxWorkers=4` … worth baking into the `test` script/CI"*) — noted then, never actioned. Now actioned.
 
   **Root cause.** Neither `vitest.config.ts` nor `vitest.integration.config.ts` bounded `maxWorkers`, so Vitest defaulted it to the CPU count — **28 on this box**. That means up to 28 concurrent forks, each paying a per-worker cost the suites can't afford:

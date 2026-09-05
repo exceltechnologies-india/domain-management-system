@@ -119,6 +119,117 @@ describe("<AdminDataTable>", () => {
     expect(onPageChange).toHaveBeenCalledWith(3);
   });
 
+  // ── Cursor mode: the source does NOT know its total ──────────────────────
+  //
+  // Zoho Books paginates by cursor: its page_context reports `has_more_page`
+  // and only sometimes a `total`. The admin pages used to paper over that by
+  // synthesising `hasMore ? page*10+10 : page*10`, so the table rendered a
+  // fabricated "of 20 results" and fabricated page numbers. Passing `hasMore`
+  // without `totalItems` now puts the table in an honest cursor mode.
+  describe("cursor pagination (hasMore, no totalItems)", () => {
+    it("states only the rows on screen — never invents a total", () => {
+      render(
+        <AdminDataTable
+          title="Invoices"
+          columns={columns}
+          data={tenRows}
+          hasMore
+          currentPage={1}
+          onPageChange={vi.fn()}
+          pageSize={10}
+        />
+      );
+      expect(screen.getByText(/showing 1 to 10$/i)).toBeInTheDocument();
+      expect(screen.queryByText(/results/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/of 20/i)).not.toBeInTheDocument();
+    });
+
+    it("shows the current page without a fabricated page count", () => {
+      render(
+        <AdminDataTable
+          title="Invoices"
+          columns={columns}
+          data={tenRows}
+          hasMore
+          currentPage={3}
+          onPageChange={vi.fn()}
+          pageSize={10}
+        />
+      );
+      expect(screen.getByText("Page 3")).toBeInTheDocument();
+      expect(screen.queryByText(/page 3 of/i)).not.toBeInTheDocument();
+    });
+
+    it("offsets the row range by the current page", () => {
+      render(
+        <AdminDataTable
+          title="Invoices"
+          columns={columns}
+          data={tenRows}
+          hasMore
+          currentPage={3}
+          onPageChange={vi.fn()}
+          pageSize={10}
+        />
+      );
+      expect(screen.getByText(/showing 21 to 30$/i)).toBeInTheDocument();
+    });
+
+    it("advances via Next while hasMore is true", async () => {
+      const user = userEvent.setup();
+      const onPageChange = vi.fn();
+      const { container } = render(
+        <AdminDataTable
+          title="Invoices"
+          columns={columns}
+          data={tenRows}
+          hasMore
+          currentPage={2}
+          onPageChange={onPageChange}
+          pageSize={10}
+        />
+      );
+      const buttons = container.querySelectorAll("button[type=button]");
+      const next = buttons[buttons.length - 1] as HTMLButtonElement;
+      expect(next.disabled).toBe(false);
+      await user.click(next);
+      expect(onPageChange).toHaveBeenCalledWith(3);
+    });
+
+    it("disables Next on the last page — hasMore false is the only stop signal", () => {
+      const { container } = render(
+        <AdminDataTable
+          title="Invoices"
+          columns={columns}
+          data={tenRows}
+          hasMore={false}
+          currentPage={2}
+          onPageChange={vi.fn()}
+          pageSize={10}
+        />
+      );
+      const buttons = container.querySelectorAll("button[type=button]");
+      const next = buttons[buttons.length - 1] as HTMLButtonElement;
+      expect(next.disabled).toBe(true);
+    });
+
+    it("prefers a real totalItems over hasMore when both are supplied", () => {
+      render(
+        <AdminDataTable
+          title="Invoices"
+          columns={columns}
+          data={tenRows}
+          totalItems={34}
+          hasMore
+          currentPage={1}
+          onPageChange={vi.fn()}
+          pageSize={10}
+        />
+      );
+      expect(screen.getByText(/showing 1 to 10 of 34 results/i)).toBeInTheDocument();
+    });
+  });
+
   it("calls onSearch when the search input changes in server-side mode", async () => {
     const user = userEvent.setup();
     const onSearch = vi.fn();

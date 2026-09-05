@@ -56,10 +56,14 @@ export default function AdminInvoicesPage() {
   const [page, setPage] = useState(1);
   const [source, setSource] = useState<InvoiceSource>('zoho');
   const [hasMore, setHasMore] = useState(false);
+  // Real row count when the source reports one. The primary (our DB) source
+  // always does; Zoho only sometimes. Undefined => the table renders an
+  // honest cursor pager instead of inventing a total.
+  const [total, setTotal] = useState<number | undefined>(undefined);
   // Cache + in-flight keys carry the source: the two tabs are separate
   // paginated lists, so page 1 of Zoho and page 1 of primary are different
   // rows and must not share a slot.
-  const invoicesCache = useRef<Record<string, { data: Invoice[], hasMore: boolean }>>({});
+  const invoicesCache = useRef<Record<string, { data: Invoice[], hasMore: boolean, total?: number }>>({});
   const fetchingPages = useRef<Set<string>>(new Set());
 
   // Split loading states
@@ -111,6 +115,7 @@ export default function AdminInvoicesPage() {
     if (!isBackground && invoicesCache.current[key]) {
       setInvoices(invoicesCache.current[key].data);
       setHasMore(invoicesCache.current[key].hasMore);
+      setTotal(invoicesCache.current[key].total);
       setIsDataLoading(false);
       prefetchAdjacent(targetPage, invoicesCache.current[key].hasMore, src);
       return;
@@ -122,19 +127,21 @@ export default function AdminInvoicesPage() {
       if (!isBackground) setIsDataLoading(true);
       fetchingPages.current.add(key);
 
-      const result = await apiClient.get<{ invoices?: Invoice[]; page_context?: { has_more_page?: boolean } }>(
+      const result = await apiClient.get<{ invoices?: Invoice[]; page_context?: { has_more_page?: boolean; total?: number } }>(
         `/api/v1/admin/invoices?page=${targetPage}&per_page=10&source=${src}`
       );
 
       if (result.ok) {
         const newInvoices = result.data.invoices || [];
         const hasMorePage = result.data.page_context?.has_more_page || false;
+        const reportedTotal = result.data.page_context?.total;
 
-        invoicesCache.current[key] = { data: newInvoices, hasMore: hasMorePage };
+        invoicesCache.current[key] = { data: newInvoices, hasMore: hasMorePage, total: reportedTotal };
 
         if (!isBackground) {
           setInvoices(newInvoices);
           setHasMore(hasMorePage);
+          setTotal(reportedTotal);
           prefetchAdjacent(targetPage, hasMorePage, src);
         }
       } else if (!isBackground) {
@@ -460,7 +467,8 @@ export default function AdminInvoicesPage() {
               searchable={true}
               pagination={true}
               isLoading={isDataLoading}
-              totalItems={hasMore ? (page * 10) + 10 : page * 10}
+              totalItems={total}
+              hasMore={hasMore}
               pageSize={10}
               currentPage={page}
               onPageChange={setPage}

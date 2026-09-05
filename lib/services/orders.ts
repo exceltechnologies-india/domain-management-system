@@ -1294,20 +1294,28 @@ export async function findPriorHostingOrderForUser(
  * Returns one page plus `hasMore`, matching the `page_context.has_more_page`
  * contract the page already consumes for the Zoho source. Fetches `perPage+1`
  * rows to determine `hasMore` without a second count query.
+ *
+ * ALSO returns a real `total`. This source is our own collection, so the count
+ * is one cheap indexed countDocuments — unlike Zoho, which only sometimes
+ * reports one. The admin table used to synthesise a total from `hasMore`
+ * (`hasMore ? page*10+10 : page*10`) and render a fabricated
+ * "Showing 1 to 10 of 20 results"; with a real total it can state the truth.
  */
 export async function listPrimaryInvoiceOrdersAdmin(
   page = 1,
   perPage = 20
-): Promise<{ orders: IOrder[]; hasMore: boolean }> {
+): Promise<{ orders: IOrder[]; hasMore: boolean; total: number }> {
   await connectDB();
   const safePage = Math.max(1, Math.floor(page) || 1);
   const safePerPage = Math.min(100, Math.max(1, Math.floor(perPage) || 20));
 
-  const rows = await Order.find({
+  const filter = {
     invoiceProvider: "primary",
     invoiceNumber: { $exists: true, $ne: null },
     isDeleted: { $ne: true },
-  })
+  };
+
+  const rows = await Order.find(filter)
     .sort({ createdAt: -1 })
     .skip((safePage - 1) * safePerPage)
     .limit(safePerPage + 1)
@@ -1319,6 +1327,7 @@ export async function listPrimaryInvoiceOrdersAdmin(
   return {
     orders: rows.slice(0, safePerPage),
     hasMore: rows.length > safePerPage,
+    total: await Order.countDocuments(filter),
   };
 }
 
