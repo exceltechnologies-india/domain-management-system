@@ -284,6 +284,47 @@ Operator wants the app rebranded to the official **Anutech Digital** logo + favi
 
 ## Recently Shipped — user-visible improvements
 
+- [x] **Activation told successfully-activated customers their link was invalid and to register again (branch `primary-billing-integration`, NOT merged/deployed)** — Clicking a perfectly good activation link a second time rendered the red **"Invalid Activation Link — Please check your email and try again"** screen with a **Register Again** button, for an account that had just activated correctly. Surfaced when I consumed a test account's token via the API and the operator then clicked the emailed link — but the bug is entirely real for customers, and is the most likely explanation for the unexplained *"got the email but clicked the link failed to activate"* on 2026-09-04.
+
+  **Root cause.** `app/api/auth/activate/route.ts` cleared the token on success:
+
+  ```js
+  user.isActivated = true;
+  user.activationToken = undefined;        // ← the lookup key, erased
+  user.activationTokenExpiry = undefined;
+  ```
+
+  `findUserByActivationToken` matches on `{ activationToken: token }`. Once that field was erased, no lookup by that token could ever succeed again — so every repeat hit fell through `!user` to `return { error: "Invalid token" }, { status: 400 }`.
+
+  Which made the guard sitting directly below it **dead code**:
+
+  ```js
+  if (user.isActivated) {
+    return ... "Account is already activated"   // unreachable
+  }
+  ```
+
+  It could only fire for a user holding a *valid* token who was *already* activated — a state the route itself prevented. Its own inline comment claimed *"the `isActivated` guard above returns early on repeat hits"*. It never did, and the unit suite had pinned the wrong behaviour as correct (`user.isActivated → 400`), so 6,000+ green tests said nothing.
+
+  **Why it is not a rare edge case.** Email providers and corporate security scanners routinely **prefetch** links in messages. That consumes the activation before the human clicks at all — so the customer's own click failed, and the app told them to register again for an account that was already live.
+
+  **The fix:** retain the token on activation (it is the only handle on a repeat hit), and answer a repeat with **200 + `alreadyActivated: true`** rather than 400. `app/activate/page.tsx` needed **no change** — it branches on `result.ok`, so 200 puts it on its existing success path, which routes the customer to sign in. Replay is harmless: the `isActivated` guard returns before any mutation and mints no JWT. The expired-row branch got the same treatment — an already-activated account arriving on a lapsed link is sent to sign in, not told to request a fresh one; a genuinely expired *unactivated* row still gets `Token expired`, and an unknown token still gets `Invalid token`.
+
+  **Proven live, not just in tests** — registered a throwaway through the real API and hit the same link three times against the running server:
+
+  | click | before | after |
+  |---|---|---|
+  | 1st (genuine) | 200 activated | 200 activated |
+  | 2nd | **400 Invalid token** | **200 already activated** |
+  | 3rd | **400 Invalid token** | **200 already activated** |
+  | unknown token | 400 Invalid token | 400 Invalid token *(unchanged)* |
+
+  **Tests:** the two that had pinned the defective behaviour were corrected (already-activated is 200; the happy path now asserts the token is **retained**), plus two new cases for the lapsed-link split — activated → 200, genuinely-expired-unactivated → still 400. The file's header doc, which documented "Token cleared on success … must not be replayable" as a feature, was rewritten to say why replay is safe.
+
+  **Also done this batch:** purged both test accounts (`delfos.insitute@gmail.com` and the throwaway) across every collection — matching the id in ObjectId *and* string form under every field name this codebase uses, which is how an earlier pass caught a `payments` row a narrower query had missed — deleted the orphaned DirectAdmin account `testi236da` from the live hosting server, and reset the `tax-invoice:2026-27` counter to 0 so a fresh run opens at `TI/2026-27/00001` rather than leaving a gap behind two deleted invoices.
+
+  **Verified:** unit **6342/6342** (+2), integration **230 + 1 skip**, `tsc` clean, `eslint` clean, build **75/75**.
+
 - [x] **Admin tables stopped inventing their result count — and the "fixed" test flakiness was not actually fixed (branch `primary-billing-integration`, NOT merged/deployed)** — Two things in one batch: the fabricated pagination count the operator asked for, and an honest correction to the previous batch's claim.
 
   **1. The fabricated count.** Four admin tables passed `totalItems={hasMore ? (page*10)+10 : page*10}` — a total *synthesised from a cursor flag* — so `AdminDataTable` rendered `Showing 1 to 10 of 20 results` and a matching set of invented page numbers. On `/admin/invoices` the Primary tab holds **2** invoices and the table claimed **"of 10 results"**.

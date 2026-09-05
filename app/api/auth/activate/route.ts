@@ -13,6 +13,39 @@ const activateSchema = z.object({
 // Force dynamic rendering - required for API routes
 export const dynamic = "force-dynamic";
 
+/**
+ * A repeat hit on a link whose account is already active. Answers 200 with the
+ * same shape as a fresh activation (minus the JWT — nothing needs minting for
+ * an account that is already live), so `app/activate/page.tsx` takes its
+ * success path and sends the customer to sign in, instead of rendering a
+ * failure for a state that is entirely correct.
+ */
+function alreadyActivated(user: {
+  _id?: unknown;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  role?: string;
+  isActivated?: boolean;
+  profileCompleted?: boolean;
+  provider?: string;
+}) {
+  return NextResponse.json({
+    message: "Your account is already activated — please sign in to continue.",
+    alreadyActivated: true,
+    user: {
+      id: user._id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      isActivated: true,
+      profileCompleted: user.profileCompleted,
+      provider: user.provider,
+    },
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
     const rateLimit = await rateLimiters.activation.isAllowed(request);
@@ -35,24 +68,42 @@ export async function POST(request: NextRequest) {
       const expiredUser = await findUserByActivationToken(token, { onlyExpired: true });
 
       if (expiredUser) {
+        // An ALREADY-ACTIVATED account whose window has since lapsed is not an
+        // error — the customer just came back to a link they already used.
+        // Telling them their link "expired" would send them to request a new
+        // one for an account that is already fine.
+        if (expiredUser.isActivated) return alreadyActivated(expiredUser);
         return NextResponse.json({ error: "Token expired" }, { status: 400 });
       }
 
       return NextResponse.json({ error: "Invalid token" }, { status: 400 });
     }
 
-    // Check if user is already activated
+    // Already activated → 200, not an error. See alreadyActivated() for why.
     if (user.isActivated) {
-      return NextResponse.json(
-        { error: "Account is already activated" },
-        { status: 400 }
-      );
+      return alreadyActivated(user);
     }
 
-    // Activate the user
+    // Activate the user.
+    //
+    // The token is deliberately NOT cleared. Clearing it made every repeat
+    // hit on a perfectly good link unidentifiable: findUserByActivationToken
+    // matches on `activationToken`, so once the field was erased the lookup
+    // returned null and the handler fell through to "Invalid token" — the red
+    // "Invalid Activation Link … Register Again" screen, shown to a customer
+    // whose account had just activated successfully. It also made the
+    // `isActivated` guard above dead code, despite its comment claiming it
+    // caught repeat hits.
+    //
+    // That is not a rare edge case: email providers and corporate security
+    // scanners routinely PREFETCH links in messages, which consumes the
+    // activation before the human ever clicks. The customer's own click then
+    // failed and told them to register again.
+    //
+    // Retaining the token is safe: `isActivated` above short-circuits before
+    // any mutation, so a replayed token can only ever read. Expiry is left
+    // untouched too, so the expired-lookup path can still recognise the row.
     user.isActivated = true;
-    user.activationToken = undefined;
-    user.activationTokenExpiry = undefined;
     await user.save();
 
     // Mid-journey analytics milestone (fire-and-forget; never blocks activation).

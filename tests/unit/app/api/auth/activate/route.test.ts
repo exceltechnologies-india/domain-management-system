@@ -14,12 +14,18 @@
  *    to distinguish. If onlyExpired returns a row → 400 'Token
  *    expired' (so customer knows to request a fresh one);
  *    otherwise → 400 'Invalid token'.
- *  - **Already-activated guard**: user.isActivated → 400 'Account
- *    is already activated' (anti-repeat-activation; would otherwise
- *    re-issue a fresh JWT to anyone holding an old activation link)
- *  - **Token cleared on success**: activationToken and
- *    activationTokenExpiry both set to undefined before save (a
- *    used activation token must not be replayable)
+ *  - **Already-activated guard**: user.isActivated → 200 with
+ *    `alreadyActivated: true` and NO JWT. A repeat click on a good
+ *    link is not a failure; it is a customer arriving at an account
+ *    that is already live, and belongs on the sign-in path.
+ *  - **Token RETAINED on success**: activationToken and
+ *    activationTokenExpiry survive activation, because the lookup
+ *    keys on activationToken — clearing it made every repeat hit
+ *    unidentifiable and rendered the guard above dead code, so the
+ *    customer got "Invalid Activation Link … Register Again" for an
+ *    account that had just activated. Email providers PREFETCH links,
+ *    so this fired before the human even clicked. Replay is harmless:
+ *    the isActivated guard returns before any mutation and mints no JWT.
  *  - JWT issued via AuthService.generateToken(payload); response
  *    carries the token + curated user fields
  *  - Outer catch → 500 'Internal server error' generic
@@ -165,7 +171,13 @@ describe("Expired-vs-unknown token branch", () => {
 });
 
 describe("Already-activated guard", () => {
-  it("user.isActivated → 400 'Account is already activated'; NO token clear, NO JWT", async () => {
+  // A repeat hit on a good link is NOT a failure. The route used to answer 400
+  // here, and — worse — the guard was unreachable anyway, because activation
+  // erased `activationToken` and the lookup keys on it. So the second click
+  // (or an email provider's link PREFETCH, which consumes it before the human
+  // clicks at all) fell through to "Invalid token" and the customer saw
+  // "Invalid Activation Link … Register Again" for an account that was live.
+  it("user.isActivated → 200 + alreadyActivated flag; NO re-save, NO JWT", async () => {
     const save = vi.fn();
     findUserByActivationToken.mockResolvedValueOnce({
       _id: "U1",
@@ -174,16 +186,43 @@ describe("Already-activated guard", () => {
       save,
     });
     const res = await POST(makeReq({ token: VALID_TOKEN }));
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.error).toBe("Account is already activated");
+    expect(body.alreadyActivated).toBe(true);
+    expect(body.message).toMatch(/already activated/i);
+    expect(body.user.email).toBe("alice@example.com");
+    expect(body.user.isActivated).toBe(true);
+    // Nothing to mint or mutate for an account that is already live.
     expect(save).not.toHaveBeenCalled();
     expect(generateToken).not.toHaveBeenCalled();
+    expect(body.token).toBeUndefined();
+  });
+
+  it("expired row that IS activated → 200, not 'Token expired'", async () => {
+    // Came back to an old link long after using it. Sending this customer off
+    // to request a fresh activation for an already-active account is wrong.
+    findUserByActivationToken
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ _id: "U1", email: "alice@example.com", isActivated: true });
+    const res = await POST(makeReq({ token: VALID_TOKEN }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).alreadyActivated).toBe(true);
+  });
+
+  it("expired row that is NOT activated still → 400 'Token expired'", async () => {
+    // The genuine expiry case must keep working — this customer really does
+    // need a fresh link.
+    findUserByActivationToken
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ _id: "U2", email: "bob@example.com", isActivated: false });
+    const res = await POST(makeReq({ token: VALID_TOKEN }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("Token expired");
   });
 });
 
-describe("Happy path — activate + clear + JWT", () => {
-  it("activates user, clears token + expiry, saves, issues JWT, returns curated user", async () => {
+describe("Happy path — activate + JWT (token RETAINED)", () => {
+  it("activates user, RETAINS token + expiry, saves, issues JWT, returns curated user", async () => {
     const captured: {
       isActivated?: boolean;
       activationToken?: string;
@@ -221,10 +260,14 @@ describe("Happy path — activate + clear + JWT", () => {
     const res = await POST(makeReq({ token: VALID_TOKEN }));
     expect(res.status).toBe(200);
 
-    // Activation + token clear (test that values applied to instance pre-save)
+    // Activation flips, but the token is deliberately KEPT: clearing it made
+    // every repeat click on a valid link unidentifiable (the lookup keys on
+    // `activationToken`), so the customer got "Invalid Activation Link …
+    // Register Again" for an account that had just gone live. Retaining it is
+    // safe — the isActivated guard short-circuits before any mutation.
     expect(captured.isActivated).toBe(true);
-    expect(captured.activationToken).toBeUndefined();
-    expect(captured.activationTokenExpiry).toBeUndefined();
+    expect(captured.activationToken).toBe(VALID_TOKEN);
+    expect(captured.activationTokenExpiry).toEqual(new Date("2026-06-12"));
     expect(save).toHaveBeenCalledTimes(1);
 
     // JWT issued with payload
