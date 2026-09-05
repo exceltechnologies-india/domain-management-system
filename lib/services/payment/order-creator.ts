@@ -238,7 +238,29 @@ export async function createCompletedOrder(
     userName: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
     userEmail: user.email,
     paymentId,
-    razorpayOrderId: razorpay_order_id,
+    // A SUBSCRIPTION (mandate) purchase has no one-time order id — the real
+    // checkout sends `razorpay_order_id: ''` for it
+    // (app/checkout/page.tsx). `razorpayOrderId` is `required: true`, and
+    // Mongoose rejects an empty string for a required String, so this threw
+    // "Path `razorpayOrderId` is required" from .save() — AFTER
+    // provisionCartItems had already created the DirectAdmin account and
+    // Hosting row. Same failure shape as the razorpaySignature crash fixed in
+    // db226d8: the customer is charged and provisioned, the order strands at
+    // "processing" with no invoice, and /verify still answers 200.
+    //
+    // Falling back to the subscription id matches the convention already used
+    // for renewals (`payment.order_id || subscriptionId`, lib/services/orders.ts).
+    // The route's schema refine guarantees at least one of the two is
+    // non-empty, so this is never blank in practice.
+    //
+    // NOTE: unlike razorpaySignature, this field is deliberately left
+    // `required: true` in the schema. It is a LOOKUP KEY —
+    // getOrderByRazorpayOrderId and claimPendingOrderForProcessing both query
+    // on it — so allowing "" would let every subscription order collide on the
+    // same value and let a claim match another customer's pending order.
+    // Razorpay's ids are prefixed (`order_` vs `sub_`), so the two id spaces
+    // stay distinguishable.
+    razorpayOrderId: razorpay_order_id || razorpay_subscription_id || "",
     razorpayPaymentId: razorpay_payment_id,
     razorpaySignature: razorpay_signature,
     amount: registrationTotalAmount,
@@ -252,7 +274,14 @@ export async function createCompletedOrder(
       paymentStatus: paymentDetails.status,
       paymentAmount: paymentDetails.amount,
       paymentCurrency: paymentDetails.currency,
-      razorpayOrderId: paymentDetails.order_id,
+      // Razorpay returns `order_id: null` on a SUBSCRIPTION payment, and this
+      // nested field is `required: true` too — so the same post-provisioning
+      // save() crash lived here as well, one level down from the top-level
+      // razorpayOrderId above. Mirrors the fallback the verify route already
+      // applies when it builds this same object (`paymentDetails.order_id ??
+      // razorpay_order_id`), extended to cover the subscription case.
+      razorpayOrderId:
+        paymentDetails.order_id || razorpay_subscription_id || razorpay_order_id || "",
     },
   });
 
@@ -376,7 +405,13 @@ export async function finalizePendingOrder(
     paymentStatus: paymentDetails.status,
     paymentAmount: paymentDetails.amount,
     paymentCurrency: paymentDetails.currency,
-    razorpayOrderId: paymentDetails.order_id,
+    // `required: true` on the nested schema field, and Razorpay returns
+    // `order_id: null` on a subscription/mandate payment — which would throw
+    // out of the save() below, AFTER provisionCartItems has already created
+    // the DirectAdmin account and Hosting row. `order.razorpayOrderId` is
+    // always populated (create-order writes it before the customer reaches
+    // Checkout), so it is the safe floor here.
+    razorpayOrderId: paymentDetails.order_id || order.razorpayOrderId,
   };
 
   // Persist the post-provisioning view (registration results, ResellerClub

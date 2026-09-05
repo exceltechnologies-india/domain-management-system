@@ -454,6 +454,76 @@ describe("purchase via /api/payments/verify (the browser's path)", () => {
       );
     });
 
+    // ── Regression: a SUBSCRIPTION purchase carries no one-time order id ──
+    //
+    // app/checkout/page.tsx posts `razorpay_order_id: ''` for a mandate
+    // purchase (it has only a subscription id). With no order id there is no
+    // pending Order to claim, so /verify takes the createCompletedOrder path
+    // and persists a NEW row — with razorpayOrderId set to that empty string.
+    // The field is `required: true`, and Mongoose rejects "" for a required
+    // String, so .save() threw "Path `razorpayOrderId` is required" AFTER
+    // provisioning had already run: DirectAdmin account created, Hosting row
+    // written, then the throw, then handleVerificationError answering 200
+    // `success: true` over a stranded order with no invoice. Identical shape
+    // to the razorpaySignature crash (db226d8), one branch over.
+    //
+    // The field stays `required: true` deliberately — it is a lookup key for
+    // getOrderByRazorpayOrderId and claimPendingOrderForProcessing, so a blank
+    // would let every subscription order collide on one value. The fix is to
+    // fall back to the subscription id, matching the convention already used
+    // for renewals in lib/services/orders.ts.
+    it("**a subscription purchase (no one-time order id) still completes**", async () => {
+      await seedStandardPlan();
+      const { token } = await registerCustomer("verify-e2e10@example.test", "Maharashtra");
+
+      const SUB_ID = "sub_verify_e2e_1";
+      rzpGetPaymentDetails.mockResolvedValue({
+        id: PAYMENT_ID,
+        order_id: null,
+        subscription_id: SUB_ID,
+        amount: PAISE,
+        currency: "INR",
+        status: "captured",
+        captured: true,
+        notes: {},
+      });
+
+      const res = await verifyHandler(
+        new NextRequest("https://example.com/api/payments/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            // Exactly what the real checkout sends for a mandate purchase.
+            razorpay_order_id: "",
+            razorpay_subscription_id: SUB_ID,
+            razorpay_payment_id: PAYMENT_ID,
+            razorpay_signature: "valid_signature_mocked_true",
+            cartItems: [
+              {
+                domainName: "hosting-Standard-1788502345704",
+                linkedDomain: "verify-e2e.com",
+                price: PRICE,
+                currency: "INR",
+                registrationPeriod: 1,
+                itemType: "hosting",
+              },
+            ],
+          }),
+        })
+      );
+      expect(res.status).toBe(200);
+
+      // The order must EXIST and be finished — not stranded by a validation
+      // error thrown after the customer was already charged and provisioned.
+      const order = (await Order.findOne({ razorpayPaymentId: PAYMENT_ID }).lean()) as unknown as IOrder | null;
+      expect(order).toBeTruthy();
+      expect(order!.status).toBe("completed");
+      // The subscription id stands in for the missing order id, so the row
+      // stays uniquely addressable rather than colliding on "".
+      expect(order!.razorpayOrderId).toBe(SUB_ID);
+      expect(order!.paymentVerification?.paymentStatus).not.toBe("captured_pending_support");
+    });
+
     it("provisions hosting when the client sends NO signature", async () => {
       await seedStandardPlan();
       const { token } = await registerCustomer("verify-e2e9@example.test", "Maharashtra");
