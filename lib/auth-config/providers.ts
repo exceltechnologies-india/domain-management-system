@@ -18,6 +18,25 @@ import { verifyTotpCode, verifyBackupCode } from "@/lib/totp";
 import { rateLimiters } from "@/lib/rate-limit";
 import { RecaptchaServer } from "@/lib/recaptcha";
 
+/**
+ * Outcomes the credentials provider raises as ordinary control flow: the
+ * customer typed the wrong password, hasn't activated yet, needs a TOTP
+ * step-up, tripped the rate limiter, or failed the captcha. Every one of
+ * these is expected traffic on a public sign-in form. They are logged at
+ * WARN so they stay visible for abuse analysis without counting as errors.
+ * Anything NOT in this set is a real fault and keeps ERROR severity.
+ */
+const EXPECTED_AUTH_REJECTIONS = new Set([
+  "Email and password are required",
+  "Invalid email or password",
+  "AccountNotActivated",
+  "AccountDeactivated",
+  "TotpRequired",
+  "InvalidTotpCode",
+  "TooManyRequests",
+  "CaptchaFailed",
+]);
+
 export const providers = [
   GoogleProvider({
     clientId: process.env.GOOGLE_CLIENT_ID!.trim(),
@@ -213,7 +232,20 @@ export const providers = [
         return returnData;
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
-        serverLogger.error("[AUTH] Authorize Error:", message);
+        // The credentials provider signals EXPECTED outcomes by throwing —
+        // a wrong password, an unactivated account, a TOTP step-up. Those are
+        // normal user behaviour, not system faults, and logging them at ERROR
+        // put a stderr ERROR line into Cloud Logging for every mistyped
+        // password, inflating the error rate and burying real signals.
+        //
+        // Genuine faults (Mongo unreachable, bcrypt blowing up, a bug in the
+        // lookup) surface here too and MUST stay ERROR — so classify rather
+        // than blanket-downgrade.
+        if (EXPECTED_AUTH_REJECTIONS.has(message)) {
+          serverLogger.warn("[AUTH] Sign-in rejected:", message);
+        } else {
+          serverLogger.error("[AUTH] Authorize Error:", message);
+        }
         throw error;
       }
     },

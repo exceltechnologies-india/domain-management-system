@@ -65,8 +65,12 @@ vi.mock("@/lib/services/users", () => ({
   consumeUserBackupCode,
 }));
 
+// Hoisted so the severity tests below can assert WHICH level a rejection used.
+const serverLoggerMock = vi.hoisted(() => ({
+  info: vi.fn(), error: vi.fn(), warn: vi.fn(), log: vi.fn(),
+}));
 vi.mock("@/lib/server-logger", () => ({
-  serverLogger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), log: vi.fn() },
+  serverLogger: serverLoggerMock,
 }));
 
 const updateLastActivity = vi.hoisted(() => vi.fn());
@@ -241,6 +245,50 @@ describe("CredentialsProvider.authorize — credential validation surface", () =
     await expect(
       authorize({ email: "u@x.test", password: "p" })
     ).rejects.toThrow("AccountDeactivated");
+  });
+});
+
+describe("authorize — log SEVERITY of a rejection", () => {
+  // A rejected sign-in is expected traffic on a public form. Logging it at
+  // ERROR put a stderr ERROR line into Cloud Logging for every mistyped
+  // password, inflating the error rate and burying real faults. Genuine
+  // faults reach the same catch and must KEEP error severity.
+  beforeEach(() => {
+    serverLoggerMock.warn.mockClear();
+    serverLoggerMock.error.mockClear();
+  });
+
+  it("wrong password → WARN, never ERROR", async () => {
+    getUserByEmailForLogin.mockResolvedValueOnce(null);
+    const authorize = await getAuthorize();
+    await expect(authorize({ email: "u@x.test", password: "p" })).rejects.toThrow();
+    expect(serverLoggerMock.warn).toHaveBeenCalledWith(
+      "[AUTH] Sign-in rejected:",
+      "Invalid email or password"
+    );
+    expect(serverLoggerMock.error).not.toHaveBeenCalled();
+  });
+
+  it("a TOTP step-up is not an error either", async () => {
+    getUserByEmailForLogin.mockResolvedValueOnce({
+      _id: "U1", email: "u@x.test", isActivated: true, isActive: true, role: "user",
+      firstName: "A", lastName: "B", totpEnabled: true,
+      comparePassword: vi.fn().mockResolvedValue(true),
+    });
+    const authorize = await getAuthorize();
+    await expect(authorize({ email: "u@x.test", password: "right" })).rejects.toThrow("TotpRequired");
+    expect(serverLoggerMock.error).not.toHaveBeenCalled();
+  });
+
+  it("a GENUINE fault still logs at ERROR (the classification must not swallow real breakage)", async () => {
+    getUserByEmailForLogin.mockRejectedValueOnce(new Error("MongoNetworkError: connection refused"));
+    const authorize = await getAuthorize();
+    await expect(authorize({ email: "u@x.test", password: "p" })).rejects.toThrow(/MongoNetworkError/);
+    expect(serverLoggerMock.error).toHaveBeenCalledWith(
+      "[AUTH] Authorize Error:",
+      "MongoNetworkError: connection refused"
+    );
+    expect(serverLoggerMock.warn).not.toHaveBeenCalled();
   });
 });
 

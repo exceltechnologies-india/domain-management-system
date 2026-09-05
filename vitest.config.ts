@@ -13,10 +13,18 @@ import os from "os";
  * It is load-dependent, so it looked flaky: fine on an idle machine, failing as
  * soon as the dev server or a second suite was also running.
  *
- * Cap at 8 (still parallel, ~4GB peak instead of ~14GB) and keep it CPU-aware
- * so a 2-core CI runner does not oversubscribe either.
+ * Capped at 4, not 8. 8 was tried first and measurably helped (39 -> 22
+ * processes, 7.2GB -> 4.8GB peak) but STILL produced intermittent
+ * "Worker exited unexpectedly" / "failed to find the runner" deaths — three
+ * separate occurrences, including one that killed all 427 files at once with
+ * 14GB free. 4 is the value this project's own 2026-08-11 investigation
+ * landed on. It costs ~47s on this box (76s -> 123s) and buys a suite that
+ * stops eating its own runs; a test suite you cannot trust to complete is
+ * worth far less than 47 seconds.
+ *
+ * Kept CPU-aware so a 2-core CI runner does not oversubscribe either.
  */
-const WORKERS = Math.max(1, Math.min(8, os.cpus().length - 1));
+const WORKERS = Math.max(1, Math.min(4, os.cpus().length - 1));
 
 export default defineConfig({
   plugins: [react()],

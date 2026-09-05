@@ -57,7 +57,7 @@ vi.mock("@/lib/storage", () => ({
 }));
 
 vi.mock("@/lib/logger", () => ({
-  logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
 vi.mock("@/components/AuthShell", () => ({

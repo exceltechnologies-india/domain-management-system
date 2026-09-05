@@ -177,7 +177,16 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
       });
 
       if (result?.error || !result?.ok) {
-        logger.error('SignIn failed:', result?.error);
+        // NOT logger.error. A rejected sign-in is expected user behaviour, and
+        // logger.error does two unwanted things with it: in development it
+        // calls console.error, which Next 15's dev overlay intercepts and
+        // promotes into a full-screen "Console Error" dialog — so a mistyped
+        // password looks like a framework crash; and in EVERY environment it
+        // POSTs to /api/v1/log, which re-emits it as a server-side ERROR line.
+        // The server already records the rejection itself (see
+        // lib/auth-config/providers.ts), so nothing is lost by dropping this
+        // to info — which neither trips the overlay nor ships to the server.
+        logger.info('SignIn rejected:', result?.error);
         // Handle specific error cases if needed, otherwise show generic error
         if (result?.error === 'TotpRequired') {
           // Password correct — reveal TOTP step without showing an error

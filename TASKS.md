@@ -284,6 +284,27 @@ Operator wants the app rebranded to the official **Anutech Digital** logo + favi
 
 ## Recently Shipped — user-visible improvements
 
+- [x] **A mistyped password was logged as an ERROR — dev overlay in development, Cloud Logging noise in production (branch `primary-billing-integration`, NOT merged/deployed)** — A failed sign-in raised Next 15's full-screen **"Console Error"** overlay, so a wrong password looked like a framework crash. Operator asked why it had suddenly started happening.
+
+  **It had not.** `logger.error('SignIn failed:', …)` in `components/LoginForm.tsx` dates to **2026-05-14** (`git blame`), `lib/logger.ts` is untouched on this branch, and `package.json`'s `next` pin has not moved since the initial commits. The overlay only fires on a **failed** sign-in — and until the test account was purged, every dev login succeeded. Grepping the dev logs confirms it: the only session containing `Authorize Error: Invalid email or password` is today's. Nothing regressed; a four-month-old path was exercised for the first time. Worth saying plainly, because "it broke just now" and "it was always broken and we just reached it" call for very different responses.
+
+  **Two real defects behind the symptom, though — both wrong-severity:**
+
+  1. **Client.** `logger.error` calls `console.error` in development, which the Next dev overlay intercepts and promotes to a modal — *and* it fires `sendToServer('error')` in **every** environment, POSTing to `/api/v1/log`, which re-emits it as a server-side ERROR. Confirmed live: `[ERROR] [Client] … SignIn failed: Invalid email or password`. So in production **every mistyped password wrote an ERROR line to Cloud Logging.**
+  2. **Server.** `lib/auth-config/providers.ts` logged *every* authorize throw at ERROR. But the credentials provider signals **expected outcomes** by throwing — wrong password, unactivated account, TOTP step-up, rate limit, captcha. All normal traffic on a public form.
+
+  **Fixed both, without flattening real faults.** The client call drops to `logger.info` (no overlay, no server POST; the server already records the rejection, so no signal is lost). The server **classifies** rather than blanket-downgrades: an `EXPECTED_AUTH_REJECTIONS` set routes the eight known control-flow messages to WARN, while anything else — Mongo unreachable, bcrypt failing, a bug in the lookup — keeps ERROR. Verified live against the running server: `[WARNING] [AUTH] Sign-in rejected: Invalid email or password`, no ERROR.
+
+  **Reassuring bit:** this never polluted admin integration-health. `/api/log` only calls `serverLogger.error`; it writes no `SystemLog` row, and the health card reads the `SystemLog` collection. It was log-noise, not signal-pollution.
+
+  **A near-miss the suite caught:** switching to `logger.info` broke **5** LoginForm tests — the test's logger mock defined `log/warn/error` but not `info`, so the call threw into the catch and every error branch fell to "An unexpected error occurred". The mock now mirrors the real module (`log, error, warn, info, debug`). A stub that is narrower than the thing it stands for turns a safe change into a fake failure.
+
+  **Tests:** 3 new cases pin the server severity split — wrong password → WARN, TOTP step-up → not ERROR, and a **genuine fault still logs ERROR** so the classification can never swallow real breakage. Red-before-green confirmed on the first two (the third passes both ways by design — it guards against over-correcting).
+
+  **Test-runner stability, third occurrence — cap lowered 8 → 4.** The suite died again mid-batch (`Worker exited unexpectedly`, 426 of 427 files). 8 workers measurably helped (39→22 processes, 7.2→4.8 GB) but has now failed three separate times, once taking all 427 files down with **14 GB free**. Dropped to **4** — the value this project's own 2026-08-11 note landed on. Costs ~47s (76s → 123s) and ran **3/3 clean** afterwards. A suite you cannot trust to finish is worth much less than 47 seconds; the earlier "fixed" claim was premature and this entry supersedes it.
+
+  **Verified:** unit **6345/6345** (+3), integration **231 + 1 skip**, `tsc` clean, `eslint` clean, build **75/75**.
+
 - [x] **Pre-production audit for the go-live: found the SAME post-provisioning crash on the subscription rail, twice over (branch `primary-billing-integration`, NOT merged/deployed)** — Operator: *"Make sure when we make this project live in Cloud Run these errors do not happen."* Rather than re-asserting the fixes ship (they are code — they do), the question worth answering was whether **parallel paths carry the same defect** and whether production config could resurrect or hide it. Both turned up something.
 
   **The find: a mandate/subscription purchase crashed exactly like `db226d8` did.** `app/checkout/page.tsx` posts `razorpay_order_id: ''` for a subscription purchase — it only has a subscription id. With no order id there is no pending Order to claim, so `/verify` takes the `createCompletedOrder` branch and persists a NEW row with `razorpayOrderId: ""`. That field is `required: true`, Mongoose rejects `""` for a required String, and `.save()` threw **after** `provisionCartItems` had already created the DirectAdmin account and Hosting row — customer charged and provisioned, order stranded at `processing`, no invoice, `/verify` still answering **200 `success: true`**. Identical shape to the razorpaySignature crash, one branch over.
