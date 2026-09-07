@@ -368,6 +368,17 @@ describe("selfHealUserInvoices — invoice creation failure paths", () => {
 
     expect(r[0].error).toBe("Zoho down");
     expect(r[0].ok).toBe(false);
+
+    // Swallowing the secondary failure is correct — it must not mask "Zoho
+    // down" nor abort the sweep. But it must not be SILENT: this write is what
+    // stamps `creation_failed`, which is how a stuck invoice reaches admin
+    // integration-health. If it fails quietly the order stops being
+    // invoiceable AND stops being visible to anyone.
+    const logged = serverLogger.error.mock.calls.map((c: unknown[]) => String(c[0]));
+    expect(logged.some((m: string) => /ALSO failed to stamp creation_failed/.test(m))).toBe(true);
+    expect(logged.some((m: string) => /DB down/.test(m))).toBe(true);
+    // The primary cause is still reported too — the secondary log adds to it.
+    expect(logged.some((m: string) => /Zoho down/.test(m))).toBe(true);
   });
 });
 

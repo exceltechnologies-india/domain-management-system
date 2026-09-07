@@ -119,7 +119,18 @@ async function retryOne(
     const ae = (err && typeof err === "object" ? err : {}) as AxiosErrLike;
     const message = ae.response?.data?.message || ae.message || String(err);
     serverLogger.error(`[ZohoRetry] Failed for order ${order.orderId}: ${message}`);
-    await markZohoInvoiceCreationFailed(order._id).catch(() => {});
+    // Swallowing is right — a secondary failure must not mask the primary
+    // error above, nor abort the rest of the retry sweep. But it must not be
+    // SILENT: this write is what stamps `creation_failed`, which is how a
+    // stuck invoice reaches admin integration-health. If it fails and says
+    // nothing, the order stops being invoiceable AND stops being visible.
+    await markZohoInvoiceCreationFailed(order._id).catch((markErr: unknown) => {
+      serverLogger.error(
+        `[ZohoRetry] ALSO failed to stamp creation_failed on ${order.orderId} — ` +
+          `this order will NOT appear as a stuck invoice in integration-health: ` +
+          (markErr instanceof Error ? markErr.message : String(markErr))
+      );
+    });
     return { ok: false, orderId: order.orderId, error: message };
   }
 }
