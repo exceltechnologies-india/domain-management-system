@@ -833,18 +833,75 @@ export async function claimPendingOrderForProcessing(
       paymentCurrency: string;
       razorpayOrderId: string;
     };
-  } = {}
+  } = {},
+  opts: { staleAfterMs?: number } = {}
 ): Promise<HydratedDocument<IOrder> | null> {
   await connectDB();
   const set: Record<string, unknown> = { status: "processing" };
   if (updates.razorpayPaymentId) set.razorpayPaymentId = updates.razorpayPaymentId;
   if (updates.razorpaySignature) set.razorpaySignature = updates.razorpaySignature;
   if (updates.paymentVerification) set.paymentVerification = updates.paymentVerification;
-  return Order.findOneAndUpdate(
-    { razorpayOrderId, status: "pending" },
-    { $set: set },
-    { new: true }
-  ) as Promise<HydratedDocument<IOrder> | null>;
+
+  // Recovery mode. A handler that won the claim and then DIED leaves the order
+  // stranded at `processing` forever: the webhook's own claim sees a non-pending
+  // status and no-ops, /verify's retry hits `if (!claimed)` and answers a
+  // cheerful success, and no cron looks at Orders in `processing` at all. That
+  // is exactly how a real Rs.1500 purchase was lost on 2026-09-07.
+  //
+  // `staleAfterMs` lets a RECOVERY caller re-claim such a row. It is opt-in and
+  // must be set FAR above the ~55s the provisioning path actually takes, so a
+  // still-running handler can never have its order stolen and double-provisioned
+  // — the cutoff is the safety margin, not a nicety. `updatedAt` is Mongoose's
+  // own timestamp and is touched by every write the live handler makes, so an
+  // active handler keeps pushing the row out of range on its own.
+  //
+  // With no opts the filter stays BYTE-IDENTICAL to the original
+  // `{ razorpayOrderId, status: "pending" }` — not merely equivalent. Every
+  // existing caller therefore keeps exactly the query it had, which is what
+  // makes this safe to add to a payment hot path.
+  const filter: Record<string, unknown> =
+    opts.staleAfterMs && opts.staleAfterMs > 0
+      ? {
+          razorpayOrderId,
+          $or: [
+            { status: "pending" },
+            {
+              status: "processing",
+              updatedAt: { $lt: new Date(Date.now() - opts.staleAfterMs) },
+            },
+          ],
+        }
+      : { razorpayOrderId, status: "pending" };
+
+  return Order.findOneAndUpdate(filter, { $set: set }, {
+    new: true,
+  }) as Promise<HydratedDocument<IOrder> | null>;
+}
+
+/**
+ * Orders that were claimed for provisioning and never finished: still
+ * `processing` past a cutoff, with at least one item not yet provisioned.
+ *
+ * Deliberately NOT time-windowed at the far end. Every other health source is
+ * bounded by a `since` because stale errors stop being actionable; this one is
+ * the opposite — the customer has PAID and has nothing, so it gets more urgent
+ * with age, not less. Same reasoning as the credit-note check in
+ * app/api/admin/integration-health.
+ */
+export async function listStrandedProcessingOrders(opts: {
+  staleAfterMs: number;
+  select?: string;
+}): Promise<IOrder[]> {
+  await connectDB();
+  const cutoff = new Date(Date.now() - opts.staleAfterMs);
+  let query = Order.find({
+    status: "processing",
+    updatedAt: { $lt: cutoff },
+    isDeleted: { $ne: true },
+    "domains.status": { $in: ["pending", "processing"] },
+  }).sort({ updatedAt: 1 });
+  if (opts.select) query = query.select(opts.select);
+  return query.lean<IOrder[]>();
 }
 
 /**

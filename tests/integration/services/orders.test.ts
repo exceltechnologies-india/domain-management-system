@@ -36,6 +36,7 @@ import {
   listOrdersByRazorpayPaymentIds,
   listOrdersForUser,
   listPrimaryInvoiceOrdersAdmin,
+  listStrandedProcessingOrders,
   listRecentCompletedOrdersForUser,
   listStuckCompletedOrders,
   listStuckZohoInvoiceOrders,
@@ -661,6 +662,85 @@ describe("Zoho-invoice claim lifecycle", () => {
   });
 });
 
+describe("listStrandedProcessingOrders (the check that would have caught the lost purchase)", () => {
+  // Nothing else in the codebase can see this state: check-unprovisioned
+  // filters status:"completed", and pending-sweeper does not query Orders at
+  // all. A paid customer with no hosting and no invoice was therefore
+  // invisible until they complained.
+  it("finds a paid order stuck at processing with unprovisioned items", async () => {
+    const tag = Math.random().toString(36).slice(2, 8);
+    const rzp = `rzp_ord_${tag}`;
+    await createOrder(
+      buildOrderPayload({
+        razorpayOrderId: rzp,
+        status: "processing",
+        domains: [{ domainName: `s-${tag}.com`, price: 100, currency: "INR", registrationPeriod: 1, status: "pending" }],
+      })
+    );
+    await Order.updateOne(
+      { razorpayOrderId: rzp },
+      { $set: { updatedAt: new Date(Date.now() - 60 * 60 * 1000) } },
+      { timestamps: false }
+    );
+
+    const found = await listStrandedProcessingOrders({ staleAfterMs: 15 * 60 * 1000 });
+    expect(found.map((o) => o.razorpayOrderId)).toContain(rzp);
+  });
+
+  it("does NOT report an order that is still inside the cutoff", async () => {
+    const tag = Math.random().toString(36).slice(2, 8);
+    const rzp = `rzp_ord_${tag}`;
+    await createOrder(
+      buildOrderPayload({
+        razorpayOrderId: rzp,
+        status: "processing",
+        domains: [{ domainName: `f-${tag}.com`, price: 100, currency: "INR", registrationPeriod: 1, status: "pending" }],
+      })
+    );
+    // ~55s of real provisioning must never be reported as stranded.
+    const found = await listStrandedProcessingOrders({ staleAfterMs: 15 * 60 * 1000 });
+    expect(found.map((o) => o.razorpayOrderId)).not.toContain(rzp);
+  });
+
+  it("does NOT report a processing order whose items are all provisioned", async () => {
+    const tag = Math.random().toString(36).slice(2, 8);
+    const rzp = `rzp_ord_${tag}`;
+    await createOrder(
+      buildOrderPayload({
+        razorpayOrderId: rzp,
+        status: "processing",
+        domains: [{ domainName: `d-${tag}.com`, price: 100, currency: "INR", registrationPeriod: 1, status: "registered" }],
+      })
+    );
+    await Order.updateOne(
+      { razorpayOrderId: rzp },
+      { $set: { updatedAt: new Date(Date.now() - 60 * 60 * 1000) } },
+      { timestamps: false }
+    );
+    const found = await listStrandedProcessingOrders({ staleAfterMs: 15 * 60 * 1000 });
+    expect(found.map((o) => o.razorpayOrderId)).not.toContain(rzp);
+  });
+
+  it("ignores soft-deleted orders", async () => {
+    const tag = Math.random().toString(36).slice(2, 8);
+    const rzp = `rzp_ord_${tag}`;
+    await createOrder(
+      buildOrderPayload({
+        razorpayOrderId: rzp,
+        status: "processing",
+        domains: [{ domainName: `x-${tag}.com`, price: 100, currency: "INR", registrationPeriod: 1, status: "pending" }],
+      })
+    );
+    await Order.updateOne(
+      { razorpayOrderId: rzp },
+      { $set: { updatedAt: new Date(Date.now() - 60 * 60 * 1000), isDeleted: true } },
+      { timestamps: false }
+    );
+    const found = await listStrandedProcessingOrders({ staleAfterMs: 15 * 60 * 1000 });
+    expect(found.map((o) => o.razorpayOrderId)).not.toContain(rzp);
+  });
+});
+
 describe("claimPendingOrderForProcessing (pending → processing race)", () => {
   // The /verify route + /razorpay/webhook can fire against the same order
   // within milliseconds of each other (user closes tab right after paying,
@@ -704,6 +784,65 @@ describe("claimPendingOrderForProcessing (pending → processing race)", () => {
 
   it("returns null when no pending order exists for the razorpay id", async () => {
     const result = await claimPendingOrderForProcessing("rzp_ord_does_not_exist", {});
+    expect(result).toBeNull();
+  });
+
+  // ── Recovery mode: staleAfterMs ──────────────────────────────────────────
+  //
+  // A handler that WON the claim and then died leaves the order stranded at
+  // "processing" forever: the webhook's claim sees a non-pending status and
+  // no-ops, and no cron queries Orders in "processing" at all. That is how a
+  // real Rs.1500 purchase was lost on 2026-09-07. `staleAfterMs` lets a
+  // recovery caller re-claim such a row — and must NEVER let it steal an order
+  // from a handler that is still working.
+  it("staleAfterMs re-claims an order stranded at processing past the cutoff", async () => {
+    const tag = Math.random().toString(36).slice(2, 8);
+    const rzp = `rzp_ord_${tag}`;
+    await createOrder(buildOrderPayload({ razorpayOrderId: rzp, status: "processing" }));
+    // Backdate updatedAt to simulate a handler that died an hour ago.
+    await Order.updateOne(
+      { razorpayOrderId: rzp },
+      { $set: { updatedAt: new Date(Date.now() - 60 * 60 * 1000) } },
+      { timestamps: false }
+    );
+
+    const rescued = await claimPendingOrderForProcessing(
+      rzp,
+      { razorpayPaymentId: "rzp_pay_rescue" },
+      { staleAfterMs: 15 * 60 * 1000 }
+    );
+    expect(rescued).not.toBeNull();
+    expect(rescued?.status).toBe("processing");
+    expect(rescued?.razorpayPaymentId).toBe("rzp_pay_rescue");
+  });
+
+  it("staleAfterMs does NOT steal an order from a still-running handler", async () => {
+    const tag = Math.random().toString(36).slice(2, 8);
+    const rzp = `rzp_ord_${tag}`;
+    // Freshly claimed — updatedAt is now, i.e. a handler mid-provision.
+    await createOrder(buildOrderPayload({ razorpayOrderId: rzp, status: "processing" }));
+
+    const stolen = await claimPendingOrderForProcessing(
+      rzp,
+      { razorpayPaymentId: "rzp_pay_thief" },
+      { staleAfterMs: 15 * 60 * 1000 }
+    );
+    // Inside the cutoff -> untouchable. This is the guard that stops a
+    // recovery sweep double-provisioning a live order.
+    expect(stolen).toBeNull();
+  });
+
+  it("without staleAfterMs the behaviour is unchanged — processing stays unclaimable", async () => {
+    const tag = Math.random().toString(36).slice(2, 8);
+    const rzp = `rzp_ord_${tag}`;
+    await createOrder(buildOrderPayload({ razorpayOrderId: rzp, status: "processing" }));
+    await Order.updateOne(
+      { razorpayOrderId: rzp },
+      { $set: { updatedAt: new Date(Date.now() - 60 * 60 * 1000) } },
+      { timestamps: false }
+    );
+    // Every existing caller passes no opts and must be completely unaffected.
+    const result = await claimPendingOrderForProcessing(rzp, { razorpayPaymentId: "x" });
     expect(result).toBeNull();
   });
 

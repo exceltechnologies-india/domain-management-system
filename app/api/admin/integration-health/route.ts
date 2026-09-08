@@ -32,7 +32,7 @@ import { serverLogger } from "@/lib/server-logger";
 import Order from "@/models/Order";
 import SystemLog from "@/models/SystemLog";
 import connectDB from "@/lib/mongodb";
-import { listCreditNotePendingOrders } from "@/lib/services/orders";
+import { listCreditNotePendingOrders, listStrandedProcessingOrders } from "@/lib/services/orders";
 
 export const dynamic = "force-dynamic";
 
@@ -163,6 +163,12 @@ const PROVIDERS: ProviderClassifier[] = [
     id: "razorpay",
     label: "Razorpay",
     signatures: [
+      // Ahead of the generic razorpay signatures below — classify() returns the
+      // first match, and this errorText names a payment id.
+      {
+        needle: /\[STRANDED-ORDER\]/i,
+        hint: "A payment was captured and the order was claimed for provisioning, then the handler stopped before finishing — so the customer is charged with NO hosting and NO tax invoice, and because nothing threw there is no error log to correlate. This was caused in production by Cloud Run's default CPU allocation freezing the ~55s provisioning chain the moment the browser navigated away (fixed 2026-09-08 by --no-cpu-throttling in scripts/deploy-cloud-run.sh), but ANY mid-flight death — deploy, crash, OOM — reproduces it. ACTION: confirm the payment in the Razorpay dashboard, then finish the order by provisioning it and issuing the invoice, and check the customer's dashboard afterwards. Note that no automated path recovers this yet: the webhook only claims orders still in 'pending', and no cron queries Orders in 'processing'. This entry is NOT time-windowed and will keep appearing until the order leaves 'processing'.",
+      },
       {
         needle: /\[RECURRING-CHARGE\] ABANDONED|recurring charge abandoned/i,
         hint: "A Tokens-flow MIT charge was abandoned. HARD RULE: 1 attempt then suspend, applied UNIFORMLY to both trial-to-paid conversions AND renewals. The Hosting is now status='expired' + DA-suspended + the customer was emailed. Recovery requires a new CIT auth (re-subscribe). The admin dashboard at `/admin/recurring-charges` differentiates the two paths visually for triage (purple text = trial-conversion fail, blue text = renewal fail) — the technical policy is identical but the operational follow-up may differ (a long-term-customer's mandate dying may warrant outreach; a trial-conversion fail usually doesn't).",
@@ -732,6 +738,52 @@ export async function GET(request: NextRequest) {
       // failing query must not take down the whole report.
       serverLogger.warn(
         `[integration-health] creditNotePending query failed: ${cnErr instanceof Error ? cnErr.message : String(cnErr)}`
+      );
+    }
+
+    // Orders that were claimed for provisioning and never finished. The
+    // customer's card was charged and the claim was written, then the handler
+    // stopped: no Hosting row, no tax invoice, and — because nothing THREW —
+    // no error log either. A real Rs.1500 purchase was lost this way on
+    // 2026-09-07 and was only noticed because the customer said their
+    // dashboard was empty.
+    //
+    // Nothing else in this report can see it: check-unprovisioned filters
+    // `status: "completed"`, and pending-sweeper does not query Orders at all.
+    //
+    // DELIBERATELY NOT time-windowed at the far end, for the same reason as the
+    // credit-note block above: the customer has PAID and has nothing, so an old
+    // one is MORE urgent, not less. The near-end cutoff is 15 minutes — far
+    // beyond the ~55s the provisioning path actually takes, so an in-flight
+    // order is never reported as stranded.
+    try {
+      const stranded = await listStrandedProcessingOrders({
+        staleAfterMs: 15 * 60 * 1000,
+        select: "orderId userEmail amount updatedAt invoiceNumber razorpayPaymentId domains.status",
+      });
+      for (const o of stranded.slice(0, 50)) {
+        const since = (o.updatedAt as Date | undefined) ?? new Date();
+        const mins = Math.floor((Date.now() - since.getTime()) / 60000);
+        record({
+          errorText:
+            `[STRANDED-ORDER] Paid order ${o.orderId} has sat at status "processing" for ` +
+            `${mins} minute(s) with items still unprovisioned — payment ` +
+            `${o.razorpayPaymentId || "(none recorded)"}, ₹${o.amount}. The customer has been ` +
+            `charged and has NO hosting and NO tax invoice. ACTION: verify the payment in ` +
+            `Razorpay, then finish the order (provision + issue the invoice) and confirm the ` +
+            `customer's dashboard shows it. This entry is NOT time-windowed and will keep ` +
+            `appearing until the order leaves "processing".`,
+          orderId: o.orderId as string,
+          userEmail: o.userEmail as string | undefined,
+          amount: o.amount as number,
+          createdAt: since,
+        });
+      }
+    } catch (soErr) {
+      // Same containment as the blocks above — one failing query must not take
+      // down the whole report.
+      serverLogger.warn(
+        `[integration-health] strandedProcessing query failed: ${soErr instanceof Error ? soErr.message : String(soErr)}`
       );
     }
 
