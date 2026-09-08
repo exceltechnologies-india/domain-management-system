@@ -392,6 +392,30 @@ gcloud run deploy "$SERVICE" \
   --min-instances=0 \
   --max-instances=5 \
   --timeout=300 \
+  --no-cpu-throttling \
+  `# CPU ALWAYS ALLOCATED, not only while a request is in flight.` \
+  `# Operator decision 2026-09-08, taken to close the stranded-order bug.` \
+  `#` \
+  `# On the DEFAULT (throttled) allocation, CPU drops to near-zero the` \
+  `# moment a request stops counting as in-flight -- including when the` \
+  `# client simply goes away. /api/payments/verify does ~55s of work` \
+  `# (RC contact -> DA account -> Hosting row -> emails -> invoice) while` \
+  `# Razorpay sends the browser onward within seconds, so the remainder` \
+  `# was SUSPENDED mid-promise: nothing threw, no catch ran, no SystemLog` \
+  `# was written, and --min-instances=0 then tore the idle instance down` \
+  `# with the frozen work inside it. A real Rs.1500 purchase on 2026-09-07` \
+  `# stranded exactly that way -- order stuck at status "processing", no` \
+  `# Hosting, no tax invoice, and ZERO error rows for anyone to notice.` \
+  `#` \
+  `# Raising --timeout does NOT help: 55s already sits far inside the 300s` \
+  `# above. The request was never timing out; it was being throttled.` \
+  `#` \
+  `# COST: billing moves from request-processing time to instance lifetime,` \
+  `# so idle minutes before scale-to-zero are now billed. Accepted` \
+  `# deliberately -- a silently dropped paid order costs more than idle CPU.` \
+  `# The cleaner long-term shape is to move provisioning out of the request` \
+  `# into a Cloud Tasks worker (GCP_QUEUE_NAME + app/api/workers/ already` \
+  `# exist); this flag is correct to have in place either way.` \
   --concurrency=80 \
   `# concurrency is paired with lib/mongodb.ts:maxPoolSize (currently 50).` \
   `# Bumping concurrency without raising maxPoolSize will queue requests` \
