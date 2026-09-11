@@ -18,6 +18,7 @@ import { RazorpayService } from "@/lib/razorpay";
 import { createTokensFlowTrialHosting } from "@/lib/services/payment/tokens-trial-provisioner";
 import { findUserHosting } from "@/lib/services/hostings";
 import type { RazorpayPaymentDetails } from "@/lib/types";
+import { safeEqual } from "@/lib/timing-safe";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +44,10 @@ export async function POST(req: NextRequest) {
       .update(rawBody)
       .digest("hex");
 
-    if (generatedSignature !== signature) {
+    /* Constant-time — see lib/timing-safe.ts. This route is the money
+       chokepoint: a forged signature that got past here would claim a pending
+       order and provision it. */
+    if (!safeEqual(generatedSignature, signature)) {
       serverLogger.error("❌ Invalid Webhook Signature");
       return NextResponse.json({ error: "Invalid Signature" }, { status: 400 });
     }

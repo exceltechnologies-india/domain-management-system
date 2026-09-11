@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { serverLogger } from "@/lib/server-logger";
+import { safeEqual } from "./timing-safe";
 import { razorpayClient, razorpay } from "@/lib/razorpay-client";
 import type {
   RazorpayPaymentDetails,
@@ -693,7 +694,12 @@ export class RazorpayService {
         .update(body)
         .digest("hex");
 
-      return expectedSignature === signature;
+      /* Constant-time. `===` returns at the first differing byte, and this
+         signature arrives on an unauthenticated request from the internet.
+         See lib/timing-safe.ts for why it is fixed even though it is not a
+         practical break: the repository is public, so the comparison and the
+         HMAC construction beside it are readable rather than guessable. */
+      return safeEqual(expectedSignature, signature);
     } catch (error) {
       serverLogger.error("Webhook signature verification error:", error);
       return false;

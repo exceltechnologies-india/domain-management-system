@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { serverLogger } from "@/lib/server-logger";
 import { setWhatsAppOptOut, classifyOptKeyword } from "@/lib/services/whatsapp-optout";
 import { updateWhatsAppStatus } from "@/lib/services/whatsapp-log";
+import { safeEqual } from "@/lib/timing-safe";
 
 export const dynamic = "force-dynamic";
 
@@ -26,17 +27,9 @@ export const dynamic = "force-dynamic";
  *     via the X-Hub-Signature-256 header.
  */
 
-/** Timing-safe string compare that never throws on length mismatch. */
-function safeEqual(a: string, b: string): boolean {
-  const ab = Buffer.from(a);
-  const bb = Buffer.from(b);
-  if (ab.length !== bb.length) return false;
-  try {
-    return crypto.timingSafeEqual(ab, bb);
-  } catch {
-    return false;
-  }
-}
+/* `safeEqual` was defined here and only here, which is how the two Razorpay
+   verifiers ended up using `===` instead. Moved to lib/timing-safe.ts so there
+   is one implementation for every caller. */
 
 // ─── GET: verification handshake ────────────────────────────────────────────
 export async function GET(request: NextRequest) {
