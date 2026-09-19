@@ -22,6 +22,10 @@ auth-debug.log.1
 .env.local
 .env.production
 .env*.local
+# The local Docker stack's environment. Supplied at RUNTIME by compose's
+# `env_file:`, so it must not be copied into the image — an env file baked into
+# a layer outlives the container and survives being deleted from disk.
+.env.docker
 gcp-key.json
 
 # Dev tooling

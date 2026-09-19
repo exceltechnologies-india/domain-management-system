@@ -179,6 +179,18 @@ export const rateLimiters = {
     keyGenerator: ipKey("bulk_domain_search"),
   }),
 
+  // Engine API reads (app/api/integrations/engine/*) — server-to-server calls
+  // from ResellerOS, already authenticated by ENGINE_READ_API_KEY. The ceiling
+  // is generous because the caller is one trusted machine rendering pages, not
+  // a browser: it exists to bound a runaway loop or a retry storm on the
+  // caller's side, not to police a user. IP-keyed, so a second caller added
+  // later cannot be starved by the first.
+  engineRead: new RateLimiter({
+    windowMs: 60 * 1000, // 1 minute
+    maxRequests: 120,
+    keyGenerator: ipKey("engine_read"),
+  }),
+
   // Support ticket creation — limit per-user to discourage spam ticket creation
   supportCreate: new RateLimiter({
     windowMs: 60 * 60 * 1000, // 1 hour

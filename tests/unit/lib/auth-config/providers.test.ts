@@ -40,11 +40,18 @@ const FacebookProviderMock = vi.hoisted(() =>
 const GithubProviderMock = vi.hoisted(() =>
   vi.fn((opts: unknown) => ({ id: "github", ...(opts as object) }))
 );
+// Spreads `opts` AFTER the default id, exactly like the Facebook and GitHub
+// mocks above — and exactly like the real CredentialsProvider, which falls back
+// to "credentials" only when the caller gives no explicit `id`.
+//
+// It used to hardcode the id and keep nothing but `authorize`. That was
+// harmless while there was one Credentials provider and wrong the moment a
+// second arrived: the `engine-sso` provider was reported as "credentials" too,
+// so `getAuthorize()` below found IT rather than the password provider, and
+// sixteen password-login tests quietly began asserting against the wrong
+// function.
 const CredentialsProviderMock = vi.hoisted(() =>
-  vi.fn((opts: { authorize?: unknown }) => ({
-    id: "credentials",
-    authorize: opts.authorize,
-  }))
+  vi.fn((opts: unknown) => ({ id: "credentials", ...(opts as object) }))
 );
 vi.mock("next-auth/providers/google", () => ({ default: GoogleProviderMock }));
 vi.mock("next-auth/providers/facebook", () => ({ default: FacebookProviderMock }));

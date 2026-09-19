@@ -1,0 +1,92 @@
+# Local DMS engine — the app plus the two datastores it cannot start without.
+#
+# ─── WHAT THIS IS FOR ─────────────────────────────────────────────────────────
+# Running this app on a developer machine so ResellerOS can be pointed at it and
+# the integration exercised for real. It is NOT a production topology: Mongo and
+# Redis here are unauthenticated and bound to the compose network, which is fine
+# for a laptop and wrong for anything else.
+#
+# The live deployment at app.anutech.in is untouched by any of this and is
+# reached a completely different way (Cloud Run + Secret Manager).
+#
+#   docker compose up -d --build     bring it up (first build takes a few minutes)
+#   docker compose logs -f dms       watch the app
+#   docker compose down              stop, keep the data
+#   docker compose down -v           stop and DELETE the local database
+#
+# ─── PORT 4310, DELIBERATELY UNFASHIONABLE ────────────────────────────────────
+# Not 3000, and not 3100 either. Both apps default to 3000, and on this machine
+# 3000 was ALREADY occupied by an unrelated container — Next silently moved to
+# 3001, so a request aimed at the app reached something else entirely and
+# answered 200. That is the worst kind of port collision: it does not look like
+# a failure.
+#
+# So the pair is 4310 (this engine) and 4320 (ResellerOS) — adjacent enough to
+# remember, obscure enough that nothing else claims them. The container still
+# listens on 8080 because that is what the Dockerfile sets for Cloud Run; only
+# the host side moves.
+#
+# ─── THE ENV FILE IS .env.docker, DELIBERATELY NOT .env.local ────────────────
+# `scripts/run-local.sh` documents why editing `.env.local` for local
+# convenience is dangerous: `deploy-cloud-run.sh` reads that same file to build
+# the deployed environment, so a value blanked here to make localhost work can
+# ship to production on the next deploy. Keeping the container's environment in
+# its own file means nothing in this stack can reach that blast radius.
+
+name: dms-engine-local
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    # No published port. Nothing outside the compose network needs to reach it,
+    # and an exposed unauthenticated Mongo on a laptop is a genuine hazard —
+    # publish it temporarily if you need a GUI client, don't leave it open.
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      # The app throws on a failed connection at startup, so it must not start
+      # until Mongo is actually answering queries — not merely listening.
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  dms:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env.docker
+    ports:
+      - "4310:8080"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # Uses the app's own health route, so "healthy" means Next is serving,
+      # not just that the process survived.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  mongo-data:
+  redis-data:

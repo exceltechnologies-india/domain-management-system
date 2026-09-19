@@ -15,6 +15,11 @@ dist/
 .env
 .env.*
 !.env.example
+# Template for the local Docker stack. Contains only fake values aimed at
+# `.invalid` hosts that cannot resolve — the point of the file is to stop
+# anyone pasting real credentials into a container. The narrow `!` matches the
+# `.env.example` exception above; `.env.docker` itself stays ignored.
+!.env.docker.example
 
 # GCP service account keys and other credentials
 *.json.key

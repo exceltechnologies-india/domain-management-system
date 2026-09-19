@@ -18,6 +18,12 @@ const PUBLIC_ROUTES = new Set([
   "/complete-profile",
   "/activate",
   "/403",
+  // Where a ResellerOS hand-off lands. Public by necessity — the whole point
+  // is that the visitor has NO session here yet. The page itself grants
+  // nothing: it passes the token to NextAuth's `engine-sso` provider, which
+  // verifies it, burns its single-use jti, and refuses any email without an
+  // existing account here (lib/integrations/engine-sso.ts).
+  "/sso",
 ]);
 
 const PUBLIC_PREFIXES = [
@@ -122,6 +128,18 @@ const PUBLIC_API_PREFIXES = [
   "/api/user/settings/verify-email-change",
   // Guest checkout: no account required — route handler validates guest JWT token
   "/api/payments/guest",
+  // Server-to-server: the Engine API that ResellerOS reads. Same shape as the
+  // cron bypass above — the caller is another application's backend, not a
+  // browser, so there is no NextAuth session to check and the JWT gate would
+  // reject every legitimate request. Authentication happens inside the route
+  // via a timing-safe compare against ENGINE_READ_API_KEY
+  // (lib/integrations/engine-auth.ts); this entry only lets the request reach
+  // the route that does it.
+  //
+  // Scoped to `/engine` rather than all of `/api/integrations`: a prefix here
+  // removes the session requirement from everything beneath it, so it should
+  // name the narrowest path that works, not the tidiest one.
+  "/api/integrations/engine",
 ];
 
 // --- Helpers ---

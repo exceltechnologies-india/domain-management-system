@@ -9,9 +9,11 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import connectDB from "@/lib/mongodb";
 import {
   consumeUserBackupCode,
+  getUserByEmail,
   getUserByEmailForLogin,
   getUserWithTOTPSecretsForLogin,
 } from "@/lib/services/users";
+import { verifyAndConsumeSsoToken } from "@/lib/integrations/engine-sso";
 import { serverLogger } from "@/lib/server-logger";
 import { updateLastActivity } from "@/lib/session-activity";
 import { verifyTotpCode, verifyBackupCode } from "@/lib/totp";
@@ -35,12 +37,37 @@ const EXPECTED_AUTH_REJECTIONS = new Set([
   "InvalidTotpCode",
   "TooManyRequests",
   "CaptchaFailed",
+  // Engine SSO: a stale, replayed or unknown-email hand-off. All three are
+  // normal traffic (a bookmarked link, a back button, a person who has no
+  // account here) and the specific cause is already logged at WARN by the
+  // provider. Raising them to ERROR would put a stderr line in Cloud Logging
+  // every time someone hits an expired link.
+  "Single sign-on failed",
+  "Missing hand-off token",
 ]);
 
 export const providers = [
+  /**
+   * Guarded the same way Facebook and GitHub are, below.
+   *
+   * It used to be unconditional, reading `process.env.GOOGLE_CLIENT_ID!.trim()`.
+   * The `!` is a TypeScript assertion that compiles to nothing, so an unset
+   * variable meant `undefined.trim()` — a TypeError thrown while this module was
+   * being EVALUATED, which takes the whole `[...nextauth]` route down with it.
+   *
+   * The failure is much larger than the feature: with no Google credentials,
+   * password sign-in, session refresh and every other provider return HTTP 500,
+   * because none of them can be reached if the module they live in cannot load.
+   * Found on 2026-09-19 when a local container ran without Google OAuth set.
+   *
+   * Absent credentials now mean "Google sign-in is not offered", which is what
+   * the other two providers already did.
+   */
+  ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+    ? [
   GoogleProvider({
-    clientId: process.env.GOOGLE_CLIENT_ID!.trim(),
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET!.trim(),
+    clientId: process.env.GOOGLE_CLIENT_ID.trim(),
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET.trim(),
     authorization: {
       params: {
         // Request only basic scopes (sensitive scopes require Google verification)
@@ -65,6 +92,8 @@ export const providers = [
       };
     },
   }),
+      ]
+    : []),
 
   ...(process.env.FACEBOOK_CLIENT_ID && process.env.FACEBOOK_CLIENT_SECRET
     ? [
@@ -83,6 +112,72 @@ export const providers = [
         }),
       ]
     : []),
+
+  /**
+   * Engine SSO — a hand-off from ResellerOS, not a password login.
+   *
+   * It is a Credentials provider so that NextAuth mints the session through
+   * its normal path: the jwt callback still runs, so the account-disabled
+   * check, the `sessionInvalidatedAt` check and the session timeout all apply
+   * exactly as they do to a password login. Hand-encoding a session cookie
+   * would have skipped every one of them.
+   *
+   * What it will NOT do, however the token is shaped:
+   *   · grant a role the token asked for — the role comes from OUR user record
+   *   · create an account for an unknown email — that is a different route,
+   *     with a different key (app/api/integrations/billing/provision-customer)
+   *   · accept the same token twice — verifyAndConsumeSsoToken burns the jti
+   *
+   * So the worst a stolen hand-off token buys, within its 60 seconds, is a
+   * session as a user who already exists here, at the privilege they already
+   * have here.
+   */
+  CredentialsProvider({
+    id: "engine-sso",
+    name: "ResellerOS",
+    credentials: {
+      token: { label: "Hand-off token", type: "text" },
+    },
+    async authorize(credentials) {
+      const token = credentials?.token;
+      if (!token) throw new Error("Missing hand-off token");
+
+      const result = await verifyAndConsumeSsoToken(token);
+      if (!result.ok) {
+        serverLogger.warn(`[engine-sso] Hand-off refused: ${result.reason}`);
+        // One generic message to the browser. Telling the caller whether a
+        // token was expired, replayed or simply wrong hands an attacker a
+        // free oracle; the specific reason is in the server log above, where
+        // the operator debugging this can read it.
+        throw new Error("Single sign-on failed");
+      }
+
+      const user = await getUserByEmail(result.claims.email);
+      if (!user) {
+        serverLogger.warn(
+          `[engine-sso] No account here for ${result.claims.email} — refusing (this route never creates one)`
+        );
+        throw new Error("Single sign-on failed");
+      }
+      if (!user.isActive || user.isDeleted) {
+        serverLogger.warn(`[engine-sso] Account disabled or deleted: ${result.claims.email}`);
+        throw new Error("Single sign-on failed");
+      }
+
+      await updateLastActivity(String(user._id ?? ""));
+      serverLogger.info(
+        `[engine-sso] ${user.email} signed in from ResellerOS as ${user.role}`
+      );
+
+      return {
+        id: user._id?.toString() || "",
+        email: user.email,
+        name: `${user.firstName} ${user.lastName}`,
+        // OUR record's role, never the token's.
+        role: user.role,
+      };
+    },
+  }),
 
   CredentialsProvider({
     name: "credentials",
