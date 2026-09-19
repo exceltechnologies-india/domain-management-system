@@ -1,8 +1,8 @@
 /**
  * Component tests for <AdminCard> (rescan-4 M14).
  * Pins the title + value render, the icon being passed through, and the
- * three change-variant colour classes (positive→green / negative→red /
- * neutral→gray) + the no-change-prop hide.
+ * three change-variant colour classes (positive→emerald / negative→rose /
+ * neutral→muted ink) + the no-change-prop hide.
  */
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
@@ -30,7 +30,7 @@ describe("<AdminCard>", () => {
         change={{ value: "+12%", type: "positive" }}
       />
     );
-    expect(screen.getByText("+12%")).toHaveClass("text-green-600");
+    expect(screen.getByText("+12%")).toHaveClass("text-emerald-700");
   });
 
   it("applies the red class to a 'negative' change", () => {
@@ -42,7 +42,7 @@ describe("<AdminCard>", () => {
         change={{ value: "-3%", type: "negative" }}
       />
     );
-    expect(screen.getByText("-3%")).toHaveClass("text-red-600");
+    expect(screen.getByText("-3%")).toHaveClass("text-rose-700");
   });
 
   it("applies the gray class to a 'neutral' change", () => {
@@ -54,6 +54,6 @@ describe("<AdminCard>", () => {
         change={{ value: "0%", type: "neutral" }}
       />
     );
-    expect(screen.getByText("0%")).toHaveClass("text-gray-600");
+    expect(screen.getByText("0%")).toHaveClass("text-ink-3");
   });
 });

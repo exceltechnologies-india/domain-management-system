@@ -19,22 +19,22 @@ export default function AdminCard({
   className = ''
 }: AdminCardProps) {
   const changeColors = {
-    positive: 'text-green-600',
-    negative: 'text-red-600',
-    neutral: 'text-gray-600'
+    positive: 'text-emerald-700',
+    negative: 'text-rose-700',
+    neutral: 'text-ink-3'
   };
 
   return (
-    <div className={`bg-white rounded-lg shadow-sm p-6 border border-gray-200 ${className}`}>
+    <div className={`bg-paper rounded-lg border border-hairline shadow-[0_1px_2px_rgba(0,0,0,0.04)] p-6 ${className}`}>
       <div className="flex items-center">
-        <div className="bg-primary-100 rounded-full p-3 mr-4">
-          <Icon className="h-6 w-6 text-primary-600" />
+        <div className="bg-amber-soft rounded-md p-3 mr-4">
+          <Icon className="h-6 w-6 text-amber" />
         </div>
         <div className="flex-1">
-          <p className="text-sm font-medium text-gray-600">{title}</p>
-          <p className="text-2xl font-bold text-gray-900">{value}</p>
+          <p className="text-sm text-ink-3">{title}</p>
+          <p className="text-2xl font-semibold tabular-nums text-ink">{value}</p>
           {change && (
-            <p className={`text-sm ${changeColors[change.type]}`}>
+            <p className={`text-sm mt-0.5 ${changeColors[change.type]}`}>
               {change.value}
             </p>
           )}

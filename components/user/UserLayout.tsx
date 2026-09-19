@@ -116,60 +116,61 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-paper-2/40 flex">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden"
+          className="fixed inset-0 z-40 bg-ink/30 backdrop-blur-sm lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar.
+          The white fill and the divider used to be inline `style` rules. Inline
+          styles beat utility classes, so leaving them would have kept this panel
+          plain white against the warm paper chrome. They are classes now for
+          that reason alone — nothing reads them. */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 w-72 shadow-xl transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed inset-y-0 left-0 z-50 w-60 bg-paper border-r border-hairline transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
-        style={{
-          backgroundColor: '#ffffff',
-          borderRight: '1px solid #e5e7eb'
-        }}
       >
         {/* Sidebar Header */}
-        <div className="flex items-center justify-between h-16 px-6 bg-gradient-to-r from-blue-600 to-blue-700 border-b border-blue-500">
-          <div className="flex items-center">
-            <div className="p-2 bg-white bg-opacity-20 rounded-lg">
-              <User className="h-6 w-6 text-white" />
+        <div className="flex items-center justify-between h-14 px-3 border-b border-hairline">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-md bg-ink text-paper grid place-items-center">
+              <User className="h-5 w-5" />
             </div>
-            <span className="ml-3 text-xl font-bold text-white">User Panel</span>
+            <span className="text-sm font-semibold text-ink">User Panel</span>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden text-white hover:text-gray-200 transition-colors"
+            aria-label="Close navigation menu"
+            className="lg:hidden rounded-md p-1.5 text-ink-3 hover:bg-paper-2 hover:text-ink transition-colors"
           >
-            <X className="h-6 w-6" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* User Info */}
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex items-center">
+        <div className="px-3 py-3 border-b border-hairline">
+          <div className="flex items-center gap-2.5">
             <div className="flex-shrink-0">
-              <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                <User className="h-6 w-6 text-blue-600" />
+              <div className="h-9 w-9 rounded-full bg-amber-soft flex items-center justify-center">
+                <User className="h-4 w-4 text-amber" />
               </div>
             </div>
-            <div className="ml-3">
+            <div className="min-w-0">
               {user && !isLoading ? (
                 <>
-                  <p className="text-sm font-medium text-gray-900">
+                  <p className="text-sm font-medium text-ink break-words">
                     {user.firstName} {user.lastName}
                   </p>
-                  <p className="text-xs text-gray-500">{user.email}</p>
+                  <p className="text-xs text-ink-3 break-words">{user.email}</p>
                 </>
               ) : (
                 <>
-                  <p className="text-sm font-medium text-gray-500">Loading...</p>
-                  <p className="text-xs text-gray-400">Please wait</p>
+                  <p className="text-sm font-medium text-ink-3">Loading...</p>
+                  <p className="text-xs text-ink-4">Please wait</p>
                 </>
               )}
             </div>
@@ -177,24 +178,24 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
         </div>
 
         {/* Navigation */}
-        <nav className="mt-6 px-4" style={{ backgroundColor: '#ffffff' }}>
-          <div className="space-y-1">
+        <nav className="px-2 py-3">
+          <div className="space-y-0.5">
             {navigation.map((item) => {
               const Icon = item.icon;
               return (
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 group ${isActive(item.href)
-                    ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  className={`flex items-center gap-2.5 px-3 py-2 lg:py-1.5 text-sm rounded-md transition-colors group ${isActive(item.href)
+                    ? 'bg-amber-soft text-amber-ink font-medium'
+                    : 'text-ink-2 hover:bg-paper-2 hover:text-ink'
                     }`}
                   onClick={() => setSidebarOpen(false)}
                 >
                   <Icon
-                    className={`h-5 w-5 mr-3 transition-colors ${isActive(item.href)
-                      ? 'text-blue-700'
-                      : 'text-gray-400 group-hover:text-gray-600'
+                    className={`h-4 w-4 flex-shrink-0 transition-colors ${isActive(item.href)
+                      ? 'text-amber'
+                      : 'text-ink-3 group-hover:text-ink-2'
                       }`}
                   />
                   {item.name}
@@ -208,31 +209,35 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Bar */}
-        <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-[100]">
-          <div className="flex items-center justify-between h-16 px-6">
-            <div className="flex items-center">
+        {/* Top Bar.
+            z-[100] predates this restyle and is kept: menus inside page content
+            sit at z-50, so dropping the header to the design system's z-30 would
+            let them cover it. Colour and height are the only changes here. */}
+        <div className="sticky top-0 z-[100] border-b border-hairline bg-paper/95 backdrop-blur-sm">
+          <div className="flex items-center justify-between gap-2 h-14 px-3 md:px-4">
+            <div className="flex items-center min-w-0">
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="lg:hidden text-gray-500 hover:text-gray-700 transition-colors"
+                aria-label="Open navigation menu"
+                className="lg:hidden rounded-md p-1.5 text-ink-3 hover:bg-paper-2 hover:text-ink transition-colors"
               >
-                <Menu className="h-6 w-6" />
+                <Menu className="h-5 w-5" />
               </button>
-              <h1 className="ml-4 lg:ml-0 text-xl font-semibold text-gray-900">
+              <h1 className="ml-3 lg:ml-0 font-serif text-lg text-ink truncate">
                 {navigation.find(item => isActive(item.href))?.name || 'Dashboard'}
               </h1>
             </div>
 
-            <div className="flex items-center space-x-4 relative z-50">
+            <div className="flex items-center gap-2 flex-shrink-0 relative z-50">
               {onLogout ? (
                 <button
                   ref={logoutButtonRef}
                   onClick={handleLogoutClick}
                   type="button"
                   disabled={!user}
-                  className={`relative z-50 pointer-events-auto flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${user
-                    ? 'text-red-600 hover:bg-red-50 hover:text-red-700 cursor-pointer border border-red-200'
-                    : 'text-gray-400 cursor-not-allowed border border-gray-200'
+                  className={`relative z-50 pointer-events-auto flex items-center px-2.5 py-1.5 text-sm font-medium rounded-md border transition-colors ${user
+                    ? 'text-rose-700 border-rose-200 bg-paper hover:bg-rose-50 hover:text-rose-800 cursor-pointer'
+                    : 'text-ink-4 border-hairline cursor-not-allowed'
                     }`}
                   data-testid={user ? "logout-button-active" : "logout-button-disabled"}
                   title={!user ? 'Please wait for user data to load' : 'Click to logout'}
@@ -242,7 +247,7 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
                 </button>
               ) : (
                 <div
-                  className="flex items-center px-3 py-2 text-sm font-medium text-gray-400"
+                  className="flex items-center px-2.5 py-1.5 text-sm font-medium text-ink-4"
                   data-testid="logout-button-inactive"
                 >
                   <LogOut className="h-4 w-4 mr-2" />
@@ -276,14 +281,14 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
         {!hideFloatingButtons && (
           <Link
             href="/"
-            className="fixed bottom-6 left-6 z-50 bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110 group"
+            className="fixed bottom-6 left-6 z-50 bg-amber hover:brightness-90 text-paper p-3.5 rounded-full shadow-[0_2px_8px_rgba(0,0,0,0.10)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.14)] transition-all duration-200 group"
             title="Go back to homepage"
           >
-            <Home className="h-6 w-6" />
+            <Home className="h-5 w-5" />
             {/* Enhanced Tooltip */}
-            <div className="absolute bottom-full left-0 mb-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap pointer-events-none">
+            <div className="absolute bottom-full left-0 mb-2 px-2.5 py-1.5 bg-ink text-paper text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none">
               Back to Homepage
-              <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+              <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-ink"></div>
             </div>
           </Link>
         )}

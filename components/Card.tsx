@@ -29,12 +29,12 @@ export default function Card({
   };
 
   const variantClasses = {
-    default: 'bg-white border border-gray-200',
-    elevated: 'bg-white shadow-lg',
-    outlined: 'bg-white border-2 border-gray-200'
+    default: 'bg-paper border border-hairline shadow-[0_1px_2px_rgba(0,0,0,0.04)]',
+    elevated: 'bg-paper border border-hairline shadow-[0_2px_8px_rgba(0,0,0,0.06)]',
+    outlined: 'bg-paper border border-hairline-strong'
   };
 
-  const hoverClass = hover ? 'hover:shadow-xl hover:shadow-gray-200/50 transition-all duration-300 hover:-translate-y-1' : '';
+  const hoverClass = hover ? 'hover:border-hairline-strong hover:shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-0.5' : '';
 
   const cardContent = (
     <div className={`rounded-lg ${variantClasses[variant]} ${paddingClasses[padding]} ${hoverClass} ${className} group`}>

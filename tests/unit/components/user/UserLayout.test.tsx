@@ -69,7 +69,7 @@ describe("<UserLayout>", () => {
     expect(screen.getByRole("link", { name: /Invoices/i })).toBeInTheDocument();
   });
 
-  it("active link picks up the blue text + border classes", () => {
+  it("active link picks up the amber active state", () => {
     pathnameMock.mockReturnValue("/dashboard/domains");
     render(
       <UserLayout user={USER}>
@@ -77,8 +77,8 @@ describe("<UserLayout>", () => {
       </UserLayout>
     );
     const domains = screen.getByRole("link", { name: /^domains$/i });
-    expect(domains.className).toMatch(/text-blue-700/);
-    expect(domains.className).toMatch(/border-blue-700/);
+    expect(domains.className).toMatch(/text-amber-ink/);
+    expect(domains.className).toMatch(/bg-amber-soft/);
   });
 
   it("top-bar heading reflects the active nav item name", () => {

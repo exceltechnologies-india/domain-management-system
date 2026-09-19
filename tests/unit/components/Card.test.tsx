@@ -15,19 +15,27 @@ describe("<Card>", () => {
     expect(screen.getByText("Hello card")).toBeInTheDocument();
     const inner = container.firstChild as HTMLElement;
     expect(inner.className).toMatch(/rounded-lg/);
-    expect(inner.className).toMatch(/bg-white/);
-    expect(inner.className).toMatch(/border-gray-200/);
+    expect(inner.className).toMatch(/bg-paper/);
+    expect(inner.className).toMatch(/border-hairline/);
     expect(inner.className).toMatch(/p-6/);
   });
 
-  it("variant='elevated' uses shadow-lg instead of a visible border", () => {
+  /* The three variants must stay VISUALLY DISTINCT from one another. Asserting
+     a literal class name pinned the old palette and broke on the restyle while
+     saying nothing about whether the variants still differ — which is the thing
+     worth protecting. These assert the difference instead. */
+  it("variant='elevated' lifts off the page more than the default", () => {
     const { container } = render(<Card animate={false} variant="elevated">x</Card>);
-    expect((container.firstChild as HTMLElement).className).toMatch(/shadow-lg/);
+    const cls = (container.firstChild as HTMLElement).className;
+    expect(cls).toMatch(/shadow-\[0_2px_8px/);
+    expect(cls).not.toMatch(/shadow-\[0_1px_2px/);
   });
 
-  it("variant='outlined' uses border-2", () => {
+  it("variant='outlined' carries a stronger border and no shadow", () => {
     const { container } = render(<Card animate={false} variant="outlined">x</Card>);
-    expect((container.firstChild as HTMLElement).className).toMatch(/border-2/);
+    const cls = (container.firstChild as HTMLElement).className;
+    expect(cls).toMatch(/border-hairline-strong/);
+    expect(cls).not.toMatch(/shadow-\[/);
   });
 
   it("padding='sm' → p-4, padding='lg' → p-8", () => {
@@ -37,9 +45,11 @@ describe("<Card>", () => {
     expect((container.firstChild as HTMLElement).className).toMatch(/p-8/);
   });
 
-  it("hover=true adds the hover-shadow + translate transitions", () => {
+  it("hover=true adds a hover shadow + translate", () => {
     const { container } = render(<Card animate={false} hover>x</Card>);
-    expect((container.firstChild as HTMLElement).className).toMatch(/hover:shadow-xl/);
+    const cls = (container.firstChild as HTMLElement).className;
+    expect(cls).toMatch(/hover:shadow-\[/);
+    expect(cls).toMatch(/hover:-translate-y-0\.5/);
   });
 
   it("animate=false renders ONLY the inner div (no motion wrapper)", () => {

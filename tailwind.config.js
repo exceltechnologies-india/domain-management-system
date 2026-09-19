@@ -7,6 +7,13 @@ module.exports = {
   ],
   theme: {
     extend: {
+      fontSize: {
+        /* Micro-label size used by sidebar section headings and table headers.
+           Ported alongside the ResellerOS colour tokens — two agents reached
+           for `text-3xs` from that design language and had to fall back to
+           `text-[10px]` because it did not exist here. Same computed value. */
+        '3xs': ['0.625rem', { lineHeight: '1rem' }],
+      },
       fontFamily: {
         /* Display serif for the ported ResellerOS surfaces.
            NOT next/font/google: this app deliberately self-hosts Inter because

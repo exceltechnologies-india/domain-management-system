@@ -37,11 +37,11 @@ describe("<FeatureCard>", () => {
     expect(inner!.className).toMatch(/rounded-lg/);
   });
 
-  it("delegates to a hover-enabled Card by default (picks up hover:shadow-xl)", () => {
+  it("delegates to a hover-enabled Card by default (picks up the hover shadow)", () => {
     const { container } = render(
       <FeatureCard icon={null} title="x" description="y" />
     );
     const cardInner = container.querySelector(".rounded-lg")!;
-    expect(cardInner.className).toMatch(/hover:shadow-xl/);
+    expect(cardInner.className).toMatch(/hover:shadow-\[/);
   });
 });

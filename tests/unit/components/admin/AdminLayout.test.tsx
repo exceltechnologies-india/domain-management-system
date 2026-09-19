@@ -57,7 +57,7 @@ describe("<AdminLayout>", () => {
     expect(screen.getByTestId("page")).toBeInTheDocument();
   });
 
-  it("active link picks up the blue text + border classes", () => {
+  it("active link picks up the amber active state", () => {
     pathnameMock.mockReturnValue("/admin/user-management");
     render(
       <AdminLayout user={null}>
@@ -65,8 +65,8 @@ describe("<AdminLayout>", () => {
       </AdminLayout>
     );
     const usersLink = screen.getByRole("link", { name: /^users$/i });
-    expect(usersLink.className).toMatch(/text-blue-700/);
-    expect(usersLink.className).toMatch(/border-blue-700/);
+    expect(usersLink.className).toMatch(/text-amber-ink/);
+    expect(usersLink.className).toMatch(/bg-amber-soft/);
   });
 
   it("pathname='/admin' (no /dashboard) still treats Dashboard as active", () => {
@@ -77,7 +77,7 @@ describe("<AdminLayout>", () => {
       </AdminLayout>
     );
     const dashboard = screen.getByRole("link", { name: /dashboard/i });
-    expect(dashboard.className).toMatch(/text-blue-700/);
+    expect(dashboard.className).toMatch(/text-amber-ink/);
   });
 
   it("pathname starting with /admin/dns-management treats Domains as active", () => {
@@ -88,7 +88,7 @@ describe("<AdminLayout>", () => {
       </AdminLayout>
     );
     const domains = screen.getByRole("link", { name: /^domains$/i });
-    expect(domains.className).toMatch(/text-blue-700/);
+    expect(domains.className).toMatch(/text-amber-ink/);
   });
 
   it("displays the user initials when firstName+lastName are supplied", () => {

@@ -75,59 +75,62 @@ export default function AdminLayout({ children, user, onLogout }: AdminLayoutPro
   };
 
   return (
-    <div className="h-screen bg-gray-50 flex overflow-hidden">
+    <div className="h-screen bg-paper-2/40 flex overflow-hidden">
       {/* App-wide session-expiry prompt — fires on any apiClient 401/403 */}
       <SessionExpiredBanner />
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden"
+          className="fixed inset-0 z-40 bg-ink/40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* Sidebar */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 w-72 shadow-xl transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed inset-y-0 left-0 z-50 w-60 flex flex-col bg-paper border-r border-hairline transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
-        style={{
-          backgroundColor: '#ffffff',
-          borderRight: '1px solid #e5e7eb'
-        }}
       >
         {/* Sidebar Header */}
-        <div className="flex items-center justify-between h-16 px-6 bg-gradient-to-r from-blue-600 to-blue-700 border-b border-blue-500">
-          <div className="flex items-center">
-            <div className="p-2 bg-white bg-opacity-20 rounded-lg">
-              <Shield className="h-6 w-6 text-white" />
+        <div className="flex items-center justify-between h-14 px-4 border-b border-hairline flex-shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-md bg-ink text-paper grid place-items-center flex-shrink-0">
+              <Shield className="h-4 w-4" />
             </div>
-            <span className="ml-3 text-xl font-bold text-white">Admin Panel</span>
+            <span className="text-sm font-semibold text-ink truncate">Admin Panel</span>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
             aria-label="Close navigation menu"
-            className="lg:hidden text-white hover:text-gray-200 transition-colors"
+            className="lg:hidden p-1.5 -mr-1 rounded-md text-ink-3 hover:text-ink hover:bg-paper-2 transition-colors"
           >
-            <X className="h-6 w-6" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Navigation */}
-        <nav className="mt-6 px-4 overflow-y-auto" style={{ backgroundColor: '#ffffff', maxHeight: 'calc(100vh - 4rem)' }}>
-          <div className="space-y-1">
+        <nav className="flex-1 min-h-0 overflow-y-auto px-2 py-3">
+          <div className="space-y-0.5">
             {navigation.map((item) => {
               const Icon = item.icon;
               return (
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 group ${isActive(item.href)
-                    ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  /* py-2 on mobile, py-1.5 from lg. This element IS the mobile
+                     drawer (it is only `lg:static`), so the flat py-1.5 that
+                     matches the desktop rail's density shrank every row to a
+                     32px touch target on a phone, across 17 rows. The
+                     responsive pair keeps the ResellerOS measurement on desktop
+                     without making the drawer hard to hit. UserLayout already
+                     does this; the two shells now agree. */
+                  className={`group flex items-center gap-2.5 px-3 py-2 lg:py-1.5 rounded-md text-sm transition-colors ${isActive(item.href)
+                    ? 'bg-amber-soft text-amber-ink font-medium'
+                    : 'text-ink-2 hover:bg-paper-2 hover:text-ink'
                     }`}
                   onClick={() => setSidebarOpen(false)}
                 >
-                  <Icon className={`h-5 w-5 mr-3 transition-colors ${isActive(item.href) ? 'text-blue-700' : 'text-gray-400 group-hover:text-gray-600'
+                  <Icon className={`h-[15px] w-[15px] flex-shrink-0 transition-colors ${isActive(item.href) ? 'text-amber' : 'text-ink-3 group-hover:text-ink-2'
                     }`} />
                   {item.name}
                 </Link>
@@ -141,37 +144,37 @@ export default function AdminLayout({ children, user, onLogout }: AdminLayoutPro
       {/* Main content */}
       <div className="flex-1 lg:ml-0 flex flex-col overflow-hidden">
         {/* Top bar - aligned with sidebar header */}
-        <div className="sticky top-0 z-30 bg-white shadow-sm border-b border-gray-200 h-16 flex items-center flex-shrink-0">
-          <div className="flex items-center justify-between w-full px-4 sm:px-6 lg:px-8">
+        <div className="sticky top-0 z-30 h-14 border-b border-hairline bg-paper/95 backdrop-blur-sm flex items-center flex-shrink-0">
+          <div className="flex items-center justify-between w-full gap-2 px-3 md:px-4">
             {/* Left side - Mobile menu button */}
             <button
               onClick={() => setSidebarOpen(true)}
               aria-label="Open navigation menu"
-              className="lg:hidden p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              className="lg:hidden p-1.5 -ml-1 text-ink-3 hover:text-ink hover:bg-paper-2 rounded-md transition-colors"
             >
               <Menu className="h-5 w-5" />
             </button>
 
             {/* Right side - Admin user info */}
-            <div className="flex items-center space-x-3 ml-auto">
+            <div className="flex items-center gap-2 ml-auto">
               {/* Admin User Info - Right aligned */}
-              <div className="flex items-center space-x-3 bg-gray-50 rounded-lg px-3 py-2">
-                <div className="h-8 w-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-sm">
-                  <span className="text-xs font-semibold text-white uppercase">
+              <div className="flex items-center gap-2.5 border border-hairline bg-paper-2 rounded-md px-2 py-1">
+                <div className="h-7 w-7 bg-ink rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="text-[10px] font-semibold text-paper uppercase">
                     {user?.firstName ? user.firstName.charAt(0) : 'A'}
                     {user?.lastName ? user.lastName.charAt(0) : 'U'}
                   </span>
                 </div>
                 <div className="hidden sm:block">
-                  <p className="text-sm font-semibold text-gray-900">
+                  <p className="text-sm font-medium text-ink leading-tight">
                     {user?.firstName} {user?.lastName}
                   </p>
-                  <p className="text-xs text-gray-500">Administrator</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-ink-3">Administrator</p>
                 </div>
                 {onLogout && (
                   <button
                     onClick={onLogout}
-                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                    className="p-1.5 text-ink-3 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
                     title="Logout"
                   >
                     <LogOut className="h-4 w-4" />
