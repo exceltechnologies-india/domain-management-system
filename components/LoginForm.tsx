@@ -20,6 +20,20 @@ interface LoginFormProps {
   className?: string;
 }
 
+/**
+ * Local demo accounts, shown only in development (see the panel below).
+ *
+ * These must EXIST in the local database with these exact passwords, or the
+ * buttons fill a credential that cannot sign in — which is worse than no
+ * buttons, because it sends whoever tries them hunting for a bug in the auth.
+ * `scratchpad/seed-demo-passwords.js` sets them; both users already own seeded
+ * domains/hosting so each lands somewhere with content.
+ */
+const DEMO_USERS: Array<{ label: string; email: string; password: string }> = [
+  { label: 'Admin · Anutech Digital', email: 'dev-local@anutech.invalid', password: 'DemoAdmin@2026' },
+  { label: 'Customer · has a domain + hosting', email: 'testcustomer@local.invalid', password: 'DemoUser@2026' },
+];
+
 export default function LoginForm({ className = '' }: LoginFormProps) {
   const [formData, setFormData] = useState({
     email: '',
@@ -270,6 +284,60 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
       panelTitle="Pick up where you left off"
     >
       <>
+          {/* Dev-only demo accounts, mirroring the billing app's login panel.
+
+              Gated on NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS, not NODE_ENV: the local
+              Docker image is BUILT with NODE_ENV=production, so a NODE_ENV
+              check hid this panel in the one place it was wanted. The flag is
+              a build arg set only by docker-compose; deploy-cloud-run.sh never
+              passes it, so a deployed image cannot carry it.
+
+              ─── IT FILLS THE FORM. IT DOES NOT BYPASS ANYTHING ──────────────
+              These are ordinary users in the local database with ordinary
+              bcrypt passwords, and pressing one only calls setFormData. The
+              submit path below is untouched: NextAuth still runs, the password
+              is still compared, and the same isActive / isActivated / TOTP
+              gates still apply.
+
+              That is deliberate. A real bypass — a button that mints a session
+              without credentials — would live in the file that also registers
+              domains, provisions hosting and reaches the admin routes, one
+              mis-set env var away from production. Filling the form gets a
+              developer to the same place in one extra click and cannot do that.
+
+              Both accounts already own seeded data, so each lands on a
+              dashboard with something on it. Set up by
+              scratchpad/seed-demo-passwords.js against the local Mongo. */}
+          {process.env.NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS === 'true' && (
+            <div className="mb-6 p-3 bg-indigo-50 border border-indigo-200 rounded-md text-xs">
+              <div className="flex items-start gap-2 mb-2">
+                <ShieldCheck className="h-3.5 w-3.5 text-indigo-600 flex-shrink-0 mt-0.5" />
+                <div className="text-indigo-700 flex-1">
+                  <b>Dev mode — demo accounts</b>
+                  <span className="text-ink-3 ml-1">· click to autofill</span>
+                </div>
+              </div>
+              <ul className="space-y-1.5">
+                {DEMO_USERS.map((u) => (
+                  <li key={u.email}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData((prev) => ({ ...prev, email: u.email, password: u.password }));
+                        setShowPassword(true);
+                      }}
+                      className="w-full text-left rounded px-2 py-1.5 hover:bg-indigo-100/60 transition-colors"
+                    >
+                      <div className="font-medium text-ink">{u.label}</div>
+                      <div className="text-[11px] text-ink-3 font-mono">
+                        {u.email} · <span className="text-amber-ink">{u.password}</span>
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {(searchParams.get('returnUrl') === '/cart' ||
             searchParams.get('returnUrl') === '/checkout') && (
             <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">

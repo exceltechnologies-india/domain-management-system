@@ -30,6 +30,15 @@ ENV NEXT_PUBLIC_SUPPORT_EMAIL=$NEXT_PUBLIC_SUPPORT_EMAIL
 ARG NEXT_PUBLIC_RECAPTCHA_SITE_KEY=
 ENV NEXT_PUBLIC_RECAPTCHA_SITE_KEY=$NEXT_PUBLIC_RECAPTCHA_SITE_KEY
 
+# Shows the dev demo-accounts panel on /login. Set ONLY by the local
+# docker-compose build. Defaults to empty, and deploy-cloud-run.sh never passes
+# it, so a production image cannot carry it — which is why this is its own
+# explicit flag rather than a NODE_ENV check: this image IS built with
+# NODE_ENV=production even when it is the local stack, so that check hid the
+# panel exactly where it was wanted.
+ARG NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS=
+ENV NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS=$NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS
+
 ARG NEXT_PUBLIC_FACEBOOK_ENABLED=false
 ENV NEXT_PUBLIC_FACEBOOK_ENABLED=$NEXT_PUBLIC_FACEBOOK_ENABLED
 
