@@ -115,6 +115,29 @@ body {
     --google-warning: #FBBC04;
     --google-error: #EA4335;
     --google-info: #0177E1;
+
+    /* ─── ResellerOS design tokens (warm paper aesthetic) ──────────────────────
+       Ported from the billing app so the two products stop looking like two
+       products. Used by the auth shell today, and available to the rest of this
+       app as screens are brought across.
+
+       ADDITIVE ON PURPOSE. Nothing above changes and no existing class is
+       re-pointed, so every screen still on the azure `primary` palette renders
+       exactly as before. The two systems coexist until a screen is deliberately
+       moved over.
+
+       HSL triplets, matching the source, so Tailwind's `<alpha-value>` works. */
+    --paper:           45 33% 97%;
+    --paper-2:         40 22% 94%;
+    --ink:             24 13% 9%;
+    --ink-2:           28 9% 32%;
+    --ink-3:           33 7% 41%;
+    --ink-4:           35 9% 64%;
+    --hairline:        38 25% 87%;
+    --hairline-strong: 38 18% 75%;
+    --amber:           20 91% 41%;
+    --amber-soft:      28 100% 95%;
+    --amber-ink:       18 87% 33%;
   }
 
   /* Landing-violet frontend theme. Applied to <html data-theme="landing"> by

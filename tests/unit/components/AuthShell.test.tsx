@@ -1,9 +1,19 @@
 /**
- * Component tests for <AuthShell> (rescan-4 M14).
- * The shared two-column shell used by /login + /register. Pins the
- * form-side title (h1) + subtitle + children, the brand-panel default
- * eyebrow + headline, the per-panel overrides via `panelEyebrow` /
- * `panelTitle`, and the current-year footer copyright.
+ * Component tests for <AuthShell> — the shared shell behind /login and /register.
+ *
+ * Pins the title (h1), the optional subtitle, the children, the current-year
+ * footer, and the home link.
+ *
+ * ─── THE BRAND-PANEL TESTS ARE GONE, AND SO IS THE BRAND PANEL ───────────────
+ * Two tests here asserted a default eyebrow + headline and their overrides via
+ * `panelEyebrow` / `panelTitle`. That panel — the purple gradient column with a
+ * faux uptime card and a feature list — was removed so this app's sign-in
+ * matches the billing app's. The props remain in the signature, ignored, so the
+ * two callers keep compiling; a test that they still RENDER would now be
+ * asserting the thing the change deleted.
+ *
+ * Replaced below with a test that the props are accepted and produce no output,
+ * which is the actual contract now.
  */
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
@@ -45,26 +55,17 @@ describe("<AuthShell>", () => {
     expect(screen.getByTestId("form-input")).toBeInTheDocument();
   });
 
-  it("uses the default brand-panel eyebrow + title when none supplied", () => {
-    render(
-      <AuthShell title="X">
-        <span />
-      </AuthShell>
-    );
-    // 'Anutech Digital' appears in both the eyebrow chip AND the footer
-    // copyright line; assert via getAllByText to acknowledge both.
-    expect(screen.getAllByText(/Anutech Digital/i).length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText(/clean way to own your online identity/i)).toBeInTheDocument();
-  });
-
-  it("overrides panelEyebrow + panelTitle when supplied", () => {
+  it("accepts the retired panel props and renders nothing for them", () => {
+    /* LoginForm and MultiStageRegisterForm still pass these. They must stay
+       harmless — not throw, not leak into the page — until those two callers
+       are tidied. */
     render(
       <AuthShell title="X" panelEyebrow="Get started" panelTitle="Create your account today">
         <span />
       </AuthShell>
     );
-    expect(screen.getByText(/get started/i)).toBeInTheDocument();
-    expect(screen.getByText(/create your account today/i)).toBeInTheDocument();
+    expect(screen.queryByText(/get started/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/create your account today/i)).not.toBeInTheDocument();
   });
 
   it("renders the current-year footer copyright", () => {

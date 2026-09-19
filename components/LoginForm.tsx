@@ -260,7 +260,7 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
           New here?{' '}
           <Link
             href={`/register${returnUrlParam ? `?returnUrl=${encodeURIComponent(returnUrlParam)}` : ''}`}
-            className="font-medium text-primary-600 hover:text-primary-500"
+            className="font-medium text-amber-ink hover:text-amber underline underline-offset-2"
           >
             Create an account
           </Link>
@@ -406,7 +406,7 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
                   type="checkbox"
                   checked={formData.rememberMe}
                   onChange={handleChange}
-                  className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-amber focus:ring-amber border-hairline-strong rounded"
                 />
                 <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-900">
                   Remember me
@@ -414,7 +414,7 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
               </div>
 
               <div className="text-sm">
-                <a href="/reset-password" className="font-medium text-primary-600 hover:text-primary-500">
+                <a href="/reset-password" className="font-medium text-amber-ink hover:text-amber underline underline-offset-2">
                   Forgot your password?
                 </a>
               </div>
@@ -437,6 +437,13 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
               loading={isLoading}
               fullWidth
               icon={<User className="h-4 w-4" />}
+              /* Amber, matching the billing app's primary action. Passed as a
+                 className rather than by changing Button's `primary` variant,
+                 because that variant is the azure gradient used on ten other
+                 screens — retinting it there would repaint the whole app from a
+                 login-page edit. `className` is appended last in Button.tsx, so
+                 these win over the variant's own background. */
+              className="!bg-none !bg-amber hover:!bg-amber/90 !border-transparent !shadow-sm focus:!ring-amber"
               disabled={!!(process.env.NODE_ENV === 'production' &&
                 process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY &&
                 process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY !== 'your-recaptcha-site-key' &&
