@@ -51,6 +51,8 @@ A production web application for **Anutech Digital Private Limited** that lets c
 app/            Next.js App Router — pages + API routes
   api/          Backend route handlers (domains, hosting, payments, admin, webhooks…)
   admin/        Admin back-office pages
+    layout.tsx  The admin shell (sidebar + top bar), mounted ONCE for the whole
+                subtree. A new admin page renders its content only — see CLAUDE.md.
   dashboard/    Authenticated customer dashboard
   login/ hosting/ domains/ cart/ checkout/ about/ contact/ privacy/ …
                 Public pages. Flat, NOT a `(public)` route group — this README
@@ -132,7 +134,7 @@ All configuration is supplied via environment variables — see [`.env.example`]
 | `npm run test:coverage` | Unit tests with coverage |
 | `npm run test:int` | Integration tests |
 | `npm run health` | Run the health-check script |
-| `npm run migrate` / `migrate:status` / `migrate:dry` | Database migrations |
+| `npm run migrate` / `migrate:status` / `migrate:dry` | Database migrations. **008 is currently pending on production** — see CLAUDE.md; until it runs, multi-domain orders lose every domain after the first. |
 | `npm run init-db` / `recreate-admin` | DB bootstrap helpers |
 | `npm run deps:check` | `npm audit` + `npm outdated` |
 | `bash scripts/run-local.sh` | Run locally with reCAPTCHA disabled and emails pointed at localhost (`--prod` for a standalone build) |

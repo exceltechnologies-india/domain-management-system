@@ -98,6 +98,56 @@ Our primary GST engine mints tax invoices (`TI/YYYY-YY/NNNNN`) but has **no cred
 
 Building the engine properly (its own Counter, reverse-numbered series, PDF, wiring into the refund handler) stays open as item 3 of the post-Phase-2 audit in `TASKS.md` — do it when real refund volume justifies it, not before.
 
+## ⚠️ Migration 008 is written and NOT applied to production (2026-09-21)
+
+`scripts/db/migrations/008_drop_domain_orderid_unique.ts` drops the unique
+constraint on `Domain.orderId`. Until it runs, **every multi-domain order loses
+every domain after the first**: one order id is written to each domain row, the
+unique index rejects the second insert with E11000, the catch swallows it, and
+the order still reports success. Money taken, domain really registered at
+ResellerClub, no `Domain` row — so it is invisible to renewals, expiry
+reminders and the dashboard.
+
+It has been applied to the LOCAL database only, and verified there: before, two
+inserts sharing an orderId stored one of two; after, three of three.
+`resellerClubOrderId` keeps its unique index and still refuses duplicates —
+that is the constraint that actually guards against recording a double
+registration, and it must not be dropped.
+
+```bash
+npm run migrate:status     # confirm 008 is pending
+npm run migrate            # apply
+# then, separately, confirm the index really changed:
+#   db.domains.getIndexes()  ->  orderId_1 present, WITHOUT unique
+```
+
+Verify in a separate step, not the same one. The migration drops and recreates
+an index on a live collection; a run that drops without recreating leaves
+order-scoped lookups doing a collection scan, and the only way to know is to
+look.
+
+**Do not "fix" this by re-adding `unique: true` to the model.** The field is
+one-to-many by definition — one of our orders holds many domains.
+
+## The admin shell is mounted by the route layout, not by pages (2026-09-21)
+
+`app/admin/layout.tsx` renders `<AdminLayout>` once for the whole /admin
+subtree. Before it existed, all 25 admin pages rendered the shell themselves,
+so every client-side navigation destroyed and rebuilt the sidebar — with
+`AdminLayoutSkeleton`'s `bg-blue-900` (pre-restyle) sidebar flashing in
+between. Measured: the sidebar node was replaced, and at some frames there was
+no sidebar in the DOM at all.
+
+- **A new admin page renders its content only.** Do not add `<AdminLayout>`.
+- The 25 existing pages still wrap themselves, and that is fine: a context flag
+  (`components/admin/AdminShellContext.tsx`) makes `AdminLayout` and
+  `AdminLayoutSkeleton` render as passthroughs when a shell is already above
+  them. Removing those wrappers is safe cleanup, one page at a time — a page
+  with the wrapper and one without produce the same tree.
+- **Do not make the passthrough unconditional.** `AdminLayoutSkeleton` is used
+  outside /admin too, where there is no shell and it must still draw chrome.
+  Both directions are pinned in `tests/unit/components/admin/AdminShell.test.tsx`.
+
 ## DMS runs in two shapes — check which one before changing a public page (2026-09-21)
 
 `NEXT_PUBLIC_RESELLEROS_URL` decides whether this app is the whole product or
