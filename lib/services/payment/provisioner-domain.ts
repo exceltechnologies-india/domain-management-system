@@ -8,6 +8,7 @@
  * the helper itself never touches the orchestrator's local state.
  */
 import { serverLogger } from "@/lib/server-logger";
+import { recordSystemLog } from "@/lib/services/system-logs";
 import Domain from "@/models/Domain";
 import { calculateItemExpiration } from "@/lib/billing";
 import { AUTOMATION_CONFIG } from "@/config/automation";
@@ -283,6 +284,42 @@ async function handleRegisteredDomain(
       `❌ [PAYMENT-VERIFY] Failed to create Domain record:`,
       dError
     );
+    /**
+     * Durable record, because this failure is otherwise INVISIBLE.
+     *
+     * We deliberately do not rethrow. The registrar has already registered the
+     * domain and the customer has already paid, so failing here would show an
+     * error for a purchase that genuinely succeeded. The Order's own
+     * `domains[]` subdoc is still written by the caller, so the purchase
+     * itself is not lost.
+     *
+     * What IS lost is the `Domain` row — and that is what renewals, expiry
+     * reminders and the dashboard read. The customer ends up owning a domain
+     * the app will never remind them to renew. Until 2026-09-21 the only trace
+     * was the console line above, and this function went on to return
+     * `status: "success"`.
+     *
+     * The commonest cause was the unique index on `Domain.orderId` (migration
+     * 008): every domain after the first on a multi-domain order hit E11000.
+     * That is fixed, but a write can fail for other reasons, and the reporting
+     * has to outlive the specific cause.
+     */
+    await recordSystemLog({
+      level: "error",
+      message:
+        `[PAYMENT-VERIFY] Domain registered and paid for, but no Domain row was created ` +
+        `for ${item.domainName} — it will be missing from renewals and expiry reminders. ` +
+        (dError instanceof Error ? dError.message : String(dError)),
+      source: "payments/provisioner-domain",
+      service: "payments",
+      stack: dError instanceof Error ? dError.stack : undefined,
+      metadata: {
+        domainName: item.domainName,
+        orderId: String(orderId ?? ""),
+        resellerClubOrderId: String(resellerClubOrderId ?? ""),
+        userId: String(user._id),
+      },
+    }).catch(() => {});
   }
 
   return {

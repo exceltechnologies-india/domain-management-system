@@ -50,6 +50,9 @@ vi.mock("@/models/PendingHosting", () => ({ default: PendingHosting }));
 const getUserById = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/users", () => ({ getUserById }));
 
+const listUserHostingsByDomain = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/services/hostings", () => ({ listUserHostingsByDomain }));
+
 const daCreateUser = vi.hoisted(() => vi.fn());
 const daUpdateDNSNameservers = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/directadmin", () => ({
@@ -88,6 +91,8 @@ import {
 } from "@/lib/services/pending-hostings";
 
 beforeEach(() => {
+  // Default: this domain is NOT already hosted, so the drop guard does not fire.
+  listUserHostingsByDomain.mockReset().mockResolvedValue([]);
   vi.clearAllMocks();
 });
 
@@ -230,17 +235,48 @@ describe("provisionPendingHosting — 6-step retry flow", () => {
     expect(daCreateUser).not.toHaveBeenCalled();
   });
 
-  it("step 2: user.directAdminUsername ALREADY SET → drop the row, return dropped:true", async () => {
-    const user = baseUser({ directAdminUsername: "existing-username" });
-    getUserById.mockResolvedValueOnce(user);
+  it("step 2: THIS DOMAIN already hosted → drop the row, return dropped:true", async () => {
+    // The legitimate drop: the work really is done, by a manual provision or
+    // a sibling row earlier in the same sweep.
+    getUserById.mockResolvedValueOnce(baseUser({ directAdminUsername: "existing-username" }));
+    listUserHostingsByDomain.mockResolvedValueOnce([{ domainName: "x.com" }]);
     PendingHosting.findByIdAndDelete.mockResolvedValueOnce({});
-    const pending = pendingDoc();
-    const result = await provisionPendingHosting(pending);
+    const result = await provisionPendingHosting(pendingDoc());
     expect(result).toEqual({ domain: "x.com", ok: true, dropped: true });
-    // PendingHosting deleted — keeping it would block future sweeps
     expect(PendingHosting.findByIdAndDelete).toHaveBeenCalledWith("PH1");
-    // No DA call, no further state changes
     expect(daCreateUser).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The bug this replaced. The guard used to be `if (user.directAdminUsername)`,
+   * which is true for anyone who has EVER bought hosting — so a returning
+   * customer's second paid order had its row deleted and the cron counted it
+   * as a success. Money taken, nothing provisioned, no trace.
+   */
+  it("step 2: user has DA hosting but NOT for this domain → provisions it, does not drop", async () => {
+    getUserById.mockResolvedValueOnce(baseUser({ directAdminUsername: "existing-username" }));
+    listUserHostingsByDomain.mockResolvedValueOnce([]); // this domain is not hosted
+    daCreateUser.mockResolvedValueOnce(undefined);
+    const result = await provisionPendingHosting(pendingDoc());
+
+    // The paid order is NOT discarded unprovisioned...
+    expect(result.dropped).toBeUndefined();
+    // ...the hosting is actually created...
+    expect(daCreateUser).toHaveBeenCalled();
+    // ...and the row is cleaned up only AFTER that, which is the normal
+    // post-success path (line ~299), not the early drop at ~231. The
+    // difference between the two is `dropped` and whether DA was called —
+    // asserting on findByIdAndDelete alone cannot tell them apart.
+    expect(result.ok).toBe(true);
+  });
+
+  it("step 2: the lookup is scoped to the user AND the domain", async () => {
+    // A user-only lookup would reintroduce the bug with extra steps.
+    getUserById.mockResolvedValueOnce(baseUser({ directAdminUsername: "existing-username" }));
+    listUserHostingsByDomain.mockResolvedValueOnce([]);
+    daCreateUser.mockResolvedValueOnce(undefined);
+    await provisionPendingHosting(pendingDoc());
+    expect(listUserHostingsByDomain).toHaveBeenCalledWith(expect.anything(), "x.com");
   });
 
   it("step 3: daCreateUser throw → bumps pending.error + saves + {ok:false}", async () => {

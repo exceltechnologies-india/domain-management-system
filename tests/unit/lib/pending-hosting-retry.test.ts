@@ -93,6 +93,13 @@ vi.mock("@/lib/server-logger", () => ({
 vi.mock("@/lib/mongodb", () => ({ default: vi.fn(async () => {}) }));
 
 // Hosting model — capture create() args.
+// Hosting rows that already exist for (user, domain). Empty by default, so
+// the drop guard does not fire and the happy path runs.
+const mockExistingHostings = { rows: [] as unknown[] };
+vi.mock("@/lib/services/hostings", () => ({
+  listUserHostingsByDomain: vi.fn(async () => mockExistingHostings.rows),
+}));
+
 vi.mock("@/models/Hosting", () => ({
   default: {
     create: vi.fn(async (doc: unknown) => {
@@ -145,6 +152,8 @@ function freshUser(overrides: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
+  // Default: this domain is not hosted yet, so the drop guard stays quiet.
+  mockExistingHostings.rows = [];
   mockUser.current = freshUser();
   mockDAState.createUserThrows = false;
   mockDAState.updateDnsThrows = false;
@@ -222,8 +231,9 @@ describe("provisionPendingHosting — user resolution", () => {
     expect(mockPendingHostingDelete.calls).toBe(0);
   });
 
-  it("drops the row when the user already has a directAdminUsername (provisioned elsewhere)", async () => {
+  it("drops the row when THIS DOMAIN is already hosted (provisioned elsewhere)", async () => {
     mockUser.current = freshUser({ directAdminUsername: "user1da" });
+    mockExistingHostings.rows = [{ domainName: "example.com" }];
 
     const result = await provisionPendingHosting(pendingRow());
 
@@ -236,6 +246,25 @@ describe("provisionPendingHosting — user resolution", () => {
     // No "your hosting is live" email — they already got one when the
     // earlier provision succeeded.
     expect(mockEmailState.calls).toBe(0);
+  });
+
+  /**
+   * The bug this replaced. The guard used to be `if (user.directAdminUsername)`
+   * — true for anyone who has ever bought hosting — so a returning customer's
+   * SECOND paid order had its row deleted and the cron counted it a success.
+   * Money taken, nothing provisioned, no trace.
+   */
+  it("does NOT drop a repeat customer's order for a domain that is not hosted yet", async () => {
+    mockUser.current = freshUser({ directAdminUsername: "user1da" });
+    mockExistingHostings.rows = []; // this domain has no hosting
+
+    const result = await provisionPendingHosting(pendingRow());
+
+    expect(result.dropped).toBeUndefined();
+    expect(result.ok).toBe(true);
+    // The thing the customer paid for actually happens.
+    expect(mockDAState.createUserCalls).toBe(1);
+    expect(mockEmailState.calls).toBe(1);
   });
 });
 

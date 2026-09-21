@@ -80,11 +80,30 @@ const DomainSchema = new Schema<IDomain>(
     },
     orderId: {
       type: String,
-      unique: true,
+      /**
+       * NOT unique. This is OUR order id, and one order can hold several
+       * domains — a one-to-many relation. It was `unique: true` until
+       * 2026-09-21, and since `provisionCartItems` writes the same orderId to
+       * every domain in a cart, the SECOND `Domain.create` on a two-domain
+       * order threw E11000. That error was caught, logged, and fell through to
+       * a success return: money taken, domain really registered at
+       * ResellerClub, no Domain row — invisible to renewals, expiry reminders
+       * and the dashboard.
+       *
+       * Existing databases need migration 008. Editing this line alone does
+       * not drop an index that has already been built.
+       */
+      index: true,
       sparse: true,
     },
     resellerClubOrderId: {
       type: String,
+      /**
+       * Unique, and correctly so — unlike `orderId` above. This is the
+       * REGISTRAR's own order id, issued per domain, so one value really does
+       * mean one row. It is also the constraint that protects against
+       * recording the same registration twice.
+       */
       unique: true,
       sparse: true,
     },

@@ -15,8 +15,13 @@
  *  - 'registered' with NO orderId in response → calls
  *    `fetchOrderIdFallback` (best-effort RC lookup)
  *  - 'registered_no_order_id' branch ALWAYS calls fetchOrderIdFallback
- *  - **Domain.create failure SWALLOWED** (logged + still returns
- *    success — don't fail the payment over a local-DB blip)
+ *  - **Domain.create failure still returns success** — the registrar has
+ *    registered and the customer has paid, so failing the request would show
+ *    an error for a purchase that worked. It is no longer SILENT though: a
+ *    durable SystemLog row is written naming the domain and the fact that it
+ *    will be missing from renewals. The old note here called this a "local-DB
+ *    blip"; it was not. The usual cause was the unique index on
+ *    Domain.orderId firing on every multi-domain order (migration 008).
  *  - 'balance_pending' / 'already_in_progress' → status:'pending' +
  *    distinct user-facing error message; both call fetchOrderIdFallback
  *  - **'hard_failure' → status:'failed'** with the generic user-facing
@@ -47,6 +52,9 @@ vi.mock("@/lib/integrations/resellerclub", () => ({
   registerDomain: rcRegisterDomain,
   getDomainOrderId: rcGetDomainOrderId,
 }));
+
+const recordSystemLog = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/services/system-logs", () => ({ recordSystemLog }));
 
 vi.mock("@/lib/server-logger", () => ({
   serverLogger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
@@ -79,6 +87,7 @@ beforeEach(() => {
   });
   rcRegisterDomain.mockReset();
   rcGetDomainOrderId.mockReset();
+  recordSystemLog.mockReset().mockResolvedValue(undefined);
   // Default: findOne chain with .lean() returning null (no existing row).
   domainFindOne.mockReturnValue({ lean: () => Promise.resolve(null) });
 });
@@ -212,7 +221,18 @@ describe("provisionDomainItem — 'registered' outcome", () => {
     expect(result.registrationResult.orderId).toBeUndefined();
   });
 
-  it("Domain.create failure SWALLOWED (logged + still returns success — local-DB blip)", async () => {
+  /**
+   * The return still says success, and deliberately: the registrar HAS
+   * registered the domain and the customer HAS paid, so failing here would
+   * show an error for a purchase that worked. What changed on 2026-09-21 is
+   * that it is no longer SILENT.
+   *
+   * The old name for this case was "local-DB blip". It was not a blip. The
+   * commonest cause was the unique index on Domain.orderId, which made every
+   * domain after the first on a multi-domain order fail — reproducibly, on
+   * every such order. See migration 008.
+   */
+  it("Domain.create failure still returns success — the purchase really did happen", async () => {
     rcRegisterDomain.mockResolvedValueOnce({
       kind: "registered",
       orderId: "RC_ORDER_99",
@@ -221,6 +241,36 @@ describe("provisionDomainItem — 'registered' outcome", () => {
     const result = await provisionDomainItem(ITEM as never, CTX);
     expect(result.registrationResult.status).toBe("success");
     expect(result.orderDomain.status).toBe("pending");
+  });
+
+  it("...but records a durable SystemLog, naming the domain and what is lost", async () => {
+    rcRegisterDomain.mockResolvedValueOnce({
+      kind: "registered",
+      orderId: "RC_ORDER_99",
+    });
+    domainCreate.mockRejectedValueOnce(new Error("E11000 duplicate key"));
+    await provisionDomainItem(ITEM as never, CTX);
+
+    expect(recordSystemLog).toHaveBeenCalledTimes(1);
+    const row = recordSystemLog.mock.calls[0][0];
+    expect(row.level).toBe("error");
+    expect(row.metadata.domainName).toBe(ITEM.domainName);
+    // The message has to say what the OPERATOR loses, not just that a write
+    // failed — the row is invisible to renewals and expiry reminders, and
+    // that consequence is the reason anyone would act on this.
+    expect(row.message).toMatch(/renewals/i);
+    expect(row.message).toMatch(/E11000 duplicate key/);
+  });
+
+  it("a SUCCESSFUL Domain.create records nothing — the log is for faults only", async () => {
+    // Guard the guard: without this, a recordSystemLog called on every
+    // provision would satisfy the assertions above and drown the channel.
+    rcRegisterDomain.mockResolvedValueOnce({
+      kind: "registered",
+      orderId: "RC_ORDER_99",
+    });
+    await provisionDomainItem(ITEM as never, CTX);
+    expect(recordSystemLog).not.toHaveBeenCalled();
   });
 });
 

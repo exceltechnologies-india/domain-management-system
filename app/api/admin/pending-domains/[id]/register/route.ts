@@ -6,12 +6,25 @@ import type { IOrder } from "@/models/Order";
 import { getOrderByOrderId, recordZohoInvoiceForOrder } from "@/lib/services/orders";
 import { getUserById } from "@/lib/services/users";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
+import { classifyRegisterDomainResponse } from "@/lib/integrations/resellerclub/classify";
+import type { RegisterDomainOutcome } from "@/lib/integrations/resellerclub/types";
 import { DomainVerificationService } from "@/lib/domain-verification";
 import { EmailService } from "@/lib/email";
 import { serverLogger } from "@/lib/server-logger";
 import { ZohoBooksService } from "@/lib/zohobooks";
 
 // Force dynamic rendering - required for API routes
+/**
+ * Outcomes that mean "the registrar has this in hand", not "it failed".
+ * Kept as a named set so the branch below reads as a question about intent
+ * rather than a string comparison, and so adding an outcome to the union
+ * forces a decision here.
+ */
+const RETRYABLE_OUTCOMES = new Set<RegisterDomainOutcome["kind"]>([
+  "balance_pending",
+  "already_in_progress",
+]);
+
 export const dynamic = 'force-dynamic';
 
 export async function POST(
@@ -164,6 +177,49 @@ export async function POST(
         }
 
         return NextResponse.json({ success: true, message: "Domain registered successfully", result, pendingDomain });
+      } else if (RETRYABLE_OUTCOMES.has(classifyRegisterDomainResponse(result).kind)) {
+        /**
+         * NOT a failure. ResellerClub is saying the registration is QUEUED
+         * (insufficient reseller balance, a processing lock) or already in
+         * flight for this name.
+         *
+         * This branch did not exist until 2026-09-21: anything that was not
+         * `status === "success"` was written as `failed`, destroying the only
+         * record that a name was in progress. `classifyRegisterDomainResponse`
+         * maps a raw `status: "pending"` straight to `balance_pending`, so the
+         * commonest queued case landed in the failure branch verbatim.
+         *
+         * The harm is what an admin does next. A row reading "Registration
+         * failed" invites a refund, or a second manual attempt on a name the
+         * registrar may be about to register — and a double registration is
+         * money that does not come back.
+         *
+         * Back to `pending` so the sweeper drains it, with a reason that says
+         * queued rather than failed. This is the same classifier the payment
+         * provisioner uses, so the two paths now agree about what RC said.
+         */
+        pendingDomain.status = "pending";
+        pendingDomain.reason = `Queued at the registrar, not failed: ${result.message}`;
+        await pendingDomain.save();
+
+        serverLogger.warn(
+          `[ADMIN-REGISTER] ${pendingDomain.domainName} is queued at ResellerClub; left pending for the sweeper: ${result.message}`
+        );
+
+        return NextResponse.json(
+          {
+            success: false,
+            status: "pending",
+            message:
+              "ResellerClub queued this registration rather than rejecting it — usually " +
+              "reseller balance or a processing lock. It stays in the pending list and the " +
+              "sweeper will retry it. Do not register it again by hand: the name may " +
+              "already be in flight.",
+            error: result.message,
+            pendingDomain,
+          },
+          { status: 202 }
+        );
       } else {
         pendingDomain.status = "failed";
         pendingDomain.reason = `Registration failed: ${result.message}`;

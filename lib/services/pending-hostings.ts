@@ -205,13 +205,40 @@ export async function provisionPendingHosting(
     return { domain, ok: false, error: "User not found" };
   }
 
-  if (user.directAdminUsername) {
-    // User already has hosting (manually provisioned or via a sibling
-    // PendingHosting row picked up earlier). Drop this row — keeping it
-    // would block future retries from the same sweep and cause a misleading
-    // "ALREADY_HAS_HOSTING" admin-side error.
+  /**
+   * Is THIS DOMAIN already hosted for this user?
+   *
+   * This used to read `if (user.directAdminUsername)` — true for anyone with
+   * ANY prior DirectAdmin account. So a returning customer's second paid
+   * hosting order had its PendingHosting row deleted and
+   * `check-unprovisioned` counted it as a success: money taken, nothing
+   * provisioned, no trace. The drop is meant for "this work is already done",
+   * and `user.directAdminUsername` does not answer that question — it answers
+   * "has this person ever bought hosting before".
+   *
+   * `daUsername` lives on the pending row, so a second order already carries
+   * its own. Whether a repeat customer SHOULD get a second DirectAdmin user
+   * or an addon domain on the existing one is a separate question about the
+   * account model (see Todos.md §D, "which side owns DirectAdmin") — but
+   * silently discarding a paid order is wrong under either answer.
+   */
+  const { listUserHostingsByDomain } = await import("@/lib/services/hostings");
+  const alreadyHosted = await listUserHostingsByDomain(userId, domain);
+  if (alreadyHosted.length > 0) {
+    // Genuinely already provisioned for this domain — manually, or by a
+    // sibling row picked up earlier in the same sweep. Keeping the row would
+    // block future retries and surface a misleading "ALREADY_HAS_HOSTING".
     await PendingHosting.findByIdAndDelete(pending._id);
     return { domain, ok: true, dropped: true };
+  }
+
+  if (user.directAdminUsername) {
+    // Has hosting elsewhere, but not for this domain. Proceed — and say so,
+    // because this is the path that used to lose the order.
+    serverLogger.info(
+      `[PENDING-HOSTING] ${user.email} already has DirectAdmin user ` +
+        `"${user.directAdminUsername}", but ${domain} is not hosted yet — provisioning it.`
+    );
   }
 
   try {

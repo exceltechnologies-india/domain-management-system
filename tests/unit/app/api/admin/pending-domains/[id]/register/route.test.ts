@@ -454,6 +454,80 @@ describe("Failure branch (RC status='error', not throw)", () => {
   });
 });
 
+/**
+ * Queued is not failed.
+ *
+ * Until 2026-09-21 anything that was not `status === "success"` was written as
+ * `failed`. `classifyRegisterDomainResponse` maps a raw `status: "pending"`
+ * straight to `balance_pending`, so the commonest queued case — the registrar
+ * holding the request for reseller balance — landed in the failure branch
+ * verbatim, destroying the only record that the name was in flight.
+ *
+ * The harm is what an admin does next: a row reading "Registration failed"
+ * invites a refund, or a second manual attempt on a name ResellerClub may be
+ * about to register.
+ */
+describe("Queued branch — RC has it in hand, it did not fail", () => {
+  it("raw status='pending' → row stays pending, 202, NOT failed", async () => {
+    const pd = makePendingDomain();
+    findById.mockResolvedValueOnce(pd);
+    registerDomain.mockResolvedValueOnce({ status: "pending", message: "Queued" });
+    const res = await POST(makeReq(), params);
+    expect(res.status).toBe(202);
+    expect(pd.status).toBe("pending");
+    expect(pd.status).not.toBe("failed");
+    expect(pd.reason).toMatch(/not failed/i);
+  });
+
+  it("'insufficient balance' → queued, not failed", async () => {
+    const pd = makePendingDomain();
+    findById.mockResolvedValueOnce(pd);
+    registerDomain.mockResolvedValueOnce({
+      status: "error",
+      message: "Insufficient balance in your account",
+    });
+    const res = await POST(makeReq(), params);
+    expect(res.status).toBe(202);
+    expect(pd.status).toBe("pending");
+  });
+
+  it("tells the admin NOT to retry by hand — a double registration is unrecoverable", async () => {
+    const pd = makePendingDomain();
+    findById.mockResolvedValueOnce(pd);
+    registerDomain.mockResolvedValueOnce({ status: "pending", message: "Queued" });
+    const res = await POST(makeReq(), params);
+    const body = await res.json();
+    expect(body.message).toMatch(/do not register it again/i);
+    expect(body.message).toMatch(/sweeper/i);
+  });
+
+  it("the order's domain row is NOT marked failed either", async () => {
+    const pd = makePendingDomain();
+    findById.mockResolvedValueOnce(pd);
+    registerDomain.mockResolvedValueOnce({ status: "pending", message: "Queued" });
+    const order = makeOrder([{ domainName: "example.com", status: "processing" }]);
+    getOrderByOrderId.mockResolvedValueOnce(order);
+    await POST(makeReq(), params);
+    expect(order.domains[0].status).not.toBe("failed");
+  });
+
+  it("a REAL failure is still a failure — the branch has not swallowed everything", async () => {
+    // Guard the guard: if every non-success became "queued", nothing would
+    // ever be reported as failed and the pending list would fill with names
+    // the registrar has actually rejected.
+    const pd = makePendingDomain();
+    findById.mockResolvedValueOnce(pd);
+    registerDomain.mockResolvedValueOnce({
+      status: "error",
+      message: "Domain already registered",
+    });
+    getOrderByOrderId.mockResolvedValueOnce(makeOrder([{ domainName: "example.com", status: "processing" }]));
+    const res = await POST(makeReq(), params);
+    expect(res.status).toBe(400);
+    expect(pd.status).toBe("failed");
+  });
+});
+
 describe("Failure branch (RC throw)", () => {
   it("pendingDomain marked failed + reason; 500 returned", async () => {
     const pd = makePendingDomain();
