@@ -85,5 +85,12 @@ module.exports = {
       },
     },
   },
-  plugins: [],
+  /* `animate-in`, `fade-in`, `zoom-in-95` and `slide-in-from-right` were
+     already written across ~10 places in this app — every admin modal, the
+     pending-domains drawer, the admin content wrapper. None of them did
+     anything: the utilities come from this plugin and it was never installed,
+     so the classes were inert strings that read exactly like working
+     animation. ResellerOS has had it all along, which is where the idiom came
+     from. Installing it makes those sites behave the way they are written. */
+  plugins: [require('tailwindcss-animate')],
 }

@@ -261,7 +261,14 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
 
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto">
+          {/* `key={pathname}` for the same reason AdminLayout has one:
+              framer-motion's `initial` applies on MOUNT, and without a key
+              React keeps this wrapper across a client-side navigation — so the
+              entrance played once on first load and every page change after
+              that was an instant swap. The two shells are kept in step
+              deliberately; a fix to one that skips the other is how they drift. */}
           <motion.div
+            key={pathname}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}

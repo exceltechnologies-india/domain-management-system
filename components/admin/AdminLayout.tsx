@@ -187,7 +187,18 @@ export default function AdminLayout({ children, user, onLogout }: AdminLayoutPro
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-          <div className="animate-in fade-in duration-300 ease-out">
+          {/* `key={pathname}` is what makes the fade a PAGE transition rather
+              than a one-off. A CSS animation runs when the element is created;
+              without the key React keeps this wrapper across a client-side
+              navigation, so the fade played once on first load and never
+              again. Measured before the fix: opacity pinned at 1 and
+              getAnimations().length === 0 across an entire nav.
+
+              It also covers the gap. These pages are client components that
+              fetch on mount, so `main` briefly holds no text at all — content
+              vanished, then popped back in three steps. Fading the new route
+              in turns that flash into a reveal. */}
+          <div key={pathname} className="animate-in fade-in duration-300 ease-out">
             {children}
           </div>
         </main>

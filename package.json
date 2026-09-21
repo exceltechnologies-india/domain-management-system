@@ -108,6 +108,7 @@
     "lint-staged": "^16.4.0",
     "mongodb-memory-server": "^11.1.0",
     "puppeteer": "^24.28.0",
+    "tailwindcss-animate": "^1.0.7",
     "tsx": "^4.20.6",
     "vitest": "^4.1.5"
   },
