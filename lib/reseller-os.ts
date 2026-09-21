@@ -65,3 +65,45 @@ export function homeUrl(): string {
 export function frontpageIsDelegated(): boolean {
   return resellerOsUrl() !== null;
 }
+
+/**
+ * DMS marketing/legal pages that ResellerOS owns once it is the front door,
+ * mapped to the ResellerOS page that replaces each one.
+ *
+ * These are REDIRECTS, not 404s, and the difference is not cosmetic. Razorpay
+ * requires a merchant's policy pages to be publicly reachable; making them
+ * disappear would put the payment account at risk. Every entry here points at
+ * a page that exists in ResellerOS (`(public)/privacy`, `(public)/terms`,
+ * `(marketing)/refund`, `(public)/enquiry`, `(public)/about` — route groups do
+ * not affect the URL), so the content stays public, just at one origin instead
+ * of two. If a target is ever removed from ResellerOS, remove it here too
+ * rather than leaving a redirect into a 404.
+ *
+ * `/contact` maps to `/enquiry` because that is ResellerOS's public
+ * get-in-touch page; there is no `/contact` there, and `(app)/contacts` is the
+ * CRM module, which is a different thing behind a login.
+ */
+const RESELLEROS_OWNED_PAGES: Readonly<Record<string, string>> = Object.freeze({
+  "/privacy": "/privacy",
+  "/terms-and-conditions": "/terms",
+  "/cancellation-refund": "/refund",
+  "/contact": "/enquiry",
+  "/about": "/about",
+});
+
+/**
+ * The absolute ResellerOS URL that should replace this DMS path, or `null`
+ * when DMS still owns it — which includes every path when the front door is
+ * not configured at all.
+ */
+export function resellerOsOwnedUrl(pathname: string): string | null {
+  const front = resellerOsUrl();
+  if (!front) return null;
+  const target = RESELLEROS_OWNED_PAGES[pathname];
+  return target ? `${front}${target}` : null;
+}
+
+/** The DMS paths ResellerOS takes over. Exported for tests and tooling. */
+export function resellerOsOwnedPaths(): string[] {
+  return Object.keys(RESELLEROS_OWNED_PAGES);
+}

@@ -1,6 +1,6 @@
 import { AUTH_SECRET } from "@/lib/auth-secret";
 import { NextResponse } from "next/server";
-import { resellerOsUrl } from "@/lib/reseller-os";
+import { resellerOsUrl, resellerOsOwnedUrl } from "@/lib/reseller-os";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { addSecurityHeaders, addCorsHeaders, buildPreflightResponse } from "@/lib/security-headers";
@@ -317,6 +317,12 @@ async function handleMiddleware(request: NextRequest, nonce: string, requestId: 
   const isPublicApi = PUBLIC_API_PREFIXES.some(p => classificationPath === p || classificationPath.startsWith(p + "/"));
   const isPublicRoute = PUBLIC_ROUTES.has(pathname) || PUBLIC_PREFIXES.some(p => pathname.startsWith(p));
 
+  // Marketing/legal pages ResellerOS owns once it is the front door. Null when
+  // DMS is standalone, so none of this costs anything in that shape — which is
+  // also why the "public routes fetch no token" guarantee below still holds
+  // for a standalone DMS.
+  const resellerOsTarget = resellerOsOwnedUrl(pathname);
+
   // Machine-to-machine admin calls (operator scripts + cron one-offs like
   // scripts/purge-test-users.js) authenticate via the x-cron-secret bearer
   // header, NOT a session cookie. When a VALID cron secret is present on an
@@ -342,7 +348,7 @@ async function handleMiddleware(request: NextRequest, nonce: string, requestId: 
   }
 
   // --- 3. Token Fetching (Single call, only when security/logic requires it) ---
-  const needsToken = (isAdminApi || isAdminPage || isAuthPage || isProtectedRoute || (isApi && !isPublicApi)) && !isHeadRequest;
+  const needsToken = (isAdminApi || isAdminPage || isAuthPage || isProtectedRoute || !!resellerOsTarget || (isApi && !isPublicApi)) && !isHeadRequest;
 
   let token = null;
   if (needsToken) {
@@ -350,6 +356,20 @@ async function handleMiddleware(request: NextRequest, nonce: string, requestId: 
       req: request,
       secret: AUTH_SECRET,
     });
+  }
+
+  // 3b. Pages ResellerOS now owns. Normal visitors go to the ResellerOS
+  // equivalent; an admin still gets DMS's copy, which is how these pages stay
+  // checkable without unsetting the front door. Same shape as the existing
+  // Admin -> Pages draft gate (see app/domains-home/page.tsx), moved to
+  // middleware because three of the five are `'use client'` and cannot read a
+  // session at all.
+  //
+  // A redirect, never a 404: Razorpay requires a merchant's policy pages to be
+  // publicly reachable, so the content has to keep existing somewhere public.
+  // Each target is a real ResellerOS page — see lib/reseller-os.ts.
+  if (resellerOsTarget && token?.role !== "admin") {
+    return addSecurityHeaders(NextResponse.redirect(resellerOsTarget, 307), { nonce, strictCSP: isStrictCSPRoute });
   }
 
   // CSRF gate for every authenticated mutating /api/* request, regardless

@@ -228,7 +228,25 @@ panel, and ResellerOS reaches them over an HTTP API and a signed hand-off.
 |---|---|---|
 | `GET /` | DMS's marketing homepage | `307` to ResellerOS |
 | Logo / "home" links | DMS `/` | ResellerOS |
+| `/privacy`, `/terms-and-conditions`, `/cancellation-refund`, `/contact`, `/about` | served by DMS | `307` to the ResellerOS equivalent — **for non-admins only** |
 | Everything else | unchanged | unchanged |
+
+Those five are **redirected, never 404ed**. Razorpay requires a merchant's
+policy pages to be publicly reachable, so the content has to keep existing
+somewhere public; each one points at a real ResellerOS page
+(`/terms-and-conditions` → `/terms`, `/cancellation-refund` → `/refund`,
+`/contact` → `/enquiry`, the rest 1:1). If a target is ever removed from
+ResellerOS, remove it from the map in `lib/reseller-os.ts` rather than leaving
+a redirect into a 404.
+
+An **admin still gets DMS's own copy**, so the pages stay checkable without
+unsetting the front door. That is why these paths join the middleware's
+`needsToken` set — and only when the front door is configured, so a standalone
+DMS keeps its "public routes fetch no token" property.
+
+**Not taken over:** `/hosting`, `/domains/*`, `/cart` and `/checkout` — the only
+working purchase funnel for hosting and domains — and `/login`, `/dashboard`
+and `/admin`, which are the point of the app.
 
 Unset is the default on purpose: turning the frontpage off is a deployment
 decision, not something that happens to a standalone DMS because this code

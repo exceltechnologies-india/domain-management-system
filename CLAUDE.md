@@ -124,6 +124,15 @@ merging.
 - **Do not reintroduce a homepage link.** Brand marks get their href from
   `Logo`'s default, which follows the front door. Pass an explicit `href` only
   where the target genuinely is not home (the signed-in nav → the panel).
+- **The legal/marketing pages redirect; they must never 404.** `/privacy`,
+  `/terms-and-conditions`, `/cancellation-refund`, `/contact` and `/about` go
+  to their ResellerOS equivalents for non-admins (map in `lib/reseller-os.ts`).
+  Razorpay requires a merchant's policy pages to be publicly reachable, so
+  "hide them" has to mean "they live at one origin instead of two". Admins
+  still get DMS's copy so the pages stay checkable.
+- **Do not widen that map to the purchase funnel.** `/hosting`, `/domains/*`,
+  `/cart` and `/checkout` are the only working way to buy hosting or a domain
+  today. Taking them over leaves no way to sell.
 
 ## Domain renewal is gated, and the gate is load-bearing (2026-09-21)
 

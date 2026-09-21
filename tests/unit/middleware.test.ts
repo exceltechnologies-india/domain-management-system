@@ -594,3 +594,77 @@ describe("Front door — `/` when ResellerOS owns the public site", () => {
     expect(res?.status).not.toBe(307);
   });
 });
+
+/**
+ * Marketing/legal pages ResellerOS owns once it is the front door.
+ *
+ * Threat model:
+ *  - **A 404 here is a payments risk, not a cosmetic choice.** Razorpay
+ *    requires a merchant's policy pages to stay publicly reachable, so these
+ *    redirect to real ResellerOS pages rather than disappearing.
+ *  - **"Inaccessible to normal users" must not mean inaccessible to
+ *    everyone.** An admin still gets DMS's copy, which is how the pages stay
+ *    checkable without unsetting the front door.
+ *  - **Taking over too much would remove the only way to buy.** /hosting,
+ *    /domains, /cart and /checkout are the working purchase funnel; the panels
+ *    are the point of DMS. Pinned that none of them are touched.
+ */
+describe("Pages ResellerOS owns — normal visitors redirected, admins not", () => {
+  const OWNED: Array<[string, string]> = [
+    ["/privacy", "https://app.example.com/privacy"],
+    ["/terms-and-conditions", "https://app.example.com/terms"],
+    ["/cancellation-refund", "https://app.example.com/refund"],
+    ["/contact", "https://app.example.com/enquiry"],
+    ["/about", "https://app.example.com/about"],
+  ];
+
+  it.each(OWNED)("signed-out visitor on %s → 307 to %s", async (path, target) => {
+    vi.stubEnv("NEXT_PUBLIC_RESELLEROS_URL", "https://app.example.com");
+    getToken.mockResolvedValue(null);
+    const res = await middleware(makeReq(`https://dms.example.com${path}`));
+    expect(res?.status).toBe(307);
+    expect(res?.headers.get("location")).toBe(target);
+  });
+
+  it.each(OWNED)("non-admin user on %s is redirected too", async (path, target) => {
+    vi.stubEnv("NEXT_PUBLIC_RESELLEROS_URL", "https://app.example.com");
+    getToken.mockResolvedValue({ role: "user", email: "u@example.com" });
+    const res = await middleware(makeReq(`https://dms.example.com${path}`));
+    expect(res?.status).toBe(307);
+    expect(res?.headers.get("location")).toBe(target);
+  });
+
+  it.each(OWNED)("an ADMIN still gets DMS's own %s", async (path) => {
+    vi.stubEnv("NEXT_PUBLIC_RESELLEROS_URL", "https://app.example.com");
+    getToken.mockResolvedValue({ role: "admin", email: "a@example.com" });
+    const res = await middleware(makeReq(`https://dms.example.com${path}`));
+    expect(res?.status).not.toBe(307);
+    expect(res?.headers.get("location")).toBeNull();
+  });
+
+  it.each(OWNED)("unset front door → %s is served by DMS as before", async (path) => {
+    vi.stubEnv("NEXT_PUBLIC_RESELLEROS_URL", "");
+    getToken.mockResolvedValue(null);
+    const res = await middleware(makeReq(`https://dms.example.com${path}`));
+    expect(res?.headers.get("location")).toBeNull();
+  });
+
+  it("the purchase funnel and the panels are NOT taken over", async () => {
+    vi.stubEnv("NEXT_PUBLIC_RESELLEROS_URL", "https://app.example.com");
+    getToken.mockResolvedValue(null);
+    for (const path of ["/hosting", "/domains/search", "/cart", "/login"]) {
+      const res = await middleware(makeReq(`https://dms.example.com${path}`));
+      const loc = res?.headers.get("location") ?? "";
+      expect(loc.startsWith("https://app.example.com"), `${path} was taken over`).toBe(false);
+    }
+  });
+
+  it("never 404s — a policy page must stay publicly reachable (Razorpay)", async () => {
+    vi.stubEnv("NEXT_PUBLIC_RESELLEROS_URL", "https://app.example.com");
+    getToken.mockResolvedValue(null);
+    for (const [path] of OWNED) {
+      const res = await middleware(makeReq(`https://dms.example.com${path}`));
+      expect(res?.status, `${path} must redirect, not 404`).not.toBe(404);
+    }
+  });
+});

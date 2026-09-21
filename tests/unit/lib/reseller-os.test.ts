@@ -13,7 +13,13 @@
  *    homepage for every DMS deployment the moment this merged.
  */
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { resellerOsUrl, homeUrl, frontpageIsDelegated } from "@/lib/reseller-os";
+import {
+  resellerOsUrl,
+  homeUrl,
+  frontpageIsDelegated,
+  resellerOsOwnedUrl,
+  resellerOsOwnedPaths,
+} from "@/lib/reseller-os";
 
 const ORIGINAL = process.env.NEXT_PUBLIC_RESELLEROS_URL;
 
@@ -107,6 +113,61 @@ describe("frontpageIsDelegated", () => {
     for (const v of [undefined, "", "   ", "nope", "https://a.test"]) {
       set(v);
       expect(frontpageIsDelegated()).toBe(resellerOsUrl() !== null);
+    }
+  });
+});
+
+describe("resellerOsOwnedUrl — pages ResellerOS takes over", () => {
+  it("unset → null for every owned path, so standalone DMS keeps them", () => {
+    set(undefined);
+    for (const path of resellerOsOwnedPaths()) {
+      expect(resellerOsOwnedUrl(path)).toBeNull();
+    }
+  });
+
+  it("maps each DMS path to its ResellerOS equivalent", () => {
+    set("https://app.example.com");
+    expect(resellerOsOwnedUrl("/privacy")).toBe("https://app.example.com/privacy");
+    expect(resellerOsOwnedUrl("/terms-and-conditions")).toBe("https://app.example.com/terms");
+    expect(resellerOsOwnedUrl("/cancellation-refund")).toBe("https://app.example.com/refund");
+    expect(resellerOsOwnedUrl("/contact")).toBe("https://app.example.com/enquiry");
+    expect(resellerOsOwnedUrl("/about")).toBe("https://app.example.com/about");
+  });
+
+  it("every owned path resolves to an absolute https/http URL — never a bare path", () => {
+    // A relative target would keep the visitor on DMS, which is the one
+    // outcome this feature must not produce.
+    set("https://app.example.com");
+    for (const path of resellerOsOwnedPaths()) {
+      expect(resellerOsOwnedUrl(path)).toMatch(/^https?:\/\//);
+    }
+  });
+
+  it("does NOT take over the purchase funnel or the panels", () => {
+    // /hosting, /domains, /cart and /checkout are the only working way to buy
+    // hosting or a domain; /login and the panels are the whole point of DMS.
+    set("https://app.example.com");
+    for (const path of [
+      "/hosting", "/domains", "/domains/search", "/cart", "/checkout",
+      "/login", "/dashboard", "/admin", "/admin/dashboard",
+    ]) {
+      expect(resellerOsOwnedUrl(path), `${path} must not be taken over`).toBeNull();
+    }
+  });
+
+  it("an unknown path is never claimed", () => {
+    set("https://app.example.com");
+    expect(resellerOsOwnedUrl("/not-a-page")).toBeNull();
+    expect(resellerOsOwnedUrl("/")).toBeNull();  // `/` is handled separately
+  });
+
+  it("the three Razorpay policy pages are all covered", () => {
+    // Razorpay requires these to be publicly reachable. They are redirected,
+    // never 404ed — if one is ever dropped from the map it must be because
+    // DMS is serving it again, not because it vanished.
+    const owned = resellerOsOwnedPaths();
+    for (const p of ["/privacy", "/terms-and-conditions", "/cancellation-refund"]) {
+      expect(owned).toContain(p);
     }
   });
 });
