@@ -82,7 +82,7 @@ services:
         # real dump those users no longer exist, so set this to accounts the
         # local database actually has:
         #   "Admin · Name|admin@real.example|pw;Customer · Name|cust@real.example|pw"
-        NEXT_PUBLIC_DEMO_ACCOUNTS: ""
+        NEXT_PUBLIC_DEMO_ACCOUNTS: "Admin · Admin User|sales@exceltechnologies.in|DemoAdmin@2026;Customer · Abhishek Excel Technologies (1 service)|abhishek@exceltechnologies.in|DemoUser@2026"
         # ResellerOS is the front door for the local stack, so DMS's own
         # marketing homepage is off: `/` redirects here and the logo points
         # here. Same build-arg reason as the line above.
