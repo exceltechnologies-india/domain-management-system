@@ -27,20 +27,28 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
 
   useEffect(() => {
     if (isOpen && menuRef.current) {
-      const menuRect = menuRef.current.getBoundingClientRect();
+      /* offsetWidth/Height, NOT getBoundingClientRect().
+         This effect runs while framer-motion is still animating the menu in
+         from `scale: 0.95`, and getBoundingClientRect() reports the TRANSFORMED
+         box — 209px for a 220px menu. The guard then concluded it fitted and
+         left it hanging 1px off the right edge at a 1440px viewport, measured.
+         offsetWidth is the layout width and ignores the transform, so the
+         comparison is against the size the menu will actually settle at. */
+      const menuWidth = menuRef.current.offsetWidth;
+      const menuHeight = menuRef.current.offsetHeight;
       const screenWidth = window.innerWidth;
       const screenHeight = window.innerHeight;
 
       let { x, y } = anchorPoint;
 
       // Adjust X if off screen
-      if (x + menuRect.width > screenWidth) {
-        x = screenWidth - menuRect.width - 10;
+      if (x + menuWidth > screenWidth) {
+        x = screenWidth - menuWidth - 10;
       }
 
       // Adjust Y if off screen
-      if (y + menuRect.height > screenHeight) {
-        y = screenHeight - menuRect.height - 10;
+      if (y + menuHeight > screenHeight) {
+        y = screenHeight - menuHeight - 10;
       }
 
       setAdjustedPoint({ x, y });
@@ -70,13 +78,26 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
     };
   }, [isOpen, onClose]);
 
+  /**
+   * ResellerOS tokens, not raw Tailwind. The `-ink` shade carries the text and
+   * `-soft` the hover fill — the same pairing AdminLayout's active nav row uses
+   * (`bg-amber-soft text-amber-ink`), so a menu opened over the sidebar agrees
+   * with it.
+   *
+   * `-ink` rather than the DEFAULT shade on purpose. ResellerOS's own
+   * DropdownMenuItem uses `text-rose` for destructive, but `--rose` sits at 50%
+   * lightness against `--paper` at 97%, which lands under 4.5:1 for a 14px
+   * label. The `-ink` shades are the same hue 13-15 points darker and clear it.
+   * A menu whose rows include "Delete Permanently" is the wrong place to spend
+   * legibility on exact parity with one component.
+   */
   const getVariantStyles = (variant?: string) => {
     switch (variant) {
-      case 'danger': return 'text-red-600 hover:bg-red-50';
-      case 'warning': return 'text-yellow-600 hover:bg-yellow-50 hover:text-yellow-700';
-      case 'success': return 'text-green-600 hover:bg-green-50 hover:text-green-700';
-      case 'info': return 'text-blue-600 hover:bg-blue-50 hover:text-blue-700';
-      default: return 'text-gray-700 hover:bg-gray-50 hover:text-gray-900';
+      case 'danger': return 'text-rose-ink hover:bg-rose-soft';
+      case 'warning': return 'text-amber-ink hover:bg-amber-soft';
+      case 'success': return 'text-emerald-ink hover:bg-emerald-soft';
+      case 'info': return 'text-indigo-ink hover:bg-indigo-soft';
+      default: return 'text-ink-2 hover:bg-paper-2 hover:text-ink';
     }
   };
 
@@ -89,7 +110,13 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: -10 }}
           transition={{ duration: 0.15, ease: 'easeOut' }}
-          className="fixed z-[9999] min-w-[220px] bg-white/70 backdrop-blur-xl border border-white/40 shadow-[0_20px_50px_rgba(0,0,0,0.15)] rounded-2xl overflow-hidden py-2"
+          /* Flat panel on the opaque `paper` surface with a hairline border —
+             the shape ResellerOS's DropdownMenuContent uses. The frosted
+             `bg-white/70 backdrop-blur-xl` it replaced put the table rows
+             underneath showing through the menu, which on a dense admin grid
+             makes a "Delete Permanently" row sit on top of somebody else's
+             data. An action menu is a decision surface; it should be opaque. */
+          className="fixed z-[9999] min-w-[220px] bg-paper border border-hairline shadow-md rounded-md overflow-hidden p-1"
           style={{
             top: adjustedPoint.y,
             left: adjustedPoint.x,
@@ -97,7 +124,7 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
         >
           {items.map((item, index) => (
             <React.Fragment key={index}>
-              {index > 0 && item.variant === 'danger' && <div className="h-px bg-gray-100/50 my-1 mx-3" />}
+              {index > 0 && item.variant === 'danger' && <div className="h-px bg-hairline my-1 mx-2" />}
               <button
                 onClick={(e) => {
                   e.preventDefault();
@@ -105,12 +132,14 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
                   item.onClick();
                   onClose();
                 }}
-                className={`w-full px-4 py-2.5 text-sm flex items-center gap-3 transition-all duration-200 group ${getVariantStyles(item.variant)}`}
+                /* py-2 on mobile, py-1.5 from sm. ResellerOS's density is the
+                   1.5; this menu is also reachable on a phone, where the flat
+                   1.5 gives a ~32px row. Same responsive pair, and same
+                   reason, as AdminLayout's nav rows. */
+                className={`w-full rounded-sm px-2 py-2 sm:py-1.5 text-sm flex items-center gap-2 text-left transition-colors ${getVariantStyles(item.variant)}`}
               >
-                <div className="flex-shrink-0 p-1.5 rounded-lg group-hover:scale-110 transition-transform duration-200">
-                  <item.icon className="w-4 h-4" />
-                </div>
-                <span className="font-semibold tracking-tight">{item.label}</span>
+                <item.icon className="w-4 h-4 flex-shrink-0" />
+                <span>{item.label}</span>
               </button>
             </React.Fragment>
           ))}
