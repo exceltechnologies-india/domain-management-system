@@ -29,7 +29,24 @@ interface HostingStats {
   nameservers: string[];
   expires_at: string | null;
   created_at: string | null;
-  usage: {
+  /**
+   * OPTIONAL, and it always was — the type just did not say so.
+   *
+   * `/api/user/hosting/stats` returns two different shapes. A provisioned
+   * account carries usage read from DirectAdmin; a hosting still awaiting
+   * provisioning is returned by `fetchPendingHostingEntries` with
+   * `status: "pending"`, `username: ""` and NO usage block, because there is
+   * no DirectAdmin account to read yet.
+   *
+   * Declaring it required made `hostingStats.usage.disk_used` compile, and it
+   * threw "Cannot read properties of undefined (reading 'disk_used')" for
+   * every customer whose hosting had not been provisioned — taking the whole
+   * page down to the error boundary, not just the usage panel. 24 of those
+   * are in the production systemlogs.
+   *
+   * Leave it optional. The lie was the bug.
+   */
+  usage?: {
     bandwidth_used: string;
     bandwidth_limit: string;
     disk_used: string;
@@ -39,7 +56,8 @@ interface HostingStats {
     ftp: { used: string; limit: string };
     subdomains: { used: string; limit: string };
   };
-  features: {
+  /** Absent on a pending entry, for the same reason as `usage`. */
+  features?: {
     ssl: boolean;
     cgi: boolean;
     php: boolean;
@@ -283,45 +301,65 @@ export default function HostingPage() {
       {/* Content Grid */}
       <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 
-        {/* Disk Usage */}
-        <div className="bg-paper-2/60 rounded-xl p-4 border border-hairline">
-          <div className="flex items-center gap-2 text-ink-2 mb-3">
-            <HardDrive className="h-4 w-4 text-amber-ink" />
-            <span className="text-sm font-medium">Disk Usage</span>
-          </div>
-          <div className="space-y-2">
-            <div className="w-full bg-hairline rounded-full h-2 overflow-hidden">
-              <div
-                className="bg-indigo h-2 rounded-full transition-all duration-500"
-                style={{ width: `${getUsagePercentage(hostingStats.usage.disk_used, hostingStats.usage.disk_limit)}%` }}
-              ></div>
+        {/* Disk + Bandwidth. Absent until DirectAdmin has the account —
+            `usage` is undefined on a pending entry, and reading through it is
+            what used to take this whole page down to the error boundary.
+            Saying "not available yet" beats a 0% bar, which would read as
+            "provisioned, using nothing". */}
+        {hostingStats.usage ? (
+          <>
+            {/* Disk Usage */}
+            <div className="bg-paper-2/60 rounded-xl p-4 border border-hairline">
+              <div className="flex items-center gap-2 text-ink-2 mb-3">
+                <HardDrive className="h-4 w-4 text-amber-ink" />
+                <span className="text-sm font-medium">Disk Usage</span>
+              </div>
+              <div className="space-y-2">
+                <div className="w-full bg-hairline rounded-full h-2 overflow-hidden">
+                  <div
+                    className="bg-indigo h-2 rounded-full transition-all duration-500"
+                    style={{ width: `${getUsagePercentage(hostingStats.usage.disk_used, hostingStats.usage.disk_limit)}%` }}
+                  ></div>
+                </div>
+                <div className="flex justify-between text-xs text-ink-2 font-medium">
+                  <span>{formatBytes(hostingStats.usage.disk_used, 'MB')}</span>
+                  <span>{formatBytes(hostingStats.usage.disk_limit, 'MB')}</span>
+                </div>
+              </div>
             </div>
-            <div className="flex justify-between text-xs text-ink-2 font-medium">
-              <span>{formatBytes(hostingStats.usage.disk_used, 'MB')}</span>
-              <span>{formatBytes(hostingStats.usage.disk_limit, 'MB')}</span>
-            </div>
-          </div>
-        </div>
 
-        {/* Bandwidth */}
-        <div className="bg-paper-2/60 rounded-xl p-4 border border-hairline">
-          <div className="flex items-center gap-2 text-ink-2 mb-3">
-            <Wifi className="h-4 w-4 text-green-500" />
-            <span className="text-sm font-medium">Bandwidth</span>
-          </div>
-          <div className="space-y-2">
-            <div className="w-full bg-hairline rounded-full h-2 overflow-hidden">
-              <div
-                className="bg-green-500 h-2 rounded-full transition-all duration-500"
-                style={{ width: `${getUsagePercentage(hostingStats.usage.bandwidth_used, hostingStats.usage.bandwidth_limit)}%` }}
-              ></div>
+            {/* Bandwidth */}
+            <div className="bg-paper-2/60 rounded-xl p-4 border border-hairline">
+              <div className="flex items-center gap-2 text-ink-2 mb-3">
+                <Wifi className="h-4 w-4 text-emerald-ink" />
+                <span className="text-sm font-medium">Bandwidth</span>
+              </div>
+              <div className="space-y-2">
+                <div className="w-full bg-hairline rounded-full h-2 overflow-hidden">
+                  <div
+                    className="bg-emerald h-2 rounded-full transition-all duration-500"
+                    style={{ width: `${getUsagePercentage(hostingStats.usage.bandwidth_used, hostingStats.usage.bandwidth_limit)}%` }}
+                  ></div>
+                </div>
+                <div className="flex justify-between text-xs text-ink-2 font-medium">
+                  <span>{formatBytes(hostingStats.usage.bandwidth_used, 'MB')}</span>
+                  <span>{formatBytes(hostingStats.usage.bandwidth_limit, 'MB')}</span>
+                </div>
+              </div>
             </div>
-            <div className="flex justify-between text-xs text-ink-2 font-medium">
-              <span>{formatBytes(hostingStats.usage.bandwidth_used, 'MB')}</span>
-              <span>{formatBytes(hostingStats.usage.bandwidth_limit, 'MB')}</span>
+          </>
+        ) : (
+          <div className="bg-paper-2/60 rounded-xl p-4 border border-hairline md:col-span-2">
+            <div className="flex items-center gap-2 text-ink-2 mb-2">
+              <HardDrive className="h-4 w-4 text-ink-3" />
+              <span className="text-sm font-medium">Disk &amp; bandwidth</span>
             </div>
+            <p className="text-xs text-ink-3">
+              Not available yet — this account is still being set up on the hosting
+              server. Usage appears here once provisioning finishes.
+            </p>
           </div>
-        </div>
+        )}
 
         {/* Server Info */}
         <div className="bg-paper-2/60 rounded-xl p-4 border border-hairline col-span-1 md:col-span-2">

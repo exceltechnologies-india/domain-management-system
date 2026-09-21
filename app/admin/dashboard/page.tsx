@@ -269,7 +269,26 @@ export default function AdminDashboard() {
     try {
       setLoading(true);
       const res = await axios.get(`/api/v1/admin/system-health?_t=${Date.now()}`);
-      setData(res.data);
+      /**
+       * Only accept a body that is actually system health.
+       *
+       * This used to be `setData(res.data)` — whatever came back. axios throws
+       * on a non-2xx, so an error JSON never reached here; but a 200 that is
+       * not this endpoint's payload does. A middleware redirect to /login is
+       * followed transparently and hands back the login page's HTML with
+       * status 200. That string is truthy, so `data.externalApis.resellerClub`
+       * threw "externalApis is undefined" and took the admin dashboard down to
+       * the error boundary. Two of those sit in the production systemlogs.
+       *
+       * Checking the SHAPE is what covers it — the status was fine.
+       */
+      const body = res.data;
+      if (body && typeof body === "object" && body.database && body.externalApis) {
+        setData(body);
+      } else {
+        setData(null);
+        toast.error("Could not read system health — you may need to sign in again.");
+      }
     } catch (error) {
       toast.error("Failed to fetch system health data.");
       logger.error(error);
