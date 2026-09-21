@@ -191,6 +191,18 @@ export const rateLimiters = {
     keyGenerator: ipKey("engine_read"),
   }),
 
+  // Engine COMMANDS. Much tighter than engineRead, because each one can change
+  // something at a provider: a runaway loop on a read wastes CPU, the same loop
+  // on a command is a queue of real operations. 20/min is well above any
+  // legitimate burst — ResellerOS sends these on human actions and webhooks,
+  // not in bulk — and low enough that a stuck retry is visible as 429s rather
+  // than as a provider bill. IP-keyed for the same reason as the read limiter.
+  engineCommand: new RateLimiter({
+    windowMs: 60 * 1000,
+    maxRequests: 20,
+    keyGenerator: ipKey("engine_command"),
+  }),
+
   // Support ticket creation — limit per-user to discourage spam ticket creation
   supportCreate: new RateLimiter({
     windowMs: 60 * 60 * 1000, // 1 hour
