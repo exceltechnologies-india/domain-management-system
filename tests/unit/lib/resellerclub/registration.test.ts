@@ -185,7 +185,13 @@ describe("registerDomain — happy path + nameserver defaulting", () => {
       techContactId: 22,
       billingContactId: 33,
     });
-    expect(result).toEqual({ status: "success", data: { entityid: "12345" } });
+    // `transport: "responded"` — the registrar answered. Delivery is not in
+    // question, so the response itself decides what happens next.
+    expect(result).toEqual({
+      status: "success",
+      transport: "responded",
+      data: { entityid: "12345" },
+    });
   });
 });
 
@@ -300,7 +306,13 @@ describe("registerDomain — AxiosError HTTP-status mapping", () => {
       techContactId: 22,
       billingContactId: 33,
     });
-    expect(result.message).toBe("Failed to register domain");
+    // The message now leads with how far the request got. An unrecognised
+    // AxiosError after the POST could mean the registrar already registered
+    // the domain, and "Failed to register domain" on its own reads as "nothing
+    // happened" — which is the assumption that gets a domain registered twice.
+    expect(result.transport).toBe("sent_unknown");
+    expect(result.message).toContain("Failed to register domain");
+    expect(result.message).toMatch(/may have completed/i);
   });
 });
 

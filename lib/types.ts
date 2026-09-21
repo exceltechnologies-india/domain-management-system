@@ -48,6 +48,17 @@ export interface CartItem {
 export interface ResellerClubResponse {
   status: string;
   message?: string;
+  /**
+   * How far the request got. Present on the money paths (register, renew);
+   * absent elsewhere, which callers must read as "unknown", never as "safe".
+   *
+   * Exists because a param-build throw and a socket reset after the POST used
+   * to produce the same `status: "error"` and an indistinguishable message —
+   * and on a registration those two mean "nothing happened, retry freely" and
+   * "the domain may already be registered, do NOT retry". See
+   * lib/integrations/transport.ts.
+   */
+  transport?: import("./integrations/transport").Transport;
   // ResellerClub returns wildly different shapes per endpoint
   // (price tree, order ID, DNS records, renewal pricing, …). Narrowing
   // this to `unknown` would force every callsite (~25) to cast at the read,

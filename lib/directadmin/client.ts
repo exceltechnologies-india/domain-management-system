@@ -9,6 +9,7 @@ import { serverLogger } from '@/lib/server-logger';
 import { HOSTING_PLANS } from '@/config/hosting-plans';
 import type { DAErrorPayload, DAParsedResponse } from './types';
 import { unwrapDAError } from './types';
+import { classifyTransport } from '@/lib/integrations/transport';
 
 export const DA_URL = process.env.DIRECTADMIN_URL;
 export const ADMIN_USER = process.env.DIRECTADMIN_ADMIN_USER;
@@ -361,8 +362,32 @@ export async function executeRequest<T>(
              return;
           }
 
-          // Only retry on network/timeout errors (and not logical DA errors)
-          if (attempt < maxRetries && (!status || status >= 500)) {
+          /**
+           * Retry only when the request cannot have been acted on.
+           *
+           * This used to be `!status || status >= 500`, and `!status` is the
+           * dangerous half: it means "no HTTP response", which covers BOTH a
+           * connection that was refused (nothing sent — retrying is free) and
+           * a socket that died after the bytes left (DirectAdmin may already
+           * have done the work). Lumping them together meant
+           * `createUser` — a non-idempotent create, on the default
+           * maxRetries: 2 — would happily fire again after a reset, creating a
+           * second account or colliding with the one it had just made.
+           *
+           * classifyTransport draws that line: only errors proving the
+           * connection never established (ENOTFOUND / ECONNREFUSED /
+           * EAI_AGAIN) count as not-sent. ECONNRESET and ETIMEDOUT
+           * deliberately do not.
+           *
+           * A >= 500 still retries: DirectAdmin answered, so delivery is not
+           * in question, and the reads that make up most callers here rely on
+           * it. What is gone is retrying into the dark.
+           */
+          // `unwrapped` already carries the normalised axios `code`, which is
+          // the only field classifyTransport reads — so it is passed rather
+          // than the raw error, which may be wrapped by the time it gets here.
+          const neverSent = classifyTransport(unwrapped, true) === "not_sent";
+          if (attempt < maxRetries && ((status && status >= 500) || neverSent)) {
             const backoffMs = Math.pow(2, attempt) * 1000; // Exponential backoff: 1s, 2s, 4s
             serverLogger.warn(`[DA-REQUEST] ${operation} failed (attempt ${attempt + 1}), retrying in ${backoffMs}ms...`);
             await new Promise(resolve => setTimeout(resolve, backoffMs));

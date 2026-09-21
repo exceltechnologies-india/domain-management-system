@@ -3,6 +3,7 @@
  */
 
 import { AxiosError } from "axios";
+import { classifyTransport, describeTransport } from "@/lib/integrations/transport";
 import { ResellerClubResponse } from "@/lib/types";
 import { serverLogger } from "@/lib/server-logger";
 import { getRegistrationParamPairs, mapRegistrationError } from "@/lib/tld-policies";
@@ -89,6 +90,8 @@ export async function registerDomain(domainData: {
     }
   );
 
+  let sent = false;
+
   try {
     // Always use ResellerClub nameservers as default for domain registration
     const resellerClubNameServers = [
@@ -138,6 +141,13 @@ export async function registerDomain(domainData: {
       params.append("ns", ns);
     });
 
+    /**
+     * Everything above this line is parameter building. If it throws, nothing
+     * has been sent and a retry is free. Below it, the registrar may have
+     * acted whatever we see — so the catch has to know which side of this
+     * line it was on. That is what `sent` records; no error code can tell you.
+     */
+    sent = true;
     const response = await api.post("/api/domains/register.json", params);
 
     const responseTime = Date.now() - startTime;
@@ -189,6 +199,9 @@ export async function registerDomain(domainData: {
       return {
         status: isPendingStatus ? "pending" : "error",
         message: friendly ?? errorMessage,
+        // The registrar answered. Whether to retry is the response's business
+        // (classify.ts), not the transport's.
+        transport: "responded",
         data: response.data, // Include full response data for debugging
       };
     }
@@ -203,6 +216,7 @@ export async function registerDomain(domainData: {
 
     return {
       status: "success",
+      transport: "responded",
       data: response.data,
     };
   } catch (error) {
@@ -261,9 +275,15 @@ export async function registerDomain(domainData: {
       }
     }
 
+    const transport = classifyTransport(error, sent);
     return {
       status: "error",
-      message: errorMessage,
+      // The transport sentence goes FIRST. "Failed to register domain" is what
+      // a catch says when it does not know how far the request got, and it is
+      // what sent people looking in the wrong place — an unsent request and a
+      // possibly-completed registration read identically without it.
+      message: `${describeTransport(transport)} ${errorMessage}`,
+      transport,
       data: error instanceof AxiosError ? error.response?.data : undefined,
     };
   }

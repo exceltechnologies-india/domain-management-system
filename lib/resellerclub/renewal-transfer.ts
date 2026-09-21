@@ -3,6 +3,7 @@
  */
 
 import { ResellerClubResponse } from "@/lib/types";
+import { classifyTransport, describeTransport } from "@/lib/integrations/transport";
 import { serverLogger } from "@/lib/server-logger";
 import { api } from "./client";
 
@@ -46,7 +47,16 @@ export async function renewDomain(
   years: number,
   expDate: number
 ): Promise<ResellerClubResponse> {
+  /**
+   * Whether the POST has been attempted. A renewal that may have landed must
+   * never be blind-retried — a second one adds another year and another
+   * charge — and no error code distinguishes "the socket died before the
+   * bytes left" from "after". Only this does.
+   */
+  let sent = false;
+
   try {
+    sent = true;
     const response = await api.post("/api/domains/renew.json", null, {
       params: {
         "order-id": orderId,
@@ -63,6 +73,7 @@ export async function renewDomain(
 
     return {
       status: "success",
+      transport: "responded",
       data: response.data,
     };
   } catch (error: unknown) {
@@ -71,10 +82,15 @@ export async function renewDomain(
       (typeof err.response?.data === "object" ? err.response?.data?.message : err.response?.data) ||
       err.message ||
       "Failed to renew domain";
-    serverLogger.error(`[RC-API] Domain renewal error for order ${orderId}:`, msg);
+    const transport = classifyTransport(error, sent);
+    serverLogger.error(
+      `[RC-API] Domain renewal error for order ${orderId} [${transport}]:`,
+      msg
+    );
     return {
       status: "error",
-      message: typeof msg === "string" ? msg : JSON.stringify(msg),
+      message: `${describeTransport(transport)} ${typeof msg === "string" ? msg : JSON.stringify(msg)}`,
+      transport,
     };
   }
 }

@@ -65,7 +65,13 @@ describe("renewDomain", () => {
         "invoice-option": "NoInvoice",
       },
     });
-    expect(result).toEqual({ status: "success", data: { entityid: 999 } });
+    // `transport: "responded"` — the registrar answered, so delivery is not
+    // in question. Whether to act on the response is a separate question.
+    expect(result).toEqual({
+      status: "success",
+      transport: "responded",
+      data: { entityid: 999 },
+    });
   });
 
   it("error message: prefers err.response.data.message > raw .data > err.message", async () => {
@@ -75,7 +81,9 @@ describe("renewDomain", () => {
       message: "Request failed",
     });
     const r1 = await renewDomain("ord", 1, 0);
-    expect(r1).toEqual({ status: "error", message: "Domain is locked" });
+    expect(r1.status).toBe("error");
+    expect(r1.message).toContain("Domain is locked");
+    expect(r1.transport).toBe("sent_unknown");
 
     // .data is a raw string
     apiPost.mockRejectedValueOnce({
@@ -83,17 +91,23 @@ describe("renewDomain", () => {
       message: "Request failed",
     });
     const r2 = await renewDomain("ord", 1, 0);
-    expect(r2).toEqual({ status: "error", message: "Auth code invalid" });
+    expect(r2.status).toBe("error");
+    expect(r2.message).toContain("Auth code invalid");
+    expect(r2.transport).toBe("sent_unknown");
 
     // No response → falls through to err.message
     apiPost.mockRejectedValueOnce({ message: "Network down" });
     const r3 = await renewDomain("ord", 1, 0);
-    expect(r3).toEqual({ status: "error", message: "Network down" });
+    expect(r3.status).toBe("error");
+    expect(r3.message).toContain("Network down");
+    expect(r3.transport).toBe("sent_unknown");
 
     // No useful info at all → final fallback string
     apiPost.mockRejectedValueOnce({});
     const r4 = await renewDomain("ord", 1, 0);
-    expect(r4).toEqual({ status: "error", message: "Failed to renew domain" });
+    expect(r4.status).toBe("error");
+    expect(r4.message).toContain("Failed to renew domain");
+    expect(r4.transport).toBe("sent_unknown");
   });
 });
 
