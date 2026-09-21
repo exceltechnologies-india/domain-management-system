@@ -23,16 +23,44 @@ interface LoginFormProps {
 /**
  * Local demo accounts, shown only in development (see the panel below).
  *
- * These must EXIST in the local database with these exact passwords, or the
- * buttons fill a credential that cannot sign in — which is worse than no
- * buttons, because it sends whoever tries them hunting for a bug in the auth.
- * `scratchpad/seed-demo-passwords.js` sets them; both users already own seeded
- * domains/hosting so each lands somewhere with content.
+ * Whatever is listed here must EXIST in the local database with these exact
+ * passwords, or the buttons fill a credential that cannot sign in — worse than
+ * no buttons, because it sends whoever tries them hunting for a bug in the
+ * auth rather than at a missing row.
+ *
+ * Configurable because the fixtures below stop existing the moment a real dump
+ * is restored: `mongorestore --drop` replaces `users` wholesale, and the
+ * `.invalid` pair goes with it. Set NEXT_PUBLIC_DEMO_ACCOUNTS to whatever the
+ * local database actually holds:
+ *
+ *   NEXT_PUBLIC_DEMO_ACCOUNTS: "Label|email|password;Label|email|password"
+ *
+ * It is a BUILD arg (NEXT_PUBLIC_* is inlined by `next build`), so changing it
+ * needs `docker compose up -d --build`, not a restart. The deploy script
+ * passes neither this nor NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS, so a production
+ * image carries no panel and none of these values.
  */
-const DEMO_USERS: Array<{ label: string; email: string; password: string }> = [
+const FALLBACK_DEMO_USERS: Array<{ label: string; email: string; password: string }> = [
   { label: 'Admin · Anutech Digital', email: 'dev-local@anutech.invalid', password: 'DemoAdmin@2026' },
   { label: 'Customer · has a domain + hosting', email: 'testcustomer@local.invalid', password: 'DemoUser@2026' },
 ];
+
+/**
+ * A malformed entry is DROPPED, not rendered half-filled. A row that fills the
+ * email and leaves the password blank looks like a broken login rather than a
+ * broken config, which is the same failure the whole panel is meant to avoid.
+ */
+function parseDemoAccounts(raw: string | undefined) {
+  if (!raw || !raw.trim()) return FALLBACK_DEMO_USERS;
+  const parsed = raw
+    .split(';')
+    .map((entry) => entry.split('|').map((p) => p.trim()))
+    .filter((p) => p.length === 3 && p[0] && p[1] && p[2])
+    .map(([label, email, password]) => ({ label, email, password }));
+  return parsed.length > 0 ? parsed : FALLBACK_DEMO_USERS;
+}
+
+const DEMO_USERS = parseDemoAccounts(process.env.NEXT_PUBLIC_DEMO_ACCOUNTS);
 
 export default function LoginForm({ className = '' }: LoginFormProps) {
   const [formData, setFormData] = useState({

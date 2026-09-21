@@ -43,6 +43,14 @@ ENV NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS=$NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS
 # (`/` redirects there) and every brand/home link points at it — DMS becomes
 # the hosting/domain panel behind ResellerOS. Unset = standalone DMS,
 # unchanged. Build arg, not runtime: NEXT_PUBLIC_* is inlined by `next build`.
+# Demo-account rows for the sign-in panel, as "Label|email|password;…".
+# Needed because restoring a real dump drops the .invalid fixtures the panel
+# was built around. Build arg for the usual reason: NEXT_PUBLIC_* is inlined by
+# `next build`. The deploy script passes neither this nor
+# NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS, so a production image has no panel.
+ARG NEXT_PUBLIC_DEMO_ACCOUNTS=
+ENV NEXT_PUBLIC_DEMO_ACCOUNTS=$NEXT_PUBLIC_DEMO_ACCOUNTS
+
 ARG NEXT_PUBLIC_RESELLEROS_URL=
 ENV NEXT_PUBLIC_RESELLEROS_URL=$NEXT_PUBLIC_RESELLEROS_URL
 
