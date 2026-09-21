@@ -29,6 +29,7 @@ import {
   Store,
 } from 'lucide-react';
 import SessionExpiredBanner from '@/components/admin/SessionExpiredBanner';
+import { useInsideAdminShell } from '@/components/admin/AdminShellContext';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -43,6 +44,19 @@ interface AdminLayoutProps {
 export default function AdminLayout({ children, user, onLogout }: AdminLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
+  const insideShell = useInsideAdminShell();
+
+  /**
+   * A shell is already mounted above us (app/admin/layout.tsx), so render only
+   * the page. Without this, every one of the 25 pages that still wraps itself
+   * in <AdminLayout> would draw a SECOND sidebar inside the first.
+   *
+   * Hooks above this line, never below: an early return that skips a hook
+   * changes the hook order between renders and React throws.
+   */
+  if (insideShell) {
+    return <>{children}</>;
+  }
 
   const navigation = [
     { name: 'Dashboard', href: '/admin/dashboard', icon: Activity },

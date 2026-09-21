@@ -1,7 +1,10 @@
+'use client';
+
 /**
  * Admin-route shared skeletons: inline table rows and the full admin shell.
  */
 
+import { useInsideAdminShell } from '@/components/admin/AdminShellContext';
 import React from 'react';
 import { Sk } from './_primitives';
 
@@ -48,6 +51,21 @@ export function AdminTableRowsSkeleton({ rows = 6, cols = 5 }: { rows?: number; 
 }
 
 export function AdminLayoutSkeleton({ children }: { children: React.ReactNode }) {
+  /**
+   * When a real shell is already mounted (app/admin/layout.tsx), render only
+   * the content skeleton. The chrome below is a SECOND shell — and a visibly
+   * different one: its sidebar is `bg-blue-900`, a dark blue from before the
+   * ResellerOS restyle. Pages swap to this while their session resolves, so
+   * every navigation used to flash paper -> dark blue -> paper. That flash was
+   * the reported "sidebar flickers like a broken UI element".
+   *
+   * The chrome is kept rather than deleted because this component is also
+   * used outside the /admin subtree, where there is no shell above it.
+   */
+  if (useInsideAdminShell()) {
+    return <>{children}</>;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex">
       <aside className="hidden lg:flex flex-col w-64 bg-blue-900 p-4 gap-2 shrink-0">
