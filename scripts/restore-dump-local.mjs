@@ -31,7 +31,15 @@ import { existsSync, statSync } from "node:fs";
 import { resolve, basename } from "node:path";
 
 const COMPOSE_SERVICE = "mongo";
-const DB_NAME = "dms";
+
+/**
+ * The target database is read from the RUNNING app's MONGODB_URI, never
+ * assumed. A dump carries the SOURCE database's name inside it, and
+ * production here is `domain-management` while the local app reads `dms` — so
+ * a plain restore lands the data in a database nothing reads, and a script
+ * that then counts its own hardcoded guess reports a successful restore of
+ * rows the app cannot see. That is what the first version of this file did.
+ */
 
 /**
  * The inertness rules live in lib/ops/stack-inertness.ts and are unit-tested
@@ -108,6 +116,12 @@ const envMap = Object.fromEntries(
   })
 );
 
+const targetUri = envMap.MONGODB_URI ?? "";
+const DB_NAME = (targetUri.match(/\/([^/?]+)(\?|$)/) || [])[1];
+if (!DB_NAME) {
+  fail(`could not read a database name from the container's MONGODB_URI. Got: ${targetUri || "(unset)"}`);
+}
+
 const report = assessStackInertness(envMap);
 if (!report.inert) {
   console.error(`
@@ -138,9 +152,39 @@ console.log("  --drop is used, so the LOCAL database is replaced. Production is 
 const inContainer = `/tmp/${basename(dumpPath)}`;
 try {
   execFileSync("docker", ["compose", "cp", dumpPath, `${COMPOSE_SERVICE}:${inContainer}`], { stdio: "inherit" });
+  // --nsFrom/--nsTo remaps the database the dump was taken from onto the one
+  // this stack reads. Without it the rows land under the SOURCE name and the
+  // app sees an empty database — production here is `domain-management` while
+  // the local app reads `dms`.
+  //
+  // The source name comes from the archive itself ("archive prelude
+  // <db>.<collection>", only at -vvv), not from a flag or a guess: a wrong
+  // value here silently restores nothing. mongorestore requires the same
+  // number of wildcards on both sides, so `*.*` -> `dms.*` is rejected and
+  // the concrete name is needed.
+  let sourceDb = null;
+  try {
+    const prelude = composeExec([
+      "exec", "-T", COMPOSE_SERVICE, "sh", "-c",
+      `mongorestore --archive=${inContainer} ${isArchive ? "--gzip" : ""} --dryRun -vvv 2>&1 | grep -m1 -oE "archive prelude .[^.]+" || true`,
+    ]);
+    const m = prelude.match(/archive prelude .([A-Za-z0-9_-]+)/);
+    if (m) sourceDb = m[1];
+  } catch {
+    /* fall through to the explicit failure below */
+  }
+  if (!sourceDb) {
+    fail(
+      "could not read the source database name out of the archive.\n" +
+        "  Without it the rows would restore under the wrong name and the app\n" +
+        "  would see an empty database. Check the dump is a valid --archive."
+    );
+  }
+  console.log(`  Dump's database: '${sourceDb}'  ->  restoring as '${DB_NAME}'`);
+  const ns = ["--nsFrom", `${sourceDb}.*`, "--nsTo", `${DB_NAME}.*`];
   const restoreArgs = isArchive
-    ? ["exec", "-T", COMPOSE_SERVICE, "mongorestore", "--drop", "--gzip", `--archive=${inContainer}`]
-    : ["exec", "-T", COMPOSE_SERVICE, "mongorestore", "--drop", inContainer];
+    ? ["exec", "-T", COMPOSE_SERVICE, "mongorestore", "--drop", "--gzip", `--archive=${inContainer}`, ...ns]
+    : ["exec", "-T", COMPOSE_SERVICE, "mongorestore", "--drop", inContainer, ...ns];
   composeExec(restoreArgs, { inherit: true });
 } catch (err) {
   fail(`mongorestore failed: ${err instanceof Error ? err.message : String(err)}`);

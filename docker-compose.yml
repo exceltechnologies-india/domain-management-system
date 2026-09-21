@@ -37,7 +37,11 @@ name: dms-engine-local
 
 services:
   mongo:
-    image: mongo:7
+    # mongo:8 to match production. mongorestore refuses to vouch for a
+    # cross-major restore — an 8.0 dump into 7.0 warns "the restored data may
+    # be corrupted" and then proceeds, which is the worst of both. Pin to what
+    # Atlas actually runs so a production dump lands intact.
+    image: mongo:8
     restart: unless-stopped
     # No published port. Nothing outside the compose network needs to reach it,
     # and an exposed unauthenticated Mongo on a laptop is a genuine hazard —
