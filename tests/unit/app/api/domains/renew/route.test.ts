@@ -5,6 +5,21 @@
  * expiry; POST executes the renewal after payment confirmation.
  *
  * Threat model:
+ *  - **IDOR / renewing somebody else's domain**: POST spends the
+ *    reseller's balance at the registrar. Until 2026-09-21 it checked
+ *    only that the caller was signed in, so any customer could renew
+ *    any domain in the account. Pinned: a domain not on one of the
+ *    caller's own orders must 404 and must NOT reach rcRenewDomain.
+ *    404 (not 403) is deliberate — findOrderByDomainForUser's docstring
+ *    makes "not yours" and "not there" indistinguishable. GET carries
+ *    the same gate: it answers expiry, and forwards ResellerClub's
+ *    "Domain not in your reseller account" verbatim.
+ *  - **Renewal without payment**: the body used to take a free-text
+ *    `paymentId` nothing verified, and the only caller fabricated one,
+ *    so every renewal was free. Pinned: verifyRazorpayPayment must run
+ *    BEFORE rcRenewDomain, and its refusal must stop the spend.
+ *  - **Replayed payment**: one captured payment must fund one order.
+ *    Pinned: a payment id already on an order → 409, no registrar call.
  *  - **Order/domain-list write on FAILED renewal**: a refactor that
  *    writes createOrder + appendUserDomain BEFORE checking the RC
  *    outcome would leave phantom "renewed" rows when the registrar
@@ -17,7 +32,13 @@
  * Other pins:
  *  - GET zod query: domainName trim+lower 3-253; years coerced int
  *    1-10 default-1
- *  - POST zod body: paymentId required (≥1 char)
+ *  - POST zod body: both Razorpay ids required (≥1 char); signature
+ *    optional (the Tokens/mandate flow returns none — see
+ *    lib/services/payment/verification.ts)
+ *  - createOrder passes razorpayOrderId + razorpayPaymentId, which the
+ *    Order schema marks required. Omitting them threw a ValidationError
+ *    into the catch on EVERY run, after the registrar had been charged.
+ *    Pinned, because the mocked orders service cannot see it.
  *  - GET pricing error → 500 with the RC message
  *  - POST 3-branch outcome dispatch:
  *      renewed → 200 + createOrder + appendUserDomain + new-expiry-date
@@ -49,7 +70,20 @@ vi.mock("@/lib/integrations/resellerclub", () => ({
 }));
 
 const createOrder = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/services/orders", () => ({ createOrder }));
+const findOrderByDomainForUser = vi.hoisted(() => vi.fn());
+const findOrderDomain = vi.hoisted(() => vi.fn());
+const getOrderByRazorpayPaymentId = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/services/orders", () => ({
+  createOrder,
+  findOrderByDomainForUser,
+  findOrderDomain,
+  getOrderByRazorpayPaymentId,
+}));
+
+const verifyRazorpayPayment = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/services/payment/verification", () => ({
+  verifyRazorpayPayment,
+}));
 
 const appendUserDomain = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/users", () => ({ appendUserDomain }));
@@ -88,6 +122,16 @@ const user = {
   lastName: "Smith",
 };
 
+/** The Razorpay half of a valid body. Spread into POST payloads. */
+const PAID = {
+  razorpay_order_id: "order_RZP1",
+  razorpay_payment_id: "pay_RZP1",
+  razorpay_signature: "sig_RZP1",
+};
+
+/** An order of the caller's that contains the domain under test. */
+const ownedOrder = { orderId: "ORD-1", domains: [{ domainName: "x.com" }] };
+
 beforeEach(() => {
   getUserFromRequest.mockReset().mockResolvedValue(user);
   getRenewalPricing.mockReset();
@@ -95,6 +139,15 @@ beforeEach(() => {
   rcRenewDomain.mockReset();
   createOrder.mockReset().mockImplementation(async (data) => data);
   appendUserDomain.mockReset().mockResolvedValue(undefined);
+  // Default: the caller owns the domain, the payment is good, and it has
+  // not been spent. Each gate's own describe block overrides one of these,
+  // so a test that fails does so for exactly one stated reason.
+  findOrderByDomainForUser.mockReset().mockResolvedValue(ownedOrder);
+  findOrderDomain.mockReset().mockReturnValue({ domainName: "x.com" });
+  getOrderByRazorpayPaymentId.mockReset().mockResolvedValue(null);
+  verifyRazorpayPayment
+    .mockReset()
+    .mockResolvedValue({ ok: true, paymentDetails: { status: "captured" } });
 });
 
 // ─────────────────────────── GET ─────────────────────────────
@@ -156,6 +209,25 @@ describe("GET — zod query schema", () => {
   });
 });
 
+describe("GET — ownership gate", () => {
+  it("domain not on one of the caller's orders → 404, no RC lookup", async () => {
+    findOrderByDomainForUser.mockResolvedValueOnce(null);
+    const res = await GET(makeGet("domainName=x.com&years=1"));
+    expect(res.status).toBe(404);
+    // Without this, GET answers "when does this domain expire" and forwards
+    // RC's "Domain not in your reseller account" for any domain asked about.
+    expect(getRenewalPricing).not.toHaveBeenCalled();
+    expect(getDomainExpiry).not.toHaveBeenCalled();
+  });
+
+  it("scoped to the caller", async () => {
+    getRenewalPricing.mockResolvedValueOnce({ status: "success", data: {} });
+    getDomainExpiry.mockResolvedValueOnce({ status: "success", data: {} });
+    await GET(makeGet("domainName=x.com&years=1"));
+    expect(findOrderByDomainForUser).toHaveBeenCalledWith("U1", "x.com");
+  });
+});
+
 describe("GET — pricing error", () => {
   it("getRenewalPricing status=error → 500 with the RC message", async () => {
     getRenewalPricing.mockResolvedValueOnce({
@@ -201,7 +273,7 @@ describe("POST — auth gate", () => {
   it("no user → 401", async () => {
     getUserFromRequest.mockResolvedValueOnce(null);
     const res = await POST(
-      makePost({ domainName: "x.com", years: 1, paymentId: "pay_123" })
+      makePost({ domainName: "x.com", years: 1, ...PAID })
     );
     expect(res.status).toBe(401);
     expect(rcRenewDomain).not.toHaveBeenCalled();
@@ -209,40 +281,200 @@ describe("POST — auth gate", () => {
 });
 
 describe("POST — zod body schema", () => {
-  it("missing paymentId → 400", async () => {
+  it("no payment fields at all → 400, nothing spent", async () => {
+    // This is the old body shape — `{domainName, years, paymentId}` — which
+    // is what the modal sent with its fabricated id. It must no longer be
+    // accepted by anything.
     const res = await POST(
-      makePost({ domainName: "x.com", years: 1 })
+      makePost({ domainName: "x.com", years: 1, paymentId: "renew_123_abc" })
     );
     expect(res.status).toBe(400);
     expect(rcRenewDomain).not.toHaveBeenCalled();
   });
 
+  it("razorpay_order_id missing → 400", async () => {
+    const res = await POST(
+      makePost({
+        domainName: "x.com",
+        years: 1,
+        razorpay_payment_id: "pay_RZP1",
+      })
+    );
+    expect(res.status).toBe(400);
+    expect(rcRenewDomain).not.toHaveBeenCalled();
+  });
+
+  it("razorpay_payment_id missing → 400", async () => {
+    const res = await POST(
+      makePost({
+        domainName: "x.com",
+        years: 1,
+        razorpay_order_id: "order_RZP1",
+      })
+    );
+    expect(res.status).toBe(400);
+    expect(rcRenewDomain).not.toHaveBeenCalled();
+  });
+
+  it("signature absent → allowed (Tokens/mandate flow returns none)", async () => {
+    rcRenewDomain.mockResolvedValueOnce({
+      kind: "renewed",
+      orderId: "E1",
+      price: 100,
+    });
+    const res = await POST(
+      makePost({
+        domainName: "x.com",
+        years: 1,
+        razorpay_order_id: "order_RZP1",
+        razorpay_payment_id: "pay_RZP1",
+      })
+    );
+    expect(res.status).toBe(200);
+    // ...and the absent signature is stored as "" rather than undefined,
+    // which is what the Order schema's default expects.
+    expect(createOrder.mock.calls[0][0].razorpaySignature).toBe("");
+  });
+
   it("years=0 → 400 (positive)", async () => {
     const res = await POST(
-      makePost({ domainName: "x.com", years: 0, paymentId: "p" })
+      makePost({ domainName: "x.com", years: 0, ...PAID })
     );
     expect(res.status).toBe(400);
   });
 
   it("years=-1 → 400 (positive)", async () => {
     const res = await POST(
-      makePost({ domainName: "x.com", years: -1, paymentId: "p" })
+      makePost({ domainName: "x.com", years: -1, ...PAID })
     );
     expect(res.status).toBe(400);
   });
 
   it("years=1.5 (float) → 400 (int)", async () => {
     const res = await POST(
-      makePost({ domainName: "x.com", years: 1.5, paymentId: "p" })
+      makePost({ domainName: "x.com", years: 1.5, ...PAID })
     );
     expect(res.status).toBe(400);
   });
 
   it("years > 10 → 400", async () => {
     const res = await POST(
-      makePost({ domainName: "x.com", years: 11, paymentId: "p" })
+      makePost({ domainName: "x.com", years: 11, ...PAID })
     );
     expect(res.status).toBe(400);
+  });
+});
+
+describe("POST — ownership gate (IDOR)", () => {
+  const BODY = { domainName: "x.com", years: 1, ...PAID };
+
+  it("domain on nobody's order for this user → 404, registrar NOT called", async () => {
+    findOrderByDomainForUser.mockResolvedValueOnce(null);
+    const res = await POST(makePost(BODY));
+    expect(res.status).toBe(404);
+    // The whole point: no money leaves before this gate.
+    expect(rcRenewDomain).not.toHaveBeenCalled();
+    expect(verifyRazorpayPayment).not.toHaveBeenCalled();
+    expect(createOrder).not.toHaveBeenCalled();
+  });
+
+  it("order found but the domain is not in it → 404, registrar NOT called", async () => {
+    // findOrderByDomainForUser matches on "domains.domainName", so a hit
+    // means the array contains it — but the second lookup is the one that
+    // returns the subdoc, and a mismatch there must not fall through.
+    findOrderDomain.mockReturnValueOnce(undefined);
+    const res = await POST(makePost(BODY));
+    expect(res.status).toBe(404);
+    expect(rcRenewDomain).not.toHaveBeenCalled();
+  });
+
+  it("the ownership query is scoped to the CALLER, not just the domain", async () => {
+    rcRenewDomain.mockResolvedValueOnce({ kind: "renewed", orderId: "E1", price: 1 });
+    await POST(makePost(BODY));
+    expect(findOrderByDomainForUser).toHaveBeenCalledWith("U1", "x.com");
+  });
+
+  it("404 copy does not confirm the domain exists", async () => {
+    findOrderByDomainForUser.mockResolvedValueOnce(null);
+    const res = await POST(makePost(BODY));
+    const body = await res.json();
+    // "not on your account" — never "belongs to another customer", which
+    // would turn this endpoint into a lookup for who owns what.
+    expect(body.error).toMatch(/could not find that domain on your account/i);
+    expect(body.error).not.toMatch(/another|other customer|owned by/i);
+  });
+});
+
+describe("POST — payment gate", () => {
+  const BODY = { domainName: "x.com", years: 1, ...PAID };
+
+  it("verification refused → its response is returned, registrar NOT called", async () => {
+    verifyRazorpayPayment.mockResolvedValueOnce({
+      ok: false,
+      response: NextResponse.json({ error: "Invalid signature" }, { status: 400 }),
+    });
+    const res = await POST(makePost(BODY));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Invalid signature" });
+    expect(rcRenewDomain).not.toHaveBeenCalled();
+    expect(createOrder).not.toHaveBeenCalled();
+  });
+
+  it("the claimed ids are what get verified", async () => {
+    rcRenewDomain.mockResolvedValueOnce({ kind: "renewed", orderId: "E1", price: 1 });
+    await POST(makePost(BODY));
+    expect(verifyRazorpayPayment).toHaveBeenCalledWith({
+      razorpay_order_id: "order_RZP1",
+      razorpay_payment_id: "pay_RZP1",
+      razorpay_signature: "sig_RZP1",
+    });
+  });
+
+  it("payment already on an order → 409, registrar NOT called", async () => {
+    getOrderByRazorpayPaymentId.mockResolvedValueOnce({ orderId: "ORD-EARLIER" });
+    const res = await POST(makePost(BODY));
+    expect(res.status).toBe(409);
+    // A replay must not renew a second time on one charge.
+    expect(rcRenewDomain).not.toHaveBeenCalled();
+    expect(createOrder).not.toHaveBeenCalled();
+  });
+
+  it("replay check keys on razorpayPaymentId, not the legacy paymentId", async () => {
+    rcRenewDomain.mockResolvedValueOnce({ kind: "renewed", orderId: "E1", price: 1 });
+    await POST(makePost(BODY));
+    expect(getOrderByRazorpayPaymentId).toHaveBeenCalledWith("pay_RZP1");
+  });
+});
+
+describe("POST — gate ORDER (both run before the registrar)", () => {
+  it("ownership is checked before payment is verified", async () => {
+    // Not cosmetic: verifying a payment for a domain you do not own would
+    // charge the customer for a renewal the route then refuses.
+    findOrderByDomainForUser.mockResolvedValueOnce(null);
+    await POST(makePost({ domainName: "x.com", years: 1, ...PAID }));
+    expect(verifyRazorpayPayment).not.toHaveBeenCalled();
+  });
+
+  it("every gate precedes rcRenewDomain on the happy path", async () => {
+    const order: string[] = [];
+    findOrderByDomainForUser.mockImplementationOnce(async () => {
+      order.push("own");
+      return ownedOrder;
+    });
+    verifyRazorpayPayment.mockImplementationOnce(async () => {
+      order.push("pay");
+      return { ok: true, paymentDetails: { status: "captured" } };
+    });
+    getOrderByRazorpayPaymentId.mockImplementationOnce(async () => {
+      order.push("replay");
+      return null;
+    });
+    rcRenewDomain.mockImplementationOnce(async () => {
+      order.push("spend");
+      return { kind: "renewed", orderId: "E1", price: 1 };
+    });
+    await POST(makePost({ domainName: "x.com", years: 1, ...PAID }));
+    expect(order).toEqual(["own", "pay", "replay", "spend"]);
   });
 });
 
@@ -250,7 +482,7 @@ describe("POST — RC 3-branch outcome dispatch", () => {
   const VALID = {
     domainName: "x.com",
     years: 2,
-    paymentId: "pay_abc",
+    ...PAID,
   };
 
   it("renewed → 200 + createOrder + appendUserDomain + new-expiry math", async () => {
@@ -275,7 +507,9 @@ describe("POST — RC 3-branch outcome dispatch", () => {
         userId: "U1",
         userEmail: "alice@example.com",
         userName: "Alice Smith",
-        paymentId: "pay_abc",
+        razorpayOrderId: "order_RZP1",
+        razorpayPaymentId: "pay_RZP1",
+        razorpaySignature: "sig_RZP1",
         amount: 1500,
         currency: "INR",
         status: "completed",
@@ -352,7 +586,7 @@ describe("POST — userName template-literal", () => {
   const VALID = {
     domainName: "x.com",
     years: 1,
-    paymentId: "p",
+    ...PAID,
   };
 
   it("Both names present → 'Alice Smith'", async () => {
@@ -389,7 +623,7 @@ describe("POST — outer catch", () => {
       new Error("RC SDK crash — rc_secret_LEAK_ME")
     );
     const res = await POST(
-      makePost({ domainName: "x.com", years: 1, paymentId: "p" })
+      makePost({ domainName: "x.com", years: 1, ...PAID })
     );
     expect(res.status).toBe(500);
     const body = await res.json();

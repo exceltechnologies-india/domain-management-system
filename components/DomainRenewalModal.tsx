@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { X, Calendar, CreditCard, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
 import { formatIndianDate, formatIndianCurrency } from '@/lib/dateUtils';
 import { toast } from 'react-hot-toast';
@@ -30,9 +31,9 @@ export default function DomainRenewalModal({
   onClose,
   domainName
 }: DomainRenewalModalProps) {
+  const router = useRouter();
   const [renewalInfo, setRenewalInfo] = useState<RenewalInfo | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [selectedYears, setSelectedYears] = useState(1);
   const [expiryDate, setExpiryDate] = useState<string>('');
 
@@ -68,39 +69,35 @@ export default function DomainRenewalModal({
     }
   }, [isOpen, loadRenewalInfo]);
 
-  const handleRenewal = async () => {
-    if (!renewalInfo) return;
-
-    setIsProcessing(true);
-    try {
-      // Create a mock payment ID for testing
-      const paymentId = `renew_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-      const response = await fetch('/api/v1/domains/renew', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          domainName,
-          years: selectedYears,
-          paymentId,
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        toast.success(`Domain renewed successfully for ${selectedYears} year(s)!`);
-        onClose();
-      } else {
-        const error = await response.json();
-        toast.error(error.error || 'Failed to renew domain');
-      }
-    } catch (error) {
-      // Error renewing domain
-      toast.error('Failed to renew domain');
-    } finally {
-      setIsProcessing(false);
-    }
+  /**
+   * This used to invent a payment id —
+   *   `renew_${Date.now()}_${Math.random()...}`, commented "mock payment ID
+   *   for testing" — and POST it to /api/v1/domains/renew.
+   *
+   * Nothing charged the customer. The route took the made-up id at face
+   * value and renewed the domain at ResellerClub, so every click spent the
+   * reseller's balance and gave the renewal away. It then failed to write
+   * its order row (two required schema fields were never passed) and
+   * answered 500, so the customer saw "Failed to renew domain" over a
+   * renewal that had really happened — and a second click spent it again.
+   *
+   * The route now requires a verified Razorpay payment. Building the
+   * checkout that produces one needs a retail renewal price, which does not
+   * exist in this codebase yet (see the route header). Until it does, the
+   * honest thing is to say so and hand the customer somewhere real, rather
+   * than fire a request that cannot succeed.
+   */
+  const handleRenewal = () => {
+    // Plain path, no query string: the support page keeps `subject` in local
+    // state and never reads useSearchParams, so a ?subject= would be dropped
+    // in silence. The toast carries the details instead, so there is still
+    // something to copy.
+    toast.error(
+      `Online renewal is not available yet. Please raise a support request to renew ${domainName} for ${selectedYears} year(s) and our team will do it for you.`,
+      { duration: 8000 }
+    );
+    router.push('/dashboard/support');
+    onClose();
   };
 
   const formatDate = (dateString: string) => {
@@ -263,22 +260,15 @@ export default function DomainRenewalModal({
                 >
                   Cancel
                 </button>
+                {/* No processing state: this no longer submits anything, it
+                    hands off to support. The spinner it used to show was for
+                    the POST that spent the reseller's balance. */}
                 <button
                   onClick={handleRenewal}
-                  disabled={isProcessing}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
                 >
-                  {isProcessing ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 animate-spin mr-2" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <CreditCard className="h-4 w-4 mr-2" />
-                      Renew Domain
-                    </>
-                  )}
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  Renew Domain
                 </button>
               </div>
             </div>
