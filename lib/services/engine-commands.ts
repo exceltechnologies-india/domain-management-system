@@ -24,6 +24,7 @@ import EngineCommand, {
 } from "@/models/EngineCommand";
 import EngineSubjectClaim from "@/models/EngineSubjectClaim";
 import type { Transport } from "@/lib/integrations/transport";
+import { reconcileCommand, statusForVerdict } from "@/lib/integrations/engine-reconcile";
 
 /** Mongo's duplicate-key error. The unique index IS the concurrency control. */
 const DUPLICATE_KEY = 11000;
@@ -249,3 +250,128 @@ export function isDuplicateKeyError(err: unknown): boolean {
 }
 
 export { mongoose };
+
+// ─── Recovery ────────────────────────────────────────────────────────────────
+// Built before the commands that need it (Phase 5 before Phase 6+), because a
+// stuck command with no way out is worse than a command that was never sent.
+
+/** Commands waiting on a human, oldest first — the ones holding a subject. */
+export async function listStuckCommands(limit = 100): Promise<IEngineCommand[]> {
+  await connectDB();
+  return EngineCommand.find({ status: "needs_reconciliation" })
+    .sort({ createdAt: 1 })
+    .limit(limit);
+}
+
+export type SettleOutcome =
+  | { ok: true; settled: true; status: "succeeded" | "failed"; detail: string }
+  /** Nothing was learned. The claim stays held and a human is still needed. */
+  | { ok: true; settled: false; detail: string }
+  | { ok: false; reason: "not_found" | "not_stuck"; detail: string };
+
+/**
+ * Ask the provider what happened, and settle the command if it answers.
+ *
+ * Only runs against `needs_reconciliation`. Refusing to touch anything else is
+ * not pedantry: a settled command has already released its claim, so
+ * "reconciling" it again would ask the provider about work that finished
+ * normally, and an ambiguous answer could then reopen it.
+ */
+export async function settleCommand(commandId: string): Promise<SettleOutcome> {
+  await connectDB();
+  const doc = await EngineCommand.findOne({ commandId });
+  if (!doc) {
+    return { ok: false, reason: "not_found", detail: `No command ${commandId}.` };
+  }
+  if (doc.status !== "needs_reconciliation") {
+    return {
+      ok: false,
+      reason: "not_stuck",
+      detail:
+        `Command ${commandId} is "${doc.status}", not awaiting reconciliation. ` +
+        `Only a command whose outcome is genuinely unknown can be settled.`,
+    };
+  }
+
+  const { verdict, detail } = await reconcileCommand(doc.command, {
+    subject: doc.subject,
+    request: (doc.request ?? {}) as Record<string, unknown>,
+  });
+
+  const status = statusForVerdict(verdict);
+  if (!status) {
+    serverLogger.warn(
+      `[engine] ${commandId} still unsettled after reconciliation: ${detail}`
+    );
+    return { ok: true, settled: false, detail };
+  }
+
+  await EngineCommand.updateOne(
+    { commandId },
+    {
+      $set: {
+        status,
+        error: status === "failed" ? detail : undefined,
+        completedAt: new Date(),
+        note: `settled by reconciliation: ${detail}`,
+      },
+    }
+  );
+  await releaseSubjectClaim(doc.command, doc.subject, doc.commandId);
+  serverLogger.info(`[engine] ${commandId} settled as ${status}: ${detail}`);
+  return { ok: true, settled: true, status, detail };
+}
+
+export type OperatorDecision = "resolve" | "requeue";
+
+/**
+ * A human settles what the machine could not.
+ *
+ * `resolve`  — "I looked; the work DID happen." Marks succeeded.
+ * `requeue`  — "I looked; it did NOT happen." Marks failed and frees the
+ *              subject so a NEW command may be sent.
+ *
+ * Requeue deliberately does NOT retry. It releases the lock and stops. An
+ * automatic retry here would re-run something whose outcome a human has just
+ * had to establish by hand — and if they were wrong, the retry is the second
+ * registration. Sending the new command is a separate, deliberate act with its
+ * own commandId.
+ *
+ * `who` and `why` are required. An audit row that says a claim was freed but
+ * not by whom or on what evidence is the kind of record that is worse than
+ * none: it looks like accountability.
+ */
+export async function decideStuckCommand(input: {
+  commandId: string;
+  decision: OperatorDecision;
+  who: string;
+  why: string;
+}): Promise<SettleOutcome> {
+  await connectDB();
+  const doc = await EngineCommand.findOne({ commandId: input.commandId });
+  if (!doc) {
+    return { ok: false, reason: "not_found", detail: `No command ${input.commandId}.` };
+  }
+  if (doc.status !== "needs_reconciliation") {
+    return {
+      ok: false,
+      reason: "not_stuck",
+      detail: `Command ${input.commandId} is "${doc.status}" — there is nothing to decide.`,
+    };
+  }
+
+  const status = input.decision === "resolve" ? "succeeded" : "failed";
+  const note =
+    `${input.decision} by ${input.who}: ${input.why}` +
+    (input.decision === "requeue"
+      ? " — the subject is free again; send a NEW commandId to retry."
+      : "");
+
+  await EngineCommand.updateOne(
+    { commandId: input.commandId },
+    { $set: { status, completedAt: new Date(), note, error: status === "failed" ? note : undefined } }
+  );
+  await releaseSubjectClaim(doc.command, doc.subject, doc.commandId);
+  serverLogger.warn(`[engine] ${input.commandId} ${input.decision}d by ${input.who}: ${input.why}`);
+  return { ok: true, settled: true, status, detail: note };
+}

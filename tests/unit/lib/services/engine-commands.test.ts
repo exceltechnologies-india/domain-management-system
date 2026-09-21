@@ -32,12 +32,14 @@ const commandCreate = vi.hoisted(() => vi.fn());
 const commandFindOne = vi.hoisted(() => vi.fn());
 const commandFindOneAndUpdate = vi.hoisted(() => vi.fn());
 const commandUpdateOne = vi.hoisted(() => vi.fn());
+const commandFind = vi.hoisted(() => vi.fn());
 vi.mock("@/models/EngineCommand", () => ({
   default: {
     create: commandCreate,
     findOne: commandFindOne,
     findOneAndUpdate: commandFindOneAndUpdate,
     updateOne: commandUpdateOne,
+    find: commandFind,
   },
 }));
 
@@ -54,6 +56,8 @@ vi.mock("@/lib/server-logger", () => ({
 }));
 
 import {
+  settleCommand,
+  decideStuckCommand,
   acquireSubjectClaim,
   releaseSubjectClaim,
   startCommand,
@@ -72,6 +76,7 @@ beforeEach(() => {
   claimCreate.mockReset();
   claimFindOne.mockReset();
   claimDeleteOne.mockReset().mockResolvedValue({ deletedCount: 1 });
+  commandFind.mockReset();
 });
 
 describe("acquireSubjectClaim", () => {
@@ -227,6 +232,99 @@ describe("releaseAfterReconciliation", () => {
   it("unknown commandId → false, nothing deleted", async () => {
     commandFindOne.mockResolvedValueOnce(null);
     await expect(releaseAfterReconciliation("nope")).resolves.toBe(false);
+    expect(claimDeleteOne).not.toHaveBeenCalled();
+  });
+});
+
+
+// ─── Recovery ────────────────────────────────────────────────────────────────
+
+describe("settleCommand — only acts on a definite answer", () => {
+  const stuck = {
+    commandId: "cmd-1",
+    command: "domain.register",
+    subject: "example.com",
+    status: "needs_reconciliation",
+    request: {},
+  };
+
+  it("refuses a command that is not stuck", async () => {
+    // A settled command has already released its claim. Reconciling it again
+    // would ask the provider about finished work, and an ambiguous answer
+    // could reopen it.
+    commandFindOne.mockResolvedValueOnce({ ...stuck, status: "succeeded" });
+    const r = await settleCommand("cmd-1");
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toBe("not_stuck");
+    expect(claimDeleteOne).not.toHaveBeenCalled();
+  });
+
+  it("refuses an unknown commandId", async () => {
+    commandFindOne.mockResolvedValueOnce(null);
+    const r = await settleCommand("nope");
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toBe("not_found");
+  });
+
+  it("no reconciler → NOT settled, and the claim stays held", async () => {
+    // This is the important one: with no way to check, the subject must stay
+    // locked. Releasing it here is how the same domain gets registered twice.
+    commandFindOne.mockResolvedValueOnce(stuck);
+    const r = await settleCommand("cmd-1");
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.settled).toBe(false);
+    expect(claimDeleteOne).not.toHaveBeenCalled();
+    expect(commandUpdateOne).not.toHaveBeenCalled();
+  });
+});
+
+describe("decideStuckCommand — a human settles what the machine could not", () => {
+  const stuck = {
+    commandId: "cmd-1",
+    command: "domain.register",
+    subject: "example.com",
+    status: "needs_reconciliation",
+  };
+
+  it("resolve → succeeded, and frees the subject", async () => {
+    commandFindOne.mockResolvedValueOnce(stuck);
+    const r = await decideStuckCommand({
+      commandId: "cmd-1", decision: "resolve", who: "pardeep", why: "domain is live in RC",
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok && r.settled) expect(r.status).toBe("succeeded");
+    expect(claimDeleteOne).toHaveBeenCalledWith({
+      command: "domain.register", subject: "example.com", commandId: "cmd-1",
+    });
+  });
+
+  it("requeue → failed, frees the subject, and does NOT retry", async () => {
+    commandFindOne.mockResolvedValueOnce(stuck);
+    const r = await decideStuckCommand({
+      commandId: "cmd-1", decision: "requeue", who: "pardeep", why: "not in RC",
+    });
+    if (r.ok && r.settled) expect(r.status).toBe("failed");
+    // Nothing re-runs. An automatic retry would re-do work a human has just
+    // had to establish by hand — and if they were wrong, it is the second one.
+    expect(r.ok && r.settled && r.detail).toMatch(/send a NEW commandId/i);
+  });
+
+  it("records who and why on the row", async () => {
+    commandFindOne.mockResolvedValueOnce(stuck);
+    await decideStuckCommand({
+      commandId: "cmd-1", decision: "resolve", who: "pardeep", why: "checked the console",
+    });
+    const note = commandUpdateOne.mock.calls[0][1].$set.note as string;
+    expect(note).toContain("pardeep");
+    expect(note).toContain("checked the console");
+  });
+
+  it("refuses a command that is not stuck", async () => {
+    commandFindOne.mockResolvedValueOnce({ ...stuck, status: "failed" });
+    const r = await decideStuckCommand({
+      commandId: "cmd-1", decision: "resolve", who: "x", why: "y",
+    });
+    expect(r.ok).toBe(false);
     expect(claimDeleteOne).not.toHaveBeenCalled();
   });
 });
