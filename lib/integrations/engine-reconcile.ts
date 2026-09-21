@@ -22,6 +22,8 @@
  * for something they never got. Neither guess is cheaper than asking.
  */
 import type { KnownCommand } from "./engine-command-registry";
+import { reconcileDnsUpsert } from "./engine-handlers-dns";
+import { reconcileSuspend, reconcileUnsuspend } from "./engine-handlers-hosting";
 
 export type ReconcileVerdict =
   /** The provider confirms the work exists. The command really did succeed. */
@@ -54,7 +56,15 @@ export type Reconciler = (ctx: ReconcileContext) => Promise<ReconcileVerdict>;
  * Until then every command reconciles to `unknown` and waits for a human, which
  * is the honest state.
  */
-export const RECONCILERS: Partial<Record<KnownCommand, Reconciler>> = {};
+export const RECONCILERS: Partial<Record<KnownCommand, Reconciler>> = {
+  /* Phase 6. These three can have reconcilers because their effect is
+     OBSERVABLE afterwards as a pure read: "does this record hold this value",
+     "is this account suspended". A command whose effect cannot be observed
+     must NOT get a reconciler that guesses — see the header. */
+  "dns.record.upsert": reconcileDnsUpsert,
+  "hosting.suspend": reconcileSuspend,
+  "hosting.unsuspend": reconcileUnsuspend,
+};
 
 export function reconcilerFor(command: string): Reconciler | null {
   return RECONCILERS[command as KnownCommand] ?? null;

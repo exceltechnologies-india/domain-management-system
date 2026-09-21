@@ -26,15 +26,20 @@ import {
 
 const ctx = { subject: "example.com", request: {} };
 
-describe("no reconcilers exist yet, and that is the honest state", () => {
-  it("the registry is empty", () => {
-    // The day this fails, somebody added a reconciler — which is fine, but it
-    // must happen in the phase that builds the matching command, not before.
-    expect(Object.keys(RECONCILERS)).toEqual([]);
+describe("a reconciler exists only where the effect is observable", () => {
+  it("exactly the Phase 6 commands have one", () => {
+    // These three can be checked with a pure read: "does this record hold this
+    // value", "is this account suspended". Adding a fourth means claiming its
+    // effect is observable too — which is a decision, not a formality.
+    expect(Object.keys(RECONCILERS).sort()).toEqual([
+      "dns.record.upsert",
+      "hosting.suspend",
+      "hosting.unsuspend",
+    ]);
   });
 
   it.each(["domain.register", "domain.renew", "hosting.provision"])(
-    "%s has no reconciler",
+    "%s has no reconciler — its command is not built yet",
     (c) => expect(reconcilerFor(c)).toBeNull()
   );
 

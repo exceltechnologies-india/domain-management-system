@@ -40,15 +40,26 @@ describe("the contract's command names", () => {
 });
 
 describe("what can actually be performed", () => {
-  it("ONLY engine.selftest has a handler", () => {
-    expect(Object.keys(HANDLERS)).toEqual(["engine.selftest"]);
+  it("only the free, reversible commands are performable", () => {
+    // Phase 6 added DNS and suspend/unsuspend: a DNS record can be set back
+    // and a suspended account unsuspended, so a bug here is recoverable.
+    expect(Object.keys(HANDLERS).sort()).toEqual([
+      "dns.record.upsert",
+      "engine.selftest",
+      "hosting.suspend",
+      "hosting.unsuspend",
+    ]);
   });
 
-  it.each(
-    KNOWN_COMMANDS.filter((c) => c !== "engine.selftest")
-  )("%s has no handler — it must not be performable yet", (c) => {
-    expect(handlerFor(c)).toBeNull();
-  });
+  it.each(["hosting.provision", "hosting.change_plan", "domain.renew", "domain.register"])(
+    "%s still has NO handler — it spends money or cannot be undone",
+    (c) => {
+      // The day one of these gets a handler, this test fails and whoever added
+      // it has to come here and say so. That is the point: these are the ones
+      // whose guards are built in Phases 7-9.
+      expect(handlerFor(c as never)).toBeNull();
+    }
+  );
 
   it("the selftest handler contacts nothing and says so", async () => {
     const h = handlerFor("engine.selftest");

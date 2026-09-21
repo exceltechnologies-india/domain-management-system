@@ -7,11 +7,14 @@
  * "unknown command" would make a not-yet-built feature indistinguishable from a
  * typo, and the caller would go looking in the wrong place.
  *
- * Nothing here contacts a provider. The real handlers arrive in Phases 6-9, one
- * blast radius at a time: DNS and suspend first (free, reversible), then
- * hosting provision, then domain renew, and domain register last.
+ * Handlers arrive one blast radius at a time. Phase 6 added the free and
+ * reversible ones — DNS records, hosting suspend/unsuspend — which DO contact
+ * providers. Hosting provision (Phase 7), domain renew (8) and domain register
+ * (9) are still unhandled, because each spends money or cannot be undone.
  */
 import type { EngineMode } from "./engine-mode";
+import { upsertDnsRecord } from "./engine-handlers-dns";
+import { suspendHosting, unsuspendHosting } from "./engine-handlers-hosting";
 
 /** Every command the contract names, whether or not it is implemented. */
 export const KNOWN_COMMANDS = [
@@ -75,6 +78,12 @@ const selftest: CommandHandler = async (ctx) => ({
  */
 export const HANDLERS: Partial<Record<KnownCommand, CommandHandler>> = {
   "engine.selftest": selftest,
+  /* Phase 6 — free and reversible. A DNS record can be set back, a suspended
+     account can be unsuspended. Nothing below spends money; the ones that do
+     arrive in Phases 7-9, one blast radius at a time. */
+  "dns.record.upsert": upsertDnsRecord,
+  "hosting.suspend": suspendHosting,
+  "hosting.unsuspend": unsuspendHosting,
 };
 
 export function handlerFor(command: KnownCommand): CommandHandler | null {
