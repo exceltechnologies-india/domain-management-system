@@ -148,7 +148,7 @@ export default function ManageDomain() {
           <div className="mb-6">
             <button
               onClick={() => router.push('/dashboard/domains')}
-              className="flex items-center text-gray-600 hover:text-gray-900 mb-4 transition-colors"
+              className="flex items-center text-ink-2 hover:text-ink mb-4 transition-colors"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Domains
@@ -156,34 +156,34 @@ export default function ManageDomain() {
 
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center min-w-0">
-                <Globe className="h-8 w-8 text-blue-600 mr-3 shrink-0" />
+                <Globe className="h-8 w-8 text-amber mr-3 shrink-0" />
                 <div className="min-w-0">
-                  <h1 className="text-2xl font-bold text-gray-900 truncate">{domain.name}</h1>
-                  <p className="text-gray-500 text-sm">
+                  <h1 className="font-serif text-2xl font-bold text-ink truncate">{domain.name}</h1>
+                  <p className="text-ink-3 text-sm">
                     Expires on {formatIndianDateTime(domain.expiryDate)}
                   </p>
                 </div>
               </div>
-              <span className={`shrink-0 px-3 py-1 rounded-full text-sm font-medium ${domain.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+              <span className={`shrink-0 px-3 py-1 rounded-full text-sm font-medium ${domain.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-paper-2 text-ink'
                 }`}>
                 {domain.status.toUpperCase()}
               </span>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Nameservers</h2>
+          <div className="bg-paper rounded-lg shadow-sm border border-hairline overflow-hidden">
+            <div className="p-6 border-b border-hairline">
+              <h2 className="text-lg font-semibold text-ink mb-4">Nameservers</h2>
 
               {isHostedDomain && (
-                <div className="mb-6 bg-blue-50 border-l-4 border-blue-500 p-4 rounded-md">
+                <div className="mb-6 bg-indigo-soft border-l-4 border-indigo p-4 rounded-md">
                   <div className="flex">
                     <div className="flex-shrink-0">
-                      <CheckCircle className="h-5 w-5 text-blue-400" aria-hidden="true" />
+                      <CheckCircle className="h-5 w-5 text-indigo" aria-hidden="true" />
                     </div>
                     <div className="ml-3">
-                      <h3 className="text-sm font-medium text-blue-800">Managed by Hosting</h3>
-                      <div className="mt-2 text-sm text-blue-700">
+                      <h3 className="text-sm font-medium text-indigo-ink">Managed by Hosting</h3>
+                      <div className="mt-2 text-sm text-indigo-ink/80">
                         <p>
                           This domain is connected to your hosting package. Nameservers are automatically managed by your hosting setup to ensure your website and services work correctly.
                         </p>
@@ -195,7 +195,7 @@ export default function ManageDomain() {
 
               <div className="space-y-6">
                 <div className="flex flex-col sm:flex-row gap-4">
-                  <label className={`flex-1 relative border rounded-lg p-4 cursor-pointer transition-all ${nsMethod === 'default' ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                  <label className={`flex-1 relative border rounded-lg p-4 cursor-pointer transition-all ${nsMethod === 'default' ? 'border-amber bg-amber-soft ring-1 ring-amber' : 'border-hairline hover:border-hairline-strong hover:bg-paper-2'
                     }`}>
                     <input
                       type="radio"
@@ -206,20 +206,20 @@ export default function ManageDomain() {
                       className="sr-only"
                     />
                     <div className="flex items-center mb-1">
-                      <div className={`w-4 h-4 rounded-full border mr-2 flex items-center justify-center ${nsMethod === 'default' ? 'border-blue-600' : 'border-gray-400'
+                      <div className={`w-4 h-4 rounded-full border mr-2 flex items-center justify-center ${nsMethod === 'default' ? 'border-amber' : 'border-hairline-strong'
                         }`}>
-                        {nsMethod === 'default' && <div className="w-2 h-2 rounded-full bg-blue-600" />}
+                        {nsMethod === 'default' && <div className="w-2 h-2 rounded-full bg-amber" />}
                       </div>
-                      <span className={`font-medium ${nsMethod === 'default' ? 'text-blue-900' : 'text-gray-900'}`}>
+                      <span className={`font-medium ${nsMethod === 'default' ? 'text-amber-ink' : 'text-ink'}`}>
                         Default Nameservers
                       </span>
                     </div>
-                    <p className={`text-sm ml-6 ${nsMethod === 'default' ? 'text-blue-700' : 'text-gray-500'}`}>
+                    <p className={`text-sm ml-6 ${nsMethod === 'default' ? 'text-amber-ink' : 'text-ink-3'}`}>
                       Use our secure, managed nameservers
                     </p>
                   </label>
 
-                  <label className={`flex-1 relative border rounded-lg p-4 cursor-pointer transition-all ${nsMethod === 'custom' ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'} ${isHostedDomain ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                  <label className={`flex-1 relative border rounded-lg p-4 cursor-pointer transition-all ${nsMethod === 'custom' ? 'border-amber bg-amber-soft ring-1 ring-amber' : 'border-hairline hover:border-hairline-strong hover:bg-paper-2'} ${isHostedDomain ? 'opacity-50 cursor-not-allowed' : ''}`}>
                     <input
                       type="radio"
                       name="nsMethod"
@@ -230,36 +230,36 @@ export default function ManageDomain() {
                       className="sr-only"
                     />
                     <div className="flex items-center mb-1">
-                      <div className={`w-4 h-4 rounded-full border mr-2 flex items-center justify-center ${nsMethod === 'custom' ? 'border-blue-600' : 'border-gray-400'
+                      <div className={`w-4 h-4 rounded-full border mr-2 flex items-center justify-center ${nsMethod === 'custom' ? 'border-amber' : 'border-hairline-strong'
                         }`}>
-                        {nsMethod === 'custom' && <div className="w-2 h-2 rounded-full bg-blue-600" />}
+                        {nsMethod === 'custom' && <div className="w-2 h-2 rounded-full bg-amber" />}
                       </div>
-                      <span className={`font-medium ${nsMethod === 'custom' ? 'text-blue-900' : 'text-gray-900'}`}>
+                      <span className={`font-medium ${nsMethod === 'custom' ? 'text-amber-ink' : 'text-ink'}`}>
                         Custom Nameservers
                       </span>
                     </div>
-                    <p className={`text-sm ml-6 ${nsMethod === 'custom' ? 'text-blue-700' : 'text-gray-500'}`}>
+                    <p className={`text-sm ml-6 ${nsMethod === 'custom' ? 'text-amber-ink' : 'text-ink-3'}`}>
                       {isHostedDomain ? 'Disabled for hosted domains' : 'Point to external hosting or DNS provider'}
                     </p>
                   </label>
                 </div>
 
                 {nsMethod === 'default' ? (
-                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                  <div className="bg-paper-2/60 rounded-lg p-4 border border-hairline">
                     <div className="flex items-start">
                       <div className="flex-shrink-0">
                         <CheckCircle className="h-5 w-5 text-green-500" />
                       </div>
                       <div className="ml-3">
-                        <h3 className="text-sm font-medium text-gray-800">Ready to use</h3>
-                        <div className="mt-2 text-sm text-gray-500">
+                        <h3 className="text-sm font-medium text-ink">Ready to use</h3>
+                        <div className="mt-2 text-sm text-ink-3">
                           <p>Applying default nameservers will configure this domain to use our managed DNS infrastructure.</p>
                         </div>
                         <div className="mt-4">
                           <button
                             onClick={handleUpdateNameservers}
                             disabled={isUpdating || isNameserverLoading}
-                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-paper bg-amber hover:brightness-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber disabled:opacity-50"
                           >
                             {isUpdating ? 'Updating...' : 'Apply Default Nameservers'}
                           </button>
@@ -271,7 +271,7 @@ export default function ManageDomain() {
                   <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Nameserver 1</label>
+                        <label className="block text-sm font-medium text-ink-2 mb-1">Nameserver 1</label>
                         <input
                           type="text"
                           value={customNs[0]}
@@ -281,11 +281,11 @@ export default function ManageDomain() {
                             setCustomNs(newNs);
                           }}
                           placeholder="ns1.example.com"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                          className="w-full px-3 py-2 border border-hairline-strong rounded-md shadow-sm focus:ring-amber focus:border-amber sm:text-sm"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Nameserver 2</label>
+                        <label className="block text-sm font-medium text-ink-2 mb-1">Nameserver 2</label>
                         <input
                           type="text"
                           value={customNs[1]}
@@ -295,11 +295,11 @@ export default function ManageDomain() {
                             setCustomNs(newNs);
                           }}
                           placeholder="ns2.example.com"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                          className="w-full px-3 py-2 border border-hairline-strong rounded-md shadow-sm focus:ring-amber focus:border-amber sm:text-sm"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Nameserver 3 <span className="text-gray-400 font-normal">(Optional)</span></label>
+                        <label className="block text-sm font-medium text-ink-2 mb-1">Nameserver 3 <span className="text-ink-4 font-normal">(Optional)</span></label>
                         <input
                           type="text"
                           value={customNs[2]}
@@ -309,11 +309,11 @@ export default function ManageDomain() {
                             setCustomNs(newNs);
                           }}
                           placeholder="ns3.example.com"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                          className="w-full px-3 py-2 border border-hairline-strong rounded-md shadow-sm focus:ring-amber focus:border-amber sm:text-sm"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Nameserver 4 <span className="text-gray-400 font-normal">(Optional)</span></label>
+                        <label className="block text-sm font-medium text-ink-2 mb-1">Nameserver 4 <span className="text-ink-4 font-normal">(Optional)</span></label>
                         <input
                           type="text"
                           value={customNs[3]}
@@ -323,7 +323,7 @@ export default function ManageDomain() {
                             setCustomNs(newNs);
                           }}
                           placeholder="ns4.example.com"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                          className="w-full px-3 py-2 border border-hairline-strong rounded-md shadow-sm focus:ring-amber focus:border-amber sm:text-sm"
                         />
                       </div>
                     </div>
@@ -331,7 +331,7 @@ export default function ManageDomain() {
                       <button
                         onClick={handleUpdateNameservers}
                         disabled={isUpdating || isNameserverLoading}
-                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-paper bg-amber hover:brightness-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber disabled:opacity-50"
                       >
                         {isUpdating ? 'Saving...' : 'Save Custom Nameservers'}
                       </button>
@@ -341,10 +341,10 @@ export default function ManageDomain() {
               </div>
             </div>
 
-            <div className="bg-gray-50 p-4">
+            <div className="bg-paper-2/60 p-4">
               <div className="flex items-start">
                 <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5 mr-3 flex-shrink-0" />
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-ink-2">
                   Changing nameservers can take up to 24-48 hours to propagate globally. Your website and email may be inaccessible during this time.
                 </p>
               </div>

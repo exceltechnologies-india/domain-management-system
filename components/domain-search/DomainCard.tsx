@@ -344,7 +344,7 @@ export function DomainResultCard({
                 </div>
                 <button
                   onClick={onAdd}
-                  className="px-4 py-2 sm:px-6 sm:py-2.5 bg-gray-900 hover:bg-primary-600 text-white font-black text-xs sm:text-sm rounded-lg sm:rounded-xl transition-all duration-300 flex items-center justify-center gap-2 sm:gap-2.5 shadow-md shadow-gray-200 hover:shadow-primary-500/20 group/btn active:scale-95 flex-1 sm:flex-none"
+                  className="px-4 py-2 sm:px-6 sm:py-2.5 bg-ink hover:bg-primary-600 text-white font-black text-xs sm:text-sm rounded-lg sm:rounded-xl transition-all duration-300 flex items-center justify-center gap-2 sm:gap-2.5 shadow-md shadow-gray-200 hover:shadow-primary-500/20 group/btn active:scale-95 flex-1 sm:flex-none"
                 >
                   <ShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4 group-hover/btn:scale-110 transition-transform" />
                   <span className="whitespace-nowrap">ADD TO CART</span>

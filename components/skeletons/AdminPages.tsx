@@ -167,7 +167,7 @@ export function AdminDashboardSkeleton() {
             <div className="p-5 border-b border-gray-100">
               <Sk className="h-5 w-36 rounded" />
             </div>
-            <div className="divide-y divide-gray-50">
+            <div className="divide-y divide-hairline">
               {Array.from({ length: rows }).map((_, r) => (
                 <div key={r} className="px-5 py-3.5 flex items-center justify-between">
                   <div className="space-y-1.5">

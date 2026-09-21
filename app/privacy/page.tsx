@@ -58,7 +58,7 @@ export default function PrivacyPage() {
                     <li>Website content and database credentials (for hosting)</li>
                   </ul>
                 </div>
-                <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg">
+                <div className="bg-blue-50 border-l-4 border-amber/40 p-4 rounded-r-lg">
                   <h3 className="text-lg font-semibold text-blue-800 mb-2">Usage Information</h3>
                   <ul className="list-disc list-inside text-blue-700 space-y-1">
                     <li>Website usage and interaction data</li>

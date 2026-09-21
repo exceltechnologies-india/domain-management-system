@@ -14,7 +14,7 @@ import { Sk } from './_primitives';
 export function AdminTableRowsSkeleton({ rows = 6, cols = 5 }: { rows?: number; cols?: number }) {
   const widths = ['w-32', 'w-40', 'w-24', 'w-20', 'w-28', 'w-16', 'w-36'];
   return (
-    <div className="divide-y divide-gray-50">
+    <div className="divide-y divide-hairline">
       {/* header row (matches table header strip) */}
       <div className="px-5 py-3 bg-gray-50/60 flex gap-6">
         {Array.from({ length: cols }).map((_, i) => (

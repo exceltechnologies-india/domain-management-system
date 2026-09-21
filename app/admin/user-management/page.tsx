@@ -483,10 +483,10 @@ export default function AdminUsers() {
       sortable: true,
       render: (_value: unknown, row: User) => (
         <div>
-          <div className="text-xs sm:text-sm font-medium text-gray-900">
+          <div className="text-xs sm:text-sm font-medium text-ink">
             {row.firstName} {row.lastName}
           </div>
-          <div className="text-xs sm:text-sm text-gray-500 truncate max-w-[150px] sm:max-w-none">{row.email}</div>
+          <div className="text-xs sm:text-sm text-ink-3 truncate max-w-[150px] sm:max-w-none">{row.email}</div>
         </div>
       )
     },
@@ -495,7 +495,7 @@ export default function AdminUsers() {
       label: 'Role',
       sortable: true,
       render: (value: string) => (
-        <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+        <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium rounded-full bg-indigo-soft text-indigo-ink">
           user
         </span>
       )
@@ -506,7 +506,7 @@ export default function AdminUsers() {
       sortable: true,
       render: (_value: unknown, row: User) => (
         <div className="flex flex-col gap-1">
-          <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium rounded-full w-fit ${row.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+          <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium rounded-full w-fit ${row.isActive ? 'bg-green-100 text-green-800' : 'bg-paper-2 text-ink'}`}>
             {row.isActive ? 'active' : 'inactive'}
           </span>
           {row.totpEnabled && (
@@ -524,16 +524,16 @@ export default function AdminUsers() {
       sortable: true,
       render: (value: string) => {
         if (!value) {
-          return <span className="text-xs sm:text-sm text-gray-400">-</span>;
+          return <span className="text-xs sm:text-sm text-ink-4">-</span>;
         }
 
         const date = new Date(value);
         if (isNaN(date.getTime())) {
-          return <span className="text-xs sm:text-sm text-gray-400">-</span>;
+          return <span className="text-xs sm:text-sm text-ink-4">-</span>;
         }
 
         return (
-          <span className="text-xs sm:text-sm text-gray-600">
+          <span className="text-xs sm:text-sm text-ink-2">
             {formatIndianDate(date)}
           </span>
         );
@@ -546,7 +546,7 @@ export default function AdminUsers() {
         <button
           onClick={(e) => handleTripleDotClick(e, row)}
           aria-label={`Actions for ${row.firstName ? `${row.firstName} ${row.lastName || ''}`.trim() : row.email}`}
-          className={`p-2 rounded-lg transition-all duration-200 ${menuData?.id === row._id ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+          className={`p-2 rounded-lg transition-all duration-200 ${menuData?.id === row._id ? 'bg-amber-soft text-amber-ink' : 'text-ink-4 hover:text-ink-2 hover:bg-paper-2'}`}
         >
           <MoreVertical className="h-5 w-5" />
         </button>
@@ -561,10 +561,10 @@ export default function AdminUsers() {
       sortable: true,
       render: (_value: unknown, row: User) => (
         <div>
-          <div className="text-xs sm:text-sm font-medium text-gray-900">
+          <div className="text-xs sm:text-sm font-medium text-ink">
             {row.firstName} {row.lastName}
           </div>
-          <div className="text-xs sm:text-sm text-gray-500 truncate max-w-[150px] sm:max-w-none">{row.email}</div>
+          <div className="text-xs sm:text-sm text-ink-3 truncate max-w-[150px] sm:max-w-none">{row.email}</div>
         </div>
       )
     },
@@ -573,7 +573,7 @@ export default function AdminUsers() {
       label: 'Role',
       sortable: true,
       render: (value: string) => (
-        <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+        <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium rounded-full bg-indigo-soft text-indigo-ink">
           user
         </span>
       )
@@ -594,16 +594,16 @@ export default function AdminUsers() {
       sortable: true,
       render: (value: string) => {
         if (!value) {
-          return <span className="text-xs sm:text-sm text-gray-400">-</span>;
+          return <span className="text-xs sm:text-sm text-ink-4">-</span>;
         }
 
         const date = new Date(value);
         if (isNaN(date.getTime())) {
-          return <span className="text-xs sm:text-sm text-gray-400">-</span>;
+          return <span className="text-xs sm:text-sm text-ink-4">-</span>;
         }
 
         return (
-          <span className="text-xs sm:text-sm text-gray-900">
+          <span className="text-xs sm:text-sm text-ink">
             {formatIndianDate(date)}
           </span>
         );
@@ -616,7 +616,7 @@ export default function AdminUsers() {
         <button
           onClick={(e) => handleTripleDotClick(e, row)}
           aria-label={`Actions for ${row.firstName ? `${row.firstName} ${row.lastName || ''}`.trim() : row.email}`}
-          className={`p-2 rounded-lg transition-all duration-200 ${menuData?.id === row._id ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+          className={`p-2 rounded-lg transition-all duration-200 ${menuData?.id === row._id ? 'bg-amber-soft text-amber-ink' : 'text-ink-4 hover:text-ink-2 hover:bg-paper-2'}`}
         >
           <MoreVertical className="h-5 w-5" />
         </button>
@@ -645,10 +645,10 @@ export default function AdminUsers() {
       sortable: true,
       render: (_value: unknown, row: ServiceUser) => (
         <div>
-          <div className="text-xs sm:text-sm font-medium text-gray-900">
+          <div className="text-xs sm:text-sm font-medium text-ink">
             {row.firstName} {row.lastName}
           </div>
-          <div className="text-xs sm:text-sm text-gray-500 truncate max-w-[150px] sm:max-w-none">{row.email}</div>
+          <div className="text-xs sm:text-sm text-ink-3 truncate max-w-[150px] sm:max-w-none">{row.email}</div>
         </div>
       )
     },
@@ -659,20 +659,20 @@ export default function AdminUsers() {
         <div className="flex flex-col gap-1">
           {row.domains && row.domains.length > 0 && (
             <div className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-              <span className="text-xs text-gray-700">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo"></span>
+              <span className="text-xs text-ink-2">
                 {row.domains.length} Domain{row.domains.length !== 1 ? 's' : ''}
               </span>
-              <span className="text-[10px] text-gray-400">({row.domains[0].domainName})</span>
+              <span className="text-[10px] text-ink-4">({row.domains[0].domainName})</span>
             </div>
           )}
           {row.hosting && row.hosting.length > 0 && (
             <div className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
-              <span className="text-xs text-gray-700">
+              <span className="text-xs text-ink-2">
                 {row.hosting.length} Hosting
               </span>
-              <span className="text-[10px] text-gray-400">({row.hosting[0].name})</span>
+              <span className="text-[10px] text-ink-4">({row.hosting[0].name})</span>
             </div>
           )}
         </div>
@@ -683,7 +683,7 @@ export default function AdminUsers() {
       label: 'Status',
       sortable: true,
       render: (_value: unknown, row: User) => (
-        <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium rounded-full ${row.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+        <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium rounded-full ${row.isActive ? 'bg-green-100 text-green-800' : 'bg-paper-2 text-ink'
           }`}>
           {row.isActive ? 'active' : 'inactive'}
         </span>
@@ -694,7 +694,7 @@ export default function AdminUsers() {
       label: 'Joined',
       sortable: true,
       render: (_value: unknown, row: User) => (
-        <span className="text-xs sm:text-sm text-gray-600">
+        <span className="text-xs sm:text-sm text-ink-2">
           {formatIndianDate(new Date(row.createdAt))}
         </span>
       )
@@ -706,7 +706,7 @@ export default function AdminUsers() {
         <button
           onClick={(e) => handleTripleDotClick(e, row)}
           aria-label={`Actions for ${row.firstName ? `${row.firstName} ${row.lastName || ''}`.trim() : row.email}`}
-          className={`p-2 rounded-lg transition-all duration-200 ${menuData?.id === row._id ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+          className={`p-2 rounded-lg transition-all duration-200 ${menuData?.id === row._id ? 'bg-amber-soft text-amber-ink' : 'text-ink-4 hover:text-ink-2 hover:bg-paper-2'}`}
         >
           <MoreVertical className="h-5 w-5" />
         </button>
@@ -724,10 +724,10 @@ export default function AdminUsers() {
       sortable: true,
       render: (_value: unknown, row: User) => (
         <div>
-          <div className="text-xs sm:text-sm font-medium text-gray-900">
+          <div className="text-xs sm:text-sm font-medium text-ink">
             {row.firstName} {row.lastName}
           </div>
-          <div className="text-xs sm:text-sm text-gray-500 truncate max-w-[150px] sm:max-w-none">{row.email}</div>
+          <div className="text-xs sm:text-sm text-ink-3 truncate max-w-[150px] sm:max-w-none">{row.email}</div>
         </div>
       )
     },
@@ -735,8 +735,8 @@ export default function AdminUsers() {
       key: 'phone',
       label: 'Phone',
       render: (_value: unknown, row: User) => (
-        <span className="text-xs sm:text-sm text-gray-700">
-          {(row as User & { phone?: string }).phone || <span className="text-gray-400">-</span>}
+        <span className="text-xs sm:text-sm text-ink-2">
+          {(row as User & { phone?: string }).phone || <span className="text-ink-4">-</span>}
         </span>
       )
     },
@@ -747,7 +747,7 @@ export default function AdminUsers() {
         const wa = (row as User & { whatsappNumber?: string }).whatsappNumber;
         return wa
           ? <span className="text-xs sm:text-sm text-green-700">{wa}</span>
-          : <span className="text-xs sm:text-sm text-gray-400">-</span>;
+          : <span className="text-xs sm:text-sm text-ink-4">-</span>;
       }
     },
     {
@@ -755,7 +755,7 @@ export default function AdminUsers() {
       label: 'Joined',
       sortable: true,
       render: (_value: unknown, row: User) => (
-        <span className="text-xs sm:text-sm text-gray-600">
+        <span className="text-xs sm:text-sm text-ink-2">
           {row.createdAt ? formatIndianDate(new Date(row.createdAt)) : '-'}
         </span>
       )
@@ -767,7 +767,7 @@ export default function AdminUsers() {
         <button
           onClick={(e) => handleTripleDotClick(e, row)}
           aria-label={`Actions for ${row.firstName ? `${row.firstName} ${row.lastName || ''}`.trim() : row.email}`}
-          className={`p-2 rounded-lg transition-all duration-200 ${menuData?.id === row._id ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+          className={`p-2 rounded-lg transition-all duration-200 ${menuData?.id === row._id ? 'bg-amber-soft text-amber-ink' : 'text-ink-4 hover:text-ink-2 hover:bg-paper-2'}`}
         >
           <MoreVertical className="h-5 w-5" />
         </button>
@@ -806,12 +806,12 @@ export default function AdminUsers() {
         {/* ── Page header ── */}
         <div className="flex items-start sm:items-center justify-between flex-col sm:flex-row gap-3 sm:gap-0">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-50 rounded-xl">
-              <Users className="h-5 w-5 text-blue-600" />
+            <div className="p-2 bg-amber-soft rounded-xl">
+              <Users className="h-5 w-5 text-amber-ink" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-              <p className="text-sm text-gray-500 mt-0.5">Manage user accounts and permissions</p>
+              <h1 className="text-2xl font-bold font-serif text-ink">User Management</h1>
+              <p className="text-sm text-ink-3 mt-0.5">Manage user accounts and permissions</p>
             </div>
           </div>
           <RefreshButton onClick={loadUsers} isLoading={isDataLoading} />
@@ -822,62 +822,62 @@ export default function AdminUsers() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <button
               onClick={() => setActiveTab('active')}
-              className={`bg-white border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${activeTab === 'active' ? 'border-blue-300 ring-2 ring-blue-100' : 'border-gray-200 hover:border-gray-300 hover:shadow-md'}`}
+              className={`bg-paper border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${activeTab === 'active' ? 'border-amber ring-2 ring-amber/25' : 'border-hairline hover:border-hairline-strong hover:shadow-md'}`}
             >
               <div className="p-2 bg-green-50 rounded-xl">
                 <UserCheck className="h-4 w-4 text-green-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-gray-500">Active Users</p>
-                <p className="text-xl font-bold text-gray-900">{users.length}</p>
+                <p className="text-xs font-medium text-ink-3">Active Users</p>
+                <p className="text-xl font-bold text-ink">{users.length}</p>
               </div>
             </button>
             <button
               onClick={() => setActiveTab('deactivated')}
-              className={`bg-white border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${activeTab === 'deactivated' ? 'border-blue-300 ring-2 ring-blue-100' : 'border-gray-200 hover:border-gray-300 hover:shadow-md'}`}
+              className={`bg-paper border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${activeTab === 'deactivated' ? 'border-amber ring-2 ring-amber/25' : 'border-hairline hover:border-hairline-strong hover:shadow-md'}`}
             >
               <div className="p-2 bg-red-50 rounded-xl">
                 <UserX className="h-4 w-4 text-red-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-gray-500">Deactivated</p>
-                <p className="text-xl font-bold text-gray-900">{deactivatedUsers.length}</p>
+                <p className="text-xs font-medium text-ink-3">Deactivated</p>
+                <p className="text-xl font-bold text-ink">{deactivatedUsers.length}</p>
               </div>
             </button>
             <button
               onClick={() => setActiveTab('services')}
-              className={`bg-white border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${activeTab === 'services' ? 'border-blue-300 ring-2 ring-blue-100' : 'border-gray-200 hover:border-gray-300 hover:shadow-md'}`}
+              className={`bg-paper border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${activeTab === 'services' ? 'border-amber ring-2 ring-amber/25' : 'border-hairline hover:border-hairline-strong hover:shadow-md'}`}
             >
               <div className="p-2 bg-purple-50 rounded-xl">
                 <Cog className="h-4 w-4 text-purple-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-gray-500">Service Users</p>
-                <p className="text-xl font-bold text-gray-900">{serviceUsers.length}</p>
+                <p className="text-xs font-medium text-ink-3">Service Users</p>
+                <p className="text-xl font-bold text-ink">{serviceUsers.length}</p>
               </div>
             </button>
             <button
               onClick={() => setActiveTab('noservices')}
-              className={`bg-white border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${activeTab === 'noservices' ? 'border-blue-300 ring-2 ring-blue-100' : 'border-gray-200 hover:border-gray-300 hover:shadow-md'}`}
+              className={`bg-paper border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${activeTab === 'noservices' ? 'border-amber ring-2 ring-amber/25' : 'border-hairline hover:border-hairline-strong hover:shadow-md'}`}
             >
               <div className="p-2 bg-amber-50 rounded-xl">
                 <UserX className="h-4 w-4 text-amber-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-gray-500">No Services</p>
-                <p className="text-xl font-bold text-gray-900">{noServiceUsers.length}</p>
+                <p className="text-xs font-medium text-ink-3">No Services</p>
+                <p className="text-xl font-bold text-ink">{noServiceUsers.length}</p>
               </div>
             </button>
           </div>
         )}
 
         {/* ── Users card ── */}
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden">
           {/* Card header — segmented tabs */}
-          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 flex items-center justify-between gap-4 flex-wrap">
+          <div className="px-6 py-4 border-b border-hairline bg-paper-2/60 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-2.5">
-              <Users className="h-4 w-4 text-gray-500" />
-              <h3 className="text-sm font-semibold text-gray-900">
+              <Users className="h-4 w-4 text-ink-3" />
+              <h3 className="text-sm font-semibold text-ink">
                 {activeTab === 'active' && 'Active Users'}
                 {activeTab === 'deactivated' && 'Deactivated Users'}
                 {activeTab === 'services' && 'Service Users'}
@@ -885,7 +885,7 @@ export default function AdminUsers() {
               </h3>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
-              <div className="inline-flex bg-gray-100 rounded-xl p-1">
+              <div className="inline-flex bg-paper-2 rounded-xl p-1">
                 {[
                   { id: 'active',      label: 'Active',      count: users.length },
                   { id: 'deactivated', label: 'Deactivated', count: deactivatedUsers.length },
@@ -897,11 +897,11 @@ export default function AdminUsers() {
                     onClick={() => setActiveTab(t.id as 'active' | 'deactivated' | 'services' | 'noservices')}
                     className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                       activeTab === t.id
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-500 hover:text-gray-700'
+                        ? 'bg-paper text-ink shadow-sm'
+                        : 'text-ink-3 hover:text-ink-2'
                     }`}
                   >
-                    {t.label} <span className={`ml-1 ${activeTab === t.id ? 'text-blue-600' : 'text-gray-400'}`}>({t.count})</span>
+                    {t.label} <span className={`ml-1 ${activeTab === t.id ? 'text-amber-ink' : 'text-ink-4'}`}>({t.count})</span>
                   </button>
                 ))}
               </div>
@@ -913,7 +913,7 @@ export default function AdminUsers() {
                     onClick={handleExportCsv}
                     disabled={isExporting || isEmpty}
                     title={isEmpty ? 'Nothing to export in this tab' : "Export the current tab's users as a CSV file"}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber text-white hover:brightness-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:brightness-100"
                   >
                     {isExporting ? (
                       <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" />
@@ -996,26 +996,26 @@ export default function AdminUsers() {
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4">
               <div>
-                <label className="text-sm font-medium text-gray-500">Full Name</label>
-                <p className="text-lg font-semibold text-gray-900">
+                <label className="text-sm font-medium text-ink-3">Full Name</label>
+                <p className="text-lg font-semibold text-ink">
                   {selectedUser.firstName} {selectedUser.lastName}
                 </p>
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-500">Email Address</label>
-                <p className="text-lg font-semibold text-gray-900">{selectedUser.email}</p>
+                <label className="text-sm font-medium text-ink-3">Email Address</label>
+                <p className="text-lg font-semibold text-ink">{selectedUser.email}</p>
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-500">Role</label>
-                <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                <label className="text-sm font-medium text-ink-3">Role</label>
+                <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-indigo-soft text-indigo-ink">
                   {selectedUser.role}
                 </span>
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-500">Account Status</label>
+                <label className="text-sm font-medium text-ink-3">Account Status</label>
                 <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${selectedUser.isActive
                   ? 'bg-green-100 text-green-800'
                   : 'bg-red-100 text-red-800'
@@ -1025,8 +1025,8 @@ export default function AdminUsers() {
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-500">Registration Date</label>
-                <p className="text-lg font-semibold text-gray-900">
+                <label className="text-sm font-medium text-ink-3">Registration Date</label>
+                <p className="text-lg font-semibold text-ink">
                   {formatIndianLongDateTime(selectedUser.createdAt)}
                 </p>
               </div>
@@ -1037,7 +1037,7 @@ export default function AdminUsers() {
             <div className="mt-6 flex justify-end space-x-3">
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="px-4 py-2 text-sm font-medium text-ink-2 bg-paper border border-hairline-strong rounded-md hover:bg-paper-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber"
               >
                 Close
               </button>
@@ -1045,7 +1045,7 @@ export default function AdminUsers() {
           </div>
         ) : (
           <div className="text-center py-4">
-            <p className="text-gray-500">No user selected</p>
+            <p className="text-ink-3">No user selected</p>
           </div>
         )}
       </Modal>
@@ -1079,7 +1079,7 @@ export default function AdminUsers() {
             <form onSubmit={(e) => { e.preventDefault(); void handlePasswordResetSubmit(); }}>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-ink-2 mb-1">
                     New Password
                   </label>
                   <div className="relative">
@@ -1088,13 +1088,13 @@ export default function AdminUsers() {
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="Enter new password (min 6 characters)"
-                      className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 pr-10 border border-hairline-strong rounded-md focus:outline-none focus:ring-2 focus:ring-amber focus:border-amber"
                       autoComplete="new-password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowNewPassword(!showNewPassword)}
-                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 focus:outline-none"
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-ink-4 hover:text-ink-2 focus:outline-none"
                       title={showNewPassword ? "Hide password" : "Show password"}
                     >
                       {showNewPassword ? (
@@ -1107,7 +1107,7 @@ export default function AdminUsers() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-ink-2 mb-1">
                     Confirm Password
                   </label>
                   <div className="relative">
@@ -1116,13 +1116,13 @@ export default function AdminUsers() {
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       placeholder="Confirm new password"
-                      className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 pr-10 border border-hairline-strong rounded-md focus:outline-none focus:ring-2 focus:ring-amber focus:border-amber"
                       autoComplete="new-password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 focus:outline-none"
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-ink-4 hover:text-ink-2 focus:outline-none"
                       title={showConfirmPassword ? "Hide password" : "Show password"}
                     >
                       {showConfirmPassword ? (
@@ -1135,7 +1135,7 @@ export default function AdminUsers() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-ink-2 mb-1">
                     Your current password
                   </label>
                   <input
@@ -1143,10 +1143,10 @@ export default function AdminUsers() {
                     value={reauthPassword}
                     onChange={(e) => setReauthPassword(e.target.value)}
                     placeholder="Confirm it's really you"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-hairline-strong rounded-md focus:outline-none focus:ring-2 focus:ring-amber focus:border-amber"
                     autoComplete="current-password"
                   />
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-ink-3">
                     Required only if your admin account uses a password. If you sign in with Google, leave this blank.
                   </p>
                 </div>
@@ -1157,9 +1157,9 @@ export default function AdminUsers() {
                     id="sendEmail"
                     checked={sendEmailNotification}
                     onChange={(e) => setSendEmailNotification(e.target.checked)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    className="h-4 w-4 text-amber focus:ring-amber border-hairline-strong rounded"
                   />
-                  <label htmlFor="sendEmail" className="ml-2 block text-sm text-gray-700">
+                  <label htmlFor="sendEmail" className="ml-2 block text-sm text-ink-2">
                     Send email notification to user with new password
                   </label>
                 </div>
@@ -1168,14 +1168,14 @@ export default function AdminUsers() {
                   <button
                     type="button"
                     onClick={handlePasswordResetCancel}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    className="px-4 py-2 text-sm font-medium text-ink-2 bg-paper border border-hairline-strong rounded-md hover:bg-paper-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isResettingPassword}
-                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                    className="px-4 py-2 text-sm font-medium text-white bg-amber border border-transparent rounded-md hover:brightness-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                   >
                     {isResettingPassword ? (
                       'Resetting...'
@@ -1189,7 +1189,7 @@ export default function AdminUsers() {
           </div>
         ) : (
           <div className="text-center py-4">
-            <p className="text-gray-500">No user selected</p>
+            <p className="text-ink-3">No user selected</p>
           </div>
         )
         }
@@ -1199,32 +1199,32 @@ export default function AdminUsers() {
       {
         isDeactivateModalOpen && userToDeactivate && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+            <div className="bg-paper rounded-xl shadow-xl max-w-md w-full">
               <div className="p-6">
                 <div className="flex items-center mb-4">
                   <div className="flex-shrink-0">
                     <XCircle className="h-6 w-6 text-red-600" />
                   </div>
                   <div className="ml-3">
-                    <h3 className="text-lg font-medium text-gray-900">
+                    <h3 className="text-lg font-medium text-ink">
                       Deactivate User
                     </h3>
                   </div>
                 </div>
 
                 <div className="mb-6">
-                  <p className="text-gray-700 mb-2">
+                  <p className="text-ink-2 mb-2">
                     Are you sure you want to deactivate this user? They will not be able to log in but their data will be preserved.
                   </p>
-                  <div className="bg-gray-50 rounded-lg p-3">
+                  <div className="bg-paper-2/60 rounded-lg p-3">
                     <div className="text-sm">
-                      <div className="font-medium text-gray-900">
+                      <div className="font-medium text-ink">
                         {userToDeactivate.firstName} {userToDeactivate.lastName}
                       </div>
-                      <div className="text-gray-600">
+                      <div className="text-ink-2">
                         {userToDeactivate.email}
                       </div>
-                      <div className="text-gray-600">
+                      <div className="text-ink-2">
                         Role: {userToDeactivate.role}
                       </div>
                     </div>
@@ -1235,7 +1235,7 @@ export default function AdminUsers() {
                   <button
                     onClick={cancelDeactivateUser}
                     disabled={isDeactivating}
-                    className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
+                    className="px-4 py-2 text-ink-2 bg-paper-2 hover:bg-hairline rounded-lg transition-colors disabled:opacity-50"
                   >
                     Cancel
                   </button>
@@ -1267,32 +1267,32 @@ export default function AdminUsers() {
       {
         isReactivateModalOpen && userToReactivate && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+            <div className="bg-paper rounded-xl shadow-xl max-w-md w-full">
               <div className="p-6">
                 <div className="flex items-center mb-4">
                   <div className="flex-shrink-0">
                     <CheckCircle className="h-6 w-6 text-green-600" />
                   </div>
                   <div className="ml-3">
-                    <h3 className="text-lg font-medium text-gray-900">
+                    <h3 className="text-lg font-medium text-ink">
                       Reactivate User
                     </h3>
                   </div>
                 </div>
 
                 <div className="mb-6">
-                  <p className="text-gray-700 mb-2">
+                  <p className="text-ink-2 mb-2">
                     Are you sure you want to reactivate this user? They will be able to log in again.
                   </p>
-                  <div className="bg-gray-50 rounded-lg p-3">
+                  <div className="bg-paper-2/60 rounded-lg p-3">
                     <div className="text-sm">
-                      <div className="font-medium text-gray-900">
+                      <div className="font-medium text-ink">
                         {userToReactivate.firstName} {userToReactivate.lastName}
                       </div>
-                      <div className="text-gray-600">
+                      <div className="text-ink-2">
                         {userToReactivate.email}
                       </div>
-                      <div className="text-gray-600">
+                      <div className="text-ink-2">
                         Role: {userToReactivate.role}
                       </div>
                     </div>
@@ -1303,7 +1303,7 @@ export default function AdminUsers() {
                   <button
                     onClick={cancelReactivateUser}
                     disabled={isReactivating}
-                    className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
+                    className="px-4 py-2 text-ink-2 bg-paper-2 hover:bg-hairline rounded-lg transition-colors disabled:opacity-50"
                   >
                     Cancel
                   </button>
@@ -1335,14 +1335,14 @@ export default function AdminUsers() {
       {
         isPermanentDeleteModalOpen && userToPermanentlyDelete && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+            <div className="bg-paper rounded-xl shadow-xl max-w-md w-full">
               <div className="p-6">
                 <div className="flex items-center mb-4">
                   <div className="flex-shrink-0">
                     <Trash2 className="h-6 w-6 text-red-600" />
                   </div>
                   <div className="ml-3">
-                    <h3 className="text-lg font-medium text-gray-900">
+                    <h3 className="text-lg font-medium text-ink">
                       Permanently Delete User
                     </h3>
                   </div>
@@ -1357,18 +1357,18 @@ export default function AdminUsers() {
                       All user data, including services and history, will be permanently removed.
                     </p>
                   </div>
-                  <p className="text-gray-700 mb-2">
+                  <p className="text-ink-2 mb-2">
                     Are you sure you want to permanently delete this user?
                   </p>
-                  <div className="bg-gray-50 rounded-lg p-3">
+                  <div className="bg-paper-2/60 rounded-lg p-3">
                     <div className="text-sm">
-                      <div className="font-medium text-gray-900">
+                      <div className="font-medium text-ink">
                         {userToPermanentlyDelete.firstName} {userToPermanentlyDelete.lastName}
                       </div>
-                      <div className="text-gray-600">
+                      <div className="text-ink-2">
                         {userToPermanentlyDelete.email}
                       </div>
-                      <div className="text-gray-600">
+                      <div className="text-ink-2">
                         Role: {userToPermanentlyDelete.role}
                       </div>
                     </div>
@@ -1379,7 +1379,7 @@ export default function AdminUsers() {
                   <button
                     onClick={cancelPermanentDeleteUser}
                     disabled={isPermanentlyDeleting}
-                    className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
+                    className="px-4 py-2 text-ink-2 bg-paper-2 hover:bg-hairline rounded-lg transition-colors disabled:opacity-50"
                   >
                     Cancel
                   </button>
@@ -1415,17 +1415,17 @@ export default function AdminUsers() {
       >
         {selectedServiceUser && (
           <div className="space-y-6">
-            <div className="flex items-center gap-4 border-b border-gray-100 pb-4">
-              <div className="h-12 w-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold text-lg">
+            <div className="flex items-center gap-4 border-b border-hairline pb-4">
+              <div className="h-12 w-12 bg-amber-soft text-amber-ink rounded-full flex items-center justify-center font-bold text-lg">
                 {selectedServiceUser.firstName?.charAt(0)}
               </div>
               <div>
-                <h3 className="text-lg font-bold text-gray-900">
+                <h3 className="text-lg font-bold text-ink">
                   {selectedServiceUser.firstName} {selectedServiceUser.lastName}
                 </h3>
-                <p className="text-sm text-gray-500">{selectedServiceUser.email}</p>
+                <p className="text-sm text-ink-3">{selectedServiceUser.email}</p>
                 {selectedServiceUser.directAdminUsername && (
-                  <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded mt-1 inline-block">
+                  <span className="text-xs bg-paper-2 text-ink-2 px-2 py-0.5 rounded mt-1 inline-block">
                     DA User: {selectedServiceUser.directAdminUsername}
                   </span>
                 )}
@@ -1434,37 +1434,37 @@ export default function AdminUsers() {
 
             {/* Hosting Section */}
             <div>
-              <h4 className="flex items-center gap-2 text-sm font-bold text-gray-900 uppercase tracking-wider mb-3">
+              <h4 className="flex items-center gap-2 text-sm font-bold text-ink uppercase tracking-wider mb-3">
                 <Server className="h-4 w-4 text-purple-600" /> Hosting Services
               </h4>
               {selectedServiceUser.hosting && selectedServiceUser.hosting.length > 0 ? (
-                <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                <div className="bg-paper border border-hairline rounded-lg overflow-hidden">
                   <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                  <table className="min-w-full divide-y divide-hairline">
+                    <thead className="bg-paper-2/60">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Package</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Domain</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expires</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Manage</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ink-3 uppercase">Package</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ink-3 uppercase">Domain</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ink-3 uppercase">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ink-3 uppercase">Expires</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-ink-3 uppercase">Manage</th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-paper divide-y divide-hairline">
                       {selectedServiceUser.hosting.map((host: NonNullable<ServiceUser['hosting']>[number], i: number) => (
                         <tr key={i}>
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{host.name || 'Standard Hosting'}</td>
-                          <td className="px-4 py-3 text-sm text-gray-500">{host.domainName}</td>
+                          <td className="px-4 py-3 text-sm font-medium text-ink">{host.name || 'Standard Hosting'}</td>
+                          <td className="px-4 py-3 text-sm text-ink-3">{host.domainName}</td>
                           <td className="px-4 py-3">
                             <span className={`px-2 py-1 text-xs font-medium rounded-full ${host.status === 'active' ? 'bg-green-100 text-green-800' :
                               host.status === 'suspended' ? 'bg-orange-100 text-orange-800' :
                                 host.status === 'terminated' || host.status === 'expired' ? 'bg-red-100 text-red-800' :
-                                  'bg-gray-100 text-gray-800'
+                                  'bg-paper-2 text-ink'
                               }`}>
                               {host.status}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-500">
+                          <td className="px-4 py-3 text-sm text-ink-3">
                             {host.expiryDate ? formatIndianDate(new Date(host.expiryDate)) : '-'}
                           </td>
                           <td className="px-4 py-3 text-right">
@@ -1486,7 +1486,7 @@ export default function AdminUsers() {
                                 <ExternalLink className="h-3 w-3" />
                               </Link>
                             ) : (
-                              <span className="text-xs text-gray-400">—</span>
+                              <span className="text-xs text-ink-4">—</span>
                             )}
                           </td>
                         </tr>
@@ -1496,41 +1496,41 @@ export default function AdminUsers() {
                   </div>
                 </div>
               ) : (
-                <div className="text-sm text-gray-500 italic bg-gray-50 p-4 rounded-lg text-center">No hosting services found.</div>
+                <div className="text-sm text-ink-3 italic bg-paper-2/60 p-4 rounded-lg text-center">No hosting services found.</div>
               )}
             </div>
 
             {/* Domains Section */}
             <div>
-              <h4 className="flex items-center gap-2 text-sm font-bold text-gray-900 uppercase tracking-wider mb-3">
-                <div className="h-4 w-4 bg-blue-500 rounded-full flex items-center justify-center text-[8px] text-white">D</div> Domains
+              <h4 className="flex items-center gap-2 text-sm font-bold text-ink uppercase tracking-wider mb-3">
+                <div className="h-4 w-4 bg-indigo rounded-full flex items-center justify-center text-[8px] text-white">D</div> Domains
               </h4>
               {selectedServiceUser.domains && selectedServiceUser.domains.length > 0 ? (
-                <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                <div className="bg-paper border border-hairline rounded-lg overflow-hidden">
                   <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                  <table className="min-w-full divide-y divide-hairline">
+                    <thead className="bg-paper-2/60">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Domain Name</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expires</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Manage</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ink-3 uppercase">Domain Name</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ink-3 uppercase">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ink-3 uppercase">Expires</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-ink-3 uppercase">Manage</th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-paper divide-y divide-hairline">
                       {selectedServiceUser.domains.map((domain: NonNullable<ServiceUser['domains']>[number], i: number) => (
                         <tr key={i}>
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{domain.domainName}</td>
+                          <td className="px-4 py-3 text-sm font-medium text-ink">{domain.domainName}</td>
                           <td className="px-4 py-3">
                             <span className={`px-2 py-1 text-xs font-medium rounded-full ${domain.status === 'registered' || domain.status === 'active' ? 'bg-green-100 text-green-800' :
                               domain.status === 'expired' ? 'bg-red-100 text-red-800' :
                                 domain.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                  'bg-gray-100 text-gray-800'
+                                  'bg-paper-2 text-ink'
                               }`}>
                               {domain.status}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-500">
+                          <td className="px-4 py-3 text-sm text-ink-3">
                             {domain.expiryDate ? formatIndianDate(new Date(domain.expiryDate)) : '-'}
                           </td>
                           <td className="px-4 py-3 text-right">
@@ -1548,7 +1548,7 @@ export default function AdminUsers() {
                                 <ExternalLink className="h-3 w-3" />
                               </Link>
                             ) : (
-                              <span className="text-xs text-gray-400">—</span>
+                              <span className="text-xs text-ink-4">—</span>
                             )}
                           </td>
                         </tr>
@@ -1558,7 +1558,7 @@ export default function AdminUsers() {
                   </div>
                 </div>
               ) : (
-                <div className="text-sm text-gray-500 italic bg-gray-50 p-4 rounded-lg text-center">No registered domains found.</div>
+                <div className="text-sm text-ink-3 italic bg-paper-2/60 p-4 rounded-lg text-center">No registered domains found.</div>
               )}
             </div>
 
@@ -1569,31 +1569,31 @@ export default function AdminUsers() {
       {/* 2FA Reset Confirmation Modal */}
       {is2FAResetModalOpen && userToReset2FA && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+          <div className="bg-paper rounded-xl shadow-xl max-w-md w-full p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
                 <ShieldOff className="h-5 w-5 text-orange-600" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">Reset 2FA</h3>
-                <p className="text-sm text-gray-500">This action cannot be undone</p>
+                <h3 className="text-lg font-semibold text-ink">Reset 2FA</h3>
+                <p className="text-sm text-ink-3">This action cannot be undone</p>
               </div>
             </div>
-            <p className="text-sm text-gray-700 mb-2">
+            <p className="text-sm text-ink-2 mb-2">
               You are about to disable two-factor authentication for:
             </p>
-            <div className="bg-gray-50 rounded-lg px-4 py-3 mb-4">
-              <p className="text-sm font-semibold text-gray-900">{userToReset2FA.firstName} {userToReset2FA.lastName}</p>
-              <p className="text-xs text-gray-500">{userToReset2FA.email}</p>
+            <div className="bg-paper-2/60 rounded-lg px-4 py-3 mb-4">
+              <p className="text-sm font-semibold text-ink">{userToReset2FA.firstName} {userToReset2FA.lastName}</p>
+              <p className="text-xs text-ink-3">{userToReset2FA.email}</p>
             </div>
-            <p className="text-sm text-gray-600 mb-6">
+            <p className="text-sm text-ink-2 mb-6">
               Their current session will be invalidated and they will need to log in again. They can set up 2FA again from their security settings.
             </p>
             <div className="flex gap-3 justify-end">
               <button
                 onClick={cancel2FAReset}
                 disabled={isResetting2FA}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-sm font-medium text-ink-2 bg-paper-2 hover:bg-hairline rounded-lg transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>

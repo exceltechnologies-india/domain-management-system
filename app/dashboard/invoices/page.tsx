@@ -205,15 +205,15 @@ export default function InvoicesPage() {
         return { cls: 'bg-green-50 text-green-700 border-green-200', icon: CheckCircle2 };
       case 'sent':
       case 'open':
-        return { cls: 'bg-blue-50 text-blue-700 border-blue-200', icon: Clock };
+        return { cls: 'bg-indigo-soft text-amber-ink border-indigo/25', icon: Clock };
       case 'overdue':
         return { cls: 'bg-red-50 text-red-700 border-red-200', icon: AlertCircle };
       case 'void':
-        return { cls: 'bg-gray-100 text-gray-500 border-gray-200', icon: Inbox };
+        return { cls: 'bg-paper-2 text-ink-3 border-hairline', icon: Inbox };
       case 'draft':
         return { cls: 'bg-amber-50 text-amber-700 border-amber-200', icon: FileText };
       default:
-        return { cls: 'bg-gray-100 text-gray-600 border-gray-200', icon: FileText };
+        return { cls: 'bg-paper-2 text-ink-2 border-hairline', icon: FileText };
     }
   };
 
@@ -237,12 +237,12 @@ export default function InvoicesPage() {
         {/* ── Page header ── */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-50 rounded-xl">
-              <Receipt className="h-5 w-5 text-blue-600" />
+            <div className="p-2 bg-indigo-soft rounded-xl">
+              <Receipt className="h-5 w-5 text-amber-ink" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Invoices</h1>
-              <p className="text-sm text-gray-500 mt-0.5">View and download your billing history</p>
+              <h1 className="text-2xl font-bold text-ink">Invoices</h1>
+              <p className="text-sm text-ink-3 mt-0.5">View and download your billing history</p>
             </div>
           </div>
           <RefreshButton onClick={() => mutate()} isLoading={isValidating} />
@@ -255,31 +255,31 @@ export default function InvoicesPage() {
           const totalDue = invoices.reduce((s, i) => s + (i.balance > 0 ? i.balance : 0), 0);
           return (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="bg-white border border-gray-200 rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3">
-                <div className="p-2 bg-blue-50 rounded-xl">
-                  <FileText className="h-4 w-4 text-blue-600" />
+              <div className="bg-white border border-hairline rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3">
+                <div className="p-2 bg-indigo-soft rounded-xl">
+                  <FileText className="h-4 w-4 text-amber-ink" />
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-gray-500">Total Invoices</p>
-                  <p className="text-xl font-bold text-gray-900">{invoices.length}</p>
+                  <p className="text-xs font-medium text-ink-3">Total Invoices</p>
+                  <p className="text-xl font-bold text-ink">{invoices.length}</p>
                 </div>
               </div>
-              <div className="bg-white border border-gray-200 rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3">
+              <div className="bg-white border border-hairline rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3">
                 <div className="p-2 bg-green-50 rounded-xl">
                   <CheckCircle2 className="h-4 w-4 text-green-600" />
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-gray-500">Paid</p>
-                  <p className="text-xl font-bold text-gray-900">{paid}</p>
+                  <p className="text-xs font-medium text-ink-3">Paid</p>
+                  <p className="text-xl font-bold text-ink">{paid}</p>
                 </div>
               </div>
-              <div className={`bg-white border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 ${due > 0 ? 'border-amber-200' : 'border-gray-200'}`}>
-                <div className={`p-2 rounded-xl ${due > 0 ? 'bg-amber-50' : 'bg-gray-50'}`}>
-                  <IndianRupee className={`h-4 w-4 ${due > 0 ? 'text-amber-600' : 'text-gray-500'}`} />
+              <div className={`bg-white border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 ${due > 0 ? 'border-amber-200' : 'border-hairline'}`}>
+                <div className={`p-2 rounded-xl ${due > 0 ? 'bg-amber-50' : 'bg-paper-2/60'}`}>
+                  <IndianRupee className={`h-4 w-4 ${due > 0 ? 'text-amber-600' : 'text-ink-3'}`} />
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-gray-500">{due > 0 ? 'Amount Due' : 'All Cleared'}</p>
-                  <p className="text-xl font-bold text-gray-900">
+                  <p className="text-xs font-medium text-ink-3">{due > 0 ? 'Amount Due' : 'All Cleared'}</p>
+                  <p className="text-xl font-bold text-ink">
                     {due > 0 ? `₹${totalDue.toLocaleString()}` : '—'}
                   </p>
                 </div>
@@ -289,14 +289,14 @@ export default function InvoicesPage() {
         })()}
 
         {/* ── Invoices card ── */}
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="bg-white border border-hairline rounded-2xl shadow-sm overflow-hidden">
           {!isLoadingInvoices && invoices.length > 0 && (
-            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 flex items-center justify-between">
+            <div className="px-6 py-4 border-b border-hairline bg-paper-2/60 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <FileText className="h-4 w-4 text-gray-500" />
-                <h3 className="text-sm font-semibold text-gray-900">Billing History</h3>
+                <FileText className="h-4 w-4 text-ink-3" />
+                <h3 className="text-sm font-semibold text-ink">Billing History</h3>
               </div>
-              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 bg-white border border-gray-200 px-2.5 py-1 rounded-full">
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-3 bg-white border border-hairline px-2.5 py-1 rounded-full">
                 {invoices.length} invoice{invoices.length !== 1 ? 's' : ''}
               </span>
             </div>
@@ -306,25 +306,25 @@ export default function InvoicesPage() {
             <InvoicesPageSkeleton />
           ) : invoices.length === 0 ? (
             <div className="py-16 px-6 text-center">
-              <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Inbox className="h-7 w-7 text-gray-400" />
+              <div className="w-14 h-14 bg-paper-2 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Inbox className="h-7 w-7 text-ink-4" />
               </div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-1.5">No invoices found</h3>
-              <p className="text-sm text-gray-500">You don't have any invoices yet — they'll appear here after your first purchase.</p>
+              <h3 className="text-sm font-semibold text-ink mb-1.5">No invoices found</h3>
+              <p className="text-sm text-ink-3">You don't have any invoices yet — they'll appear here after your first purchase.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-gray-50/60 border-b border-gray-100">
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Invoice</th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                  <tr className="bg-paper-2/60 border-b border-hairline">
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wider">Invoice</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wider">Date</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wider">Amount</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wider">Status</th>
+                    <th className="px-5 py-3 text-right text-xs font-semibold text-ink-3 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-hairline">
                   {invoices.map((invoice) => {
                     const statusCfg = getStatusCfg(invoice.status);
                     const StatusIcon = statusCfg.icon;
@@ -339,25 +339,25 @@ export default function InvoicesPage() {
                     return (
                       <tr
                         key={docId || invoice.invoice_number}
-                        className="hover:bg-blue-50/30 transition-colors group"
+                        className="hover:bg-indigo-soft/30 transition-colors group"
                       >
                         {/* Invoice number */}
                         <td className="px-5 py-3.5 whitespace-nowrap">
                           <div className="flex items-center gap-3">
-                            <div className="flex-shrink-0 h-9 w-9 bg-blue-50 rounded-xl flex items-center justify-center">
-                              <FileText className="h-4 w-4 text-blue-600" />
+                            <div className="flex-shrink-0 h-9 w-9 bg-indigo-soft rounded-xl flex items-center justify-center">
+                              <FileText className="h-4 w-4 text-amber-ink" />
                             </div>
-                            <span className="text-sm font-mono font-semibold text-gray-900">{invoice.invoice_number}</span>
+                            <span className="text-sm font-mono font-semibold text-ink">{invoice.invoice_number}</span>
                           </div>
                         </td>
                         {/* Date */}
                         <td className="px-5 py-3.5 whitespace-nowrap">
-                          <div className="text-sm text-gray-800">{formatDateTime(invoice.created_time || invoice.date)}</div>
-                          <div className="text-xs text-gray-400 mt-0.5">Due {formatDate(invoice.due_date)}</div>
+                          <div className="text-sm text-ink">{formatDateTime(invoice.created_time || invoice.date)}</div>
+                          <div className="text-xs text-ink-4 mt-0.5">Due {formatDate(invoice.due_date)}</div>
                         </td>
                         {/* Amount */}
                         <td className="px-5 py-3.5 whitespace-nowrap">
-                          <div className="text-sm font-semibold text-gray-900 font-mono">
+                          <div className="text-sm font-semibold text-ink font-mono">
                             {invoice.currency_code} {invoice.total.toLocaleString()}
                           </div>
                           {invoice.balance > 0 && (
@@ -380,7 +380,7 @@ export default function InvoicesPage() {
                               <button
                                 onClick={() => handlePayNow(invoice)}
                                 disabled={downloadingId === invoice.invoice_id}
-                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 shadow-sm"
+                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-amber hover:brightness-90 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 shadow-sm"
                                 title="Pay Now"
                               >
                                 <ExternalLink className="h-3.5 w-3.5" />
@@ -394,7 +394,7 @@ export default function InvoicesPage() {
                                     `/dashboard/invoices/${docId}/view${isPrimary ? '?src=order' : ''}`
                                   )
                                 }
-                                className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                className="p-2.5 text-ink-4 hover:text-amber-ink hover:bg-indigo-soft rounded-lg transition-colors"
                                 title="View invoice"
                               >
                                 <Eye className="h-4 w-4" />
@@ -404,11 +404,11 @@ export default function InvoicesPage() {
                               <button
                                 onClick={() => handleDownload(docId, invoice.invoice_number, isPrimary)}
                                 disabled={downloadingId === docId}
-                                className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
+                                className="p-2.5 text-ink-4 hover:text-amber-ink hover:bg-indigo-soft rounded-lg transition-colors disabled:opacity-50"
                                 title="Download PDF"
                               >
                                 {downloadingId === docId ? (
-                                  <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full" />
+                                  <div className="animate-spin h-4 w-4 border-2 border-amber border-t-transparent rounded-full" />
                                 ) : (
                                   <Download className="h-4 w-4" />
                                 )}
@@ -455,9 +455,9 @@ export default function InvoicesPage() {
         </div>
 
         {/* ── Sync info banner ── */}
-        <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-2xl">
-          <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
-          <p className="text-sm text-blue-800">
+        <div className="flex items-start gap-3 p-4 bg-indigo-soft border border-indigo/25 rounded-2xl">
+          <AlertCircle className="h-4 w-4 text-amber-ink mt-0.5 shrink-0" />
+          <p className="text-sm text-indigo-ink">
             Invoices are synchronized from our accounting system. If you recently made a payment and don't see the invoice here yet, please check back in a few minutes.
           </p>
         </div>

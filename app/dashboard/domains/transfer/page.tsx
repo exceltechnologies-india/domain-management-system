@@ -59,21 +59,21 @@ export default function TransferDomainPage() {
         <div className="max-w-4xl mx-auto p-6">
           <button
             onClick={() => router.back()}
-            className="flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 mb-6 transition-colors"
+            className="flex items-center text-sm font-medium text-ink-3 hover:text-ink mb-6 transition-colors"
           >
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back to Domains
           </button>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="px-6 py-8 border-b border-gray-100 bg-gray-50/50">
+          <div className="bg-paper rounded-2xl shadow-sm border border-hairline overflow-hidden">
+            <div className="px-6 py-8 border-b border-hairline bg-paper-2/50">
               <div className="flex items-center gap-4">
-                <div className="h-12 w-12 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center shadow-sm">
+                <div className="h-12 w-12 bg-amber-soft text-amber rounded-xl flex items-center justify-center shadow-sm">
                   <RefreshCw className="h-6 w-6" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-900">Transfer Domain</h1>
-                  <p className="text-sm text-gray-500 mt-1">
+                  <h1 className="font-serif text-2xl font-bold text-ink">Transfer Domain</h1>
+                  <p className="text-sm text-ink-3 mt-1">
                     Move your existing domain to our platform for unified management.
                   </p>
                 </div>
@@ -83,12 +83,12 @@ export default function TransferDomainPage() {
             <div className="px-6 py-8 md:px-10">
               <form onSubmit={handleTransfer} className="space-y-6 max-w-2xl">
                 <div>
-                  <label htmlFor="domainName" className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label htmlFor="domainName" className="block text-sm font-semibold text-ink-2 mb-2">
                     Domain Name
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Globe className="h-5 w-5 text-gray-400" />
+                      <Globe className="h-5 w-5 text-ink-4" />
                     </div>
                     <input
                       type="text"
@@ -96,19 +96,19 @@ export default function TransferDomainPage() {
                       placeholder="e.g., example.com"
                       value={domainName}
                       onChange={(e) => setDomainName(e.target.value)}
-                      className="block w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      className="block w-full pl-10 pr-4 py-3 border border-hairline-strong rounded-xl focus:ring-2 focus:ring-amber focus:border-transparent transition-all"
                       disabled={isSubmitting}
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="authCode" className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label htmlFor="authCode" className="block text-sm font-semibold text-ink-2 mb-2">
                     Authorization Code (EPP Code)
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <ShieldCheck className="h-5 w-5 text-gray-400" />
+                      <ShieldCheck className="h-5 w-5 text-ink-4" />
                     </div>
                     <input
                       type="password"
@@ -116,18 +116,18 @@ export default function TransferDomainPage() {
                       placeholder="Enter the EPP code from your current registrar"
                       value={authCode}
                       onChange={(e) => setAuthCode(e.target.value)}
-                      className="block w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      className="block w-full pl-10 pr-4 py-3 border border-hairline-strong rounded-xl focus:ring-2 focus:ring-amber focus:border-transparent transition-all"
                       disabled={isSubmitting}
                     />
                   </div>
-                  <p className="mt-2 text-xs text-gray-500">
+                  <p className="mt-2 text-xs text-ink-3">
                     You can obtain this code from your current domain registrar&apos;s control panel.
                   </p>
                 </div>
 
-                <div className="bg-blue-50 text-blue-800 p-4 rounded-xl text-sm leading-relaxed border border-blue-100">
+                <div className="bg-indigo-soft text-indigo-ink p-4 rounded-xl text-sm leading-relaxed border border-indigo/25">
                   <h4 className="font-semibold mb-1">Transfer Requirements:</h4>
-                  <ul className="list-disc pl-5 space-y-1 text-blue-700/80">
+                  <ul className="list-disc pl-5 space-y-1 text-indigo-ink/80">
                     <li>The domain must be registered for at least 60 days.</li>
                     <li>The domain must be unlocked at your current registrar.</li>
                     <li>Disable domain privacy protection temporarily.</li>
@@ -138,7 +138,7 @@ export default function TransferDomainPage() {
                   <button
                     type="submit"
                     disabled={isSubmitting || !domainName.trim() || !authCode.trim()}
-                    className="w-full flex justify-center items-center py-3.5 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+                    className="w-full flex justify-center items-center py-3.5 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-paper bg-amber hover:brightness-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber disabled:opacity-60 disabled:cursor-not-allowed transition-all"
                   >
                     {isSubmitting ? (
                       <>

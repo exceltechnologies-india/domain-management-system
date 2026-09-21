@@ -72,9 +72,9 @@ export default function UserOrders() {
       case 'failed':
         return 'bg-red-100 text-red-800';
       case 'cancelled':
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-paper-2 text-ink';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-paper-2 text-ink';
     }
   };
 
@@ -165,8 +165,8 @@ export default function UserOrders() {
           <div className="mb-8">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900 mb-2">Order History</h1>
-                <p className="text-gray-600">
+                <h1 className="text-2xl font-bold text-ink mb-2">Order History</h1>
+                <p className="text-ink-2">
                   View and manage your domain registration orders
                 </p>
               </div>
@@ -181,13 +181,13 @@ export default function UserOrders() {
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="flex-1">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-ink-4" />
                   <input
                     type="text"
                     placeholder="Search orders or domains..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full pl-10 pr-4 py-2 border border-hairline-strong rounded-lg focus:ring-2 focus:ring-amber focus:border-transparent"
                   />
                 </div>
               </div>
@@ -195,7 +195,7 @@ export default function UserOrders() {
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-hairline-strong rounded-lg focus:ring-2 focus:ring-amber focus:border-transparent"
                 >
                   <option value="all">All Status</option>
                   <option value="completed">Completed</option>
@@ -211,12 +211,12 @@ export default function UserOrders() {
           {isLoadingOrders ? (
             <OrdersPageSkeleton />
           ) : (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-lg shadow-sm border border-hairline overflow-hidden">
               {filteredOrders.length === 0 ? (
                 <div className="text-center py-12">
-                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No orders found</h3>
-                  <p className="text-gray-500 mb-4">
+                  <FileText className="h-12 w-12 text-ink-4 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-ink mb-2">No orders found</h3>
+                  <p className="text-ink-3 mb-4">
                     {searchTerm || filterStatus !== 'all'
                       ? 'Try adjusting your search or filter criteria'
                       : 'You haven\'t placed any orders yet'
@@ -225,7 +225,7 @@ export default function UserOrders() {
                   {!searchTerm && filterStatus === 'all' && (
                     <button
                       onClick={() => router.push('/')}
-                      className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                      className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-amber rounded-lg hover:brightness-90 transition-colors"
                     >
                       <ExternalLink className="h-4 w-4 mr-2" />
                       Search Domains
@@ -234,52 +234,52 @@ export default function UserOrders() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                  <table className="min-w-full divide-y divide-hairline">
+                    <thead className="bg-paper-2/60">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase tracking-wider">
                           Order
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase tracking-wider">
                           Date
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase tracking-wider">
                           Status
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase tracking-wider">
                           Items
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase tracking-wider">
                           Total
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase tracking-wider">
                           Actions
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-white divide-y divide-hairline">
                       {filteredOrders.map((order, index) => (
                         <motion.tr
                           key={order._id}
                           initial={{ opacity: 0, y: 20 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: index * 0.1 }}
-                          className="hover:bg-gray-50"
+                          className="hover:bg-paper-2"
                         >
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
-                              <Receipt className="h-5 w-5 text-gray-400 mr-3" />
+                              <Receipt className="h-5 w-5 text-ink-4 mr-3" />
                               <div>
-                                <div className="text-sm font-medium text-gray-900">
+                                <div className="text-sm font-medium text-ink">
                                   {order.orderId}
                                 </div>
-                                <div className="text-sm text-gray-500">
+                                <div className="text-sm text-ink-3">
                                   {order.invoiceNumber || 'No invoice'}
                                 </div>
                               </div>
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-ink">
                             {order.createdAt ? formatIndianDateTime(order.createdAt) : 'N/A'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -288,17 +288,17 @@ export default function UserOrders() {
                               <span className="ml-1 capitalize">{order.status}</span>
                             </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-ink">
                             {(order.domains || []).length} domain{(order.domains || []).length !== 1 ? 's' : ''}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-ink">
                             ₹{(order.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex space-x-3">
                               <button
                                 onClick={() => handleViewOrder(order)}
-                                className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-colors"
+                                className="p-2 text-amber-ink hover:text-indigo-ink hover:bg-indigo-soft rounded-lg transition-colors"
                                 title="View Details"
                               >
                                 <Eye className="h-5 w-5" />
@@ -336,12 +336,12 @@ export default function UserOrders() {
               <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
                 <div className="p-6">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900">
+                    <h3 className="text-lg font-semibold text-ink">
                       Order Details - {selectedOrder.orderId}
                     </h3>
                     <button
                       onClick={() => setSelectedOrder(null)}
-                      className="text-gray-400 hover:text-gray-600"
+                      className="text-ink-4 hover:text-ink-2"
                     >
                       <X className="h-6 w-6" />
                     </button>
@@ -350,11 +350,11 @@ export default function UserOrders() {
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <p className="text-sm font-medium text-gray-600">Order Date</p>
-                        <p className="text-sm text-gray-900">{selectedOrder.createdAt ? formatIndianDateTime(selectedOrder.createdAt) : 'N/A'}</p>
+                        <p className="text-sm font-medium text-ink-2">Order Date</p>
+                        <p className="text-sm text-ink">{selectedOrder.createdAt ? formatIndianDateTime(selectedOrder.createdAt) : 'N/A'}</p>
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-600">Status</p>
+                        <p className="text-sm font-medium text-ink-2">Status</p>
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(selectedOrder.status)}`}>
                           {getStatusIcon(selectedOrder.status)}
                           <span className="ml-1 capitalize">{selectedOrder.status}</span>
@@ -363,24 +363,24 @@ export default function UserOrders() {
                     </div>
 
                     <div>
-                      <p className="text-sm font-medium text-gray-600 mb-2">Items</p>
+                      <p className="text-sm font-medium text-ink-2 mb-2">Items</p>
                       <div className="space-y-2">
                         {(selectedOrder.domains || []).map((domain, index) => (
-                          <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                          <div key={index} className="flex justify-between items-center p-3 bg-paper-2/60 rounded-lg">
                             <div>
-                              <p className="font-medium text-gray-900">
+                              <p className="font-medium text-ink">
                                 {domain.domainName || 'Unknown Domain'}
                                 {domain.hostingPlan?.name && (
-                                  <span className="ml-2 text-xs font-normal text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                                  <span className="ml-2 text-xs font-normal text-amber-ink bg-indigo-soft px-2 py-0.5 rounded-full">
                                     {domain.hostingPlan.name}
                                   </span>
                                 )}
                               </p>
-                              <p className="text-sm text-gray-500">
+                              <p className="text-sm text-ink-3">
                                 {formatRegistrationPeriod(domain.registrationPeriod || 1, domain.itemType, domain.hostingPlan)}
                               </p>
                             </div>
-                            <p className="font-semibold text-gray-900">₹{((domain.price || 0) * (domain.registrationPeriod || 1)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                            <p className="font-semibold text-ink">₹{((domain.price || 0) * (domain.registrationPeriod || 1)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                           </div>
                         ))}
                       </div>
@@ -390,22 +390,22 @@ export default function UserOrders() {
                       <div className="space-y-2">
                         {/* Subtotal */}
                         <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">Subtotal</span>
-                          <span className="text-sm text-gray-900">₹{((selectedOrder.amount || 0) / 1.18).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          <span className="text-sm text-ink-2">Subtotal</span>
+                          <span className="text-sm text-ink">₹{((selectedOrder.amount || 0) / 1.18).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
 
                         {/* GST (18%) */}
                         <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">GST (18%)</span>
-                          <span className="text-sm text-gray-900">₹{((selectedOrder.amount || 0) - ((selectedOrder.amount || 0) / 1.18)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          <span className="text-sm text-ink-2">GST (18%)</span>
+                          <span className="text-sm text-ink">₹{((selectedOrder.amount || 0) - ((selectedOrder.amount || 0) / 1.18)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
 
                         {/* Total */}
                         <div className="flex justify-between items-center border-t pt-2">
-                          <span className="text-lg font-semibold text-gray-900">Total (incl. GST)</span>
-                          <span className="text-lg font-bold text-blue-600">₹{(selectedOrder.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          <span className="text-lg font-semibold text-ink">Total (incl. GST)</span>
+                          <span className="text-lg font-bold text-amber-ink">₹{(selectedOrder.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
-                        <p className="text-xs text-gray-500 text-right">*GST (18%) is included in the total amount</p>
+                        <p className="text-xs text-ink-3 text-right">*GST (18%) is included in the total amount</p>
                       </div>
                     </div>
                   </div>

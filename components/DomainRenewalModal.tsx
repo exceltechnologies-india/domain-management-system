@@ -200,7 +200,7 @@ export default function DomainRenewalModal({
                         onClick={() => setSelectedYears(years)}
                         className={`px-4 py-2 rounded-lg border transition-colors ${selectedYears === years
                           ? 'bg-blue-600 text-white border-blue-600'
-                          : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300'
+                          : 'bg-white text-gray-700 border-gray-300 hover:border-amber/40'
                           }`}
                       >
                         {years} {years === 1 ? 'Year' : 'Years'}

@@ -52,7 +52,7 @@ type ActiveSection = 'profile' | 'billing' | 'security';
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+    <label className="block text-sm font-medium text-ink-2 mb-1.5">
       {children}
     </label>
   );
@@ -63,10 +63,10 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement> & { icon?: Rea
   if (icon) {
     return (
       <div className="relative">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">{icon}</span>
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-4 pointer-events-none">{icon}</span>
         <input
           {...rest}
-          className={`w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow ${className}`}
+          className={`w-full pl-10 pr-3 py-2.5 border border-hairline rounded-xl text-sm focus:ring-2 focus:ring-amber focus:border-transparent transition-shadow ${className}`}
         />
       </div>
     );
@@ -74,14 +74,14 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement> & { icon?: Rea
   return (
     <input
       {...rest}
-      className={`w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow ${className}`}
+      className={`w-full px-3 py-2.5 border border-hairline rounded-xl text-sm focus:ring-2 focus:ring-amber focus:border-transparent transition-shadow ${className}`}
     />
   );
 }
 
 function SectionCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden ${className}`}>
+    <div className={`bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden ${className}`}>
       {children}
     </div>
   );
@@ -89,9 +89,9 @@ function SectionCard({ children, className = '' }: { children: React.ReactNode; 
 
 function CardHeader({ title, description }: { title: string; description?: string }) {
   return (
-    <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60">
-      <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-      {description && <p className="text-xs text-gray-500 mt-0.5">{description}</p>}
+    <div className="px-6 py-4 border-b border-hairline bg-paper-2/60">
+      <h3 className="text-sm font-semibold text-ink">{title}</h3>
+      {description && <p className="text-xs text-ink-3 mt-0.5">{description}</p>}
     </div>
   );
 }
@@ -100,14 +100,14 @@ function SaveRow({ isDirty, isSaving, onClick, label = 'Save Changes' }: {
   isDirty?: boolean; isSaving: boolean; onClick: () => void; label?: string;
 }) {
   return (
-    <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/60 flex items-center justify-end gap-3">
+    <div className="px-6 py-4 border-t border-hairline bg-paper-2/60 flex items-center justify-end gap-3">
       {isDirty && !isSaving && (
         <span className="text-xs font-medium text-amber-600">Unsaved changes</span>
       )}
       <button
         onClick={onClick}
         disabled={isSaving}
-        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors shadow-sm"
+        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-amber rounded-xl hover:brightness-90 disabled:bg-hairline-strong disabled:cursor-not-allowed transition-colors shadow-sm"
       >
         {isSaving ? (
           <><div className="h-4 w-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />Saving…</>
@@ -126,7 +126,7 @@ function PhoneField({
   return (
     <div>
       <div className="flex">
-        <span className="flex items-center px-3 py-2.5 border border-r-0 border-gray-200 rounded-l-xl bg-gray-50 text-sm text-gray-600 font-medium whitespace-nowrap select-none">
+        <span className="flex items-center px-3 py-2.5 border border-r-0 border-hairline rounded-l-xl bg-paper-2/60 text-sm text-ink-2 font-medium whitespace-nowrap select-none">
           🇮🇳 +91
         </span>
         <input
@@ -137,7 +137,7 @@ function PhoneField({
           value={value}
           onChange={e => onChange(e.target.value.replace(/\D/g, '').slice(0, 10))}
           placeholder={placeholder}
-          className={`flex-1 px-3 py-2.5 border rounded-r-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow ${error ? 'border-red-300' : 'border-gray-200'}`}
+          className={`flex-1 px-3 py-2.5 border rounded-r-xl text-sm focus:ring-2 focus:ring-amber focus:border-transparent transition-shadow ${error ? 'border-red-300' : 'border-hairline'}`}
         />
       </div>
       {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
@@ -530,8 +530,8 @@ export default function UserSettings() {
 
           {/* ── Page header ── */}
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Account Settings</h1>
-            <p className="text-sm text-gray-500 mt-1">Manage your profile, billing details and security</p>
+            <h1 className="text-2xl font-bold text-ink">Account Settings</h1>
+            <p className="text-sm text-ink-3 mt-1">Manage your profile, billing details and security</p>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
@@ -540,12 +540,12 @@ export default function UserSettings() {
             <aside className="lg:col-span-1 space-y-1">
               {/* User card */}
               <div className="flex items-center gap-3 px-3 py-4 mb-3">
-                <div className="h-11 w-11 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-sm shrink-0">
+                <div className="h-11 w-11 rounded-full bg-ink flex items-center justify-center shadow-sm shrink-0">
                   <span className="text-sm font-bold text-white">{initials || 'U'}</span>
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 truncate">{user.firstName} {user.lastName}</p>
-                  <p className="text-xs text-gray-400 truncate">{user.email}</p>
+                  <p className="text-sm font-semibold text-ink truncate">{user.firstName} {user.lastName}</p>
+                  <p className="text-xs text-ink-4 truncate">{user.email}</p>
                 </div>
               </div>
 
@@ -555,16 +555,16 @@ export default function UserSettings() {
                   onClick={() => setActiveSection(id)}
                   className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-all ${
                     activeSection === id
-                      ? 'bg-blue-50 border border-blue-200 text-blue-700 shadow-sm'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 border border-transparent'
+                      ? 'bg-amber-soft border border-amber/30 text-amber-ink shadow-sm'
+                      : 'text-ink-2 hover:bg-paper-2 hover:text-ink border border-transparent'
                   }`}
                 >
-                  <div className={`p-1.5 rounded-lg ${activeSection === id ? 'bg-blue-100' : 'bg-gray-100'}`}>
-                    <Icon className={`h-4 w-4 ${activeSection === id ? 'text-blue-600' : 'text-gray-500'}`} />
+                  <div className={`p-1.5 rounded-lg ${activeSection === id ? 'bg-amber/20' : 'bg-paper-2'}`}>
+                    <Icon className={`h-4 w-4 ${activeSection === id ? 'text-amber' : 'text-ink-3'}`} />
                   </div>
                   <div>
                     <p className="text-sm font-medium leading-none">{label}</p>
-                    <p className={`text-xs mt-0.5 ${activeSection === id ? 'text-blue-500' : 'text-gray-400'}`}>{description}</p>
+                    <p className={`text-xs mt-0.5 ${activeSection === id ? 'text-amber-ink/70' : 'text-ink-4'}`}>{description}</p>
                   </div>
                 </button>
               ))}
@@ -598,9 +598,9 @@ export default function UserSettings() {
                           type="email"
                           value={user.email}
                           disabled
-                          className="bg-gray-50 text-gray-400 cursor-not-allowed"
+                          className="bg-paper-2/60 text-ink-4 cursor-not-allowed"
                         />
-                        <p className="text-xs text-gray-400 mt-1">Email address cannot be changed</p>
+                        <p className="text-xs text-ink-4 mt-1">Email address cannot be changed</p>
                       </div>
                     </div>
                     <SaveRow isDirty={identityDirty} isSaving={savingSection === 'identity'} onClick={() => handleUpdateProfile(user, 'identity')} />
@@ -642,13 +642,13 @@ export default function UserSettings() {
                           })}
                           placeholder="10-digit WhatsApp number"
                         />
-                        <p className="text-xs text-gray-500 mt-1.5">Required. We use this for renewal reminders and account updates — and it doubles as your contact number for domain purposes.</p>
-                        <p className="text-xs text-gray-400 mt-1.5">We&apos;ll send renewal reminders and updates here. You can turn off WhatsApp messages below if you prefer email only.</p>
+                        <p className="text-xs text-ink-3 mt-1.5">Required. We use this for renewal reminders and account updates — and it doubles as your contact number for domain purposes.</p>
+                        <p className="text-xs text-ink-4 mt-1.5">We&apos;ll send renewal reminders and updates here. You can turn off WhatsApp messages below if you prefer email only.</p>
 
                         {/* Phone — optional secondary contact, shown AFTER
                             WhatsApp so the UI signals WhatsApp is prioritised. */}
                         <div className="mt-5">
-                          <FieldLabel>Phone Number <span className="font-normal text-gray-400">(optional)</span></FieldLabel>
+                          <FieldLabel>Phone Number <span className="font-normal text-ink-4">(optional)</span></FieldLabel>
                           <PhoneField
                             value={user.phone || ''}
                             onChange={v => {
@@ -662,7 +662,7 @@ export default function UserSettings() {
                             <input
                               type="checkbox"
                               id="phone-same-wa"
-                              className="h-3.5 w-3.5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                              className="h-3.5 w-3.5 rounded border-hairline-strong text-green-600 focus:ring-green-500"
                               checked={!!user.whatsappNumber && user.phone === user.whatsappNumber}
                               onChange={e => setUser(p => {
                                 if (!p) return p;
@@ -683,7 +683,7 @@ export default function UserSettings() {
                                 return { ...p, whatsappNumber: src, phone: src };
                               })}
                             />
-                            <label htmlFor="phone-same-wa" className="text-xs text-gray-500 cursor-pointer select-none">Same as WhatsApp number</label>
+                            <label htmlFor="phone-same-wa" className="text-xs text-ink-3 cursor-pointer select-none">Same as WhatsApp number</label>
                           </div>
                         </div>
 
@@ -694,13 +694,13 @@ export default function UserSettings() {
                           <label className="flex items-start gap-2 mt-3 cursor-pointer select-none">
                             <input
                               type="checkbox"
-                              className="h-3.5 w-3.5 mt-0.5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                              className="h-3.5 w-3.5 mt-0.5 rounded border-hairline-strong text-green-600 focus:ring-green-500"
                               checked={user.whatsappOptOut !== true}
                               onChange={e => setUser(p => p ? { ...p, whatsappOptOut: !e.target.checked } : null)}
                             />
-                            <span className="text-xs text-gray-600">
+                            <span className="text-xs text-ink-2">
                               Receive notifications on WhatsApp
-                              <span className="block text-gray-400">Uncheck to stop WhatsApp messages (you&apos;ll still get email). You can also reply STOP on WhatsApp anytime.</span>
+                              <span className="block text-ink-4">Uncheck to stop WhatsApp messages (you&apos;ll still get email). You can also reply STOP on WhatsApp anytime.</span>
                             </span>
                           </label>
                         )}
@@ -713,13 +713,13 @@ export default function UserSettings() {
                         <label className="flex items-start gap-2 mt-3 cursor-pointer select-none">
                           <input
                             type="checkbox"
-                            className="h-3.5 w-3.5 mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            className="h-3.5 w-3.5 mt-0.5 rounded border-hairline-strong text-amber focus:ring-amber"
                             checked={user.emailOptOut !== true}
                             onChange={e => setUser(p => p ? { ...p, emailOptOut: !e.target.checked } : null)}
                           />
-                          <span className="text-xs text-gray-600">
+                          <span className="text-xs text-ink-2">
                             Receive marketing &amp; notification emails
-                            <span className="block text-gray-400">Product news, offers, and service reminders. Uncheck to unsubscribe. Essential account, billing, and security emails are always sent and can&apos;t be turned off.</span>
+                            <span className="block text-ink-4">Product news, offers, and service reminders. Uncheck to unsubscribe. Essential account, billing, and security emails are always sent and can&apos;t be turned off.</span>
                           </span>
                         </label>
                       </div>
@@ -737,7 +737,7 @@ export default function UserSettings() {
                     <div className="p-6 space-y-5">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <FieldLabel>Company Name <span className="text-gray-400 font-normal">(optional)</span></FieldLabel>
+                          <FieldLabel>Company Name <span className="text-ink-4 font-normal">(optional)</span></FieldLabel>
                           <Input
                             icon={<Building className="h-4 w-4" />}
                             value={user.companyName || ''}
@@ -746,7 +746,7 @@ export default function UserSettings() {
                           />
                         </div>
                         <div>
-                          <FieldLabel>GST Number <span className="text-gray-400 font-normal">(optional)</span></FieldLabel>
+                          <FieldLabel>GST Number <span className="text-ink-4 font-normal">(optional)</span></FieldLabel>
                           <Input
                             icon={<CreditCard className="h-4 w-4" />}
                             value={user.gstNumber || ''}
@@ -761,15 +761,15 @@ export default function UserSettings() {
                   </SectionCard>
 
                   <SectionCard>
-                    <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 flex items-center justify-between">
+                    <div className="px-6 py-4 border-b border-hairline bg-paper-2/60 flex items-center justify-between">
                       <div>
-                        <h3 className="text-sm font-semibold text-gray-900">Address</h3>
-                        <p className="text-xs text-gray-500 mt-0.5">Required for domain registrations</p>
+                        <h3 className="text-sm font-semibold text-ink">Address</h3>
+                        <p className="text-xs text-ink-3 mt-0.5">Required for domain registrations</p>
                       </div>
                       <button
                         onClick={handleDetectLocation}
                         disabled={isDetectingLocation}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-ink bg-amber-soft hover:bg-amber/15 border border-amber/30 rounded-lg transition-colors disabled:opacity-50"
                       >
                         <Navigation className={`h-3.5 w-3.5 ${isDetectingLocation ? 'animate-spin' : ''}`} />
                         {isDetectingLocation ? 'Detecting…' : 'Auto-detect'}
@@ -779,13 +779,13 @@ export default function UserSettings() {
                       <div>
                         <FieldLabel>Address Line 1</FieldLabel>
                         <div className="relative">
-                          <MapPin className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                          <MapPin className="absolute left-3 top-3 h-4 w-4 text-ink-4" />
                           <textarea
                             value={user.address?.line1 || ''}
                             onChange={e => setUser(p => p ? { ...p, address: { ...p.address, line1: e.target.value } } : null)}
                             rows={2}
                             placeholder="Street address, building, area"
-                            className="w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-shadow"
+                            className="w-full pl-10 pr-3 py-2.5 border border-hairline rounded-xl text-sm focus:ring-2 focus:ring-amber focus:border-transparent resize-none transition-shadow"
                           />
                         </div>
                       </div>
@@ -800,7 +800,7 @@ export default function UserSettings() {
                           <select
                             value={user.address?.state || ''}
                             onChange={e => setUser(p => p ? { ...p, address: { ...p.address, state: e.target.value } } : null)}
-                            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900"
+                            className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm focus:ring-2 focus:ring-amber focus:border-transparent bg-paper text-ink"
                           >
                             <option value="" disabled>Select state</option>
                             {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
@@ -808,7 +808,7 @@ export default function UserSettings() {
                         </div>
                         <div>
                           <FieldLabel>Country</FieldLabel>
-                          <div className="w-full px-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-sm text-gray-500 select-none">
+                          <div className="w-full px-3 py-2.5 border border-hairline rounded-xl bg-paper-2/60 text-sm text-ink-3 select-none">
                             🇮🇳 India
                           </div>
                         </div>
@@ -839,9 +839,9 @@ export default function UserSettings() {
                     />
                     <div className="p-6 space-y-4">
                       {!hasExistingPassword && (
-                        <div className="flex items-start gap-3 p-3.5 bg-blue-50 border border-blue-200 rounded-xl">
-                          <AlertCircle className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
-                          <p className="text-sm text-blue-700">Set a password to enable email/password login alongside your social login.</p>
+                        <div className="flex items-start gap-3 p-3.5 bg-indigo-soft border border-indigo/25 rounded-xl">
+                          <AlertCircle className="h-4 w-4 text-indigo shrink-0 mt-0.5" />
+                          <p className="text-sm text-indigo-ink">Set a password to enable email/password login alongside your social login.</p>
                         </div>
                       )}
 
@@ -849,16 +849,16 @@ export default function UserSettings() {
                         <div>
                           <FieldLabel>Current Password</FieldLabel>
                           <div className="relative">
-                            <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                            <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-4" />
                             <input
                               type={showPassword ? 'text' : 'password'}
                               value={passwordData.currentPassword}
                               onChange={e => setPasswordData(p => ({ ...p, currentPassword: e.target.value }))}
                               placeholder="Enter current password"
                               autoComplete="current-password"
-                              className="w-full pl-10 pr-10 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              className="w-full pl-10 pr-10 py-2.5 border border-hairline rounded-xl text-sm focus:ring-2 focus:ring-amber focus:border-transparent"
                             />
-                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-4 hover:text-ink-2">
                               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                             </button>
                           </div>
@@ -875,9 +875,9 @@ export default function UserSettings() {
                               onChange={e => setPasswordData(p => ({ ...p, newPassword: e.target.value }))}
                               placeholder="Min 8 characters"
                               autoComplete="new-password"
-                              className="w-full px-3 pr-10 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              className="w-full px-3 pr-10 py-2.5 border border-hairline rounded-xl text-sm focus:ring-2 focus:ring-amber focus:border-transparent"
                             />
-                            <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                            <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-4 hover:text-ink-2">
                               {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                             </button>
                           </div>
@@ -891,9 +891,9 @@ export default function UserSettings() {
                               onChange={e => setPasswordData(p => ({ ...p, confirmPassword: e.target.value }))}
                               placeholder="Repeat new password"
                               autoComplete="new-password"
-                              className="w-full px-3 pr-10 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              className="w-full px-3 pr-10 py-2.5 border border-hairline rounded-xl text-sm focus:ring-2 focus:ring-amber focus:border-transparent"
                             />
-                            <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                            <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-4 hover:text-ink-2">
                               {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                             </button>
                           </div>
@@ -917,16 +917,16 @@ export default function UserSettings() {
                       {totpStep === 'status' && (
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <div className={`p-2.5 rounded-xl ${totpEnabled ? 'bg-green-100' : 'bg-gray-100'}`}>
+                            <div className={`p-2.5 rounded-xl ${totpEnabled ? 'bg-green-100' : 'bg-paper-2'}`}>
                               {totpEnabled
                                 ? <ShieldCheck className="h-5 w-5 text-green-600" />
-                                : <ShieldOff className="h-5 w-5 text-gray-400" />}
+                                : <ShieldOff className="h-5 w-5 text-ink-4" />}
                             </div>
                             <div>
-                              <p className={`text-sm font-semibold ${totpEnabled ? 'text-green-700' : 'text-gray-700'}`}>
+                              <p className={`text-sm font-semibold ${totpEnabled ? 'text-green-700' : 'text-ink-2'}`}>
                                 {totpEnabled === null ? 'Loading…' : totpEnabled ? '2FA Enabled' : '2FA Disabled'}
                               </p>
-                              <p className="text-xs text-gray-400 mt-0.5">
+                              <p className="text-xs text-ink-4 mt-0.5">
                                 {totpEnabled === null ? '' : totpEnabled
                                   ? 'Authenticator code required at every login'
                                   : 'Your account has no second factor — set it up below'}
@@ -935,7 +935,7 @@ export default function UserSettings() {
                           </div>
                           <div>
                             {totpEnabled === null ? (
-                              <div className="h-4 w-4 border-2 border-gray-300 border-t-gray-500 rounded-full animate-spin" />
+                              <div className="h-4 w-4 border-2 border-hairline-strong border-t-ink-3 rounded-full animate-spin" />
                             ) : totpEnabled ? (
                               <button onClick={() => setTotpStep('disable')} className="text-sm font-medium text-red-600 hover:text-red-700 px-3 py-1.5 border border-red-200 rounded-lg hover:bg-red-50 transition-colors">
                                 Disable 2FA
@@ -944,7 +944,7 @@ export default function UserSettings() {
                               <button
                                 onClick={handleTotpStartSetup}
                                 disabled={totpIsLoading}
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-amber text-white text-sm font-semibold rounded-xl hover:brightness-90 disabled:opacity-50 transition-colors shadow-sm"
                               >
                                 {totpIsLoading ? <div className="h-4 w-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <QrCode className="h-4 w-4" />}
                                 Set up 2FA
@@ -958,35 +958,35 @@ export default function UserSettings() {
                       {totpStep === 'scan' && (
                         <div className="space-y-5">
                           <div className="flex items-center gap-2">
-                            <span className="flex items-center justify-center h-5 w-5 rounded-full bg-blue-600 text-white text-xs font-bold shrink-0">1</span>
-                            <p className="text-sm font-medium text-gray-900">Scan the QR code</p>
+                            <span className="flex items-center justify-center h-5 w-5 rounded-full bg-amber text-white text-xs font-bold shrink-0">1</span>
+                            <p className="text-sm font-medium text-ink">Scan the QR code</p>
                           </div>
-                          <p className="text-sm text-gray-500">Open your authenticator app (Google Authenticator, Authy, 1Password, etc.) and scan the code below.</p>
+                          <p className="text-sm text-ink-3">Open your authenticator app (Google Authenticator, Authy, 1Password, etc.) and scan the code below.</p>
                           {totpQrUrl && (
                             <div className="flex justify-center py-2">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={totpQrUrl} alt="TOTP QR code" className="rounded-xl border-2 border-gray-200 p-2 shadow-sm" />
+                              <img src={totpQrUrl} alt="TOTP QR code" className="rounded-xl border-2 border-hairline p-2 shadow-sm" />
                             </div>
                           )}
-                          <div className="rounded-xl bg-gray-50 border border-gray-200 p-4">
+                          <div className="rounded-xl bg-paper-2/60 border border-hairline p-4">
                             <div className="flex items-center justify-between mb-2">
-                              <span className="text-xs font-medium text-gray-500 flex items-center gap-1.5">
+                              <span className="text-xs font-medium text-ink-3 flex items-center gap-1.5">
                                 <KeyRound className="h-3.5 w-3.5" /> Manual entry key
                               </span>
-                              <button onClick={() => setTotpShowManualKey(!totpShowManualKey)} className="text-xs text-gray-400 hover:text-gray-600">
+                              <button onClick={() => setTotpShowManualKey(!totpShowManualKey)} className="text-xs text-ink-4 hover:text-ink-2">
                                 {totpShowManualKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                               </button>
                             </div>
                             {totpShowManualKey ? (
                               <div className="flex items-center gap-2">
-                                <code className="text-xs font-mono break-all text-gray-800 flex-1">{totpManualKey}</code>
-                                <button onClick={() => copyToClipboard(totpManualKey)} className="shrink-0 text-gray-400 hover:text-gray-600"><Copy className="h-3.5 w-3.5" /></button>
+                                <code className="text-xs font-mono break-all text-ink flex-1">{totpManualKey}</code>
+                                <button onClick={() => copyToClipboard(totpManualKey)} className="shrink-0 text-ink-4 hover:text-ink-2"><Copy className="h-3.5 w-3.5" /></button>
                               </div>
                             ) : (
-                              <p className="text-xs text-gray-400 italic">Hidden — click the eye icon to reveal</p>
+                              <p className="text-xs text-ink-4 italic">Hidden — click the eye icon to reveal</p>
                             )}
                           </div>
-                          <button onClick={() => setTotpStep('verify')} className="w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors">
+                          <button onClick={() => setTotpStep('verify')} className="w-full py-2.5 bg-amber text-white text-sm font-semibold rounded-xl hover:brightness-90 transition-colors">
                             I've scanned the code →
                           </button>
                         </div>
@@ -996,10 +996,10 @@ export default function UserSettings() {
                       {totpStep === 'verify' && (
                         <div className="space-y-5">
                           <div className="flex items-center gap-2">
-                            <span className="flex items-center justify-center h-5 w-5 rounded-full bg-blue-600 text-white text-xs font-bold shrink-0">2</span>
-                            <p className="text-sm font-medium text-gray-900">Enter the 6-digit code</p>
+                            <span className="flex items-center justify-center h-5 w-5 rounded-full bg-amber text-white text-xs font-bold shrink-0">2</span>
+                            <p className="text-sm font-medium text-ink">Enter the 6-digit code</p>
                           </div>
-                          <p className="text-sm text-gray-500">Enter the code your authenticator app is showing right now.</p>
+                          <p className="text-sm text-ink-3">Enter the code your authenticator app is showing right now.</p>
                           <input
                             type="text"
                             inputMode="numeric"
@@ -1007,15 +1007,15 @@ export default function UserSettings() {
                             value={totpVerifyCode}
                             onChange={e => setTotpVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                             maxLength={6}
-                            className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-center text-3xl font-mono tracking-[0.5em] focus:outline-none focus:border-blue-500 transition-colors"
+                            className="w-full border-2 border-hairline rounded-xl px-4 py-3 text-center text-3xl font-mono tracking-[0.5em] focus:outline-none focus:border-amber transition-colors"
                             autoFocus
                           />
                           <div className="flex gap-3">
-                            <button onClick={() => setTotpStep('scan')} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">← Back</button>
+                            <button onClick={() => setTotpStep('scan')} className="flex-1 py-2.5 border border-hairline rounded-xl text-sm font-medium text-ink-2 hover:bg-paper-2 transition-colors">← Back</button>
                             <button
                               onClick={handleTotpConfirm}
                               disabled={totpIsLoading || totpVerifyCode.length !== 6}
-                              className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                              className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 bg-amber text-white text-sm font-semibold rounded-xl hover:brightness-90 disabled:opacity-50 transition-colors"
                             >
                               {totpIsLoading && <div className="h-4 w-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />}
                               Verify &amp; Enable
@@ -1038,7 +1038,7 @@ export default function UserSettings() {
                             <p className="text-xs font-semibold text-amber-800">Each code can only be used once. Store them somewhere safe.</p>
                             <div className="grid grid-cols-2 gap-2">
                               {totpBackupCodes.map(code => (
-                                <code key={code} className="text-xs font-mono bg-white border border-amber-200 rounded-lg px-3 py-2 text-center text-gray-800 shadow-sm">{code}</code>
+                                <code key={code} className="text-xs font-mono bg-paper border border-amber-200 rounded-lg px-3 py-2 text-center text-ink shadow-sm">{code}</code>
                               ))}
                             </div>
                             <div className="flex items-center gap-4 pt-1">
@@ -1050,7 +1050,7 @@ export default function UserSettings() {
                               </button>
                             </div>
                           </div>
-                          <button onClick={() => setTotpStep('status')} className="w-full py-2.5 bg-gray-900 text-white text-sm font-semibold rounded-xl hover:bg-gray-800 transition-colors">
+                          <button onClick={() => setTotpStep('status')} className="w-full py-2.5 bg-ink text-white text-sm font-semibold rounded-xl hover:bg-ink/90 transition-colors">
                             Done
                           </button>
                         </div>
@@ -1073,7 +1073,7 @@ export default function UserSettings() {
                                 value={totpDisableCode}
                                 onChange={e => setTotpDisableCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                                 maxLength={6}
-                                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-red-400"
+                                className="w-full border border-hairline rounded-xl px-4 py-2.5 text-sm font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-red-400"
                               />
                             </div>
                             <div>
@@ -1084,16 +1084,16 @@ export default function UserSettings() {
                                   placeholder="Your password"
                                   value={totpDisablePassword}
                                   onChange={e => setTotpDisablePassword(e.target.value)}
-                                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm pr-10 focus:outline-none focus:ring-2 focus:ring-red-400"
+                                  className="w-full border border-hairline rounded-xl px-4 py-2.5 text-sm pr-10 focus:outline-none focus:ring-2 focus:ring-red-400"
                                 />
-                                <button type="button" onClick={() => setTotpShowDisablePassword(!totpShowDisablePassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                <button type="button" onClick={() => setTotpShowDisablePassword(!totpShowDisablePassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-4 hover:text-ink-2">
                                   {totpShowDisablePassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                 </button>
                               </div>
                             </div>
                           </div>
                           <div className="flex gap-3">
-                            <button onClick={() => setTotpStep('status')} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">Cancel</button>
+                            <button onClick={() => setTotpStep('status')} className="flex-1 py-2.5 border border-hairline rounded-xl text-sm font-medium text-ink-2 hover:bg-paper-2 transition-colors">Cancel</button>
                             <button
                               onClick={handleTotpDisable}
                               disabled={totpIsLoading}

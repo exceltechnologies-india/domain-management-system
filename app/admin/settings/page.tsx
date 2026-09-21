@@ -380,11 +380,11 @@ export default function AdminSettings() {
         {/* Page header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2.5">
-              <Settings className="h-6 w-6 text-blue-600" />
+            <h1 className="text-2xl font-serif font-bold text-ink flex items-center gap-2.5">
+              <Settings className="h-6 w-6 text-amber-ink" />
               Admin Settings
             </h1>
-            <p className="text-sm text-gray-500 mt-0.5">Configure site-wide behaviour, security and promotions</p>
+            <p className="text-sm text-ink-3 mt-0.5">Configure site-wide behaviour, security and promotions</p>
           </div>
         </div>
 
@@ -398,16 +398,16 @@ export default function AdminSettings() {
                 onClick={() => setActiveSection(id)}
                 className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-all ${
                   activeSection === id
-                    ? "bg-blue-50 border border-blue-200 text-blue-700 shadow-sm"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 border border-transparent"
+                    ? "bg-amber-soft border border-amber/30 text-amber-ink shadow-sm"
+                    : "text-ink-2 hover:bg-paper-2 hover:text-ink border border-transparent"
                 }`}
               >
-                <div className={`p-1.5 rounded-lg ${activeSection === id ? "bg-blue-100" : "bg-gray-100"}`}>
-                  <Icon className={`h-4 w-4 ${activeSection === id ? "text-blue-600" : "text-gray-500"}`} />
+                <div className={`p-1.5 rounded-lg ${activeSection === id ? "bg-amber/15" : "bg-paper-2"}`}>
+                  <Icon className={`h-4 w-4 ${activeSection === id ? "text-amber-ink" : "text-ink-3"}`} />
                 </div>
                 <div>
                   <p className="text-sm font-medium leading-none">{label}</p>
-                  <p className={`text-xs mt-0.5 ${activeSection === id ? "text-blue-500" : "text-gray-400"}`}>{description}</p>
+                  <p className={`text-xs mt-0.5 ${activeSection === id ? "text-amber-ink/90" : "text-ink-4"}`}>{description}</p>
                 </div>
               </button>
             ))}
@@ -428,22 +428,22 @@ export default function AdminSettings() {
                   <div className="p-6 space-y-5">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-gray-700">Enable Caching</p>
-                        <p className="text-xs text-gray-400 mt-0.5">Speeds up TLD pricing lookups significantly</p>
+                        <p className="text-sm font-medium text-ink-2">Enable Caching</p>
+                        <p className="text-xs text-ink-4 mt-0.5">Speeds up TLD pricing lookups significantly</p>
                       </div>
                       <Toggle checked={cacheEnabled} onChange={setCacheEnabled} />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Cache TTL (Minutes)</label>
+                      <label className="block text-sm font-medium text-ink-2 mb-1.5">Cache TTL (Minutes)</label>
                       <input
                         type="number"
                         value={cacheTTL}
                         onChange={e => setCacheTTL(parseInt(e.target.value) || 0)}
                         min="1"
-                        className="w-full max-w-xs px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full max-w-xs px-3 py-2.5 border border-hairline rounded-xl text-sm focus:ring-2 focus:ring-amber focus:border-transparent"
                       />
-                      <p className="text-xs text-gray-400 mt-1">How long pricing data is cached before refreshing</p>
+                      <p className="text-xs text-ink-4 mt-1">How long pricing data is cached before refreshing</p>
                     </div>
 
                     {/* Cache status */}
@@ -454,9 +454,9 @@ export default function AdminSettings() {
                           { label: "Items Cached", value: cacheStatus.itemCount ?? 0 },
                           { label: "Last Updated", value: cacheStatus.lastUpdated ? formatIndianDateTime(cacheStatus.lastUpdated) : "—" },
                         ].map(({ label, value }) => (
-                          <div key={label} className="bg-gray-50 rounded-xl p-3 text-center border border-gray-100">
-                            <p className="text-xs text-gray-500 mb-1">{label}</p>
-                            <p className="text-sm font-semibold text-gray-900">{value}</p>
+                          <div key={label} className="bg-paper-2/60 rounded-xl p-3 text-center border border-hairline">
+                            <p className="text-xs text-ink-3 mb-1">{label}</p>
+                            <p className="text-sm font-semibold text-ink">{value}</p>
                           </div>
                         ))}
                       </div>
@@ -482,20 +482,20 @@ export default function AdminSettings() {
                     onClick={() => setServerInfoExpanded(v => !v)}
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="p-1.5 rounded-lg bg-gray-100">
-                        <Server className="h-4 w-4 text-gray-500" />
+                      <div className="p-1.5 rounded-lg bg-paper-2">
+                        <Server className="h-4 w-4 text-ink-3" />
                       </div>
                       <div className="flex items-center gap-3 min-w-0">
-                        <span className="text-sm font-semibold text-gray-900">Server Information</span>
+                        <span className="text-sm font-semibold text-ink">Server Information</span>
                         <Badge className={`${getStatusColor()} text-white text-xs flex-shrink-0`}>
                           {isLoading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
                           {getStatusLabel()}
                         </Badge>
                         {!isLoading && ipData?.data?.primaryIP && (
-                          <span className="font-mono text-sm text-gray-600 hidden sm:inline">{ipData.data.primaryIP}</span>
+                          <span className="font-mono text-sm text-ink-2 hidden sm:inline">{ipData.data.primaryIP}</span>
                         )}
                         {lastChecked && !isLoading && (
-                          <span className="text-xs text-gray-400 hidden md:inline">· {formatIndianDateTime(lastChecked)}</span>
+                          <span className="text-xs text-ink-4 hidden md:inline">· {formatIndianDateTime(lastChecked)}</span>
                         )}
                       </div>
                     </div>
@@ -503,37 +503,37 @@ export default function AdminSettings() {
                       <div onClick={e => e.stopPropagation()}>
                         <RefreshButton onClick={fetchOutboundIP} isLoading={isLoading} title="Refresh" />
                       </div>
-                      <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${serverInfoExpanded ? "rotate-180" : ""}`} />
+                      <ChevronDown className={`h-4 w-4 text-ink-4 transition-transform duration-200 ${serverInfoExpanded ? "rotate-180" : ""}`} />
                     </div>
                   </div>
 
                   {serverInfoExpanded && (
-                    <div className="border-t border-gray-100 p-6 space-y-4">
+                    <div className="border-t border-hairline p-6 space-y-4">
                       {(isLoading || (isDataLoading && !ipData)) && (
                         <div className="space-y-3">
-                          <div className="h-16 bg-blue-50 rounded-xl animate-pulse" />
-                          <div className="h-24 bg-gray-50 rounded-xl animate-pulse" />
+                          <div className="h-16 bg-indigo-soft rounded-xl animate-pulse" />
+                          <div className="h-24 bg-paper-2/60 rounded-xl animate-pulse" />
                         </div>
                       )}
                       {ipData?.success && ipData.data && !isLoading && (
                         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-                          <div className="flex items-center justify-between p-4 bg-blue-50 rounded-xl border border-blue-100">
+                          <div className="flex items-center justify-between p-4 bg-indigo-soft rounded-xl border border-indigo/25">
                             <div>
-                              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">Primary Outbound IP</p>
-                              <p className="text-2xl font-mono text-blue-900">{ipData.data.primaryIP || "N/A"}</p>
+                              <p className="text-xs font-semibold text-indigo-ink uppercase tracking-wide mb-1">Primary Outbound IP</p>
+                              <p className="text-2xl font-mono text-indigo-ink">{ipData.data.primaryIP || "N/A"}</p>
                             </div>
-                            <button onClick={() => { void navigator.clipboard.writeText(ipData.data?.primaryIP || ""); showSuccessToast("Copied!"); }} className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-blue-700 bg-white border border-blue-200 rounded-lg hover:bg-blue-50">
+                            <button onClick={() => { void navigator.clipboard.writeText(ipData.data?.primaryIP || ""); showSuccessToast("Copied!"); }} className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-indigo-ink bg-paper border border-indigo/25 rounded-lg hover:bg-indigo-soft">
                               <Copy className="h-3.5 w-3.5" /> Copy
                             </button>
                           </div>
 
                           {ipData.data.services && (
-                            <div className="bg-gray-50 rounded-xl border border-gray-100 overflow-hidden">
-                              <p className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">Service Results</p>
-                              <div className="divide-y divide-gray-100">
+                            <div className="bg-paper-2/60 rounded-xl border border-hairline overflow-hidden">
+                              <p className="px-4 py-3 text-xs font-semibold text-ink-3 uppercase tracking-wide border-b border-hairline">Service Results</p>
+                              <div className="divide-y divide-hairline">
                                 {Object.entries(ipData.data.services).map(([service, result]: [string, any]) => (
                                   <div key={service} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                                    <span className="capitalize font-medium text-gray-700">{service}</span>
+                                    <span className="capitalize font-medium text-ink-2">{service}</span>
                                     <Badge variant={result.ip ? "outline" : "destructive"} className="text-xs font-mono">
                                       {result.ip || "Failed"}
                                     </Badge>
@@ -544,13 +544,13 @@ export default function AdminSettings() {
                           )}
 
                           {ipData.data.serverInfo && (
-                            <div className="bg-gray-50 rounded-xl border border-gray-100 overflow-hidden">
-                              <p className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">Server Headers</p>
+                            <div className="bg-paper-2/60 rounded-xl border border-hairline overflow-hidden">
+                              <p className="px-4 py-3 text-xs font-semibold text-ink-3 uppercase tracking-wide border-b border-hairline">Server Headers</p>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
                                 {Object.entries(ipData.data.serverInfo).map(([key, value]) => (
                                   <div key={key}>
-                                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">{key.replace(/([A-Z])/g, " $1").trim()}</p>
-                                    <p className="font-mono text-xs text-gray-800 break-all">{value as React.ReactNode}</p>
+                                    <p className="text-xs text-ink-4 uppercase tracking-wider mb-0.5">{key.replace(/([A-Z])/g, " $1").trim()}</p>
+                                    <p className="font-mono text-xs text-ink break-all">{value as React.ReactNode}</p>
                                   </div>
                                 ))}
                               </div>
@@ -559,7 +559,7 @@ export default function AdminSettings() {
                         </motion.div>
                       )}
                       {!isLoading && !ipData && !isDataLoading && (
-                        <p className="text-center text-sm text-gray-400 py-6">No data available — click Refresh to fetch.</p>
+                        <p className="text-center text-sm text-ink-4 py-6">No data available — click Refresh to fetch.</p>
                       )}
                     </div>
                   )}
@@ -579,7 +579,7 @@ export default function AdminSettings() {
                   />
                   <div className="p-6 space-y-5">
                     {!ipWhitelistEnabled ? (
-                      <p className="text-sm text-gray-500">IP whitelisting is off. Enable it to restrict admin API access to specific addresses.</p>
+                      <p className="text-sm text-ink-3">IP whitelisting is off. Enable it to restrict admin API access to specific addresses.</p>
                     ) : (
                       <>
                         <div className="flex items-start gap-3 p-3.5 bg-yellow-50 border border-yellow-200 rounded-xl">
@@ -588,17 +588,17 @@ export default function AdminSettings() {
                         </div>
 
                         {/* Current IP */}
-                        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
+                        <div className="flex items-center justify-between p-4 bg-paper-2/60 rounded-xl border border-hairline">
                           <div>
-                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Your Current IP</p>
-                            <p className="font-mono text-sm text-gray-900">{isLoadingIP ? "Loading…" : currentIP || "Not available"}</p>
+                            <p className="text-xs font-semibold text-ink-3 uppercase tracking-wide mb-1">Your Current IP</p>
+                            <p className="font-mono text-sm text-ink">{isLoadingIP ? "Loading…" : currentIP || "Not available"}</p>
                           </div>
                           <div className="flex gap-2">
-                            <button onClick={fetchCurrentIP} disabled={isLoadingIP} className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 flex items-center gap-1.5 disabled:opacity-50">
+                            <button onClick={fetchCurrentIP} disabled={isLoadingIP} className="px-3 py-1.5 text-xs font-medium text-ink-2 border border-hairline rounded-lg hover:bg-paper-2 flex items-center gap-1.5 disabled:opacity-50">
                               <RefreshCw className={`h-3.5 w-3.5 ${isLoadingIP ? "animate-spin" : ""}`} /> Check
                             </button>
                             {currentIP && (
-                              <button onClick={() => addIPToWhitelist(currentIP)} className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 flex items-center gap-1.5">
+                              <button onClick={() => addIPToWhitelist(currentIP)} className="px-3 py-1.5 text-xs font-medium text-white bg-amber rounded-lg hover:brightness-90 flex items-center gap-1.5">
                                 <Plus className="h-3.5 w-3.5" /> Add Mine
                               </button>
                             )}
@@ -607,16 +607,16 @@ export default function AdminSettings() {
 
                         {/* List */}
                         <div>
-                          <p className="text-sm font-medium text-gray-700 mb-2">Whitelisted IPs</p>
+                          <p className="text-sm font-medium text-ink-2 mb-2">Whitelisted IPs</p>
                           {whitelistedIPs.length === 0 ? (
-                            <p className="text-sm text-gray-400 italic">No IPs added yet</p>
+                            <p className="text-sm text-ink-4 italic">No IPs added yet</p>
                           ) : (
                             <div className="space-y-1.5">
                               {whitelistedIPs.map(ip => (
-                                <div key={ip} className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl">
+                                <div key={ip} className="flex items-center justify-between px-4 py-2.5 bg-paper-2/60 border border-hairline rounded-xl">
                                   <div className="flex items-center gap-2">
                                     <CheckCircle className="h-3.5 w-3.5 text-green-500" />
-                                    <span className="font-mono text-sm text-gray-800">{ip}</span>
+                                    <span className="font-mono text-sm text-ink">{ip}</span>
                                   </div>
                                   <button onClick={() => setWhitelistedIPs(whitelistedIPs.filter(i => i !== ip))} className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
                                     <X className="h-3.5 w-3.5" />
@@ -629,8 +629,8 @@ export default function AdminSettings() {
 
                         {/* Add */}
                         <div className="flex gap-2">
-                          <input type="text" value={newIP} onChange={e => setNewIP(e.target.value)} onKeyDown={e => e.key === "Enter" && addIPToWhitelist(newIP)} placeholder="1.2.3.4 or 192.168.1.0/24" className="flex-1 px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                          <button onClick={() => addIPToWhitelist(newIP)} className="px-4 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 flex items-center gap-1.5">
+                          <input type="text" value={newIP} onChange={e => setNewIP(e.target.value)} onKeyDown={e => e.key === "Enter" && addIPToWhitelist(newIP)} placeholder="1.2.3.4 or 192.168.1.0/24" className="flex-1 px-3 py-2.5 border border-hairline rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber" />
+                          <button onClick={() => addIPToWhitelist(newIP)} className="px-4 py-2.5 text-sm font-semibold text-white bg-amber rounded-xl hover:brightness-90 flex items-center gap-1.5">
                             <Plus className="h-4 w-4" /> Add
                           </button>
                         </div>
@@ -653,7 +653,7 @@ export default function AdminSettings() {
                   />
                   <div className="p-6 space-y-5">
                     {!corsProtectionEnabled ? (
-                      <p className="text-sm text-gray-500">CORS protection is off. All origins can make API requests from browsers.</p>
+                      <p className="text-sm text-ink-3">CORS protection is off. All origins can make API requests from browsers.</p>
                     ) : (
                       <>
                         <div className="flex items-start gap-3 p-3.5 bg-yellow-50 border border-yellow-200 rounded-xl">
@@ -662,28 +662,28 @@ export default function AdminSettings() {
                         </div>
 
                         {currentOrigin && (
-                          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
+                          <div className="flex items-center justify-between p-4 bg-paper-2/60 rounded-xl border border-hairline">
                             <div>
-                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Current Origin</p>
-                              <p className="font-mono text-sm text-gray-900">{currentOrigin}</p>
+                              <p className="text-xs font-semibold text-ink-3 uppercase tracking-wide mb-1">Current Origin</p>
+                              <p className="font-mono text-sm text-ink">{currentOrigin}</p>
                             </div>
-                            <button onClick={() => addOriginToWhitelist(currentOrigin)} className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 flex items-center gap-1.5">
+                            <button onClick={() => addOriginToWhitelist(currentOrigin)} className="px-3 py-1.5 text-xs font-medium text-white bg-amber rounded-lg hover:brightness-90 flex items-center gap-1.5">
                               <Plus className="h-3.5 w-3.5" /> Add Mine
                             </button>
                           </div>
                         )}
 
                         <div>
-                          <p className="text-sm font-medium text-gray-700 mb-2">Allowed Origins</p>
+                          <p className="text-sm font-medium text-ink-2 mb-2">Allowed Origins</p>
                           {allowedOrigins.length === 0 ? (
-                            <p className="text-sm text-gray-400 italic">No origins added yet</p>
+                            <p className="text-sm text-ink-4 italic">No origins added yet</p>
                           ) : (
                             <div className="space-y-1.5">
                               {allowedOrigins.map(origin => (
-                                <div key={origin} className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl">
+                                <div key={origin} className="flex items-center justify-between px-4 py-2.5 bg-paper-2/60 border border-hairline rounded-xl">
                                   <div className="flex items-center gap-2">
                                     <CheckCircle className="h-3.5 w-3.5 text-green-500" />
-                                    <span className="font-mono text-sm text-gray-800">{origin}</span>
+                                    <span className="font-mono text-sm text-ink">{origin}</span>
                                   </div>
                                   <button onClick={() => setAllowedOrigins(allowedOrigins.filter(o => o !== origin))} className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
                                     <X className="h-3.5 w-3.5" />
@@ -695,8 +695,8 @@ export default function AdminSettings() {
                         </div>
 
                         <div className="flex gap-2">
-                          <input type="text" value={newOrigin} onChange={e => setNewOrigin(e.target.value)} onKeyDown={e => e.key === "Enter" && addOriginToWhitelist(newOrigin)} placeholder="https://yourdomain.com" className="flex-1 px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                          <button onClick={() => addOriginToWhitelist(newOrigin)} className="px-4 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 flex items-center gap-1.5">
+                          <input type="text" value={newOrigin} onChange={e => setNewOrigin(e.target.value)} onKeyDown={e => e.key === "Enter" && addOriginToWhitelist(newOrigin)} placeholder="https://yourdomain.com" className="flex-1 px-3 py-2.5 border border-hairline rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber" />
+                          <button onClick={() => addOriginToWhitelist(newOrigin)} className="px-4 py-2.5 text-sm font-semibold text-white bg-amber rounded-xl hover:brightness-90 flex items-center gap-1.5">
                             <Plus className="h-4 w-4" /> Add
                           </button>
                         </div>
@@ -750,7 +750,7 @@ export default function AdminSettings() {
                   <div className="p-6 space-y-5">
                     {/* Status pill row */}
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold border ${waReady ? "bg-green-50 text-green-700 border-green-300" : "bg-gray-100 text-gray-500 border-gray-200"}`}>
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold border ${waReady ? "bg-green-50 text-green-700 border-green-300" : "bg-paper-2 text-ink-3 border-hairline"}`}>
                         {isLoadingWa ? "Loading…" : waReady ? "READY — sends live" : waEnabled ? "ENABLED — not fully configured" : "DISABLED"}
                       </span>
                       <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${waHasToken ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"}`}>
@@ -760,28 +760,28 @@ export default function AdminSettings() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                       <div>
-                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Phone-number ID</label>
-                        <input type="text" value={waPhoneNumberId} onChange={e => setWaPhoneNumberId(e.target.value)} placeholder="From Meta WhatsApp Manager" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        <label className="block text-xs font-semibold text-ink-3 uppercase tracking-wide mb-1.5">Phone-number ID</label>
+                        <input type="text" value={waPhoneNumberId} onChange={e => setWaPhoneNumberId(e.target.value)} placeholder="From Meta WhatsApp Manager" className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-400" />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Business number <span className="font-normal text-gray-400">(display only)</span></label>
-                        <input type="text" value={waBusinessNumber} onChange={e => setWaBusinessNumber(e.target.value)} placeholder="+91 98765 43210" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        <label className="block text-xs font-semibold text-ink-3 uppercase tracking-wide mb-1.5">Business number <span className="font-normal text-ink-4">(display only)</span></label>
+                        <input type="text" value={waBusinessNumber} onChange={e => setWaBusinessNumber(e.target.value)} placeholder="+91 98765 43210" className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Reminder template</label>
-                        <input type="text" value={waTplReminder} onChange={e => setWaTplReminder(e.target.value)} placeholder="service_renewal_reminder" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        <label className="block text-xs font-semibold text-ink-3 uppercase tracking-wide mb-1.5">Reminder template</label>
+                        <input type="text" value={waTplReminder} onChange={e => setWaTplReminder(e.target.value)} placeholder="service_renewal_reminder" className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-400" />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Payment template</label>
-                        <input type="text" value={waTplPayment} onChange={e => setWaTplPayment(e.target.value)} placeholder="payment_confirmed" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        <label className="block text-xs font-semibold text-ink-3 uppercase tracking-wide mb-1.5">Payment template</label>
+                        <input type="text" value={waTplPayment} onChange={e => setWaTplPayment(e.target.value)} placeholder="payment_confirmed" className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-400" />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Suspension template</label>
-                        <input type="text" value={waTplSuspended} onChange={e => setWaTplSuspended(e.target.value)} placeholder="service_suspended" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        <label className="block text-xs font-semibold text-ink-3 uppercase tracking-wide mb-1.5">Suspension template</label>
+                        <input type="text" value={waTplSuspended} onChange={e => setWaTplSuspended(e.target.value)} placeholder="service_suspended" className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-400" />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Welcome template</label>
-                        <input type="text" value={waTplWelcome} onChange={e => setWaTplWelcome(e.target.value)} placeholder="hosting_provisioned" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        <label className="block text-xs font-semibold text-ink-3 uppercase tracking-wide mb-1.5">Welcome template</label>
+                        <input type="text" value={waTplWelcome} onChange={e => setWaTplWelcome(e.target.value)} placeholder="hosting_provisioned" className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-400" />
                       </div>
                     </div>
 
@@ -793,10 +793,10 @@ export default function AdminSettings() {
                     />
 
                     {/* Test send — validates config even while disabled */}
-                    <div className="border-t border-gray-100 pt-5">
-                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Send a test message <span className="font-normal text-gray-400">(bypasses the master toggle — validates token + template before going live)</span></label>
+                    <div className="border-t border-hairline pt-5">
+                      <label className="block text-xs font-semibold text-ink-3 uppercase tracking-wide mb-1.5">Send a test message <span className="font-normal text-ink-4">(bypasses the master toggle — validates token + template before going live)</span></label>
                       <div className="flex flex-wrap items-center gap-2">
-                        <input type="text" value={waTestNumber} onChange={e => setWaTestNumber(e.target.value)} placeholder="10-digit mobile or +91…" className="flex-1 min-w-0 sm:min-w-[200px] px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        <input type="text" value={waTestNumber} onChange={e => setWaTestNumber(e.target.value)} placeholder="10-digit mobile or +91…" className="flex-1 min-w-0 sm:min-w-[200px] px-3 py-2.5 border border-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
                         <button onClick={sendWhatsAppTest} disabled={isSendingWaTest} className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-green-600 rounded-xl hover:bg-green-700 disabled:opacity-50 transition-colors">
                           {isSendingWaTest ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                           {isSendingWaTest ? "Sending…" : "Send test"}
@@ -806,7 +806,7 @@ export default function AdminSettings() {
                   </div>
                   <SFooter>
                     <SaveBtn onClick={saveWhatsAppSettings} loading={isSavingWa} label="Save WhatsApp Settings" color="green" />
-                    <button onClick={loadWhatsAppSettings} disabled={isLoadingWa} className="px-3 py-2 text-sm text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 flex items-center gap-1.5 disabled:opacity-50">
+                    <button onClick={loadWhatsAppSettings} disabled={isLoadingWa} className="px-3 py-2 text-sm text-ink-3 border border-hairline rounded-xl hover:bg-paper-2 flex items-center gap-1.5 disabled:opacity-50">
                       <RefreshCw className={`h-3.5 w-3.5 ${isLoadingWa ? "animate-spin" : ""}`} /> Refresh
                     </button>
                   </SFooter>
@@ -840,13 +840,13 @@ export default function AdminSettings() {
                       const hasInput = f.val.trim().length > 0;
                       return (
                         <div key={f.provider}>
-                          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{f.label}</label>
+                          <label className="block text-xs font-semibold text-ink-3 uppercase tracking-wide mb-1.5">{f.label}</label>
                           <textarea
                             value={f.val}
                             onChange={(e) => f.set(e.target.value)}
                             rows={2}
                             placeholder={f.ph}
-                            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-amber"
                           />
                           {hasInput && (
                             detected ? (
@@ -859,25 +859,25 @@ export default function AdminSettings() {
                       );
                     })}
 
-                    <div className="flex items-center justify-between border-t border-gray-100 pt-5">
+                    <div className="flex items-center justify-between border-t border-hairline pt-5">
                       <div>
-                        <p className="text-sm font-medium text-gray-900">Also load on admin &amp; dashboard</p>
-                        <p className="text-xs text-gray-500 mt-0.5">Off by default — analytics normally shouldn&apos;t count staff/admin sessions.</p>
+                        <p className="text-sm font-medium text-ink">Also load on admin &amp; dashboard</p>
+                        <p className="text-xs text-ink-3 mt-0.5">Off by default — analytics normally shouldn&apos;t count staff/admin sessions.</p>
                       </div>
                       <Toggle checked={trLoadOnAdmin} onChange={setTrLoadOnAdmin} color="blue" />
                     </div>
 
-                    <div className="flex items-center justify-between border-t border-gray-100 pt-5">
+                    <div className="flex items-center justify-between border-t border-hairline pt-5">
                       <div>
-                        <p className="text-sm font-medium text-gray-900">Track in-app navigations (SPA page views)</p>
-                        <p className="text-xs text-gray-500 mt-0.5">On by default — fires a PageView when visitors move between pages without a full reload, so numbers stay accurate.</p>
+                        <p className="text-sm font-medium text-ink">Track in-app navigations (SPA page views)</p>
+                        <p className="text-xs text-ink-3 mt-0.5">On by default — fires a PageView when visitors move between pages without a full reload, so numbers stay accurate.</p>
                       </div>
                       <Toggle checked={trSpaPageViews} onChange={setTrSpaPageViews} color="blue" />
                     </div>
                   </div>
                   <SFooter>
                     <SaveBtn onClick={saveTrackingSettings} loading={isSavingTracking} label="Save Tracking Settings" />
-                    <button onClick={loadTrackingSettings} disabled={isLoadingTracking} className="px-3 py-2 text-sm text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 flex items-center gap-1.5 disabled:opacity-50">
+                    <button onClick={loadTrackingSettings} disabled={isLoadingTracking} className="px-3 py-2 text-sm text-ink-3 border border-hairline rounded-xl hover:bg-paper-2 flex items-center gap-1.5 disabled:opacity-50">
                       <RefreshCw className={`h-3.5 w-3.5 ${isLoadingTracking ? "animate-spin" : ""}`} /> Refresh
                     </button>
                   </SFooter>

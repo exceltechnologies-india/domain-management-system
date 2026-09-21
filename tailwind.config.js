@@ -46,6 +46,24 @@ module.exports = {
           soft: 'hsl(var(--amber-soft) / <alpha-value>)',
           ink: 'hsl(var(--amber-ink) / <alpha-value>)',
         },
+        /* Status + info. Tailwind already ships `emerald`/`rose`/`indigo`
+           scales; these DEFAULT/soft/ink keys extend them, so `bg-emerald-50`
+           and friends keep working while `bg-emerald-soft` becomes available. */
+        emerald: {
+          DEFAULT: 'hsl(var(--emerald) / <alpha-value>)',
+          soft: 'hsl(var(--emerald-soft) / <alpha-value>)',
+          ink: 'hsl(var(--emerald-ink) / <alpha-value>)',
+        },
+        rose: {
+          DEFAULT: 'hsl(var(--rose) / <alpha-value>)',
+          soft: 'hsl(var(--rose-soft) / <alpha-value>)',
+          ink: 'hsl(var(--rose-ink) / <alpha-value>)',
+        },
+        indigo: {
+          DEFAULT: 'hsl(var(--indigo) / <alpha-value>)',
+          soft: 'hsl(var(--indigo-soft) / <alpha-value>)',
+          ink: 'hsl(var(--indigo-ink) / <alpha-value>)',
+        },
         // Anutech brand azure — anchored on the logo/favicon blues
         // (600 = #0177E1 dominant, 500 = #0180E5, 800 = #01489D shadow-fold).
         // App-wide brand color-scheme token (Brand Step 2, app-wide pass).

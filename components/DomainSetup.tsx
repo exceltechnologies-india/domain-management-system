@@ -183,7 +183,7 @@ export default function DomainSetup({ hostingItem, onUpdateDomain, onAddDomainTo
                 <button
                   onClick={handleLinkDomain}
                   disabled={isLinking}
-                  className="flex-shrink-0 inline-flex items-center justify-center px-8 py-3.5 border border-transparent text-sm font-bold rounded-xl text-white bg-gray-900 hover:bg-black focus:outline-none focus:ring-4 focus:ring-gray-100 disabled:opacity-70 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+                  className="flex-shrink-0 inline-flex items-center justify-center px-8 py-3.5 border border-transparent text-sm font-bold rounded-xl text-white bg-ink hover:bg-black focus:outline-none focus:ring-4 focus:ring-gray-100 disabled:opacity-70 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
                 >
                   {isLinking ? (
                     <Loader2 className="h-5 w-5 animate-spin" />

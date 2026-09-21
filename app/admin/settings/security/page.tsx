@@ -115,21 +115,21 @@ export default function AdminSecurityPage() {
     <AdminLayout user={user}>
       <div className="max-w-xl mx-auto py-10 px-4">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Account Security</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-2xl font-serif font-bold text-ink">Account Security</h1>
+          <p className="text-sm text-ink-3 mt-1">
             Manage two-factor authentication for your admin account.
           </p>
         </div>
 
         {/* Status panel */}
         {step === "status" && (
-          <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
+          <div className="rounded-xl border border-hairline bg-paper shadow-sm overflow-hidden">
             <div className="p-6 flex items-start gap-4">
               <div
                 className={`rounded-full p-3 ${
                   totpEnabled
                     ? "bg-green-100 text-green-600"
-                    : "bg-gray-100 text-gray-400"
+                    : "bg-paper-2 text-ink-4"
                 }`}
               >
                 {totpEnabled ? (
@@ -139,10 +139,10 @@ export default function AdminSecurityPage() {
                 )}
               </div>
               <div className="flex-1">
-                <p className="font-semibold text-gray-900">
+                <p className="font-semibold text-ink">
                   Two-factor authentication
                 </p>
-                <p className="text-sm text-gray-500 mt-0.5">
+                <p className="text-sm text-ink-3 mt-0.5">
                   {totpEnabled === null
                     ? "Loading…"
                     : totpEnabled
@@ -151,9 +151,9 @@ export default function AdminSecurityPage() {
                 </p>
               </div>
             </div>
-            <div className="border-t px-6 py-4 flex gap-3">
+            <div className="border-t border-hairline px-6 py-4 flex gap-3">
               {totpEnabled === null ? (
-                <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                <Loader2 className="h-4 w-4 animate-spin text-ink-4" />
               ) : totpEnabled ? (
                 <button
                   onClick={() => setStep("disable")}
@@ -165,7 +165,7 @@ export default function AdminSecurityPage() {
                 <button
                   onClick={handleStartSetup}
                   disabled={isLoading}
-                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-lg bg-amber px-4 py-2 text-sm font-medium text-white hover:brightness-90 disabled:opacity-50"
                 >
                   {isLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -181,11 +181,11 @@ export default function AdminSecurityPage() {
 
         {/* Step: Scan QR code */}
         {step === "scan" && (
-          <div className="rounded-xl border bg-white shadow-sm p-6 space-y-5">
-            <h2 className="font-semibold text-gray-900">
+          <div className="rounded-xl border border-hairline bg-paper shadow-sm p-6 space-y-5">
+            <h2 className="font-semibold text-ink">
               Step 1 — Scan the QR code
             </h2>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-ink-2">
               Open your authenticator app (Google Authenticator, Authy, 1Password,
               etc.) and scan the code below.
             </p>
@@ -193,18 +193,18 @@ export default function AdminSecurityPage() {
             {qrCodeDataUrl && (
               <div className="flex justify-center">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={qrCodeDataUrl} alt="TOTP QR code" className="rounded border p-2" />
+                <img src={qrCodeDataUrl} alt="TOTP QR code" className="rounded border border-hairline p-2" />
               </div>
             )}
 
-            <div className="rounded-lg bg-gray-50 border p-3">
+            <div className="rounded-lg bg-paper-2/60 border border-hairline p-3">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                <span className="text-xs font-medium text-ink-3 flex items-center gap-1">
                   <KeyRound className="h-3 w-3" /> Manual entry key
                 </span>
                 <button
                   onClick={() => setShowManualKey(!showManualKey)}
-                  className="text-xs text-gray-400 hover:text-gray-600"
+                  className="text-xs text-ink-4 hover:text-ink-2"
                 >
                   {showManualKey ? (
                     <EyeOff className="h-3.5 w-3.5" />
@@ -215,21 +215,21 @@ export default function AdminSecurityPage() {
               </div>
               {showManualKey ? (
                 <div className="flex items-center gap-2">
-                  <code className="text-xs font-mono break-all text-gray-800">
+                  <code className="text-xs font-mono break-all text-ink">
                     {manualKey}
                   </code>
                   <button onClick={() => copyToClipboard(manualKey)}>
-                    <Copy className="h-3.5 w-3.5 text-gray-400 hover:text-gray-600 shrink-0" />
+                    <Copy className="h-3.5 w-3.5 text-ink-4 hover:text-ink-2 shrink-0" />
                   </button>
                 </div>
               ) : (
-                <p className="text-xs text-gray-400 italic">Hidden — click eye to reveal</p>
+                <p className="text-xs text-ink-4 italic">Hidden — click eye to reveal</p>
               )}
             </div>
 
             <button
               onClick={() => setStep("verify")}
-              className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              className="w-full rounded-lg bg-amber px-4 py-2 text-sm font-medium text-white hover:brightness-90"
             >
               I've scanned the code →
             </button>
@@ -238,11 +238,11 @@ export default function AdminSecurityPage() {
 
         {/* Step: Verify code */}
         {step === "verify" && (
-          <div className="rounded-xl border bg-white shadow-sm p-6 space-y-5">
-            <h2 className="font-semibold text-gray-900">
+          <div className="rounded-xl border border-hairline bg-paper shadow-sm p-6 space-y-5">
+            <h2 className="font-semibold text-ink">
               Step 2 — Verify the code
             </h2>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-ink-2">
               Enter the 6-digit code your authenticator app shows to confirm setup.
             </p>
             <input
@@ -254,20 +254,20 @@ export default function AdminSecurityPage() {
                 setVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6))
               }
               maxLength={6}
-              className="w-full rounded-lg border px-4 py-2.5 text-center text-2xl font-mono tracking-[0.4em] focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-hairline px-4 py-2.5 text-center text-2xl font-mono tracking-[0.4em] focus:outline-none focus:ring-2 focus:ring-amber"
               autoFocus
             />
             <div className="flex gap-3">
               <button
                 onClick={() => setStep("scan")}
-                className="flex-1 rounded-lg border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                className="flex-1 rounded-lg border border-hairline px-4 py-2 text-sm font-medium text-ink-2 hover:bg-paper-2"
               >
                 ← Back
               </button>
               <button
                 onClick={handleConfirm}
                 disabled={isLoading || verifyCode.length !== 6}
-                className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-amber px-4 py-2 text-sm font-medium text-white hover:brightness-90 disabled:opacity-50"
               >
                 {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                 Verify & enable
@@ -278,14 +278,14 @@ export default function AdminSecurityPage() {
 
         {/* Step: Backup codes */}
         {step === "backup" && (
-          <div className="rounded-xl border bg-white shadow-sm p-6 space-y-5">
+          <div className="rounded-xl border border-hairline bg-paper shadow-sm p-6 space-y-5">
             <div className="flex items-center gap-3">
               <CheckCircle className="h-6 w-6 text-green-500 shrink-0" />
               <div>
-                <h2 className="font-semibold text-gray-900">
+                <h2 className="font-semibold text-ink">
                   2FA enabled successfully
                 </h2>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-ink-3">
                   Save your backup codes now — they won't be shown again.
                 </p>
               </div>
@@ -299,7 +299,7 @@ export default function AdminSecurityPage() {
                 {backupCodes.map((code) => (
                   <code
                     key={code}
-                    className="text-xs font-mono bg-white border rounded px-2 py-1.5 text-center"
+                    className="text-xs font-mono bg-paper border border-hairline rounded px-2 py-1.5 text-center"
                   >
                     {code}
                   </code>
@@ -315,7 +315,7 @@ export default function AdminSecurityPage() {
 
             <button
               onClick={() => setStep("status")}
-              className="w-full rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+              className="w-full rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-ink-2"
             >
               Done
             </button>
@@ -324,16 +324,16 @@ export default function AdminSecurityPage() {
 
         {/* Disable 2FA */}
         {step === "disable" && (
-          <div className="rounded-xl border bg-white shadow-sm p-6 space-y-5">
-            <h2 className="font-semibold text-gray-900">Disable 2FA</h2>
-            <p className="text-sm text-gray-600">
+          <div className="rounded-xl border border-hairline bg-paper shadow-sm p-6 space-y-5">
+            <h2 className="font-semibold text-ink">Disable 2FA</h2>
+            <p className="text-sm text-ink-2">
               Enter your current authenticator code and account password to
               confirm.
             </p>
 
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-xs font-medium text-ink-2 mb-1">
                   Authenticator code
                 </label>
                 <input
@@ -345,11 +345,11 @@ export default function AdminSecurityPage() {
                     setDisableCode(e.target.value.replace(/\D/g, "").slice(0, 6))
                   }
                   maxLength={6}
-                  className="w-full rounded-lg border px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-hairline px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-xs font-medium text-ink-2 mb-1">
                   Account password
                 </label>
                 <div className="relative">
@@ -358,12 +358,12 @@ export default function AdminSecurityPage() {
                     placeholder="Your password"
                     value={disablePassword}
                     onChange={(e) => setDisablePassword(e.target.value)}
-                    className="w-full rounded-lg border px-4 py-2.5 text-sm pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-hairline px-4 py-2.5 text-sm pr-10 focus:outline-none focus:ring-2 focus:ring-amber"
                   />
                   <button
                     type="button"
                     onClick={() => setShowDisablePassword(!showDisablePassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-4 hover:text-ink-2"
                   >
                     {showDisablePassword ? (
                       <EyeOff className="h-4 w-4" />
@@ -378,7 +378,7 @@ export default function AdminSecurityPage() {
             <div className="flex gap-3">
               <button
                 onClick={() => setStep("status")}
-                className="flex-1 rounded-lg border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                className="flex-1 rounded-lg border border-hairline px-4 py-2 text-sm font-medium text-ink-2 hover:bg-paper-2"
               >
                 Cancel
               </button>

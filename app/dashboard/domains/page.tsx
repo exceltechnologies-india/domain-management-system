@@ -69,11 +69,11 @@ export default function UserDomains() {
       case 'pending':
         return 'bg-amber-50 text-amber-700 border-amber-200';
       case 'processing':
-        return 'bg-blue-50 text-blue-700 border-blue-200';
+        return 'bg-indigo-soft text-indigo-ink border-indigo/25';
       case 'suspended':
-        return 'bg-gray-100 text-gray-600 border-gray-200';
+        return 'bg-paper-2 text-ink-2 border-hairline';
       default:
-        return 'bg-gray-100 text-gray-600 border-gray-200';
+        return 'bg-paper-2 text-ink-2 border-hairline';
     }
   };
 
@@ -118,25 +118,25 @@ export default function UserDomains() {
           {/* ── Page header ── */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-50 rounded-xl">
-                <Globe className="h-5 w-5 text-blue-600" />
+              <div className="p-2 bg-amber-soft rounded-xl">
+                <Globe className="h-5 w-5 text-amber" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">My Domains</h1>
-                <p className="text-sm text-gray-500 mt-0.5">Manage your domain portfolio and settings</p>
+                <h1 className="font-serif text-2xl font-bold text-ink">My Domains</h1>
+                <p className="text-sm text-ink-3 mt-0.5">Manage your domain portfolio and settings</p>
               </div>
             </div>
             <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-2">
               <button
                 onClick={() => router.push('/dashboard/domains/transfer')}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors shadow-sm"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-ink-2 bg-paper border border-hairline rounded-xl hover:bg-paper-2 transition-colors shadow-sm"
               >
                 <ArrowRightLeft className="h-4 w-4" />
                 Transfer Domain
               </button>
               <button
                 onClick={() => router.push('/')}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-paper bg-amber rounded-xl hover:brightness-90 transition-colors shadow-sm"
               >
                 <Plus className="h-4 w-4" />
                 Search Domains
@@ -148,23 +148,23 @@ export default function UserDomains() {
           {isLoadingDomains ? (
             <DomainsPageSkeleton />
           ) : (
-            <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+            <div className="bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden">
               {/* Card header with search + filter */}
-              <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/60 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+              <div className="px-5 py-4 border-b border-hairline bg-paper-2/60 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
                 <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-4" />
                   <input
                     type="text"
                     placeholder="Search domains or order IDs…"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                    className="w-full pl-10 pr-4 py-2 bg-paper border border-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber focus:border-transparent transition-shadow"
                   />
                 </div>
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
-                  className="sm:w-44 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                  className="sm:w-44 px-3 py-2 bg-paper border border-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber focus:border-transparent transition-shadow"
                 >
                   <option value="all">All Statuses</option>
                   <option value="active">Active</option>
@@ -177,11 +177,11 @@ export default function UserDomains() {
 
               {filteredDomains.length === 0 ? (
                 <div className="py-16 px-6 text-center">
-                  <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <Inbox className="h-7 w-7 text-gray-400" />
+                  <div className="w-14 h-14 bg-paper-2 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <Inbox className="h-7 w-7 text-ink-4" />
                   </div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-1.5">No domains found</h3>
-                  <p className="text-sm text-gray-500 mb-5">
+                  <h3 className="text-sm font-semibold text-ink mb-1.5">No domains found</h3>
+                  <p className="text-sm text-ink-3 mb-5">
                     {searchTerm || filterStatus !== 'all'
                       ? 'Try adjusting your search or filter criteria.'
                       : "You haven't registered any domains yet."}
@@ -189,7 +189,7 @@ export default function UserDomains() {
                   {!searchTerm && filterStatus === 'all' && (
                     <button
                       onClick={() => router.push('/')}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
+                      className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber text-paper text-sm font-semibold rounded-xl hover:brightness-90 transition-colors shadow-sm"
                     >
                       <Plus className="h-4 w-4" />
                       Search Domains
@@ -200,15 +200,15 @@ export default function UserDomains() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-gray-50/60 border-b border-gray-100">
-                        <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Domain</th>
-                        <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                        <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Registration Date</th>
-                        <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Expiry Date</th>
-                        <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                      <tr className="bg-paper-2/60 border-b border-hairline">
+                        <th className="px-5 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wider">Domain</th>
+                        <th className="px-5 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wider">Status</th>
+                        <th className="px-5 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wider">Registration Date</th>
+                        <th className="px-5 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wider">Expiry Date</th>
+                        <th className="px-5 py-3 text-right text-xs font-semibold text-ink-3 uppercase tracking-wider">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-50">
+                    <tbody className="divide-y divide-hairline">
                       {filteredDomains.map((domain, index) => {
                         const inactive = ['pending', 'processing', 'failed'].includes(domain.status);
                         return (
@@ -217,14 +217,14 @@ export default function UserDomains() {
                             initial={{ opacity: 0, y: 12 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: index * 0.04 }}
-                            className="hover:bg-blue-50/30 transition-colors group"
+                            className="hover:bg-paper-2/60 transition-colors group"
                           >
                             <td className="px-5 py-3.5 whitespace-nowrap">
                               <div className="flex items-center gap-3">
-                                <div className="flex-shrink-0 h-9 w-9 bg-blue-50 rounded-xl flex items-center justify-center">
-                                  <Globe className="h-4 w-4 text-blue-600" />
+                                <div className="flex-shrink-0 h-9 w-9 bg-amber-soft rounded-xl flex items-center justify-center">
+                                  <Globe className="h-4 w-4 text-amber" />
                                 </div>
-                                <div className="text-sm font-semibold text-gray-900">{domain.name}</div>
+                                <div className="text-sm font-semibold text-ink">{domain.name}</div>
                               </div>
                             </td>
                             <td className="px-5 py-3.5 whitespace-nowrap">
@@ -233,18 +233,18 @@ export default function UserDomains() {
                                 <span className="capitalize">{domain.status}</span>
                               </span>
                             </td>
-                            <td className="px-5 py-3.5 whitespace-nowrap text-sm text-gray-700">
+                            <td className="px-5 py-3.5 whitespace-nowrap text-sm text-ink-2">
                               {domain.status === 'pending' ? (
-                                <span className="text-gray-400 italic">Pending</span>
+                                <span className="text-ink-4 italic">Pending</span>
                               ) : (
                                 formatIndianDateTime(domain.registrationDate)
                               )}
                             </td>
-                            <td className="px-5 py-3.5 whitespace-nowrap text-sm text-gray-700">
+                            <td className="px-5 py-3.5 whitespace-nowrap text-sm text-ink-2">
                               {domain.status === 'pending' || domain.status === 'processing' ? (
-                                <span className="text-gray-400 italic">Pending</span>
+                                <span className="text-ink-4 italic">Pending</span>
                               ) : domain.status === 'failed' || !domain.expiryDate ? (
-                                <span className="text-gray-400">N/A</span>
+                                <span className="text-ink-4">N/A</span>
                               ) : (
                                 <ExpiryBadge
                                   expiryDate={domain.expiryDate}
@@ -267,8 +267,8 @@ export default function UserDomains() {
                                   title="Manage DNS"
                                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
                                     inactive
-                                      ? 'text-gray-400 bg-gray-50 cursor-not-allowed'
-                                      : 'text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200'
+                                      ? 'text-ink-4 bg-paper-2/60 cursor-not-allowed'
+                                      : 'text-amber-ink bg-amber-soft hover:brightness-95 border border-amber/25'
                                   }`}
                                 >
                                   <Network className="h-3.5 w-3.5" />

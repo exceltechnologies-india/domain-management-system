@@ -32,7 +32,7 @@ export function previewTrackingId(
 
 export function SCard({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden ${className}`}>
+    <div className={`bg-white border border-hairline rounded-2xl shadow-sm overflow-hidden ${className}`}>
       {children}
     </div>
   );
@@ -40,10 +40,10 @@ export function SCard({ children, className = "" }: { children: ReactNode; class
 
 export function SCardHead({ title, description, action }: { title: string; description?: string; action?: ReactNode }) {
   return (
-    <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 flex items-center justify-between gap-4">
+    <div className="px-6 py-4 border-b border-hairline bg-paper-2/60 flex items-center justify-between gap-4">
       <div>
-        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-        {description && <p className="text-xs text-gray-500 mt-0.5">{description}</p>}
+        <h3 className="text-sm font-semibold text-ink">{title}</h3>
+        {description && <p className="text-xs text-ink-3 mt-0.5">{description}</p>}
       </div>
       {action}
     </div>
@@ -51,17 +51,17 @@ export function SCardHead({ title, description, action }: { title: string; descr
 }
 
 export function Toggle({ checked, onChange, color = "blue" }: { checked: boolean; onChange: (v: boolean) => void; color?: "blue" | "red" | "purple" | "orange" | "green" }) {
-  const ring = { blue: "peer-focus:ring-blue-300 peer-checked:bg-blue-600", red: "peer-focus:ring-red-300 peer-checked:bg-red-600", purple: "peer-focus:ring-purple-300 peer-checked:bg-purple-600", orange: "peer-focus:ring-orange-300 peer-checked:bg-orange-500", green: "peer-focus:ring-green-300 peer-checked:bg-green-600" }[color];
+  const ring = { blue: "peer-focus:ring-amber/40 peer-checked:bg-amber", red: "peer-focus:ring-red-300 peer-checked:bg-red-600", purple: "peer-focus:ring-purple-300 peer-checked:bg-purple-600", orange: "peer-focus:ring-orange-300 peer-checked:bg-orange-500", green: "peer-focus:ring-green-300 peer-checked:bg-green-600" }[color];
   return (
     <label className="relative inline-flex items-center cursor-pointer shrink-0">
       <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} className="sr-only peer" />
-      <div className={`w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${ring}`} />
+      <div className={`w-11 h-6 bg-hairline peer-focus:outline-none peer-focus:ring-4 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-hairline-strong after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${ring}`} />
     </label>
   );
 }
 
 export function SaveBtn({ onClick, loading, label, color = "blue", disabled = false }: { onClick: () => void; loading: boolean; label: string; color?: "blue" | "red" | "purple" | "orange" | "green"; disabled?: boolean }) {
-  const cls = { blue: "bg-blue-600 hover:bg-blue-700", red: "bg-red-600 hover:bg-red-700", purple: "bg-purple-600 hover:bg-purple-700", orange: "bg-orange-500 hover:bg-orange-600", green: "bg-green-600 hover:bg-green-700" }[color];
+  const cls = { blue: "bg-amber hover:brightness-90", red: "bg-red-600 hover:bg-red-700", purple: "bg-purple-600 hover:bg-purple-700", orange: "bg-orange-500 hover:bg-orange-600", green: "bg-green-600 hover:bg-green-700" }[color];
   return (
     <button onClick={onClick} disabled={loading || disabled} className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${cls}`}>
       {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -81,14 +81,14 @@ export function StatusBanner({ active, activeMsg, inactiveMsg, color = "green" }
   const Icon = active ? CheckCircle : AlertCircle;
   return (
     <div className={`flex items-start gap-3 p-3.5 border rounded-xl ${cfg.bg}`}>
-      <Icon className={`h-4 w-4 shrink-0 mt-0.5 ${active ? cfg.icon : "text-gray-400"}`} />
-      <p className="text-sm text-gray-700">{active ? activeMsg : inactiveMsg}</p>
+      <Icon className={`h-4 w-4 shrink-0 mt-0.5 ${active ? cfg.icon : "text-ink-4"}`} />
+      <p className="text-sm text-ink-2">{active ? activeMsg : inactiveMsg}</p>
     </div>
   );
 }
 
 export function SFooter({ children }: { children: ReactNode }) {
-  return <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/60 flex items-center gap-3">{children}</div>;
+  return <div className="px-6 py-4 border-t border-hairline bg-paper-2/60 flex items-center gap-3">{children}</div>;
 }
 
 /** Inline skeleton matching the toggle-card layout used by every settings section. */
@@ -96,9 +96,9 @@ export function SettingsContentSkeleton() {
   return (
     <div className="space-y-5">
       {Array.from({ length: 2 }).map((_, i) => (
-        <div key={i} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+        <div key={i} className="bg-white border border-hairline rounded-2xl shadow-sm overflow-hidden">
           {/* Card header */}
-          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 flex items-center justify-between gap-4">
+          <div className="px-6 py-4 border-b border-hairline bg-paper-2/60 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="h-7 w-7 rounded-lg skeleton" />
               <div className="space-y-1.5">
@@ -121,7 +121,7 @@ export function SettingsContentSkeleton() {
             </div>
           </div>
           {/* Footer */}
-          <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/60 flex items-center gap-3">
+          <div className="px-6 py-4 border-t border-hairline bg-paper-2/60 flex items-center gap-3">
             <div className="h-9 w-44 rounded-xl skeleton" />
           </div>
         </div>

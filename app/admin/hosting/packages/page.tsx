@@ -155,16 +155,16 @@ export default function AdminPackagesPage() {
   return (
     <AdminLayout user={user} onLogout={performLogout}>
       <div className="space-y-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="bg-paper rounded-xl shadow-sm border border-hairline p-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <button onClick={() => router.push('/admin/hosting')} className='text-gray-400 hover:text-gray-600 transition-colors'>
+                <button onClick={() => router.push('/admin/hosting')} className='text-ink-4 hover:text-ink-2 transition-colors'>
                   <ArrowLeft className="h-5 w-5" />
                 </button>
-                <h1 className="text-2xl font-bold text-gray-900">Hosting Packages</h1>
+                <h1 className="text-2xl font-serif font-bold text-ink">Hosting Packages</h1>
               </div>
-              <p className="text-gray-600">Manage pricing and renewal settings for hosting plans</p>
+              <p className="text-ink-2">Manage pricing and renewal settings for hosting plans</p>
             </div>
           </div>
         </div>
@@ -181,11 +181,11 @@ export default function AdminPackagesPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden min-h-[400px]">
+        <div className="bg-paper rounded-xl shadow-sm border border-hairline overflow-hidden min-h-[400px]">
           {isLoadingData ? (
             <div className="px-6 py-2">
               {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="flex gap-6 py-4 border-b border-gray-100 last:border-0 items-center">
+                <div key={i} className="flex gap-6 py-4 border-b border-hairline last:border-0 items-center">
                   <div className="skeleton h-4 rounded w-40" />
                   <div className="skeleton h-4 rounded w-20" />
                   <div className="skeleton h-4 rounded w-20" />
@@ -197,49 +197,49 @@ export default function AdminPackagesPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-hairline">
+                <thead className="bg-paper-2/60">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Package Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Current Price</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Renewal Price</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Monthly Plan</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Yearly Plan</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase">Package Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase">Current Price</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase">Renewal Price</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase">Monthly Plan</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase">Yearly Plan</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-ink-3 uppercase">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200 text-sm">
+                <tbody className="bg-paper divide-y divide-hairline text-sm">
                   {packages.map((pkg) => (
-                    <tr key={pkg._id} className="hover:bg-gray-50">
+                    <tr key={pkg._id} className="hover:bg-paper-2">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <Package className="h-5 w-5 text-indigo-500 mr-3" />
                           <div>
-                            <div className="font-medium text-gray-900">{pkg.name}</div>
-                            <div className="text-xs text-gray-500 font-mono">{pkg.directAdminPackage}</div>
+                            <div className="font-medium text-ink">{pkg.name}</div>
+                            <div className="text-xs text-ink-3 font-mono">{pkg.directAdminPackage}</div>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap font-semibold">₹{pkg.price}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-blue-600 font-semibold">₹{pkg.renewalPrice || pkg.price}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-amber-ink font-semibold">₹{pkg.renewalPrice || pkg.price}</td>
                       <td className="px-6 py-4 whitespace-nowrap font-mono text-xs">
                         {pkg.razorpayPlans?.monthly ? (
                           <span className="bg-green-50 text-green-700 px-1.5 py-0.5 rounded border border-green-200">{pkg.razorpayPlans.monthly}</span>
                         ) : (
-                          <span className="text-gray-400 italic">None</span>
+                          <span className="text-ink-4 italic">None</span>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap font-mono text-xs">
                         {pkg.razorpayPlans?.yearly ? (
-                          <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200">{pkg.razorpayPlans.yearly}</span>
+                          <span className="bg-indigo-soft text-indigo-ink px-1.5 py-0.5 rounded border border-indigo/25">{pkg.razorpayPlans.yearly}</span>
                         ) : (
-                          <span className="text-gray-400 italic">None</span>
+                          <span className="text-ink-4 italic">None</span>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right space-x-2">
                         <button
                           onClick={() => setSelectedPkg(pkg)}
-                          className="bg-gray-100 text-gray-600 hover:bg-gray-200 p-2 rounded-lg transition-colors"
+                          className="bg-paper-2 text-ink-2 hover:bg-hairline p-2 rounded-lg transition-colors"
                           title="View Specs"
                         >
                           <Eye className="h-4 w-4" />
@@ -249,7 +249,7 @@ export default function AdminPackagesPage() {
                             setEditingPkg(pkg);
                             setIsEditModalOpen(true);
                           }}
-                          className="bg-blue-50 text-blue-600 hover:bg-blue-100 p-2 rounded-lg transition-colors"
+                          className="bg-amber-soft text-amber-ink hover:brightness-95 p-2 rounded-lg transition-all"
                           title="Edit Pricing"
                         >
                           <Settings className="h-4 w-4" />
@@ -267,51 +267,51 @@ export default function AdminPackagesPage() {
       {/* Edit Modal */}
       {isEditModalOpen && editingPkg && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="p-6 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+          <div className="bg-paper rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-6 border-b border-hairline bg-paper-2/60 flex justify-between items-center">
               <div>
-                <h3 className="text-lg font-bold text-gray-900">Edit Pricing</h3>
-                <p className="text-xs text-gray-500">{editingPkg.directAdminPackage}</p>
+                <h3 className="text-lg font-bold text-ink">Edit Pricing</h3>
+                <p className="text-xs text-ink-3">{editingPkg.directAdminPackage}</p>
               </div>
-              <button onClick={() => setIsEditModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setIsEditModalOpen(false)} className="text-ink-4 hover:text-ink-2">
                 <X className="h-5 w-5" />
               </button>
             </div>
             <form onSubmit={handleUpdate} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Display Name</label>
+                <label className="block text-xs font-semibold text-ink-3 uppercase tracking-wider mb-1">Display Name</label>
                 <input
                   type="text"
                   value={editingPkg.name || ''}
                   onChange={e => setEditingPkg({ ...editingPkg, name: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-hairline rounded-lg focus:ring-2 focus:ring-amber"
                   required
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Initial Price (₹)</label>
+                  <label className="block text-xs font-semibold text-ink-3 uppercase tracking-wider mb-1">Initial Price (₹)</label>
                   <input
                     type="number"
                     step="any"
                     value={editingPkg.price || 0}
                     onChange={e => setEditingPkg({ ...editingPkg, price: Number(e.target.value) })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-hairline rounded-lg focus:ring-2 focus:ring-amber"
                     required
                   />
-                  <p className="text-[10px] text-gray-400 mt-1">One-time entry fee</p>
+                  <p className="text-[10px] text-ink-4 mt-1">One-time entry fee</p>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Renewal Price (₹)</label>
+                  <label className="block text-xs font-semibold text-ink-3 uppercase tracking-wider mb-1">Renewal Price (₹)</label>
                   <input
                     type="number"
                     step="any"
                     value={editingPkg.renewalPrice || editingPkg.price || 0}
                     onChange={e => setEditingPkg({ ...editingPkg, renewalPrice: Number(e.target.value) })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-hairline rounded-lg focus:ring-2 focus:ring-amber"
                     required
                   />
-                  <p className="text-[10px] text-blue-500 mt-1">Automated recurring fee</p>
+                  <p className="text-[10px] text-amber-ink mt-1">Automated recurring fee</p>
                 </div>
               </div>
 
@@ -319,14 +319,14 @@ export default function AdminPackagesPage() {
                 <button
                   type="button"
                   onClick={() => setIsEditModalOpen(false)}
-                  className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+                  className="flex-1 py-2 bg-paper-2 text-ink-2 rounded-lg hover:bg-hairline font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isUpdating}
-                  className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center justify-center gap-2"
+                  className="flex-1 py-2 bg-amber text-white rounded-lg hover:brightness-90 font-medium flex items-center justify-center gap-2"
                 >
                   {isUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save Changes'}
                 </button>
@@ -339,30 +339,30 @@ export default function AdminPackagesPage() {
       {/* Details Modal */}
       {selectedPkg && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+          <div className="bg-paper rounded-xl shadow-xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-hairline flex justify-between items-center bg-paper-2/60">
               <div>
-                <h3 className="text-lg font-bold text-gray-900">Technical Specs</h3>
-                <p className="text-sm text-gray-500">{selectedPkg.name}</p>
+                <h3 className="text-lg font-bold text-ink">Technical Specs</h3>
+                <p className="text-sm text-ink-3">{selectedPkg.name}</p>
               </div>
-              <button onClick={() => setSelectedPkg(null)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setSelectedPkg(null)} className="text-ink-4 hover:text-ink-2">
                 <X className="h-5 w-5" />
               </button>
             </div>
             <div className="p-6 overflow-y-auto grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <div className="bg-gray-50 p-4 rounded-lg border">
-                    <span className="text-[10px] uppercase font-bold text-gray-400 block tracking-widest mb-1">Storage</span>
+                  <div className="bg-paper-2/60 p-4 rounded-lg border border-hairline">
+                    <span className="text-[10px] uppercase font-bold text-ink-4 block tracking-widest mb-1">Storage</span>
                     <span className="text-sm font-mono">{formatUnit(selectedPkg.quota)}</span>
                   </div>
-                  <div className="bg-gray-50 p-4 rounded-lg border">
-                    <span className="text-[10px] uppercase font-bold text-gray-400 block tracking-widest mb-1">Bandwidth</span>
+                  <div className="bg-paper-2/60 p-4 rounded-lg border border-hairline">
+                    <span className="text-[10px] uppercase font-bold text-ink-4 block tracking-widest mb-1">Bandwidth</span>
                     <span className="text-sm font-mono">{formatUnit(selectedPkg.bandwidth)}</span>
                   </div>
                   {selectedPkg.details && Object.entries(selectedPkg.details).map(([key, value]) => {
                     if (typeof value === 'object' || key === 'feature_list' || key === 'quota' || key === 'bandwidth') return null;
                     return (
-                      <div key={key} className="bg-gray-50 p-4 rounded-lg border">
-                        <span className="text-[10px] uppercase font-bold text-gray-400 block tracking-widest mb-1">{key.replace(/_/g, ' ')}</span>
+                      <div key={key} className="bg-paper-2/60 p-4 rounded-lg border border-hairline">
+                        <span className="text-[10px] uppercase font-bold text-ink-4 block tracking-widest mb-1">{key.replace(/_/g, ' ')}</span>
                         <span className="text-sm font-mono truncate block" title={String(value)}>{String(value)}</span>
                       </div>
                     );

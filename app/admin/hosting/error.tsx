@@ -19,16 +19,16 @@ export default function AdminHostingError({
   }, [error]);
 
   return (
-    <div className="min-h-[60vh] flex items-center justify-center p-6 bg-gray-50 rounded-xl border border-gray-200 m-4">
+    <div className="min-h-[60vh] flex items-center justify-center p-6 bg-paper-2/60 rounded-xl border border-hairline m-4">
       <div className="text-center max-w-2xl mx-auto">
         <div className="mb-8">
           <div className="bg-red-100 rounded-full w-24 h-24 flex items-center justify-center mx-auto mb-6 shadow-sm">
             <AlertTriangle className="h-12 w-12 text-red-600" />
           </div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-3">
+          <h2 className="text-3xl font-bold text-ink mb-3">
             Hosting Dashboard Error
           </h2>
-          <p className="text-gray-600 mb-8 max-w-md mx-auto">
+          <p className="text-ink-2 mb-8 max-w-md mx-auto">
             We encountered an unexpected issue while loading the hosting management interface.
           </p>
         </div>
@@ -39,17 +39,17 @@ export default function AdminHostingError({
             <Terminal className="h-5 w-5" />
             <span>Error Details (Admin View)</span>
           </div>
-          <div className="bg-gray-900 rounded-md p-4 overflow-x-auto">
+          <div className="bg-ink rounded-md p-4 overflow-x-auto">
             <code className="text-sm text-red-400 font-mono">
               {error.message || "Unknown error occurred"}
             </code>
             {error.digest && (
-              <div className="mt-2 pt-2 border-t border-gray-800 text-xs text-gray-500 font-mono">
+              <div className="mt-2 pt-2 border-t border-ink-2 text-xs text-ink-3 font-mono">
                 Digest: {error.digest}
               </div>
             )}
             {error.stack && (
-              <div className="mt-2 pt-2 border-t border-gray-800 text-xs text-gray-500 font-mono whitespace-pre-wrap opacity-50">
+              <div className="mt-2 pt-2 border-t border-ink-2 text-xs text-ink-3 font-mono whitespace-pre-wrap opacity-50">
                 {error.stack.split('\n').slice(0, 3).join('\n')}...
               </div>
             )}

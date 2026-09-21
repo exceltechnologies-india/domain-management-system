@@ -521,18 +521,18 @@ export default function DNSManagementPage() {
         {checkingServices ? (
           <DNSPageSkeleton />
         ) : !hasDomains && !isLoadingDomains && domains.length === 0 ? (
-          <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center p-4">
-            <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 text-center">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Server className="h-8 w-8 text-blue-600" />
+          <div className="min-h-screen bg-paper-2/60 flex flex-col justify-center items-center p-4">
+            <div className="max-w-md w-full bg-paper rounded-xl shadow-lg p-8 text-center">
+              <div className="w-16 h-16 bg-indigo-soft rounded-full flex items-center justify-center mx-auto mb-6">
+                <Server className="h-8 w-8 text-amber-ink" />
               </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">DNS Managed via Hosting</h2>
-              <p className="text-gray-600 mb-8">
+              <h2 className="text-2xl font-bold text-ink mb-4">DNS Managed via Hosting</h2>
+              <p className="text-ink-2 mb-8">
                 Since you only have hosting services with us, your DNS is managed directly through your Hosting Control Panel.
               </p>
               <button
                 onClick={() => router.push('/dashboard/hosting')}
-                className="w-full inline-flex justify-center items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 transition-colors"
+                className="w-full inline-flex justify-center items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-amber hover:brightness-90 transition-colors"
               >
                 <Server className="h-5 w-5 mr-2" />
                 Go to Hosting Panel
@@ -547,12 +547,12 @@ export default function DNSManagementPage() {
             {/* ── Page header ── */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-50 rounded-xl">
-                  <Network className="h-5 w-5 text-blue-600" />
+                <div className="p-2 bg-indigo-soft rounded-xl">
+                  <Network className="h-5 w-5 text-amber-ink" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-900">DNS Management</h1>
-                  <p className="text-sm text-gray-500 mt-0.5">Manage nameservers and DNS records for your domains</p>
+                  <h1 className="text-2xl font-bold text-ink">DNS Management</h1>
+                  <p className="text-sm text-ink-3 mt-0.5">Manage nameservers and DNS records for your domains</p>
                 </div>
               </div>
               <RefreshButton onClick={() => loadDomains()} isLoading={isLoadingDomains} />
@@ -563,14 +563,14 @@ export default function DNSManagementPage() {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05 }}
-              className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden"
+              className="bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden"
             >
-              <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 flex items-center justify-between">
+              <div className="px-6 py-4 border-b border-hairline bg-paper-2/60 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <Globe className="h-4 w-4 text-gray-500" />
-                  <h3 className="text-sm font-semibold text-gray-900">Select Domain</h3>
+                  <Globe className="h-4 w-4 text-ink-3" />
+                  <h3 className="text-sm font-semibold text-ink">Select Domain</h3>
                 </div>
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 bg-white border border-gray-200 px-2.5 py-1 rounded-full">
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-3 bg-paper border border-hairline px-2.5 py-1 rounded-full">
                   <Database className="h-3 w-3" />
                   {domains.length} domain{domains.length !== 1 ? 's' : ''} available
                 </span>
@@ -578,11 +578,11 @@ export default function DNSManagementPage() {
               <div className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">Domain Name</label>
+                    <label className="block text-xs font-semibold text-ink-2 uppercase tracking-wide mb-1.5">Domain Name</label>
                     <select
                       value={selectedDomain}
                       onChange={(e) => handleDomainSelect(e.target.value)}
-                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                      className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm bg-paper focus:outline-none focus:ring-2 focus:ring-amber focus:border-transparent transition-shadow"
                       disabled={isDNSLoading}
                     >
                       <option value="">Choose a domain…</option>
@@ -594,14 +594,14 @@ export default function DNSManagementPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">Status</label>
+                    <label className="block text-xs font-semibold text-ink-2 uppercase tracking-wide mb-1.5">Status</label>
                     {(() => {
                       const status = selectedDomain ? domains.find(d => d.id === selectedDomain)?.status : null;
                       const cfg = status === 'active' || status === 'registered'
                         ? { dot: 'bg-green-500', cls: 'bg-green-50 text-green-700 border-green-200' }
                         : status
                           ? { dot: 'bg-amber-500', cls: 'bg-amber-50 text-amber-700 border-amber-200' }
-                          : { dot: 'bg-gray-400', cls: 'bg-gray-50 text-gray-500 border-gray-200' };
+                          : { dot: 'bg-ink-4', cls: 'bg-paper-2/60 text-ink-3 border-hairline' };
                       return (
                         <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium ${cfg.cls}`}>
                           <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
@@ -619,18 +619,18 @@ export default function DNSManagementPage() {
               <motion.div
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white border border-gray-200 rounded-2xl shadow-sm p-10 text-center"
+                className="bg-paper border border-hairline rounded-2xl shadow-sm p-10 text-center"
               >
-                <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-5">
-                  <Server className="h-7 w-7 text-blue-600" />
+                <div className="w-14 h-14 bg-indigo-soft rounded-2xl flex items-center justify-center mx-auto mb-5">
+                  <Server className="h-7 w-7 text-amber-ink" />
                 </div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-2">DNS Managed via Hosting</h2>
-                <p className="text-sm text-gray-500 mb-6 max-w-lg mx-auto">
+                <h2 className="text-lg font-semibold text-ink mb-2">DNS Managed via Hosting</h2>
+                <p className="text-sm text-ink-3 mb-6 max-w-lg mx-auto">
                   This domain is included with your hosting package. DNS records are managed directly through your Hosting Control Panel.
                 </p>
                 <button
                   onClick={() => router.push('/dashboard/hosting')}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-xl text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-xl text-white bg-amber hover:brightness-90 transition-colors shadow-sm"
                 >
                   <Server className="h-4 w-4" />
                   Go to Hosting Panel
@@ -645,14 +645,14 @@ export default function DNSManagementPage() {
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden"
+                className="bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden"
               >
-                <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 flex items-center justify-between gap-4">
+                <div className="px-6 py-4 border-b border-hairline bg-paper-2/60 flex items-center justify-between gap-4">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <Server className="h-4 w-4 text-gray-500 shrink-0" />
+                    <Server className="h-4 w-4 text-ink-3 shrink-0" />
                     <div className="min-w-0">
-                      <h3 className="text-sm font-semibold text-gray-900">Nameservers</h3>
-                      <p className="text-xs text-gray-500 mt-0.5 truncate">
+                      <h3 className="text-sm font-semibold text-ink">Nameservers</h3>
+                      <p className="text-xs text-ink-3 mt-0.5 truncate">
                         Current nameservers for <span className="font-mono">{domains.find(d => d.id === selectedDomain)?.name}</span>
                       </p>
                     </div>
@@ -660,7 +660,7 @@ export default function DNSManagementPage() {
                   <button
                     onClick={() => selectedDomain && loadNameservers(selectedDomain)}
                     disabled={isNameserverLoading}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 shrink-0"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-ink-2 bg-paper border border-hairline rounded-lg hover:bg-paper-2 transition-colors disabled:opacity-50 shrink-0"
                   >
                     <RefreshCw className={`h-3.5 w-3.5 ${isNameserverLoading ? 'animate-spin' : ''}`} />
                     Refresh
@@ -670,24 +670,24 @@ export default function DNSManagementPage() {
                 {/* Current NS list */}
                 <div className="p-6">
                   {isNameserverLoading ? (
-                    <div className="flex items-center justify-center py-6 gap-2 text-sm text-gray-500">
-                      <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full" />
+                    <div className="flex items-center justify-center py-6 gap-2 text-sm text-ink-3">
+                      <div className="animate-spin h-4 w-4 border-2 border-amber border-t-transparent rounded-full" />
                       Loading nameservers…
                     </div>
                   ) : nameservers.length > 0 ? (
                     <div className="space-y-2">
                       {nameservers.map((ns, index) => (
-                        <div key={index} className="flex items-center justify-between gap-3 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl hover:border-gray-200 transition-colors">
+                        <div key={index} className="flex items-center justify-between gap-3 px-4 py-3 bg-paper-2/60 border border-hairline rounded-xl hover:border-hairline transition-colors">
                           <div className="flex items-center gap-3 min-w-0">
-                            <span className="flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-md bg-white border border-gray-200 text-xs font-semibold text-gray-500">
+                            <span className="flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-md bg-paper border border-hairline text-xs font-semibold text-ink-3">
                               {index + 1}
                             </span>
                             <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
-                            <span className="font-mono text-sm text-gray-800 truncate">{ns}</span>
+                            <span className="font-mono text-sm text-ink truncate">{ns}</span>
                           </div>
                           <button
                             onClick={() => { void navigator.clipboard.writeText(ns); toast.success('Copied'); }}
-                            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-white rounded-md transition-colors shrink-0"
+                            className="p-1.5 text-ink-4 hover:text-ink-2 hover:bg-paper rounded-md transition-colors shrink-0"
                             title="Copy"
                           >
                             <Copy className="h-3.5 w-3.5" />
@@ -700,8 +700,8 @@ export default function DNSManagementPage() {
                       <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
                         <Settings className="h-7 w-7 text-amber-500" />
                       </div>
-                      <h4 className="text-sm font-semibold text-gray-900 mb-1.5">No nameservers set yet</h4>
-                      <p className="text-sm text-gray-500 mb-4 max-w-md mx-auto">
+                      <h4 className="text-sm font-semibold text-ink mb-1.5">No nameservers set yet</h4>
+                      <p className="text-sm text-ink-3 mb-4 max-w-md mx-auto">
                         This domain doesn&apos;t have working nameservers configured, so there&apos;s no DNS delegation to show yet.
                         Point it at our managed nameservers to finish setup — then you can manage DNS records here.
                       </p>
@@ -717,8 +717,8 @@ export default function DNSManagementPage() {
                       <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
                         <AlertCircle className="h-7 w-7 text-red-500" />
                       </div>
-                      <h4 className="text-sm font-semibold text-gray-900 mb-1.5">Nameserver Information Unavailable</h4>
-                      <p className="text-sm text-gray-500 mb-4">Unable to retrieve nameserver information for this domain right now.</p>
+                      <h4 className="text-sm font-semibold text-ink mb-1.5">Nameserver Information Unavailable</h4>
+                      <p className="text-sm text-ink-3 mb-4">Unable to retrieve nameserver information for this domain right now.</p>
                       <div className="bg-red-50 border border-red-200 rounded-xl p-4 max-w-md mx-auto text-left">
                         <p className="text-xs font-semibold text-red-800 mb-1.5">Possible reasons</p>
                         <ul className="text-xs text-red-700 space-y-1 list-disc list-inside">
@@ -752,15 +752,15 @@ export default function DNSManagementPage() {
                 )}
 
                 {/* Use default action */}
-                <div className="px-6 py-4 border-t border-gray-100 bg-gradient-to-br from-blue-50/40 to-indigo-50/40">
+                <div className="px-6 py-4 border-t border-hairline bg-gradient-to-br from-blue-50/40 to-indigo-50/40">
                   <div className="flex items-center justify-between gap-4 flex-wrap">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-white rounded-lg border border-blue-100 shadow-sm">
-                        <Sparkles className="h-4 w-4 text-blue-600" />
+                      <div className="p-2 bg-paper rounded-lg border border-indigo/25 shadow-sm">
+                        <Sparkles className="h-4 w-4 text-amber-ink" />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-gray-900">Use Our Default Nameservers</p>
-                        <p className="text-xs text-gray-500 mt-0.5">
+                        <p className="text-sm font-semibold text-ink">Use Our Default Nameservers</p>
+                        <p className="text-xs text-ink-3 mt-0.5">
                           {nameserverMethod === 'default' && nameservers.length > 0
                             ? 'This domain is already using our managed nameservers.'
                             : 'Quickest setup — points DNS to our managed infrastructure.'}
@@ -776,10 +776,10 @@ export default function DNSManagementPage() {
                       <button
                         onClick={handleSetDefaultNameservers}
                         disabled={isUpdatingNameservers || !selectedDomain}
-                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-blue-700 bg-white border border-blue-200 rounded-xl hover:bg-blue-50 disabled:opacity-50 transition-colors"
+                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-amber-ink bg-paper border border-indigo/25 rounded-xl hover:bg-indigo-soft disabled:opacity-50 transition-colors"
                       >
                         {isUpdatingNameservers ? (
-                          <div className="animate-spin h-3.5 w-3.5 border-2 border-blue-600 border-t-transparent rounded-full" />
+                          <div className="animate-spin h-3.5 w-3.5 border-2 border-amber border-t-transparent rounded-full" />
                         ) : (
                           <RefreshCw className="h-3.5 w-3.5" />
                         )}
@@ -790,11 +790,11 @@ export default function DNSManagementPage() {
                 </div>
 
                 {/* Custom NS form */}
-                <div className="px-6 py-5 border-t border-gray-100">
+                <div className="px-6 py-5 border-t border-hairline">
                   <div className="flex items-center gap-2.5 mb-4">
-                    <Settings className="h-4 w-4 text-gray-500" />
-                    <h4 className="text-sm font-semibold text-gray-900">Custom Nameservers</h4>
-                    <span className="text-xs text-gray-400 font-normal">Point to another DNS provider</span>
+                    <Settings className="h-4 w-4 text-ink-3" />
+                    <h4 className="text-sm font-semibold text-ink">Custom Nameservers</h4>
+                    <span className="text-xs text-ink-4 font-normal">Point to another DNS provider</span>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {[
@@ -804,25 +804,25 @@ export default function DNSManagementPage() {
                       { label: 'Nameserver 4', value: ns4, set: setNs4, optional: true,  placeholder: 'ns4.example.com' },
                     ].map((f) => (
                       <div key={f.label}>
-                        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
-                          {f.label}{f.optional && <span className="ml-1.5 text-gray-400 font-normal normal-case">(Optional)</span>}
+                        <label className="block text-xs font-semibold text-ink-2 uppercase tracking-wide mb-1.5">
+                          {f.label}{f.optional && <span className="ml-1.5 text-ink-4 font-normal normal-case">(Optional)</span>}
                         </label>
                         <input
                           type="text"
                           value={f.value}
                           onChange={(e) => f.set(e.target.value)}
                           placeholder={f.placeholder}
-                          className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                          className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber focus:border-transparent transition-shadow"
                         />
                       </div>
                     ))}
                   </div>
                 </div>
-                <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/60 flex justify-end">
+                <div className="px-6 py-4 border-t border-hairline bg-paper-2/60 flex justify-end">
                   <button
                     onClick={handleSetCustomNameservers}
                     disabled={isUpdatingNameservers || !selectedDomain}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber text-white text-sm font-semibold rounded-xl hover:brightness-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
                   >
                     {isUpdatingNameservers ? (
                       <>
@@ -846,15 +846,15 @@ export default function DNSManagementPage() {
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.15 }}
-                  className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden"
+                  className="bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden"
                 >
                   {/* Card header */}
-                  <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="px-6 py-4 border-b border-hairline bg-paper-2/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div className="flex items-center gap-2.5">
-                      <Database className="h-4 w-4 text-gray-500" />
+                      <Database className="h-4 w-4 text-ink-3" />
                       <div>
-                        <h3 className="text-sm font-semibold text-gray-900">DNS Records</h3>
-                        <p className="text-xs text-gray-500 mt-0.5">
+                        <h3 className="text-sm font-semibold text-ink">DNS Records</h3>
+                        <p className="text-xs text-ink-3 mt-0.5">
                           Managing DNS for <span className="font-mono">{domains.find(d => d.id === selectedDomain)?.name}</span>
                         </p>
                       </div>
@@ -868,8 +868,8 @@ export default function DNSManagementPage() {
                           disabled={disabled}
                           className={`inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl transition-colors shadow-sm w-full sm:w-auto ${
                             disabled
-                              ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                              : 'bg-blue-600 text-white hover:bg-blue-700'
+                              ? 'bg-hairline text-ink-4 cursor-not-allowed'
+                              : 'bg-amber text-white hover:brightness-90'
                           }`}
                         >
                           <Plus className="h-4 w-4" />
@@ -884,8 +884,8 @@ export default function DNSManagementPage() {
 
                     {/* DNS propagation pill */}
                     {dnsPropagationStatus === 'checking' && (
-                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-xs font-medium text-blue-700">
-                        <div className="animate-spin h-3 w-3 border-2 border-blue-600 border-t-transparent rounded-full" />
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-soft border border-indigo/25 text-xs font-medium text-amber-ink">
+                        <div className="animate-spin h-3 w-3 border-2 border-amber border-t-transparent rounded-full" />
                         Checking DNS zone status…
                       </div>
                     )}
@@ -913,7 +913,7 @@ export default function DNSManagementPage() {
                             setDnsPropagationStatus('checking');
                             void loadDNSRecords(selectedDomain);
                           }}
-                          className="px-3 py-1 text-xs font-medium text-red-700 bg-white border border-red-200 rounded-full hover:bg-red-50 transition-colors"
+                          className="px-3 py-1 text-xs font-medium text-red-700 bg-paper border border-red-200 rounded-full hover:bg-red-50 transition-colors"
                         >
                           Retry
                         </button>
@@ -935,14 +935,14 @@ export default function DNSManagementPage() {
                       }
                       if (!domain?.dnsActivated) {
                         return (
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 bg-gradient-to-br from-blue-50 to-indigo-50 border border-indigo/25 rounded-xl">
                             <div className="flex items-start gap-3">
-                              <div className="p-2 bg-white rounded-lg border border-blue-100 shadow-sm shrink-0">
-                                <Sparkles className="h-4 w-4 text-blue-600" />
+                              <div className="p-2 bg-paper rounded-lg border border-indigo/25 shadow-sm shrink-0">
+                                <Sparkles className="h-4 w-4 text-amber-ink" />
                               </div>
                               <div>
-                                <p className="text-sm font-semibold text-gray-900">Activate DNS Management</p>
-                                <p className="text-xs text-gray-600 mt-0.5">Turn on DNS management for this domain to start adding records.</p>
+                                <p className="text-sm font-semibold text-ink">Activate DNS Management</p>
+                                <p className="text-xs text-ink-2 mt-0.5">Turn on DNS management for this domain to start adding records.</p>
                               </div>
                             </div>
                             <button
@@ -950,8 +950,8 @@ export default function DNSManagementPage() {
                               disabled={isActivating}
                               className={`inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-xl transition-colors shadow-sm shrink-0 ${
                                 isActivating
-                                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                  : 'bg-blue-600 text-white hover:bg-blue-700'
+                                  ? 'bg-hairline-strong text-ink-3 cursor-not-allowed'
+                                  : 'bg-amber text-white hover:brightness-90'
                               }`}
                             >
                               {isActivating ? (
@@ -990,7 +990,7 @@ export default function DNSManagementPage() {
                                 });
                                 if (ok) void handleActivateDNS(true);
                               }}
-                              className="text-xs text-blue-600 hover:text-blue-700 hover:underline mt-1 font-medium"
+                              className="text-xs text-amber-ink hover:text-amber-ink hover:underline mt-1 font-medium"
                             >
                               Re-sync DNS service
                             </button>
@@ -1002,12 +1002,12 @@ export default function DNSManagementPage() {
 
                   {/* Custom NS info banner */}
                   {nameserverMethod === 'custom' && (
-                    <div className="mx-6 mb-6 bg-gradient-to-br from-blue-50/70 to-indigo-50/70 border border-blue-200 rounded-2xl p-6 text-center">
-                      <div className="inline-flex items-center justify-center w-12 h-12 bg-white rounded-2xl border border-blue-200 shadow-sm mb-3">
-                        <ExternalLink className="h-5 w-5 text-blue-600" />
+                    <div className="mx-6 mb-6 bg-gradient-to-br from-blue-50/70 to-indigo-50/70 border border-indigo/25 rounded-2xl p-6 text-center">
+                      <div className="inline-flex items-center justify-center w-12 h-12 bg-paper rounded-2xl border border-indigo/25 shadow-sm mb-3">
+                        <ExternalLink className="h-5 w-5 text-amber-ink" />
                       </div>
-                      <h3 className="text-sm font-semibold text-gray-900 mb-1.5">Managed by External Provider</h3>
-                      <p className="text-sm text-gray-600 max-w-md mx-auto">
+                      <h3 className="text-sm font-semibold text-ink mb-1.5">Managed by External Provider</h3>
+                      <p className="text-sm text-ink-2 max-w-md mx-auto">
                         You're using <strong>Custom Nameservers</strong>. DNS records shown below are inactive — manage them at your nameserver provider (Cloudflare, AWS Route 53, etc.).
                       </p>
                     </div>
@@ -1019,32 +1019,32 @@ export default function DNSManagementPage() {
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}
-                      className="mx-6 mb-6 border border-blue-200 rounded-2xl overflow-hidden shadow-sm"
+                      className="mx-6 mb-6 border border-indigo/25 rounded-2xl overflow-hidden shadow-sm"
                     >
-                      <div className="px-5 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 flex items-center justify-between">
+                      <div className="px-5 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-indigo/25 flex items-center justify-between">
                         <div className="flex items-center gap-2.5">
-                          <div className="p-1.5 bg-blue-600 rounded-lg">
+                          <div className="p-1.5 bg-amber rounded-lg">
                             <Plus className="h-3.5 w-3.5 text-white" />
                           </div>
-                          <h4 className="text-sm font-semibold text-gray-900">Add New DNS Record</h4>
+                          <h4 className="text-sm font-semibold text-ink">Add New DNS Record</h4>
                         </div>
                         <button
                           onClick={() => setShowAddRecord(false)}
-                          className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-white rounded-lg transition-colors"
+                          className="p-1.5 text-ink-4 hover:text-ink-2 hover:bg-paper rounded-lg transition-colors"
                         >
                           <X className="h-4 w-4" />
                         </button>
                       </div>
 
-                      <div className="p-6 bg-white">
+                      <div className="p-6 bg-paper">
                         <div className="grid grid-cols-12 gap-4">
                           {/* Type */}
                           <div className="col-span-12 sm:col-span-2">
-                            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">Type</label>
+                            <label className="block text-xs font-semibold text-ink-2 uppercase tracking-wide mb-1.5">Type</label>
                             <select
                               value={newRecord.type}
                               onChange={(e) => setNewRecord({ ...newRecord, type: e.target.value, priority: undefined })}
-                              className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                              className="w-full px-3 py-2.5 bg-paper border border-hairline rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-amber focus:border-transparent transition-shadow"
                             >
                               <option value="A">A</option>
                               <option value="AAAA">AAAA</option>
@@ -1058,8 +1058,8 @@ export default function DNSManagementPage() {
 
                           {/* Name */}
                           <div className="col-span-12 sm:col-span-4">
-                            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
-                              Name <span className="ml-1 text-gray-400 font-normal normal-case">(Host)</span>
+                            <label className="block text-xs font-semibold text-ink-2 uppercase tracking-wide mb-1.5">
+                              Name <span className="ml-1 text-ink-4 font-normal normal-case">(Host)</span>
                             </label>
                             <div className="relative">
                               <input
@@ -1067,25 +1067,25 @@ export default function DNSManagementPage() {
                                 value={newRecord.name}
                                 onChange={(e) => setNewRecord({ ...newRecord, name: e.target.value })}
                                 placeholder="@"
-                                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow pr-20"
+                                className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber focus:border-transparent transition-shadow pr-20"
                               />
                               <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                                 {newRecord.name === '@' || newRecord.name === '' ? (
-                                  <span className="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded">Root</span>
+                                  <span className="text-xs font-medium text-amber-ink bg-indigo-soft px-2 py-0.5 rounded">Root</span>
                                 ) : (
-                                  <span className="text-xs text-gray-400">Subdomain</span>
+                                  <span className="text-xs text-ink-4">Subdomain</span>
                                 )}
                               </div>
                             </div>
-                            <p className="mt-1.5 text-xs text-gray-500 truncate">
-                              Resolves to: <span className="font-mono text-gray-700">{newRecord.name === '@' || newRecord.name === '' ? '' : `${newRecord.name}.`}{domains.find(d => d.id === selectedDomain)?.name}</span>
+                            <p className="mt-1.5 text-xs text-ink-3 truncate">
+                              Resolves to: <span className="font-mono text-ink-2">{newRecord.name === '@' || newRecord.name === '' ? '' : `${newRecord.name}.`}{domains.find(d => d.id === selectedDomain)?.name}</span>
                             </p>
                           </div>
 
                           {/* Value */}
                           <div className="col-span-12 sm:col-span-4">
-                            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
-                              Value <span className="ml-1 text-gray-400 font-normal normal-case">(Target)</span>
+                            <label className="block text-xs font-semibold text-ink-2 uppercase tracking-wide mb-1.5">
+                              Value <span className="ml-1 text-ink-4 font-normal normal-case">(Target)</span>
                             </label>
                             <input
                               type="text"
@@ -1096,26 +1096,26 @@ export default function DNSManagementPage() {
                                   newRecord.type === 'CNAME' ? 'example.com' :
                                     'Value'
                               }
-                              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                              className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber focus:border-transparent transition-shadow"
                             />
                           </div>
 
                           {/* TTL */}
                           <div className="col-span-6 sm:col-span-1">
-                            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">TTL</label>
+                            <label className="block text-xs font-semibold text-ink-2 uppercase tracking-wide mb-1.5">TTL</label>
                             <input
                               type="number"
                               value={newRecord.ttl}
                               onChange={(e) => setNewRecord({ ...newRecord, ttl: parseInt(e.target.value) || 3600 })}
                               min="300"
-                              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                              className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber focus:border-transparent transition-shadow"
                             />
                           </div>
 
                           {/* Priority (MX/SRV only) */}
                           {(newRecord.type === 'MX' || newRecord.type === 'SRV') && (
                             <div className="col-span-6 sm:col-span-1">
-                              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
+                              <label className="block text-xs font-semibold text-ink-2 uppercase tracking-wide mb-1.5">
                                 Priority <span className="text-red-500 normal-case">*</span>
                               </label>
                               <input
@@ -1123,22 +1123,22 @@ export default function DNSManagementPage() {
                                 value={newRecord.priority || ''}
                                 onChange={(e) => setNewRecord({ ...newRecord, priority: e.target.value ? parseInt(e.target.value) : undefined })}
                                 placeholder="10"
-                                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                                className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber focus:border-transparent transition-shadow"
                               />
                             </div>
                           )}
                         </div>
 
-                        <div className="mt-6 flex items-center justify-end gap-3 pt-5 border-t border-gray-100">
+                        <div className="mt-6 flex items-center justify-end gap-3 pt-5 border-t border-hairline">
                           <button
                             onClick={() => setShowAddRecord(false)}
-                            className="px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
+                            className="px-4 py-2.5 text-sm font-medium text-ink-2 bg-paper-2 hover:bg-hairline rounded-xl transition-colors"
                           >
                             Cancel
                           </button>
                           <button
                             onClick={handleAddRecord}
-                            className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
+                            className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-amber rounded-xl hover:brightness-90 transition-colors shadow-sm"
                           >
                             <Save className="h-4 w-4" />
                             Add Record
@@ -1150,30 +1150,30 @@ export default function DNSManagementPage() {
 
                   {/* Records list */}
                   {nameserverMethod !== 'custom' && (
-                    <div className="border-t border-gray-100">
+                    <div className="border-t border-hairline">
                       {isDNSLoading ? (
                         <div className="text-center py-12">
-                          <div className="animate-spin rounded-full h-7 w-7 border-2 border-blue-600 border-t-transparent mx-auto mb-3" />
-                          <p className="text-sm text-gray-500">Loading DNS records…</p>
+                          <div className="animate-spin rounded-full h-7 w-7 border-2 border-amber border-t-transparent mx-auto mb-3" />
+                          <p className="text-sm text-ink-3">Loading DNS records…</p>
                         </div>
                       ) : dnsRecords.length > 0 ? (
                         <div className="overflow-x-auto">
                           <table className="w-full text-sm">
                             <thead>
-                              <tr className="bg-gray-50 border-b border-gray-100">
-                                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
-                                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Name</th>
-                                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Value</th>
-                                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">TTL / Priority</th>
-                                <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                              <tr className="bg-paper-2/60 border-b border-hairline">
+                                <th className="px-5 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wider">Type</th>
+                                <th className="px-5 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wider">Name</th>
+                                <th className="px-5 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wider">Value</th>
+                                <th className="px-5 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wider">TTL / Priority</th>
+                                <th className="px-5 py-3 text-right text-xs font-semibold text-ink-3 uppercase tracking-wider">Actions</th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-50">
+                            <tbody className="divide-y divide-hairline">
                               {dnsRecords.map((record, index) => {
                                 const editKey = `${record.type}-${record.id}-${record.name}-${record.value}`;
                                 const isEditing = editingRecord === editKey;
                                 const typeColors: Record<string, string> = {
-                                  A:     'bg-blue-50 text-blue-700 border-blue-200',
+                                  A:     'bg-indigo-soft text-amber-ink border-indigo/25',
                                   AAAA:  'bg-indigo-50 text-indigo-700 border-indigo-200',
                                   CNAME: 'bg-purple-50 text-purple-700 border-purple-200',
                                   MX:    'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -1181,16 +1181,16 @@ export default function DNSManagementPage() {
                                   NS:    'bg-cyan-50 text-cyan-700 border-cyan-200',
                                   SRV:   'bg-pink-50 text-pink-700 border-pink-200',
                                 };
-                                const typeCls = typeColors[record.type] ?? 'bg-gray-100 text-gray-700 border-gray-200';
+                                const typeCls = typeColors[record.type] ?? 'bg-paper-2 text-ink-2 border-hairline';
                                 return (
-                                  <tr key={editKey} className="hover:bg-blue-50/30 transition-colors group">
+                                  <tr key={editKey} className="hover:bg-indigo-soft/30 transition-colors group">
                                     {/* Type */}
                                     <td className="px-5 py-3.5">
                                       {isEditing ? (
                                         <select
                                           value={editRecord.type}
                                           onChange={(e) => setEditRecord({ ...editRecord, type: e.target.value })}
-                                          className="w-full px-2 py-1 border border-gray-200 rounded-lg text-xs font-semibold"
+                                          className="w-full px-2 py-1 border border-hairline rounded-lg text-xs font-semibold"
                                         >
                                           <option value="A">A</option>
                                           <option value="AAAA">AAAA</option>
@@ -1207,13 +1207,13 @@ export default function DNSManagementPage() {
                                       )}
                                     </td>
                                     {/* Name */}
-                                    <td className="px-5 py-3.5 font-mono text-sm text-gray-700">
+                                    <td className="px-5 py-3.5 font-mono text-sm text-ink-2">
                                       {isEditing ? (
                                         <input
                                           type="text"
                                           value={editRecord.name}
                                           onChange={(e) => setEditRecord({ ...editRecord, name: e.target.value })}
-                                          className="w-full px-2 py-1 border border-gray-200 rounded-lg text-sm font-mono"
+                                          className="w-full px-2 py-1 border border-hairline rounded-lg text-sm font-mono"
                                         />
                                       ) : (
                                         record.name
@@ -1226,11 +1226,11 @@ export default function DNSManagementPage() {
                                           type="text"
                                           value={editRecord.value}
                                           onChange={(e) => setEditRecord({ ...editRecord, value: e.target.value })}
-                                          className="w-full px-2 py-1 border border-gray-200 rounded-lg text-sm font-mono"
+                                          className="w-full px-2 py-1 border border-hairline rounded-lg text-sm font-mono"
                                         />
                                       ) : (
                                         <div className="flex items-center gap-2">
-                                          <span className="block truncate font-mono text-sm text-gray-800" title={record.value}>
+                                          <span className="block truncate font-mono text-sm text-ink" title={record.value}>
                                             {record.value}
                                           </span>
                                           <button
@@ -1238,7 +1238,7 @@ export default function DNSManagementPage() {
                                               void navigator.clipboard.writeText(record.value);
                                               toast.success('Value copied');
                                             }}
-                                            className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-blue-600 transition-all shrink-0"
+                                            className="opacity-0 group-hover:opacity-100 p-1 text-ink-4 hover:text-amber-ink transition-all shrink-0"
                                             title="Copy value"
                                           >
                                             <Copy className="h-3.5 w-3.5" />
@@ -1247,14 +1247,14 @@ export default function DNSManagementPage() {
                                       )}
                                     </td>
                                     {/* TTL / Priority */}
-                                    <td className="px-5 py-3.5 text-sm text-gray-600">
+                                    <td className="px-5 py-3.5 text-sm text-ink-2">
                                       {isEditing ? (
                                         <div className="flex gap-2">
                                           <input
                                             type="number"
                                             value={editRecord.ttl}
                                             onChange={(e) => setEditRecord({ ...editRecord, ttl: parseInt(e.target.value) || 3600 })}
-                                            className="w-20 px-2 py-1 border border-gray-200 rounded-lg text-sm"
+                                            className="w-20 px-2 py-1 border border-hairline rounded-lg text-sm"
                                             min="300"
                                             placeholder="TTL"
                                           />
@@ -1263,7 +1263,7 @@ export default function DNSManagementPage() {
                                               type="number"
                                               value={editRecord.priority || 10}
                                               onChange={(e) => setEditRecord({ ...editRecord, priority: parseInt(e.target.value) || 10 })}
-                                              className="w-16 px-2 py-1 border border-gray-200 rounded-lg text-sm"
+                                              className="w-16 px-2 py-1 border border-hairline rounded-lg text-sm"
                                               min="0"
                                               max="65535"
                                               placeholder="Pri"
@@ -1274,7 +1274,7 @@ export default function DNSManagementPage() {
                                         <div className="flex items-center gap-1.5">
                                           <span className="font-mono">{record.ttl}s</span>
                                           {(record.type === 'MX' || record.type === 'SRV') && record.priority !== undefined && (
-                                            <span className="text-xs text-gray-400">· Pri {record.priority}</span>
+                                            <span className="text-xs text-ink-4">· Pri {record.priority}</span>
                                           )}
                                         </div>
                                       )}
@@ -1293,7 +1293,7 @@ export default function DNSManagementPage() {
                                             </button>
                                             <button
                                               onClick={handleCancelEdit}
-                                              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                                              className="p-1.5 text-ink-3 hover:text-ink-2 hover:bg-paper-2 rounded-lg transition-colors"
                                               title="Cancel"
                                             >
                                               <X className="h-4 w-4" />
@@ -1303,21 +1303,21 @@ export default function DNSManagementPage() {
                                           <>
                                             <button
                                               onClick={() => handleEditRecord(record, index)}
-                                              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                              className="p-1.5 text-ink-4 hover:text-amber-ink hover:bg-indigo-soft rounded-lg transition-colors"
                                               title="Edit"
                                             >
                                               <Edit3 className="h-4 w-4" />
                                             </button>
                                             <button
                                               onClick={() => record.id ? handleDeleteRecord(record.id) : toast.error('Missing provider record id')}
-                                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                              className="p-1.5 text-ink-4 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                               title="Delete"
                                             >
                                               <Trash2 className="h-4 w-4" />
                                             </button>
                                           </>
                                         ) : (
-                                          <span className="inline-flex items-center gap-1 text-xs text-gray-400" title="Managed by hosting">
+                                          <span className="inline-flex items-center gap-1 text-xs text-ink-4" title="Managed by hosting">
                                             <Server className="h-3.5 w-3.5" />
                                             Hosting
                                           </span>
@@ -1332,11 +1332,11 @@ export default function DNSManagementPage() {
                         </div>
                       ) : (
                         <div className="text-center py-12 px-6">
-                          <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                            <Server className="h-7 w-7 text-gray-400" />
+                          <div className="w-14 h-14 bg-paper-2 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <Server className="h-7 w-7 text-ink-4" />
                           </div>
-                          <h4 className="text-sm font-semibold text-gray-900 mb-1.5">No DNS Records Yet</h4>
-                          <p className="text-sm text-gray-500 mb-5">Add a record above to get started.</p>
+                          <h4 className="text-sm font-semibold text-ink mb-1.5">No DNS Records Yet</h4>
+                          <p className="text-sm text-ink-3 mb-5">Add a record above to get started.</p>
 
                           {dnsPropagationStatus === 'propagating' && (
                             <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl max-w-md mx-auto text-left">
@@ -1359,11 +1359,11 @@ export default function DNSManagementPage() {
                           )}
 
                           {dnsPropagationStatus === 'checking' && (
-                            <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-xl max-w-md mx-auto text-left">
-                              <div className="animate-spin h-4 w-4 mt-0.5 border-2 border-blue-600 border-t-transparent rounded-full shrink-0" />
+                            <div className="flex items-start gap-3 p-4 bg-indigo-soft border border-indigo/25 rounded-xl max-w-md mx-auto text-left">
+                              <div className="animate-spin h-4 w-4 mt-0.5 border-2 border-amber border-t-transparent rounded-full shrink-0" />
                               <div>
-                                <p className="text-sm font-semibold text-blue-900">Checking DNS Zone</p>
-                                <p className="text-xs text-blue-700 mt-0.5">Verifying DNS zone status and accessibility…</p>
+                                <p className="text-sm font-semibold text-indigo-ink">Checking DNS Zone</p>
+                                <p className="text-xs text-amber-ink mt-0.5">Verifying DNS zone status and accessibility…</p>
                               </div>
                             </div>
                           )}
@@ -1380,13 +1380,13 @@ export default function DNSManagementPage() {
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 }}
-                  className="bg-white border border-gray-200 rounded-2xl shadow-sm p-12 text-center"
+                  className="bg-paper border border-hairline rounded-2xl shadow-sm p-12 text-center"
                 >
-                  <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <Globe className="h-7 w-7 text-blue-500" />
+                  <div className="w-14 h-14 bg-indigo-soft rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <Globe className="h-7 w-7 text-amber-ink" />
                   </div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-1.5">Select a Domain</h3>
-                  <p className="text-sm text-gray-500">Choose a domain from the dropdown above to manage its DNS records.</p>
+                  <h3 className="text-sm font-semibold text-ink mb-1.5">Select a Domain</h3>
+                  <p className="text-sm text-ink-3">Choose a domain from the dropdown above to manage its DNS records.</p>
                 </motion.div>
               )}
 
@@ -1395,13 +1395,13 @@ export default function DNSManagementPage() {
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 }}
-                  className="bg-white border border-gray-200 rounded-2xl shadow-sm p-12 text-center"
+                  className="bg-paper border border-hairline rounded-2xl shadow-sm p-12 text-center"
                 >
-                  <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <Globe className="h-7 w-7 text-gray-400" />
+                  <div className="w-14 h-14 bg-paper-2 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <Globe className="h-7 w-7 text-ink-4" />
                   </div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-1.5">No Domains Found</h3>
-                  <p className="text-sm text-gray-500">You don't have any domains registered yet.</p>
+                  <h3 className="text-sm font-semibold text-ink mb-1.5">No Domains Found</h3>
+                  <p className="text-sm text-ink-3">You don't have any domains registered yet.</p>
                 </motion.div>
               )}
           </div>

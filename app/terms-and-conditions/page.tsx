@@ -56,7 +56,7 @@ export default function TermsPage() {
                 <p className="text-gray-700 leading-relaxed mb-4">
                   By accessing or using our Service, you agree to be bound by these Terms. If you disagree with any part of these terms, then you may not access the Service.
                 </p>
-                <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg">
+                <div className="bg-blue-50 border-l-4 border-amber/40 p-4 rounded-r-lg">
                   <p className="text-blue-800 font-medium">
                     <AlertTriangle className="h-5 w-5 inline mr-2" />
                     Important: By using our services, you confirm that you have read, understood, and agree to be bound by these terms.

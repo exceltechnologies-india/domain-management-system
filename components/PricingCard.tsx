@@ -136,7 +136,7 @@ export default function PricingCard({
               {feature.tooltip && (
                 <div className="group relative ml-2">
                   <Info className="h-4 w-4 text-gray-400 cursor-help" />
-                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity w-48 text-center pointer-events-none z-50">
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-ink text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity w-48 text-center pointer-events-none z-50">
                     {feature.tooltip}
                     <div className="absolute top-100 left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
                   </div>

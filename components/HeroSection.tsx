@@ -34,7 +34,7 @@ export default function HeroSection({
       ? 'bg-primary-600'
       : variant === 'secondary'
         ? 'bg-gray-600'
-        : 'bg-gray-800',
+        : 'bg-ink-2',
     image: 'bg-cover bg-center bg-no-repeat'
   };
 

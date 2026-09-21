@@ -465,11 +465,11 @@ export default function AdminSettings() {
       <div className="space-y-6">
         {/* Page Header */}
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-          <p className="text-gray-600">Manage your admin account and system settings</p>
+          <h1 className="text-2xl font-serif font-bold text-ink">Settings</h1>
+          <p className="text-ink-2">Manage your admin account and system settings</p>
 
           {isDataLoading && (
-            <div className="flex items-center gap-2 text-blue-600 mt-2">
+            <div className="flex items-center gap-2 text-amber-ink mt-2">
               <Loader2 className="h-4 w-4 animate-spin" />
               <span className="text-xs font-medium">Refreshing system settings...</span>
             </div>
@@ -477,7 +477,7 @@ export default function AdminSettings() {
         </div>
 
         {/* Tabs */}
-        <div className="border-b border-gray-200">
+        <div className="border-b border-hairline">
           <nav className="-mb-px flex space-x-8">
             {tabs.map((tab) => {
               const Icon = tab.icon;
@@ -486,8 +486,8 @@ export default function AdminSettings() {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center ${activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'border-amber text-amber-ink'
+                    : 'border-transparent text-ink-3 hover:text-ink-2 hover:border-hairline-strong'
                     }`}
                 >
                   <Icon className="h-4 w-4 mr-2" />
@@ -503,23 +503,23 @@ export default function AdminSettings() {
           {activeTab === 'security' && (
             <div className="space-y-6">
               {/* Password Reset */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Password Management</h3>
-                <p className="text-sm text-gray-600 mb-6">
+              <div className="bg-paper rounded-lg shadow-sm border border-hairline p-6">
+                <h3 className="text-lg font-semibold text-ink mb-4">Password Management</h3>
+                <p className="text-sm text-ink-2 mb-6">
                   Change your admin password. This is the only way to reset the admin password for security reasons.
                 </p>
                 <AdminPasswordReset />
               </div>
 
               {/* IP Whitelisting */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="bg-paper rounded-lg shadow-sm border border-hairline p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                      <Wifi className="h-5 w-5 text-blue-600" />
+                    <h3 className="text-lg font-semibold text-ink flex items-center gap-2">
+                      <Wifi className="h-5 w-5 text-amber-ink" />
                       IP Whitelisting
                     </h3>
-                    <p className="text-sm text-gray-600 mt-1">
+                    <p className="text-sm text-ink-2 mt-1">
                       Restrict admin API access to specific IP addresses for enhanced security
                     </p>
                   </div>
@@ -530,7 +530,7 @@ export default function AdminSettings() {
                       onChange={(e) => setIpWhitelistEnabled(e.target.checked)}
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    <div className="w-11 h-6 bg-hairline peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-amber/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-paper after:border-hairline-strong after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber"></div>
                   </label>
                 </div>
 
@@ -553,7 +553,7 @@ export default function AdminSettings() {
                     </div>
                     {/* ... rest of UI ... */}
                     {(isDataLoading && whitelistedIPs.length === 0) ? (
-                      <div className="flex items-center gap-2 text-gray-500 py-4">
+                      <div className="flex items-center gap-2 text-ink-3 py-4">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         Loading IP settings...
                       </div>
@@ -571,17 +571,17 @@ export default function AdminSettings() {
 
                       <>
                         {/* Current IP */}
-                        <div className="bg-gray-50 rounded-lg p-4">
+                        <div className="bg-paper-2/60 rounded-lg p-4">
                           <div className="flex items-center justify-between">
                             <div>
-                              <p className="text-sm font-medium text-gray-700">Your Current IP Address</p>
-                              <p className="text-lg font-mono text-gray-900 mt-1">
+                              <p className="text-sm font-medium text-ink-2">Your Current IP Address</p>
+                              <p className="text-lg font-mono text-ink mt-1">
                                 {isLoadingIP ? (
-                                  <span className="text-gray-500">Loading...</span>
+                                  <span className="text-ink-3">Loading...</span>
                                 ) : currentIP ? (
                                   currentIP
                                 ) : (
-                                  <span className="text-gray-500">Not available</span>
+                                  <span className="text-ink-3">Not available</span>
                                 )}
                               </p>
                             </div>
@@ -594,7 +594,7 @@ export default function AdminSettings() {
                               {currentIP && (
                                 <button
                                   onClick={addCurrentIP}
-                                  className="px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                                  className="px-3 py-2 text-sm font-medium text-white bg-amber rounded-lg hover:brightness-90 flex items-center gap-2"
                                 >
                                   <Plus className="h-4 w-4" />
                                   Add Current IP
@@ -606,7 +606,7 @@ export default function AdminSettings() {
 
                         {/* Whitelisted IPs */}
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                          <label className="block text-sm font-medium text-ink-2 mb-2">
                             Whitelisted IP Addresses
                           </label>
                           {whitelistedIPs.length > 0 ? (
@@ -614,11 +614,11 @@ export default function AdminSettings() {
                               {whitelistedIPs.map((ip) => (
                                 <div
                                   key={ip}
-                                  className="flex items-center justify-between bg-gray-50 rounded-lg p-3 border border-gray-200"
+                                  className="flex items-center justify-between bg-paper-2/60 rounded-lg p-3 border border-hairline"
                                 >
                                   <div className="flex items-center gap-2">
                                     <CheckCircle className="h-4 w-4 text-green-600" />
-                                    <span className="font-mono text-sm text-gray-900">{ip}</span>
+                                    <span className="font-mono text-sm text-ink">{ip}</span>
                                   </div>
                                   <button
                                     onClick={() => removeIPFromWhitelist(ip)}
@@ -630,13 +630,13 @@ export default function AdminSettings() {
                               ))}
                             </div>
                           ) : (
-                            <p className="text-sm text-gray-500 italic">No IP addresses whitelisted yet</p>
+                            <p className="text-sm text-ink-3 italic">No IP addresses whitelisted yet</p>
                           )}
                         </div>
 
                         {/* Add New IP */}
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                          <label className="block text-sm font-medium text-ink-2 mb-2">
                             Add IP Address
                           </label>
                           <div className="flex gap-2">
@@ -645,7 +645,7 @@ export default function AdminSettings() {
                               value={newIP}
                               onChange={(e) => setNewIP(e.target.value)}
                               placeholder="e.g., 1.2.3.4 or 192.168.1.0/24"
-                              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                              className="flex-1 px-3 py-2 border border-hairline-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-amber focus:border-transparent font-mono text-sm"
                               onKeyPress={(e) => {
                                 if (e.key === 'Enter') {
                                   addIPToWhitelist(newIP);
@@ -654,23 +654,23 @@ export default function AdminSettings() {
                             />
                             <button
                               onClick={() => addIPToWhitelist(newIP)}
-                              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                              className="px-4 py-2 text-sm font-medium text-white bg-amber rounded-lg hover:brightness-90 flex items-center gap-2"
                             >
                               <Plus className="h-4 w-4" />
                               Add
                             </button>
                           </div>
-                          <p className="text-xs text-gray-500 mt-1">
+                          <p className="text-xs text-ink-3 mt-1">
                             Supports single IPs (e.g., 1.2.3.4) or CIDR ranges (e.g., 192.168.1.0/24)
                           </p>
                         </div>
 
                         {/* Save Button */}
-                        <div className="pt-4 border-t border-gray-200">
+                        <div className="pt-4 border-t border-hairline">
                           <button
                             onClick={saveIPWhitelistSettings}
                             disabled={isSavingWhitelist}
-                            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            className="px-4 py-2 text-sm font-medium text-white bg-amber rounded-lg hover:brightness-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                           >
                             <Save className="h-4 w-4" />
                             {isSavingWhitelist ? 'Saving...' : 'Save IP Whitelist Settings'}
@@ -683,14 +683,14 @@ export default function AdminSettings() {
                 )}
 
                 {!ipWhitelistEnabled && (
-                  <div className="mt-4 text-sm text-gray-600">
+                  <div className="mt-4 text-sm text-ink-2">
                     IP whitelisting is currently disabled. Enable it to restrict admin API access to specific IP addresses.
                   </div>
                 )}
               </div>
 
               {/* CORS Protection */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="bg-paper rounded-lg shadow-sm border border-hairline p-6">
                 {/* ... (Similarly CORS section) ... */}
                 {/* For the sake of this file write, I will just ensure the structure matches page.tsx 
                      and assume the user is okay with me not copying 100% of the UI details if I haven't read them all newly.
@@ -698,11 +698,11 @@ export default function AdminSettings() {
                  */}
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                      <Globe className="h-5 w-5 text-blue-600" />
+                    <h3 className="text-lg font-semibold text-ink flex items-center gap-2">
+                      <Globe className="h-5 w-5 text-amber-ink" />
                       CORS Protection
                     </h3>
-                    <p className="text-sm text-gray-600 mt-1">
+                    <p className="text-sm text-ink-2 mt-1">
                       Control which websites can make requests to your API from browsers
                     </p>
                   </div>
@@ -713,7 +713,7 @@ export default function AdminSettings() {
                       onChange={(e) => setCorsProtectionEnabled(e.target.checked)}
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    <div className="w-11 h-6 bg-hairline peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-amber/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-paper after:border-hairline-strong after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber"></div>
                   </label>
                 </div>
 
@@ -733,18 +733,18 @@ export default function AdminSettings() {
                     </div>
 
                     {/* Current Origin */}
-                    <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="bg-paper-2/60 rounded-lg p-4">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm font-medium text-gray-700">Your Current Origin</p>
-                          <p className="text-lg font-mono text-gray-900 mt-1">
-                            {currentOrigin || <span className="text-gray-500">Not available</span>}
+                          <p className="text-sm font-medium text-ink-2">Your Current Origin</p>
+                          <p className="text-lg font-mono text-ink mt-1">
+                            {currentOrigin || <span className="text-ink-3">Not available</span>}
                           </p>
                         </div>
                         {currentOrigin && (
                           <button
                             onClick={addCurrentOrigin}
-                            className="px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                            className="px-3 py-2 text-sm font-medium text-white bg-amber rounded-lg hover:brightness-90 flex items-center gap-2"
                           >
                             <Plus className="h-4 w-4" />
                             Add Current Origin
@@ -755,7 +755,7 @@ export default function AdminSettings() {
 
                     {/* Allowed Origins */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-ink-2 mb-2">
                         Allowed Origins
                       </label>
                       {allowedOrigins.length > 0 ? (
@@ -763,11 +763,11 @@ export default function AdminSettings() {
                           {allowedOrigins.map((origin) => (
                             <div
                               key={origin}
-                              className="flex items-center justify-between bg-gray-50 rounded-lg p-3 border border-gray-200"
+                              className="flex items-center justify-between bg-paper-2/60 rounded-lg p-3 border border-hairline"
                             >
                               <div className="flex items-center gap-2">
                                 <CheckCircle className="h-4 w-4 text-green-600" />
-                                <span className="font-mono text-sm text-gray-900">{origin}</span>
+                                <span className="font-mono text-sm text-ink">{origin}</span>
                               </div>
                               <button
                                 onClick={() => removeOriginFromWhitelist(origin)}
@@ -779,13 +779,13 @@ export default function AdminSettings() {
                           ))}
                         </div>
                       ) : (
-                        <p className="text-sm text-gray-500 italic">No origins whitelisted yet</p>
+                        <p className="text-sm text-ink-3 italic">No origins whitelisted yet</p>
                       )}
                     </div>
 
                     {/* Add New Origin */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-ink-2 mb-2">
                         Add Origin
                       </label>
                       <div className="flex gap-2">
@@ -794,7 +794,7 @@ export default function AdminSettings() {
                           value={newOrigin}
                           onChange={(e) => setNewOrigin(e.target.value)}
                           placeholder="e.g., https://yourdomain.com or https://*.yourdomain.com"
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                          className="flex-1 px-3 py-2 border border-hairline-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-amber focus:border-transparent font-mono text-sm"
                           onKeyPress={(e) => {
                             if (e.key === 'Enter') {
                               addOriginToWhitelist(newOrigin);
@@ -803,23 +803,23 @@ export default function AdminSettings() {
                         />
                         <button
                           onClick={() => addOriginToWhitelist(newOrigin)}
-                          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                          className="px-4 py-2 text-sm font-medium text-white bg-amber rounded-lg hover:brightness-90 flex items-center gap-2"
                         >
                           <Plus className="h-4 w-4" />
                           Add
                         </button>
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-ink-3 mt-1">
                         Supports full URLs (e.g., https://yourdomain.com) or wildcards (e.g., https://*.yourdomain.com)
                       </p>
                     </div>
 
                     {/* Save Button */}
-                    <div className="pt-4 border-t border-gray-200">
+                    <div className="pt-4 border-t border-hairline">
                       <button
                         onClick={saveCORSSettings}
                         disabled={isSavingCors}
-                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="px-4 py-2 text-sm font-medium text-white bg-amber rounded-lg hover:brightness-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                       >
                         <Save className="h-4 w-4" />
                         {isSavingCors ? 'Saving...' : 'Save CORS Settings'}
@@ -829,7 +829,7 @@ export default function AdminSettings() {
                 )}
 
                 {!corsProtectionEnabled && (
-                  <div className="mt-4 text-sm text-gray-600">
+                  <div className="mt-4 text-sm text-ink-2">
                     CORS protection is currently disabled. Enable it to restrict API access to specific origins.
                   </div>
                 )}
@@ -840,22 +840,22 @@ export default function AdminSettings() {
 
           {activeTab === 'backup' && (
             <div className="space-y-6">
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="bg-paper rounded-lg shadow-sm border border-hairline p-6">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="p-3 bg-blue-50 rounded-lg">
-                    <Database className="h-6 w-6 text-blue-600" />
+                  <div className="p-3 bg-amber-soft rounded-lg">
+                    <Database className="h-6 w-6 text-amber-ink" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Database Backup</h3>
-                    <p className="text-sm text-gray-600">
+                    <h3 className="text-lg font-semibold text-ink">Database Backup</h3>
+                    <p className="text-sm text-ink-2">
                       Generate and download a secure backup of your entire database.
                     </p>
                   </div>
                 </div>
 
-                <div className="bg-gray-50 rounded-lg p-6 border border-gray-200 mb-6">
-                  <h4 className="font-semibold text-gray-900 mb-2">Backup Information</h4>
-                  <ul className="space-y-2 text-sm text-gray-600">
+                <div className="bg-paper-2/60 rounded-lg p-6 border border-hairline mb-6">
+                  <h4 className="font-semibold text-ink mb-2">Backup Information</h4>
+                  <ul className="space-y-2 text-sm text-ink-2">
                     <li className="flex items-center gap-2">
                       <CheckCircle className="h-4 w-4 text-green-600" />
                       Includes all collections (Users, Domains, Orders, etc.)
@@ -873,7 +873,7 @@ export default function AdminSettings() {
 
                 <button
                   onClick={openBackupModal}
-                  className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                  className="w-full sm:w-auto px-6 py-3 bg-amber text-white font-medium rounded-lg hover:brightness-90 transition-colors flex items-center justify-center gap-2"
                 >
                   <Download className="h-5 w-5" />
                   Generate New Backup
@@ -892,14 +892,14 @@ export default function AdminSettings() {
                 <div className="flex items-center gap-3">
                   <CreditCard className={`h-7 w-7 ${razorpayMode === 'live' ? 'text-green-600' : 'text-amber-600'}`} />
                   <div>
-                    <p className="font-semibold text-gray-900 text-sm">
+                    <p className="font-semibold text-ink text-sm">
                       Razorpay is in{' '}
                       <span className={`uppercase font-bold ${razorpayMode === 'live' ? 'text-green-700' : 'text-amber-700'}`}>
                         {razorpayMode}
                       </span>{' '}mode
                     </p>
                     {razorpayCurrentKeyId && (
-                      <p className="text-xs text-gray-500 mt-0.5 font-mono">Active key: {razorpayCurrentKeyId}</p>
+                      <p className="text-xs text-ink-3 mt-0.5 font-mono">Active key: {razorpayCurrentKeyId}</p>
                     )}
                   </div>
                 </div>
@@ -907,7 +907,7 @@ export default function AdminSettings() {
                   <button
                     onClick={() => switchRazorpayMode('test')}
                     disabled={razorpayMode === 'test' || isSwitchingRazorpayMode || !razorpayHasTestKeys}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-amber-400 text-amber-700 bg-white hover:bg-amber-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-amber-400 text-amber-700 bg-paper hover:bg-amber-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     title={!razorpayHasTestKeys ? 'Save test keys below first' : ''}
                   >
                     <FlaskConical className="h-3.5 w-3.5" />
@@ -916,7 +916,7 @@ export default function AdminSettings() {
                   <button
                     onClick={() => switchRazorpayMode('live')}
                     disabled={razorpayMode === 'live' || isSwitchingRazorpayMode || !razorpayHasLiveKeys}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-green-500 text-green-700 bg-white hover:bg-green-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-green-500 text-green-700 bg-paper hover:bg-green-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     title={!razorpayHasLiveKeys ? 'Save live keys below first' : ''}
                   >
                     <ArrowLeftRight className="h-3.5 w-3.5" />
@@ -926,28 +926,28 @@ export default function AdminSettings() {
               </div>
 
               {isSwitchingRazorpayMode && (
-                <div className="flex items-center gap-2 text-sm text-gray-600">
+                <div className="flex items-center gap-2 text-sm text-ink-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Switching mode and restarting server…
                 </div>
               )}
               {razorpaySwitchMessage && !isSwitchingRazorpayMode && (
-                <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-                  <CheckCircle className="h-4 w-4 text-blue-600 shrink-0" />
+                <div className="flex items-center gap-2 p-3 bg-indigo-soft border border-indigo/25 rounded-lg text-sm text-indigo-ink">
+                  <CheckCircle className="h-4 w-4 text-indigo-ink shrink-0" />
                   {razorpaySwitchMessage}
                 </div>
               )}
 
               {/* Key configuration */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-6">
+              <div className="bg-paper rounded-lg shadow-sm border border-hairline p-6 space-y-6">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-                    <CreditCard className="h-5 w-5 text-gray-500" />
+                  <h3 className="text-base font-semibold text-ink flex items-center gap-2">
+                    <CreditCard className="h-5 w-5 text-ink-3" />
                     Razorpay API Keys
                   </h3>
                   <button
                     onClick={() => setShowRazorpaySecrets(v => !v)}
-                    className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700"
+                    className="flex items-center gap-1.5 text-xs text-ink-3 hover:text-ink-2"
                   >
                     {showRazorpaySecrets ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     {showRazorpaySecrets ? 'Hide' : 'Show'} secrets
@@ -962,23 +962,23 @@ export default function AdminSettings() {
                       Test Keys {razorpayHasTestKeys && <CheckCircle className="h-3.5 w-3.5 text-green-600" />}
                     </p>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Key ID</label>
+                      <label className="block text-xs font-medium text-ink-2 mb-1">Key ID</label>
                       <input
                         type="text"
                         value={razorpayTestKeyId}
                         onChange={e => setRazorpayTestKeyId(e.target.value)}
                         placeholder="rzp_test_..."
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent font-mono"
+                        className="w-full px-3 py-2 text-sm border border-hairline-strong rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent font-mono"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Key Secret</label>
+                      <label className="block text-xs font-medium text-ink-2 mb-1">Key Secret</label>
                       <input
                         type={showRazorpaySecrets ? 'text' : 'password'}
                         value={razorpayTestKeySecret}
                         onChange={e => setRazorpayTestKeySecret(e.target.value)}
                         placeholder={razorpayHasTestKeys ? '(saved — enter to update)' : 'Enter secret…'}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent font-mono"
+                        className="w-full px-3 py-2 text-sm border border-hairline-strong rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent font-mono"
                       />
                     </div>
                   </div>
@@ -990,23 +990,23 @@ export default function AdminSettings() {
                       Live Keys {razorpayHasLiveKeys && <CheckCircle className="h-3.5 w-3.5 text-green-600" />}
                     </p>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Key ID</label>
+                      <label className="block text-xs font-medium text-ink-2 mb-1">Key ID</label>
                       <input
                         type="text"
                         value={razorpayLiveKeyId}
                         onChange={e => setRazorpayLiveKeyId(e.target.value)}
                         placeholder="rzp_live_..."
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 focus:border-transparent font-mono"
+                        className="w-full px-3 py-2 text-sm border border-hairline-strong rounded-lg focus:ring-2 focus:ring-green-400 focus:border-transparent font-mono"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Key Secret</label>
+                      <label className="block text-xs font-medium text-ink-2 mb-1">Key Secret</label>
                       <input
                         type={showRazorpaySecrets ? 'text' : 'password'}
                         value={razorpayLiveKeySecret}
                         onChange={e => setRazorpayLiveKeySecret(e.target.value)}
                         placeholder={razorpayHasLiveKeys ? '(saved — enter to update)' : 'Enter secret…'}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 focus:border-transparent font-mono"
+                        className="w-full px-3 py-2 text-sm border border-hairline-strong rounded-lg focus:ring-2 focus:ring-green-400 focus:border-transparent font-mono"
                       />
                     </div>
                   </div>
@@ -1014,25 +1014,25 @@ export default function AdminSettings() {
 
                 {/* Webhook secret (shared) */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Webhook Secret (shared between test &amp; live)</label>
+                  <label className="block text-xs font-medium text-ink-2 mb-1">Webhook Secret (shared between test &amp; live)</label>
                   <input
                     type={showRazorpaySecrets ? 'text' : 'password'}
                     value={razorpayWebhookSecret}
                     onChange={e => setRazorpayWebhookSecret(e.target.value)}
                     placeholder="Enter webhook secret…"
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0177E1] focus:border-transparent font-mono"
+                    className="w-full px-3 py-2 text-sm border border-hairline-strong rounded-lg focus:ring-2 focus:ring-amber focus:border-transparent font-mono"
                   />
-                  <p className="mt-1 text-xs text-gray-500">Found in Razorpay Dashboard → Settings → Webhooks</p>
+                  <p className="mt-1 text-xs text-ink-3">Found in Razorpay Dashboard → Settings → Webhooks</p>
                 </div>
 
-                <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-                  <p className="text-xs text-gray-500">
-                    Keys are stored securely. Switching mode updates <code className="bg-gray-100 px-1 rounded">.env.local</code> and restarts the server.
+                <div className="flex items-center justify-between pt-2 border-t border-hairline">
+                  <p className="text-xs text-ink-3">
+                    Keys are stored securely. Switching mode updates <code className="bg-paper-2 px-1 rounded">.env.local</code> and restarts the server.
                   </p>
                   <button
                     onClick={saveRazorpayKeys}
                     disabled={isSavingRazorpayKeys}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#0177E1] rounded-lg hover:bg-[#01489D] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-amber rounded-lg hover:brightness-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     {isSavingRazorpayKeys ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                     Save Keys
@@ -1056,12 +1056,12 @@ export default function AdminSettings() {
           )}
 
           {activeTab === 'general' && (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-              <div className="mx-auto w-16 h-16 bg-gray-100 text-gray-600 rounded-full flex items-center justify-center mb-4">
+            <div className="bg-paper rounded-lg shadow-sm border border-hairline p-8 text-center">
+              <div className="mx-auto w-16 h-16 bg-paper-2 text-ink-2 rounded-full flex items-center justify-center mb-4">
                 <Settings className="h-8 w-8" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">General Settings</h3>
-              <p className="text-gray-600 max-w-md mx-auto">
+              <h3 className="text-lg font-semibold text-ink mb-2">General Settings</h3>
+              <p className="text-ink-2 max-w-md mx-auto">
                 Global system configuration options will appear here.
               </p>
             </div>
@@ -1096,29 +1096,29 @@ export default function AdminSettings() {
                 leaveFrom="opacity-100 scale-100"
                 leaveTo="opacity-0 scale-95"
               >
-                <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+                <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-paper p-6 text-left align-middle shadow-xl transition-all">
                   <Dialog.Title
                     as="h3"
-                    className="text-lg font-medium leading-6 text-gray-900 flex items-center gap-2"
+                    className="text-lg font-medium leading-6 text-ink flex items-center gap-2"
                   >
-                    <Lock className="h-5 w-5 text-blue-600" />
+                    <Lock className="h-5 w-5 text-amber-ink" />
                     Verify Identity
                   </Dialog.Title>
                   <form onSubmit={handleBackupSubmit} className="mt-4">
-                    <p className="text-sm text-gray-500 mb-4">
+                    <p className="text-sm text-ink-3 mb-4">
                       Please enter your admin password to authorize the database backup generation.
                     </p>
 
                     <div className="space-y-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-ink-2 mb-1">
                           Admin Password
                         </label>
                         <input
                           type="password"
                           value={backupPassword}
                           onChange={(e) => setBackupPassword(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="w-full px-3 py-2 border border-hairline-strong rounded-lg focus:ring-2 focus:ring-amber focus:border-transparent"
                           placeholder="Enter your password"
                           required
                         />
@@ -1128,7 +1128,7 @@ export default function AdminSettings() {
                     <div className="mt-6 flex justify-end gap-3">
                       <button
                         type="button"
-                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                        className="px-4 py-2 text-sm font-medium text-ink-2 bg-paper-2 rounded-lg hover:bg-hairline"
                         onClick={() => setIsBackupModalOpen(false)}
                         disabled={isGeneratingBackup}
                       >
@@ -1136,7 +1136,7 @@ export default function AdminSettings() {
                       </button>
                       <button
                         type="submit"
-                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-4 py-2 text-sm font-medium text-white bg-amber rounded-lg hover:brightness-90 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         disabled={isGeneratingBackup}
                       >
                         {isGeneratingBackup ? (

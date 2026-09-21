@@ -35,24 +35,24 @@ interface Ticket {
 }
 
 const STATUS_CFG: Record<string, { label: string; cls: string; dot: string; icon: React.ElementType }> = {
-  open:        { label: "Open",        cls: "bg-blue-50 text-blue-700 border-blue-200",    dot: "bg-blue-500",   icon: Clock },
+  open:        { label: "Open",        cls: "bg-indigo-soft text-amber-ink border-indigo/25",    dot: "bg-indigo",   icon: Clock },
   in_progress: { label: "In Progress", cls: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500",  icon: AlertCircle },
   resolved:    { label: "Resolved",    cls: "bg-green-50 text-green-700 border-green-200", dot: "bg-green-500",  icon: CheckCircle2 },
-  closed:      { label: "Closed",      cls: "bg-gray-100 text-gray-500 border-gray-200",   dot: "bg-gray-400",   icon: XCircle },
+  closed:      { label: "Closed",      cls: "bg-paper-2 text-ink-3 border-hairline",   dot: "bg-gray-400",   icon: XCircle },
 };
 
 const PRIORITY_CFG: Record<string, { dot: string; label: string; cls: string }> = {
   high:   { dot: "bg-red-500",   label: "High",   cls: "text-red-600 bg-red-50 border-red-200" },
   medium: { dot: "bg-amber-400", label: "Medium", cls: "text-amber-600 bg-amber-50 border-amber-200" },
-  low:    { dot: "bg-gray-300",  label: "Low",    cls: "text-gray-500 bg-gray-50 border-gray-200" },
+  low:    { dot: "bg-hairline",  label: "Low",    cls: "text-ink-3 bg-paper-2/60 border-hairline" },
 };
 
 const CATEGORY_META: Record<string, { icon: React.ElementType; color: string }> = {
   domain:    { icon: Tag,        color: "text-violet-600 bg-violet-50" },
-  hosting:   { icon: Server,     color: "text-blue-600 bg-blue-50" },
+  hosting:   { icon: Server,     color: "text-amber-ink bg-indigo-soft" },
   billing:   { icon: CreditCard, color: "text-emerald-600 bg-emerald-50" },
   technical: { icon: Wrench,     color: "text-orange-600 bg-orange-50" },
-  other:     { icon: HelpCircle, color: "text-gray-500 bg-gray-100" },
+  other:     { icon: HelpCircle, color: "text-ink-3 bg-paper-2" },
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -69,7 +69,7 @@ function Initials({ name }: { name: string }) {
   const parts = name.trim().split(" ");
   const initials = parts.length >= 2 ? parts[0][0] + parts[1][0] : parts[0].slice(0, 2);
   return (
-    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shrink-0">
+    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber to-amber-ink flex items-center justify-center shrink-0">
       <span className="text-xs font-bold text-white uppercase">{initials}</span>
     </div>
   );
@@ -145,16 +145,16 @@ export default function AdminSupportTicketsPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2.5">
-              <MessageCircle className="h-6 w-6 text-blue-600" />
+            <h1 className="text-2xl font-bold font-serif text-ink flex items-center gap-2.5">
+              <MessageCircle className="h-6 w-6 text-amber-ink" />
               Support Tickets
             </h1>
-            <p className="text-sm text-gray-500 mt-0.5">Manage customer support requests</p>
+            <p className="text-sm text-ink-3 mt-0.5">Manage customer support requests</p>
           </div>
           <button
             onClick={fetchTickets}
             disabled={loading}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-2 px-3 py-2 text-sm text-ink-2 border border-hairline rounded-xl hover:bg-paper-2 transition-colors"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
@@ -181,15 +181,15 @@ export default function AdminSupportTicketsPage() {
 
         {/* Tabs + search */}
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-          <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+          <div className="flex gap-1 bg-paper-2 rounded-xl p-1">
             {STATUS_TABS.map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                   activeTab === tab
-                    ? "bg-white text-gray-900 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
+                    ? "bg-paper text-ink shadow-sm"
+                    : "text-ink-3 hover:text-ink-2"
                 }`}
               >
                 {TAB_LABELS[tab]}
@@ -197,40 +197,40 @@ export default function AdminSupportTicketsPage() {
             ))}
           </div>
           <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-4" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by ticket, name, email, subject…"
-              className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-9 pr-4 py-2 text-sm border border-hairline rounded-xl focus:outline-none focus:ring-2 focus:ring-amber"
             />
           </div>
         </div>
 
         {/* Ticket cards */}
         {loading ? (
-          <div className="flex items-center justify-center h-48 bg-white border border-gray-200 rounded-2xl">
-            <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+          <div className="flex items-center justify-center h-48 bg-paper border border-hairline rounded-2xl">
+            <Loader2 className="h-6 w-6 animate-spin text-amber-ink" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-48 bg-white border border-gray-200 rounded-2xl text-gray-400">
+          <div className="flex flex-col items-center justify-center h-48 bg-paper border border-hairline rounded-2xl text-ink-4">
             <Inbox className="h-10 w-10 mb-2 opacity-40" />
             <p className="text-sm font-medium">{search ? "No tickets match your search" : `No ${activeTab === "all" ? "" : TAB_LABELS[activeTab].toLowerCase() + " "}tickets`}</p>
           </div>
         ) : (
-          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+          <div className="bg-paper border border-hairline rounded-2xl overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
+                <tr className="bg-paper-2/60 border-b border-hairline">
                   {["User", "Ticket", "Priority", "Status", "Updated", ""].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider first:pl-5 last:pr-4">
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-ink-4 uppercase tracking-wider first:pl-5 last:pr-4">
                       {h}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-hairline">
                 {filtered.map((ticket) => {
                   const catMeta = CATEGORY_META[ticket.category] ?? CATEGORY_META.other;
                   const CatIcon = catMeta.icon;
@@ -238,14 +238,14 @@ export default function AdminSupportTicketsPage() {
                   const awaitingReply = ticket.lastMessage?.authorRole === "user" && (ticket.status === "open" || ticket.status === "in_progress");
 
                   return (
-                    <tr key={ticket._id} className="hover:bg-blue-50/40 transition-colors group cursor-pointer">
+                    <tr key={ticket._id} className="hover:bg-paper-2 transition-colors group cursor-pointer">
                       {/* User */}
                       <td className="px-4 py-3.5 pl-5">
                         <div className="flex items-center gap-2.5">
                           <Initials name={ticket.userName || "U"} />
                           <div>
-                            <p className="text-xs font-semibold text-gray-900">{ticket.userName}</p>
-                            <p className="text-xs text-gray-400">{ticket.userEmail}</p>
+                            <p className="text-xs font-semibold text-ink">{ticket.userName}</p>
+                            <p className="text-xs text-ink-4">{ticket.userEmail}</p>
                           </div>
                         </div>
                       </td>
@@ -257,13 +257,13 @@ export default function AdminSupportTicketsPage() {
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5 mb-0.5">
-                              <span className="font-mono text-xs text-gray-400">{ticket.ticketNumber}</span>
+                              <span className="font-mono text-xs text-ink-4">{ticket.ticketNumber}</span>
                               {awaitingReply && (
                                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" title="Awaiting your reply" />
                               )}
                             </div>
-                            <p className="truncate text-sm font-medium text-gray-800">{ticket.subject}</p>
-                            <p className="text-xs text-gray-400">{ticket.messageCount} msg · {ticket.category}</p>
+                            <p className="truncate text-sm font-medium text-ink">{ticket.subject}</p>
+                            <p className="text-xs text-ink-4">{ticket.messageCount} msg · {ticket.category}</p>
                           </div>
                         </div>
                       </td>
@@ -279,14 +279,14 @@ export default function AdminSupportTicketsPage() {
                         <StatusBadge status={ticket.status} />
                       </td>
                       {/* Updated */}
-                      <td className="px-4 py-3.5 text-xs text-gray-400 whitespace-nowrap">
+                      <td className="px-4 py-3.5 text-xs text-ink-4 whitespace-nowrap">
                         {formatIndianDateTime(ticket.updatedAt)}
                       </td>
                       {/* Action */}
                       <td className="px-4 py-3.5 pr-4">
                         <Link
                           href={`/admin/support-tickets/${ticket._id}`}
-                          className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="flex items-center gap-1 text-amber-ink hover:brightness-90 text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity"
                         >
                           Open <ChevronRight className="h-3.5 w-3.5" />
                         </Link>

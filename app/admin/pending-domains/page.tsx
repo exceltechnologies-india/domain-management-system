@@ -85,10 +85,10 @@ const Modal = ({ isOpen, onClose, title, children }: ModalProps) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-          <h3 className="font-bold text-lg text-gray-900">{title}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+      <div className="bg-paper rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="px-6 py-4 border-b border-hairline flex justify-between items-center">
+          <h3 className="font-bold text-lg text-ink">{title}</h3>
+          <button onClick={onClose} className="text-ink-4 hover:text-ink-2 transition-colors">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -537,20 +537,20 @@ export default function AdminPendingDomainsPage() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "pending": return <Clock className="h-4 w-4 text-yellow-500" />;
-      case "processing": return <RefreshCw className="h-4 w-4 text-blue-500" />;
+      case "processing": return <RefreshCw className="h-4 w-4 text-amber-ink" />;
       case "completed": return <CheckCircle className="h-4 w-4 text-green-500" />;
       case "failed": return <XCircle className="h-4 w-4 text-red-500" />;
-      default: return <AlertCircle className="h-4 w-4 text-gray-500" />;
+      default: return <AlertCircle className="h-4 w-4 text-ink-3" />;
     }
   };
 
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
       case "pending": return "bg-yellow-100 text-yellow-800";
-      case "processing": return "bg-blue-100 text-blue-800";
+      case "processing": return "bg-indigo-soft text-indigo-ink";
       case "completed": return "bg-green-100 text-green-800";
       case "failed": return "bg-red-100 text-red-800";
-      default: return "bg-gray-100 text-gray-800";
+      default: return "bg-paper-2 text-ink";
     }
   };
 
@@ -569,8 +569,8 @@ export default function AdminPendingDomainsPage() {
               <AlertTriangle className="h-5 w-5 text-amber-600" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Pending Domains</h1>
-              <p className="text-sm text-gray-500 mt-0.5">Domains that failed registration — retry or contact the customer.</p>
+              <h1 className="text-2xl font-serif font-bold text-ink">Pending Domains</h1>
+              <p className="text-sm text-ink-3 mt-0.5">Domains that failed registration — retry or contact the customer.</p>
             </div>
           </div>
           <RefreshButton onClick={fetchPendingDomains} isLoading={isDataLoading} />
@@ -580,20 +580,20 @@ export default function AdminPendingDomainsPage() {
         {(() => {
           const isSuspended = rcAccount?.accountStatus === "Suspended";
           const lowBalance = rcAccount?.hasPrepaidWallet && rcAccount.available !== null && rcAccount.available < 500;
-          const borderClass = isSuspended ? 'border-red-300' : lowBalance ? 'border-amber-300' : 'border-gray-200';
+          const borderClass = isSuspended ? 'border-red-300' : lowBalance ? 'border-amber-300' : 'border-hairline';
           const iconBg = isSuspended ? 'bg-red-50' : lowBalance ? 'bg-amber-50' : 'bg-green-50';
           const iconColor = isSuspended ? 'text-red-600' : lowBalance ? 'text-amber-600' : 'text-green-600';
           return (
-            <div className={`bg-white border rounded-2xl shadow-sm px-5 py-4 ${borderClass}`}>
+            <div className={`bg-paper border rounded-2xl shadow-sm px-5 py-4 ${borderClass}`}>
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className={`p-2 rounded-xl ${iconBg}`}>
                     <Wallet className={`h-4 w-4 ${iconColor}`} />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-medium text-gray-500">ResellerClub Account</p>
+                    <p className="text-xs font-medium text-ink-3">ResellerClub Account</p>
                     {isBalanceLoading ? (
-                      <p className="text-sm text-gray-400 flex items-center gap-1 mt-0.5"><Loader2 className="h-3 w-3 animate-spin" /> Loading…</p>
+                      <p className="text-sm text-ink-4 flex items-center gap-1 mt-0.5"><Loader2 className="h-3 w-3 animate-spin" /> Loading…</p>
                     ) : balanceError ? (
                       <p className="text-sm text-red-600 mt-0.5">{balanceError}</p>
                     ) : rcAccount ? (
@@ -607,17 +607,17 @@ export default function AdminPendingDomainsPage() {
                             <span className={`text-lg font-bold font-mono ${lowBalance ? 'text-amber-600' : 'text-green-700'}`}>
                               ₹{rcAccount.available.toFixed(2)}
                             </span>
-                            <span className="text-xs text-gray-400">available</span>
+                            <span className="text-xs text-ink-4">available</span>
                             {rcAccount.unutilised !== null && rcAccount.unutilised > 0 && (
-                              <span className="text-xs text-gray-500">· ₹{rcAccount.unutilised.toFixed(2)} unutilised</span>
+                              <span className="text-xs text-ink-3">· ₹{rcAccount.unutilised.toFixed(2)} unutilised</span>
                             )}
                             {rcAccount.locked !== null && rcAccount.locked > 0 && (
-                              <span className="text-xs text-gray-500">· ₹{rcAccount.locked.toFixed(2)} locked</span>
+                              <span className="text-xs text-ink-3">· ₹{rcAccount.locked.toFixed(2)} locked</span>
                             )}
                           </>
                         ) : (
-                          <span className="text-sm text-gray-700 font-medium">
-                            Credit Account <span className="text-xs font-normal text-gray-400">(no prepaid wallet)</span>
+                          <span className="text-sm text-ink-2 font-medium">
+                            Credit Account <span className="text-xs font-normal text-ink-4">(no prepaid wallet)</span>
                           </span>
                         )}
                       </div>
@@ -640,7 +640,7 @@ export default function AdminPendingDomainsPage() {
                   <button
                     onClick={fetchBalance}
                     disabled={isBalanceLoading}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-ink-2 border border-hairline rounded-xl hover:bg-paper-2 transition-colors disabled:opacity-50"
                   >
                     <RefreshCw className={`h-3.5 w-3.5 ${isBalanceLoading ? 'animate-spin' : ''}`} />
                     Refresh
@@ -652,11 +652,11 @@ export default function AdminPendingDomainsPage() {
         })()}
 
         {/* ── Pending domains card ── */}
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden">
           {/* Card header: tabs + filters */}
-          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 flex flex-col gap-3">
+          <div className="px-6 py-4 border-b border-hairline bg-paper-2/60 flex flex-col gap-3">
             <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div className="inline-flex bg-gray-100 rounded-xl p-1">
+              <div className="inline-flex bg-paper-2 rounded-xl p-1">
                 {[
                   { id: 'active',   label: 'Active', icon: Package },
                   { id: 'archived', label: 'Archived', icon: Archive },
@@ -674,8 +674,8 @@ export default function AdminPendingDomainsPage() {
                       }}
                       className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                         activeTab === t.id
-                          ? 'bg-white text-gray-900 shadow-sm'
-                          : 'text-gray-500 hover:text-gray-700'
+                          ? 'bg-paper text-ink shadow-sm'
+                          : 'text-ink-3 hover:text-ink-2'
                       }`}
                     >
                       <Icon className="h-3.5 w-3.5" />
@@ -697,7 +697,7 @@ export default function AdminPendingDomainsPage() {
                       <button
                         onClick={() => handleVerifyDomains(selectedDomains)}
                         disabled={actionLoading === "verify" || actionLoading === "bulk-archive" || actionLoading === "bulk-delete"}
-                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
+                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-amber rounded-xl hover:brightness-90 disabled:opacity-50 transition-colors shadow-sm"
                       >
                         {actionLoading === "verify" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                         Verify ({selectedDomains.length})
@@ -734,19 +734,19 @@ export default function AdminPendingDomainsPage() {
             </div>
             <div className="flex flex-col sm:flex-row gap-2.5">
               <div className="relative flex-1">
-                <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-4" />
                 <input
                   type="text"
                   placeholder="Search domains…"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                  className="w-full pl-10 pr-3 py-2 text-sm bg-paper border border-hairline rounded-xl focus:outline-none focus:ring-2 focus:ring-amber focus:border-transparent transition-shadow"
                 />
               </div>
               <select
                 value={selectedStatus}
                 onChange={(e) => setSelectedStatus(e.target.value)}
-                className="sm:w-44 px-3 py-2 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                className="sm:w-44 px-3 py-2 text-sm bg-paper border border-hairline rounded-xl focus:outline-none focus:ring-2 focus:ring-amber focus:border-transparent transition-shadow"
               >
                 <option value="all">All Statuses</option>
                 <option value="pending">Pending</option>
@@ -761,14 +761,14 @@ export default function AdminPendingDomainsPage() {
             {isDataLoading ? (
               <AdminTableRowsSkeleton rows={6} cols={6} />
             ) : pendingDomains.length === 0 ? (
-              <div className="p-6 sm:p-12 text-center text-gray-500">
-                <AlertTriangle className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+              <div className="p-6 sm:p-12 text-center text-ink-3">
+                <AlertTriangle className="h-12 w-12 mx-auto mb-2 text-ink-4" />
                 No {activeTab === 'active' ? 'pending' : 'archived'} domains found.
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                <table className="min-w-full divide-y divide-hairline">
+                  <thead className="bg-paper-2/60">
                     <tr>
                       <th className="px-6 py-3 text-left">
                         {(() => {
@@ -784,37 +784,37 @@ export default function AdminPendingDomainsPage() {
                               disabled={selectable.length === 0}
                               checked={selectable.length > 0 && selectable.every((d) => selectedDomains.includes(d._id))}
                               onChange={(e) => setSelectedDomains(e.target.checked ? selectable.map((d) => d._id) : [])}
-                              className="rounded border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed"
+                              className="rounded border-hairline-strong disabled:opacity-40 disabled:cursor-not-allowed"
                             />
                           );
                         })()}
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Domain</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Failure Reason</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase">Domain</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase">Customer</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase">Failure Reason</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase">Price</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase">Created</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-paper divide-y divide-hairline">
                     {pendingDomains.map((domain) => (
-                      <tr key={domain._id} className="hover:bg-gray-50">
+                      <tr key={domain._id} className="hover:bg-paper-2">
                         <td className="px-6 py-4">
                           {domain.source === "pending_domain" ? (
-                            <input type="checkbox" checked={selectedDomains.includes(domain._id)} onChange={(e) => setSelectedDomains(e.target.checked ? [...selectedDomains, domain._id] : selectedDomains.filter(id => id !== domain._id))} className="rounded border-gray-300" />
+                            <input type="checkbox" checked={selectedDomains.includes(domain._id)} onChange={(e) => setSelectedDomains(e.target.checked ? [...selectedDomains, domain._id] : selectedDomains.filter(id => id !== domain._id))} className="rounded border-hairline-strong" />
                           ) : (
-                            <input type="checkbox" disabled title="In-flight order — archive/delete not applicable here" className="rounded border-gray-300 opacity-40 cursor-not-allowed" />
+                            <input type="checkbox" disabled title="In-flight order — archive/delete not applicable here" className="rounded border-hairline-strong opacity-40 cursor-not-allowed" />
                           )}
                         </td>
                         <td className="px-6 py-4">
-                          <div className="text-sm font-medium text-gray-900">{domain.domainName}</div>
-                          <div className="text-xs text-gray-500">Order: {domain.orderId}</div>
+                          <div className="text-sm font-medium text-ink">{domain.domainName}</div>
+                          <div className="text-xs text-ink-3">Order: {domain.orderId}</div>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="text-sm font-medium text-gray-900">{domain.userId?.firstName} {domain.userId?.lastName}</div>
-                          <div className="text-xs text-gray-500">{domain.userId?.email}</div>
+                          <div className="text-sm font-medium text-ink">{domain.userId?.firstName} {domain.userId?.lastName}</div>
+                          <div className="text-xs text-ink-3">{domain.userId?.email}</div>
                         </td>
                         <td className="px-6 py-4">
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeColor(domain.status)}`}>
@@ -826,14 +826,14 @@ export default function AdminPendingDomainsPage() {
                           {domain.reason ? (
                             <p className="text-xs text-red-700 truncate" title={domain.reason}>{domain.reason}</p>
                           ) : (
-                            <span className="text-xs text-gray-400">—</span>
+                            <span className="text-xs text-ink-4">—</span>
                           )}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-500">{domain.currency} {domain.price}</td>
-                        <td className="px-6 py-4 text-sm text-gray-500">{formatIndianDateTime(domain.createdAt)}</td>
+                        <td className="px-6 py-4 text-sm text-ink-3">{domain.currency} {domain.price}</td>
+                        <td className="px-6 py-4 text-sm text-ink-3">{formatIndianDateTime(domain.createdAt)}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <div className="flex items-center gap-1 flex-wrap">
-                            <button onClick={() => setSelectedDomainForDetails(domain)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="View Details"><Eye className="h-4 w-4" /></button>
+                            <button onClick={() => setSelectedDomainForDetails(domain)} className="p-2 text-amber-ink hover:bg-amber-soft rounded-lg transition-colors" title="View Details"><Eye className="h-4 w-4" /></button>
 
                             {/* Contact User */}
                             {domain.userId?.email && (
@@ -846,7 +846,7 @@ export default function AdminPendingDomainsPage() {
                               </a>
                             )}
 
-                            <div className="w-px h-5 bg-gray-200 mx-0.5" />
+                            <div className="w-px h-5 bg-hairline mx-0.5" />
 
                             {/* Order-sourced stuck in-flight domain: no PendingDomain
                                 doc, so register/archive/delete don't apply. Offer a
@@ -865,7 +865,7 @@ export default function AdminPendingDomainsPage() {
                               </button>
                             )}
                             {domain.status === "failed" && domain.source === "pending_domain" && !domain.isArchived && (
-                              <button onClick={() => handleRetryFailed(domain)} disabled={!!actionLoading} className="px-2.5 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs flex items-center gap-1.5 transition-colors font-medium disabled:opacity-50" title="Retry Provisioning">
+                              <button onClick={() => handleRetryFailed(domain)} disabled={!!actionLoading} className="px-2.5 py-1.5 bg-amber text-white rounded-lg hover:brightness-90 text-xs flex items-center gap-1.5 transition-colors font-medium disabled:opacity-50" title="Retry Provisioning">
                                 {actionLoading === `retry:${domain._id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />} Retry
                               </button>
                             )}
@@ -899,11 +899,11 @@ export default function AdminPendingDomainsPage() {
 
             {/* Pagination */}
             {pagination.pages > 1 && (
-              <div className="p-4 border-t border-gray-200 flex justify-between items-center">
-                <div className="text-sm text-gray-500">Page {pagination.page} of {pagination.pages}</div>
+              <div className="p-4 border-t border-hairline flex justify-between items-center">
+                <div className="text-sm text-ink-3">Page {pagination.page} of {pagination.pages}</div>
                 <div className="flex gap-2">
-                  <button onClick={() => setPagination({ ...pagination, page: pagination.page - 1 })} disabled={pagination.page === 1} className="px-4 py-2 border rounded-lg disabled:opacity-50 hover:bg-gray-50">Previous</button>
-                  <button onClick={() => setPagination({ ...pagination, page: pagination.page + 1 })} disabled={pagination.page === pagination.pages} className="px-4 py-2 border rounded-lg disabled:opacity-50 hover:bg-gray-50">Next</button>
+                  <button onClick={() => setPagination({ ...pagination, page: pagination.page - 1 })} disabled={pagination.page === 1} className="px-4 py-2 border border-hairline rounded-lg disabled:opacity-50 hover:bg-paper-2">Previous</button>
+                  <button onClick={() => setPagination({ ...pagination, page: pagination.page + 1 })} disabled={pagination.page === pagination.pages} className="px-4 py-2 border border-hairline rounded-lg disabled:opacity-50 hover:bg-paper-2">Next</button>
                 </div>
               </div>
             )}
@@ -915,33 +915,33 @@ export default function AdminPendingDomainsPage() {
       {selectedDomainForDetails && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity" onClick={() => setSelectedDomainForDetails(null)}></div>
-          <div className="relative w-full max-w-xl bg-white h-full shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-300">
-            <div className="p-6 border-b flex justify-between items-center sticky top-0 bg-white z-10">
+          <div className="relative w-full max-w-xl bg-paper h-full shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-300">
+            <div className="p-6 border-b border-hairline flex justify-between items-center sticky top-0 bg-paper z-10">
               <h2 className="text-xl font-bold">Domain Details</h2>
-              <button onClick={() => setSelectedDomainForDetails(null)} className="p-2 hover:bg-gray-100 rounded-full"><X className="h-5 w-5" /></button>
+              <button onClick={() => setSelectedDomainForDetails(null)} className="p-2 hover:bg-paper-2 rounded-full"><X className="h-5 w-5" /></button>
             </div>
             <div className="p-6 space-y-6">
-              <div className="bg-gray-50 p-4 rounded-lg">
+              <div className="bg-paper-2/60 p-4 rounded-lg">
                 <h3 className="text-lg font-bold">{selectedDomainForDetails.domainName}</h3>
-                <p className="text-sm text-gray-500">Order: {selectedDomainForDetails.orderId}</p>
+                <p className="text-sm text-ink-3">Order: {selectedDomainForDetails.orderId}</p>
               </div>
 
               <div className="space-y-4">
-                <h4 className="font-medium flex items-center gap-2"><User className="h-4 w-4 text-blue-600" /> Customer Info</h4>
-                <div className="bg-white border rounded-lg p-4 text-sm space-y-2">
-                  <div className="flex justify-between"><span className="text-gray-500">Name:</span> <span className="font-medium">{selectedDomainForDetails.userId?.firstName} {selectedDomainForDetails.userId?.lastName}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Email:</span> <span className="font-medium">{selectedDomainForDetails.userId?.email}</span></div>
+                <h4 className="font-medium flex items-center gap-2"><User className="h-4 w-4 text-amber-ink" /> Customer Info</h4>
+                <div className="bg-paper border border-hairline rounded-lg p-4 text-sm space-y-2">
+                  <div className="flex justify-between"><span className="text-ink-3">Name:</span> <span className="font-medium">{selectedDomainForDetails.userId?.firstName} {selectedDomainForDetails.userId?.lastName}</span></div>
+                  <div className="flex justify-between"><span className="text-ink-3">Email:</span> <span className="font-medium">{selectedDomainForDetails.userId?.email}</span></div>
                 </div>
               </div>
 
               <div className="space-y-4">
                 <h4 className="font-medium flex items-center gap-2"><FileText className="h-4 w-4 text-green-600" /> Technical Info</h4>
-                <div className="bg-white border rounded-lg p-4 text-sm space-y-2">
-                  <div className="flex justify-between"><span className="text-gray-500">Tech Contact ID:</span> <span className="font-medium">{selectedDomainForDetails.techContactId}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Admin Contact ID:</span> <span className="font-medium">{selectedDomainForDetails.adminContactId}</span></div>
+                <div className="bg-paper border border-hairline rounded-lg p-4 text-sm space-y-2">
+                  <div className="flex justify-between"><span className="text-ink-3">Tech Contact ID:</span> <span className="font-medium">{selectedDomainForDetails.techContactId}</span></div>
+                  <div className="flex justify-between"><span className="text-ink-3">Admin Contact ID:</span> <span className="font-medium">{selectedDomainForDetails.adminContactId}</span></div>
                   {selectedDomainForDetails.nameServers && (
-                    <div className="pt-2 border-t mt-2">
-                      <span className="text-gray-500 block mb-1">Nameservers:</span>
+                    <div className="pt-2 border-t border-hairline mt-2">
+                      <span className="text-ink-3 block mb-1">Nameservers:</span>
                       {selectedDomainForDetails.nameServers.map(ns => <div key={ns} className="font-mono text-xs">{ns}</div>)}
                     </div>
                   )}
@@ -968,7 +968,7 @@ export default function AdminPendingDomainsPage() {
               This will initiate the registration process with the registrar. Ensure ID: {domainToRegister?.orderId} details are correct.
             </div>
             <div className="flex justify-end gap-3">
-              <button onClick={() => setShowRegisterConfirm(false)} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+              <button onClick={() => setShowRegisterConfirm(false)} className="px-4 py-2 border border-hairline rounded-lg hover:bg-paper-2">Cancel</button>
               <button onClick={handleRegisterDomain} disabled={actionLoading === `register:${domainToRegister?._id}`} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50">
                 {actionLoading === `register:${domainToRegister?._id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />} Confirm & Register
               </button>
@@ -982,11 +982,11 @@ export default function AdminPendingDomainsPage() {
         <Modal isOpen={showArchiveConfirm} onClose={() => setShowArchiveConfirm(false)} title="Confirm Archive">
           <div className="p-6">
             <p className="mb-4">Are you sure you want to archive <strong>{domainToArchive?.domainName}</strong>?</p>
-            <p className="mb-6 text-sm text-gray-500">
+            <p className="mb-6 text-sm text-ink-3">
               This will move the domain to the "Archived" tab and update its status to "Failed".
             </p>
             <div className="flex justify-end gap-3">
-              <button onClick={() => setShowArchiveConfirm(false)} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+              <button onClick={() => setShowArchiveConfirm(false)} className="px-4 py-2 border border-hairline rounded-lg hover:bg-paper-2">Cancel</button>
               <button onClick={handleArchiveDomain} disabled={actionLoading === `archive:${domainToArchive?._id}`} className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center gap-2 disabled:opacity-50">
                 {actionLoading === `archive:${domainToArchive?._id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />} Confirm Archive
               </button>
@@ -1013,12 +1013,12 @@ export default function AdminPendingDomainsPage() {
                 (which just flips the row to the Archived tab), Delete removes the row entirely — no recovery from the admin UI.
               </p>
             </div>
-            <p className="text-sm text-gray-700 mb-2">
+            <p className="text-sm text-ink-2 mb-2">
               This does <strong>not</strong> touch the customer&apos;s Order, refund anything, or notify the customer. It only removes
               the pending-registration tracking row that will never complete.
             </p>
-            <p className="text-sm text-gray-700 mb-4">
-              Type <code className="px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded text-red-700 font-semibold">DELETE</code> below to confirm.
+            <p className="text-sm text-ink-2 mb-4">
+              Type <code className="px-1.5 py-0.5 bg-paper-2 border border-hairline rounded text-red-700 font-semibold">DELETE</code> below to confirm.
             </p>
             <input
               type="text"
@@ -1026,7 +1026,7 @@ export default function AdminPendingDomainsPage() {
               value={bulkDeleteConfirmText}
               onChange={(e) => setBulkDeleteConfirmText(e.target.value)}
               placeholder="Type DELETE"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 mb-5 font-mono"
+              className="w-full px-3 py-2 border border-hairline-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 mb-5 font-mono"
             />
             <div className="flex justify-end gap-3">
               <button
@@ -1034,7 +1034,7 @@ export default function AdminPendingDomainsPage() {
                   setShowBulkDeleteConfirm(false);
                   setBulkDeleteConfirmText("");
                 }}
-                className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                className="px-4 py-2 border border-hairline rounded-lg hover:bg-paper-2"
               >
                 Cancel
               </button>
@@ -1058,12 +1058,12 @@ export default function AdminPendingDomainsPage() {
             <p className="mb-4">
               Archive <strong>{selectedDomains.length}</strong> pending-domain row{selectedDomains.length === 1 ? "" : "s"}?
             </p>
-            <p className="mb-6 text-sm text-gray-500">
+            <p className="mb-6 text-sm text-ink-3">
               Each will move to the "Archived" tab and its status will flip to "Failed". This does not touch the customer's Order or refund anything —
               archiving is a housekeeping action for pending-registration rows that will never complete.
             </p>
             <div className="flex justify-end gap-3">
-              <button onClick={() => setShowBulkArchiveConfirm(false)} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+              <button onClick={() => setShowBulkArchiveConfirm(false)} className="px-4 py-2 border border-hairline rounded-lg hover:bg-paper-2">Cancel</button>
               <button
                 onClick={() => handleBulkArchive(selectedDomains)}
                 disabled={actionLoading === "bulk-archive"}
@@ -1086,7 +1086,7 @@ export default function AdminPendingDomainsPage() {
               Use this only if you have manually registered the domain outside the system. This will update the order status to "registered" and close the pending record.
             </div>
             <div className="flex justify-end gap-3">
-              <button onClick={() => setShowMarkResolvedConfirm(false)} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+              <button onClick={() => setShowMarkResolvedConfirm(false)} className="px-4 py-2 border border-hairline rounded-lg hover:bg-paper-2">Cancel</button>
               <button onClick={handleMarkResolved} disabled={actionLoading === `resolve:${domainToMarkResolved?._id}`} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50">
                 {actionLoading === `resolve:${domainToMarkResolved?._id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Mark Resolved
               </button>
@@ -1100,18 +1100,18 @@ export default function AdminPendingDomainsPage() {
         <Modal isOpen={showResolveOrderConfirm} onClose={() => setShowResolveOrderConfirm(false)} title="Resolve In-Flight Order Domain">
           <div className="p-6">
             <p className="mb-3">Resolve <strong>{domainToResolveOrder?.domainName}</strong>?</p>
-            <p className="text-xs text-gray-500 mb-4">Order: {domainToResolveOrder?.orderId}</p>
+            <p className="text-xs text-ink-3 mb-4">Order: {domainToResolveOrder?.orderId}</p>
             <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 text-sm text-amber-800 mb-4">
               This is an in-flight order whose domain never completed registration. Resolving marks the order&apos;s domain as
               <strong> failed</strong> so it stops appearing in this list. This does <strong>not</strong> refund the customer or delete the Order —
               it just closes out a domain that is stuck.
             </div>
-            <label className="flex items-start gap-2 mb-6 text-sm text-gray-700 cursor-pointer">
+            <label className="flex items-start gap-2 mb-6 text-sm text-ink-2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={resolveCancelAtRegistrar}
                 onChange={(e) => setResolveCancelAtRegistrar(e.target.checked)}
-                className="mt-0.5 rounded border-gray-300"
+                className="mt-0.5 rounded border-hairline-strong"
               />
               <span>
                 Also cancel the order at ResellerClub (if it exists there). If the cancellation succeeds, the domain is marked
@@ -1119,7 +1119,7 @@ export default function AdminPendingDomainsPage() {
               </span>
             </label>
             <div className="flex justify-end gap-3">
-              <button onClick={() => setShowResolveOrderConfirm(false)} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+              <button onClick={() => setShowResolveOrderConfirm(false)} className="px-4 py-2 border border-hairline rounded-lg hover:bg-paper-2">Cancel</button>
               <button onClick={handleResolveOrderDomain} disabled={actionLoading === `resolve-order:${domainToResolveOrder?._id}`} className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 flex items-center gap-2 disabled:opacity-50">
                 {actionLoading === `resolve-order:${domainToResolveOrder?._id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />} Resolve Domain
               </button>
@@ -1136,14 +1136,14 @@ export default function AdminPendingDomainsPage() {
               <AlertTriangle className="h-6 w-6 flex-shrink-0" />
               <p className="font-medium text-red-900">Warning: This action cannot be undone!</p>
             </div>
-            <p className="mb-4 text-gray-600">
+            <p className="mb-4 text-ink-2">
               Are you sure you want to <strong>PERMANENTLY DELETE</strong> the pending domain <strong>{domainToDelete?.domainName}</strong>?
             </p>
-            <p className="mb-6 text-sm text-gray-500">
+            <p className="mb-6 text-sm text-ink-3">
               This will remove the record from the pending domains database. The Order record will remain as 'failed' for history.
             </p>
             <div className="flex justify-end gap-3">
-              <button onClick={() => setShowDeleteConfirm(false)} className="px-4 py-2 border rounded-lg hover:bg-gray-50 text-gray-700">Cancel</button>
+              <button onClick={() => setShowDeleteConfirm(false)} className="px-4 py-2 border border-hairline rounded-lg hover:bg-paper-2 text-ink-2">Cancel</button>
               <button onClick={handleDeletePermanently} disabled={actionLoading === `delete:${domainToDelete?._id}`} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2 disabled:opacity-50">
                 {actionLoading === `delete:${domainToDelete?._id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />} Delete Permanently
               </button>

@@ -64,7 +64,7 @@ interface ApiResponse {
 
 const STATUS_META: Record<AttemptStatus, { label: string; classes: string; dot: string; icon: React.ElementType; iconBg: string; iconColor: string }> = {
   pending: { label: "Pending", classes: "bg-amber-100 text-amber-800", dot: "bg-amber-500", icon: Clock, iconBg: "bg-amber-50", iconColor: "text-amber-600" },
-  in_progress: { label: "In progress", classes: "bg-blue-100 text-blue-800", dot: "bg-blue-500", icon: RotateCw, iconBg: "bg-blue-50", iconColor: "text-blue-600" },
+  in_progress: { label: "In progress", classes: "bg-indigo-soft text-indigo-ink", dot: "bg-indigo", icon: RotateCw, iconBg: "bg-indigo-soft", iconColor: "text-indigo-ink" },
   succeeded: { label: "Succeeded", classes: "bg-green-100 text-green-800", dot: "bg-green-500", icon: CheckCircle2, iconBg: "bg-green-50", iconColor: "text-green-600" },
   failed: { label: "Failed (retry scheduled)", classes: "bg-orange-100 text-orange-800", dot: "bg-orange-500", icon: AlertTriangle, iconBg: "bg-orange-50", iconColor: "text-orange-600" },
   abandoned: { label: "Abandoned", classes: "bg-red-100 text-red-800", dot: "bg-red-500", icon: XCircle, iconBg: "bg-red-50", iconColor: "text-red-600" },
@@ -142,12 +142,12 @@ export default function AdminRecurringChargesPage() {
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-2xl font-bold text-gray-900">Recurring Charges</h1>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-600 border border-gray-200">
+                <h1 className="text-2xl font-serif font-bold text-ink">Recurring Charges</h1>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-paper-2 text-ink-2 border border-hairline">
                   <Lock className="h-3 w-3" /> Read-only
                 </span>
               </div>
-              <p className="text-sm text-gray-500 mt-0.5">
+              <p className="text-sm text-ink-3 mt-0.5">
                 Tokens-flow auto-charge attempts — one row per (Hosting, billing cycle). Refund / cancel mandates from the Razorpay dashboard.
               </p>
             </div>
@@ -165,14 +165,14 @@ export default function AdminRecurringChargesPage() {
               <button
                 key={s}
                 onClick={() => setStatusFilter((prev) => (prev === s ? "all" : s))}
-                className={`bg-white border rounded-2xl shadow-sm px-4 py-4 flex items-center gap-3 text-left transition-all ${active ? "border-blue-300 ring-2 ring-blue-100" : "border-gray-200 hover:border-gray-300 hover:shadow-md"}`}
+                className={`bg-paper border rounded-2xl shadow-sm px-4 py-4 flex items-center gap-3 text-left transition-all ${active ? "border-amber ring-2 ring-amber-soft" : "border-hairline hover:border-hairline-strong hover:shadow-md"}`}
               >
                 <div className={`p-2 rounded-xl ${meta.iconBg}`}>
                   <Icon className={`h-4 w-4 ${meta.iconColor}`} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-gray-500 truncate">{s === "failed" ? "Failed" : meta.label}</p>
-                  <p className="text-xl font-bold text-gray-900">{data ? (data.counts[s] ?? 0) : "—"}</p>
+                  <p className="text-xs font-medium text-ink-3 truncate">{s === "failed" ? "Failed" : meta.label}</p>
+                  <p className="text-xl font-bold text-ink">{data ? (data.counts[s] ?? 0) : "—"}</p>
                 </div>
               </button>
             );
@@ -180,25 +180,25 @@ export default function AdminRecurringChargesPage() {
         </div>
         {statusFilter !== "all" && (
           <div className="-mt-2">
-            <button onClick={() => setStatusFilter("all")} className="text-xs font-medium text-blue-600 hover:underline">
+            <button onClick={() => setStatusFilter("all")} className="text-xs font-medium text-amber-ink hover:underline">
               ← Clear status filter (showing {STATUS_META[statusFilter].label})
             </button>
           </div>
         )}
 
         {/* ── Attempts card ── */}
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 flex items-center justify-between gap-4 flex-wrap">
+        <div className="bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-hairline bg-paper-2/60 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-2.5">
-              <RefreshCcw className="h-4 w-4 text-gray-500" />
-              <h3 className="text-sm font-semibold text-gray-900">Charge Attempts</h3>
+              <RefreshCcw className="h-4 w-4 text-ink-3" />
+              <h3 className="text-sm font-semibold text-ink">Charge Attempts</h3>
             </div>
-            <div className="inline-flex bg-gray-100 rounded-xl p-1">
+            <div className="inline-flex bg-paper-2 rounded-xl p-1">
               {WINDOW_OPTIONS.map((w) => (
                 <button
                   key={w.value}
                   onClick={() => setWindowFilter(w.value)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${windowFilter === w.value ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${windowFilter === w.value ? "bg-paper text-ink shadow-sm" : "text-ink-3 hover:text-ink-2"}`}
                 >
                   {w.label}
                 </button>
@@ -210,53 +210,53 @@ export default function AdminRecurringChargesPage() {
             {error && !isAuthError && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4 flex items-center justify-between gap-3 text-sm">
                 <div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 shrink-0" /> {error}</div>
-                <button onClick={() => void fetchData()} className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white border border-red-300 text-red-700 hover:bg-red-100 shrink-0">Retry</button>
+                <button onClick={() => void fetchData()} className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-paper border border-red-300 text-red-700 hover:bg-red-100 shrink-0">Retry</button>
               </div>
             )}
 
             {loading && !data ? (
-              <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-600 mb-3" />
+              <div className="flex flex-col items-center justify-center py-20 text-ink-4">
+                <Loader2 className="w-8 h-8 animate-spin text-amber-ink mb-3" />
                 <span className="text-sm">Loading charge attempts…</span>
               </div>
             ) : data && data.rows.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="p-3 bg-gray-50 rounded-2xl mb-3">
-                  <RefreshCcw className="h-6 w-6 text-gray-400" />
+                <div className="p-3 bg-paper-2/60 rounded-2xl mb-3">
+                  <RefreshCcw className="h-6 w-6 text-ink-4" />
                 </div>
-                <p className="text-sm font-medium text-gray-900">No recurring charge attempts in this window</p>
-                <p className="text-xs text-gray-500 mt-1 max-w-md">
-                  Tokens-flow is dormant in production until <code className="px-1 py-0.5 bg-gray-100 rounded text-[11px]">HOSTING_MANDATE_FLOW=tokens</code>. Until then, no attempt rows are written.
+                <p className="text-sm font-medium text-ink">No recurring charge attempts in this window</p>
+                <p className="text-xs text-ink-3 mt-1 max-w-md">
+                  Tokens-flow is dormant in production until <code className="px-1 py-0.5 bg-paper-2 rounded text-[11px]">HOSTING_MANDATE_FLOW=tokens</code>. Until then, no attempt rows are written.
                 </p>
               </div>
             ) : data ? (
               <div className="overflow-x-auto -mx-4 sm:-mx-6">
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                <table className="min-w-full divide-y divide-hairline text-sm">
                   <thead>
                     <tr className="text-left">
-                      <th className="px-4 sm:px-6 py-2.5 font-semibold text-gray-400 uppercase text-[11px] tracking-wide">Domain</th>
-                      <th className="px-4 py-2.5 font-semibold text-gray-400 uppercase text-[11px] tracking-wide">Customer</th>
-                      <th className="px-4 py-2.5 text-right font-semibold text-gray-400 uppercase text-[11px] tracking-wide">Amount</th>
-                      <th className="px-4 py-2.5 font-semibold text-gray-400 uppercase text-[11px] tracking-wide">Status</th>
-                      <th className="px-4 py-2.5 text-center font-semibold text-gray-400 uppercase text-[11px] tracking-wide">Attempt</th>
-                      <th className="px-4 py-2.5 font-semibold text-gray-400 uppercase text-[11px] tracking-wide">Due / Next retry</th>
-                      <th className="px-4 sm:px-6 py-2.5 font-semibold text-gray-400 uppercase text-[11px] tracking-wide">Last error</th>
+                      <th className="px-4 sm:px-6 py-2.5 font-semibold text-ink-4 uppercase text-[11px] tracking-wide">Domain</th>
+                      <th className="px-4 py-2.5 font-semibold text-ink-4 uppercase text-[11px] tracking-wide">Customer</th>
+                      <th className="px-4 py-2.5 text-right font-semibold text-ink-4 uppercase text-[11px] tracking-wide">Amount</th>
+                      <th className="px-4 py-2.5 font-semibold text-ink-4 uppercase text-[11px] tracking-wide">Status</th>
+                      <th className="px-4 py-2.5 text-center font-semibold text-ink-4 uppercase text-[11px] tracking-wide">Attempt</th>
+                      <th className="px-4 py-2.5 font-semibold text-ink-4 uppercase text-[11px] tracking-wide">Due / Next retry</th>
+                      <th className="px-4 sm:px-6 py-2.5 font-semibold text-ink-4 uppercase text-[11px] tracking-wide">Last error</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-hairline">
                     {data.rows.map((row) => {
                       const meta = STATUS_META[row.status];
                       return (
-                        <tr key={row.id} className="hover:bg-gray-50/70 transition-colors">
+                        <tr key={row.id} className="hover:bg-paper-2 transition-colors">
                           <td className="px-4 sm:px-6 py-3">
-                            <div className="font-medium text-gray-900">{row.domainName}</div>
-                            <div className="text-xs text-gray-400 font-mono truncate max-w-[160px]">{row.tokenId}</div>
+                            <div className="font-medium text-ink">{row.domainName}</div>
+                            <div className="text-xs text-ink-4 font-mono truncate max-w-[160px]">{row.tokenId}</div>
                           </td>
                           <td className="px-4 py-3">
-                            <div className="text-gray-900">{row.userName || row.userEmail}</div>
-                            {row.userName && <div className="text-xs text-gray-500 truncate max-w-[180px]">{row.userEmail}</div>}
+                            <div className="text-ink">{row.userName || row.userEmail}</div>
+                            {row.userName && <div className="text-xs text-ink-3 truncate max-w-[180px]">{row.userEmail}</div>}
                           </td>
-                          <td className="px-4 py-3 text-right font-mono text-gray-900 whitespace-nowrap">₹{row.amountInRupees.toFixed(2)}</td>
+                          <td className="px-4 py-3 text-right font-mono text-ink whitespace-nowrap">₹{row.amountInRupees.toFixed(2)}</td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${meta.classes}`}>
                               <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
@@ -268,12 +268,12 @@ export default function AdminRecurringChargesPage() {
                               title={row.wasFirstPostTrial
                                 ? "First post-trial charge — hard 1-attempt rule (trial→paid conversion didn't take)"
                                 : "Renewal — hard 1-attempt rule (existing customer's mandate failed)"}
-                              className={`font-semibold ${row.wasFirstPostTrial ? "text-purple-700" : "text-blue-700"}`}
+                              className={`font-semibold ${row.wasFirstPostTrial ? "text-purple-700" : "text-indigo-ink"}`}
                             >
                               {row.attemptCount} / {row.maxAttempts ?? 1}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
+                          <td className="px-4 py-3 text-xs text-ink-2 whitespace-nowrap">
                             <div>Due: {formatDate(row.dueDate)}</div>
                             {row.nextAttemptAt && row.status === "failed" && (
                               <div className="text-orange-700">Next retry: {formatDate(row.nextAttemptAt)}</div>
@@ -282,7 +282,7 @@ export default function AdminRecurringChargesPage() {
                               <div className="text-red-700">Abandoned: {formatDate(row.abandonedAt)}</div>
                             )}
                           </td>
-                          <td className="px-4 sm:px-6 py-3 text-xs text-gray-600 max-w-md truncate" title={row.lastError ?? ""}>
+                          <td className="px-4 sm:px-6 py-3 text-xs text-ink-2 max-w-md truncate" title={row.lastError ?? ""}>
                             {row.lastError ?? "—"}
                           </td>
                         </tr>

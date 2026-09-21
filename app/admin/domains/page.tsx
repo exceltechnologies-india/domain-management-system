@@ -148,7 +148,7 @@ export default function AdminDomainsPage() {
       case 'pending':
         return 'bg-amber-50 text-amber-700 border-amber-200';
       default:
-        return 'bg-gray-100 text-gray-600 border-gray-200';
+        return 'bg-paper-2 text-ink-2 border-hairline';
     }
   };
 
@@ -212,45 +212,45 @@ export default function AdminDomainsPage() {
         {/* ── Page header ── */}
         <div className="flex items-start sm:items-center justify-between flex-col sm:flex-row gap-3 sm:gap-0">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-50 rounded-xl">
-              <Globe className="h-5 w-5 text-blue-600" />
+            <div className="p-2 bg-amber-soft rounded-xl">
+              <Globe className="h-5 w-5 text-amber-ink" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Domain Management</h1>
-              <p className="text-sm text-gray-500 mt-0.5">Monitor and manage all registered domains</p>
+              <h1 className="text-2xl font-serif font-bold text-ink">Domain Management</h1>
+              <p className="text-sm text-ink-3 mt-0.5">Monitor and manage all registered domains</p>
             </div>
           </div>
           <RefreshButton onClick={fetchDomains} isLoading={isLoading} />
         </div>
 
         {/* ── Domains list card (filters folded into header) ── */}
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden min-h-[400px]">
+        <div className="bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden min-h-[400px]">
           {/* Card header: title + search + filter */}
-          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="px-6 py-4 border-b border-hairline bg-paper-2/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
-              <Globe className="h-4 w-4 text-gray-500" />
-              <h3 className="text-sm font-semibold text-gray-900">All Domains</h3>
-              <span className="inline-flex items-center text-xs font-medium text-gray-500 bg-white border border-gray-200 px-2 py-0.5 rounded-full">
+              <Globe className="h-4 w-4 text-ink-3" />
+              <h3 className="text-sm font-semibold text-ink">All Domains</h3>
+              <span className="inline-flex items-center text-xs font-medium text-ink-3 bg-paper border border-hairline px-2 py-0.5 rounded-full">
                 {filteredDomains.length}
               </span>
             </div>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-4" />
                 <input
                   type="text"
                   placeholder="Search by domain, customer or email…"
-                  className="w-full sm:w-72 pl-10 pr-3 py-2 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                  className="w-full sm:w-72 pl-10 pr-3 py-2 text-sm bg-paper border border-hairline rounded-xl focus:outline-none focus:ring-2 focus:ring-amber focus:border-transparent transition-shadow"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
               <div className="flex items-center gap-2">
-                <Filter className="h-3.5 w-3.5 text-gray-400" />
+                <Filter className="h-3.5 w-3.5 text-ink-4" />
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="sm:w-40 px-3 py-2 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                  className="sm:w-40 px-3 py-2 text-sm bg-paper border border-hairline rounded-xl focus:outline-none focus:ring-2 focus:ring-amber focus:border-transparent transition-shadow"
                 >
                   <option value="all">All Statuses</option>
                   <option value="registered">Registered</option>
@@ -265,50 +265,50 @@ export default function AdminDomainsPage() {
             <AdminTableRowsSkeleton rows={6} cols={5} />
           ) : filteredDomains.length === 0 ? (
             <div className="py-16 px-6 text-center">
-              <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Inbox className="h-7 w-7 text-gray-400" />
+              <div className="w-14 h-14 bg-paper-2 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Inbox className="h-7 w-7 text-ink-4" />
               </div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-1.5">No domains found</h3>
-              <p className="text-sm text-gray-500">Try adjusting your search or filters.</p>
+              <h3 className="text-sm font-semibold text-ink mb-1.5">No domains found</h3>
+              <p className="text-sm text-ink-3">Try adjusting your search or filters.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-gray-50/60 border-b border-gray-100">
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Domain</th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Expiry Date</th>
-                    <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                  <tr className="bg-paper-2/60 border-b border-hairline">
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wider">Domain</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wider">Customer</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wider">Status</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wider hidden sm:table-cell">Expiry Date</th>
+                    <th className="px-5 py-3 text-right text-xs font-semibold text-ink-3 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-hairline">
                   {filteredDomains.map((domain) => {
                     const isExpired = domain.expiresAt && new Date(domain.expiresAt) < new Date();
                     const isMenuActive = menuData?.id === domain.id;
                     return (
                       <tr
                         key={domain.id}
-                        className={`hover:bg-blue-50/30 transition-colors group/row ${isMenuActive ? 'bg-blue-50/60' : ''}`}
+                        className={`hover:bg-amber-soft/50 transition-colors group/row ${isMenuActive ? 'bg-amber-soft' : ''}`}
                         onContextMenu={(e) => handleContextMenu(e, domain)}
                       >
                         <td className="px-5 py-3.5 whitespace-nowrap">
                           <div className="flex items-center gap-3">
-                            <div className={`flex-shrink-0 h-9 w-9 rounded-xl flex items-center justify-center transition-colors ${isMenuActive ? 'bg-blue-100' : 'bg-blue-50 group-hover/row:bg-blue-100'}`}>
-                              <Globe className="h-4 w-4 text-blue-600" />
+                            <div className={`flex-shrink-0 h-9 w-9 rounded-xl flex items-center justify-center transition-colors ${isMenuActive ? 'bg-amber/15' : 'bg-amber-soft group-hover/row:bg-amber/15'}`}>
+                              <Globe className="h-4 w-4 text-amber-ink" />
                             </div>
                             <div className="min-w-0">
-                              <p className="text-sm font-semibold text-gray-900">{domain.name}</p>
-                              <p className="text-xs text-gray-400 mt-0.5">
+                              <p className="text-sm font-semibold text-ink">{domain.name}</p>
+                              <p className="text-xs text-ink-4 mt-0.5">
                                 ID: <span className="font-mono">{domain.orderId}</span>
                               </p>
                             </div>
                           </div>
                         </td>
                         <td className="px-5 py-3.5 whitespace-nowrap">
-                          <p className="text-sm font-medium text-gray-900">{domain.customerName}</p>
-                          <p className="text-xs text-gray-400 mt-0.5 truncate">{domain.customerEmail}</p>
+                          <p className="text-sm font-medium text-ink">{domain.customerName}</p>
+                          <p className="text-xs text-ink-4 mt-0.5 truncate">{domain.customerEmail}</p>
                         </td>
                         <td className="px-5 py-3.5 whitespace-nowrap">
                           <div className="inline-flex items-center gap-1.5 flex-wrap">
@@ -321,7 +321,7 @@ export default function AdminDomainsPage() {
                               <span className="capitalize">{domain.status}</span>
                             </span>
                             {domain.dnsActivated && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-bold bg-indigo-soft text-indigo-ink border border-indigo/25">
                                 <Network className="h-2.5 w-2.5" />
                                 DNS
                               </span>
@@ -329,11 +329,11 @@ export default function AdminDomainsPage() {
                           </div>
                         </td>
                         <td className="px-5 py-3.5 whitespace-nowrap hidden sm:table-cell">
-                          <div className={`text-sm font-medium ${isExpired ? 'text-red-600' : 'text-gray-800'}`}>
+                          <div className={`text-sm font-medium ${isExpired ? 'text-red-600' : 'text-ink'}`}>
                             {domain.expiresAt ? formatIndianDateTime(domain.expiresAt) : 'N/A'}
                           </div>
                           {isExpired && (
-                            <div className="inline-flex items-center gap-1 text-[10px] font-bold text-red-600 mt-0.5">
+                            <div className="inline-flex items-center gap-1 text-3xs font-bold text-red-600 mt-0.5">
                               <AlertTriangle className="h-3 w-3" />
                               EXPIRED
                             </div>
@@ -346,7 +346,7 @@ export default function AdminDomainsPage() {
                               target="_blank"
                               rel="noopener noreferrer"
                               title="Open website"
-                              className="inline-flex items-center justify-center w-7 h-7 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              className="inline-flex items-center justify-center w-7 h-7 text-ink-4 hover:text-amber-ink hover:bg-amber-soft rounded-lg transition-colors"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <ExternalLink className="h-4 w-4" />
@@ -354,7 +354,7 @@ export default function AdminDomainsPage() {
                             <button
                               onClick={() => router.push(`/admin/dns-management?domainId=${domain.id}`)}
                               title="Manage DNS"
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-amber-ink bg-amber-soft hover:brightness-90 border border-amber/30 rounded-lg transition-colors"
                             >
                               <Network className="h-3.5 w-3.5" />
                               <span className="hidden lg:inline">DNS</span>
@@ -362,7 +362,7 @@ export default function AdminDomainsPage() {
                             <button
                               onClick={(e) => handleTripleDotClick(e, domain)}
                               title="More actions"
-                              className={`inline-flex items-center justify-center w-7 h-7 rounded-lg transition-colors ${isMenuActive ? 'text-blue-700 bg-blue-100' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
+                              className={`inline-flex items-center justify-center w-7 h-7 rounded-lg transition-colors ${isMenuActive ? 'text-amber-ink bg-amber/15' : 'text-ink-4 hover:text-ink-2 hover:bg-paper-2'}`}
                             >
                               <MoreVertical className="h-4 w-4" />
                             </button>

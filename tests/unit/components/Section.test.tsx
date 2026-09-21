@@ -31,10 +31,13 @@ describe("<Section>", () => {
     expect((document.querySelector("section") as HTMLElement).className).toMatch(/bg-gray-50/);
   });
 
-  it("maps background='dark' to bg-gray-900 + white text", () => {
+  it("maps background='dark' to the ink surface + white text", () => {
     render(<Section background="dark">x</Section>);
     const section = document.querySelector("section") as HTMLElement;
-    expect(section.className).toMatch(/bg-gray-900/);
+    /* The dark surface moved from bg-gray-900 to the `ink` token with the
+       palette port. What matters is that 'dark' still produces a dark fill with
+       light text on it, not which literal class spells that. */
+    expect(section.className).toMatch(/bg-ink/);
     expect(section.className).toMatch(/text-white/);
   });
 

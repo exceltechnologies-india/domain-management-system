@@ -35,7 +35,7 @@ export default function Button({
 
   const variantClasses = {
     primary: 'bg-gradient-to-br from-primary-600 to-primary-700 text-white hover:from-primary-700 hover:to-primary-800 shadow-md hover:shadow-lg focus:ring-primary-500 border border-primary-700/50',
-    secondary: 'bg-gray-700 text-white hover:bg-gray-800 shadow-md hover:shadow-lg focus:ring-gray-600 border border-gray-800/50',
+    secondary: 'bg-gray-700 text-white hover:bg-ink-2 shadow-md hover:shadow-lg focus:ring-gray-600 border border-ink-2/50',
     outline: 'border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 focus:ring-primary-500 hover:border-primary-400 shadow-sm hover:shadow-md',
     ghost: 'text-gray-600 hover:bg-gray-100 focus:ring-gray-400',
     danger: 'bg-gradient-to-br from-red-600 to-red-700 text-white hover:from-red-700 hover:to-red-800 shadow-md hover:shadow-lg focus:ring-red-500 border border-red-700/50'

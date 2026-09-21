@@ -156,8 +156,8 @@ export default function IntegrationHealthPage() {
               <ShieldAlert className="h-5 w-5 text-amber-600" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Integration Health</h1>
-              <p className="text-sm text-gray-500 mt-0.5 max-w-2xl">
+              <h1 className="text-2xl font-bold text-ink">Integration Health</h1>
+              <p className="text-sm text-ink-3 mt-0.5 max-w-2xl">
                 Aggregated error feed for every upstream service — DirectAdmin, Zoho, ResellerClub, Razorpay, Email, WhatsApp. Recurring failures cluster into one row with a count + remediation hint.
               </p>
             </div>
@@ -167,25 +167,25 @@ export default function IntegrationHealthPage() {
 
         {/* ── Summary stat cards ── */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3">
+          <div className="bg-paper border border-hairline rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3">
             <div className="p-2 bg-green-50 rounded-xl"><CheckCircle2 className="h-4 w-4 text-green-600" /></div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-gray-500">Healthy providers</p>
-              <p className="text-xl font-bold text-gray-900">{data ? healthyCount : '—'}</p>
+              <p className="text-xs font-medium text-ink-3">Healthy providers</p>
+              <p className="text-xl font-bold text-ink">{data ? healthyCount : '—'}</p>
             </div>
           </div>
-          <div className={`bg-white border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 ${failingCount > 0 ? 'border-amber-300 ring-2 ring-amber-100' : 'border-gray-200'}`}>
+          <div className={`bg-paper border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 ${failingCount > 0 ? 'border-amber-300 ring-2 ring-amber-100' : 'border-hairline'}`}>
             <div className="p-2 bg-amber-50 rounded-xl"><AlertTriangle className="h-4 w-4 text-amber-600" /></div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-gray-500">With failures</p>
-              <p className="text-xl font-bold text-gray-900">{data ? failingCount : '—'}</p>
+              <p className="text-xs font-medium text-ink-3">With failures</p>
+              <p className="text-xl font-bold text-ink">{data ? failingCount : '—'}</p>
             </div>
           </div>
-          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3">
-            <div className="p-2 bg-blue-50 rounded-xl"><Activity className="h-4 w-4 text-blue-600" /></div>
+          <div className="bg-paper border border-hairline rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3">
+            <div className="p-2 bg-indigo-soft rounded-xl"><Activity className="h-4 w-4 text-indigo-ink" /></div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-gray-500">Total failures</p>
-              <p className="text-xl font-bold text-gray-900">{data ? totalAcrossProviders : '—'}</p>
+              <p className="text-xs font-medium text-ink-3">Total failures</p>
+              <p className="text-xl font-bold text-ink">{data ? totalAcrossProviders : '—'}</p>
             </div>
           </div>
         </div>
@@ -221,17 +221,17 @@ export default function IntegrationHealthPage() {
                       ? `${totalAcrossProviders} upstream failure${totalAcrossProviders === 1 ? '' : 's'} in the last ${data.windowDays} day${data.windowDays === 1 ? '' : 's'}`
                       : `No recorded operation failures in the last ${data.windowDays} day${data.windowDays === 1 ? '' : 's'}`}
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-xs text-ink-3 mt-1">
                     Snapshot generated {formatIndianDateTime(data.generatedAt)}.
                   </div>
                 </div>
               </div>
-              <div className="inline-flex bg-white/70 border border-white rounded-xl p-1 shrink-0">
+              <div className="inline-flex bg-paper/70 border border-paper rounded-xl p-1 shrink-0">
                 {WINDOW_OPTIONS.map((w) => (
                   <button
                     key={w.value}
                     onClick={() => setWindowDays(w.value)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${windowDays === w.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${windowDays === w.value ? 'bg-paper text-ink shadow-sm' : 'text-ink-3 hover:text-ink-2'}`}
                   >
                     {w.label}
                   </button>
@@ -243,14 +243,14 @@ export default function IntegrationHealthPage() {
 
         {/* Provider cards */}
         {isLoading && !data && (
-          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm px-5 py-10 flex flex-col items-center justify-center gap-3 text-sm text-gray-400">
-            <RefreshCw className="h-6 w-6 animate-spin text-blue-600" />
+          <div className="bg-paper border border-hairline rounded-2xl shadow-sm px-5 py-10 flex flex-col items-center justify-center gap-3 text-sm text-ink-4">
+            <RefreshCw className="h-6 w-6 animate-spin text-amber-ink" />
             Loading integration health…
           </div>
         )}
 
         {data && data.providers.length === 0 && (
-          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm px-5 py-10 text-center text-sm text-gray-500">
+          <div className="bg-paper border border-hairline rounded-2xl shadow-sm px-5 py-10 text-center text-sm text-ink-3">
             No upstream-provider errors recorded in the last {data.windowDays} day{data.windowDays === 1 ? '' : 's'}. Nothing to act on.
           </div>
         )}
@@ -262,7 +262,7 @@ export default function IntegrationHealthPage() {
           return (
             <div
               key={p.id}
-              className={`bg-white border rounded-2xl shadow-sm overflow-hidden transition-shadow hover:shadow-md ${hasErrors ? 'border-amber-200' : 'border-gray-200'}`}
+              className={`bg-paper border rounded-2xl shadow-sm overflow-hidden transition-shadow hover:shadow-md ${hasErrors ? 'border-amber-200' : 'border-hairline'}`}
             >
               <button
                 onClick={() => {
@@ -270,18 +270,18 @@ export default function IntegrationHealthPage() {
                   if (next.has(p.id)) next.delete(p.id); else next.add(p.id);
                   setExpanded(next);
                 }}
-                className="w-full px-5 py-4 flex items-center justify-between gap-3 hover:bg-gray-50 transition-colors"
+                className="w-full px-5 py-4 flex items-center justify-between gap-3 hover:bg-paper-2 transition-colors"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  {isOpen ? <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" /> : <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />}
+                  {isOpen ? <ChevronDown className="h-4 w-4 text-ink-4 shrink-0" /> : <ChevronRight className="h-4 w-4 text-ink-4 shrink-0" />}
                   {hasErrors ? (
                     <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
                   ) : (
                     <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
                   )}
                   <div className="min-w-0 text-left">
-                    <div className="font-semibold text-gray-900">{p.label}</div>
-                    <div className="text-xs text-gray-500 truncate">{PROVIDER_DESCRIPTIONS[p.id] || ''}</div>
+                    <div className="font-semibold text-ink">{p.label}</div>
+                    <div className="text-xs text-ink-3 truncate">{PROVIDER_DESCRIPTIONS[p.id] || ''}</div>
                   </div>
                 </div>
                 <div className={`text-sm font-semibold shrink-0 ${hasErrors ? 'text-amber-700' : 'text-green-700'}`}>
@@ -290,18 +290,18 @@ export default function IntegrationHealthPage() {
               </button>
 
               {isOpen && (
-                <div className="border-t border-gray-100 px-5 py-4 space-y-4">
+                <div className="border-t border-hairline px-5 py-4 space-y-4">
                   {p.patterns.length === 0 ? (
-                    <div className="text-sm text-gray-500 italic">No failures recorded for {p.label} in this window.</div>
+                    <div className="text-sm text-ink-3 italic">No failures recorded for {p.label} in this window.</div>
                   ) : (
                     p.patterns.map((pattern, i) => (
-                      <div key={i} className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50/40">
-                        <div className="px-4 py-3 border-b border-gray-200 bg-white">
+                      <div key={i} className="border border-hairline rounded-lg overflow-hidden bg-paper-2/40">
+                        <div className="px-4 py-3 border-b border-hairline bg-paper">
                           <div className="flex items-start justify-between gap-3 flex-wrap">
                             <div className="text-[10px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
                               {pattern.count} occurrence{pattern.count === 1 ? '' : 's'}
                             </div>
-                            <div className="text-[11px] text-gray-500">
+                            <div className="text-[11px] text-ink-3">
                               First: {formatIndianDateTime(pattern.firstSeen)} · Last: {formatIndianDateTime(pattern.lastSeen)}
                             </div>
                           </div>
@@ -310,15 +310,15 @@ export default function IntegrationHealthPage() {
                           </pre>
                         </div>
                         {pattern.hint && (
-                          <div className="px-4 py-3 bg-blue-50/50 border-b border-blue-100">
-                            <div className="text-[10px] font-semibold uppercase tracking-wide text-blue-700 mb-1">
+                          <div className="px-4 py-3 bg-indigo-soft/50 border-b border-indigo/25">
+                            <div className="text-[10px] font-semibold uppercase tracking-wide text-indigo-ink mb-1">
                               Suggested action
                             </div>
-                            <div className="text-xs text-blue-900">{pattern.hint}</div>
+                            <div className="text-xs text-indigo-ink">{pattern.hint}</div>
                           </div>
                         )}
                         <div className="px-4 py-3">
-                          <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-2">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-3 mb-2">
                             Affected orders ({pattern.affectedOrders.length}{pattern.count > pattern.affectedOrders.length ? ` of ${pattern.count}, capped at 20` : ''})
                           </div>
                           <div className="space-y-1">
@@ -326,18 +326,18 @@ export default function IntegrationHealthPage() {
                               <div key={j} className="flex items-center justify-between gap-2 text-xs">
                                 <Link
                                   href={`/admin/order-management?orderId=${encodeURIComponent(o.orderId)}`}
-                                  className="font-mono text-blue-700 hover:underline inline-flex items-center gap-1"
+                                  className="font-mono text-amber-ink hover:underline inline-flex items-center gap-1"
                                 >
                                   {o.orderId}
                                   <ExternalLink className="h-3 w-3" />
                                 </Link>
-                                <div className="text-gray-600 truncate flex-1 mx-2">
+                                <div className="text-ink-2 truncate flex-1 mx-2">
                                   {o.userName || o.userEmail || '—'}
                                   {o.itemType === 'hosting' && o.domainName && (
-                                    <span className="text-gray-400 ml-2">({o.domainName})</span>
+                                    <span className="text-ink-4 ml-2">({o.domainName})</span>
                                   )}
                                 </div>
-                                <div className="text-gray-500 shrink-0">
+                                <div className="text-ink-3 shrink-0">
                                   {formatIndianDateTime(o.createdAt)}
                                 </div>
                               </div>

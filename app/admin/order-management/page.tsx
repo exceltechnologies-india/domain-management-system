@@ -435,7 +435,7 @@ export default function AdminOrders() {
       sortable: true,
       render: (value: string, row: Order) => (
         <div className="flex items-center gap-1.5">
-          <span className="font-medium text-gray-900 text-xs sm:text-sm">{value}</span>
+          <span className="font-medium text-ink text-xs sm:text-sm">{value}</span>
           {row.orderType === 'hosting_trial' && (
             <span
               className="px-1.5 py-0.5 text-[9px] sm:text-[10px] font-semibold rounded bg-amber-100 text-amber-800 border border-amber-200"
@@ -459,10 +459,10 @@ export default function AdminOrders() {
       sortable: true,
       render: (_value: unknown, row: Order) => (
         <div>
-          <div className="text-xs sm:text-sm font-medium text-gray-900">
+          <div className="text-xs sm:text-sm font-medium text-ink">
             {row.userId ? `${row.userId.firstName} ${row.userId.lastName}` : 'Unknown'}
           </div>
-          <div className="text-xs sm:text-sm text-gray-500 truncate max-w-[150px] sm:max-w-none">
+          <div className="text-xs sm:text-sm text-ink-3 truncate max-w-[150px] sm:max-w-none">
             {row.userId ? row.userId.email : ''}
           </div>
         </div>
@@ -488,7 +488,7 @@ export default function AdminOrders() {
           );
         }
         return (
-          <span className="text-xs sm:text-sm font-medium text-gray-900">
+          <span className="text-xs sm:text-sm font-medium text-ink">
             ₹{row.amount.toFixed(2)}
           </span>
         );
@@ -514,7 +514,7 @@ export default function AdminOrders() {
       label: 'Date',
       sortable: true,
       render: (_value: unknown, row: Order) => (
-        <span className="text-xs sm:text-sm text-gray-600">
+        <span className="text-xs sm:text-sm text-ink-2">
           {formatIndianDate(new Date(row.createdAt))}
         </span>
       )
@@ -525,7 +525,7 @@ export default function AdminOrders() {
       render: (_value: unknown, row: Order) => (
         <button
           onClick={(e) => handleTripleDotClick(e, row)}
-          className={`p-2 rounded-lg transition-all duration-200 ${menuData?.id === row._id ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+          className={`p-2 rounded-lg transition-all duration-200 ${menuData?.id === row._id ? 'bg-indigo-soft text-amber-ink' : 'text-ink-4 hover:text-ink-2 hover:bg-paper-2'}`}
         >
           <MoreVertical className="h-5 w-5" />
         </button>
@@ -564,12 +564,12 @@ export default function AdminOrders() {
         {/* ── Page header ── */}
         <div className="flex items-start sm:items-center justify-between flex-col sm:flex-row gap-3 sm:gap-0">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-50 rounded-xl">
-              <ShoppingBag className="h-5 w-5 text-blue-600" />
+            <div className="p-2 bg-indigo-soft rounded-xl">
+              <ShoppingBag className="h-5 w-5 text-amber-ink" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Order Management</h1>
-              <p className="text-sm text-gray-500 mt-0.5">Track and manage customer orders</p>
+              <h1 className="text-2xl font-bold text-ink">Order Management</h1>
+              <p className="text-sm text-ink-3 mt-0.5">Track and manage customer orders</p>
             </div>
           </div>
           <RefreshButton
@@ -583,55 +583,55 @@ export default function AdminOrders() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <button
               onClick={() => setActiveTab('active')}
-              className={`bg-white border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${activeTab === 'active' ? 'border-blue-300 ring-2 ring-blue-100' : 'border-gray-200 hover:border-gray-300 hover:shadow-md'}`}
+              className={`bg-paper border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${activeTab === 'active' ? 'border-amber/40 ring-2 ring-amber/20' : 'border-hairline hover:border-hairline-strong hover:shadow-md'}`}
             >
-              <div className="p-2 bg-blue-50 rounded-xl">
-                <ShoppingBag className="h-4 w-4 text-blue-600" />
+              <div className="p-2 bg-indigo-soft rounded-xl">
+                <ShoppingBag className="h-4 w-4 text-amber-ink" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-gray-500">Active Orders</p>
-                <p className="text-xl font-bold text-gray-900">{counts?.active ?? orders.length}</p>
+                <p className="text-xs font-medium text-ink-3">Active Orders</p>
+                <p className="text-xl font-bold text-ink">{counts?.active ?? orders.length}</p>
               </div>
             </button>
             <button
               onClick={() => setActiveTab('trial')}
-              className={`bg-white border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${activeTab === 'trial' ? 'border-amber-300 ring-2 ring-amber-100' : 'border-gray-200 hover:border-gray-300 hover:shadow-md'}`}
+              className={`bg-paper border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${activeTab === 'trial' ? 'border-amber-300 ring-2 ring-amber-100' : 'border-hairline hover:border-hairline-strong hover:shadow-md'}`}
             >
               <div className="p-2 bg-amber-50 rounded-xl">
                 <Clock className="h-4 w-4 text-amber-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-gray-500">Free Trials</p>
-                <p className="text-xl font-bold text-gray-900">{counts?.trial ?? trialOrders.length}</p>
+                <p className="text-xs font-medium text-ink-3">Free Trials</p>
+                <p className="text-xl font-bold text-ink">{counts?.trial ?? trialOrders.length}</p>
               </div>
             </button>
             <button
               onClick={() => setActiveTab('archived')}
-              className={`bg-white border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${activeTab === 'archived' ? 'border-blue-300 ring-2 ring-blue-100' : 'border-gray-200 hover:border-gray-300 hover:shadow-md'}`}
+              className={`bg-paper border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${activeTab === 'archived' ? 'border-amber/40 ring-2 ring-amber/20' : 'border-hairline hover:border-hairline-strong hover:shadow-md'}`}
             >
-              <div className="p-2 bg-gray-100 rounded-xl">
-                <Archive className="h-4 w-4 text-gray-600" />
+              <div className="p-2 bg-paper-2 rounded-xl">
+                <Archive className="h-4 w-4 text-ink-2" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-gray-500">Archived</p>
-                <p className="text-xl font-bold text-gray-900">{counts?.archived ?? archivedOrders.length}</p>
+                <p className="text-xs font-medium text-ink-3">Archived</p>
+                <p className="text-xl font-bold text-ink">{counts?.archived ?? archivedOrders.length}</p>
               </div>
             </button>
           </div>
         )}
 
         {/* ── Orders card ── */}
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden">
           {/* Card header — segmented tabs */}
-          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 flex items-center justify-between gap-4 flex-wrap">
+          <div className="px-6 py-4 border-b border-hairline bg-paper-2/60 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-2.5">
-              <ShoppingBag className="h-4 w-4 text-gray-500" />
-              <h3 className="text-sm font-semibold text-gray-900">
+              <ShoppingBag className="h-4 w-4 text-ink-3" />
+              <h3 className="text-sm font-semibold text-ink">
                 {activeTab === 'active' ? 'Active Orders' : activeTab === 'trial' ? 'Free Trial Orders' : 'Archived Orders'}
               </h3>
             </div>
             <div className="flex items-center gap-3">
-              <div className="inline-flex bg-gray-100 rounded-xl p-1">
+              <div className="inline-flex bg-paper-2 rounded-xl p-1">
                 {[
                   { id: 'active',   label: 'Active',   count: counts?.active ?? orders.length },
                   { id: 'trial',    label: 'Trials',   count: counts?.trial ?? trialOrders.length },
@@ -642,11 +642,11 @@ export default function AdminOrders() {
                     onClick={() => setActiveTab(t.id as TabId)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                       activeTab === t.id
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-500 hover:text-gray-700'
+                        ? 'bg-paper text-ink shadow-sm'
+                        : 'text-ink-3 hover:text-ink-2'
                     }`}
                   >
-                    {t.label} <span className={`ml-1 ${activeTab === t.id ? 'text-blue-600' : 'text-gray-400'}`}>({t.count})</span>
+                    {t.label} <span className={`ml-1 ${activeTab === t.id ? 'text-amber-ink' : 'text-ink-4'}`}>({t.count})</span>
                   </button>
                 ))}
               </div>
@@ -658,7 +658,7 @@ export default function AdminOrders() {
                     onClick={handleExportCsv}
                     disabled={isExporting || isEmpty}
                     title={isEmpty ? 'Nothing to export in this tab' : "Export the current tab's orders as a CSV file"}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber text-white hover:brightness-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:brightness-90"
                   >
                     {isExporting ? (
                       <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" />
@@ -737,12 +737,12 @@ export default function AdminOrders() {
         >
           {selectedOrder && (
             <div className="space-y-6">
-              <p className="text-sm text-gray-500 border-b border-gray-100 pb-4">ID: {selectedOrder.orderId}</p>
+              <p className="text-sm text-ink-3 border-b border-hairline pb-4">ID: {selectedOrder.orderId}</p>
               {/* Status & Payment Info */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                <div className="bg-paper-2/60 p-4 rounded-lg space-y-3">
                   <div>
-                    <label className="text-sm font-medium text-gray-500">Status</label>
+                    <label className="text-sm font-medium text-ink-3">Status</label>
                     <div className="mt-1">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${selectedOrder.status === 'completed'
                         ? 'bg-green-100 text-green-800'
@@ -757,11 +757,11 @@ export default function AdminOrders() {
                     </div>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-500">Payment ID</label>
-                    <p className="text-sm font-mono text-gray-900 mt-1">{selectedOrder.paymentId}</p>
+                    <label className="text-sm font-medium text-ink-3">Payment ID</label>
+                    <p className="text-sm font-mono text-ink mt-1">{selectedOrder.paymentId}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-500">Date</label>
+                    <label className="text-sm font-medium text-ink-3">Date</label>
                     <p className="text-lg">{formatIndianDateTime(selectedOrder.createdAt)}</p>
                   </div>
                 </div>
@@ -782,20 +782,20 @@ export default function AdminOrders() {
                     </p>
                   </div>
                 ) : (
-                  <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+                  <div className="bg-paper-2/60 p-4 rounded-lg space-y-2">
                     <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-600">Subtotal</span>
-                      <span className="text-gray-900">₹{(selectedOrder.amount / 1.18).toFixed(2)}</span>
+                      <span className="text-ink-2">Subtotal</span>
+                      <span className="text-ink">₹{(selectedOrder.amount / 1.18).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-600">GST (18%)</span>
-                      <span className="text-gray-900">₹{(selectedOrder.amount - (selectedOrder.amount / 1.18)).toFixed(2)}</span>
+                      <span className="text-ink-2">GST (18%)</span>
+                      <span className="text-ink">₹{(selectedOrder.amount - (selectedOrder.amount / 1.18)).toFixed(2)}</span>
                     </div>
                     <div className="border-t pt-2 flex justify-between items-center">
-                      <span className="font-semibold text-gray-900">Total (incl. GST)</span>
-                      <span className="text-lg font-bold text-blue-600">₹{selectedOrder.amount.toFixed(2)} {selectedOrder.currency}</span>
+                      <span className="font-semibold text-ink">Total (incl. GST)</span>
+                      <span className="text-lg font-bold text-amber-ink">₹{selectedOrder.amount.toFixed(2)} {selectedOrder.currency}</span>
                     </div>
-                    <p className="text-xs text-gray-500 text-right">*GST (18%) is included in the total amount</p>
+                    <p className="text-xs text-ink-3 text-right">*GST (18%) is included in the total amount</p>
                   </div>
                 )}
 
@@ -810,27 +810,27 @@ export default function AdminOrders() {
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
                         selectedOrder.mandateMode === 'tokens'
                           ? 'bg-purple-100 text-purple-800'
-                          : 'bg-blue-100 text-blue-800'
+                          : 'bg-indigo-soft text-indigo-ink'
                       }`}>
                         {selectedOrder.mandateMode === 'tokens' ? 'Tokens API (₹2-and-reverse)' : 'Subscriptions API'}
                       </span>
                     </div>
                     {selectedOrder.razorpayCustomerId && (
                       <div className="flex justify-between items-center text-sm">
-                        <span className="text-gray-600">Razorpay Customer ID</span>
-                        <span className="text-sm font-mono text-gray-900">{selectedOrder.razorpayCustomerId}</span>
+                        <span className="text-ink-2">Razorpay Customer ID</span>
+                        <span className="text-sm font-mono text-ink">{selectedOrder.razorpayCustomerId}</span>
                       </div>
                     )}
                     {selectedOrder.razorpayTokenId && (
                       <div className="flex justify-between items-center text-sm">
-                        <span className="text-gray-600">Mandate Token ID</span>
-                        <span className="text-sm font-mono text-gray-900">{selectedOrder.razorpayTokenId}</span>
+                        <span className="text-ink-2">Mandate Token ID</span>
+                        <span className="text-sm font-mono text-ink">{selectedOrder.razorpayTokenId}</span>
                       </div>
                     )}
                     {selectedOrder.razorpayOrderId && (
                       <div className="flex justify-between items-center text-sm">
-                        <span className="text-gray-600">Razorpay Order ID</span>
-                        <span className="text-sm font-mono text-gray-900">{selectedOrder.razorpayOrderId}</span>
+                        <span className="text-ink-2">Razorpay Order ID</span>
+                        <span className="text-sm font-mono text-ink">{selectedOrder.razorpayOrderId}</span>
                       </div>
                     )}
                   </div>
@@ -839,10 +839,10 @@ export default function AdminOrders() {
 
               {/* Domains */}
               <div className="border-t pt-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Domains in this Order</h3>
+                <h3 className="text-lg font-semibold text-ink mb-4">Domains in this Order</h3>
                 <div className="space-y-3">
                   {selectedOrder.domains.map((domain, index) => (
-                    <div key={index} className="py-3 px-4 bg-gray-50 rounded-lg">
+                    <div key={index} className="py-3 px-4 bg-paper-2/60 rounded-lg">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0">
                         <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
                           <div className="flex items-center space-x-2">
@@ -851,7 +851,7 @@ export default function AdminOrders() {
                                 domain.status === 'pending' ? 'bg-yellow-500' :
                                 'bg-red-500'
                               }`}></div>
-                            <span className="font-medium text-gray-900 break-all">
+                            <span className="font-medium text-ink break-all">
                               {domain.domainName}
                             </span>
                             {domain.status !== 'registered' && (
@@ -864,17 +864,17 @@ export default function AdminOrders() {
                           </div>
                           <div className="flex items-center space-x-2 sm:ml-0">
                             {domain.hostingPlan?.name && (
-                              <span className="text-xs font-normal text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full whitespace-nowrap">
+                              <span className="text-xs font-normal text-amber-ink bg-indigo-soft px-2 py-0.5 rounded-full whitespace-nowrap">
                                 {domain.hostingPlan.name}
                               </span>
                             )}
-                            <span className="text-sm text-gray-500 whitespace-nowrap">
+                            <span className="text-sm text-ink-3 whitespace-nowrap">
                               {domain.registrationPeriod} {(domain.hostingPlan ? 'month' : 'year')}{domain.registrationPeriod !== 1 ? 's' : ''}
                             </span>
                           </div>
                         </div>
-                        <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto mt-2 sm:mt-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-200">
-                          <span className="font-medium text-gray-900">
+                        <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto mt-2 sm:mt-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-hairline">
+                          <span className="font-medium text-ink">
                             ₹{(domain.price * domain.registrationPeriod).toFixed(2)}
                           </span>
                         </div>
@@ -914,7 +914,7 @@ export default function AdminOrders() {
 
                 return (
                   <div className="border-t pt-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Summary</h3>
+                    <h3 className="text-lg font-semibold text-ink mb-4">Summary</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
                         <div className="flex items-center space-x-2">
@@ -947,7 +947,7 @@ export default function AdminOrders() {
                   <AlertTriangle className="h-6 w-6 text-red-600" />
                 </div>
                 <div className="ml-3">
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-ink-3">
                     {activeTab === 'archived'
                       ? 'This action cannot be undone. All data will be permanently removed.'
                       : 'This will hide the order from the list but preserve all data'}
@@ -956,23 +956,23 @@ export default function AdminOrders() {
               </div>
 
               <div className="mb-6">
-                <p className="text-gray-700 mb-2">
+                <p className="text-ink-2 mb-2">
                   Are you sure you want to {activeTab === 'archived' ? 'permanently delete' : 'archive'} this order?
                 </p>
-                <div className="bg-gray-50 rounded-lg p-3">
+                <div className="bg-paper-2/60 rounded-lg p-3">
                   <div className="text-sm">
-                    <div className="font-medium text-gray-900">
+                    <div className="font-medium text-ink">
                       Order ID: {orderToDelete.orderId}
                     </div>
-                    <div className="text-gray-600">
+                    <div className="text-ink-2">
                       Customer: {orderToDelete.userId ? `${orderToDelete.userId.firstName} ${orderToDelete.userId.lastName}` : 'Unknown'}
                     </div>
-                    <div className="text-gray-600">
+                    <div className="text-ink-2">
                       Amount: {orderToDelete.orderType === 'hosting_trial'
                         ? <span className="italic text-amber-700">Free trial (₹0)</span>
                         : `₹${orderToDelete.amount.toFixed(2)} ${orderToDelete.currency}`}
                     </div>
-                    <div className="text-gray-600">
+                    <div className="text-ink-2">
                       Status: {orderToDelete.status}
                     </div>
                   </div>
@@ -983,7 +983,7 @@ export default function AdminOrders() {
                 <button
                   onClick={cancelDeleteOrder}
                   disabled={isDeleting}
-                  className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
+                  className="px-4 py-2 text-ink-2 bg-paper-2 hover:bg-hairline rounded-lg transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -1022,27 +1022,27 @@ export default function AdminOrders() {
                   <RotateCcw className="h-6 w-6 text-green-600" />
                 </div>
                 <div className="ml-3">
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-ink-3">
                     Are you sure you want to un-archive this order? It will be restored to the active orders list.
                   </p>
                 </div>
               </div>
 
               <div className="mb-6">
-                <div className="bg-gray-50 rounded-lg p-3">
+                <div className="bg-paper-2/60 rounded-lg p-3">
                   <div className="text-sm">
-                    <div className="font-medium text-gray-900">
+                    <div className="font-medium text-ink">
                       Order ID: {orderToUnarchive.orderId}
                     </div>
-                    <div className="text-gray-600">
+                    <div className="text-ink-2">
                       Customer: {orderToUnarchive.userId ? `${orderToUnarchive.userId.firstName} ${orderToUnarchive.userId.lastName}` : 'Unknown'}
                     </div>
-                    <div className="text-gray-600">
+                    <div className="text-ink-2">
                       Amount: {orderToUnarchive.orderType === 'hosting_trial'
                         ? <span className="italic text-amber-700">Free trial (₹0)</span>
                         : `₹${orderToUnarchive.amount.toFixed(2)} ${orderToUnarchive.currency}`}
                     </div>
-                    <div className="text-gray-600">
+                    <div className="text-ink-2">
                       Status: {orderToUnarchive.status}
                     </div>
                   </div>
@@ -1053,7 +1053,7 @@ export default function AdminOrders() {
                 <button
                   onClick={cancelUnarchiveOrder}
                   disabled={isUnarchiving}
-                  className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
+                  className="px-4 py-2 text-ink-2 bg-paper-2 hover:bg-hairline rounded-lg transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>

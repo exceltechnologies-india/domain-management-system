@@ -152,7 +152,7 @@ export default function AdminPendingHostingPage() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.push('/admin/hosting')}
-              className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-500 border border-gray-200 bg-white shadow-sm"
+              className="p-2 hover:bg-paper-2 rounded-xl transition-colors text-ink-3 border border-hairline bg-paper shadow-sm"
               title="Back to hosting"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -161,21 +161,21 @@ export default function AdminPendingHostingPage() {
               <AlertTriangle className="h-5 w-5 text-amber-600" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Pending Hosting Provisions</h1>
-              <p className="text-sm text-gray-500 mt-0.5">Review and retry hosting accounts that failed to provision on DirectAdmin.</p>
+              <h1 className="text-2xl font-serif font-bold text-ink">Pending Hosting Provisions</h1>
+              <p className="text-sm text-ink-3 mt-0.5">Review and retry hosting accounts that failed to provision on DirectAdmin.</p>
             </div>
           </div>
           <RefreshButton onClick={fetchPendingData} isLoading={isLoadingData} />
         </div>
 
         {/* ── Pending list card ── */}
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden min-h-[400px]">
+        <div className="bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden min-h-[400px]">
           {/* Card header */}
-          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 flex items-center justify-between gap-4">
+          <div className="px-6 py-4 border-b border-hairline bg-paper-2/60 flex items-center justify-between gap-4">
             <div className="flex items-center gap-2.5">
-              <Server className="h-4 w-4 text-gray-500" />
-              <h3 className="text-sm font-semibold text-gray-900">Failed Provisions</h3>
-              <span className="inline-flex items-center text-xs font-medium text-gray-500 bg-white border border-gray-200 px-2 py-0.5 rounded-full">
+              <Server className="h-4 w-4 text-ink-3" />
+              <h3 className="text-sm font-semibold text-ink">Failed Provisions</h3>
+              <span className="inline-flex items-center text-xs font-medium text-ink-3 bg-paper border border-hairline px-2 py-0.5 rounded-full">
                 {pendingItems.length}
               </span>
             </div>
@@ -188,11 +188,11 @@ export default function AdminPendingHostingPage() {
               <div className="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <CheckCircle2 className="h-7 w-7 text-green-600" />
               </div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-1.5">All caught up</h3>
-              <p className="text-sm text-gray-500 mb-5">No failed provisions pending.</p>
+              <h3 className="text-sm font-semibold text-ink mb-1.5">All caught up</h3>
+              <p className="text-sm text-ink-3 mb-5">No failed provisions pending.</p>
               <button
                 onClick={() => router.push('/admin/hosting')}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-amber-ink bg-amber-soft hover:brightness-95 border border-amber/25 rounded-xl transition-all"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back to Hosting Management
@@ -202,36 +202,36 @@ export default function AdminPendingHostingPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-gray-50/60 border-b border-gray-100">
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">User & Domain</th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Package / DA User</th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Error Details</th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
-                    <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                  <tr className="bg-paper-2/60 border-b border-hairline">
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wider">User & Domain</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wider">Package / DA User</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wider">Error Details</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wider">Date</th>
+                    <th className="px-5 py-3 text-right text-xs font-semibold text-ink-3 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-hairline">
                   {pendingItems.map((item) => (
-                    <tr key={item._id} className="hover:bg-blue-50/30 transition-colors group">
+                    <tr key={item._id} className="hover:bg-paper-2/60 transition-colors group">
                       <td className="px-5 py-3.5 whitespace-nowrap">
                         <div className="flex items-center gap-3">
                           <div className="flex-shrink-0 h-9 w-9 bg-amber-50 rounded-xl flex items-center justify-center">
                             <Server className="h-4 w-4 text-amber-600" />
                           </div>
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-gray-900">{item.domain}</p>
-                            <p className="text-xs text-gray-500 truncate">
+                            <p className="text-sm font-semibold text-ink">{item.domain}</p>
+                            <p className="text-xs text-ink-3 truncate">
                               {item.userId?.email || 'Unknown user'}
                             </p>
                             {item.userId?.name && (
-                              <p className="text-[11px] text-gray-400">{item.userId.name}</p>
+                              <p className="text-[11px] text-ink-4">{item.userId.name}</p>
                             )}
                           </div>
                         </div>
                       </td>
                       <td className="px-5 py-3.5 whitespace-nowrap">
-                        <p className="text-sm font-medium text-gray-900">{item.package}</p>
-                        <p className="text-xs text-gray-400 font-mono mt-0.5">DA: {item.daUsername}</p>
+                        <p className="text-sm font-medium text-ink">{item.package}</p>
+                        <p className="text-xs text-ink-4 font-mono mt-0.5">DA: {item.daUsername}</p>
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-start gap-2 max-w-md p-2 bg-red-50 border border-red-100 rounded-lg">
@@ -240,7 +240,7 @@ export default function AdminPendingHostingPage() {
                         </div>
                       </td>
                       <td className="px-5 py-3.5 whitespace-nowrap">
-                        <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                        <div className="flex items-center gap-1.5 text-xs text-ink-3">
                           <Clock className="h-3 w-3" />
                           {formatIndianDateTime(item.createdAt)}
                         </div>
@@ -250,7 +250,7 @@ export default function AdminPendingHostingPage() {
                           <button
                             onClick={() => handleRetry(item._id)}
                             disabled={isRetrying === item._id || isDeleting === item._id}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 transition-colors shadow-sm"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-amber hover:brightness-90 rounded-lg disabled:opacity-50 transition-all shadow-sm"
                           >
                             {isRetrying === item._id ? (
                               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -263,7 +263,7 @@ export default function AdminPendingHostingPage() {
                             onClick={() => setPendingDeleteItem(item)}
                             disabled={isRetrying === item._id || isDeleting === item._id}
                             title="Remove entry"
-                            className="inline-flex items-center justify-center w-7 h-7 text-red-500 hover:text-red-700 hover:bg-red-50 border border-gray-200 rounded-lg disabled:opacity-50 transition-colors"
+                            className="inline-flex items-center justify-center w-7 h-7 text-red-500 hover:text-red-700 hover:bg-red-50 border border-hairline rounded-lg disabled:opacity-50 transition-colors"
                           >
                             {isDeleting === item._id ? (
                               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -299,21 +299,21 @@ export default function AdminPendingHostingPage() {
               </div>
             </div>
 
-            <div className="space-y-2 p-4 bg-gray-50 border border-gray-100 rounded-xl">
+            <div className="space-y-2 p-4 bg-paper-2/60 border border-hairline rounded-xl">
               <div className="flex items-center gap-2 text-sm">
-                <Server className="h-3.5 w-3.5 text-gray-400" />
-                <span className="text-gray-500">Domain</span>
-                <span className="font-mono font-semibold text-gray-900 ml-auto">{pendingDeleteItem.domain}</span>
+                <Server className="h-3.5 w-3.5 text-ink-4" />
+                <span className="text-ink-3">Domain</span>
+                <span className="font-mono font-semibold text-ink ml-auto">{pendingDeleteItem.domain}</span>
               </div>
               <div className="flex items-center gap-2 text-sm">
-                <Mail className="h-3.5 w-3.5 text-gray-400" />
-                <span className="text-gray-500">Customer</span>
-                <span className="text-gray-900 ml-auto truncate">{pendingDeleteItem.userId?.email || 'Unknown'}</span>
+                <Mail className="h-3.5 w-3.5 text-ink-4" />
+                <span className="text-ink-3">Customer</span>
+                <span className="text-ink ml-auto truncate">{pendingDeleteItem.userId?.email || 'Unknown'}</span>
               </div>
               <div className="flex items-center gap-2 text-sm">
-                <UserIcon className="h-3.5 w-3.5 text-gray-400" />
-                <span className="text-gray-500">DA Username</span>
-                <span className="font-mono text-gray-900 ml-auto">{pendingDeleteItem.daUsername}</span>
+                <UserIcon className="h-3.5 w-3.5 text-ink-4" />
+                <span className="text-ink-3">DA Username</span>
+                <span className="font-mono text-ink ml-auto">{pendingDeleteItem.daUsername}</span>
               </div>
             </div>
 
@@ -321,7 +321,7 @@ export default function AdminPendingHostingPage() {
               <button
                 onClick={() => setPendingDeleteItem(null)}
                 disabled={!!isDeleting}
-                className="px-4 py-2 text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-sm font-semibold text-ink-2 bg-paper-2 hover:bg-hairline rounded-xl transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>

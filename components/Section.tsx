@@ -19,7 +19,7 @@ export default function Section({
     white: 'bg-white',
     gray: 'bg-gray-50',
     primary: 'bg-primary-50',
-    dark: 'bg-gray-900 text-white'
+    dark: 'bg-ink text-white'
   };
 
   const paddingClasses = {

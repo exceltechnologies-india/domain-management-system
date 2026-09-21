@@ -217,7 +217,7 @@ export default function AdminInvoicesPage() {
       label: 'S.No.',
       sortable: false,
       render: (_value: unknown, _row: unknown, index: number) => (
-        <span className="text-gray-500 font-medium">
+        <span className="text-ink-3 font-medium">
           {index + 1}
         </span>
       )
@@ -227,8 +227,8 @@ export default function AdminInvoicesPage() {
       label: 'Invoice #',
       sortable: true,
       render: (value: string, row: Invoice) => (
-        <div className="flex items-center gap-2 font-medium text-gray-900">
-          <FileText className="h-4 w-4 text-blue-500 shrink-0" />
+        <div className="flex items-center gap-2 font-medium text-ink">
+          <FileText className="h-4 w-4 text-amber-ink shrink-0" />
           <span>{value}</span>
           {row.provider === 'primary' && (
             <span
@@ -247,7 +247,7 @@ export default function AdminInvoicesPage() {
       sortable: true,
       render: (value: string, row: Invoice) => (
         <div className="flex flex-col">
-          <span className="font-medium text-gray-900">{value}</span>
+          <span className="font-medium text-ink">{value}</span>
           {/* Email might not be directly on invoice object from list, depends on Zoho response */}
         </div>
       )
@@ -275,7 +275,7 @@ export default function AdminInvoicesPage() {
         const cfg =
           v === 'paid'    ? { cls: 'bg-green-50 text-green-700 border-green-200',   icon: CheckCircle2 } :
           v === 'overdue' ? { cls: 'bg-red-50 text-red-700 border-red-200',         icon: AlertCircle } :
-          v === 'sent' || v === 'open' ? { cls: 'bg-blue-50 text-blue-700 border-blue-200', icon: Clock } :
+          v === 'sent' || v === 'open' ? { cls: 'bg-indigo-soft text-indigo-ink border-indigo/25', icon: Clock } :
                             { cls: 'bg-amber-50 text-amber-700 border-amber-200',   icon: FileText };
         const Icon = cfg.icon;
         return (
@@ -303,7 +303,7 @@ export default function AdminInvoicesPage() {
             <button
               onClick={() => router.push(viewHref)}
               disabled={!docId}
-              className="text-blue-600 hover:text-blue-900 disabled:text-gray-300 disabled:cursor-not-allowed"
+              className="text-amber-ink hover:brightness-90 disabled:text-ink-4 disabled:cursor-not-allowed"
               title="View Invoice"
             >
               <Eye className="h-4 w-4" />
@@ -311,7 +311,7 @@ export default function AdminInvoicesPage() {
             <button
               onClick={() => handleDownload(row)}
               disabled={!docId || downloadingId === docId}
-              className="text-blue-600 hover:text-blue-900 disabled:text-gray-300 disabled:cursor-not-allowed"
+              className="text-amber-ink hover:brightness-90 disabled:text-ink-4 disabled:cursor-not-allowed"
               title="Download PDF"
             >
               <Download className="h-4 w-4" />
@@ -364,12 +364,12 @@ export default function AdminInvoicesPage() {
         {/* ── Page header ── */}
         <div className="flex items-start sm:items-center justify-between flex-col sm:flex-row gap-3 sm:gap-0">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-50 rounded-xl">
-              <Receipt className="h-5 w-5 text-blue-600" />
+            <div className="p-2 bg-amber-soft rounded-xl">
+              <Receipt className="h-5 w-5 text-amber-ink" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">All Invoices</h1>
-              <p className="text-sm text-gray-500 mt-0.5">Manage all invoices across the system</p>
+              <h1 className="text-2xl font-serif font-bold text-ink">All Invoices</h1>
+              <p className="text-sm text-ink-3 mt-0.5">Manage all invoices across the system</p>
             </div>
           </div>
           <RefreshButton onClick={() => fetchInvoices(page, false, true, source)} isLoading={isDataLoading} />
@@ -385,31 +385,31 @@ export default function AdminInvoicesPage() {
           const totalAmount = invoices.reduce((s, i) => s + (i.total || 0), 0);
           return (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="bg-white border border-gray-200 rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3">
-                <div className="p-2 bg-blue-50 rounded-xl">
-                  <FileText className="h-4 w-4 text-blue-600" />
+              <div className="bg-paper border border-hairline rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3">
+                <div className="p-2 bg-indigo-soft rounded-xl">
+                  <FileText className="h-4 w-4 text-indigo-ink" />
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-gray-500">Total on Page</p>
-                  <p className="text-xl font-bold text-gray-900">{invoices.length}</p>
+                  <p className="text-xs font-medium text-ink-3">Total on Page</p>
+                  <p className="text-xl font-bold text-ink">{invoices.length}</p>
                 </div>
               </div>
-              <div className="bg-white border border-gray-200 rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3">
+              <div className="bg-paper border border-hairline rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3">
                 <div className="p-2 bg-green-50 rounded-xl">
                   <CheckCircle2 className="h-4 w-4 text-green-600" />
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-gray-500">Paid</p>
-                  <p className="text-xl font-bold text-gray-900">{paid}</p>
+                  <p className="text-xs font-medium text-ink-3">Paid</p>
+                  <p className="text-xl font-bold text-ink">{paid}</p>
                 </div>
               </div>
-              <div className={`bg-white border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 ${due > 0 ? 'border-amber-200' : 'border-gray-200'}`}>
-                <div className={`p-2 rounded-xl ${due > 0 ? 'bg-amber-50' : 'bg-gray-50'}`}>
-                  <IndianRupee className={`h-4 w-4 ${due > 0 ? 'text-amber-600' : 'text-gray-500'}`} />
+              <div className={`bg-paper border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 ${due > 0 ? 'border-amber-200' : 'border-hairline'}`}>
+                <div className={`p-2 rounded-xl ${due > 0 ? 'bg-amber-50' : 'bg-paper-2/60'}`}>
+                  <IndianRupee className={`h-4 w-4 ${due > 0 ? 'text-amber-600' : 'text-ink-3'}`} />
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-gray-500">Total Billed</p>
-                  <p className="text-xl font-bold text-gray-900">₹{totalAmount.toLocaleString()}</p>
+                  <p className="text-xs font-medium text-ink-3">Total Billed</p>
+                  <p className="text-xl font-bold text-ink">₹{totalAmount.toLocaleString()}</p>
                 </div>
               </div>
             </div>
@@ -424,18 +424,18 @@ export default function AdminInvoicesPage() {
         {source === 'zoho' && <InvoiceDiagnostics />}
 
         {/* ── Invoices card ── */}
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden">
           {/* Card header */}
-          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 flex items-center justify-between gap-4">
+          <div className="px-6 py-4 border-b border-hairline bg-paper-2/60 flex items-center justify-between gap-4">
             <div className="flex items-center gap-2.5">
-              <FileText className="h-4 w-4 text-gray-500" />
-              <h3 className="text-sm font-semibold text-gray-900">Billing History</h3>
+              <FileText className="h-4 w-4 text-ink-3" />
+              <h3 className="text-sm font-semibold text-ink">Billing History</h3>
             </div>
             {/* Source tabs. The two lists are paginated independently — Zoho
                 paginates server-side, primary invoices live only in our DB —
                 so they're shown side by side rather than merged into one list
                 whose page numbers would silently repeat or skip rows. */}
-            <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-0.5">
+            <div className="flex items-center gap-1 bg-paper border border-hairline rounded-lg p-0.5">
               {([
                 { id: 'zoho' as const,    label: 'Zoho Books' },
                 { id: 'primary' as const, label: 'GST engine' },
@@ -447,15 +447,15 @@ export default function AdminInvoicesPage() {
                   aria-pressed={source === tab.id}
                   className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
                     source === tab.id
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-600 hover:bg-gray-100'
+                      ? 'bg-amber text-white'
+                      : 'text-ink-2 hover:bg-paper-2'
                   }`}
                 >
                   {tab.label}
                 </button>
               ))}
             </div>
-            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 bg-white border border-gray-200 px-2.5 py-1 rounded-full">
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-3 bg-paper border border-hairline px-2.5 py-1 rounded-full">
               {invoices.length} on this page
             </span>
           </div>

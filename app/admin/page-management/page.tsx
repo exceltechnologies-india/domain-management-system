@@ -300,12 +300,12 @@ export default function PageManagementPage() {
         {/* Header — matches the standard admin page header (tinted icon box + title/subtitle + refresh) */}
         <div className="flex items-start sm:items-center justify-between flex-col sm:flex-row gap-3 sm:gap-0">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-50 rounded-xl">
-              <LayoutTemplate className="h-5 w-5 text-blue-600" />
+            <div className="p-2 bg-amber-soft rounded-xl">
+              <LayoutTemplate className="h-5 w-5 text-amber-ink" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Pages</h1>
-              <p className="text-sm text-gray-500 mt-0.5">
+              <h1 className="text-2xl font-serif font-bold text-ink">Pages</h1>
+              <p className="text-sm text-ink-3 mt-0.5">
                 Publish or draft the public marketing pages. A drafted page redirects visitors to the
                 homepage — admins can still preview it.
               </p>
@@ -319,14 +319,14 @@ export default function PageManagementPage() {
           {[
             { label: 'Published', value: publishedCount, Icon: Eye, box: 'bg-green-50', ic: 'text-green-600', val: 'text-green-600' },
             { label: 'Draft', value: draftCount, Icon: EyeOff, box: 'bg-amber-50', ic: 'text-amber-600', val: 'text-amber-600' },
-            { label: 'Total Pages', value: pages.length, Icon: LayoutTemplate, box: 'bg-blue-50', ic: 'text-blue-600', val: 'text-gray-900' },
+            { label: 'Total Pages', value: pages.length, Icon: LayoutTemplate, box: 'bg-indigo-soft', ic: 'text-indigo-ink', val: 'text-ink' },
           ].map((s) => {
             const Icon = s.Icon;
             return (
-              <div key={s.label} className="bg-white border border-gray-200 rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3">
+              <div key={s.label} className="bg-paper border border-hairline rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3">
                 <div className={`p-2 ${s.box} rounded-xl`}><Icon className={`h-4 w-4 ${s.ic}`} /></div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-gray-500">{s.label}</p>
+                  <p className="text-xs font-medium text-ink-3">{s.label}</p>
                   <p className={`text-xl font-bold ${s.val}`}>{s.value}</p>
                 </div>
               </div>
@@ -341,12 +341,12 @@ export default function PageManagementPage() {
             const isSaving = savingSlug === row.slug;
             const Icon = ICONS[row.slug] || FileText;
             const accent = row.lockedPublished
-              ? 'bg-gray-300'
+              ? 'bg-hairline'
               : isPublished
                 ? 'bg-green-400'
                 : 'bg-amber-400';
             const iconTint = row.lockedPublished
-              ? 'bg-gray-100 text-gray-500'
+              ? 'bg-paper-2 text-ink-3'
               : isPublished
                 ? 'bg-green-50 text-green-600'
                 : 'bg-amber-50 text-amber-600';
@@ -354,7 +354,7 @@ export default function PageManagementPage() {
             return (
               <div
                 key={row.slug}
-                className="relative bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all overflow-hidden"
+                className="relative bg-paper rounded-2xl border border-hairline shadow-sm hover:shadow-md transition-all overflow-hidden"
               >
                 <span className={`absolute left-0 top-0 bottom-0 w-1.5 ${accent}`} aria-hidden />
                 <div className="pl-5 sm:pl-6 pr-4 sm:pr-5 py-4 sm:py-5 flex flex-col sm:flex-row sm:items-center gap-4">
@@ -364,7 +364,7 @@ export default function PageManagementPage() {
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-base font-bold text-gray-900">{row.title}</h3>
+                      <h3 className="text-base font-bold text-ink">{row.title}</h3>
                       <span
                         className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
                           isPublished
@@ -376,17 +376,17 @@ export default function PageManagementPage() {
                         {isPublished ? 'Published' : 'Draft'}
                       </span>
                       {row.lockedPublished && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-paper-2 text-ink-3">
                           <Lock className="h-3 w-3" />
                           Locked
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-gray-500 mt-1">{row.description}</p>
+                    <p className="text-sm text-ink-3 mt-1">{row.description}</p>
                     <Link
                       href={row.path}
                       target="_blank"
-                      className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 mt-2"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-amber-ink hover:brightness-90 mt-2"
                     >
                       {row.path}
                       <ExternalLink className="h-3 w-3" />
@@ -394,12 +394,12 @@ export default function PageManagementPage() {
                   </div>
 
                   {/* Toggle */}
-                  <div className="shrink-0 flex items-center gap-3 sm:pl-4 sm:border-l sm:border-gray-100">
+                  <div className="shrink-0 flex items-center gap-3 sm:pl-4 sm:border-l sm:border-hairline">
                     {row.lockedPublished ? (
-                      <span className="text-xs font-medium text-gray-400">Always on</span>
+                      <span className="text-xs font-medium text-ink-4">Always on</span>
                     ) : (
                       <>
-                        {isSaving && <Loader2 className="h-4 w-4 text-gray-400 animate-spin" />}
+                        {isSaving && <Loader2 className="h-4 w-4 text-ink-4 animate-spin" />}
                         <span
                           className={`text-sm font-semibold w-14 text-right ${
                             isPublished ? 'text-green-600' : 'text-amber-600'
@@ -425,22 +425,22 @@ export default function PageManagementPage() {
 
         {/* Appearance */}
         <div>
-          <h2 className="flex items-center gap-2 text-sm font-bold text-gray-900 mb-3">
-            <Palette className="h-4 w-4 text-gray-400" />
+          <h2 className="flex items-center gap-2 text-sm font-bold text-ink mb-3">
+            <Palette className="h-4 w-4 text-ink-4" />
             Appearance
           </h2>
           <div className="space-y-3">
             {/* Homepage design */}
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="bg-paper rounded-2xl border border-hairline shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="min-w-0">
-                <h3 className="text-base font-bold text-gray-900">Homepage design (served at /)</h3>
-                <p className="text-sm text-gray-500 mt-0.5">
+                <h3 className="text-base font-bold text-ink">Homepage design (served at /)</h3>
+                <p className="text-sm text-ink-3 mt-0.5">
                   Switch which homepage renders at the root URL. The logo everywhere links to / and shows this design.
                 </p>
               </div>
               <div className="shrink-0 flex items-center gap-2">
-                {savingHome && <Loader2 className="h-4 w-4 text-gray-400 animate-spin" />}
-                <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full p-1">
+                {savingHome && <Loader2 className="h-4 w-4 text-ink-4 animate-spin" />}
+                <div className="inline-flex items-center gap-1 bg-paper-2 rounded-full p-1">
                   {([
                     { v: 'landing', label: 'Landing' },
                     { v: 'classic', label: 'Classic' },
@@ -452,7 +452,7 @@ export default function PageManagementPage() {
                       disabled={savingHome}
                       aria-pressed={homeVariant === v}
                       className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all disabled:opacity-60 ${
-                        homeVariant === v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                        homeVariant === v ? 'bg-paper text-ink shadow-sm' : 'text-ink-3 hover:text-ink-2'
                       }`}
                     >
                       {label}
@@ -463,16 +463,16 @@ export default function PageManagementPage() {
             </div>
 
             {/* Footer template */}
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="bg-paper rounded-2xl border border-hairline shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="min-w-0">
-                <h3 className="text-base font-bold text-gray-900">Footer template</h3>
-                <p className="text-sm text-gray-500 mt-0.5">
+                <h3 className="text-base font-bold text-ink">Footer template</h3>
+                <p className="text-sm text-ink-3 mt-0.5">
                   Choose which footer renders across the public site. Takes effect immediately (no redeploy).
                 </p>
               </div>
               <div className="shrink-0 flex items-center gap-2">
-                {savingFooter && <Loader2 className="h-4 w-4 text-gray-400 animate-spin" />}
-                <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full p-1">
+                {savingFooter && <Loader2 className="h-4 w-4 text-ink-4 animate-spin" />}
+                <div className="inline-flex items-center gap-1 bg-paper-2 rounded-full p-1">
                   {(['modern', 'classic'] as const).map((v) => (
                     <button
                       key={v}
@@ -481,7 +481,7 @@ export default function PageManagementPage() {
                       disabled={savingFooter}
                       aria-pressed={footerVariant === v}
                       className={`px-4 py-1.5 rounded-full text-sm font-semibold capitalize transition-all disabled:opacity-60 ${
-                        footerVariant === v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                        footerVariant === v ? 'bg-paper text-ink shadow-sm' : 'text-ink-3 hover:text-ink-2'
                       }`}
                     >
                       {v}
@@ -492,17 +492,17 @@ export default function PageManagementPage() {
             </div>
 
             {/* Frontend theme */}
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="bg-paper rounded-2xl border border-hairline shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="min-w-0">
-                <h3 className="text-base font-bold text-gray-900">Frontend colour theme</h3>
-                <p className="text-sm text-gray-500 mt-0.5">
+                <h3 className="text-base font-bold text-ink">Frontend colour theme</h3>
+                <p className="text-sm text-ink-3 mt-0.5">
                   Colour scheme for the public frontend (marketing, login, cart) — <strong>Violet</strong> matches the landing,
                   <strong> Azure</strong> is the classic Anutech blue. The dashboard &amp; admin panel always stay Azure. Takes effect immediately (no redeploy).
                 </p>
               </div>
               <div className="shrink-0 flex items-center gap-2">
-                {savingTheme && <Loader2 className="h-4 w-4 text-gray-400 animate-spin" />}
-                <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full p-1">
+                {savingTheme && <Loader2 className="h-4 w-4 text-ink-4 animate-spin" />}
+                <div className="inline-flex items-center gap-1 bg-paper-2 rounded-full p-1">
                   {(['violet', 'azure'] as const).map((t) => (
                     <button
                       key={t}
@@ -511,7 +511,7 @@ export default function PageManagementPage() {
                       disabled={savingTheme}
                       aria-pressed={frontendTheme === t}
                       className={`px-4 py-1.5 rounded-full text-sm font-semibold capitalize transition-all disabled:opacity-60 ${
-                        frontendTheme === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                        frontendTheme === t ? 'bg-paper text-ink shadow-sm' : 'text-ink-3 hover:text-ink-2'
                       }`}
                     >
                       {t}
@@ -522,20 +522,20 @@ export default function PageManagementPage() {
             </div>
 
             {/* Contact details visibility */}
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5">
-              <h3 className="text-base font-bold text-gray-900">Contact details visibility</h3>
-              <p className="text-sm text-gray-500 mt-0.5 mb-4">
+            <div className="bg-paper rounded-2xl border border-hairline shadow-sm p-4 sm:p-5">
+              <h3 className="text-base font-bold text-ink">Contact details visibility</h3>
+              <p className="text-sm text-ink-3 mt-0.5 mb-4">
                 Show or hide the public <strong>GSTIN</strong> (footer) and <strong>phone number</strong> ("Call Us" card). Takes effect immediately (no redeploy).
               </p>
               {([
                 { label: 'GSTIN (footer)', on: showGstin, saving: savingGstin, toggle: toggleGstin },
                 { label: 'Phone number (Call Us)', on: showPhone, saving: savingPhone, toggle: togglePhone },
               ] as const).map((row) => (
-                <div key={row.label} className="flex items-center justify-between py-2 border-t border-gray-100 first:border-t-0">
-                  <span className="text-sm font-medium text-gray-800">{row.label}</span>
+                <div key={row.label} className="flex items-center justify-between py-2 border-t border-hairline first:border-t-0">
+                  <span className="text-sm font-medium text-ink">{row.label}</span>
                   <div className="flex items-center gap-2">
-                    {row.saving && <Loader2 className="h-4 w-4 text-gray-400 animate-spin" />}
-                    <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full p-1">
+                    {row.saving && <Loader2 className="h-4 w-4 text-ink-4 animate-spin" />}
+                    <div className="inline-flex items-center gap-1 bg-paper-2 rounded-full p-1">
                       {([true, false] as const).map((v) => (
                         <button
                           key={String(v)}
@@ -544,7 +544,7 @@ export default function PageManagementPage() {
                           disabled={row.saving}
                           aria-pressed={row.on === v}
                           className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all disabled:opacity-60 ${
-                            row.on === v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                            row.on === v ? 'bg-paper text-ink shadow-sm' : 'text-ink-3 hover:text-ink-2'
                           }`}
                         >
                           {v ? 'Show' : 'Hide'}
@@ -557,11 +557,11 @@ export default function PageManagementPage() {
             </div>
 
             {/* Social links */}
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5">
+            <div className="bg-paper rounded-2xl border border-hairline shadow-sm p-4 sm:p-5">
               <div className="flex items-center justify-between gap-4 mb-4">
                 <div className="min-w-0">
-                  <h3 className="text-base font-bold text-gray-900">Social links</h3>
-                  <p className="text-sm text-gray-500 mt-0.5">
+                  <h3 className="text-base font-bold text-ink">Social links</h3>
+                  <p className="text-sm text-ink-3 mt-0.5">
                     Set the profile URLs and show/hide each in the footer. Only LinkedIn, Facebook &amp; Instagram are shown.
                   </p>
                 </div>
@@ -569,7 +569,7 @@ export default function PageManagementPage() {
                   type="button"
                   onClick={saveSocial}
                   disabled={savingSocial}
-                  className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
+                  className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-amber px-4 py-2 text-sm font-semibold text-white hover:brightness-90 disabled:opacity-50 transition-colors"
                 >
                   {savingSocial && <Loader2 className="h-4 w-4 animate-spin" />}
                   Save
@@ -578,15 +578,15 @@ export default function PageManagementPage() {
               <div className="space-y-3">
                 {(['linkedin', 'facebook', 'instagram'] as const).map((key) => (
                   <div key={key} className="flex flex-col sm:flex-row sm:items-center gap-2">
-                    <span className="w-24 shrink-0 text-sm font-medium text-gray-800 capitalize">{key}</span>
+                    <span className="w-24 shrink-0 text-sm font-medium text-ink capitalize">{key}</span>
                     <input
                       type="url"
                       value={social[key].url}
                       onChange={(e) => setSocial((s) => ({ ...s, [key]: { ...s[key], url: e.target.value } }))}
                       placeholder={`https://…/${key}`}
-                      className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none"
+                      className="flex-1 rounded-xl border border-hairline px-3 py-2 text-sm focus:border-amber focus:ring-2 focus:ring-amber/30 outline-none"
                     />
-                    <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full p-1 shrink-0">
+                    <div className="inline-flex items-center gap-1 bg-paper-2 rounded-full p-1 shrink-0">
                       {([true, false] as const).map((v) => (
                         <button
                           key={String(v)}
@@ -594,7 +594,7 @@ export default function PageManagementPage() {
                           onClick={() => setSocial((s) => ({ ...s, [key]: { ...s[key], enabled: v } }))}
                           aria-pressed={social[key].enabled === v}
                           className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
-                            social[key].enabled === v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                            social[key].enabled === v ? 'bg-paper text-ink shadow-sm' : 'text-ink-3 hover:text-ink-2'
                           }`}
                         >
                           {v ? 'Show' : 'Hide'}
@@ -607,18 +607,18 @@ export default function PageManagementPage() {
             </div>
 
             {/* Support widget */}
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5">
+            <div className="bg-paper rounded-2xl border border-hairline shadow-sm p-4 sm:p-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="min-w-0">
-                  <h3 className="text-base font-bold text-gray-900">Support widget</h3>
-                  <p className="text-sm text-gray-500 mt-0.5">
+                  <h3 className="text-base font-bold text-ink">Support widget</h3>
+                  <p className="text-sm text-ink-3 mt-0.5">
                     Choose the floating support button on the public site: the AI <strong>Chatbot</strong> or a
                     <strong> WhatsApp</strong> button that opens a chat with your company number directly. Takes effect immediately (no redeploy).
                   </p>
                 </div>
                 <div className="shrink-0 flex items-center gap-2">
-                  {savingSupport && <Loader2 className="h-4 w-4 text-gray-400 animate-spin" />}
-                  <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full p-1">
+                  {savingSupport && <Loader2 className="h-4 w-4 text-ink-4 animate-spin" />}
+                  <div className="inline-flex items-center gap-1 bg-paper-2 rounded-full p-1">
                     {(['chatbot', 'whatsapp'] as const).map((v) => (
                       <button
                         key={v}
@@ -627,7 +627,7 @@ export default function PageManagementPage() {
                         disabled={savingSupport}
                         aria-pressed={supportVariant === v}
                         className={`px-4 py-1.5 rounded-full text-sm font-semibold capitalize transition-all disabled:opacity-60 ${
-                          supportVariant === v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                          supportVariant === v ? 'bg-paper text-ink shadow-sm' : 'text-ink-3 hover:text-ink-2'
                         }`}
                       >
                         {v === 'whatsapp' ? 'WhatsApp' : 'Chatbot'}
@@ -638,9 +638,9 @@ export default function PageManagementPage() {
               </div>
 
               {/* WhatsApp number */}
-              <div className="mt-4 pt-4 border-t border-gray-100">
-                <label className="block text-sm font-semibold text-gray-800 mb-1.5">Company WhatsApp number</label>
-                <p className="text-xs text-gray-500 mb-2">
+              <div className="mt-4 pt-4 border-t border-hairline">
+                <label className="block text-sm font-semibold text-ink mb-1.5">Company WhatsApp number</label>
+                <p className="text-xs text-ink-3 mb-2">
                   International format, digits only — country code + number (e.g. <code>919876543210</code> for +91 98765 43210). Required for the WhatsApp widget.
                 </p>
                 <div className="flex items-center gap-2">
@@ -651,13 +651,13 @@ export default function PageManagementPage() {
                     onChange={(e) => setWhatsappInput(e.target.value.replace(/[^0-9]/g, ''))}
                     placeholder="919876543210"
                     maxLength={20}
-                    className="w-full max-w-xs rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none"
+                    className="w-full max-w-xs rounded-xl border border-hairline px-3 py-2 text-sm focus:border-amber focus:ring-2 focus:ring-amber/30 outline-none"
                   />
                   <button
                     type="button"
                     onClick={saveWhatsappNumber}
                     disabled={savingNumber || whatsappInput.replace(/[^0-9]/g, '') === whatsappNumber}
-                    className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
+                    className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-amber px-4 py-2 text-sm font-semibold text-white hover:brightness-90 disabled:opacity-50 transition-colors"
                   >
                     {savingNumber && <Loader2 className="h-4 w-4 animate-spin" />}
                     Save

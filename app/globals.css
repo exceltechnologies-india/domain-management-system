@@ -138,6 +138,19 @@ body {
     --amber:           20 91% 41%;
     --amber-soft:      28 100% 95%;
     --amber-ink:       18 87% 33%;
+
+    /* Status + info. `-soft` is the fill, `-ink` is the text that is readable
+       ON that fill — the plain value is too dark to sit on its own soft
+       background at small sizes. */
+    --emerald:         142 71% 28%;
+    --emerald-soft:    138 50% 92%;
+    --emerald-ink:     142 71% 22%;
+    --rose:            0 76% 50%;
+    --rose-soft:       0 86% 96%;
+    --rose-ink:        0 74% 37%;
+    --indigo:          240 65% 42%;
+    --indigo-soft:     232 100% 95%;
+    --indigo-ink:      244 55% 32%;
   }
 
   /* Landing-violet frontend theme. Applied to <html data-theme="landing"> by

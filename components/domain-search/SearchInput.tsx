@@ -53,7 +53,7 @@ export default function SearchInput({
           } ${
             theme === 'dark'
               ? 'bg-white/95 shadow-[0_10px_30px_rgba(0,0,0,0.18)] focus-within:bg-white focus-within:shadow-[0_12px_40px_rgba(0,0,0,0.22)]'
-              : 'bg-white border border-gray-200 shadow-[0_10px_30px_rgba(0,0,0,0.06)] focus-within:border-blue-400 focus-within:shadow-[0_12px_40px_rgba(96,165,250,0.18)]'
+              : 'bg-white border border-gray-200 shadow-[0_10px_30px_rgba(0,0,0,0.06)] focus-within:border-amber/40 focus-within:shadow-[0_12px_40px_rgba(96,165,250,0.18)]'
           }`}
         >
           <input

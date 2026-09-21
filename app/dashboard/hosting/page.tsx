@@ -169,7 +169,7 @@ export default function HostingPage() {
       key={hostingStats.username}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden"
+      className="bg-white rounded-2xl shadow-sm border border-hairline overflow-hidden"
     >
       {/* Trial countdown banner — surfaces when within 3 days of trial
           expiry so the customer sees a prominent nudge, not just the
@@ -186,22 +186,22 @@ export default function HostingPage() {
       />
 
       {/* Header */}
-      <div className="p-6 border-b border-gray-100 bg-gray-50/60">
+      <div className="p-6 border-b border-hairline bg-paper-2/60">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-start gap-4">
-            <div className="bg-blue-100 p-3 rounded-xl border border-blue-200">
-              <Server className="h-6 w-6 text-blue-600" />
+            <div className="bg-indigo-soft p-3 rounded-xl border border-indigo/25">
+              <Server className="h-6 w-6 text-amber-ink" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold text-gray-900">{hostingStats.domain}</h2>
+                <h2 className="text-xl font-bold text-ink">{hostingStats.domain}</h2>
               </div>
-              <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
+              <div className="flex items-center gap-2 text-sm text-ink-3 mt-1">
                 <span className="font-medium">{hostingStats.planDetails?.name || hostingStats.package || 'Standard'}</span>
                 {hostingStats.ip && (
                   <>
                     <span>•</span>
-                    <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">{hostingStats.ip}</span>
+                    <span className="font-mono text-xs bg-paper-2 px-1.5 py-0.5 rounded text-ink-2">{hostingStats.ip}</span>
                   </>
                 )}
               </div>
@@ -246,8 +246,8 @@ export default function HostingPage() {
               disabled={hostingStats.status === 'expired'}
               className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg transition-all shadow-sm hover:shadow text-sm font-medium ${
                 hostingStats.status === 'expired'
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-gray-900 text-white hover:bg-gray-800'
+                  ? 'bg-hairline text-ink-3 cursor-not-allowed'
+                  : 'bg-ink text-white hover:bg-ink-2'
               }`}
             >
               <Settings className="h-4 w-4" />
@@ -284,19 +284,19 @@ export default function HostingPage() {
       <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 
         {/* Disk Usage */}
-        <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-          <div className="flex items-center gap-2 text-gray-600 mb-3">
-            <HardDrive className="h-4 w-4 text-blue-500" />
+        <div className="bg-paper-2/60 rounded-xl p-4 border border-hairline">
+          <div className="flex items-center gap-2 text-ink-2 mb-3">
+            <HardDrive className="h-4 w-4 text-amber-ink" />
             <span className="text-sm font-medium">Disk Usage</span>
           </div>
           <div className="space-y-2">
-            <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+            <div className="w-full bg-hairline rounded-full h-2 overflow-hidden">
               <div
-                className="bg-blue-500 h-2 rounded-full transition-all duration-500"
+                className="bg-indigo h-2 rounded-full transition-all duration-500"
                 style={{ width: `${getUsagePercentage(hostingStats.usage.disk_used, hostingStats.usage.disk_limit)}%` }}
               ></div>
             </div>
-            <div className="flex justify-between text-xs text-gray-600 font-medium">
+            <div className="flex justify-between text-xs text-ink-2 font-medium">
               <span>{formatBytes(hostingStats.usage.disk_used, 'MB')}</span>
               <span>{formatBytes(hostingStats.usage.disk_limit, 'MB')}</span>
             </div>
@@ -304,19 +304,19 @@ export default function HostingPage() {
         </div>
 
         {/* Bandwidth */}
-        <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-          <div className="flex items-center gap-2 text-gray-600 mb-3">
+        <div className="bg-paper-2/60 rounded-xl p-4 border border-hairline">
+          <div className="flex items-center gap-2 text-ink-2 mb-3">
             <Wifi className="h-4 w-4 text-green-500" />
             <span className="text-sm font-medium">Bandwidth</span>
           </div>
           <div className="space-y-2">
-            <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+            <div className="w-full bg-hairline rounded-full h-2 overflow-hidden">
               <div
                 className="bg-green-500 h-2 rounded-full transition-all duration-500"
                 style={{ width: `${getUsagePercentage(hostingStats.usage.bandwidth_used, hostingStats.usage.bandwidth_limit)}%` }}
               ></div>
             </div>
-            <div className="flex justify-between text-xs text-gray-600 font-medium">
+            <div className="flex justify-between text-xs text-ink-2 font-medium">
               <span>{formatBytes(hostingStats.usage.bandwidth_used, 'MB')}</span>
               <span>{formatBytes(hostingStats.usage.bandwidth_limit, 'MB')}</span>
             </div>
@@ -324,9 +324,9 @@ export default function HostingPage() {
         </div>
 
         {/* Server Info */}
-        <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 col-span-1 md:col-span-2">
+        <div className="bg-paper-2/60 rounded-xl p-4 border border-hairline col-span-1 md:col-span-2">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
               <Shield className="h-4 w-4 text-purple-500" />
               Server Details
             </h3>
@@ -337,14 +337,14 @@ export default function HostingPage() {
 
           <div className="grid grid-cols-2 gap-4 text-xs">
             <div>
-              <p className="text-gray-500 mb-1">Nameserver 1</p>
-              <p className="font-mono text-gray-700 bg-white p-1.5 rounded border border-gray-200 truncate" title={hostingStats.nameservers[0]}>
+              <p className="text-ink-3 mb-1">Nameserver 1</p>
+              <p className="font-mono text-ink-2 bg-white p-1.5 rounded border border-hairline truncate" title={hostingStats.nameservers[0]}>
                 {hostingStats.nameservers[0] || 'N/A'}
               </p>
             </div>
             <div>
-              <p className="text-gray-500 mb-1">Nameserver 2</p>
-              <p className="font-mono text-gray-700 bg-white p-1.5 rounded border border-gray-200 truncate" title={hostingStats.nameservers[1]}>
+              <p className="text-ink-3 mb-1">Nameserver 2</p>
+              <p className="font-mono text-ink-2 bg-white p-1.5 rounded border border-hairline truncate" title={hostingStats.nameservers[1]}>
                 {hostingStats.nameservers[1] || 'N/A'}
               </p>
             </div>
@@ -391,7 +391,7 @@ export default function HostingPage() {
       )}
 
       {/* Footer Info */}
-      <div className="px-4 py-4 md:px-6 md:py-3 bg-gray-50 border-t border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs text-gray-500">
+      <div className="px-4 py-4 md:px-6 md:py-3 bg-paper-2/60 border-t border-hairline flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs text-ink-3">
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
           <div className="flex items-center gap-1.5">
             <Clock className="h-3 w-3 flex-shrink-0" />
@@ -413,9 +413,9 @@ export default function HostingPage() {
             future billing they cancel the plan. The user-facing auto-renew
             toggle was removed on operator request. Enforcement still lives on
             the API (rejects autoRenew=false for subscription plans). */}
-        <div className="flex items-center gap-4 mt-1 md:mt-0 pt-2 md:pt-0 border-t md:border-0 border-gray-200/60">
+        <div className="flex items-center gap-4 mt-1 md:mt-0 pt-2 md:pt-0 border-t md:border-0 border-hairline/60">
           <div className="flex items-center gap-1">
-            DA User: <span className="font-mono font-medium text-gray-700 truncate max-w-[150px] sm:max-w-[200px]">{hostingStats.username}</span>
+            DA User: <span className="font-mono font-medium text-ink-2 truncate max-w-[150px] sm:max-w-[200px]">{hostingStats.username}</span>
           </div>
         </div>
       </div>
@@ -429,12 +429,12 @@ export default function HostingPage() {
         {/* ── Page header ── */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-50 rounded-xl">
-              <Server className="h-5 w-5 text-blue-600" />
+            <div className="p-2 bg-indigo-soft rounded-xl">
+              <Server className="h-5 w-5 text-amber-ink" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">My Hosting</h1>
-              <p className="text-sm text-gray-500 mt-0.5">Manage your web hosting packages and servers</p>
+              <h1 className="text-2xl font-bold text-ink">My Hosting</h1>
+              <p className="text-sm text-ink-3 mt-0.5">Manage your web hosting packages and servers</p>
             </div>
           </div>
           <div className="flex gap-3">
@@ -467,15 +467,15 @@ export default function HostingPage() {
             </div>
           </div>
         ) : !hostingStatsList || hostingStatsList.length === 0 ? (
-          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm py-16 px-6 text-center">
-            <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Server className="h-7 w-7 text-blue-500" />
+          <div className="bg-white border border-hairline rounded-2xl shadow-sm py-16 px-6 text-center">
+            <div className="w-14 h-14 bg-indigo-soft rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Server className="h-7 w-7 text-amber-ink" />
             </div>
-            <h3 className="text-sm font-semibold text-gray-900 mb-1.5">No Hosting Services</h3>
-            <p className="text-sm text-gray-500 mb-5 max-w-sm mx-auto">You don't have any active hosting packages yet — pick a plan to get started.</p>
+            <h3 className="text-sm font-semibold text-ink mb-1.5">No Hosting Services</h3>
+            <p className="text-sm text-ink-3 mb-5 max-w-sm mx-auto">You don't have any active hosting packages yet — pick a plan to get started.</p>
             <button
               onClick={() => router.push('/hosting#pricing')}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber text-white text-sm font-semibold rounded-xl hover:brightness-90 transition-colors shadow-sm"
             >
               <Plus className="h-4 w-4" />
               Buy Hosting

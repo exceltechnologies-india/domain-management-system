@@ -29,7 +29,7 @@ interface FooterProps {
 export default function FooterClassic({ className = '' }: FooterProps) {
   const { social } = useSiteVisibility();
   return (
-    <footer className={`bg-gray-900 text-white ${className}`}>
+    <footer className={`bg-ink text-white ${className}`}>
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-8 mb-8">
           {/* Company Info */}
@@ -109,17 +109,17 @@ export default function FooterClassic({ className = '' }: FooterProps) {
             </p>
             <div className="flex flex-wrap gap-3 justify-center md:justify-start">
               {social.linkedin?.enabled && social.linkedin?.url && (
-                <a href={social.linkedin.url} target="_blank" rel="noopener noreferrer" className="bg-gray-800 hover:bg-blue-700 text-white p-2 rounded-lg transition-colors duration-200" aria-label="LinkedIn">
+                <a href={social.linkedin.url} target="_blank" rel="noopener noreferrer" className="bg-ink-2 hover:bg-blue-700 text-white p-2 rounded-lg transition-colors duration-200" aria-label="LinkedIn">
                   <LinkedinIcon className="h-5 w-5" />
                 </a>
               )}
               {social.facebook?.enabled && social.facebook?.url && (
-                <a href={social.facebook.url} target="_blank" rel="noopener noreferrer" className="bg-gray-800 hover:bg-blue-600 text-white p-2 rounded-lg transition-colors duration-200" aria-label="Facebook">
+                <a href={social.facebook.url} target="_blank" rel="noopener noreferrer" className="bg-ink-2 hover:bg-blue-600 text-white p-2 rounded-lg transition-colors duration-200" aria-label="Facebook">
                   <FacebookIcon className="h-5 w-5" />
                 </a>
               )}
               {social.instagram?.enabled && social.instagram?.url && (
-                <a href={social.instagram.url} target="_blank" rel="noopener noreferrer" className="bg-gray-800 hover:bg-pink-600 text-white p-2 rounded-lg transition-colors duration-200" aria-label="Instagram">
+                <a href={social.instagram.url} target="_blank" rel="noopener noreferrer" className="bg-ink-2 hover:bg-pink-600 text-white p-2 rounded-lg transition-colors duration-200" aria-label="Instagram">
                   <InstagramIcon className="h-5 w-5" />
                 </a>
               )}
@@ -127,7 +127,7 @@ export default function FooterClassic({ className = '' }: FooterProps) {
           </div>
         </div>
 
-        <div className="border-t border-gray-800 pt-8">
+        <div className="border-t border-ink-2 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center text-center md:text-left">
             <p className="text-gray-400 text-sm">
               © {new Date().getFullYear()} Anutech Digital Private Limited. All rights reserved.

@@ -57,8 +57,8 @@ interface ApiResponse {
 
 const MODE_META: Record<MandateMode, { label: string; classes: string; dot: string; icon: React.ElementType; iconBg: string; iconColor: string }> = {
   tokens: { label: "Tokens", classes: "bg-purple-100 text-purple-800", dot: "bg-purple-500", icon: Repeat, iconBg: "bg-purple-50", iconColor: "text-purple-600" },
-  subscriptions: { label: "Subscription", classes: "bg-blue-100 text-blue-800", dot: "bg-blue-500", icon: CreditCard, iconBg: "bg-blue-50", iconColor: "text-blue-600" },
-  manual: { label: "Manual", classes: "bg-gray-100 text-gray-700", dot: "bg-gray-400", icon: Clock, iconBg: "bg-gray-100", iconColor: "text-gray-600" },
+  subscriptions: { label: "Subscription", classes: "bg-indigo-soft text-indigo-ink", dot: "bg-indigo", icon: CreditCard, iconBg: "bg-indigo-soft", iconColor: "text-indigo-ink" },
+  manual: { label: "Manual", classes: "bg-paper-2 text-ink-2", dot: "bg-ink-4", icon: Clock, iconBg: "bg-paper-2", iconColor: "text-ink-2" },
 };
 
 const WINDOW_OPTIONS = [
@@ -88,7 +88,7 @@ function DuePill({ chargeDate }: { chargeDate: string }) {
     ? "bg-red-50 text-red-700 border-red-200"
     : soon
       ? "bg-amber-50 text-amber-700 border-amber-200"
-      : "bg-gray-50 text-gray-600 border-gray-200";
+      : "bg-paper-2/60 text-ink-2 border-hairline";
   const text = isPast ? `${Math.abs(d)}d ago` : d === 0 ? "today" : `in ${d}d`;
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${classes}`}>
@@ -154,7 +154,7 @@ export default function AdminRenewalsPage() {
   const overdueCount = data?.rows.filter((r) => daysUntil(r.chargeDate) < 0).length ?? 0;
 
   const statCards: Array<{ key: MandateMode | "all"; label: string; count: number; icon: React.ElementType; iconBg: string; iconColor: string }> = [
-    { key: "all", label: "All renewals", count: totalCount, icon: Layers, iconBg: "bg-blue-50", iconColor: "text-blue-600" },
+    { key: "all", label: "All renewals", count: totalCount, icon: Layers, iconBg: "bg-amber-soft", iconColor: "text-amber-ink" },
     { key: "tokens", label: "Tokens", count: counts?.tokens ?? 0, icon: Repeat, iconBg: MODE_META.tokens.iconBg, iconColor: MODE_META.tokens.iconColor },
     { key: "subscriptions", label: "Subscription", count: counts?.subscriptions ?? 0, icon: CreditCard, iconBg: MODE_META.subscriptions.iconBg, iconColor: MODE_META.subscriptions.iconColor },
     { key: "manual", label: "Manual", count: counts?.manual ?? 0, icon: Clock, iconBg: MODE_META.manual.iconBg, iconColor: MODE_META.manual.iconColor },
@@ -169,14 +169,14 @@ export default function AdminRenewalsPage() {
         {/* ── Page header ── */}
         <div className="flex items-start sm:items-center justify-between flex-col sm:flex-row gap-3 sm:gap-0">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-50 rounded-xl">
-              <CalendarClock className="h-5 w-5 text-blue-600" />
+            <div className="p-2 bg-amber-soft rounded-xl">
+              <CalendarClock className="h-5 w-5 text-amber-ink" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Renewals</h1>
-              <p className="text-sm text-gray-500 mt-0.5">
+              <h1 className="text-2xl font-serif font-bold text-ink">Renewals</h1>
+              <p className="text-sm text-ink-3 mt-0.5">
                 Upcoming hosting renewals across all billing rails. For per-attempt auto-charge state, see{" "}
-                <a href="/admin/recurring-charges" className="text-blue-600 hover:underline">Recurring Charges</a>.
+                <a href="/admin/recurring-charges" className="text-amber-ink hover:underline">Recurring Charges</a>.
               </p>
             </div>
           </div>
@@ -192,14 +192,14 @@ export default function AdminRenewalsPage() {
               <button
                 key={c.key}
                 onClick={() => setModeFilter(c.key)}
-                className={`bg-white border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${active ? "border-blue-300 ring-2 ring-blue-100" : "border-gray-200 hover:border-gray-300 hover:shadow-md"}`}
+                className={`bg-paper border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${active ? "border-amber ring-2 ring-amber-soft" : "border-hairline hover:border-hairline-strong hover:shadow-md"}`}
               >
                 <div className={`p-2 rounded-xl ${c.iconBg}`}>
                   <Icon className={`h-4 w-4 ${c.iconColor}`} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-gray-500">{c.label}</p>
-                  <p className="text-xl font-bold text-gray-900">{data ? c.count : "—"}</p>
+                  <p className="text-xs font-medium text-ink-3">{c.label}</p>
+                  <p className="text-xl font-bold text-ink">{data ? c.count : "—"}</p>
                 </div>
               </button>
             );
@@ -207,12 +207,12 @@ export default function AdminRenewalsPage() {
         </div>
 
         {/* ── Renewals card ── */}
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden">
           {/* Card header — title, revenue chip, window segmented control */}
-          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 flex items-center justify-between gap-4 flex-wrap">
+          <div className="px-6 py-4 border-b border-hairline bg-paper-2/60 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-2.5 flex-wrap">
-              <CalendarClock className="h-4 w-4 text-gray-500" />
-              <h3 className="text-sm font-semibold text-gray-900">Upcoming Renewals</h3>
+              <CalendarClock className="h-4 w-4 text-ink-3" />
+              <h3 className="text-sm font-semibold text-ink">Upcoming Renewals</h3>
               {data && data.rows.length > 0 && (
                 <>
                   <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
@@ -226,12 +226,12 @@ export default function AdminRenewalsPage() {
                 </>
               )}
             </div>
-            <div className="inline-flex bg-gray-100 rounded-xl p-1">
+            <div className="inline-flex bg-paper-2 rounded-xl p-1">
               {WINDOW_OPTIONS.map((w) => (
                 <button
                   key={w.value}
                   onClick={() => setWindowFilter(w.value)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${windowFilter === w.value ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${windowFilter === w.value ? "bg-paper text-ink shadow-sm" : "text-ink-3 hover:text-ink-2"}`}
                 >
                   {w.label}
                 </button>
@@ -247,65 +247,65 @@ export default function AdminRenewalsPage() {
             {error && !isAuthError && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4 flex items-center justify-between gap-3 text-sm">
                 <div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 shrink-0" /> {error}</div>
-                <button onClick={() => void fetchData()} className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white border border-red-300 text-red-700 hover:bg-red-100 shrink-0">Retry</button>
+                <button onClick={() => void fetchData()} className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-paper border border-red-300 text-red-700 hover:bg-red-100 shrink-0">Retry</button>
               </div>
             )}
 
             {loading && !data ? (
-              <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-600 mb-3" />
+              <div className="flex flex-col items-center justify-center py-20 text-ink-4">
+                <Loader2 className="w-8 h-8 animate-spin text-amber-ink mb-3" />
                 <span className="text-sm">Loading renewals…</span>
               </div>
             ) : data && data.rows.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="p-3 bg-gray-50 rounded-2xl mb-3">
-                  <CalendarClock className="h-6 w-6 text-gray-400" />
+                <div className="p-3 bg-paper-2/60 rounded-2xl mb-3">
+                  <CalendarClock className="h-6 w-6 text-ink-4" />
                 </div>
-                <p className="text-sm font-medium text-gray-900">No renewals due in this window</p>
-                <p className="text-xs text-gray-500 mt-1">Try widening the window or switching billing mode.</p>
+                <p className="text-sm font-medium text-ink">No renewals due in this window</p>
+                <p className="text-xs text-ink-3 mt-1">Try widening the window or switching billing mode.</p>
               </div>
             ) : data ? (
               <div className="overflow-x-auto -mx-4 sm:-mx-6">
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                <table className="min-w-full divide-y divide-hairline text-sm">
                   <thead>
                     <tr className="text-left">
-                      <th className="px-4 sm:px-6 py-2.5 font-semibold text-gray-400 uppercase text-[11px] tracking-wide">Charge date</th>
-                      <th className="px-4 py-2.5 font-semibold text-gray-400 uppercase text-[11px] tracking-wide">Domain</th>
-                      <th className="px-4 py-2.5 font-semibold text-gray-400 uppercase text-[11px] tracking-wide">Customer</th>
-                      <th className="px-4 py-2.5 font-semibold text-gray-400 uppercase text-[11px] tracking-wide">Plan</th>
-                      <th className="px-4 py-2.5 text-right font-semibold text-gray-400 uppercase text-[11px] tracking-wide">Amount</th>
-                      <th className="px-4 py-2.5 font-semibold text-gray-400 uppercase text-[11px] tracking-wide">Mode</th>
-                      <th className="px-4 sm:px-6 py-2.5 font-semibold text-gray-400 uppercase text-[11px] tracking-wide">Status</th>
+                      <th className="px-4 sm:px-6 py-2.5 font-semibold text-ink-4 uppercase text-[11px] tracking-wide">Charge date</th>
+                      <th className="px-4 py-2.5 font-semibold text-ink-4 uppercase text-[11px] tracking-wide">Domain</th>
+                      <th className="px-4 py-2.5 font-semibold text-ink-4 uppercase text-[11px] tracking-wide">Customer</th>
+                      <th className="px-4 py-2.5 font-semibold text-ink-4 uppercase text-[11px] tracking-wide">Plan</th>
+                      <th className="px-4 py-2.5 text-right font-semibold text-ink-4 uppercase text-[11px] tracking-wide">Amount</th>
+                      <th className="px-4 py-2.5 font-semibold text-ink-4 uppercase text-[11px] tracking-wide">Mode</th>
+                      <th className="px-4 sm:px-6 py-2.5 font-semibold text-ink-4 uppercase text-[11px] tracking-wide">Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-hairline">
                     {data.rows.map((row) => {
                       const meta = MODE_META[row.mandateMode];
                       return (
-                        <tr key={row.hostingId} className="hover:bg-gray-50/70 transition-colors">
+                        <tr key={row.hostingId} className="hover:bg-paper-2 transition-colors">
                           <td className="px-4 sm:px-6 py-3 whitespace-nowrap">
-                            <div className="font-medium text-gray-900 text-xs">{formatDate(row.chargeDate)}</div>
+                            <div className="font-medium text-ink text-xs">{formatDate(row.chargeDate)}</div>
                             <div className="mt-1"><DuePill chargeDate={row.chargeDate} /></div>
                           </td>
                           <td className="px-4 py-3">
-                            <div className="font-medium text-gray-900">{row.domainName}</div>
+                            <div className="font-medium text-ink">{row.domainName}</div>
                             {row.isTrial && (
                               <span className="inline-block mt-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-100 text-amber-700 border border-amber-200">TRIAL</span>
                             )}
                           </td>
                           <td className="px-4 py-3">
-                            <div className="text-gray-900">{row.userName || row.userEmail}</div>
-                            {row.userName && <div className="text-xs text-gray-500 truncate max-w-[180px]">{row.userEmail}</div>}
+                            <div className="text-ink">{row.userName || row.userEmail}</div>
+                            {row.userName && <div className="text-xs text-ink-3 truncate max-w-[180px]">{row.userEmail}</div>}
                           </td>
-                          <td className="px-4 py-3 text-gray-700">{row.planName}</td>
-                          <td className="px-4 py-3 text-right font-mono text-gray-900 whitespace-nowrap">{money(row.planPrice, row.planCurrency)}</td>
+                          <td className="px-4 py-3 text-ink-2">{row.planName}</td>
+                          <td className="px-4 py-3 text-right font-mono text-ink whitespace-nowrap">{money(row.planPrice, row.planCurrency)}</td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${meta.classes}`}>
                               <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
                               {meta.label}
                             </span>
                             {row.mandateMode === "tokens" && (
-                              <a href="/admin/recurring-charges" className="ml-2 text-blue-600 hover:underline inline-flex items-center text-xs" title="See per-attempt MIT state">
+                              <a href="/admin/recurring-charges" className="ml-2 text-amber-ink hover:underline inline-flex items-center text-xs" title="See per-attempt MIT state">
                                 attempts <ExternalLink className="w-3 h-3 ml-0.5" />
                               </a>
                             )}
@@ -314,7 +314,7 @@ export default function AdminRenewalsPage() {
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${
                               row.hostingStatus === "expired" ? "bg-red-100 text-red-800"
                                 : row.hostingStatus === "active" ? "bg-green-100 text-green-800"
-                                : "bg-gray-100 text-gray-700"
+                                : "bg-paper-2 text-ink-2"
                             }`}>
                               {row.hostingStatus}
                             </span>

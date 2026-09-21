@@ -885,12 +885,12 @@ export default function AdminHostingPage() {
         {/* ── Page header ── */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-50 rounded-xl">
-              <Server className="h-5 w-5 text-blue-600" />
+            <div className="p-2 bg-amber-soft rounded-xl">
+              <Server className="h-5 w-5 text-amber-ink" />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-2xl font-bold text-gray-900">Hosting Management</h1>
+                <h1 className="text-2xl font-serif font-bold text-ink">Hosting Management</h1>
                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
                   daMode === 'Local' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                   daMode === 'Disconnected' ? 'bg-red-50 text-red-700 border-red-200' :
@@ -902,14 +902,14 @@ export default function AdminHostingPage() {
                   {daMode}
                 </span>
               </div>
-              <p className="text-sm text-gray-500 mt-0.5">Monitor and manage client hosting packages</p>
+              <p className="text-sm text-ink-3 mt-0.5">Monitor and manage client hosting packages</p>
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:flex gap-2 w-full md:w-auto">
             <button
               onClick={handleExportCsv}
               disabled={isExporting || (hostingData.length === 0 && !serverCounts?.totalHostings)}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-ink-2 bg-paper border border-hairline rounded-xl hover:bg-paper-2 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-paper"
               title={hostingData.length === 0 && !serverCounts?.totalHostings ? 'Nothing to export' : 'Export all hosting accounts as a CSV file'}
             >
               {isExporting ? (
@@ -921,7 +921,7 @@ export default function AdminHostingPage() {
             </button>
             <button
               onClick={() => router.push('/admin/hosting/pending')}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors shadow-sm"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-ink-2 bg-paper border border-hairline rounded-xl hover:bg-paper-2 transition-colors shadow-sm"
               title="View failed provisions"
             >
               <Clock className="h-4 w-4" />
@@ -929,14 +929,14 @@ export default function AdminHostingPage() {
             </button>
             <button
               onClick={() => router.push('/admin/hosting/packages')}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-xl hover:bg-blue-100 transition-colors"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-amber-ink bg-amber-soft border border-amber/25 rounded-xl hover:brightness-95 transition-all"
             >
               <Package className="h-4 w-4" />
               Packages
             </button>
             <button
               onClick={() => setShowProvisionModal(true)}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-amber rounded-xl hover:brightness-90 transition-all shadow-sm"
             >
               <Plus className="h-4 w-4" />
               Create Hosting
@@ -946,7 +946,7 @@ export default function AdminHostingPage() {
 
         {/* ── DirectAdmin server-issue banner ── */}
         {isServerDown && (
-          <div className="bg-white border border-red-200 rounded-2xl shadow-sm p-5 flex items-start gap-3">
+          <div className="bg-paper border border-red-200 rounded-2xl shadow-sm p-5 flex items-start gap-3">
             <div className="p-2 bg-red-50 rounded-xl shrink-0">
               <AlertTriangle className="h-4 w-4 text-red-600" />
             </div>
@@ -965,14 +965,14 @@ export default function AdminHostingPage() {
         {/* ── Hosting list card (filters folded into header) ── */}
         <div
           ref={tableTopRef}
-          className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden min-h-[400px] scroll-mt-20"
+          className="bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden min-h-[400px] scroll-mt-20"
         >
           {/* Card header */}
-          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="px-6 py-4 border-b border-hairline bg-paper-2/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 flex-wrap">
-              <HardDrive className="h-4 w-4 text-gray-500" />
-              <h3 className="text-sm font-semibold text-gray-900">All Hosting Accounts</h3>
-              <span className="inline-flex items-center text-xs font-medium text-gray-500 bg-white border border-gray-200 px-2 py-0.5 rounded-full">
+              <HardDrive className="h-4 w-4 text-ink-3" />
+              <h3 className="text-sm font-semibold text-ink">All Hosting Accounts</h3>
+              <span className="inline-flex items-center text-xs font-medium text-ink-3 bg-paper border border-hairline px-2 py-0.5 rounded-full">
                 {/* No filter active → show server-side total (the true
                     dataset size, not the Pass-1 slice). Filter active →
                     show filtered count (matches what's rendered). Same
@@ -998,7 +998,7 @@ export default function AdminHostingPage() {
                   setCustomerTypeFilter(e.target.value as 'all' | 'trial' | 'paid');
                   setCurrentPage(1);
                 }}
-                className="text-sm bg-white border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                className="text-sm bg-paper border border-hairline rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber focus:border-transparent transition-shadow"
                 title="Filter by customer type"
               >
                 <option value="all">All customers</option>
@@ -1006,12 +1006,12 @@ export default function AdminHostingPage() {
                 <option value="paid">Paid only</option>
               </select>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-4" />
                 <input
                   type="text"
                   placeholder={isDataLoading || isBackgroundFetching ? 'Loading dataset — please wait…' : 'Search by domain…'}
                   disabled={isDataLoading || isBackgroundFetching}
-                  className="w-full sm:w-80 pl-10 pr-9 py-2 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="w-full sm:w-80 pl-10 pr-9 py-2 text-sm bg-paper border border-hairline rounded-xl focus:outline-none focus:ring-2 focus:ring-amber focus:border-transparent transition-shadow disabled:opacity-60 disabled:cursor-not-allowed"
                   value={searchTerm}
                   onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                 />
@@ -1028,7 +1028,7 @@ export default function AdminHostingPage() {
                     className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none inline-flex"
                     aria-label="Loading more accounts"
                   >
-                    <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                    <Loader2 className="h-4 w-4 animate-spin text-amber" />
                   </span>
                 )}
               </div>
@@ -1048,15 +1048,15 @@ export default function AdminHostingPage() {
           {isDataLoading ? (
             <AdminTableRowsSkeleton rows={6} cols={6} />
           ) : filteredData.length === 0 ? (
-            <div className="p-12 text-center text-gray-500">
+            <div className="p-12 text-center text-ink-3">
               {isBackgroundFetching && searchTerm.trim().length > 0 ? (
                 <span className="inline-flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                  <Loader2 className="h-4 w-4 animate-spin text-amber" />
                   Searching for &quot;{searchTerm}&quot;…
                 </span>
               ) : isBackgroundFetching ? (
                 <span className="inline-flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                  <Loader2 className="h-4 w-4 animate-spin text-amber" />
                   Loading more accounts…
                 </span>
               ) : customerTypeFilter === 'trial' && trialCount === 0 ? (
@@ -1073,41 +1073,41 @@ export default function AdminHostingPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-hairline">
+                <thead className="bg-paper-2/60">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User & Domain</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Package / Server</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dates</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Usage (GB)</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider sticky right-0 bg-gray-50 z-20 shadow-[-1px_0_0_rgba(0,0,0,0.1)]">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase tracking-wider">User & Domain</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase tracking-wider">Package / Server</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase tracking-wider">Dates</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase tracking-wider hidden sm:table-cell">Usage (GB)</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-ink-3 uppercase tracking-wider sticky right-0 bg-paper-2/60 z-20 shadow-[-1px_0_0_rgba(0,0,0,0.1)]">Actions</th>
                   </tr>
                 </thead>
                 <tbody
-                  className={`bg-white divide-y divide-gray-200 transition-opacity duration-150 ${
+                  className={`bg-paper divide-y divide-hairline transition-opacity duration-150 ${
                     isPaginating ? 'opacity-60' : 'opacity-100'
                   }`}
                 >
                   {pagedData.map((item) => (
                     <tr
                       key={item.id}
-                      className="hover:bg-gray-50 group/row cursor-context-menu"
+                      className="hover:bg-paper-2 group/row cursor-context-menu"
                       onContextMenu={(e) => handleContextMenu(e, item)}
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
-                          <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center font-bold ${item.isUnlinked ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
+                          <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center font-bold ${item.isUnlinked ? 'bg-orange-100 text-orange-600' : 'bg-amber-soft text-amber-ink'}`}>
                             {item.isUnlinked ? <Link2Off className="h-5 w-5" /> : item.user.name.charAt(0)}
                           </div>
                           <div className="ml-4">
                             <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-gray-900">{item.domain}</span>
+                              <span className="text-sm font-medium text-ink">{item.domain}</span>
                               <a
                                 href={`http://${item.domain}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-gray-400 hover:text-blue-600 transition-colors"
+                                className="text-ink-4 hover:text-amber-ink transition-colors"
                                 title="Open Website"
                                 onClick={(e) => e.stopPropagation()}
                               >
@@ -1141,24 +1141,24 @@ export default function AdminHostingPage() {
                                 </span>
                               )}
                             </div>
-                            <div className="text-sm text-gray-500">{item.user.email}</div>
+                            <div className="text-sm text-ink-3">{item.user.email}</div>
                             {item.status === 'error' ? (
                               <div className="text-xs text-red-500 font-mono mt-1 max-w-[200px] truncate" title={item.error}>
                                 Err: {item.error}
                               </div>
                             ) : (
-                              <div className="text-xs text-gray-400">DA: {item.daUsername}</div>
+                              <div className="text-xs text-ink-4">DA: {item.daUsername}</div>
                             )}
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900 font-medium">{item.package}</div>
+                        <div className="text-sm text-ink font-medium">{item.package}</div>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded border border-gray-200">
+                          <span className="text-[10px] bg-paper-2 text-ink-3 px-1.5 py-0.5 rounded border border-hairline">
                             PHP {item.phpVersion || 'Default'}
                           </span>
-                          <span className="text-xs text-gray-400">IP: {item.serverIp}</span>
+                          <span className="text-xs text-ink-4">IP: {item.serverIp}</span>
                         </div>
                         <div className="flex items-center gap-1 mt-1.5">
                           {item.razorpayTokenId ? (
@@ -1170,14 +1170,14 @@ export default function AdminHostingPage() {
                             </span>
                           ) : item.subscriptionId ? (
                             <span
-                              className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200 font-medium"
+                              className="text-[10px] bg-indigo-soft text-indigo-ink px-1.5 py-0.5 rounded border border-indigo/25 font-medium"
                               title="Razorpay Subscriptions API — plan-based mandate. Renewals are driven by Razorpay webhooks."
                             >
                               SUBSCRIPTION
                             </span>
                           ) : (
                             <span
-                              className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded border border-gray-200 font-medium"
+                              className="text-[10px] bg-paper-2 text-ink-3 px-1.5 py-0.5 rounded border border-hairline font-medium"
                               title="Manual billing — no recurring mandate on file. Renewals require operator action."
                             >
                               MANUAL
@@ -1191,12 +1191,12 @@ export default function AdminHostingPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex flex-col gap-1">
-                          <div className="text-xs text-gray-600 flex items-center gap-1">
-                            <Clock className="h-3 w-3 text-gray-400" />
+                          <div className="text-xs text-ink-2 flex items-center gap-1">
+                            <Clock className="h-3 w-3 text-ink-4" />
                             Created: <span className="font-medium cursor-help" title={getRelativeTime(item.createdDate)}>{formatIndianDateTime(item.createdDate)}</span>
                           </div>
-                          <div className="text-xs text-gray-600 flex items-center gap-1">
-                            <AlertTriangle className={`h-3 w-3 ${item.expiryDate && new Date(item.expiryDate) < new Date() ? 'text-red-500' : 'text-gray-400'}`} />
+                          <div className="text-xs text-ink-2 flex items-center gap-1">
+                            <AlertTriangle className={`h-3 w-3 ${item.expiryDate && new Date(item.expiryDate) < new Date() ? 'text-red-500' : 'text-ink-4'}`} />
                             Expires: <span className={`font-medium cursor-help ${item.expiryDate && new Date(item.expiryDate) < new Date() ? 'text-red-600' : ''}`} title={getRelativeTime(item.expiryDate)}>{formatIndianDateTime(item.expiryDate)}</span>
                           </div>
                         </div>
@@ -1223,12 +1223,12 @@ export default function AdminHostingPage() {
                         <div className="flex flex-col gap-2 w-40">
                           {/* Disk */}
                           <div className="flex flex-col gap-1">
-                            <div className="flex justify-between text-xs text-gray-500">
+                            <div className="flex justify-between text-xs text-ink-3">
                               <span>Disk: {formatBytes(item.usage?.disk, 'MB')} / {formatBytes(item.usage?.diskLimit, 'MB')}</span>
                             </div>
-                            <div className="w-full bg-gray-200 h-1.5 rounded-full overflow-hidden">
+                            <div className="w-full bg-hairline h-1.5 rounded-full overflow-hidden">
                               <div
-                                className={`h-full ${item.status === 'error' ? 'bg-red-400' : 'bg-blue-600'}`}
+                                className={`h-full ${item.status === 'error' ? 'bg-red-400' : 'bg-amber'}`}
                                 style={{
                                   width: item.status === 'error'
                                     ? '100%'
@@ -1239,10 +1239,10 @@ export default function AdminHostingPage() {
                           </div>
                           {/* BW */}
                           <div className="flex flex-col gap-1">
-                            <div className="flex justify-between text-xs text-gray-500">
+                            <div className="flex justify-between text-xs text-ink-3">
                               <span>BW: {formatBytes(item.usage?.bandwidth, 'MB')} / {formatBytes(item.usage?.bandwidthLimit, 'MB')}</span>
                             </div>
-                            <div className="w-full bg-gray-200 h-1.5 rounded-full overflow-hidden">
+                            <div className="w-full bg-hairline h-1.5 rounded-full overflow-hidden">
                               <div
                                 className={`h-full ${item.status === 'error' ? 'bg-red-400' : 'bg-green-600'}`}
                                 style={{
@@ -1255,13 +1255,13 @@ export default function AdminHostingPage() {
                           </div>
                         </div>
                       </td>
-                      <td className={`px-6 py-4 whitespace-nowrap text-right text-sm font-medium sticky right-0 shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.05)] border-l border-gray-100 transition-all ${menuData?.id === item.id ? 'z-[60] bg-blue-50' : 'z-10 bg-white group-hover/row:bg-gray-50'}`}>
+                      <td className={`px-6 py-4 whitespace-nowrap text-right text-sm font-medium sticky right-0 shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.05)] border-l border-hairline transition-all ${menuData?.id === item.id ? 'z-[60] bg-amber-soft' : 'z-10 bg-paper group-hover/row:bg-paper-2'}`}>
                         <div className="inline-flex items-center justify-end gap-1.5">
                           {/* Quick: View details */}
                           <button
                             onClick={() => handleViewDetails(item.daUsername)}
                             title="View details"
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-amber-ink bg-amber-soft hover:brightness-95 border border-amber/25 rounded-lg transition-all"
                           >
                             <Eye className="h-3.5 w-3.5" />
                             <span className="hidden lg:inline">View</span>
@@ -1290,8 +1290,8 @@ export default function AdminHostingPage() {
                             title="More actions"
                             className={`inline-flex items-center justify-center w-7 h-7 rounded-lg transition-colors ${
                               menuData?.id === item.id
-                                ? 'text-blue-700 bg-blue-100'
-                                : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+                                ? 'text-amber-ink bg-amber-soft'
+                                : 'text-ink-4 hover:text-ink-2 hover:bg-paper-2'
                             }`}
                           >
                             <MoreVertical className="h-4 w-4" />
@@ -1313,13 +1313,13 @@ export default function AdminHostingPage() {
                 uncluttered; can revisit if we ever hit 100+ accounts.
               */}
               {totalPages > 1 && (
-                <div className="px-6 py-3 border-t border-gray-100 bg-gray-50/40 flex items-center justify-between gap-3 text-xs">
-                  <div className="text-gray-600">
-                    Showing <span className="font-medium text-gray-900">{(safePage - 1) * PAGE_SIZE + 1}</span>
+                <div className="px-6 py-3 border-t border-hairline bg-paper-2/40 flex items-center justify-between gap-3 text-xs">
+                  <div className="text-ink-2">
+                    Showing <span className="font-medium text-ink">{(safePage - 1) * PAGE_SIZE + 1}</span>
                     {" – "}
-                    <span className="font-medium text-gray-900">{Math.min(safePage * PAGE_SIZE, filteredData.length)}</span>
+                    <span className="font-medium text-ink">{Math.min(safePage * PAGE_SIZE, filteredData.length)}</span>
                     {" of "}
-                    <span className="font-medium text-gray-900">{filteredData.length}</span> account{filteredData.length === 1 ? '' : 's'}
+                    <span className="font-medium text-ink">{filteredData.length}</span> account{filteredData.length === 1 ? '' : 's'}
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -1339,16 +1339,16 @@ export default function AdminHostingPage() {
                         tableTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                       }}
                       disabled={safePage === 1 || isPaginating}
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-hairline bg-paper text-ink-2 hover:bg-paper-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       aria-label="Previous page"
                     >
                       <ChevronLeft className="h-3.5 w-3.5" />
                       Previous
                     </button>
-                    <span className="text-gray-500 px-1">
-                      Page <span className="font-medium text-gray-900">{safePage}</span> of <span className="font-medium text-gray-900">{totalPages}</span>
+                    <span className="text-ink-3 px-1">
+                      Page <span className="font-medium text-ink">{safePage}</span> of <span className="font-medium text-ink">{totalPages}</span>
                       {isPaginating && (
-                        <span className="ml-1.5 inline-block animate-pulse text-blue-600" aria-label="Loading next page">…</span>
+                        <span className="ml-1.5 inline-block animate-pulse text-amber-ink" aria-label="Loading next page">…</span>
                       )}
                     </span>
                     <button
@@ -1360,7 +1360,7 @@ export default function AdminHostingPage() {
                         tableTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                       }}
                       disabled={safePage === totalPages || isPaginating}
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-hairline bg-paper text-ink-2 hover:bg-paper-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       aria-label="Next page"
                     >
                       Next
@@ -1377,25 +1377,25 @@ export default function AdminHostingPage() {
         {/* Provision Modal */}
         {showProvisionModal && mounted && createPortal(
           <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-              <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-                <h3 className="text-lg font-bold text-gray-900">Provision Hosting Account</h3>
+            <div className="bg-paper rounded-xl shadow-xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+              <div className="p-6 border-b border-hairline flex justify-between items-center">
+                <h3 className="text-lg font-bold text-ink">Provision Hosting Account</h3>
                 <button
                   onClick={() => setShowProvisionModal(false)}
-                  className="text-gray-400 hover:text-gray-600 p-1 hover:bg-gray-100 rounded-full transition-colors"
+                  className="text-ink-4 hover:text-ink-2 p-1 hover:bg-paper-2 rounded-full transition-colors"
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
               {isLoadingProvisionDeps ? (
-                <div className="p-12 text-center text-gray-500">
-                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2 text-blue-600" />
+                <div className="p-12 text-center text-ink-3">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2 text-amber-ink" />
                   Loading requirements...
                 </div>
               ) : (
                 <form onSubmit={handleProvisionHosting} className="p-6 space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Select User</label>
+                    <label className="block text-sm font-medium text-ink-2 mb-1">Select User</label>
                     <select
                       required
                       value={selectedUserId}
@@ -1410,7 +1410,7 @@ export default function AdminHostingPage() {
                           setDaUsername(`u${prefix}${random}`);
                         }
                       }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      className="w-full px-3 py-2 border border-hairline-strong rounded-lg focus:ring-2 focus:ring-amber outline-none"
                     >
                       <option value="">-- Choose User --</option>
                       {usersNoHosting.map((u) => (
@@ -1422,19 +1422,19 @@ export default function AdminHostingPage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Domain Name</label>
+                    <label className="block text-sm font-medium text-ink-2 mb-1">Domain Name</label>
                     <input
                       type="text"
                       required
                       value={provisionDomain}
                       onChange={(e) => setProvisionDomain(e.target.value)}
                       placeholder="e.g., example.com"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                      className="w-full px-3 py-2 border border-hairline-strong rounded-lg focus:ring-2 focus:ring-amber outline-none text-sm"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Select Package</label>
+                    <label className="block text-sm font-medium text-ink-2 mb-1">Select Package</label>
                     <select
                       required
                       value={selectedPackage}
@@ -1442,7 +1442,7 @@ export default function AdminHostingPage() {
                         const pkgName = e.target.value;
                         setSelectedPackage(pkgName);
                       }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      className="w-full px-3 py-2 border border-hairline-strong rounded-lg focus:ring-2 focus:ring-amber outline-none"
                     >
                       <option value="">-- Choose Package --</option>
                       {availablePackages.map((pkg: HostingPackage) => (
@@ -1455,7 +1455,7 @@ export default function AdminHostingPage() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Validity Period</label>
+                      <label className="block text-sm font-medium text-ink-2 mb-1">Validity Period</label>
                       <select
                         required
                         value={`${validityPeriod}-${validityUnit || 'months'}`}
@@ -1463,7 +1463,7 @@ export default function AdminHostingPage() {
                           const [period] = e.target.value.split('-');
                           setValidityPeriod(Number(period));
                         }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                        className="w-full px-3 py-2 border border-hairline-strong rounded-lg focus:ring-2 focus:ring-amber outline-none"
                       >
                         <option value="1-months">1 Month</option>
                         <option value="12-months">12 Months (1 Year)</option>
@@ -1471,7 +1471,7 @@ export default function AdminHostingPage() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Price (INR)</label>
+                      <label className="block text-sm font-medium text-ink-2 mb-1">Price (INR)</label>
                       <input
                         type="number"
                         required
@@ -1479,13 +1479,13 @@ export default function AdminHostingPage() {
                         step="any"
                         value={provisionPrice}
                         onChange={(e) => setProvisionPrice(Number(e.target.value))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                        className="w-full px-3 py-2 border border-hairline-strong rounded-lg focus:ring-2 focus:ring-amber outline-none text-sm"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1 flex justify-between items-center">
+                    <label className="block text-sm font-medium text-ink-2 mb-1 flex justify-between items-center">
                       <span>DirectAdmin Username</span>
                       <button
                         type="button"
@@ -1495,7 +1495,7 @@ export default function AdminHostingPage() {
                           for (let i = 0; i < 7; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
                           setDaUsername(result);
                         }}
-                        className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                        className="text-xs text-amber-ink hover:text-amber flex items-center gap-1"
                       >
                         <RefreshCw className="h-3 w-3" /> Generate
                       </button>
@@ -1509,13 +1509,13 @@ export default function AdminHostingPage() {
                         placeholder="e.g., da_user123"
                         pattern="^[a-zA-Z][a-zA-Z0-9]*$"
                         maxLength={10}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm pr-10"
+                        className="w-full px-3 py-2 border border-hairline-strong rounded-lg focus:ring-2 focus:ring-amber outline-none text-sm pr-10"
                       />
                       <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                        <Shield className="h-4 w-4 text-gray-400" />
+                        <Shield className="h-4 w-4 text-ink-4" />
                       </div>
                     </div>
-                    <p className="text-[10px] text-gray-500 mt-1">
+                    <p className="text-[10px] text-ink-3 mt-1">
                       Starts with letter, alphanumeric only, 3-10 chars.
                     </p>
                   </div>
@@ -1524,14 +1524,14 @@ export default function AdminHostingPage() {
                     <button
                       type="button"
                       onClick={() => setShowProvisionModal(false)}
-                      className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
+                      className="flex-1 px-4 py-2 border border-hairline-strong text-ink-2 rounded-lg hover:bg-paper-2 font-medium transition-colors"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
                       disabled={isProvisioning || !selectedUserId || !availablePackages.length}
-                      className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 flex justify-center items-center gap-2 transition-all shadow-sm shadow-blue-200"
+                      className="flex-1 px-4 py-2 bg-amber text-white rounded-lg hover:brightness-90 font-medium disabled:opacity-50 flex justify-center items-center gap-2 transition-all shadow-sm shadow-amber/20"
                     >
                       {isProvisioning ? (
                         <>
@@ -1553,40 +1553,40 @@ export default function AdminHostingPage() {
         {/* Change Package Modal */}
         {showChangePackageModal && changePackageUser && mounted && createPortal(
           <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-              <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-                <h3 className="text-lg font-bold text-gray-900">Change Hosting Package</h3>
+            <div className="bg-paper rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+              <div className="p-6 border-b border-hairline flex justify-between items-center">
+                <h3 className="text-lg font-bold text-ink">Change Hosting Package</h3>
                 <button
                   onClick={() => setShowChangePackageModal(false)}
-                  className="text-gray-400 hover:text-gray-600 p-1 hover:bg-gray-100 rounded-full transition-colors"
+                  className="text-ink-4 hover:text-ink-2 p-1 hover:bg-paper-2 rounded-full transition-colors"
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
 
               {isLoadingProvisionDeps ? (
-                <div className="p-12 text-center text-gray-500">
-                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2 text-blue-600" />
+                <div className="p-12 text-center text-ink-3">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2 text-amber-ink" />
                   Loading requirements...
                 </div>
               ) : (
                 <form onSubmit={submitChangePackage} className="p-6 space-y-4">
-                  <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 mb-4">
-                    <p className="text-sm text-blue-800">
+                  <div className="bg-indigo-soft p-3 rounded-lg border border-indigo/25 mb-4">
+                    <p className="text-sm text-indigo-ink">
                       Changing package for user <strong>{changePackageUser.username}</strong>
                     </p>
-                    <p className="text-xs text-blue-600 mt-1">
+                    <p className="text-xs text-indigo-ink mt-1">
                       Current Package: {changePackageUser.currentPackage}
                     </p>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Select New Package</label>
+                    <label className="block text-sm font-medium text-ink-2 mb-1">Select New Package</label>
                     <select
                       required
                       value={newPackage}
                       onChange={(e) => setNewPackage(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      className="w-full px-3 py-2 border border-hairline-strong rounded-lg focus:ring-2 focus:ring-amber outline-none"
                     >
                       <option value="">-- Choose Package --</option>
                       {availablePackages.map((pkg: HostingPackage) => (
@@ -1601,14 +1601,14 @@ export default function AdminHostingPage() {
                     <button
                       type="button"
                       onClick={() => setShowChangePackageModal(false)}
-                      className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
+                      className="flex-1 px-4 py-2 border border-hairline-strong text-ink-2 rounded-lg hover:bg-paper-2 font-medium transition-colors"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
                       disabled={isChangingPackage || !newPackage || newPackage === changePackageUser.currentPackage}
-                      className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 flex justify-center items-center gap-2 transition-all shadow-sm shadow-blue-200"
+                      className="flex-1 px-4 py-2 bg-amber text-white rounded-lg hover:brightness-90 font-medium disabled:opacity-50 flex justify-center items-center gap-2 transition-all shadow-sm shadow-amber/20"
                     >
                       {isChangingPackage ? (
                         <>
@@ -1630,15 +1630,15 @@ export default function AdminHostingPage() {
         {/* Hosting Details Modal */}
         {showDetailsModal && mounted && createPortal(
           <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            <div className="bg-paper rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
               {/* Modal Header */}
-              <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+              <div className="px-6 py-4 border-b border-hairline flex justify-between items-center bg-paper-2/60">
                 <div>
-                  <h3 className="text-xl font-bold text-gray-900">Hosting Account Details</h3>
-                  {selectedDetails && <p className="text-sm text-gray-500 font-mono">{selectedDetails.username} ({selectedDetails.domain})</p>}
+                  <h3 className="text-xl font-bold text-ink">Hosting Account Details</h3>
+                  {selectedDetails && <p className="text-sm text-ink-3 font-mono">{selectedDetails.username} ({selectedDetails.domain})</p>}
                 </div>
-                <button onClick={() => setShowDetailsModal(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
-                  <X className="h-5 w-5 text-gray-500" />
+                <button onClick={() => setShowDetailsModal(false)} className="p-2 hover:bg-hairline rounded-full transition-colors">
+                  <X className="h-5 w-5 text-ink-3" />
                 </button>
               </div>
 
@@ -1646,8 +1646,8 @@ export default function AdminHostingPage() {
               <div className="flex-1 overflow-y-auto p-6">
                 {isLoadingDetails ? (
                   <div className="h-full flex flex-col items-center justify-center py-20">
-                    <Loader2 className="h-10 w-10 animate-spin text-blue-600 mb-4" />
-                    <p className="text-gray-500">Fetching live server data...</p>
+                    <Loader2 className="h-10 w-10 animate-spin text-amber-ink mb-4" />
+                    <p className="text-ink-3">Fetching live server data...</p>
                   </div>
                 ) : !selectedDetails ? (
                   <div className="text-center py-20 text-red-500">
@@ -1657,24 +1657,24 @@ export default function AdminHostingPage() {
                   <div className="space-y-8">
                     {/* Row 1: Key Stats */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-                        <div className="text-xs font-bold text-gray-400 uppercase mb-1">Status</div>
+                      <div className="bg-paper-2/60 p-4 rounded-lg border border-hairline">
+                        <div className="text-xs font-bold text-ink-4 uppercase mb-1">Status</div>
                         <div className="flex items-center gap-2">
                           <span className={`w-2 h-2 rounded-full ${selectedDetails.status === 'active' ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                          <span className="font-bold text-gray-900 capitalize">{selectedDetails.status}</span>
+                          <span className="font-bold text-ink capitalize">{selectedDetails.status}</span>
                         </div>
                       </div>
-                      <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-                        <div className="text-xs font-bold text-gray-400 uppercase mb-1">Package</div>
-                        <div className="font-bold text-gray-900 truncate" title={selectedDetails.package}>{selectedDetails.package}</div>
+                      <div className="bg-paper-2/60 p-4 rounded-lg border border-hairline">
+                        <div className="text-xs font-bold text-ink-4 uppercase mb-1">Package</div>
+                        <div className="font-bold text-ink truncate" title={selectedDetails.package}>{selectedDetails.package}</div>
                       </div>
-                      <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-                        <div className="text-xs font-bold text-gray-400 uppercase mb-1">Server IP</div>
-                        <div className="font-bold text-gray-900">{selectedDetails.ip}</div>
+                      <div className="bg-paper-2/60 p-4 rounded-lg border border-hairline">
+                        <div className="text-xs font-bold text-ink-4 uppercase mb-1">Server IP</div>
+                        <div className="font-bold text-ink">{selectedDetails.ip}</div>
                       </div>
-                      <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-                        <div className="text-xs font-bold text-gray-400 uppercase mb-1">PHP Version</div>
-                        <div className="font-bold text-gray-900">{selectedDetails.php}</div>
+                      <div className="bg-paper-2/60 p-4 rounded-lg border border-hairline">
+                        <div className="text-xs font-bold text-ink-4 uppercase mb-1">PHP Version</div>
+                        <div className="font-bold text-ink">{selectedDetails.php}</div>
                       </div>
                     </div>
 
@@ -1706,8 +1706,8 @@ export default function AdminHostingPage() {
                                 isTokens
                                   ? 'bg-purple-100 text-purple-800'
                                   : isSubs
-                                    ? 'bg-blue-100 text-blue-800'
-                                    : 'bg-gray-100 text-gray-800'
+                                    ? 'bg-indigo-soft text-indigo-ink'
+                                    : 'bg-paper-2 text-ink'
                               }`}>
                                 {isTokens ? 'Tokens API (₹2-and-reverse)' : isSubs ? 'Subscriptions API' : 'Manual billing'}
                               </span>
@@ -1715,26 +1715,26 @@ export default function AdminHostingPage() {
                           </div>
                           {row.razorpayCustomerId && (
                             <div className="flex justify-between items-center text-sm">
-                              <span className="text-gray-600">Razorpay Customer ID</span>
-                              <span className="text-sm font-mono text-gray-900">{row.razorpayCustomerId}</span>
+                              <span className="text-ink-2">Razorpay Customer ID</span>
+                              <span className="text-sm font-mono text-ink">{row.razorpayCustomerId}</span>
                             </div>
                           )}
                           {row.razorpayTokenId && (
                             <div className="flex justify-between items-center text-sm">
-                              <span className="text-gray-600">Mandate Token ID</span>
-                              <span className="text-sm font-mono text-gray-900">{row.razorpayTokenId}</span>
+                              <span className="text-ink-2">Mandate Token ID</span>
+                              <span className="text-sm font-mono text-ink">{row.razorpayTokenId}</span>
                             </div>
                           )}
                           {row.subscriptionId && (
                             <div className="flex justify-between items-center text-sm">
-                              <span className="text-gray-600">Razorpay Subscription ID</span>
-                              <span className="text-sm font-mono text-gray-900">{row.subscriptionId}</span>
+                              <span className="text-ink-2">Razorpay Subscription ID</span>
+                              <span className="text-sm font-mono text-ink">{row.subscriptionId}</span>
                             </div>
                           )}
                           {row.billingType && (
                             <div className="flex justify-between items-center text-sm">
-                              <span className="text-gray-600">Billing Type</span>
-                              <span className="text-sm font-medium text-gray-900 capitalize">{row.billingType}</span>
+                              <span className="text-ink-2">Billing Type</span>
+                              <span className="text-sm font-medium text-ink capitalize">{row.billingType}</span>
                             </div>
                           )}
                         </div>
@@ -1746,40 +1746,40 @@ export default function AdminHostingPage() {
                       {/* Databases */}
                       <div>
                         <div className="flex justify-between text-sm mb-2">
-                          <span className="text-gray-600 font-medium">Databases</span>
-                          <span className="text-gray-900 font-bold">{selectedDetails.usage?.databases?.used ?? '0'} / {selectedDetails.usage?.databases?.limit ?? '0'}</span>
+                          <span className="text-ink-2 font-medium">Databases</span>
+                          <span className="text-ink font-bold">{selectedDetails.usage?.databases?.used ?? '0'} / {selectedDetails.usage?.databases?.limit ?? '0'}</span>
                         </div>
-                        <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-                          <div className="bg-blue-600 h-full" style={{ width: `${Math.min(100, (parseFloat(selectedDetails.usage?.databases?.used ?? '0') / parseFloat(selectedDetails.usage?.databases?.limit || '1')) * 100)}%` }}></div>
+                        <div className="w-full bg-paper-2 h-2 rounded-full overflow-hidden">
+                          <div className="bg-amber h-full" style={{ width: `${Math.min(100, (parseFloat(selectedDetails.usage?.databases?.used ?? '0') / parseFloat(selectedDetails.usage?.databases?.limit || '1')) * 100)}%` }}></div>
                         </div>
                       </div>
                       {/* Emails */}
                       <div>
                         <div className="flex justify-between text-sm mb-2">
-                          <span className="text-gray-600 font-medium">Email Accounts</span>
-                          <span className="text-gray-900 font-bold">{selectedDetails.usage?.emails?.used ?? '0'} / {selectedDetails.usage?.emails?.limit ?? '0'}</span>
+                          <span className="text-ink-2 font-medium">Email Accounts</span>
+                          <span className="text-ink font-bold">{selectedDetails.usage?.emails?.used ?? '0'} / {selectedDetails.usage?.emails?.limit ?? '0'}</span>
                         </div>
-                        <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                        <div className="w-full bg-paper-2 h-2 rounded-full overflow-hidden">
                           <div className="bg-green-500 h-full" style={{ width: `${selectedDetails.usage?.emails?.limit === 'Unlimited' ? 0 : Math.min(100, (parseFloat(selectedDetails.usage?.emails?.used ?? '0') / parseFloat(selectedDetails.usage?.emails?.limit || '1')) * 100)}%` }}></div>
                         </div>
                       </div>
                       {/* FTP */}
                       <div>
                         <div className="flex justify-between text-sm mb-2">
-                          <span className="text-gray-600 font-medium">FTP Accounts</span>
-                          <span className="text-gray-900 font-bold">{selectedDetails.usage?.ftp?.used ?? '0'} / {selectedDetails.usage?.ftp?.limit ?? '0'}</span>
+                          <span className="text-ink-2 font-medium">FTP Accounts</span>
+                          <span className="text-ink font-bold">{selectedDetails.usage?.ftp?.used ?? '0'} / {selectedDetails.usage?.ftp?.limit ?? '0'}</span>
                         </div>
-                        <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                        <div className="w-full bg-paper-2 h-2 rounded-full overflow-hidden">
                           <div className="bg-yellow-500 h-full" style={{ width: `${Math.min(100, (parseFloat(selectedDetails.usage?.ftp?.used ?? '0') / parseFloat(selectedDetails.usage?.ftp?.limit || '1')) * 100)}%` }}></div>
                         </div>
                       </div>
                       {/* Subdomains */}
                       <div>
                         <div className="flex justify-between text-sm mb-2">
-                          <span className="text-gray-600 font-medium">Subdomains</span>
-                          <span className="text-gray-900 font-bold">{selectedDetails.usage?.subdomains?.used ?? '0'} / {selectedDetails.usage?.subdomains?.limit ?? '0'}</span>
+                          <span className="text-ink-2 font-medium">Subdomains</span>
+                          <span className="text-ink font-bold">{selectedDetails.usage?.subdomains?.used ?? '0'} / {selectedDetails.usage?.subdomains?.limit ?? '0'}</span>
                         </div>
-                        <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                        <div className="w-full bg-paper-2 h-2 rounded-full overflow-hidden">
                           <div className="bg-purple-500 h-full" style={{ width: `${Math.min(100, (parseFloat(selectedDetails.usage?.subdomains?.used ?? '0') / parseFloat(selectedDetails.usage?.subdomains?.limit || '1')) * 100)}%` }}></div>
                         </div>
                       </div>
@@ -1788,25 +1788,25 @@ export default function AdminHostingPage() {
                     {/* Row 3: Nameservers & Features */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       {/* Nameservers */}
-                      <div className="bg-blue-50/50 p-5 rounded-xl border border-blue-100">
-                        <h4 className="text-sm font-bold text-blue-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                      <div className="bg-indigo-soft/50 p-5 rounded-xl border border-indigo/25">
+                        <h4 className="text-sm font-bold text-indigo-ink uppercase tracking-wider mb-4 flex items-center gap-2">
                           <Wifi className="h-4 w-4" /> Nameservers
                         </h4>
                         <div className="space-y-2">
                           {(selectedDetails.nameservers?.length ?? 0) > 0 ? selectedDetails.nameservers!.map((ns: string, i: number) => (
-                            <div key={i} className="bg-white px-3 py-2 rounded-lg border border-blue-200 font-mono text-sm text-gray-700 flex justify-between items-center">
+                            <div key={i} className="bg-paper px-3 py-2 rounded-lg border border-indigo/25 font-mono text-sm text-ink-2 flex justify-between items-center">
                               {ns}
-                              <button onClick={() => { void navigator.clipboard.writeText(ns); toast.success('Copied!'); }} className="text-blue-500 hover:text-blue-700 p-1">
+                              <button onClick={() => { void navigator.clipboard.writeText(ns); toast.success('Copied!'); }} className="text-indigo hover:text-indigo-ink p-1">
                                 <ExternalLink className="h-3 w-3" />
                               </button>
                             </div>
-                          )) : <p className="text-sm text-gray-500">No nameservers found</p>}
+                          )) : <p className="text-sm text-ink-3">No nameservers found</p>}
                         </div>
                       </div>
 
                       {/* Active Features */}
-                      <div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
-                        <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                      <div className="bg-paper-2/60 p-5 rounded-xl border border-hairline">
+                        <h4 className="text-sm font-bold text-ink uppercase tracking-wider mb-4 flex items-center gap-2">
                           <Settings className="h-4 w-4" /> Features & Access
                         </h4>
                         <div className="grid grid-cols-2 gap-4">
@@ -1814,11 +1814,11 @@ export default function AdminHostingPage() {
                             .filter(([key]) => key !== 'cgi')
                             .map(([key, value]) => (
                               <div key={key} className="flex items-center justify-between text-sm">
-                                <span className="text-gray-500 capitalize">{key}</span>
+                                <span className="text-ink-3 capitalize">{key}</span>
                                 {value ? (
                                   <span className="text-green-600 flex items-center gap-1 font-medium italic"><CheckCircle className="h-3 w-3" /> ON</span>
                                 ) : (
-                                  <span className="text-gray-400 font-medium">OFF</span>
+                                  <span className="text-ink-4 font-medium">OFF</span>
                                 )}
                               </div>
                             ))}
@@ -1827,7 +1827,7 @@ export default function AdminHostingPage() {
                     </div>
 
                     {/* Account Metadata */}
-                    <div className="pt-4 border-t border-gray-100 flex justify-between text-xs text-gray-400 italic">
+                    <div className="pt-4 border-t border-hairline flex justify-between text-xs text-ink-4 italic">
                       <div>Account Type: {selectedDetails.type}</div>
                       <div>Created On: {selectedDetails.created}</div>
                     </div>
@@ -1836,10 +1836,10 @@ export default function AdminHostingPage() {
               </div>
 
               {/* Modal Footer */}
-              <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+              <div className="px-6 py-4 border-t border-hairline bg-paper-2/60 flex justify-end">
                 <button
                   onClick={() => setShowDetailsModal(false)}
-                  className="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors font-medium shadow-sm"
+                  className="px-6 py-2 bg-ink text-white rounded-lg hover:bg-ink-2 transition-colors font-medium shadow-sm"
                 >
                   Close Details
                 </button>
@@ -1852,13 +1852,13 @@ export default function AdminHostingPage() {
         {/* Delete Confirmation Modal */}
         {deleteModal.show && mounted && createPortal(
           <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden border border-red-100 animate-in zoom-in-95 duration-200">
+            <div className="bg-paper rounded-xl shadow-2xl w-full max-w-sm overflow-hidden border border-red-100 animate-in zoom-in-95 duration-200">
               <div className="p-6 text-center">
                 <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <AlertTriangle className="h-6 w-6 text-red-600" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">Delete Account?</h3>
-                <p className="text-gray-600 mb-6">
+                <h3 className="text-xl font-bold text-ink mb-2">Delete Account?</h3>
+                <p className="text-ink-2 mb-6">
                   Are you sure you want to delete the hosting for <strong>{deleteModal.domain}</strong>?
                   This action is <span className="font-bold text-red-600">irreversible</span> and will delete all files, databases and emails.
                 </p>
@@ -1867,7 +1867,7 @@ export default function AdminHostingPage() {
                   <button
                     onClick={() => setDeleteModal({ show: false, username: '', domain: '', hostingId: '' })}
                     disabled={isDeleting}
-                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium disabled:opacity-50"
+                    className="flex-1 px-4 py-2 border border-hairline-strong text-ink-2 rounded-lg hover:bg-paper-2 font-medium disabled:opacity-50"
                   >
                     Cancel
                   </button>

@@ -171,17 +171,17 @@ export default function AdminViewInvoicePage({ params }: { params: Promise<{ id:
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.back()}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600 flex-shrink-0"
+              className="p-2 hover:bg-paper-2 rounded-lg transition-colors text-ink-2 flex-shrink-0"
               title="Go Back"
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
             <div>
-              <h1 className="text-lg sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
-                <FileText className="h-5 w-5 text-blue-600 flex-shrink-0" />
+              <h1 className="text-lg sm:text-2xl font-bold text-ink flex items-center gap-2">
+                <FileText className="h-5 w-5 text-amber-ink flex-shrink-0" />
                 <span className="truncate">Invoice {invoiceId}</span>
               </h1>
-              <p className="text-gray-500 text-xs sm:text-sm">Previewing invoice</p>
+              <p className="text-ink-3 text-xs sm:text-sm">Previewing invoice</p>
             </div>
           </div>
 
@@ -189,7 +189,7 @@ export default function AdminViewInvoicePage({ params }: { params: Promise<{ id:
             {pdfBlobUrl && (
               <button
                 onClick={handleOpenNewTab}
-                className="flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-lg font-medium transition-all flex-1 sm:flex-initial text-sm"
+                className="flex items-center justify-center gap-2 bg-paper-2 hover:bg-hairline text-ink-2 px-4 py-2.5 rounded-lg font-medium transition-all flex-1 sm:flex-initial text-sm"
               >
                 <ExternalLink className="h-4 w-4" />
                 Open in Tab
@@ -198,7 +198,7 @@ export default function AdminViewInvoicePage({ params }: { params: Promise<{ id:
             <button
               onClick={handleDownload}
               disabled={isDownloading}
-              className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg font-medium transition-all shadow-sm hover:shadow-md active:scale-95 disabled:opacity-50 flex-1 sm:flex-initial text-sm"
+              className="flex items-center justify-center gap-2 bg-amber hover:brightness-90 text-white px-4 py-2.5 rounded-lg font-medium transition-all shadow-sm hover:shadow-md active:scale-95 disabled:opacity-50 flex-1 sm:flex-initial text-sm"
             >
               {isDownloading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -211,32 +211,32 @@ export default function AdminViewInvoicePage({ params }: { params: Promise<{ id:
         </div>
 
         {/* Viewer */}
-        <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden relative min-h-[60vh] sm:min-h-0">
+        <div className="flex-1 bg-paper rounded-xl shadow-sm border border-hairline overflow-hidden relative min-h-[60vh] sm:min-h-0">
 
           {isLoadingPdf && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gray-50">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-              <p className="text-sm text-gray-500 font-medium">Loading invoice…</p>
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-paper-2/60">
+              <Loader2 className="h-8 w-8 animate-spin text-amber-ink" />
+              <p className="text-sm text-ink-3 font-medium">Loading invoice…</p>
             </div>
           )}
 
           {pdfError && !isLoadingPdf && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center bg-gray-50">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center bg-paper-2/60">
               <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center">
                 <FileText className="h-8 w-8 text-red-400" />
               </div>
-              <p className="text-gray-600 text-sm max-w-xs">{pdfError}</p>
+              <p className="text-ink-2 text-sm max-w-xs">{pdfError}</p>
               <div className="flex gap-3">
                 <button
                   onClick={handleRetry}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-amber text-white text-sm font-medium rounded-lg hover:brightness-90 transition-colors"
                 >
                   <RefreshCw className="h-4 w-4" />
                   Retry
                 </button>
                 <button
                   onClick={handleDownload}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-paper-2 text-ink-2 text-sm font-medium rounded-lg hover:bg-hairline transition-colors"
                 >
                   <Download className="h-4 w-4" />
                   Download

@@ -13,7 +13,7 @@ interface AdminQuickActionsProps {
 }
 
 const colorClasses = {
-  blue: 'bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100 hover:border-blue-300',
+  blue: 'bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100 hover:border-amber/40',
   green: 'bg-green-50 border-green-200 text-green-600 hover:bg-green-100 hover:border-green-300',
   yellow: 'bg-yellow-50 border-yellow-200 text-yellow-600 hover:bg-yellow-100 hover:border-yellow-300',
   red: 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100 hover:border-red-300',

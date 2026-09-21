@@ -55,24 +55,24 @@ const STATUS_OPTIONS = ["open", "in_progress", "resolved", "closed"] as const;
 const PRIORITY_OPTIONS = ["low", "medium", "high"] as const;
 
 const STATUS_CFG: Record<string, { label: string; activeClass: string; inactiveClass: string; icon: React.ElementType }> = {
-  open:        { label: "Open",        icon: Clock,        activeClass: "bg-blue-600 text-white border-blue-600",    inactiveClass: "border-gray-200 text-gray-600 hover:border-blue-400 hover:text-blue-600" },
-  in_progress: { label: "In Progress", icon: AlertCircle,  activeClass: "bg-amber-500 text-white border-amber-500",  inactiveClass: "border-gray-200 text-gray-600 hover:border-amber-400 hover:text-amber-600" },
-  resolved:    { label: "Resolved",    icon: CheckCircle2, activeClass: "bg-green-600 text-white border-green-600",  inactiveClass: "border-gray-200 text-gray-600 hover:border-green-400 hover:text-green-600" },
-  closed:      { label: "Closed",      icon: XCircle,      activeClass: "bg-gray-700 text-white border-gray-700",    inactiveClass: "border-gray-200 text-gray-600 hover:border-gray-400" },
+  open:        { label: "Open",        icon: Clock,        activeClass: "bg-amber text-white border-amber",    inactiveClass: "border-hairline text-ink-2 hover:border-amber/40 hover:text-amber-ink" },
+  in_progress: { label: "In Progress", icon: AlertCircle,  activeClass: "bg-amber-500 text-white border-amber-500",  inactiveClass: "border-hairline text-ink-2 hover:border-amber-400 hover:text-amber-600" },
+  resolved:    { label: "Resolved",    icon: CheckCircle2, activeClass: "bg-green-600 text-white border-green-600",  inactiveClass: "border-hairline text-ink-2 hover:border-green-400 hover:text-green-600" },
+  closed:      { label: "Closed",      icon: XCircle,      activeClass: "bg-gray-700 text-white border-gray-700",    inactiveClass: "border-hairline text-ink-2 hover:border-gray-400" },
 };
 
 const PRIORITY_CFG: Record<string, { label: string; activeClass: string; inactiveClass: string }> = {
-  low:    { label: "Low",    activeClass: "bg-gray-600 text-white border-gray-600",    inactiveClass: "border-gray-200 text-gray-500 hover:border-gray-400" },
-  medium: { label: "Medium", activeClass: "bg-amber-500 text-white border-amber-500",  inactiveClass: "border-gray-200 text-gray-600 hover:border-amber-400 hover:text-amber-600" },
-  high:   { label: "High",   activeClass: "bg-red-600 text-white border-red-600",      inactiveClass: "border-gray-200 text-gray-600 hover:border-red-400 hover:text-red-600" },
+  low:    { label: "Low",    activeClass: "bg-gray-600 text-white border-gray-600",    inactiveClass: "border-hairline text-ink-3 hover:border-gray-400" },
+  medium: { label: "Medium", activeClass: "bg-amber-500 text-white border-amber-500",  inactiveClass: "border-hairline text-ink-2 hover:border-amber-400 hover:text-amber-600" },
+  high:   { label: "High",   activeClass: "bg-red-600 text-white border-red-600",      inactiveClass: "border-hairline text-ink-2 hover:border-red-400 hover:text-red-600" },
 };
 
 const CATEGORY_META: Record<string, { label: string; icon: React.ElementType; color: string }> = {
   domain:    { label: "Domain",    icon: Tag,        color: "text-violet-600 bg-violet-50" },
-  hosting:   { label: "Hosting",   icon: Server,     color: "text-blue-600 bg-blue-50" },
+  hosting:   { label: "Hosting",   icon: Server,     color: "text-amber-ink bg-indigo-soft" },
   billing:   { label: "Billing",   icon: CreditCard, color: "text-emerald-600 bg-emerald-50" },
   technical: { label: "Technical", icon: Wrench,     color: "text-orange-600 bg-orange-50" },
-  other:     { label: "Other",     icon: HelpCircle, color: "text-gray-500 bg-gray-100" },
+  other:     { label: "Other",     icon: HelpCircle, color: "text-ink-3 bg-paper-2" },
 };
 
 function StatusHeaderBadge({ status }: { status: string }) {
@@ -89,7 +89,7 @@ function Initials({ name }: { name: string }) {
   const parts = name.trim().split(" ");
   const initials = parts.length >= 2 ? parts[0][0] + parts[1][0] : parts[0].slice(0, 2);
   return (
-    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shrink-0">
+    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber to-amber-ink flex items-center justify-center shrink-0">
       <span className="text-sm font-bold text-white uppercase">{initials}</span>
     </div>
   );
@@ -188,9 +188,9 @@ export default function AdminTicketDetailPage() {
     return (
       <AdminLayout user={user} onLogout={performLogout}>
         <div className="p-6 text-center">
-          <AlertCircle className="h-10 w-10 text-gray-300 mx-auto mb-2" />
-          <p className="text-gray-500">Ticket not found.</p>
-          <Link href="/admin/support-tickets" className="mt-3 inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline">
+          <AlertCircle className="h-10 w-10 text-ink-4 mx-auto mb-2" />
+          <p className="text-ink-3">Ticket not found.</p>
+          <Link href="/admin/support-tickets" className="mt-3 inline-flex items-center gap-1.5 text-sm text-amber-ink hover:underline">
             <ArrowLeft className="h-4 w-4" /> Back to tickets
           </Link>
         </div>
@@ -211,20 +211,20 @@ export default function AdminTicketDetailPage() {
         {/* ── Back link ── */}
         <Link
           href="/admin/support-tickets"
-          className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors"
+          className="inline-flex items-center gap-1.5 text-sm text-ink-3 hover:text-ink transition-colors"
         >
           <ArrowLeft className="h-4 w-4" /> Back to tickets
         </Link>
 
         {/* ── Header strip ── */}
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden">
           <div className="px-5 sm:px-6 py-4 sm:py-5 flex items-start gap-4">
-            <div className="p-2.5 bg-blue-50 rounded-xl shrink-0">
-              <LifeBuoy className="h-5 w-5 text-blue-600" />
+            <div className="p-2.5 bg-amber-soft rounded-xl shrink-0">
+              <LifeBuoy className="h-5 w-5 text-amber-ink" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap mb-1">
-                <span className="text-[11px] font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{ticket.ticketNumber}</span>
+                <span className="text-[11px] font-mono text-ink-3 bg-paper-2 px-2 py-0.5 rounded">{ticket.ticketNumber}</span>
                 <StatusHeaderBadge status={ticket.status} />
                 <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold border ${PRIORITY_CFG[ticket.priority]?.activeClass ?? ""}`}>
                   <Flag className="h-3 w-3" />
@@ -236,46 +236,46 @@ export default function AdminTicketDetailPage() {
                   </span>
                 )}
               </div>
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">{ticket.subject}</h1>
-              <p className="text-xs text-gray-500 mt-1">From {ticket.userName} · {ticket.userEmail}</p>
+              <h1 className="text-xl sm:text-2xl font-bold font-serif text-ink break-words">{ticket.subject}</h1>
+              <p className="text-xs text-ink-3 mt-1">From {ticket.userName} · {ticket.userEmail}</p>
             </div>
           </div>
 
           {/* Vitals row */}
-          <div className="border-t border-gray-100 bg-gray-50/60 px-5 sm:px-6 py-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-            <div className="flex items-center gap-2 text-gray-700">
+          <div className="border-t border-hairline bg-paper-2/60 px-5 sm:px-6 py-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="flex items-center gap-2 text-ink-2">
               <div className={`p-1.5 rounded-lg ${catMeta.color}`}>
                 <CatIcon className="h-3.5 w-3.5" />
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold">Category</p>
+                <p className="text-3xs uppercase tracking-wide text-ink-4 font-semibold">Category</p>
                 <p className="font-medium truncate">{catMeta.label}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 text-gray-700">
-              <div className="p-1.5 rounded-lg bg-blue-50">
-                <Calendar className="h-3.5 w-3.5 text-blue-600" />
+            <div className="flex items-center gap-2 text-ink-2">
+              <div className="p-1.5 rounded-lg bg-indigo-soft">
+                <Calendar className="h-3.5 w-3.5 text-indigo-ink" />
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold">Opened</p>
+                <p className="text-3xs uppercase tracking-wide text-ink-4 font-semibold">Opened</p>
                 <p className="font-medium truncate">{formatIndianDateTime(ticket.createdAt)}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 text-gray-700">
-              <div className="p-1.5 rounded-lg bg-indigo-50">
-                <MessageSquare className="h-3.5 w-3.5 text-indigo-600" />
+            <div className="flex items-center gap-2 text-ink-2">
+              <div className="p-1.5 rounded-lg bg-indigo-soft">
+                <MessageSquare className="h-3.5 w-3.5 text-indigo-ink" />
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold">Messages</p>
+                <p className="text-3xs uppercase tracking-wide text-ink-4 font-semibold">Messages</p>
                 <p className="font-medium">{ticket.messages.length}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 text-gray-700">
-              <div className={`p-1.5 rounded-lg ${ticket.resolvedAt ? "bg-green-50" : "bg-gray-100"}`}>
-                <Activity className={`h-3.5 w-3.5 ${ticket.resolvedAt ? "text-green-600" : "text-gray-500"}`} />
+            <div className="flex items-center gap-2 text-ink-2">
+              <div className={`p-1.5 rounded-lg ${ticket.resolvedAt ? "bg-green-50" : "bg-paper-2"}`}>
+                <Activity className={`h-3.5 w-3.5 ${ticket.resolvedAt ? "text-green-600" : "text-ink-3"}`} />
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold">
+                <p className="text-3xs uppercase tracking-wide text-ink-4 font-semibold">
                   {ticket.resolvedAt ? "Resolved" : "Last activity"}
                 </p>
                 <p className="font-medium truncate">
@@ -290,13 +290,13 @@ export default function AdminTicketDetailPage() {
 
           {/* Thread — left 2/3 */}
           <div className="lg:col-span-2 space-y-4">
-            <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-              <div className="px-5 py-3 border-b border-gray-100 bg-gray-50/60 flex items-center justify-between gap-3">
+            <div className="bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-5 py-3 border-b border-hairline bg-paper-2/60 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 text-gray-500" />
-                  <h3 className="text-sm font-semibold text-gray-900">Conversation</h3>
+                  <MessageSquare className="h-4 w-4 text-ink-3" />
+                  <h3 className="text-sm font-semibold text-ink">Conversation</h3>
                 </div>
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 bg-white border border-gray-200 px-2.5 py-1 rounded-full">
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-3 bg-paper border border-hairline px-2.5 py-1 rounded-full">
                   {ticket.messages.length} message{ticket.messages.length !== 1 ? "s" : ""}
                 </span>
               </div>
@@ -305,21 +305,21 @@ export default function AdminTicketDetailPage() {
                 const isAdmin = msg.authorRole === "admin";
                 return (
                   <div key={msg._id ?? i} className={`flex gap-3 ${isAdmin ? "flex-row-reverse" : ""}`}>
-                    <div className={`p-2 rounded-full shrink-0 self-end ${isAdmin ? "bg-blue-100" : "bg-gray-100"}`}>
+                    <div className={`p-2 rounded-full shrink-0 self-end ${isAdmin ? "bg-amber-soft" : "bg-paper-2"}`}>
                       {isAdmin
-                        ? <ShieldCheck className="h-4 w-4 text-blue-600" />
-                        : <User className="h-4 w-4 text-gray-500" />}
+                        ? <ShieldCheck className="h-4 w-4 text-amber-ink" />
+                        : <User className="h-4 w-4 text-ink-3" />}
                     </div>
                     <div className={`max-w-[78%] flex flex-col gap-1 ${isAdmin ? "items-end" : "items-start"}`}>
                       <div className={`rounded-2xl px-4 py-3 text-sm whitespace-pre-wrap leading-relaxed shadow-sm ${
                         isAdmin
-                          ? "bg-blue-600 text-white rounded-tr-none"
-                          : "bg-white border border-gray-200 text-gray-800 rounded-tl-none"
+                          ? "bg-amber text-white rounded-tr-none"
+                          : "bg-paper border border-hairline text-ink rounded-tl-none"
                       }`}>
                         {msg.content}
                       </div>
                       <MessageAttachments attachments={msg.attachments} align={isAdmin ? "right" : "left"} />
-                      <span className="text-xs text-gray-400 px-1">
+                      <span className="text-xs text-ink-4 px-1">
                         {msg.authorRole === "admin" ? msg.authorName : ticket.userName} · {formatIndianDateTime(msg.createdAt)}
                       </span>
                     </div>
@@ -332,15 +332,15 @@ export default function AdminTicketDetailPage() {
 
             {/* Reply box */}
             {isClosed ? (
-              <div className="flex items-center gap-2 px-5 py-4 bg-gray-50 border border-dashed border-gray-300 rounded-2xl text-sm text-gray-400">
+              <div className="flex items-center gap-2 px-5 py-4 bg-paper-2/60 border border-dashed border-hairline-strong rounded-2xl text-sm text-ink-4">
                 <XCircle className="h-4 w-4 shrink-0" />
                 Ticket is closed — change status to reopen it
               </div>
             ) : (
-              <form onSubmit={handleReply} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-                <div className="px-4 py-2.5 bg-blue-50 border-b border-blue-100 flex items-center gap-2">
-                  <ShieldCheck className="h-3.5 w-3.5 text-blue-600" />
-                  <span className="text-xs font-semibold text-blue-700">Reply as Support Team — customer will be notified by email</span>
+              <form onSubmit={handleReply} className="bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden">
+                <div className="px-4 py-2.5 bg-indigo-soft border-b border-indigo/25 flex items-center gap-2">
+                  <ShieldCheck className="h-3.5 w-3.5 text-indigo-ink" />
+                  <span className="text-xs font-semibold text-indigo-ink">Reply as Support Team — customer will be notified by email</span>
                 </div>
                 <textarea
                   value={reply}
@@ -348,7 +348,7 @@ export default function AdminTicketDetailPage() {
                   maxLength={5000}
                   rows={4}
                   placeholder="Write your reply to the customer…"
-                  className="w-full px-5 pt-4 pb-2 text-sm focus:outline-none resize-none text-gray-800 placeholder-gray-400"
+                  className="w-full px-5 pt-4 pb-2 text-sm focus:outline-none resize-none text-ink placeholder-ink-4"
                 />
                 <div className="px-5 pb-3">
                   <AttachmentPicker
@@ -358,12 +358,12 @@ export default function AdminTicketDetailPage() {
                     label="Attach screenshots"
                   />
                 </div>
-                <div className="flex justify-between items-center px-5 py-3 border-t border-gray-100 bg-gray-50">
-                  <span className="text-xs text-gray-400">{reply.length}/5000</span>
+                <div className="flex justify-between items-center px-5 py-3 border-t border-hairline bg-paper-2/60">
+                  <span className="text-xs text-ink-4">{reply.length}/5000</span>
                   <button
                     type="submit"
                     disabled={sending || !reply.trim()}
-                    className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-sm font-semibold rounded-xl transition-colors"
+                    className="flex items-center gap-2 px-5 py-2 bg-amber hover:brightness-90 disabled:bg-amber/50 text-white text-sm font-semibold rounded-xl transition-colors"
                   >
                     {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                     {sending ? "Sending…" : "Send Reply"}
@@ -377,23 +377,23 @@ export default function AdminTicketDetailPage() {
           <div className="space-y-4">
 
             {/* Customer */}
-            <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">Customer</h3>
+            <div className="bg-paper border border-hairline rounded-2xl p-4 shadow-sm">
+              <h3 className="text-xs font-bold text-ink-4 uppercase tracking-wide mb-3">Customer</h3>
               <div className="flex items-center gap-3 mb-3">
                 <Initials name={ticket.userName || "U"} />
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 truncate">{ticket.userName}</p>
-                  <p className="text-xs text-gray-400 truncate">{ticket.userEmail}</p>
+                  <p className="text-sm font-semibold text-ink truncate">{ticket.userName}</p>
+                  <p className="text-xs text-ink-4 truncate">{ticket.userEmail}</p>
                 </div>
               </div>
-              <a href={`mailto:${ticket.userEmail}`} className="flex items-center gap-1.5 text-xs text-blue-600 hover:underline">
+              <a href={`mailto:${ticket.userEmail}`} className="flex items-center gap-1.5 text-xs text-amber-ink hover:underline">
                 <Mail className="h-3.5 w-3.5" /> Send email directly
               </a>
             </div>
 
             {/* Status */}
-            <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">
+            <div className="bg-paper border border-hairline rounded-2xl p-4 shadow-sm">
+              <h3 className="text-xs font-bold text-ink-4 uppercase tracking-wide mb-3">
                 Status {updatingStatus && <Loader2 className="inline h-3 w-3 animate-spin ml-1" />}
               </h3>
               <div className="grid grid-cols-2 gap-1.5">
@@ -419,8 +419,8 @@ export default function AdminTicketDetailPage() {
             </div>
 
             {/* Priority */}
-            <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">Priority</h3>
+            <div className="bg-paper border border-hairline rounded-2xl p-4 shadow-sm">
+              <h3 className="text-xs font-bold text-ink-4 uppercase tracking-wide mb-3">Priority</h3>
               <div className="flex gap-1.5">
                 {PRIORITY_OPTIONS.map((p) => {
                   const cfg = PRIORITY_CFG[p];

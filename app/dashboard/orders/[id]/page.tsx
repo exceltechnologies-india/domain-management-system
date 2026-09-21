@@ -74,11 +74,11 @@ function domainStatusConfig(status: DomainStatus) {
     case 'pending':
       return { label: 'Pending', color: 'text-amber-700', bg: 'bg-amber-100', icon: Clock };
     case 'processing':
-      return { label: 'Processing', color: 'text-blue-700', bg: 'bg-blue-100', icon: Loader2 };
+      return { label: 'Processing', color: 'text-amber-ink', bg: 'bg-indigo-soft', icon: Loader2 };
     case 'failed':
       return { label: 'Failed', color: 'text-red-700', bg: 'bg-red-100', icon: XCircle };
     case 'cancelled':
-      return { label: 'Cancelled', color: 'text-gray-700', bg: 'bg-gray-100', icon: XCircle };
+      return { label: 'Cancelled', color: 'text-ink-2', bg: 'bg-paper-2', icon: XCircle };
   }
 }
 
@@ -87,15 +87,15 @@ function orderStatusConfig(status: OrderStatus) {
     case 'completed':
       return { label: 'Completed', color: 'text-green-700', bg: 'bg-green-100' };
     case 'paid':
-      return { label: 'Paid', color: 'text-blue-700', bg: 'bg-blue-100' };
+      return { label: 'Paid', color: 'text-amber-ink', bg: 'bg-indigo-soft' };
     case 'processing':
-      return { label: 'Processing', color: 'text-blue-700', bg: 'bg-blue-100' };
+      return { label: 'Processing', color: 'text-amber-ink', bg: 'bg-indigo-soft' };
     case 'pending':
       return { label: 'Pending', color: 'text-amber-700', bg: 'bg-amber-100' };
     case 'failed':
       return { label: 'Failed', color: 'text-red-700', bg: 'bg-red-100' };
     case 'refunded':
-      return { label: 'Refunded', color: 'text-gray-700', bg: 'bg-gray-100' };
+      return { label: 'Refunded', color: 'text-ink-2', bg: 'bg-paper-2' };
   }
 }
 
@@ -122,9 +122,9 @@ function DomainCard({ domain }: { domain: OrderDomain }) {
   const progress = latestStep?.progress ?? (domain.status === 'registered' ? 100 : 0);
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+    <div className="bg-white rounded-xl border border-hairline overflow-hidden">
       {/* Header */}
-      <div className="px-5 py-4 flex items-center justify-between gap-4 border-b border-gray-100">
+      <div className="px-5 py-4 flex items-center justify-between gap-4 border-b border-hairline">
         <div className="flex items-center gap-3 min-w-0">
           <div className={`p-2 rounded-lg flex-shrink-0 ${cfg.bg}`}>
             {domain.itemType === 'hosting'
@@ -132,12 +132,12 @@ function DomainCard({ domain }: { domain: OrderDomain }) {
               : <Globe className={`h-4 w-4 ${cfg.color}`} />}
           </div>
           <div className="min-w-0">
-            <p className="font-mono font-semibold text-gray-900 truncate text-sm">
+            <p className="font-mono font-semibold text-ink truncate text-sm">
               {domain.itemType === 'hosting' && domain.hostingPlan
                 ? domain.hostingPlan.name
                 : domain.domainName}
             </p>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-ink-3">
               {domain.registrationPeriod} {domain.periodUnit === 'months' ? 'month' : 'year'}{domain.registrationPeriod !== 1 ? 's' : ''} ·{' '}
               ₹{domain.price.toFixed(2)}
             </p>
@@ -153,12 +153,12 @@ function DomainCard({ domain }: { domain: OrderDomain }) {
       {progress > 0 && (
         <div className="px-5 pt-3">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs text-gray-500">Progress</span>
-            <span className="text-xs font-medium text-gray-700">{progress}%</span>
+            <span className="text-xs text-ink-3">Progress</span>
+            <span className="text-xs font-medium text-ink-2">{progress}%</span>
           </div>
-          <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div className="h-1.5 bg-paper-2 rounded-full overflow-hidden">
             <motion.div
-              className={`h-full rounded-full ${domain.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
+              className={`h-full rounded-full ${domain.status === 'failed' ? 'bg-red-400' : 'bg-indigo'}`}
               initial={{ width: 0 }}
               animate={{ width: `${progress}%` }}
               transition={{ duration: 0.6, ease: 'easeOut' }}
@@ -180,27 +180,27 @@ function DomainCard({ domain }: { domain: OrderDomain }) {
                     isFailed
                       ? 'bg-red-100'
                       : isLast && isProcessing
-                      ? 'bg-blue-100'
+                      ? 'bg-indigo-soft'
                       : 'bg-green-100'
                   }`}>
                     {isFailed
                       ? <XCircle className="h-3 w-3 text-red-600" />
                       : isLast && isProcessing
-                      ? <Loader2 className="h-3 w-3 text-blue-600 animate-spin" />
+                      ? <Loader2 className="h-3 w-3 text-amber-ink animate-spin" />
                       : <CheckCircle2 className="h-3 w-3 text-green-600" />}
                   </div>
                   {i < steps.length - 1 && (
-                    <div className="w-px h-4 bg-gray-200 mt-0.5" />
+                    <div className="w-px h-4 bg-hairline mt-0.5" />
                   )}
                 </div>
                 <div className="pb-1 min-w-0">
-                  <p className={`text-xs font-medium ${isFailed ? 'text-red-700' : 'text-gray-800'}`}>
+                  <p className={`text-xs font-medium ${isFailed ? 'text-red-700' : 'text-ink'}`}>
                     {STEP_LABELS[step.step] ?? step.step}
                   </p>
                   {step.message && step.message !== STEP_LABELS[step.step] && (
-                    <p className="text-[11px] text-gray-500 leading-tight mt-0.5">{step.message}</p>
+                    <p className="text-[11px] text-ink-3 leading-tight mt-0.5">{step.message}</p>
                   )}
-                  <p className="text-[10px] text-gray-400 mt-0.5">{formatIndianDateTime(new Date(step.timestamp))}</p>
+                  <p className="text-[10px] text-ink-4 mt-0.5">{formatIndianDateTime(new Date(step.timestamp))}</p>
                 </div>
               </div>
             );
@@ -259,14 +259,14 @@ export default function OrderStatusPage() {
       <ClientOnly>
         <UserLayout user={user} onLogout={performLogout}>
           <div className="max-w-2xl mx-auto px-4 py-12 text-center">
-            <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h1 className="text-xl font-bold text-gray-900 mb-2">Order not found</h1>
-            <p className="text-gray-500 mb-6 text-sm">
+            <AlertCircle className="h-12 w-12 text-ink-4 mx-auto mb-4" />
+            <h1 className="text-xl font-bold text-ink mb-2">Order not found</h1>
+            <p className="text-ink-3 mb-6 text-sm">
               This order may not exist or may belong to a different account.
             </p>
             <Link
               href="/dashboard/orders"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-amber hover:brightness-90 text-white text-sm font-semibold rounded-lg transition-colors"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to Orders
@@ -302,21 +302,21 @@ export default function OrderStatusPage() {
           <div className="flex items-center gap-3">
             <Link
               href="/dashboard/orders"
-              className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 text-ink-3 hover:text-ink hover:bg-paper-2 rounded-lg transition-colors"
             >
               <ArrowLeft className="h-5 w-5" />
             </Link>
             <div className="flex-1 min-w-0">
-              <h1 className="text-xl font-bold text-gray-900 truncate">
+              <h1 className="text-xl font-bold text-ink truncate">
                 Order{order.purchaseOrderNumber ? ` ${order.purchaseOrderNumber}` : ''}
               </h1>
-              <p className="text-xs text-gray-500 font-mono mt-0.5">{order.orderId}</p>
+              <p className="text-xs text-ink-3 font-mono mt-0.5">{order.orderId}</p>
             </div>
             <button
               onClick={() => mutate()}
               disabled={isValidating}
               title="Refresh"
-              className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-40"
+              className="p-2 text-ink-3 hover:text-ink hover:bg-paper-2 rounded-lg transition-colors disabled:opacity-40"
             >
               <RefreshCw className={`h-4 w-4 ${isValidating ? 'animate-spin' : ''}`} />
             </button>
@@ -324,24 +324,24 @@ export default function OrderStatusPage() {
 
           {/* Live indicator */}
           {!terminal && (
-            <div className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700">
+            <div className="flex items-center gap-2 px-4 py-2.5 bg-indigo-soft border border-indigo/25 rounded-xl text-sm text-amber-ink">
               <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo" />
               </span>
               <span>Live — refreshing every 5 seconds</span>
             </div>
           )}
 
           {/* Summary card */}
-          <div className="bg-white rounded-xl border border-gray-200">
-            <div className="p-5 border-b border-gray-100">
+          <div className="bg-white rounded-xl border border-hairline">
+            <div className="p-5 border-b border-hairline">
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div>
-                  <p className="text-xs text-gray-500 mb-1">Total charged</p>
-                  <p className="text-3xl font-black text-gray-900">
+                  <p className="text-xs text-ink-3 mb-1">Total charged</p>
+                  <p className="text-3xl font-black text-ink">
                     ₹{order.amount.toFixed(2)}
-                    <span className="text-sm font-normal text-gray-400 ml-2">{order.currency}</span>
+                    <span className="text-sm font-normal text-ink-4 ml-2">{order.currency}</span>
                   </p>
                 </div>
                 <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide ${orderCfg.bg} ${orderCfg.color}`}>
@@ -352,18 +352,18 @@ export default function OrderStatusPage() {
 
             <div className="px-5 py-4 grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
               <div>
-                <p className="text-xs text-gray-400 mb-0.5">Date</p>
-                <p className="font-medium text-gray-700 text-xs">{formatIndianDateTime(new Date(order.createdAt))}</p>
+                <p className="text-xs text-ink-4 mb-0.5">Date</p>
+                <p className="font-medium text-ink-2 text-xs">{formatIndianDateTime(new Date(order.createdAt))}</p>
               </div>
               {order.invoiceNumber && (
                 <div>
-                  <p className="text-xs text-gray-400 mb-0.5">Invoice</p>
+                  <p className="text-xs text-ink-4 mb-0.5">Invoice</p>
                   <div className="flex items-center gap-1.5">
-                    <p className="font-mono font-medium text-gray-700 text-xs">{order.invoiceNumber}</p>
+                    <p className="font-mono font-medium text-ink-2 text-xs">{order.invoiceNumber}</p>
                     {order.zohoInvoiceId && !['pending_creation', 'creation_failed'].includes(order.zohoInvoiceId) && (
                       <Link
                         href={`/dashboard/invoices/${order.zohoInvoiceId}`}
-                        className="text-blue-500 hover:text-blue-700"
+                        className="text-amber-ink hover:text-amber-ink"
                         title="View invoice"
                       >
                         <ReceiptText className="h-3.5 w-3.5" />
@@ -373,8 +373,8 @@ export default function OrderStatusPage() {
                 </div>
               )}
               <div>
-                <p className="text-xs text-gray-400 mb-0.5">Items</p>
-                <p className="font-medium text-gray-700 text-xs">{order.domains.length} service{order.domains.length !== 1 ? 's' : ''}</p>
+                <p className="text-xs text-ink-4 mb-0.5">Items</p>
+                <p className="font-medium text-ink-2 text-xs">{order.domains.length} service{order.domains.length !== 1 ? 's' : ''}</p>
               </div>
             </div>
           </div>
@@ -407,7 +407,7 @@ export default function OrderStatusPage() {
                   if not resolved within 24 hours.
                 </p>
                 {pendingItems.length > 0 && (
-                  <p className="text-xs text-gray-600 mt-2">
+                  <p className="text-xs text-ink-2 mt-2">
                     {pendingItems.length === 1
                       ? `${listLabels(pendingItems)} is still registering — that's normal and unaffected by the failure above.`
                       : `${pendingItems.length} other services (${listLabels(pendingItems)}) are still registering — that's normal and unaffected.`}
@@ -419,7 +419,7 @@ export default function OrderStatusPage() {
 
           {/* Per-domain status */}
           <div>
-            <h2 className="text-sm font-semibold text-gray-700 mb-3 px-0.5">
+            <h2 className="text-sm font-semibold text-ink-2 mb-3 px-0.5">
               Services ({order.domains.length})
             </h2>
             <div className="space-y-3">
@@ -440,14 +440,14 @@ export default function OrderStatusPage() {
           <div className="flex flex-wrap gap-3 pt-2">
             <Link
               href="/dashboard/domains"
-              className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 font-medium"
+              className="inline-flex items-center gap-1.5 text-sm text-amber-ink hover:text-indigo-ink font-medium"
             >
               <Globe className="h-4 w-4" />
               View My Domains
             </Link>
             <Link
               href="/dashboard/orders"
-              className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800"
+              className="inline-flex items-center gap-1.5 text-sm text-ink-3 hover:text-ink"
             >
               <ReceiptText className="h-4 w-4" />
               All Orders

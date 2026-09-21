@@ -59,9 +59,9 @@ const AnimatedLoading = () => {
 export default function AdminDNSManagementPage() {
   return (
     <React.Suspense fallback={
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-        <p className="text-gray-600">Loading DNS Management...</p>
+      <div className="min-h-screen bg-paper-2/60 flex flex-col items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber mb-4"></div>
+        <p className="text-ink-2">Loading DNS Management...</p>
       </div>
     }>
       <AdminDNSManagementContent />
@@ -463,15 +463,15 @@ function AdminDNSManagementContent() {
               {deepLinkId && (
                 <button
                   onClick={() => router.push('/admin/domains')}
-                  className="p-2.5 bg-white border border-gray-200 rounded-xl text-gray-600 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-all shadow-sm"
+                  className="p-2.5 bg-white border border-hairline rounded-xl text-ink-2 hover:text-amber-ink hover:border-amber/40 hover:bg-indigo-soft transition-all shadow-sm"
                   title="Back to Domains"
                 >
                   <ArrowLeft className="h-5 w-5" />
                 </button>
               )}
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">DNS Management</h1>
-                <p className="text-sm text-gray-600 mt-1">
+                <h1 className="text-2xl font-bold text-ink">DNS Management</h1>
+                <p className="text-sm text-ink-2 mt-1">
                   {deepLinkId ? 'Manage records for ' + (domains.find(d => d.id === deepLinkId)?.name || 'selected domain') : 'Manage DNS records and nameservers for all domains'}
                 </p>
               </div>
@@ -489,27 +489,27 @@ function AdminDNSManagementContent() {
           {/* Domains List (Sidebar) */}
           {!deepLinkId && (
             <div className="xl:col-span-1">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col xl:h-[calc(100vh-14rem)] xl:sticky xl:top-6">
-                <div className="p-4 border-b border-gray-200 bg-gray-50/50 rounded-t-xl">
-                  <h3 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <Database className="h-4 w-4 text-gray-500" />
+              <div className="bg-white rounded-xl shadow-sm border border-hairline flex flex-col xl:h-[calc(100vh-14rem)] xl:sticky xl:top-6">
+                <div className="p-4 border-b border-hairline bg-paper-2/50 rounded-t-xl">
+                  <h3 className="text-base font-semibold text-ink mb-3 flex items-center gap-2">
+                    <Database className="h-4 w-4 text-ink-3" />
                     Domains
                   </h3>
                   <div className="space-y-3">
                     <div className="relative">
-                      <Search className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                      <Search className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-ink-4" />
                       <input
                         type="text"
                         placeholder="Search..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                        className="w-full pl-10 pr-4 py-2 border border-hairline-strong rounded-lg text-sm focus:ring-2 focus:ring-amber outline-none"
                       />
                     </div>
                     <select
                       value={statusFilter}
                       onChange={(e) => setStatusFilter(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                      className="w-full px-3 py-2 border border-hairline-strong rounded-lg text-sm focus:ring-2 focus:ring-amber outline-none"
                     >
                       <option value="all">All Statuses</option>
                       <option value="dns_activated">Active DNS</option>
@@ -523,27 +523,27 @@ function AdminDNSManagementContent() {
                   {isDataLoading ? (
                     <div className="space-y-3">
                       {[1, 2, 3, 4, 5].map((i) => (
-                        <div key={i} className="h-20 bg-gray-100 rounded-lg animate-pulse"></div>
+                        <div key={i} className="h-20 bg-paper-2 rounded-lg animate-pulse"></div>
                       ))}
                     </div>
                   ) : filteredDomains.length === 0 ? (
                     <div className="text-center py-8 px-4">
-                      <p className="text-sm text-gray-500">No domains found matching your criteria</p>
+                      <p className="text-sm text-ink-3">No domains found matching your criteria</p>
                     </div>
                   ) : (
                     filteredDomains.map((domain) => (
                       <div
                         key={domain.id}
                         className={`p-3 rounded-lg border transition-all duration-200 cursor-pointer group ${selectedDomain === domain.id
-                          ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500 shadow-sm'
-                          : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50 hover:shadow-sm'
+                          ? 'border-amber bg-indigo-soft ring-1 ring-amber shadow-sm'
+                          : 'border-hairline hover:border-amber/40 hover:bg-paper-2 hover:shadow-sm'
                           }`}
                         onClick={() => handleDomainClick(domain.id)}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between mb-1">
-                              <p className={`text-sm font-semibold truncate ${selectedDomain === domain.id ? 'text-blue-700' : 'text-gray-900'}`}>
+                              <p className={`text-sm font-semibold truncate ${selectedDomain === domain.id ? 'text-amber-ink' : 'text-ink'}`}>
                                 {domain.name}
                               </p>
                               {domain.dnsActivated && (
@@ -555,14 +555,14 @@ function AdminDNSManagementContent() {
                             </div>
 
                             <div className="flex items-center gap-2 mb-1.5">
-                              <Users className="h-3 w-3 text-gray-400" />
-                              <p className="text-xs text-gray-600 truncate">
+                              <Users className="h-3 w-3 text-ink-4" />
+                              <p className="text-xs text-ink-2 truncate">
                                 {domain.customerName}
                               </p>
                             </div>
 
                             <div className="flex items-center justify-between">
-                              <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-mono">
+                              <span className="text-[10px] bg-paper-2 text-ink-3 px-1.5 py-0.5 rounded font-mono">
                                 {domain.orderId}
                               </span>
                               {domain.dnsActivated && selectedDomain === domain.id && (
@@ -576,7 +576,7 @@ function AdminDNSManagementContent() {
                                     });
                                     if (ok) void handleActivateDNS(domain.id, true);
                                   }}
-                                  className="text-[10px] font-medium text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                                  className="text-[10px] font-medium text-amber-ink hover:text-indigo-ink hover:underline flex items-center gap-1"
                                   title="Re-sync DNS status"
                                 >
                                   <RefreshCw className="h-3 w-3" />
@@ -588,14 +588,14 @@ function AdminDNSManagementContent() {
                         </div>
 
                         {!domain.dnsActivated && (
-                          <div className="mt-3 pt-3 border-t border-gray-200/50">
+                          <div className="mt-3 pt-3 border-t border-hairline/50">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 void handleActivateDNS(domain.id);
                               }}
                               disabled={isActivating}
-                              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white border border-blue-600 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white transition-all disabled:opacity-50"
+                              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white border border-amber text-amber-ink rounded-md hover:brightness-90 hover:text-white transition-all disabled:opacity-50"
                             >
                               {isActivating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
                               Enable DNS
@@ -622,19 +622,19 @@ function AdminDNSManagementContent() {
                 4. selectedDomain set → real domain UI
                 5. otherwise → "Select a Domain" placeholder */}
             {isDataLoading || (deepLinkId && !selectedDomain) ? (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 text-center h-[600px] flex flex-col items-center justify-center">
+              <div className="bg-white rounded-2xl shadow-sm border border-hairline p-8 text-center h-[600px] flex flex-col items-center justify-center">
                 {!isDataLoading && deepLinkId && !domains.some(d => d.id === deepLinkId) ? (
                   <>
                     <div className="h-16 w-16 rounded-2xl bg-red-50 flex items-center justify-center mb-5">
                       <AlertCircle className="h-8 w-8 text-red-500" />
                     </div>
-                    <h3 className="text-sm font-semibold text-gray-900 mb-1.5">Domain not found</h3>
-                    <p className="text-sm text-gray-500 max-w-sm mb-5">
+                    <h3 className="text-sm font-semibold text-ink mb-1.5">Domain not found</h3>
+                    <p className="text-sm text-ink-3 max-w-sm mb-5">
                       The domain you're trying to open doesn't exist or you no longer have access to it.
                     </p>
                     <button
                       onClick={() => router.push('/admin/domains')}
-                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition-colors"
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-amber-ink bg-indigo-soft hover:bg-indigo-soft border border-indigo/25 rounded-xl transition-colors"
                     >
                       <ArrowLeft className="h-4 w-4" />
                       Back to Domains
@@ -643,17 +643,17 @@ function AdminDNSManagementContent() {
                 ) : (
                   <>
                     <div className="relative mb-5">
-                      <div className="h-16 w-16 rounded-2xl bg-blue-50 flex items-center justify-center">
-                        <Globe className="h-8 w-8 text-blue-400" />
+                      <div className="h-16 w-16 rounded-2xl bg-indigo-soft flex items-center justify-center">
+                        <Globe className="h-8 w-8 text-amber-ink" />
                       </div>
-                      <div className="absolute -bottom-1 -right-1 h-6 w-6 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100">
-                        <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                      <div className="absolute -bottom-1 -right-1 h-6 w-6 bg-white rounded-full flex items-center justify-center shadow-sm border border-hairline">
+                        <Loader2 className="h-4 w-4 animate-spin text-amber-ink" />
                       </div>
                     </div>
-                    <h3 className="text-sm font-semibold text-gray-900 mb-1.5">
+                    <h3 className="text-sm font-semibold text-ink mb-1.5">
                       {deepLinkId ? "Opening Domain…" : "Loading Domains…"}
                     </h3>
-                    <p className="text-sm text-gray-500 max-w-sm">
+                    <p className="text-sm text-ink-3 max-w-sm">
                       {deepLinkId
                         ? "Fetching DNS records and nameservers for the selected domain."
                         : "Pulling your domain list. This should only take a moment."}
@@ -664,19 +664,19 @@ function AdminDNSManagementContent() {
             ) : selectedDomain ? (
               <div className="space-y-5">
                 {/* ── Nameservers card ── */}
-                <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-                  <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 flex items-center justify-between gap-4">
+                <div className="bg-white border border-hairline rounded-2xl shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 border-b border-hairline bg-paper-2/60 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-2.5">
-                      <Server className="h-4 w-4 text-gray-500" />
+                      <Server className="h-4 w-4 text-ink-3" />
                       <div>
-                        <h3 className="text-sm font-semibold text-gray-900">Nameservers</h3>
-                        <p className="text-xs text-gray-500 mt-0.5">Configure where your domain points to</p>
+                        <h3 className="text-sm font-semibold text-ink">Nameservers</h3>
+                        <p className="text-xs text-ink-3 mt-0.5">Configure where your domain points to</p>
                       </div>
                     </div>
                     <button
                       onClick={() => loadNameservers(selectedDomain)}
                       disabled={isNameserverLoading}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-ink-2 bg-white border border-hairline rounded-lg hover:bg-paper-2 transition-colors disabled:opacity-50"
                     >
                       <RefreshCw className={`h-3.5 w-3.5 ${isNameserverLoading ? 'animate-spin' : ''}`} />
                       Refresh
@@ -686,8 +686,8 @@ function AdminDNSManagementContent() {
                   <div className="p-6">
                     {isNameserverLoading ? (
                       <div className="flex flex-col items-center justify-center py-10">
-                        <Loader2 className="animate-spin h-7 w-7 text-blue-600 mb-3" />
-                        <span className="text-sm text-gray-500 font-medium">Fetching nameservers…</span>
+                        <Loader2 className="animate-spin h-7 w-7 text-amber-ink mb-3" />
+                        <span className="text-sm text-ink-3 font-medium">Fetching nameservers…</span>
                       </div>
                     ) : (
                       <>
@@ -695,43 +695,43 @@ function AdminDNSManagementContent() {
                         {nameservers.length > 0 ? (
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-6">
                             {nameservers.map((ns, index) => (
-                              <div key={index} className="flex items-center gap-3 px-3.5 py-2.5 bg-gray-50 border border-gray-100 rounded-xl hover:border-gray-200 transition-colors">
-                                <span className="flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-md bg-white border border-gray-200 text-xs font-semibold text-gray-500">
+                              <div key={index} className="flex items-center gap-3 px-3.5 py-2.5 bg-paper-2/60 border border-hairline rounded-xl hover:border-hairline transition-colors">
+                                <span className="flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-md bg-white border border-hairline text-xs font-semibold text-ink-3">
                                   {index + 1}
                                 </span>
-                                <span className="text-gray-800 font-mono text-sm flex-1 truncate">{ns}</span>
+                                <span className="text-ink font-mono text-sm flex-1 truncate">{ns}</span>
                                 <span className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)] flex-shrink-0" />
                               </div>
                             ))}
                           </div>
                         ) : (
-                          <div className="text-center py-8 bg-gray-50 border border-gray-100 border-dashed rounded-xl mb-6">
-                            <AlertCircle className="h-7 w-7 text-gray-400 mx-auto mb-2" />
-                            <p className="text-sm text-gray-700 font-medium">No nameservers found</p>
+                          <div className="text-center py-8 bg-paper-2/60 border border-hairline border-dashed rounded-xl mb-6">
+                            <AlertCircle className="h-7 w-7 text-ink-4 mx-auto mb-2" />
+                            <p className="text-sm text-ink-2 font-medium">No nameservers found</p>
                           </div>
                         )}
 
                         {/* Default vs Custom radio cards */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
-                          <label className={`relative flex items-start gap-3 p-4 cursor-pointer rounded-xl border-2 transition-all ${nsMode === 'default' ? 'border-blue-500 bg-blue-50/50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                          <label className={`relative flex items-start gap-3 p-4 cursor-pointer rounded-xl border-2 transition-all ${nsMode === 'default' ? 'border-amber bg-indigo-soft/50' : 'border-hairline hover:bg-paper-2'}`}>
                             <input type="radio" name="nsMode" value="default" checked={nsMode === 'default'} onChange={() => setNsMode('default')} className="sr-only" />
-                            <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors shrink-0 ${nsMode === 'default' ? 'border-blue-600 bg-blue-600' : 'border-gray-300 bg-white'}`}>
+                            <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors shrink-0 ${nsMode === 'default' ? 'border-amber bg-amber' : 'border-hairline-strong bg-white'}`}>
                               {nsMode === 'default' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                             </div>
                             <div className="min-w-0">
-                              <p className="text-sm font-semibold text-gray-900">Default Nameservers</p>
-                              <p className="text-xs text-gray-500 mt-0.5">Use our secure, managed DNS infrastructure.</p>
+                              <p className="text-sm font-semibold text-ink">Default Nameservers</p>
+                              <p className="text-xs text-ink-3 mt-0.5">Use our secure, managed DNS infrastructure.</p>
                             </div>
                           </label>
 
-                          <label className={`relative flex items-start gap-3 p-4 cursor-pointer rounded-xl border-2 transition-all ${nsMode === 'custom' ? 'border-blue-500 bg-blue-50/50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                          <label className={`relative flex items-start gap-3 p-4 cursor-pointer rounded-xl border-2 transition-all ${nsMode === 'custom' ? 'border-amber bg-indigo-soft/50' : 'border-hairline hover:bg-paper-2'}`}>
                             <input type="radio" name="nsMode" value="custom" checked={nsMode === 'custom'} onChange={() => setNsMode('custom')} className="sr-only" />
-                            <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors shrink-0 ${nsMode === 'custom' ? 'border-blue-600 bg-blue-600' : 'border-gray-300 bg-white'}`}>
+                            <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors shrink-0 ${nsMode === 'custom' ? 'border-amber bg-amber' : 'border-hairline-strong bg-white'}`}>
                               {nsMode === 'custom' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                             </div>
                             <div className="min-w-0">
-                              <p className="text-sm font-semibold text-gray-900">Custom Nameservers</p>
-                              <p className="text-xs text-gray-500 mt-0.5">Point your domain to an external provider.</p>
+                              <p className="text-sm font-semibold text-ink">Custom Nameservers</p>
+                              <p className="text-xs text-ink-3 mt-0.5">Point your domain to an external provider.</p>
                             </div>
                           </label>
                         </div>
@@ -750,20 +750,20 @@ function AdminDNSManagementContent() {
                               </div>
                             </div>
                           ) : (
-                          <div className="flex items-center justify-between gap-4 p-4 bg-gradient-to-br from-blue-50/40 to-indigo-50/40 border border-blue-100 rounded-xl flex-wrap">
+                          <div className="flex items-center justify-between gap-4 p-4 bg-gradient-to-br from-blue-50/40 to-indigo-50/40 border border-indigo/25 rounded-xl flex-wrap">
                             <div className="flex items-center gap-3 min-w-0">
-                              <div className="p-2 bg-white rounded-lg border border-blue-100 shadow-sm shrink-0">
+                              <div className="p-2 bg-white rounded-lg border border-indigo/25 shadow-sm shrink-0">
                                 <CheckCircle className="h-4 w-4 text-green-500" />
                               </div>
                               <div>
-                                <p className="text-sm font-semibold text-gray-900">Ready to Apply</p>
-                                <p className="text-xs text-gray-500 mt-0.5">This will configure your domain to use our nameservers.</p>
+                                <p className="text-sm font-semibold text-ink">Ready to Apply</p>
+                                <p className="text-xs text-ink-3 mt-0.5">This will configure your domain to use our nameservers.</p>
                               </div>
                             </div>
                             <button
                               onClick={handleSetDefaultNameservers}
                               disabled={isUpdatingNameservers}
-                              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors disabled:opacity-50 shadow-sm shrink-0"
+                              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-amber hover:brightness-90 rounded-xl transition-colors disabled:opacity-50 shadow-sm shrink-0"
                             >
                               {isUpdatingNameservers ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -785,15 +785,15 @@ function AdminDNSManagementContent() {
                                 { v: ns4, set: setNs4, label: 'Nameserver 4', placeholder: 'ns4.example.com',         optional: true },
                               ].map((f) => (
                                 <div key={f.label}>
-                                  <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
-                                    {f.label}{f.optional && <span className="ml-1 text-gray-400 font-normal normal-case">(Optional)</span>}
+                                  <label className="block text-xs font-semibold text-ink-2 uppercase tracking-wide mb-1.5">
+                                    {f.label}{f.optional && <span className="ml-1 text-ink-4 font-normal normal-case">(Optional)</span>}
                                   </label>
                                   <input
                                     type="text"
                                     value={f.v}
                                     onChange={(e) => f.set(e.target.value)}
                                     placeholder={f.placeholder}
-                                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                                    className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber focus:border-transparent transition-shadow"
                                   />
                                 </div>
                               ))}
@@ -802,7 +802,7 @@ function AdminDNSManagementContent() {
                               <button
                                 onClick={handleSetCustomNameservers}
                                 disabled={isUpdatingNameservers}
-                                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors disabled:opacity-50 shadow-sm"
+                                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-amber hover:brightness-90 rounded-xl transition-colors disabled:opacity-50 shadow-sm"
                               >
                                 {isUpdatingNameservers ? (
                                   <>
@@ -825,13 +825,13 @@ function AdminDNSManagementContent() {
                 </div>
 
                 {/* ── DNS Zone Records card ── */}
-                <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-                  <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 flex items-center justify-between gap-4">
+                <div className="bg-white border border-hairline rounded-2xl shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 border-b border-hairline bg-paper-2/60 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-2.5">
-                      <Database className="h-4 w-4 text-gray-500" />
-                      <h3 className="text-sm font-semibold text-gray-900">DNS Zone Records</h3>
+                      <Database className="h-4 w-4 text-ink-3" />
+                      <h3 className="text-sm font-semibold text-ink">DNS Zone Records</h3>
                       {dnsRecords.length > 0 && (
-                        <span className="inline-flex items-center text-xs font-medium text-gray-500 bg-white border border-gray-200 px-2 py-0.5 rounded-full">
+                        <span className="inline-flex items-center text-xs font-medium text-ink-3 bg-white border border-hairline px-2 py-0.5 rounded-full">
                           {dnsRecords.length}
                         </span>
                       )}
@@ -839,7 +839,7 @@ function AdminDNSManagementContent() {
                     <button
                       onClick={() => setShowAddRecord(true)}
                       disabled={nsMode === 'custom' || dnsPropagationStatus !== 'ready'}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-amber hover:brightness-90 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                     >
                       <Plus className="h-3.5 w-3.5" /> Add Record
                     </button>
@@ -847,11 +847,11 @@ function AdminDNSManagementContent() {
 
                   {nsMode === 'custom' ? (
                     <div className="py-16 px-6 text-center">
-                      <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                        <Globe className="h-7 w-7 text-blue-500" />
+                      <div className="w-14 h-14 bg-indigo-soft rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <Globe className="h-7 w-7 text-amber-ink" />
                       </div>
-                      <h3 className="text-sm font-semibold text-gray-900 mb-1.5">Managed by External Provider</h3>
-                      <p className="text-sm text-gray-500 max-w-sm mx-auto">Switch to Default Nameservers to manage DNS records here.</p>
+                      <h3 className="text-sm font-semibold text-ink mb-1.5">Managed by External Provider</h3>
+                      <p className="text-sm text-ink-3 max-w-sm mx-auto">Switch to Default Nameservers to manage DNS records here.</p>
                     </div>
                   ) : (
                     <>
@@ -859,7 +859,7 @@ function AdminDNSManagementContent() {
                       {dnsPropagationStatus !== 'ready' && (
                         <div className="px-6 pt-4">
                           {dnsPropagationStatus === 'checking' && (
-                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-xs font-medium text-blue-700">
+                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-soft border border-indigo/25 text-xs font-medium text-amber-ink">
                               <Loader2 className="h-3 w-3 animate-spin" />
                               Verifying DNS zone…
                             </div>
@@ -881,35 +881,35 @@ function AdminDNSManagementContent() {
 
                       {isDNSLoading ? (
                         <div className="py-16 flex flex-col items-center justify-center">
-                          <Loader2 className="h-7 w-7 text-blue-600 animate-spin mb-3" />
-                          <p className="text-sm text-gray-500">Loading DNS records…</p>
+                          <Loader2 className="h-7 w-7 text-amber-ink animate-spin mb-3" />
+                          <p className="text-sm text-ink-3">Loading DNS records…</p>
                         </div>
                       ) : dnsRecords.length === 0 ? (
                         <div className="py-16 px-6 text-center">
-                          <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                            <Database className="h-7 w-7 text-gray-400" />
+                          <div className="w-14 h-14 bg-paper-2 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <Database className="h-7 w-7 text-ink-4" />
                           </div>
-                          <h3 className="text-sm font-semibold text-gray-900 mb-1.5">No DNS records yet</h3>
-                          <p className="text-sm text-gray-500">Add a record above to get started.</p>
+                          <h3 className="text-sm font-semibold text-ink mb-1.5">No DNS records yet</h3>
+                          <p className="text-sm text-ink-3">Add a record above to get started.</p>
                         </div>
                       ) : (
                         <div className="overflow-x-auto">
                           <table className="w-full text-sm">
                             <thead>
-                              <tr className="bg-gray-50/60 border-b border-gray-100">
-                                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Type</th>
-                                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Name</th>
-                                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-0 sm:min-w-[200px]">Value</th>
-                                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">TTL</th>
-                                <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Actions</th>
+                              <tr className="bg-paper-2/60 border-b border-hairline">
+                                <th className="px-5 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wider whitespace-nowrap">Type</th>
+                                <th className="px-5 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wider whitespace-nowrap">Name</th>
+                                <th className="px-5 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wider min-w-0 sm:min-w-[200px]">Value</th>
+                                <th className="px-5 py-3 text-left text-xs font-semibold text-ink-3 uppercase tracking-wider whitespace-nowrap">TTL</th>
+                                <th className="px-5 py-3 text-right text-xs font-semibold text-ink-3 uppercase tracking-wider whitespace-nowrap">Actions</th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-50">
+                            <tbody className="divide-y divide-hairline">
                               {dnsRecords.map((record) => {
                                 const uniqueId = `${record.type}-${record.id}-${record.name}-${record.value}`;
                                 const isEditing = editingRecord === uniqueId;
                                 const typeColors: Record<string, string> = {
-                                  A:     'bg-blue-50 text-blue-700 border-blue-200',
+                                  A:     'bg-indigo-soft text-amber-ink border-indigo/25',
                                   AAAA:  'bg-indigo-50 text-indigo-700 border-indigo-200',
                                   CNAME: 'bg-purple-50 text-purple-700 border-purple-200',
                                   MX:    'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -917,22 +917,22 @@ function AdminDNSManagementContent() {
                                   NS:    'bg-cyan-50 text-cyan-700 border-cyan-200',
                                   SRV:   'bg-pink-50 text-pink-700 border-pink-200',
                                 };
-                                const typeCls = typeColors[record.type] ?? 'bg-gray-100 text-gray-700 border-gray-200';
+                                const typeCls = typeColors[record.type] ?? 'bg-paper-2 text-ink-2 border-hairline';
 
                                 return (
-                                  <tr key={uniqueId} className="hover:bg-blue-50/30 transition-colors group">
+                                  <tr key={uniqueId} className="hover:bg-indigo-soft/30 transition-colors group">
                                     {isEditing ? (
                                       <>
-                                        <td className="px-5 py-3"><input className="w-20 px-2 py-1.5 border border-gray-200 rounded-lg text-xs font-semibold" value={editRecord.type} onChange={e => setEditRecord({ ...editRecord, type: e.target.value })} /></td>
-                                        <td className="px-5 py-3"><input className="w-32 md:w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm font-mono" value={editRecord.name} onChange={e => setEditRecord({ ...editRecord, name: e.target.value })} /></td>
-                                        <td className="px-5 py-3"><input className="w-full min-w-0 sm:min-w-[150px] px-2 py-1.5 border border-gray-200 rounded-lg text-sm font-mono" value={editRecord.value} onChange={e => setEditRecord({ ...editRecord, value: e.target.value })} /></td>
-                                        <td className="px-5 py-3"><input className="w-20 px-2 py-1.5 border border-gray-200 rounded-lg text-sm" type="number" value={editRecord.ttl} onChange={e => setEditRecord({ ...editRecord, ttl: parseInt(e.target.value) })} /></td>
+                                        <td className="px-5 py-3"><input className="w-20 px-2 py-1.5 border border-hairline rounded-lg text-xs font-semibold" value={editRecord.type} onChange={e => setEditRecord({ ...editRecord, type: e.target.value })} /></td>
+                                        <td className="px-5 py-3"><input className="w-32 md:w-full px-2 py-1.5 border border-hairline rounded-lg text-sm font-mono" value={editRecord.name} onChange={e => setEditRecord({ ...editRecord, name: e.target.value })} /></td>
+                                        <td className="px-5 py-3"><input className="w-full min-w-0 sm:min-w-[150px] px-2 py-1.5 border border-hairline rounded-lg text-sm font-mono" value={editRecord.value} onChange={e => setEditRecord({ ...editRecord, value: e.target.value })} /></td>
+                                        <td className="px-5 py-3"><input className="w-20 px-2 py-1.5 border border-hairline rounded-lg text-sm" type="number" value={editRecord.ttl} onChange={e => setEditRecord({ ...editRecord, ttl: parseInt(e.target.value) })} /></td>
                                         <td className="px-5 py-3 text-right whitespace-nowrap">
                                           <div className="inline-flex items-center gap-1.5">
                                             <button onClick={handleSaveEdit} title="Save" className="p-2.5 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors">
                                               <Save className="h-4 w-4" />
                                             </button>
-                                            <button onClick={handleCancelEdit} title="Cancel" className="p-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+                                            <button onClick={handleCancelEdit} title="Cancel" className="p-2.5 text-ink-3 hover:text-ink-2 hover:bg-paper-2 rounded-lg transition-colors">
                                               <X className="h-4 w-4" />
                                             </button>
                                           </div>
@@ -945,15 +945,15 @@ function AdminDNSManagementContent() {
                                             {record.type}
                                           </span>
                                         </td>
-                                        <td className="px-5 py-3.5 text-sm font-mono text-gray-700 whitespace-nowrap">{record.name}</td>
-                                        <td className="px-5 py-3.5 text-sm text-gray-800 font-mono break-all min-w-0 sm:min-w-[200px]">{record.value}</td>
-                                        <td className="px-5 py-3.5 text-sm text-gray-600 whitespace-nowrap font-mono">{record.ttl}s</td>
+                                        <td className="px-5 py-3.5 text-sm font-mono text-ink-2 whitespace-nowrap">{record.name}</td>
+                                        <td className="px-5 py-3.5 text-sm text-ink font-mono break-all min-w-0 sm:min-w-[200px]">{record.value}</td>
+                                        <td className="px-5 py-3.5 text-sm text-ink-2 whitespace-nowrap font-mono">{record.ttl}s</td>
                                         <td className="px-5 py-3.5 text-right whitespace-nowrap">
                                           <div className="inline-flex items-center gap-1.5">
-                                            <button onClick={() => handleEditRecord(record)} title="Edit" className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                                            <button onClick={() => handleEditRecord(record)} title="Edit" className="p-2.5 text-ink-4 hover:text-amber-ink hover:bg-indigo-soft rounded-lg transition-colors">
                                               <Edit3 className="h-4 w-4" />
                                             </button>
-                                            <button onClick={() => handleDeleteRecord(record.id)} title="Delete" className="p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                                            <button onClick={() => handleDeleteRecord(record.id)} title="Delete" className="p-2.5 text-ink-4 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
                                               <Trash2 className="h-4 w-4" />
                                             </button>
                                           </div>
@@ -972,12 +972,12 @@ function AdminDNSManagementContent() {
                 </div>
               </div>
             ) : (
-              <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-8 text-center h-[600px] flex flex-col items-center justify-center">
-                <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <Globe className="h-7 w-7 text-blue-500" />
+              <div className="bg-white border border-hairline rounded-2xl shadow-sm p-8 text-center h-[600px] flex flex-col items-center justify-center">
+                <div className="w-14 h-14 bg-indigo-soft rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Globe className="h-7 w-7 text-amber-ink" />
                 </div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-1.5">Select a Domain</h3>
-                <p className="text-sm text-gray-500">Choose a domain from the sidebar to manage DNS.</p>
+                <h3 className="text-sm font-semibold text-ink mb-1.5">Select a Domain</h3>
+                <p className="text-sm text-ink-3">Choose a domain from the sidebar to manage DNS.</p>
               </div>
             )}
           </div>
@@ -989,7 +989,7 @@ function AdminDNSManagementContent() {
             <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
               <div className="p-4 border-b flex justify-between items-center">
                 <h3 className="font-bold text-lg">Add DNS Record</h3>
-                <button onClick={() => setShowAddRecord(false)}><X className="h-5 w-5 text-gray-400" /></button>
+                <button onClick={() => setShowAddRecord(false)}><X className="h-5 w-5 text-ink-4" /></button>
               </div>
               <div className="p-6 space-y-4">
                 <div>
@@ -1023,7 +1023,7 @@ function AdminDNSManagementContent() {
                     </div>
                   )}
                 </div>
-                <button onClick={handleAddRecord} className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 mt-2">Add Record</button>
+                <button onClick={handleAddRecord} className="w-full bg-amber text-white py-2 rounded-lg font-medium hover:brightness-90 mt-2">Add Record</button>
               </div>
             </div>
           </div>
