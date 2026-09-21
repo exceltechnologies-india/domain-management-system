@@ -98,6 +98,50 @@ Our primary GST engine mints tax invoices (`TI/YYYY-YY/NNNNN`) but has **no cred
 
 Building the engine properly (its own Counter, reverse-numbered series, PDF, wiring into the refund handler) stays open as item 3 of the post-Phase-2 audit in `TASKS.md` — do it when real refund volume justifies it, not before.
 
+## DMS runs in two shapes — check which one before changing a public page (2026-09-21)
+
+`NEXT_PUBLIC_RESELLEROS_URL` decides whether this app is the whole product or
+the hosting/domain panel behind ResellerOS. Set, `/` 307s to ResellerOS and
+every brand/home link points there; unset, DMS is standalone with its own
+homepage, exactly as before. Unset is the default on purpose — turning a
+working frontpage off must be a deployment decision, not a side effect of
+merging.
+
+- **One source of truth for the value**: `resellerOsUrl()` in
+  `lib/reseller-os.ts`. It returns `null`, never `""` — an empty base makes an
+  href *relative*, which is not a broken link but one that silently points back
+  at DMS. Do not add a `?? ""`.
+- **Two enforcement points, deliberately**: `middleware.ts` (for the status)
+  and `app/page.tsx` (the guarantee). `app/` has a `loading.tsx`, so a redirect
+  decided during render lands after streaming has started and degrades to a
+  `200` carrying a one-second `<meta http-equiv="refresh">`. Measured, not
+  assumed.
+- **It is a build arg, in BOTH Dockerfile stages.** `NEXT_PUBLIC_*` is inlined
+  by `next build`. The builder copy feeds the client bundle (the links); the
+  runner copy feeds the server component (the redirect). Declaring it in the
+  builder only is exactly what happened first — the logo moved and `/` went on
+  serving the homepage. Setting it on a running container does nothing.
+- **Do not reintroduce a homepage link.** Brand marks get their href from
+  `Logo`'s default, which follows the front door. Pass an explicit `href` only
+  where the target genuinely is not home (the signed-in nav → the panel).
+
+## Domain renewal is gated, and the gate is load-bearing (2026-09-21)
+
+`POST /api/domains/renew` spends real registrar balance. It now requires
+ownership (`findOrderByDomainForUser` + `findOrderDomain`, the repo-wide idiom)
+**and** a verified Razorpay payment, both before `rcRenewDomain`.
+
+Before that it had neither, and the modal *fabricated* the payment id, so any
+signed-in customer could renew any domain in the account for free. It also
+never passed `razorpayOrderId`/`razorpayPaymentId`, which the Order schema
+marks required — so `createOrder` threw on every run, *after* the registrar had
+been charged, and the customer was told it failed.
+
+There is no retail renewal price for domains in this codebase, so nothing can
+produce the payment the route now demands and the UI routes to support instead.
+**Do not "fix" that by relaxing the gate.** Finish it the other way: set a
+markup, then mirror `app/api/user/hosting/renew/route.ts`.
+
 ## Other persistent conventions
 
 - Do not surface credential/key rotation as a next step — the user has opted out for this project (see auto-memory `feedback_key_rotation_skip`). **Exception**: active leaks discovered via security review override this preference; rotate immediately, don't ask twice.
