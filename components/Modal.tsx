@@ -3,6 +3,17 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useModalScroll } from '@/hooks/useModalScroll';
 
+/**
+ * Shared admin/app modal. Chrome matches ResellerOS's Dialog so a modal opened
+ * over the converted panels belongs to the same app: `bg-ink/40 backdrop-blur-sm`
+ * overlay, `bg-paper` panel on a hairline border, and a SERIF title — that last
+ * one is the design language's signature and the thing that most makes a dialog
+ * read as ours.
+ *
+ * Five callers (admin users / orders / hosting-pending, DomainRequirementsModal,
+ * DomainSelectionModal), so this file is the one place to change them.
+ */
+
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -37,7 +48,15 @@ export default function Modal({
           <div className="flex min-h-screen items-center justify-center p-4">
             {/* Background overlay */}
             <motion.div
-              className="fixed inset-0 bg-gray-500 bg-opacity-75"
+              /* Stable hook for the overlay-click tests. They used to select it
+                 by `.bg-gray-500.bg-opacity-75` — styling classes — so the
+                 restyle made querySelector return null. One test then failed
+                 honestly and the OTHER ("closeOnOverlayClick=false suppresses
+                 the callback") started passing for the wrong reason: clicking
+                 null calls nothing, which is what it asserts. A test pinned to
+                 a colour is a test that goes vacuous the day someone repaints. */
+              data-testid="modal-overlay"
+              className="fixed inset-0 bg-ink/40 backdrop-blur-sm"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -47,7 +66,7 @@ export default function Modal({
 
             {/* Modal panel */}
             <motion.div
-              className={`relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl w-full max-h-[calc(100vh-4rem)] flex flex-col ${sizeClasses[size]}`}
+              className={`relative transform overflow-hidden rounded-lg border border-hairline bg-paper text-left shadow-2xl w-full max-h-[calc(100vh-4rem)] flex flex-col ${sizeClasses[size]}`}
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -57,10 +76,10 @@ export default function Modal({
               }}
             >
               {/* Header - Fixed */}
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4 border-b border-gray-200 flex-shrink-0">
+              <div className="px-4 pt-5 pb-4 sm:p-6 sm:pb-4 border-b border-hairline flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <motion.h3
-                    className="text-lg font-medium text-gray-900"
+                    className="font-serif text-xl leading-tight text-ink"
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.1, duration: 0.2 }}
@@ -69,7 +88,7 @@ export default function Modal({
                   </motion.h3>
                   <motion.button
                     type="button"
-                    className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-md hover:bg-gray-100"
+                    className="text-ink-3 hover:text-ink hover:bg-paper-2 transition-colors p-1.5 rounded-md"
                     onClick={onClose}
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.95 }}
@@ -77,14 +96,14 @@ export default function Modal({
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.1, duration: 0.2 }}
                   >
-                    <X className="h-6 w-6" />
+                    <X className="h-5 w-5" />
                   </motion.button>
                 </div>
               </div>
 
               {/* Content - Scrollable */}
               <motion.div
-                className="bg-white px-4 pb-4 sm:p-6 overflow-y-auto flex-1 modal-scrollbar"
+                className="px-4 pb-4 sm:p-6 overflow-y-auto flex-1 modal-scrollbar text-ink"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2, duration: 0.3 }}

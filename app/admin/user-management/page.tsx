@@ -506,7 +506,7 @@ export default function AdminUsers() {
       sortable: true,
       render: (_value: unknown, row: User) => (
         <div className="flex flex-col gap-1">
-          <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium rounded-full w-fit ${row.isActive ? 'bg-green-100 text-green-800' : 'bg-paper-2 text-ink'}`}>
+          <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium rounded-full w-fit ${row.isActive ? 'bg-emerald-soft text-emerald-ink' : 'bg-paper-2 text-ink'}`}>
             {row.isActive ? 'active' : 'inactive'}
           </span>
           {row.totpEnabled && (
@@ -583,7 +583,7 @@ export default function AdminUsers() {
       label: 'Status',
       sortable: true,
       render: (_value: unknown, row: User) => (
-        <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium rounded-full bg-red-100 text-red-800">
+        <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium rounded-full bg-rose-soft text-rose-ink">
           deactivated
         </span>
       )
@@ -683,7 +683,7 @@ export default function AdminUsers() {
       label: 'Status',
       sortable: true,
       render: (_value: unknown, row: User) => (
-        <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium rounded-full ${row.isActive ? 'bg-green-100 text-green-800' : 'bg-paper-2 text-ink'
+        <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium rounded-full ${row.isActive ? 'bg-emerald-soft text-emerald-ink' : 'bg-paper-2 text-ink'
           }`}>
           {row.isActive ? 'active' : 'inactive'}
         </span>
@@ -824,7 +824,7 @@ export default function AdminUsers() {
               onClick={() => setActiveTab('active')}
               className={`bg-paper border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${activeTab === 'active' ? 'border-amber ring-2 ring-amber/25' : 'border-hairline hover:border-hairline-strong hover:shadow-md'}`}
             >
-              <div className="p-2 bg-green-50 rounded-xl">
+              <div className="p-2 bg-emerald-soft rounded-xl">
                 <UserCheck className="h-4 w-4 text-green-600" />
               </div>
               <div className="flex-1 min-w-0">
@@ -836,7 +836,7 @@ export default function AdminUsers() {
               onClick={() => setActiveTab('deactivated')}
               className={`bg-paper border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${activeTab === 'deactivated' ? 'border-amber ring-2 ring-amber/25' : 'border-hairline hover:border-hairline-strong hover:shadow-md'}`}
             >
-              <div className="p-2 bg-red-50 rounded-xl">
+              <div className="p-2 bg-rose-soft rounded-xl">
                 <UserX className="h-4 w-4 text-red-600" />
               </div>
               <div className="flex-1 min-w-0">
@@ -1017,8 +1017,8 @@ export default function AdminUsers() {
               <div>
                 <label className="text-sm font-medium text-ink-3">Account Status</label>
                 <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${selectedUser.isActive
-                  ? 'bg-green-100 text-green-800'
-                  : 'bg-red-100 text-red-800'
+                  ? 'bg-emerald-soft text-emerald-ink'
+                  : 'bg-rose-soft text-rose-ink'
                   }`}>
                   {selectedUser.isActive ? 'Active' : 'Inactive'}
                 </span>
@@ -1058,15 +1058,15 @@ export default function AdminUsers() {
       >
         {passwordResetUser ? (
           <div className="space-y-4">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="bg-amber-soft border border-hairline rounded-lg p-4">
               <div className="flex">
                 <div className="flex-shrink-0">
-                  <div className="w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center">
-                    <span className="text-yellow-800 text-xs font-bold">!</span>
+                  <div className="w-5 h-5 bg-amber rounded-full flex items-center justify-center">
+                    <span className="text-paper text-xs font-bold">!</span>
                   </div>
                 </div>
                 <div className="ml-3">
-                  <h3 className="text-sm font-medium text-yellow-800">
+                  <h3 className="text-sm font-medium text-amber-ink">
                     Reset Password for {passwordResetUser.firstName} {passwordResetUser.lastName}
                   </h3>
                   <p className="text-sm text-yellow-700 mt-1">
@@ -1242,7 +1242,7 @@ export default function AdminUsers() {
                   <button
                     onClick={confirmDeactivateUser}
                     disabled={isDeactivating}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center"
+                    className="px-4 py-2 bg-rose hover:bg-rose-ink text-white rounded-lg transition-colors disabled:opacity-50 flex items-center"
                   >
                     {isDeactivating ? (
                       <>
@@ -1310,7 +1310,7 @@ export default function AdminUsers() {
                   <button
                     onClick={confirmReactivateUser}
                     disabled={isReactivating}
-                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center"
+                    className="px-4 py-2 bg-emerald hover:bg-emerald-ink text-white rounded-lg transition-colors disabled:opacity-50 flex items-center"
                   >
                     {isReactivating ? (
                       <>
@@ -1349,8 +1349,8 @@ export default function AdminUsers() {
                 </div>
 
                 <div className="mb-6">
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                    <p className="text-red-800 text-sm font-medium">
+                  <div className="bg-rose-soft border border-red-200 rounded-lg p-4 mb-4">
+                    <p className="text-rose-ink text-sm font-medium">
                       Warning: This action is irreversible!
                     </p>
                     <p className="text-red-700 text-sm mt-1">
@@ -1386,7 +1386,7 @@ export default function AdminUsers() {
                   <button
                     onClick={confirmPermanentDeleteUser}
                     disabled={isPermanentlyDeleting}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center"
+                    className="px-4 py-2 bg-rose hover:bg-rose-ink text-white rounded-lg transition-colors disabled:opacity-50 flex items-center"
                   >
                     {isPermanentlyDeleting ? (
                       <>
@@ -1456,9 +1456,9 @@ export default function AdminUsers() {
                           <td className="px-4 py-3 text-sm font-medium text-ink">{host.name || 'Standard Hosting'}</td>
                           <td className="px-4 py-3 text-sm text-ink-3">{host.domainName}</td>
                           <td className="px-4 py-3">
-                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${host.status === 'active' ? 'bg-green-100 text-green-800' :
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${host.status === 'active' ? 'bg-emerald-soft text-emerald-ink' :
                               host.status === 'suspended' ? 'bg-orange-100 text-orange-800' :
-                                host.status === 'terminated' || host.status === 'expired' ? 'bg-red-100 text-red-800' :
+                                host.status === 'terminated' || host.status === 'expired' ? 'bg-rose-soft text-rose-ink' :
                                   'bg-paper-2 text-ink'
                               }`}>
                               {host.status}
@@ -1522,9 +1522,9 @@ export default function AdminUsers() {
                         <tr key={i}>
                           <td className="px-4 py-3 text-sm font-medium text-ink">{domain.domainName}</td>
                           <td className="px-4 py-3">
-                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${domain.status === 'registered' || domain.status === 'active' ? 'bg-green-100 text-green-800' :
-                              domain.status === 'expired' ? 'bg-red-100 text-red-800' :
-                                domain.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${domain.status === 'registered' || domain.status === 'active' ? 'bg-emerald-soft text-emerald-ink' :
+                              domain.status === 'expired' ? 'bg-rose-soft text-rose-ink' :
+                                domain.status === 'pending' ? 'bg-amber-soft text-amber-ink' :
                                   'bg-paper-2 text-ink'
                               }`}>
                               {domain.status}

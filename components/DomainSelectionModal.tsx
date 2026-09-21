@@ -133,9 +133,9 @@ export default function DomainSelectionModal({
       size="md"
     >
       <div className="py-2">
-        <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 flex gap-3">
-          <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-          <div className="text-sm text-blue-800">
+        <div className="bg-indigo-soft border border-hairline rounded-lg p-4 mb-6 flex gap-3">
+          <Info className="h-5 w-5 text-indigo-ink flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-indigo-ink">
             <p className="font-semibold mb-1">Domain Name Required</p>
             <p>We require a domain name to set up your hosting service. Enter the domain you want to use with this hosting plan.</p>
           </div>
@@ -143,17 +143,17 @@ export default function DomainSelectionModal({
 
         <div className="space-y-4">
           <div>
-            <label htmlFor="domainName" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="domainName" className="block text-sm font-medium text-ink-2 mb-2">
               Domain Name
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Globe className="h-5 w-5 text-gray-400" />
+                <Globe className="h-5 w-5 text-ink-4" />
               </div>
               <input
                 type="text"
                 id="domainName"
-                className={`block w-full pl-10 pr-3 py-3 border rounded-xl shadow-sm focus:ring-primary-500 focus:border-primary-500 transition-colors sm:text-sm ${error ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                className={`block w-full pl-10 pr-3 py-3 border rounded-xl shadow-sm focus:ring-primary-500 focus:border-primary-500 transition-colors sm:text-sm ${error ? 'border-red-300 bg-rose-soft' : 'border-hairline-strong'
                   }`}
                 placeholder="example.com"
                 value={domainName}
@@ -165,8 +165,8 @@ export default function DomainSelectionModal({
               />
             </div>
             {!error && (
-              <p className="mt-1.5 text-xs text-gray-500">
-                Correct format: <span className="text-gray-700 font-medium italic">mysite.com</span> or <span className="text-gray-700 font-medium italic">myblog.in</span>
+              <p className="mt-1.5 text-xs text-ink-3">
+                Correct format: <span className="text-ink-2 font-medium italic">mysite.com</span> or <span className="text-ink-2 font-medium italic">myblog.in</span>
               </p>
             )}
             {error && (
@@ -187,7 +187,7 @@ export default function DomainSelectionModal({
               {!isAdding && <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />}
             </button>
 
-            <p className="text-center text-xs text-gray-500">
+            <p className="text-center text-xs text-ink-3">
               Note: If you don't own this domain yet, you should also add it to your cart for registration.
             </p>
           </div>

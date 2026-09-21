@@ -58,7 +58,7 @@ describe("<DomainRequirementsModal>", () => {
     expect(screen.getByText(/ACN \(Australian Company Number\)/)).toBeInTheDocument();
   });
 
-  it("Restrictions list applies per-type colour class (error=red, warning=orange, info=blue)", () => {
+  it("Restrictions list applies per-type colour class (error=rose, warning=amber, info=indigo)", () => {
     render(
       <DomainRequirementsModal
         {...BASE_PROPS}
@@ -69,9 +69,17 @@ describe("<DomainRequirementsModal>", () => {
         ]}
       />
     );
-    expect(screen.getByText("no-go-rule").className).toMatch(/text-red-600/);
-    expect(screen.getByText("be-careful-rule").className).toMatch(/text-orange-600/);
-    expect(screen.getByText("just-fyi-rule").className).toMatch(/text-blue-600/);
+    // Updated 21 Sep 2026 with the palette, not to make a red test green: the
+    // three-way error/warning/info distinction is what this pins, and it still
+    // holds — the hues just come from the design tokens now.
+    expect(screen.getByText("no-go-rule").className).toMatch(/text-rose-ink/);
+    expect(screen.getByText("be-careful-rule").className).toMatch(/text-amber-ink/);
+    expect(screen.getByText("just-fyi-rule").className).toMatch(/text-indigo-ink/);
+    // And they must stay DISTINCT — one token for all three would satisfy
+    // three separate toMatch assertions written carelessly.
+    const classes = ["no-go-rule", "be-careful-rule", "just-fyi-rule"]
+      .map((t) => screen.getByText(t).className);
+    expect(new Set(classes).size).toBe(3);
   });
 
   it("Alternative Options list renders + clicking a row fires onSelectAlternative(domain)", async () => {

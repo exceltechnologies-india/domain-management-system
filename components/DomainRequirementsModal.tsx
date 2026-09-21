@@ -50,22 +50,22 @@ export default function DomainRequirementsModal({
   const getRestrictionIcon = (type: string) => {
     switch (type) {
       case 'error':
-        return <X className="h-4 w-4 text-red-500" />;
+        return <X className="h-4 w-4 text-rose-ink" />;
       case 'warning':
-        return <AlertTriangle className="h-4 w-4 text-orange-500" />;
+        return <AlertTriangle className="h-4 w-4 text-amber-ink" />;
       default:
-        return <AlertTriangle className="h-4 w-4 text-blue-500" />;
+        return <AlertTriangle className="h-4 w-4 text-indigo-ink" />;
     }
   };
 
   const getRestrictionColor = (type: string) => {
     switch (type) {
       case 'error':
-        return 'text-red-600';
+        return 'text-rose-ink';
       case 'warning':
-        return 'text-orange-600';
+        return 'text-amber-ink';
       default:
-        return 'text-blue-600';
+        return 'text-indigo-ink';
     }
   };
 
@@ -79,15 +79,15 @@ export default function DomainRequirementsModal({
       <div className="space-y-6">
         {/* Domain Badge */}
         <div className="flex items-center gap-2">
-          <span className="text-lg font-semibold text-gray-900">{domain}{tld}</span>
+          <span className="text-lg font-semibold text-ink">{domain}{tld}</span>
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
             {tld}
           </span>
         </div>
 
         {/* Introduction */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-blue-800 text-sm">
+        <div className="bg-indigo-soft border border-blue-200 rounded-lg p-4">
+          <p className="text-indigo-ink text-sm">
             This domain requires additional business verification and cannot be registered through our standard process.
           </p>
         </div>
@@ -108,7 +108,7 @@ export default function DomainRequirementsModal({
         {/* Required Information */}
         {safeRequirements.length > 0 && (
           <div>
-            <h4 className="font-medium text-gray-900 mb-3">Required Information</h4>
+            <h4 className="font-medium text-ink mb-3">Required Information</h4>
             <div className="space-y-2">
               {safeRequirements.map((req, index) => (
                 <motion.div
@@ -119,7 +119,7 @@ export default function DomainRequirementsModal({
                   transition={{ delay: index * 0.1 }}
                 >
                   <X className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm text-gray-700">{req.text}</span>
+                  <span className="text-sm text-ink-2">{req.text}</span>
                 </motion.div>
               ))}
             </div>
@@ -129,7 +129,7 @@ export default function DomainRequirementsModal({
         {/* Restrictions */}
         {safeRestrictions.length > 0 && (
           <div>
-            <h4 className="font-medium text-gray-900 mb-3">Restrictions</h4>
+            <h4 className="font-medium text-ink mb-3">Restrictions</h4>
             <div className="space-y-2">
               {safeRestrictions.map((restriction, index) => (
                 <motion.div
@@ -152,15 +152,15 @@ export default function DomainRequirementsModal({
         {/* Alternative Options */}
         {safeAlternativeDomains.length > 0 && (
           <div>
-            <h4 className="font-medium text-gray-900 mb-3">Alternative Options</h4>
-            <p className="text-sm text-gray-600 mb-4">
+            <h4 className="font-medium text-ink mb-3">Alternative Options</h4>
+            <p className="text-sm text-ink-3 mb-4">
               Consider these similar domains that don't require additional verification:
             </p>
             <div className="grid gap-3">
               {safeAlternativeDomains.map((alt, index) => (
                 <motion.div
                   key={index}
-                  className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:border-primary-300 hover:bg-primary-50 transition-colors cursor-pointer"
+                  className="flex items-center justify-between p-3 border border-hairline rounded-lg hover:border-primary-300 hover:bg-primary-50 transition-colors cursor-pointer"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: (safeRequirements.length + safeRestrictions.length + index) * 0.1 }}
@@ -169,7 +169,7 @@ export default function DomainRequirementsModal({
                   whileTap={{ scale: 0.98 }}
                 >
                   <div className="flex items-center gap-3">
-                    <span className="font-medium text-gray-900">{alt.domain}</span>
+                    <span className="font-medium text-ink">{alt.domain}</span>
                     {alt.available ? (
                       <CheckCircle className="h-4 w-4 text-green-500" />
                     ) : (
@@ -180,7 +180,7 @@ export default function DomainRequirementsModal({
                     {alt.price && (
                       <span className="text-sm font-medium text-primary-600">{alt.price}</span>
                     )}
-                    <ExternalLink className="h-4 w-4 text-gray-400" />
+                    <ExternalLink className="h-4 w-4 text-ink-4" />
                   </div>
                 </motion.div>
               ))}
@@ -189,10 +189,10 @@ export default function DomainRequirementsModal({
         )}
 
         {/* Action Buttons */}
-        <div className="flex gap-3 pt-4 border-t border-gray-200">
+        <div className="flex gap-3 pt-4 border-t border-hairline">
           <motion.button
             onClick={onClose}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+            className="flex-1 px-4 py-2 border border-hairline-strong rounded-md text-sm font-medium text-ink-2 bg-paper hover:bg-paper-2 transition-colors"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >

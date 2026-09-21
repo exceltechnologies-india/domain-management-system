@@ -53,17 +53,20 @@ describe("<Modal>", () => {
   it("clicking the overlay fires onClose by default", async () => {
     const user = userEvent.setup();
     const { container, onClose } = renderModal();
-    // The first motion.div under the modal root is the bg-gray-500 overlay.
-    const overlay = container.querySelector(".bg-gray-500.bg-opacity-75")!;
-    await user.click(overlay);
+    const overlay = container.querySelector('[data-testid="modal-overlay"]');
+    expect(overlay, "overlay not found — the click below would prove nothing").not.toBeNull();
+    await user.click(overlay!);
     expect(onClose).toHaveBeenCalled();
   });
 
   it("closeOnOverlayClick=false suppresses the overlay-click callback", async () => {
     const user = userEvent.setup();
     const { container, onClose } = renderModal({ closeOnOverlayClick: false });
-    const overlay = container.querySelector(".bg-gray-500.bg-opacity-75")!;
-    await user.click(overlay);
+    // Guard the guard: without this, a missing overlay makes "not called" pass
+    // for the wrong reason — which is exactly what happened during the restyle.
+    const overlay = container.querySelector('[data-testid="modal-overlay"]');
+    expect(overlay, "overlay not found — 'not called' would be vacuous").not.toBeNull();
+    await user.click(overlay!);
     expect(onClose).not.toHaveBeenCalled();
   });
 
