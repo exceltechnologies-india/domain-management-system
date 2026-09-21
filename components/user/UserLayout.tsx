@@ -25,6 +25,7 @@ import RupeeIcon from '@/components/icons/RupeeIcon';
 import ProfileCompletionWarning from '@/components/ProfileCompletionWarning';
 import { DataLoading } from '@/components/user/LoadingComponents';
 import { useCartStore } from '@/store/cartStore';
+import { homeUrl } from '@/lib/reseller-os';
 
 interface UserLayoutProps {
   children: React.ReactNode;
@@ -277,10 +278,12 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
           </motion.div>
         </main>
 
-        {/* Floating Home Button */}
+        {/* Floating Home Button — the customer panel's only way "out", so it
+            follows the front door: ResellerOS when it owns it, DMS's own `/`
+            when DMS is running standalone. */}
         {!hideFloatingButtons && (
           <Link
-            href="/"
+            href={homeUrl()}
             className="fixed bottom-6 left-6 z-50 bg-amber hover:brightness-90 text-paper p-3.5 rounded-full shadow-[0_2px_8px_rgba(0,0,0,0.10)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.14)] transition-all duration-200 group"
             title="Go back to homepage"
           >

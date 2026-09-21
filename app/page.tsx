@@ -1,8 +1,10 @@
+import { redirect } from 'next/navigation';
 import { listActivePlans } from '@/lib/services/hosting-plans';
 import { HOSTING_PLANS } from '@/config/hosting-plans';
 import { getHomeVariant } from '@/lib/services/appearance';
 import HostingLanding, { type LandingPlan } from '@/components/marketing/HostingLanding';
 import DomainHome from '@/components/marketing/DomainHome';
+import { resellerOsUrl } from '@/lib/reseller-os';
 
 // Render the homepage dynamically so admin toggles (homepage variant, plan/
 // price edits, appearance) reflect instantly instead of after the ISR window.
@@ -30,6 +32,25 @@ function fallbackFeatures(name: string, quotaMB: number, bandwidthMB: number): s
 }
 
 export default async function HomePage() {
+  /**
+   * When ResellerOS is the front door, DMS serves no homepage at all — it is
+   * the hosting/domain panel behind it. Send the visitor to the real front
+   * door rather than showing a second, competing marketing site.
+   *
+   * Before the plan reads on purpose: no point querying Mongo and Redis for
+   * a page nobody will see.
+   *
+   * This runs per request because the route is already `force-dynamic`
+   * (above). A prerendered `/` would bake one answer at build time and
+   * ignore the variable thereafter — the trap in AGENTS.md L43.
+   *
+   * Unset → falls through to DMS's own homepage exactly as before. Turning
+   * the frontpage off is a deployment decision, not something that happens
+   * to a standalone DMS the moment this merges.
+   */
+  const front = resellerOsUrl();
+  if (front) redirect(front);
+
   // Homepage design is a toggle (Admin → Pages → Homepage design):
   //   'landing' → the hosting-trial landing (default)
   //   'classic' → the domain-focused homepage

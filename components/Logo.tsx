@@ -1,10 +1,16 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { homeUrl } from '@/lib/reseller-os';
 
 interface LogoProps {
   className?: string;
   showText?: boolean;
   size?: 'sm' | 'md' | 'lg' | 'xl';
+  /**
+   * Defaults to wherever "home" is — ResellerOS when it is the front door,
+   * DMS's own `/` otherwise. Pass a value only for a logo that should go
+   * somewhere else (the signed-in nav sends it to the panel).
+   */
   href?: string;
   variant?: 'light' | 'dark';
 }
@@ -13,7 +19,12 @@ export default function Logo({
   className = '',
   showText = false,
   size = 'md',
-  href = '/',
+  // Not a literal '/'. This same mark sits on the login, register,
+  // forgot-password, reset-password and activate screens, and in the
+  // integrated setup all five belong to ResellerOS's front door rather than
+  // DMS's marketing homepage. One default covers them; a literal would have
+  // to be found and changed in five places, and the fifth would be missed.
+  href = homeUrl(),
   variant = 'light'
 }: LogoProps) {
   const sizeClasses = {

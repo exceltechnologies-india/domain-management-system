@@ -1,5 +1,6 @@
 import { AUTH_SECRET } from "@/lib/auth-secret";
 import { NextResponse } from "next/server";
+import { resellerOsUrl } from "@/lib/reseller-os";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { addSecurityHeaders, addCorsHeaders, buildPreflightResponse } from "@/lib/security-headers";
@@ -277,6 +278,29 @@ async function handleMiddleware(request: NextRequest, nonce: string, requestId: 
   }
 
   const pathname = normalizedPathname;
+
+  // 1b. Front door. When ResellerOS owns the public site, DMS serves no
+  // homepage of its own — it is the hosting/domain panel behind it.
+  //
+  // app/page.tsx makes the same call and is the guarantee (middleware runs
+  // only where its matcher says). This one is here for the STATUS: app/
+  // has a loading.tsx, so Next starts streaming before the page component
+  // resolves, and a redirect discovered after the first byte cannot change
+  // headers that have already gone out. It degrades to a 200 carrying
+  // `<meta http-equiv="refresh" content="1;url=...">` — a one-second stare
+  // at a loading skeleton, and nothing at all for a crawler. Measured, not
+  // assumed. Deciding here, before any rendering, gives a real 307.
+  //
+  // Both read resellerOsUrl(), so there is one source of truth for the
+  // value and two places that enforce it. Safe in Edge: lib/reseller-os
+  // touches nothing but process.env (unlike page-visibility, whose header
+  // warns it must never be imported here).
+  if (pathname === "/") {
+    const front = resellerOsUrl();
+    if (front) {
+      return addSecurityHeaders(NextResponse.redirect(front, 307), { nonce, strictCSP: isStrictCSPRoute });
+    }
+  }
 
   // 2. Classification
   // Explicitly allow HEAD requests for public routes (monitoring)

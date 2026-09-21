@@ -545,3 +545,52 @@ describe("Request-ID propagation", () => {
     expect(res.headers.get("x-request-id")).toBe("CUSTOM-RID-42");
   });
 });
+
+// ─── Front door ─────────────────────────────────────────────────────
+
+/**
+ * When ResellerOS owns the public site, DMS serves no homepage of its own.
+ *
+ * This lives in middleware for the STATUS, not the decision: app/page.tsx
+ * makes the same call, but app/ has a loading.tsx, so Next starts streaming
+ * before the page component resolves and the redirect degrades to a 200
+ * carrying `<meta http-equiv="refresh" content="1;url=...">` — a one-second
+ * stare at a skeleton, and nothing at all for a crawler. Measured against
+ * the running container, not assumed. Deciding here gives a real 307.
+ */
+describe("Front door — `/` when ResellerOS owns the public site", () => {
+  it("configured → 307 to ResellerOS, and no token is fetched", async () => {
+    vi.stubEnv("NEXT_PUBLIC_RESELLEROS_URL", "https://app.example.com");
+    const res = await middleware(makeReq("https://dms.example.com/"));
+    expect(res?.status).toBe(307);
+    expect(res?.headers.get("location")).toBe("https://app.example.com/");
+    // It is the front door: deciding it must not depend on session state.
+    expect(getToken).not.toHaveBeenCalled();
+  });
+
+  it("unset → `/` is NOT redirected, so standalone DMS keeps its homepage", async () => {
+    vi.stubEnv("NEXT_PUBLIC_RESELLEROS_URL", "");
+    const res = await middleware(makeReq("https://dms.example.com/"));
+    expect(res?.status).not.toBe(307);
+    expect(res?.headers.get("location")).toBeNull();
+  });
+
+  it("only `/` is taken over — the panels and legal pages are untouched", async () => {
+    vi.stubEnv("NEXT_PUBLIC_RESELLEROS_URL", "https://app.example.com");
+    for (const path of ["/login", "/privacy", "/hosting", "/about"]) {
+      const res = await middleware(makeReq(`https://dms.example.com${path}`));
+      expect(
+        res?.headers.get("location"),
+        `${path} must not be redirected to ResellerOS`
+      ).not.toBe("https://app.example.com/");
+    }
+  });
+
+  it("a value with no scheme is refused rather than redirected to", async () => {
+    // Redirecting to a bare host resolves against the current origin — it
+    // would bounce `/` to `/app.example.com` on DMS itself.
+    vi.stubEnv("NEXT_PUBLIC_RESELLEROS_URL", "app.example.com");
+    const res = await middleware(makeReq("https://dms.example.com/"));
+    expect(res?.status).not.toBe(307);
+  });
+});

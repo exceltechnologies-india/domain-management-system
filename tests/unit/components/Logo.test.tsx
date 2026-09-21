@@ -7,7 +7,7 @@
  * label under `showText`.
  */
 import { render, screen } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import Logo from "@/components/Logo";
 
 describe("<Logo>", () => {
@@ -21,6 +21,41 @@ describe("<Logo>", () => {
   it("honours a custom `href` prop", () => {
     render(<Logo href="/admin" />);
     expect(screen.getByRole("link")).toHaveAttribute("href", "/admin");
+  });
+
+  /**
+   * The default href is no longer the literal '/': it follows the front
+   * door. This mark sits on login, register, forgot-password,
+   * reset-password and activate, so this single default is what sends all
+   * five to ResellerOS rather than to DMS's marketing homepage.
+   */
+  describe("default href follows the front door", () => {
+    const ORIGINAL = process.env.NEXT_PUBLIC_RESELLEROS_URL;
+    afterEach(() => {
+      if (ORIGINAL === undefined) delete process.env.NEXT_PUBLIC_RESELLEROS_URL;
+      else process.env.NEXT_PUBLIC_RESELLEROS_URL = ORIGINAL;
+    });
+
+    it("points at ResellerOS when it is configured", () => {
+      process.env.NEXT_PUBLIC_RESELLEROS_URL = "https://app.example.com";
+      render(<Logo />);
+      expect(screen.getByRole("link")).toHaveAttribute(
+        "href",
+        "https://app.example.com"
+      );
+    });
+
+    it("falls back to '/' when it is not, so standalone DMS is unchanged", () => {
+      delete process.env.NEXT_PUBLIC_RESELLEROS_URL;
+      render(<Logo />);
+      expect(screen.getByRole("link")).toHaveAttribute("href", "/");
+    });
+
+    it("an explicit href still wins — the signed-in nav sends it to the panel", () => {
+      process.env.NEXT_PUBLIC_RESELLEROS_URL = "https://app.example.com";
+      render(<Logo href="/dashboard" />);
+      expect(screen.getByRole("link")).toHaveAttribute("href", "/dashboard");
+    });
   });
 
   it("renders without a Link wrapper when href is falsy", () => {

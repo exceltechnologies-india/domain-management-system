@@ -174,7 +174,12 @@ export default function Navigation({
         {/* Fixed bar height (was py-3/4 + h-10/11 logo = 64/76px) so a larger
             logo doesn't grow the navbar or break the page's pt offset. */}
         <div className="flex justify-between items-center h-16 sm:h-[76px]">
-          <Logo size="xl" href="/" />
+          {/* No explicit href — Logo now defaults to home, which is
+              ResellerOS when it is the front door. The nav's own "Home" item
+              below is left pointing at DMS's `/`: it carries isActive('/')
+              styling, and `/` redirects to ResellerOS anyway, so the only
+              cost is one hop. */}
+          <Logo size="xl" />
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-4 lg:space-x-6">

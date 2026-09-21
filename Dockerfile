@@ -39,6 +39,13 @@ ENV NEXT_PUBLIC_RECAPTCHA_SITE_KEY=$NEXT_PUBLIC_RECAPTCHA_SITE_KEY
 ARG NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS=
 ENV NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS=$NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS
 
+# ResellerOS's public origin. When set, DMS stops serving its own homepage
+# (`/` redirects there) and every brand/home link points at it — DMS becomes
+# the hosting/domain panel behind ResellerOS. Unset = standalone DMS,
+# unchanged. Build arg, not runtime: NEXT_PUBLIC_* is inlined by `next build`.
+ARG NEXT_PUBLIC_RESELLEROS_URL=
+ENV NEXT_PUBLIC_RESELLEROS_URL=$NEXT_PUBLIC_RESELLEROS_URL
+
 ARG NEXT_PUBLIC_FACEBOOK_ENABLED=false
 ENV NEXT_PUBLIC_FACEBOOK_ENABLED=$NEXT_PUBLIC_FACEBOOK_ENABLED
 
@@ -80,6 +87,19 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+
+# Re-declared here, and NOT a duplicate. The value is needed in two places
+# and only one of them is the build:
+#   - the BUILDER copy above is inlined into the client bundle, which is what
+#     points the logo and the home links at ResellerOS;
+#   - this RUNNER copy is read per request by app/page.tsx, a server
+#     component, to decide whether `/` redirects.
+# Declaring it only in the builder is exactly what happened first: the logo
+# moved and `/` went on serving DMS's homepage, because the running container
+# had never heard of the variable. ARG is per-stage, so re-declaring it here
+# lets the single --build-arg feed both.
+ARG NEXT_PUBLIC_RESELLEROS_URL=
+ENV NEXT_PUBLIC_RESELLEROS_URL=$NEXT_PUBLIC_RESELLEROS_URL
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs

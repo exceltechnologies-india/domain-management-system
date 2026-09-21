@@ -74,6 +74,10 @@ services:
         # without it. NEXT_PUBLIC_* is inlined at BUILD time, so it has to be a
         # build arg rather than a runtime env var.
         NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS: "true"
+        # ResellerOS is the front door for the local stack, so DMS's own
+        # marketing homepage is off: `/` redirects here and the logo points
+        # here. Same build-arg reason as the line above.
+        NEXT_PUBLIC_RESELLEROS_URL: "http://localhost:4320"
     restart: unless-stopped
     env_file:
       - .env.docker
