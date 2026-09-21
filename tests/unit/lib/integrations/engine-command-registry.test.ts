@@ -40,23 +40,32 @@ describe("the contract's command names", () => {
 });
 
 describe("what can actually be performed", () => {
-  it("only the free, reversible commands are performable", () => {
-    // Phase 6 added DNS and suspend/unsuspend: a DNS record can be set back
-    // and a suspended account unsuspended, so a bug here is recoverable.
+  it("only the free or reversible commands are performable", () => {
+    // Phase 6 added DNS and suspend/unsuspend (free: a record can be set back,
+    // an account unsuspended). Phase 7 added change_plan, which is reversible
+    // spend — a bigger package costs money and changing back undoes it.
     expect(Object.keys(HANDLERS).sort()).toEqual([
       "dns.record.upsert",
       "engine.selftest",
+      "hosting.change_plan",
       "hosting.suspend",
       "hosting.unsuspend",
     ]);
   });
 
-  it.each(["hosting.provision", "hosting.change_plan", "domain.renew", "domain.register"])(
-    "%s still has NO handler — it spends money or cannot be undone",
+  it.each(["hosting.provision", "domain.renew", "domain.register"])(
+    "%s still has NO handler",
     (c) => {
       // The day one of these gets a handler, this test fails and whoever added
-      // it has to come here and say so. That is the point: these are the ones
-      // whose guards are built in Phases 7-9.
+      // it has to come here and say so. It did its job on 21 Sep: Phase 7
+      // registered change_plan and this assertion is why that was a deliberate
+      // edit rather than a silent one.
+      //
+      // `hosting.provision` is on this list for a DIFFERENT reason from the
+      // other two. They spend an unrecoverable rupee. It is blocked on a
+      // product decision — DMS mints a Math.random() password it never returns
+      // because its customers arrive by SSO, so an engine-provisioned account
+      // has no way in. Todos.md §D.
       expect(handlerFor(c as never)).toBeNull();
     }
   );

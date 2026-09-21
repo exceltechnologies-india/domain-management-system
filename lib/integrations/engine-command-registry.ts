@@ -9,12 +9,17 @@
  *
  * Handlers arrive one blast radius at a time. Phase 6 added the free and
  * reversible ones — DNS records, hosting suspend/unsuspend — which DO contact
- * providers. Hosting provision (Phase 7), domain renew (8) and domain register
- * (9) are still unhandled, because each spends money or cannot be undone.
+ * providers. Phase 7 added hosting.change_plan (reversible spend).
+ *
+ * Still unhandled: hosting.provision, blocked on a product decision rather
+ * than on effort (see engine-handlers-plan.ts), plus domain.renew (Phase 8)
+ * and domain.register (Phase 9), each of which spends a rupee that does not
+ * come back.
  */
 import type { EngineMode } from "./engine-mode";
 import { upsertDnsRecord } from "./engine-handlers-dns";
 import { suspendHosting, unsuspendHosting } from "./engine-handlers-hosting";
+import { changeHostingPlan } from "./engine-handlers-plan";
 
 /** Every command the contract names, whether or not it is implemented. */
 export const KNOWN_COMMANDS = [
@@ -84,6 +89,15 @@ export const HANDLERS: Partial<Record<KnownCommand, CommandHandler>> = {
   "dns.record.upsert": upsertDnsRecord,
   "hosting.suspend": suspendHosting,
   "hosting.unsuspend": unsuspendHosting,
+  /* Phase 7 — reversible spend. A bigger package costs real money on the
+     DirectAdmin server and changing back undoes it.
+
+     `hosting.provision` was meant to land beside this one and did NOT: DMS's
+     createUser sets a Math.random() password it never returns, because its
+     customers reach DirectAdmin by SSO from the DMS portal. An engine-created
+     account for somebody with no portal user has no way in, and nothing
+     reports that. See engine-handlers-plan.ts and Todos.md §D. */
+  "hosting.change_plan": changeHostingPlan,
 };
 
 export function handlerFor(command: KnownCommand): CommandHandler | null {

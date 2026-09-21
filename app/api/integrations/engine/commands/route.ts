@@ -30,6 +30,7 @@ import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { serverLogger } from "@/lib/server-logger";
 import { checkMode } from "@/lib/integrations/engine-mode";
 import { isKnownCommand, handlerFor } from "@/lib/integrations/engine-command-registry";
+import { transportOf } from "@/lib/integrations/engine-attempt";
 import {
   startCommand,
   acquireSubjectClaim,
@@ -159,20 +160,52 @@ export async function POST(request: NextRequest) {
     const message = err instanceof Error ? err.message : String(err);
     serverLogger.error(`[engine] ${command} on ${subject} (${commandId}) threw: ${message}`);
     /**
-     * A handler that throws did not reach a provider — the ones that will
-     * classify their own transport and report `needs_reconciliation`
-     * themselves. Marking this `failed` releases the claim, which is correct
-     * precisely because nothing can have happened: no handler here contacts
-     * anything yet, and the ones that do will not rely on this branch.
+     * How far did it get? The handler is the only thing that knows, so it says
+     * so by branding the error — `lib/integrations/engine-attempt.ts`.
+     *
+     * An UNBRANDED throw is `not_sent`, and that is an answer rather than a
+     * fallback: everything before the first wrapped write — validation, a
+     * missing record, a failed READ — cannot have changed anything.
+     *
+     * This branch used to assume `not_sent` unconditionally, on the stated
+     * grounds that no handler contacted a provider yet. Phase 6 made that
+     * false and nothing forced the comment to change, so a DNS write that died
+     * in flight was recorded as never sent and its subject was released.
      */
-    await completeCommand({
-      commandId,
-      status: "failed",
-      error: message,
-      transport: "not_sent",
-    });
+    const transport = transportOf(err) ?? "not_sent";
+    /**
+     * `sent_unknown` is the one case that must not close. The work may have
+     * happened, so the claim is HELD and a human reconciles before anything
+     * touches this subject again.
+     */
+    const status = transport === "sent_unknown" ? "needs_reconciliation" : "failed";
+
+    await completeCommand({ commandId, status, error: message, transport });
+
+    if (status === "needs_reconciliation") {
+      return NextResponse.json(
+        {
+          error:
+            "The request reached the provider and we did not learn what it did. It has NOT " +
+            "been retried and this subject is locked. Check the provider, then settle this " +
+            "command — do not send it again with a new commandId.",
+          commandId,
+          status,
+          transport,
+        },
+        { status: 500 }
+      );
+    }
     return NextResponse.json(
-      { error: "The command failed before reaching any provider. Nothing was changed." },
+      {
+        error:
+          transport === "responded"
+            ? `The provider refused the request: ${message}`
+            : "The command failed before reaching any provider. Nothing was changed.",
+        commandId,
+        status,
+        transport,
+      },
       { status: 500 }
     );
   }

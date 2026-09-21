@@ -24,6 +24,7 @@
 import type { KnownCommand } from "./engine-command-registry";
 import { reconcileDnsUpsert } from "./engine-handlers-dns";
 import { reconcileSuspend, reconcileUnsuspend } from "./engine-handlers-hosting";
+import { reconcileChangePlan } from "./engine-handlers-plan";
 
 export type ReconcileVerdict =
   /** The provider confirms the work exists. The command really did succeed. */
@@ -64,6 +65,10 @@ export const RECONCILERS: Partial<Record<KnownCommand, Reconciler>> = {
   "dns.record.upsert": reconcileDnsUpsert,
   "hosting.suspend": reconcileSuspend,
   "hosting.unsuspend": reconcileUnsuspend,
+  /* Phase 7. Observable as two reads — the DirectAdmin package and the DMS
+     hosting row — and BOTH are checked, because both are the command's
+     effect. */
+  "hosting.change_plan": reconcileChangePlan,
 };
 
 export function reconcilerFor(command: string): Reconciler | null {

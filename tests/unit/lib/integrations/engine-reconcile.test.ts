@@ -27,12 +27,14 @@ import {
 const ctx = { subject: "example.com", request: {} };
 
 describe("a reconciler exists only where the effect is observable", () => {
-  it("exactly the Phase 6 commands have one", () => {
-    // These three can be checked with a pure read: "does this record hold this
-    // value", "is this account suspended". Adding a fourth means claiming its
-    // effect is observable too — which is a decision, not a formality.
+  it("exactly the commands whose effect can be READ back have one", () => {
+    // Each is checkable with pure reads: "does this record hold this value",
+    // "is this account suspended", "is it on this package AND does DMS say
+    // so". Adding a fifth means claiming its effect is observable too — which
+    // is a decision, not a formality.
     expect(Object.keys(RECONCILERS).sort()).toEqual([
       "dns.record.upsert",
+      "hosting.change_plan",
       "hosting.suspend",
       "hosting.unsuspend",
     ]);

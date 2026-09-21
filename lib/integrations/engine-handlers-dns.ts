@@ -19,6 +19,7 @@
  * is a real call to ResellerClub.
  */
 import { serverLogger } from "@/lib/server-logger";
+import { attemptProviderWrite, providerRefused } from "./engine-attempt";
 import type { CommandHandler, HandlerResult } from "./engine-command-registry";
 import type { Reconciler, ReconcileVerdict } from "./engine-reconcile";
 
@@ -202,13 +203,21 @@ export const upsertDnsRecord: CommandHandler = async (ctx): Promise<HandlerResul
           "this again to create it fresh."
       );
     }
-    res = await ResellerClubAPI.updateDNSRecord(domain, recordId, recordData);
+    res = await attemptProviderWrite(() =>
+      ResellerClubAPI.updateDNSRecord(domain, recordId, recordData)
+    );
   } else {
-    res = await ResellerClubAPI.addDNSRecord(domain, req.customerId, recordData);
+    res = await attemptProviderWrite(() =>
+      ResellerClubAPI.addDNSRecord(domain, req.customerId, recordData)
+    );
   }
 
   if (res.status === "error") {
-    throw new Error(`ResellerClub refused the DNS change: ${res.message ?? "no reason given"}`);
+    // ResellerClub answered. We know the record did not change, so this
+    // releases the subject instead of holding it for a human.
+    throw providerRefused(
+      `ResellerClub refused the DNS change: ${res.message ?? "no reason given"}`
+    );
   }
 
   serverLogger.warn(

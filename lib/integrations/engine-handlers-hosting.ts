@@ -24,6 +24,7 @@ import {
   getUserConfig,
 } from "@/lib/integrations/directadmin";
 import { serverLogger } from "@/lib/server-logger";
+import { attemptProviderWrite, providerRefused } from "./engine-attempt";
 import type { CommandHandler, HandlerResult } from "./engine-command-registry";
 import type { Reconciler, ReconcileVerdict } from "./engine-reconcile";
 
@@ -122,9 +123,18 @@ export const suspendHosting: CommandHandler = async (ctx): Promise<HandlerResult
     };
   }
 
-  const outcome = await suspendUser({ username, reason: "ResellerOS engine command" });
+  /**
+   * Wrapped: from here a request can leave for DirectAdmin. If it dies in
+   * flight the error is branded `sent_unknown`, the claim is held and a human
+   * reconciles — rather than the route assuming nothing happened.
+   */
+  const outcome = await attemptProviderWrite(() =>
+    suspendUser({ username, reason: "ResellerOS engine command" })
+  );
   if (outcome.kind !== "suspended") {
-    throw new Error(`DirectAdmin refused the suspend: ${outcome.kind}`);
+    // DA answered, and the answer was no. `responded`, not `sent_unknown`:
+    // we KNOW it did not apply, so parking the subject would be pure toil.
+    throw providerRefused(`DirectAdmin refused the suspend: ${outcome.kind}`);
   }
   serverLogger.warn(`[engine] suspended DirectAdmin account ${username}`);
   return {
@@ -164,9 +174,9 @@ export const unsuspendHosting: CommandHandler = async (ctx): Promise<HandlerResu
     };
   }
 
-  const outcome = await unsuspendUser({ username });
+  const outcome = await attemptProviderWrite(() => unsuspendUser({ username }));
   if (outcome.kind !== "unsuspended") {
-    throw new Error(`DirectAdmin refused the unsuspend: ${outcome.kind}`);
+    throw providerRefused(`DirectAdmin refused the unsuspend: ${outcome.kind}`);
   }
   serverLogger.warn(`[engine] unsuspended DirectAdmin account ${username}`);
   return { result: { ok: true, username, changed: true, state: "active" } };
