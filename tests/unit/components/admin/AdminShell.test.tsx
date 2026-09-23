@@ -13,10 +13,21 @@
  * become passthroughs instead of needing 25 files rewritten at once. These
  * tests pin the two halves that make that safe:
  *
- *  - inside a shell, AdminLayout and AdminLayoutSkeleton render ONLY children
- *    (otherwise every page draws a second sidebar inside the first);
- *  - outside one, both still render their chrome (the skeleton is used outside
- *    /admin too, and a passthrough there would leave a page with no shell).
+ *  - inside a shell, AdminLayout renders ONLY its children (otherwise every
+ *    page draws a second sidebar inside the first);
+ *  - outside one, it still renders its chrome — app/admin/layout.tsx mounts it
+ *    that way, so that branch is live and must stay.
+ *
+ * AdminLayoutSkeleton used to be tested here the same way, and that pairing
+ * was wrong. Its header claimed the chrome was "used outside /admin too", and
+ * a test rendered it with no provider and asserted the chrome appeared. Every
+ * one of its 19 importers was under app/admin, where the shell is always
+ * mounted — so the guard always fired, the dark-blue chrome could never run,
+ * and the only thing keeping it alive was a test exercising a configuration no
+ * caller produces (AGENTS.md L111). Component and wrappers are deleted; what
+ * replaces those assertions is the invariant that made them pointless, below:
+ * every admin route sits under app/admin/layout.tsx, so no page needs a shell
+ * of its own.
  */
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
@@ -25,7 +36,6 @@ vi.mock("next/navigation", () => ({ usePathname: () => "/admin/dashboard" }));
 vi.mock("@/components/admin/SessionExpiredBanner", () => ({ default: () => null }));
 
 import AdminLayout from "@/components/admin/AdminLayout";
-import { AdminLayoutSkeleton } from "@/components/skeletons/AdminLayout";
 import { AdminShellContext } from "@/components/admin/AdminShellContext";
 
 const USER = { firstName: "Local", lastName: "Dev", role: "admin" };
@@ -63,33 +73,6 @@ describe("AdminLayout — standalone (no shell above)", () => {
   });
 });
 
-describe("AdminLayoutSkeleton — nested inside a shell", () => {
-  it("renders only its children, so the dark-blue shell never flashes", () => {
-    const { container } = insideShell(
-      <AdminLayoutSkeleton>
-        <p>content skeleton</p>
-      </AdminLayoutSkeleton>
-    );
-    expect(screen.getByText("content skeleton")).toBeInTheDocument();
-    // bg-blue-900 is the pre-restyle sidebar. Seeing it mid-navigation is the
-    // entire reported bug, so assert on that exact class, not on a vaguer proxy.
-    expect(container.innerHTML).not.toContain("bg-blue-900");
-    expect(container.querySelector("aside")).toBeNull();
-  });
-});
-
-describe("AdminLayoutSkeleton — standalone", () => {
-  it("still renders its own chrome outside /admin", () => {
-    const { container } = render(
-      <AdminLayoutSkeleton>
-        <p>content skeleton</p>
-      </AdminLayoutSkeleton>
-    );
-    expect(screen.getByText("content skeleton")).toBeInTheDocument();
-    expect(container.querySelector("aside")).not.toBeNull();
-  });
-});
-
 describe("the route layout exists at all", () => {
   it("app/admin/layout.tsx is present and mounts the shell", async () => {
     // A source scan, because the bug was an ABSENCE — no layout file — and an
@@ -102,5 +85,44 @@ describe("the route layout exists at all", () => {
     expect(code).toContain("AdminShellContext.Provider");
     // Guard the guard: the comment strip must not have eaten the file.
     expect(code).toContain("export default");
+  });
+
+  it("provides the flag as true, so the pages' own wrappers pass through", async () => {
+    // `value={false}` would compile, pass every component test above, and put
+    // a second sidebar back on every admin page.
+    const fs = await import("node:fs");
+    const src = fs.readFileSync("app/admin/layout.tsx", "utf8");
+    expect(src).toMatch(/AdminShellContext\.Provider\s+value=\{true\}/);
+  });
+
+  it("no admin page renders a shell skeleton of its own any more", async () => {
+    /**
+     * This replaces the two AdminLayoutSkeleton tests that were deleted, and
+     * it is the invariant that made them pointless: every route under
+     * app/admin is inside the shell above, so a page-level shell skeleton can
+     * only ever be a passthrough. Nineteen pages wrapped their loading branch
+     * in one; the component is gone and so are the wrappers.
+     *
+     * A scan rather than a component test, because what must stay true is an
+     * ABSENCE across 19 files — the same reason the layout check above is a
+     * scan.
+     */
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const walk = (dir: string): string[] =>
+      fs.readdirSync(dir).flatMap((e) => {
+        const f = path.join(dir, e);
+        return fs.statSync(f).isDirectory() ? walk(f) : f.endsWith(".tsx") ? [f] : [];
+      });
+    const pages = walk("app/admin");
+    // Guard the guard: a moved directory would make this vacuous.
+    expect(pages.length).toBeGreaterThan(15);
+
+    const offenders = pages.filter((f) => {
+      const src = fs.readFileSync(f, "utf8");
+      const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+      return /<AdminLayoutSkeleton/.test(code);
+    });
+    expect(offenders).toEqual([]);
   });
 });

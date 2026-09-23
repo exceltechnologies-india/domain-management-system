@@ -34,7 +34,7 @@ import {
 import ActionMenu from '@/components/admin/ActionMenu';
 import RefreshButton from '@/components/dashboard/RefreshButton';
 import AdminLayout from '@/components/admin/AdminLayout';
-import { AdminLayoutSkeleton, AdminGenericPageSkeleton, AdminTableRowsSkeleton } from '@/components/skeletons/PageSkeletons';
+import { AdminGenericPageSkeleton, AdminTableRowsSkeleton } from '@/components/skeletons/PageSkeletons';
 import { performLogout } from '@/lib/logout';
 import toast from 'react-hot-toast';
 import { formatBytes } from '@/lib/format-utils';
@@ -875,7 +875,7 @@ export default function AdminHostingPage() {
   };
 
   if (isAuthLoading) {
-    return <AdminLayoutSkeleton><AdminGenericPageSkeleton /></AdminLayoutSkeleton>;
+    return <AdminGenericPageSkeleton />;
   }
 
   return (

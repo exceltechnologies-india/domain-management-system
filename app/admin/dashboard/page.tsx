@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { AdminLayoutSkeleton, AdminDashboardSkeleton } from "@/components/skeletons/PageSkeletons";
+import { AdminDashboardSkeleton } from "@/components/skeletons/PageSkeletons";
 import { performLogout } from "@/lib/logout";
 import { safeLocalStorage } from "@/lib/storage";
 import { logger } from "@/lib/logger";
@@ -327,7 +327,7 @@ export default function AdminDashboard() {
   }, [user, fetchHealth]);
 
   if (isAuthLoading) {
-    return <AdminLayoutSkeleton><AdminDashboardSkeleton /></AdminLayoutSkeleton>;
+    return <AdminDashboardSkeleton />;
   }
 
   // Determine overall system status

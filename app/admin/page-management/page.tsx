@@ -9,7 +9,7 @@ import {
   Home, Server, Info, Mail, Globe, FileText, Palette,
 } from 'lucide-react';
 import AdminLayout from '@/components/admin/AdminLayout';
-import { AdminLayoutSkeleton, AdminGenericPageSkeleton } from '@/components/skeletons/PageSkeletons';
+import { AdminGenericPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import RefreshButton from '@/components/dashboard/RefreshButton';
 import { Switch } from '@/components/ui/switch';
 import { apiClient } from '@/lib/api-client';
@@ -285,9 +285,7 @@ export default function PageManagementPage() {
 
   if (status === 'loading' || (isLoading && pages.length === 0)) {
     return (
-      <AdminLayoutSkeleton>
-        <AdminGenericPageSkeleton />
-      </AdminLayoutSkeleton>
+      <AdminGenericPageSkeleton />
     );
   }
 

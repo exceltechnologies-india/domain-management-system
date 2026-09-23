@@ -10,7 +10,6 @@ import * as barrel from "@/components/skeletons/PageSkeletons";
 
 describe("skeletons/PageSkeletons barrel", () => {
   it("re-exports AdminLayout entries", () => {
-    expect(typeof barrel.AdminLayoutSkeleton).toBe("function");
     expect(typeof barrel.AdminTableRowsSkeleton).toBe("function");
   });
 

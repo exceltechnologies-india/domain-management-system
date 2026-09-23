@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { formatIndianDateTime } from '@/lib/dateUtils';
 import AdminLayout from "@/components/admin/AdminLayout";
-import { AdminLayoutSkeleton, AdminGenericPageSkeleton, AdminTableRowsSkeleton } from "@/components/skeletons/PageSkeletons";
+import { AdminGenericPageSkeleton, AdminTableRowsSkeleton } from "@/components/skeletons/PageSkeletons";
 import { performLogout } from "@/lib/logout";
 import { apiClient } from "@/lib/api-client";
 
@@ -555,7 +555,7 @@ export default function AdminPendingDomainsPage() {
   };
 
   if (isAuthLoading) {
-    return <AdminLayoutSkeleton><AdminGenericPageSkeleton /></AdminLayoutSkeleton>;
+    return <AdminGenericPageSkeleton />;
   }
 
   return (

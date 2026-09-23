@@ -21,7 +21,7 @@ import {
 import { formatIndianDateTime } from '@/lib/dateUtils';
 import RefreshButton from '@/components/dashboard/RefreshButton';
 import AdminLayout from '@/components/admin/AdminLayout';
-import { AdminLayoutSkeleton, AdminGenericPageSkeleton } from '@/components/skeletons/PageSkeletons';
+import { AdminGenericPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
 import { performLogout } from '@/lib/logout';
 import AdminDataTable from '@/components/admin/AdminDataTable';
@@ -343,7 +343,7 @@ export default function AdminInvoicesPage() {
   };
 
   if (isAuthLoading) {
-    return <AdminLayoutSkeleton><AdminGenericPageSkeleton /></AdminLayoutSkeleton>;
+    return <AdminGenericPageSkeleton />;
   }
 
   return (

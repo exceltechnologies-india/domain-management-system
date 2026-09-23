@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import RefreshButton from "@/components/dashboard/RefreshButton";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { AdminLayoutSkeleton, AdminSettingsPageSkeleton } from "@/components/skeletons/PageSkeletons";
+import { AdminSettingsPageSkeleton } from "@/components/skeletons/PageSkeletons";
 import { formatIndianDateTime } from "@/lib/dateUtils";
 import { performLogout } from "@/lib/logout";
 import { Button } from "@/components/ui/button";
@@ -363,7 +363,7 @@ export default function AdminSettings() {
   const getStatusColor = () => { if (isLoading) return "bg-yellow-500"; if (!ipData?.success) return "bg-red-500"; if (ipData?.data?.allIPs && ipData.data.allIPs.length > 1) return "bg-orange-500"; return "bg-green-500"; };
   const getStatusLabel = () => { if (isLoading) return "Checking…"; if (!ipData?.success) return "Error"; if (ipData?.data?.allIPs && ipData.data.allIPs.length > 1) return "Multiple IPs"; return "Connected"; };
 
-  if (isAuthLoading) return <AdminLayoutSkeleton><AdminSettingsPageSkeleton /></AdminLayoutSkeleton>;
+  if (isAuthLoading) return <AdminSettingsPageSkeleton />;
 
   const navItems: { id: ActiveSection; label: string; icon: React.ElementType; description: string }[] = [
     { id: "performance", label: "Performance", icon: Database, description: "Cache & server info" },

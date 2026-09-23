@@ -19,7 +19,7 @@ import {
   Inbox,
 } from 'lucide-react';
 import AdminLayout from '@/components/admin/AdminLayout';
-import { AdminLayoutSkeleton, AdminPendingDomainsPageSkeleton, AdminTableRowsSkeleton } from '@/components/skeletons/PageSkeletons';
+import { AdminPendingDomainsPageSkeleton, AdminTableRowsSkeleton } from '@/components/skeletons/PageSkeletons';
 import Modal from '@/components/Modal';
 import RefreshButton from '@/components/dashboard/RefreshButton';
 import { performLogout } from '@/lib/logout';
@@ -137,9 +137,7 @@ export default function AdminPendingHostingPage() {
 
   if (isLoading || !user) {
     return (
-      <AdminLayoutSkeleton>
-        <AdminPendingDomainsPageSkeleton />
-      </AdminLayoutSkeleton>
+      <AdminPendingDomainsPageSkeleton />
     );
   }
 

@@ -15,7 +15,7 @@ import {
   Settings
 } from 'lucide-react';
 import AdminLayout from '@/components/admin/AdminLayout';
-import { AdminLayoutSkeleton, AdminHostingPageSkeleton } from '@/components/skeletons/PageSkeletons';
+import { AdminHostingPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import { performLogout } from '@/lib/logout';
 import { apiClient } from '@/lib/api-client';
 import toast from 'react-hot-toast';
@@ -146,9 +146,7 @@ export default function AdminPackagesPage() {
 
   if (isLoading || !user) {
     return (
-      <AdminLayoutSkeleton>
-        <AdminHostingPageSkeleton />
-      </AdminLayoutSkeleton>
+      <AdminHostingPageSkeleton />
     );
   }
 

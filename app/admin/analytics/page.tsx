@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { BarChart3, Loader2, TrendingUp, Activity, Users, Save } from 'lucide-react';
 import AdminLayout from '@/components/admin/AdminLayout';
-import { AdminLayoutSkeleton, AdminGenericPageSkeleton } from '@/components/skeletons/PageSkeletons';
+import { AdminGenericPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import RefreshButton from '@/components/dashboard/RefreshButton';
 import { apiClient } from '@/lib/api-client';
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
@@ -79,7 +79,7 @@ export default function AdminAnalyticsPage() {
   };
 
   if (status === 'loading' || (isLoading && topCustomers.length === 0 && recent.length === 0)) {
-    return <AdminLayoutSkeleton><AdminGenericPageSkeleton /></AdminLayoutSkeleton>;
+    return <AdminGenericPageSkeleton />;
   }
 
   return (

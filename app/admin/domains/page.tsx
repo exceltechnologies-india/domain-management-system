@@ -24,7 +24,7 @@ import {
 import RefreshButton from '@/components/dashboard/RefreshButton';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { confirmDialog } from '@/lib/confirm-dialog';
-import { AdminLayoutSkeleton, AdminGenericPageSkeleton, AdminTableRowsSkeleton } from '@/components/skeletons/PageSkeletons';
+import { AdminGenericPageSkeleton, AdminTableRowsSkeleton } from '@/components/skeletons/PageSkeletons';
 import ActionMenu from '@/components/admin/ActionMenu';
 import { performLogout } from '@/lib/logout';
 import toast from 'react-hot-toast';
@@ -202,7 +202,7 @@ export default function AdminDomainsPage() {
   };
 
   if (!user) {
-    return <AdminLayoutSkeleton><AdminGenericPageSkeleton /></AdminLayoutSkeleton>;
+    return <AdminGenericPageSkeleton />;
   }
 
   return (

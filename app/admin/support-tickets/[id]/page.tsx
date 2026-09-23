@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { AdminLayoutSkeleton, TicketDetailPageSkeleton } from "@/components/skeletons/PageSkeletons";
+import { TicketDetailPageSkeleton } from "@/components/skeletons/PageSkeletons";
 import { performLogout } from "@/lib/logout";
 import { formatIndianDateTime } from "@/lib/dateUtils";
 import { apiClient } from "@/lib/api-client";
@@ -178,9 +178,7 @@ export default function AdminTicketDetailPage() {
 
   if (isAuthLoading || loading) {
     return (
-      <AdminLayoutSkeleton>
-        <TicketDetailPageSkeleton />
-      </AdminLayoutSkeleton>
+      <TicketDetailPageSkeleton />
     );
   }
 

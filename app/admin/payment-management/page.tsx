@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react';
 import { CreditCard, Search, Filter, MoreVertical, Eye, CheckCircle, XCircle, Clock, RotateCcw, RefreshCw, IndianRupee, CheckCircle2, AlertCircle } from 'lucide-react';
 import RefreshButton from '@/components/dashboard/RefreshButton';
 import AdminLayout from '@/components/admin/AdminLayout';
-import { AdminLayoutSkeleton, AdminPaymentsPageSkeleton } from '@/components/skeletons/PageSkeletons';
+import { AdminPaymentsPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import AdminDataTable from '@/components/admin/AdminDataTable';
 import { formatIndianDate, formatIndianTime, formatIndianDateTime, formatIndianCurrency } from '@/lib/dateUtils';
 import { performLogout } from '@/lib/logout';
@@ -320,7 +320,7 @@ export default function AdminPayments() {
   };
 
   if (!user || isAuthLoading) {
-    return <AdminLayoutSkeleton><AdminPaymentsPageSkeleton /></AdminLayoutSkeleton>;
+    return <AdminPaymentsPageSkeleton />;
   }
 
   return (

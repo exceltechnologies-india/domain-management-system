@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react';
 import { ArrowLeft, Download, FileText, Loader2, ExternalLink, RefreshCw } from 'lucide-react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { performLogout } from '@/lib/logout';
-import { AdminLayoutSkeleton, DetailPageSkeleton } from '@/components/skeletons/PageSkeletons';
+import { DetailPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
 
 interface User {
@@ -156,7 +156,7 @@ export default function AdminViewInvoicePage({ params }: { params: Promise<{ id:
   };
 
   if (isAuthLoading || !user) {
-    return <AdminLayoutSkeleton><DetailPageSkeleton /></AdminLayoutSkeleton>;
+    return <DetailPageSkeleton />;
   }
 
   return (

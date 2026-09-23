@@ -25,7 +25,7 @@ import { useSession } from 'next-auth/react';
 import { TrendingUp, RefreshCw, Search, Filter, Globe, Loader2, Tag, CheckCircle2, ArrowUp, ArrowDown } from 'lucide-react';
 import RefreshButton from '@/components/dashboard/RefreshButton';
 import AdminLayout from '@/components/admin/AdminLayout';
-import { AdminLayoutSkeleton, AdminPricingPageSkeleton, AdminTableRowsSkeleton } from '@/components/skeletons/PageSkeletons';
+import { AdminPricingPageSkeleton, AdminTableRowsSkeleton } from '@/components/skeletons/PageSkeletons';
 import AdminDataTable from '@/components/admin/AdminDataTable';
 import { formatIndianCurrency, formatIndianNumber, formatIndianDateTime } from '@/lib/dateUtils';
 import { performLogout } from '@/lib/logout';
@@ -336,7 +336,7 @@ export default function AdminTLDPricing() {
   };
 
   if (isAuthLoading) {
-    return <AdminLayoutSkeleton><AdminPricingPageSkeleton /></AdminLayoutSkeleton>;
+    return <AdminPricingPageSkeleton />;
   }
 
   // 2. Main Render (Shell is visible immediately)

@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 import RefreshButton from '@/components/dashboard/RefreshButton';
 import AdminLayout from '@/components/admin/AdminLayout';
-import { AdminLayoutSkeleton, AdminGenericPageSkeleton } from '@/components/skeletons/PageSkeletons';
+import { AdminGenericPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import { performLogout } from '@/lib/logout';
 import { confirmDialog } from '@/lib/confirm-dialog';
 import { apiClient } from '@/lib/api-client';
@@ -450,7 +450,7 @@ function AdminDNSManagementContent() {
   });
 
   if (isAuthLoading) {
-    return <AdminLayoutSkeleton><AdminGenericPageSkeleton /></AdminLayoutSkeleton>;
+    return <AdminGenericPageSkeleton />;
   }
 
   return (

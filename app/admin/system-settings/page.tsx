@@ -8,7 +8,7 @@ import { Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import RefreshButton from '@/components/dashboard/RefreshButton';
 import AdminLayout from '@/components/admin/AdminLayout';
-import { AdminLayoutSkeleton, AdminGenericPageSkeleton, AdminSettingsPageSkeleton } from '@/components/skeletons/PageSkeletons';
+import { AdminGenericPageSkeleton, AdminSettingsPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import AdminPasswordReset from '@/components/AdminPasswordReset';
 import { performLogout } from '@/lib/logout';
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
@@ -457,7 +457,7 @@ export default function AdminSettings() {
   };
 
   if (isAuthLoading) {
-    return <AdminLayoutSkeleton><AdminSettingsPageSkeleton /></AdminLayoutSkeleton>;
+    return <AdminSettingsPageSkeleton />;
   }
 
   return (

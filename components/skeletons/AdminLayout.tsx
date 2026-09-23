@@ -1,10 +1,18 @@
 'use client';
 
 /**
- * Admin-route shared skeletons: inline table rows and the full admin shell.
+ * Admin-route shared skeletons: inline table rows.
+ *
+ * AdminLayoutSkeleton used to live here and is deleted. It drew a whole second
+ * admin shell — sidebar included — for a page's loading state, and its own
+ * comment said the chrome was kept "because this component is also used
+ * outside the /admin subtree". It was not: all 19 importers were admin pages,
+ * every one of them under the shell that app/admin/layout.tsx mounts, so the
+ * guard always fired and the chrome was unreachable. Worse, that chrome was
+ * `bg-blue-900` from before the ResellerOS restyle, so the day it HAD rendered
+ * it would have been wrong.
  */
 
-import { useInsideAdminShell } from '@/components/admin/AdminShellContext';
 import React from 'react';
 import { Sk } from './_primitives';
 
@@ -46,47 +54,6 @@ export function AdminTableRowsSkeleton({ rows = 6, cols = 5 }: { rows?: number; 
           </div>
         </div>
       ))}
-    </div>
-  );
-}
-
-export function AdminLayoutSkeleton({ children }: { children: React.ReactNode }) {
-  /**
-   * When a real shell is already mounted (app/admin/layout.tsx), render only
-   * the content skeleton. The chrome below is a SECOND shell — and a visibly
-   * different one: its sidebar is `bg-blue-900`, a dark blue from before the
-   * ResellerOS restyle. Pages swap to this while their session resolves, so
-   * every navigation used to flash paper -> dark blue -> paper. That flash was
-   * the reported "sidebar flickers like a broken UI element".
-   *
-   * The chrome is kept rather than deleted because this component is also
-   * used outside the /admin subtree, where there is no shell above it.
-   */
-  if (useInsideAdminShell()) {
-    return <>{children}</>;
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-50 flex">
-      <aside className="hidden lg:flex flex-col w-64 bg-blue-900 p-4 gap-2 shrink-0">
-        <div className="flex items-center gap-3 px-2 py-4 mb-2">
-          <Sk className="h-8 w-8 rounded-lg opacity-40" />
-          <Sk className="h-5 w-24 rounded opacity-40" />
-        </div>
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="flex items-center gap-3 px-3 py-2.5 rounded-lg">
-            <Sk className="h-4 w-4 rounded opacity-30 shrink-0" />
-            <Sk className={`h-3.5 rounded opacity-30 ${i % 3 === 0 ? 'w-20' : i % 3 === 1 ? 'w-28' : 'w-24'}`} />
-          </div>
-        ))}
-      </aside>
-      <div className="flex-1 flex flex-col min-w-0">
-        <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <Sk className="h-6 w-40 rounded" />
-          <Sk className="h-8 w-8 rounded-full" />
-        </div>
-        <main className="flex-1 p-6 overflow-auto">{children}</main>
-      </div>
     </div>
   );
 }

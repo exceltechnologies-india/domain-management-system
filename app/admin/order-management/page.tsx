@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react';
 import { Search, Filter, MoreVertical, Eye, Download, Archive, Trash2, RefreshCw, AlertTriangle, CheckCircle, Clock, XCircle, RotateCcw, ShoppingBag, Inbox } from 'lucide-react';
 import RefreshButton from '@/components/dashboard/RefreshButton';
 import AdminLayout from '@/components/admin/AdminLayout';
-import { AdminLayoutSkeleton, AdminGenericPageSkeleton } from '@/components/skeletons/PageSkeletons';
+import { AdminGenericPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import AdminDataTable from '@/components/admin/AdminDataTable';
 import ActionMenu from '@/components/admin/ActionMenu';
 import Modal from '@/components/Modal';
@@ -554,7 +554,7 @@ export default function AdminOrders() {
   };
 
   if (!user || isAuthLoading) {
-    return <AdminLayoutSkeleton><AdminGenericPageSkeleton /></AdminLayoutSkeleton>;
+    return <AdminGenericPageSkeleton />;
   }
 
   return (

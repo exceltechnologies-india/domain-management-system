@@ -36,7 +36,6 @@ vi.mock("@/components/admin/AdminLayout", () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 vi.mock("@/components/skeletons/PageSkeletons", () => ({
-  AdminLayoutSkeleton: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   AdminGenericPageSkeleton: () => <div>loading</div>,
 }));
 vi.mock("@/components/dashboard/RefreshButton", () => ({
