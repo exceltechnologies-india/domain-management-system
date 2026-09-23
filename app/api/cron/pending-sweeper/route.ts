@@ -4,6 +4,7 @@ import { serverLogger } from "@/lib/server-logger";
 import { EmailService } from "@/lib/email";
 import { AuthService } from "@/lib/auth";
 import { authorizeCronRequest } from "@/lib/cron-auth";
+import { recordCronHeartbeat } from "@/lib/cron/record-run";
 import connectDB from "@/lib/mongodb";
 import PendingDomain from "@/models/PendingDomain";
 import Domain from "@/models/Domain";
@@ -77,6 +78,14 @@ export async function GET(request: NextRequest) {
         return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
       }
     }
+
+    /**
+     * Heartbeat, placed AFTER auth on purpose: recording before the auth check
+     * would let any unauthorised probe of this URL look like a run, and a dead
+     * Scheduler job would read as alive. See lib/cron/record-run.ts.
+     * Never throws — the cron matters more than the bookkeeping.
+     */
+    await recordCronHeartbeat("pending-sweeper");
 
     await connectDB();
 

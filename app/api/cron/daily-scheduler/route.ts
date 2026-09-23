@@ -5,6 +5,7 @@ import {
 } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 import { authorizeCronRequest } from "@/lib/cron-auth";
+import { recordCronHeartbeat } from "@/lib/cron/record-run";
 import {
   listDueServiceHostingCandidates,
   lockHostingForScheduler,
@@ -98,6 +99,14 @@ export async function GET(request: NextRequest) {
         return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
       }
     }
+
+    /**
+     * Heartbeat, placed AFTER auth on purpose: recording before the auth check
+     * would let any unauthorised probe of this URL look like a run, and a dead
+     * Scheduler job would read as alive. See lib/cron/record-run.ts.
+     * Never throws — the cron matters more than the bookkeeping.
+     */
+    await recordCronHeartbeat("daily-scheduler");
 
     // Use TimeService to support simulation
     const now = TimeService.now(request);

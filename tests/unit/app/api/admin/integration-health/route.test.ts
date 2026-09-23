@@ -20,6 +20,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const getAdminFromRequest = vi.hoisted(() => vi.fn());
+/**
+ * The cron-liveness section reads a heartbeat collection. Mocked to an empty
+ * history here so this file keeps testing the provider aggregation it is about;
+ * the liveness decision has its own tests in tests/unit/lib/cron/.
+ */
+vi.mock("@/lib/cron/record-run", () => ({
+  readHeartbeat: vi.fn().mockResolvedValue({ runs: [], watchingSince: null }),
+  recordCronHeartbeat: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("@/lib/auth", () => ({
   AuthService: { getAdminFromRequest },
 }));

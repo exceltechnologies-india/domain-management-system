@@ -30,6 +30,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const authorizeCronRequest = vi.hoisted(() => vi.fn());
+/**
+ * The cron heartbeat is mocked here because it is not what this file tests, and
+ * unmocked it reaches for a real Mongo connection and hangs. Its own coverage —
+ * that every cron calls it, and calls it AFTER the auth gate — lives in
+ * tests/unit/lib/cron/heartbeat-wiring.test.ts, which asserts against the route
+ * source rather than its behaviour.
+ */
+vi.mock("@/lib/cron/record-run", () => ({
+  recordCronHeartbeat: vi.fn().mockResolvedValue(undefined),
+  readHeartbeat: vi.fn().mockResolvedValue({ runs: [], watchingSince: null }),
+}));
+
 vi.mock("@/lib/cron-auth", () => ({ authorizeCronRequest }));
 
 const isAdmin = vi.hoisted(() => vi.fn());

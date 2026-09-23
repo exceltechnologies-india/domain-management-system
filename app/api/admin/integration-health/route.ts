@@ -31,6 +31,8 @@ import { AuthService } from "@/lib/auth";
 import { serverLogger } from "@/lib/server-logger";
 import Order from "@/models/Order";
 import SystemLog from "@/models/SystemLog";
+import { readHeartbeat } from "@/lib/cron/record-run";
+import { assessCrons, EXPECTED_CRONS, type CronVerdict } from "@/lib/cron/staleness";
 import connectDB from "@/lib/mongodb";
 import { listCreditNotePendingOrders, listStrandedProcessingOrders } from "@/lib/services/orders";
 
@@ -875,10 +877,46 @@ export async function GET(request: NextRequest) {
       .filter((p) => p.id !== "unknown" || p.totalErrors > 0)
       .sort((a, b) => b.totalErrors - a.totalErrors);
 
+    /**
+     * Cron liveness — the half of AGENTS.md L1 that errors cannot cover.
+     *
+     * Everything above this line is built from ERRORS: a provider that failed
+     * leaves a SystemLog row and shows up. A cron that stopped being invoked
+     * leaves nothing at all, so it is invisible to every panel on this page. It
+     * is surfaced HERE rather than in a cron's own digest for one reason: a
+     * watchdog living inside the thing it watches cannot report its own death.
+     * This page is pulled by a human, so it answers even when every job is dead.
+     */
+    let crons: CronVerdict[];
+    try {
+      const { runs, watchingSince } = await readHeartbeat();
+      crons = assessCrons({
+        expectations: EXPECTED_CRONS,
+        runs,
+        watchingSince,
+        now: new Date(),
+      });
+    } catch (err) {
+      /**
+       * L38: a checker must refuse to say "healthy" when a source is
+       * unreadable. Every cron reports `unknown` with the reason, rather than
+       * an empty list that would render as "nothing wrong".
+       */
+      const why = err instanceof Error ? err.message : String(err);
+      serverLogger.error(`[INTEGRATION-HEALTH] cron heartbeat unreadable: ${why}`);
+      crons = EXPECTED_CRONS.map((e) => ({
+        name: e.name,
+        state: "unknown" as const,
+        reason: `the heartbeat could not be read, so nothing is known about this cron: ${why}`,
+      }));
+    }
+
     return NextResponse.json({
       windowDays,
       generatedAt: new Date().toISOString(),
       providers,
+      crons,
+      cronsStale: crons.filter((c) => c.state === "stale").length,
     });
   } catch (error) {
     serverLogger.error("[INTEGRATION-HEALTH] Error:", error);
