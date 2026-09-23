@@ -47,7 +47,8 @@ import {
   getOrderByRazorpayPaymentId,
 } from "@/lib/services/orders";
 import { verifyRazorpayPayment } from "@/lib/services/payment/verification";
-import { appendUserDomain } from "@/lib/services/users";
+import { applyDomainRenewal } from "@/lib/services/domains";
+import { getDomainDetails } from "@/lib/integrations/resellerclub";
 import { serverLogger } from "@/lib/server-logger";
 import { validatedBody, validatedQuery, z } from "@/lib/api-validation";
 
@@ -340,30 +341,56 @@ export async function POST(request: NextRequest) {
       successfulDomains: [domainName],
     });
 
-    /**
-     * NOTE: this currently writes NOTHING. `appendUserDomain` does
-     * `$push: { domains: … }` on User, and models/User.ts declares no
-     * `domains` path — Mongoose strict mode (on by default; the options
-     * block sets no `strict:false`) silently drops it. models/User.ts:93
-     * and :416 already document this exact hazard for other fields.
-     *
-     * Left in place rather than deleted: the renewal's real bookkeeping gap
-     * is that nothing updates `expiresAt` on the user's EXISTING order, so
-     * removing this would tidy the symptom and leave the gap. Both are
-     * recorded in Todos.md §A — they need a decision about where a user's
-     * domain list is canonically read from, which is not this fix's job.
-     */
-      await appendUserDomain(String(user._id), {
-        domainName,
-        price: renewedPrice,
-        currency: "INR",
-        registrationPeriod: years,
-        status: "registered",
-        orderId: renewedOrderId,
-        expiresAt: new Date(Date.now() + years * 365 * 24 * 60 * 60 * 1000),
-      });
-
       recordedOrderId = order.orderId;
+
+      /**
+       * Refresh the CANONICAL record. `GET /api/user/domains` builds its list
+       * from orders, then pending domains, then the Domain collection last —
+       * so Domain rows overwrite the other two and are what the customer
+       * actually sees. Nothing here updated them after a renewal.
+       *
+       * The consequence was worse than a stale date: `daily-scheduler` selects
+       * on `next_action_at <= now`, derived from `expiresAt` at creation, so a
+       * renewed domain kept its old trigger and the cron went on reminding the
+       * customer to renew what they had just renewed.
+       *
+       * The new expiry is READ FROM RESELLERCLUB, never computed. The obvious
+       * arithmetic — now + years × 365 days — is wrong by however long was left
+       * on the domain, because a renewal extends the CURRENT expiry rather than
+       * starting from today. Writing that into the canonical source would put a
+       * confident wrong date in front of the customer and into the reminder
+       * ladder.
+       */
+      const details = await getDomainDetails({ domainName });
+      const endtime = details.kind === "found" ? details.details.endtime : undefined;
+      // RC returns `orders.endtime` as Unix SECONDS — the same field and unit
+      // app/api/domains/sync parses.
+      const epochSeconds = Number(endtime);
+      if (Number.isFinite(epochSeconds) && epochSeconds > 0) {
+        const applied = await applyDomainRenewal({
+          userId: String(user._id),
+          domainName,
+          newExpiresAt: new Date(epochSeconds * 1000),
+        });
+        if (!applied) {
+          serverLogger.warn(
+            `[renew] ${domainName} renewed, but no Domain row matched for user ${user._id} — ` +
+              `the customer's list is served from that collection, so it will keep showing the ` +
+              `old expiry until a sync runs.`
+          );
+        }
+      } else {
+        /**
+         * No guessed date. A wrong expiry propagates into the customer's view,
+         * the reminder ladder and dunning; a stale one only looks old. Logged
+         * so it is visible rather than silently absorbed.
+         */
+        serverLogger.error(
+          `[renew] ${domainName} renewed, but ResellerClub did not return a usable expiry ` +
+            `(${details.kind}), so the Domain row was left alone rather than given a computed ` +
+            `date. Renewal reminders may fire until a sync corrects it.`
+        );
+      }
     } catch (bookkeepingError) {
       const why =
         bookkeepingError instanceof Error

@@ -21,7 +21,7 @@
  *  - **Replayed payment**: one captured payment must fund one order.
  *    Pinned: a payment id already on an order → 409, no registrar call.
  *  - **Order/domain-list write on FAILED renewal**: a refactor that
- *    writes createOrder + appendUserDomain BEFORE checking the RC
+ *    writes createOrder + the Domain row BEFORE checking the RC
  *    outcome would leave phantom "renewed" rows when the registrar
  *    rejected. Pinned: both balance_pending AND hard_failure
  *    branches MUST skip BOTH writes.
@@ -41,15 +41,18 @@
  *    Pinned, because the mocked orders service cannot see it.
  *  - GET pricing error → 500 with the RC message
  *  - POST 3-branch outcome dispatch:
- *      renewed → 200 + createOrder + appendUserDomain + new-expiry-date
+ *      renewed → 200 + createOrder + a Domain-collection write (the canonical
+ *        source for the customer's list) + new-expiry-date
  *      balance_pending → 202 + queued message + NO writes
  *      hard_failure → split by TRANSPORT: 502 "safe to try again" when the
  *        registrar answered or was never reached, 409 "do NOT try again" when
  *        the request may have landed. Both still write nothing.
  *  - new-expiry = now + years × 365 × 86_400_000 (matches the route's
  *    inline math)
- *  - createOrder + appendUserDomain mirror each other (same domain,
- *    price, orderId, status='registered')
+ *  - the Domain write takes its expiry from ResellerClub's `orders.endtime`,
+ *    never from now + years x 365d — a renewal extends the CURRENT expiry, so
+ *    the arithmetic version is wrong by whatever was left on the domain, and
+ *    it would land in the field the reminder cron selects on
  *  - userName fallback to empty-trimmed if names absent (template-
  *    literal quirk pinned)
  */
@@ -67,9 +70,14 @@ vi.mock("@/lib/resellerclub", () => ({
 }));
 
 const rcRenewDomain = vi.hoisted(() => vi.fn());
+const getDomainDetails = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/integrations/resellerclub", () => ({
   renewDomain: rcRenewDomain,
+  getDomainDetails,
 }));
+
+const applyDomainRenewal = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/services/domains", () => ({ applyDomainRenewal }));
 
 const createOrder = vi.hoisted(() => vi.fn());
 const findOrderByDomainForUser = vi.hoisted(() => vi.fn());
@@ -87,8 +95,13 @@ vi.mock("@/lib/services/payment/verification", () => ({
   verifyRazorpayPayment,
 }));
 
-const appendUserDomain = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/services/users", () => ({ appendUserDomain }));
+/**
+ * The route no longer calls `appendUserDomain`. It wrote to `User.domains`,
+ * which the model does not declare (Mongoose drops it) and which nothing
+ * reads — `GET /api/user/domains` serves the customer's list from the Domain
+ * collection, which overwrites orders and pending rows. The renewal now writes
+ * THERE, via `applyDomainRenewal`, which is what these tests assert instead.
+ */
 
 vi.mock("@/lib/server-logger", () => ({
   serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -140,7 +153,11 @@ beforeEach(() => {
   getDomainExpiry.mockReset();
   rcRenewDomain.mockReset();
   createOrder.mockReset().mockImplementation(async (data) => data);
-  appendUserDomain.mockReset().mockResolvedValue(undefined);
+  applyDomainRenewal.mockReset().mockResolvedValue(true);
+  // A believable RC details payload: endtime is a Unix-seconds string.
+  getDomainDetails
+    .mockReset()
+    .mockResolvedValue({ kind: "found", details: { endtime: "1893456000" } });
   // Default: the caller owns the domain, the payment is good, and it has
   // not been spent. Each gate's own describe block overrides one of these,
   // so a test that fails does so for exactly one stated reason.
@@ -487,7 +504,7 @@ describe("POST — RC 3-branch outcome dispatch", () => {
     ...PAID,
   };
 
-  it("renewed → 200 + createOrder + appendUserDomain + new-expiry math", async () => {
+  it("renewed → 200 + createOrder + the CANONICAL Domain write + new-expiry math", async () => {
     rcRenewDomain.mockResolvedValueOnce({
       kind: "renewed",
       orderId: "ENT-789",
@@ -531,15 +548,18 @@ describe("POST — RC 3-branch outcome dispatch", () => {
       })
     );
 
-    // appendUserDomain mirrors
-    expect(appendUserDomain).toHaveBeenCalledWith(
-      "U1",
+    /**
+     * The Domain row is what the customer's list is actually built from, and
+     * the expiry written to it comes from RESELLERCLUB, not from arithmetic —
+     * a renewal extends the current expiry, so now + years x 365d would be
+     * wrong by however long was left, in the one place the reminder ladder
+     * reads. `orders.endtime` is Unix SECONDS, the unit domains/sync parses.
+     */
+    expect(applyDomainRenewal).toHaveBeenCalledWith(
       expect.objectContaining({
+        userId: "U1",
         domainName: "x.com",
-        price: 1500,
-        registrationPeriod: 2,
-        orderId: "ENT-789",
-        status: "registered",
+        newExpiresAt: new Date(1893456000 * 1000),
       })
     );
 
@@ -562,7 +582,7 @@ describe("POST — RC 3-branch outcome dispatch", () => {
     expect(orderArg.domains[0].price).toBe(0);
   });
 
-  it("balance_pending → 202 + queued message; NO createOrder; NO appendUserDomain", async () => {
+  it("balance_pending → 202 + queued message; NO createOrder; NO Domain write", async () => {
     rcRenewDomain.mockResolvedValueOnce({ kind: "balance_pending" });
     const res = await POST(makePost(VALID));
     expect(res.status).toBe(202);
@@ -570,7 +590,7 @@ describe("POST — RC 3-branch outcome dispatch", () => {
     expect(body.status).toBe("pending");
     expect(body.error.toLowerCase()).toContain("queued");
     expect(createOrder).not.toHaveBeenCalled();
-    expect(appendUserDomain).not.toHaveBeenCalled();
+    expect(applyDomainRenewal).not.toHaveBeenCalled();
   });
 
   /**
@@ -595,7 +615,7 @@ describe("POST — RC 3-branch outcome dispatch", () => {
     expect(body.error.toLowerCase()).toContain("safe to try again");
     expect(body.status).toBe("not_renewed");
     expect(createOrder).not.toHaveBeenCalled();
-    expect(appendUserDomain).not.toHaveBeenCalled();
+    expect(applyDomainRenewal).not.toHaveBeenCalled();
   });
 
   it("hard_failure/sent_unknown → 409, tells them NOT to retry; NO writes", async () => {
@@ -615,7 +635,7 @@ describe("POST — RC 3-branch outcome dispatch", () => {
     expect(body.error).toMatch(/extra year/i);
     expect(body.status).toBe("unconfirmed");
     expect(createOrder).not.toHaveBeenCalled();
-    expect(appendUserDomain).not.toHaveBeenCalled();
+    expect(applyDomainRenewal).not.toHaveBeenCalled();
   });
 });
 

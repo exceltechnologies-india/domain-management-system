@@ -523,11 +523,51 @@ describe("clearDirectAdminUsernameForAll", () => {
 });
 
 describe("appendUserDomain — legacy embedded-domain push", () => {
-  it("$push onto domains array", async () => {
+  /**
+   * This used to assert the `$push`. The push is gone, deliberately, and the
+   * assertion is replaced rather than deleted — it now pins the two measured
+   * facts that made the push pointless, so neither can be forgotten:
+   *
+   *  1. `models/User.ts` declares no `domains` path, so Mongoose strict mode
+   *     dropped the write silently. It never stored anything.
+   *  2. Nothing reads `User.domains` anyway. `GET /api/user/domains` builds the
+   *     customer's list from orders, then pending domains, then the Domain
+   *     collection LAST, so Domain rows overwrite the rest.
+   *
+   * The function stays because the domain TRANSFER route still calls it and has
+   * no canonical write of its own; deleting it would erase the only trace of
+   * that gap. So it now warns instead of pretending.
+   */
+  it("writes NOTHING, and says so instead of pretending", async () => {
     await appendUserDomain("U1", { domainName: "x.com" });
-    expect(User.findByIdAndUpdate).toHaveBeenCalledWith("U1", {
-      $push: { domains: { domainName: "x.com" } },
-    });
+    expect(User.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it("User declares no `domains` path — the reason the push never stored anything", async () => {
+    /**
+     * A SOURCE SCAN, because this file mocks `@/models/User`. The obvious
+     * version — import the model and read `schema.paths` — passes against the
+     * mock's empty object and proves nothing, which is the exact shape of a
+     * green security test over a statement that could never have matched.
+     *
+     * Comments are stripped first: the model documents this hazard in prose,
+     * and a blunt scan would punish that (AGENTS.md L46).
+     */
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const raw = readFileSync(join(process.cwd(), "models/User.ts"), "utf8");
+    const code = raw
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|[^:])\/\/.*$/gm, "$1");
+
+    // Guard the guard: a bad path would make the assertion below vacuous.
+    expect(code).toMatch(/firstName/);
+    expect(code.length).toBeGreaterThan(500);
+
+    // If somebody adds the path, this fails and they have to decide whether
+    // reviving the write is right — which it is not, while the Domain
+    // collection is the canonical source for a customer's domain list.
+    expect(code).not.toMatch(/^\s*domains\s*:/m);
   });
 });
 

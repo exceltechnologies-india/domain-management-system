@@ -11,6 +11,7 @@
 import connectDB from "@/lib/mongodb";
 import Domain from "@/models/Domain";
 import type { IDomain } from "@/models/Domain";
+import { AUTOMATION_CONFIG } from "@/config/automation";
 
 // ─── Reads ────────────────────────────────────────────────────────────────────
 
@@ -40,4 +41,69 @@ export async function listDomainsForUser(
 export async function getDomainById(id: string): Promise<IDomain | null> {
   await connectDB();
   return Domain.findById(id);
+}
+
+// ─── Writes ───────────────────────────────────────────────────────────────────
+
+/**
+ * When the reminder ladder should next look at a domain.
+ *
+ * Derived from the SAME config the provisioner uses, in one place, because
+ * `expiresAt` and `next_action_at` are written as a pair and a copy of this
+ * arithmetic that drifts would send reminders on the wrong day. There were two
+ * copies of the expression before this (`provisioner-domain.ts` and
+ * `provisioner-hosting.ts`); the domain one now calls this.
+ */
+export function reminderTriggerFor(expiresAt: Date): Date {
+  const firstReminderDays = Math.max(...AUTOMATION_CONFIG.REMINDER_DAYS);
+  return new Date(expiresAt.getTime() - firstReminderDays * 24 * 60 * 60 * 1000);
+}
+
+/**
+ * Record that a domain has been renewed.
+ *
+ * The Domain collection is the CANONICAL source for a customer's domain list:
+ * `GET /api/user/domains` fills a Map from orders, then pending domains, then
+ * this collection last, so these rows overwrite the other two. Its comment says
+ * so — "Priority: Domain collection > PendingDomain collection > Order
+ * collection" — and the insertion order implements it.
+ *
+ * Nothing updated it after a renewal. That is not only a stale date on a
+ * screen: `daily-scheduler` selects domains by `next_action_at <= now`, and
+ * that field is derived from `expiresAt` when the row is created. So a renewed
+ * domain kept its pre-renewal trigger and the cron went on treating it as
+ * due — reminding a customer to renew something they had just renewed, and
+ * feeding the same rows to renewal dunning.
+ *
+ * `last_reminder_sent` is cleared for the same reason: it belongs to the old
+ * cycle, and leaving it would make the new one start halfway through a ladder
+ * that had never run.
+ *
+ * Returns `false` when no row matched rather than throwing — the caller has
+ * already renewed at the registrar by this point, and a throw there would be
+ * reported to a customer as a failed renewal.
+ */
+export async function applyDomainRenewal(input: {
+  userId: string;
+  domainName: string;
+  newExpiresAt: Date;
+}): Promise<boolean> {
+  await connectDB();
+  const res = await Domain.updateOne(
+    {
+      userId: input.userId,
+      // Stored lower-cased by the provisioner; matched the same way the user
+      // domains route compares them.
+      domainName: input.domainName.toLowerCase().trim(),
+      deletedAt: null,
+    },
+    {
+      $set: {
+        expiresAt: input.newExpiresAt,
+        next_action_at: reminderTriggerFor(input.newExpiresAt),
+        last_reminder_sent: null,
+      },
+    }
+  );
+  return res.matchedCount > 0;
 }
