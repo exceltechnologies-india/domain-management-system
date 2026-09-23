@@ -337,10 +337,10 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
               dashboard with something on it. Set up by
               scratchpad/seed-demo-passwords.js against the local Mongo. */}
           {process.env.NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS === 'true' && (
-            <div className="mb-6 p-3 bg-indigo-50 border border-indigo-200 rounded-md text-xs">
+            <div className="mb-6 p-3 bg-indigo-soft border border-indigo-soft rounded-md text-xs">
               <div className="flex items-start gap-2 mb-2">
-                <ShieldCheck className="h-3.5 w-3.5 text-indigo-600 flex-shrink-0 mt-0.5" />
-                <div className="text-indigo-700 flex-1">
+                <ShieldCheck className="h-3.5 w-3.5 text-indigo-ink flex-shrink-0 mt-0.5" />
+                <div className="text-indigo-ink flex-1">
                   <b>Dev mode — demo accounts</b>
                   <span className="text-ink-3 ml-1">· click to autofill</span>
                 </div>
@@ -354,7 +354,7 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
                         setFormData((prev) => ({ ...prev, email: u.email, password: u.password }));
                         setShowPassword(true);
                       }}
-                      className="w-full text-left rounded px-2 py-1.5 hover:bg-indigo-100/60 transition-colors"
+                      className="w-full text-left rounded px-2 py-1.5 hover:bg-indigo-soft/60 transition-colors"
                     >
                       <div className="font-medium text-ink">{u.label}</div>
                       <div className="text-[11px] text-ink-3 font-mono">
@@ -368,18 +368,18 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
           )}
           {(searchParams.get('returnUrl') === '/cart' ||
             searchParams.get('returnUrl') === '/checkout') && (
-            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="mb-6 p-4 bg-indigo-soft border border-indigo-soft rounded-lg">
               <div className="flex items-center">
-                <ShieldCheck className="h-5 w-5 text-blue-600 mr-2 shrink-0" />
-                <p className="text-blue-800 text-sm font-medium">Please sign in to complete your purchase</p>
+                <ShieldCheck className="h-5 w-5 text-indigo-ink mr-2 shrink-0" />
+                <p className="text-indigo-ink text-sm font-medium">Please sign in to complete your purchase</p>
               </div>
             </div>
           )}
           {activationMessage && (
-            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <div className="mb-6 p-4 bg-emerald-soft border border-emerald-soft rounded-lg">
               <div className="flex items-center">
-                <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
-                <p className="text-green-800 text-sm font-medium">{activationMessage}</p>
+                <CheckCircle className="h-5 w-5 text-emerald-ink mr-2" />
+                <p className="text-emerald-ink text-sm font-medium">{activationMessage}</p>
               </div>
             </div>
           )}
@@ -392,10 +392,10 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
             }}
           >
             {notActivatedEmail && (
-              <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+              <div className="mb-4 p-4 bg-amber-soft border border-amber-soft rounded-lg">
                 <div className="flex items-start gap-2">
-                  <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
-                  <div className="text-sm text-amber-800">
+                  <AlertTriangle className="h-5 w-5 text-amber-ink mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-amber-ink">
                     <p className="font-semibold">Your account isn’t activated yet.</p>
                     <p className="mt-1">
                       Please open the activation link we emailed to{' '}
@@ -405,7 +405,7 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
                       type="button"
                       onClick={handleResendActivation}
                       disabled={isResendingActivation}
-                      className="mt-2 inline-flex items-center gap-1.5 font-semibold text-amber-800 underline hover:text-amber-900 disabled:opacity-50 disabled:no-underline"
+                      className="mt-2 inline-flex items-center gap-1.5 font-semibold text-amber-ink underline hover:text-amber-ink disabled:opacity-50 disabled:no-underline"
                     >
                       {isResendingActivation ? 'Sending…' : 'Resend activation email'}
                     </button>
@@ -415,11 +415,11 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
             )}
             {deactivatedMessage && (
               <div className="mb-4">
-                <p className="text-sm text-red-600 text-center">
+                <p className="text-sm text-rose-ink text-center">
                   Your account has been deactivated. Please contact our support team at{' '}
                   <a
                     href={`mailto:${process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@anutech.in'}`}
-                    className="text-red-600 hover:text-red-700 underline font-medium"
+                    className="text-rose-ink hover:text-rose-ink underline font-medium"
                   >
                     {process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@anutech.in'}
                   </a>
@@ -437,7 +437,7 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
               required
               fullWidth
               autoComplete="email"
-              icon={<Mail className="h-4 w-4 text-gray-400" />}
+              icon={<Mail className="h-4 w-4 text-ink-4" />}
             />
 
             <div className="relative">
@@ -451,11 +451,11 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
                 required
                 fullWidth
                 autoComplete="current-password"
-                icon={<Lock className="h-4 w-4 text-gray-400" />}
+                icon={<Lock className="h-4 w-4 text-ink-4" />}
                 rightIcon={
                   <button
                     type="button"
-                    className="text-gray-500 hover:text-gray-700 focus:outline-none"
+                    className="text-ink-3 hover:text-ink-2 focus:outline-none"
                     onClick={() => setShowPassword(!showPassword)}
                   >
                     {showPassword ? (
@@ -469,12 +469,12 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
             </div>
 
             {totpRequired && (
-              <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
-                <div className="flex items-center gap-2 text-blue-800">
+              <div className="rounded-lg border border-indigo-soft bg-indigo-soft p-4 space-y-3">
+                <div className="flex items-center gap-2 text-indigo-ink">
                   <ShieldCheck className="h-5 w-5 shrink-0" />
                   <span className="text-sm font-medium">Two-factor authentication required</span>
                 </div>
-                <p className="text-xs text-blue-700">
+                <p className="text-xs text-indigo-ink">
                   Enter the 6-digit code from your authenticator app.
                 </p>
                 <Input
@@ -504,7 +504,7 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
                   onChange={handleChange}
                   className="h-4 w-4 text-amber focus:ring-amber border-hairline-strong rounded"
                 />
-                <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-900">
+                <label htmlFor="rememberMe" className="ml-2 block text-sm text-ink">
                   Remember me
                 </label>
               </div>

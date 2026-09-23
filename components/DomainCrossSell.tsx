@@ -70,14 +70,14 @@ export default function DomainCrossSell() {
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
+    <div className="bg-paper rounded-lg border border-hairline p-4 sm:p-6">
       <div className="flex items-center space-x-3 mb-4">
-        <div className="bg-purple-100 p-2 rounded-lg">
-          <Globe className="h-5 w-5 text-purple-600" />
+        <div className="bg-indigo-soft p-2 rounded-lg">
+          <Globe className="h-5 w-5 text-indigo-ink" />
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Every website needs a domain</h3>
-          <p className="text-sm text-gray-600">Get your domain right away and publish your website faster</p>
+          <h3 className="text-lg font-semibold text-ink">Every website needs a domain</h3>
+          <p className="text-sm text-ink-2">Get your domain right away and publish your website faster</p>
         </div>
       </div>
 
@@ -92,7 +92,7 @@ export default function DomainCrossSell() {
         >
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-gray-400" />
+              <Search className="h-5 w-5 text-ink-4" />
             </div>
             <input
               type="text"
@@ -101,7 +101,7 @@ export default function DomainCrossSell() {
                 setDomainQuery(e.target.value);
                 setResult(null); // Clear result on typing
               }}
-              className="block w-full pl-10 pr-24 py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm transition duration-150 ease-in-out"
+              className="block w-full pl-10 pr-24 py-3 border border-hairline-strong rounded-lg leading-5 bg-paper placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm transition duration-150 ease-in-out"
               placeholder="Search domain (e.g. example.com)"
             />
             <div className="absolute inset-y-1 right-1">
@@ -129,23 +129,23 @@ export default function DomainCrossSell() {
 
         {/* Search Result Display */}
         {result && (
-          <div className={`p-4 rounded-lg border flex items-center justify-between ${result.available ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+          <div className={`p-4 rounded-lg border flex items-center justify-between ${result.available ? 'bg-emerald-soft border-emerald-soft' : 'bg-rose-soft border-rose-soft'}`}>
             <div className="flex items-center gap-3">
               {result.available ? (
-                <div className="bg-green-100 p-1.5 rounded-full">
-                  <Check className="h-4 w-4 text-green-600" />
+                <div className="bg-emerald-soft p-1.5 rounded-full">
+                  <Check className="h-4 w-4 text-emerald-ink" />
                 </div>
               ) : (
-                <div className="bg-red-100 p-1.5 rounded-full">
-                  <X className="h-4 w-4 text-red-600" />
+                <div className="bg-rose-soft p-1.5 rounded-full">
+                  <X className="h-4 w-4 text-rose-ink" />
                 </div>
               )}
               <div>
-                <p className={`font-semibold ${result.available ? 'text-green-900' : 'text-red-900'}`}>{result.domainName}</p>
+                <p className={`font-semibold ${result.available ? 'text-emerald-ink' : 'text-rose-ink'}`}>{result.domainName}</p>
                 {result.available ? (
-                  <p className="text-sm text-green-700">Available - <span className="font-bold">₹{result.price}</span>/yr</p>
+                  <p className="text-sm text-emerald-ink">Available - <span className="font-bold">₹{result.price}</span>/yr</p>
                 ) : (
-                  <p className="text-sm text-red-700">Domain is taken or unavailable</p>
+                  <p className="text-sm text-rose-ink">Domain is taken or unavailable</p>
                 )}
               </div>
             </div>
@@ -153,7 +153,7 @@ export default function DomainCrossSell() {
             {result.available && (
               <button
                 onClick={handleAddToCart}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald hover:bg-emerald-ink text-white text-sm font-medium rounded-md shadow-sm transition-colors"
               >
                 <ShoppingCart className="h-4 w-4" />
                 Add

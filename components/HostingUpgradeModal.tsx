@@ -174,20 +174,20 @@ export default function HostingUpgradeModal({
     <>
       <razorpay.Frame />
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-        <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200">
+        <div className="bg-paper rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200">
           {/* Header */}
-          <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+          <div className="p-6 border-b border-hairline flex items-center justify-between bg-paper-2/50">
             <div>
-              <h2 className="text-xl font-bold text-gray-900 flex items-center">
-                <ArrowUp className="h-5 w-5 mr-2 text-blue-600" />
+              <h2 className="text-xl font-bold text-ink flex items-center">
+                <ArrowUp className="h-5 w-5 mr-2 text-indigo-ink" />
                 Upgrade Hosting Plan
               </h2>
-              <p className="text-sm text-gray-500 mt-1">{domainName}</p>
+              <p className="text-sm text-ink-3 mt-1">{domainName}</p>
             </div>
             {step !== 'paying' && step !== 'verifying' && (
               <button
                 onClick={onClose}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all"
+                className="p-2 text-ink-4 hover:text-ink-2 hover:bg-paper-2 rounded-full transition-all"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -198,21 +198,21 @@ export default function HostingUpgradeModal({
           <div className="p-6">
             {step === 'loading' && (
               <div className="flex flex-col items-center justify-center py-12">
-                <RefreshCw className="h-10 w-10 animate-spin text-blue-600 mb-4" />
-                <p className="text-gray-600 font-medium">Loading upgrade options...</p>
+                <RefreshCw className="h-10 w-10 animate-spin text-indigo-ink mb-4" />
+                <p className="text-ink-2 font-medium">Loading upgrade options...</p>
               </div>
             )}
 
             {step === 'verifying' && (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <div className="relative mb-6">
-                  <div className="h-20 w-20 rounded-full border-4 border-blue-50 border-t-blue-600 animate-spin" />
+                  <div className="h-20 w-20 rounded-full border-4 border-indigo-soft border-t-indigo animate-spin" />
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <ShieldCheck className="h-8 w-8 text-blue-600" />
+                    <ShieldCheck className="h-8 w-8 text-indigo-ink" />
                   </div>
                 </div>
-                <h3 className="text-lg font-bold text-gray-900">Verifying Payment</h3>
-                <p className="text-gray-500 mt-2">Upgrading your plan on the server. Please do not close this window.</p>
+                <h3 className="text-lg font-bold text-ink">Verifying Payment</h3>
+                <p className="text-ink-3 mt-2">Upgrading your plan on the server. Please do not close this window.</p>
               </div>
             )}
 
@@ -235,21 +235,21 @@ export default function HostingUpgradeModal({
 
             {step === 'paying' && (
               <div className="flex flex-col items-center justify-center py-12 text-center">
-                <RefreshCw className="h-10 w-10 animate-spin text-blue-600 mb-4" />
-                <h3 className="text-lg font-bold text-gray-900">Opening Payment Window</h3>
-                <p className="text-gray-500 mt-2 text-sm">Complete the payment in the Razorpay window.</p>
+                <RefreshCw className="h-10 w-10 animate-spin text-indigo-ink mb-4" />
+                <h3 className="text-lg font-bold text-ink">Opening Payment Window</h3>
+                <p className="text-ink-3 mt-2 text-sm">Complete the payment in the Razorpay window.</p>
               </div>
             )}
 
             {step === 'error' && (
               <div className="text-center py-8">
-                <div className="bg-red-100 rounded-full h-14 w-14 flex items-center justify-center mx-auto mb-4">
-                  <AlertTriangle className="h-7 w-7 text-red-600" />
+                <div className="bg-rose-soft rounded-full h-14 w-14 flex items-center justify-center mx-auto mb-4">
+                  <AlertTriangle className="h-7 w-7 text-rose-ink" />
                 </div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">Something went wrong</h3>
-                <p className="text-gray-500 text-sm mb-6">{errorMessage}</p>
+                <h3 className="text-lg font-bold text-ink mb-2">Something went wrong</h3>
+                <p className="text-ink-3 text-sm mb-6">{errorMessage}</p>
                 <div className="flex gap-3 justify-center">
-                  <button onClick={onClose} className="px-4 py-2 text-gray-600 font-semibold bg-gray-100 hover:bg-gray-200 rounded-xl transition-all text-sm">
+                  <button onClick={onClose} className="px-4 py-2 text-ink-2 font-semibold bg-paper-2 hover:bg-hairline rounded-xl transition-all text-sm">
                     Close
                   </button>
                   <button
@@ -258,7 +258,7 @@ export default function HostingUpgradeModal({
                       setErrorMessage('');
                       void loadUpgradeInfo();
                     }}
-                    className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all text-sm"
+                    className="px-4 py-2 bg-primary-600 text-white font-semibold rounded-xl hover:bg-primary-700 transition-all text-sm"
                   >
                     Retry
                   </button>
