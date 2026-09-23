@@ -110,40 +110,43 @@ export default function DomainSetup({ hostingItem, onUpdateDomain, onAddDomainTo
   const planName = hostingItem.hostingPlan?.name || 'Hosting Plan';
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden mb-8 transition-all duration-300 hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)]">
+    <div className="bg-paper rounded-2xl border border-hairline shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden mb-8 transition-all duration-300 hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)]">
       <div className="p-6 md:p-8">
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6 mb-8">
           <div className="flex items-start gap-4">
-            <div className="p-3 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl border border-indigo-100/50 shadow-sm flex-shrink-0">
-              <Globe className="h-6 w-6 text-indigo-600" />
+            <div /* Decorative gradient left as-is: the token set has no gradient pair,
+   and `purple` is off-palette entirely. Flattening it to bg-indigo-soft
+   would be a design decision, not a token substitution. */
+            className="p-3 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl border border-indigo-soft/50 shadow-sm flex-shrink-0">
+              <Globe className="h-6 w-6 text-indigo-ink" />
             </div>
             <div>
-              <h3 className="text-xl font-bold text-gray-900 tracking-tight">Connect a Domain</h3>
-              <p className="text-gray-500 mt-1.5 text-sm leading-relaxed max-w-md">
-                Your <span className="font-semibold text-gray-900">{planName}</span> subscription requires a domain name to work.
+              <h3 className="text-xl font-bold text-ink tracking-tight">Connect a Domain</h3>
+              <p className="text-ink-3 mt-1.5 text-sm leading-relaxed max-w-md">
+                Your <span className="font-semibold text-ink">{planName}</span> subscription requires a domain name to work.
               </p>
             </div>
           </div>
 
-          <div className="flex bg-gray-100/80 p-1.5 rounded-xl self-start md:self-center backdrop-blur-sm">
+          <div className="flex bg-paper-2/80 p-1.5 rounded-xl self-start md:self-center backdrop-blur-sm">
             <button
               onClick={() => setActiveTab('link')}
               className={`flex items-center gap-2 py-2.5 px-5 text-sm font-semibold rounded-[10px] transition-all duration-300 ${activeTab === 'link'
-                ? 'bg-white text-gray-900 shadow-[0_2px_4px_rgba(0,0,0,0.04)] ring-1 ring-black/5 transform scale-[1.02]'
-                : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50'
+                ? 'bg-paper text-ink shadow-[0_2px_4px_rgba(0,0,0,0.04)] ring-1 ring-black/5 transform scale-[1.02]'
+                : 'text-ink-3 hover:text-ink hover:bg-hairline/50'
                 }`}
             >
-              <LinkIcon className={`h-4 w-4 ${activeTab === 'link' ? 'text-indigo-600' : 'text-gray-400'}`} />
+              <LinkIcon className={`h-4 w-4 ${activeTab === 'link' ? 'text-indigo-ink' : 'text-ink-4'}`} />
               Link Existing
             </button>
             <button
               onClick={() => setActiveTab('buy')}
               className={`flex items-center gap-2 py-2.5 px-5 text-sm font-semibold rounded-[10px] transition-all duration-300 ${activeTab === 'buy'
-                ? 'bg-white text-gray-900 shadow-[0_2px_4px_rgba(0,0,0,0.04)] ring-1 ring-black/5 transform scale-[1.02]'
-                : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50'
+                ? 'bg-paper text-ink shadow-[0_2px_4px_rgba(0,0,0,0.04)] ring-1 ring-black/5 transform scale-[1.02]'
+                : 'text-ink-3 hover:text-ink hover:bg-hairline/50'
                 }`}
             >
-              <Search className={`h-4 w-4 ${activeTab === 'buy' ? 'text-indigo-600' : 'text-gray-400'}`} />
+              <Search className={`h-4 w-4 ${activeTab === 'buy' ? 'text-indigo-ink' : 'text-ink-4'}`} />
               Buy New
             </button>
           </div>
@@ -152,7 +155,7 @@ export default function DomainSetup({ hostingItem, onUpdateDomain, onAddDomainTo
         <div className="max-w-3xl">
           {activeTab === 'link' ? (
             <div className="animate-in fade-in slide-in-from-left-4 duration-300">
-              <label htmlFor="domain-link-input" className="block text-sm font-semibold text-gray-700 mb-3 ml-1">
+              <label htmlFor="domain-link-input" className="block text-sm font-semibold text-ink-2 mb-3 ml-1">
                 Enter your existing domain name
               </label>
               <div className="flex items-start gap-3">
@@ -167,23 +170,23 @@ export default function DomainSetup({ hostingItem, onUpdateDomain, onAddDomainTo
                         setInputError('');
                       }}
                       placeholder="example.com"
-                      className={`block w-full rounded-xl border-gray-200 bg-gray-50/50 shadow-sm focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 py-3.5 pl-4 transition-all duration-200 ${inputError ? 'border-red-300 ring-2 ring-red-100 focus:ring-red-100' : 'hover:border-gray-300'}`}
+                      className={`block w-full rounded-xl border-hairline bg-paper-2/50 shadow-sm focus:bg-paper focus:ring-2 focus:ring-indigo/20 focus:border-indigo py-3.5 pl-4 transition-all duration-200 ${inputError ? 'border-rose-soft ring-2 ring-rose-soft focus:ring-rose-soft' : 'hover:border-hairline-strong'}`}
                       onKeyPress={(e) => e.key === 'Enter' && handleLinkDomain()}
                     />
                     {inputError && (
                       <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none animate-in fade-in zoom-in duration-200">
-                        <AlertTriangle className="h-5 w-5 text-red-500" />
+                        <AlertTriangle className="h-5 w-5 text-rose-ink" />
                       </div>
                     )}
                   </div>
                   {inputError && (
-                    <p className="mt-2 text-sm text-red-600 font-medium ml-1">{inputError}</p>
+                    <p className="mt-2 text-sm text-rose-ink font-medium ml-1">{inputError}</p>
                   )}
                 </div>
                 <button
                   onClick={handleLinkDomain}
                   disabled={isLinking}
-                  className="flex-shrink-0 inline-flex items-center justify-center px-8 py-3.5 border border-transparent text-sm font-bold rounded-xl text-white bg-ink hover:bg-black focus:outline-none focus:ring-4 focus:ring-gray-100 disabled:opacity-70 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+                  className="flex-shrink-0 inline-flex items-center justify-center px-8 py-3.5 border border-transparent text-sm font-bold rounded-xl text-white bg-ink hover:bg-black focus:outline-none focus:ring-4 focus:ring-hairline disabled:opacity-70 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
                 >
                   {isLinking ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -210,13 +213,13 @@ export default function DomainSetup({ hostingItem, onUpdateDomain, onAddDomainTo
             </div>
           ) : (
             <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-              <label htmlFor="domain-search-input" className="block text-sm font-semibold text-gray-700 mb-3 ml-1">
+              <label htmlFor="domain-search-input" className="block text-sm font-semibold text-ink-2 mb-3 ml-1">
                 Search for an available domain
               </label>
               <form onSubmit={handleSearch} className="relative mb-6">
                 <div className="relative flex items-center group">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <Search className="h-5 w-5 text-gray-400 group-focus-within:text-indigo-500 transition-colors" />
+                    <Search className="h-5 w-5 text-ink-4 group-focus-within:text-indigo-ink transition-colors" />
                   </div>
                   <input
                     id="domain-search-input"
@@ -226,14 +229,14 @@ export default function DomainSetup({ hostingItem, onUpdateDomain, onAddDomainTo
                       setSearchQuery(e.target.value);
                       setSearchResult(null);
                     }}
-                    className="block w-full rounded-xl border-gray-200 bg-gray-50/50 shadow-sm focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 py-3.5 pl-11 pr-40 transition-all duration-200 hover:border-gray-300"
+                    className="block w-full rounded-xl border-hairline bg-paper-2/50 shadow-sm focus:bg-paper focus:ring-2 focus:ring-indigo/20 focus:border-indigo py-3.5 pl-11 pr-40 transition-all duration-200 hover:border-hairline-strong"
                     placeholder="Find your perfect domain..."
                   />
                   <div className="absolute right-2">
                     <button
                       type="submit"
                       disabled={!searchQuery.trim() || isSearching}
-                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-semibold rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-100 disabled:opacity-50 transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5"
+                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-semibold rounded-lg text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-4 focus:ring-indigo-soft disabled:opacity-50 transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5"
                     >
                       {isSearching ? (
                         <Loader2 className="h-4 w-4 animate-spin" />

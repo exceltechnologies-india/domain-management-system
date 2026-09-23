@@ -187,19 +187,19 @@ export default function HostingRenewalModal({
     <>
     <razorpay.Frame />
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in duration-200">
+      <div className="bg-paper rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in duration-200">
         {/* Header */}
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+        <div className="p-6 border-b border-hairline flex items-center justify-between bg-paper-2/50">
           <div>
-            <h2 className="text-xl font-bold text-gray-900 flex items-center">
-              <RefreshCw className="h-5 w-5 mr-2 text-blue-600" />
+            <h2 className="text-xl font-bold text-ink flex items-center">
+              <RefreshCw className="h-5 w-5 mr-2 text-indigo-ink" />
               Service Renewal
             </h2>
-            <p className="text-sm text-gray-500 mt-1">{domainName}</p>
+            <p className="text-sm text-ink-3 mt-1">{domainName}</p>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all"
+            className="p-2 text-ink-4 hover:text-ink-2 hover:bg-paper-2 rounded-full transition-all"
           >
             <X className="h-5 w-5" />
           </button>
@@ -209,39 +209,39 @@ export default function HostingRenewalModal({
         <div className="p-6">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-12">
-              <RefreshCw className="h-10 w-10 animate-spin text-blue-600 mb-4" />
-              <p className="text-gray-600 font-medium">Loading renewal options...</p>
+              <RefreshCw className="h-10 w-10 animate-spin text-indigo-ink mb-4" />
+              <p className="text-ink-2 font-medium">Loading renewal options...</p>
             </div>
           ) : isVerifying ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
                <div className="relative mb-6">
-                <div className="h-20 w-20 rounded-full border-4 border-blue-50 border-t-blue-600 animate-spin"></div>
+                <div className="h-20 w-20 rounded-full border-4 border-indigo-soft border-t-indigo animate-spin"></div>
                 <div className="absolute inset-0 flex items-center justify-center">
-                    <ShieldCheck className="h-8 w-8 text-blue-600" />
+                    <ShieldCheck className="h-8 w-8 text-indigo-ink" />
                 </div>
                </div>
-               <h3 className="text-lg font-bold text-gray-900">Verifying Payment</h3>
-               <p className="text-gray-500 mt-2">Please do not close this window while we activate your renewal.</p>
+               <h3 className="text-lg font-bold text-ink">Verifying Payment</h3>
+               <p className="text-ink-3 mt-2">Please do not close this window while we activate your renewal.</p>
             </div>
           ) : renewalInfo ? (
             <div className="space-y-6">
               {/* Plan Info */}
-              <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4">
+              <div className="bg-indigo-soft/50 border border-indigo-soft rounded-xl p-4">
                 <div className="flex justify-between items-start">
                     <div>
-                        <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Current Plan</p>
-                        <p className="text-lg font-bold text-gray-900 mt-0.5">{renewalInfo.planName}</p>
+                        <p className="text-xs font-semibold text-indigo-ink uppercase tracking-wider">Current Plan</p>
+                        <p className="text-lg font-bold text-ink mt-0.5">{renewalInfo.planName}</p>
                     </div>
                     <div className="text-right">
-                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Current Expiry</p>
-                        <p className={`text-base font-bold mt-0.5 ${isExpiringSoon ? 'text-red-600' : 'text-gray-900'}`}>
+                        <p className="text-xs font-semibold text-ink-3 uppercase tracking-wider">Current Expiry</p>
+                        <p className={`text-base font-bold mt-0.5 ${isExpiringSoon ? 'text-rose-ink' : 'text-ink'}`}>
                             {formatIndianDate(renewalInfo.currentExpiry)}
                         </p>
-                        <p className="text-xs text-gray-500">({daysUntilExpiry} days left)</p>
+                        <p className="text-xs text-ink-3">({daysUntilExpiry} days left)</p>
                     </div>
                 </div>
                 {isExpiringSoon && (
-                    <div className="mt-3 flex items-center text-xs text-red-600 bg-red-50 p-2 rounded-lg border border-red-100">
+                    <div className="mt-3 flex items-center text-xs text-rose-ink bg-rose-soft p-2 rounded-lg border border-rose-soft">
                         <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />
                         Urgent: Renewable now to prevent service interruption.
                     </div>
@@ -250,42 +250,42 @@ export default function HostingRenewalModal({
 
               {/* Renewal Selection */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                <h3 className="text-sm font-semibold text-ink-2 mb-3 flex items-center">
                   <Calendar className="h-4 w-4 mr-2" />
                   Renewal Period
                 </h3>
                 <div className="grid grid-cols-1 gap-3">
-                  <div className="relative p-4 rounded-xl border-2 border-blue-600 bg-blue-50/30 flex items-center justify-between cursor-default">
+                  <div className="relative p-4 rounded-xl border-2 border-indigo bg-indigo-soft/30 flex items-center justify-between cursor-default">
                     <div className="flex items-center">
-                      <div className="h-5 w-5 rounded-full border-4 border-blue-600 mr-3 bg-white"></div>
+                      <div className="h-5 w-5 rounded-full border-4 border-indigo mr-3 bg-paper"></div>
                       <div>
-                        <p className="font-bold text-gray-900">1 Year Extension</p>
-                        <p className="text-xs text-gray-500">Add 12 months from current expiry</p>
+                        <p className="font-bold text-ink">1 Year Extension</p>
+                        <p className="text-xs text-ink-3">Add 12 months from current expiry</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-xl font-black text-gray-900">{formatIndianCurrency(renewalInfo.renewalPricing.price)}</p>
-                      <p className="text-xs text-gray-500">+{renewalInfo.renewalPricing.currency}</p>
+                      <p className="text-xl font-black text-ink">{formatIndianCurrency(renewalInfo.renewalPricing.price)}</p>
+                      <p className="text-xs text-ink-3">+{renewalInfo.renewalPricing.currency}</p>
                     </div>
                   </div>
                 </div>
-                <p className="mt-4 text-[10px] text-gray-400 text-center uppercase tracking-widest font-bold">
+                <p className="mt-4 text-[10px] text-ink-4 text-center uppercase tracking-widest font-bold">
                     * Monthly renewals are restricted to new customers only
                 </p>
               </div>
 
               {/* Benefits */}
-              <div className="bg-gray-50 rounded-xl p-4 space-y-2">
-                <div className="flex items-center text-xs text-gray-600">
-                  <CheckCircle className="h-3.5 w-3.5 mr-2 text-green-500" />
+              <div className="bg-paper-2 rounded-xl p-4 space-y-2">
+                <div className="flex items-center text-xs text-ink-2">
+                  <CheckCircle className="h-3.5 w-3.5 mr-2 text-emerald-ink" />
                   Instant Activation & Un-suspension
                 </div>
-                <div className="flex items-center text-xs text-gray-600">
-                  <CheckCircle className="h-3.5 w-3.5 mr-2 text-green-500" />
+                <div className="flex items-center text-xs text-ink-2">
+                  <CheckCircle className="h-3.5 w-3.5 mr-2 text-emerald-ink" />
                   Tax Invoice generated in Zoho Books
                 </div>
-                <div className="flex items-center text-xs text-gray-600">
-                    <CheckCircle className="h-3.5 w-3.5 mr-2 text-green-500" />
+                <div className="flex items-center text-xs text-ink-2">
+                    <CheckCircle className="h-3.5 w-3.5 mr-2 text-emerald-ink" />
                     New Expiry: {formatIndianDate(new Date(new Date(renewalInfo.currentExpiry).setFullYear(new Date(renewalInfo.currentExpiry).getUTCFullYear() + 1)).toISOString())}
                 </div>
               </div>
@@ -294,14 +294,14 @@ export default function HostingRenewalModal({
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={onClose}
-                  className="flex-1 px-4 py-3 text-gray-600 font-semibold bg-gray-100 hover:bg-gray-200 rounded-xl transition-all"
+                  className="flex-1 px-4 py-3 text-ink-2 font-semibold bg-paper-2 hover:bg-hairline rounded-xl transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleRenewal}
                   disabled={isProcessing}
-                  className="flex-[2] px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center"
+                  className="flex-[2] px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl shadow-lg shadow-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center"
                 >
                   {isProcessing ? (
                     <>
@@ -319,11 +319,11 @@ export default function HostingRenewalModal({
             </div>
           ) : (
             <div className="text-center py-12">
-              <AlertTriangle className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">Failed to load renewal options. Please try again.</p>
+              <AlertTriangle className="h-12 w-12 text-ink-4 mx-auto mb-4" />
+              <p className="text-ink-3">Failed to load renewal options. Please try again.</p>
               <button 
                 onClick={loadRenewalInfo}
-                className="mt-4 text-blue-600 font-bold hover:underline"
+                className="mt-4 text-indigo-ink font-bold hover:underline"
               >
                 Retry
               </button>
