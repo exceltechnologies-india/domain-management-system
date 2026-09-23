@@ -236,3 +236,85 @@ describe("remoteLog (error-only fire-and-forget POST)", () => {
     expect(body.stack).not.toContain(process.cwd());
   });
 });
+
+/**
+ * The disabled remote transport must announce itself.
+ *
+ * Measured against production 2026-09-23: `systemlogs` held 34 rows, all from
+ * "Client Boundary", newest six weeks old. Not one server-side
+ * `serverLogger.error()` had ever reached it — every cron failure and payment
+ * exception went to stdout only, while the admin "recent errors" panel sat
+ * empty and read as "nothing is wrong".
+ *
+ * The cause is a branch that returned in silence when neither NEXTAUTH_URL nor
+ * APP_URL was set. It is not fixed by writing to Mongo directly — middleware.ts
+ * imports this module and runs in the Edge runtime — so the fix is that the
+ * no-op says so.
+ */
+describe("remote reporting, when it is switched off", () => {
+  const ORIGINAL = { n: process.env.NEXTAUTH_URL, a: process.env.APP_URL };
+
+  afterEach(() => {
+    if (ORIGINAL.n === undefined) delete process.env.NEXTAUTH_URL;
+    else process.env.NEXTAUTH_URL = ORIGINAL.n;
+    if (ORIGINAL.a === undefined) delete process.env.APP_URL;
+    else process.env.APP_URL = ORIGINAL.a;
+    vi.restoreAllMocks();
+    vi.resetModules();
+  });
+
+  it("warns, naming BOTH variables and what is lost", async () => {
+    delete process.env.NEXTAUTH_URL;
+    delete process.env.APP_URL;
+    vi.resetModules();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { serverLogger } = await import("@/lib/server-logger");
+    serverLogger.error("something broke");
+
+    const said = warn.mock.calls.map((c) => String(c[0])).join(" ");
+    expect(said).toMatch(/NEXTAUTH_URL/);
+    expect(said).toMatch(/APP_URL/);
+    // The consequence, not just the rule — this is what makes the line useful
+    // to whoever reads it at 3am.
+    expect(said).toMatch(/systemlogs|integration-health/);
+    expect(said).toMatch(/stdout/);
+  });
+
+  it("says it ONCE, not on every error", async () => {
+    // A disabled transport would otherwise add a line to every error it fails
+    // to forward, which is how a warning becomes noise and gets filtered out.
+    delete process.env.NEXTAUTH_URL;
+    delete process.env.APP_URL;
+    vi.resetModules();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { serverLogger } = await import("@/lib/server-logger");
+    serverLogger.error("one");
+    serverLogger.error("two");
+    serverLogger.error("three");
+
+    const disabledWarnings = warn.mock.calls
+      .map((c) => String(c[0]))
+      .filter((m) => m.includes("NEXTAUTH_URL"));
+    expect(disabledWarnings).toHaveLength(1);
+  });
+
+  it("stays quiet when the transport IS configured", async () => {
+    // The control. Without it, a warn-always implementation would pass the
+    // test above and spam every deployment that is working correctly.
+    process.env.NEXTAUTH_URL = "https://app.example.invalid";
+    vi.resetModules();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+
+    const { serverLogger } = await import("@/lib/server-logger");
+    serverLogger.error("something broke");
+
+    const said = warn.mock.calls.map((c) => String(c[0])).join(" ");
+    expect(said).not.toMatch(/NEXTAUTH_URL/);
+  });
+});

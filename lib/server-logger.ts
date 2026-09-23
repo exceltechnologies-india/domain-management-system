@@ -33,6 +33,10 @@
  *   paths are never exposed in logs visible to operators.
  * - Remote error reporting: fires-and-forgets a POST to the admin log-error
  *   endpoint for ERROR-level events so they appear in the DB dashboard too.
+ *   **It requires NEXTAUTH_URL or APP_URL**, and says so loudly when neither is
+ *   set rather than disappearing — see remoteLog. It posts over HTTP instead of
+ *   writing to Mongo directly because `middleware.ts` imports this module and
+ *   runs in the Edge runtime, where mongoose cannot load.
  */
 
 type Severity = "DEBUG" | "INFO" | "WARNING" | "ERROR";
@@ -63,9 +67,55 @@ interface LogOptionsObj {
   [k: string]: unknown;
 }
 
+/**
+ * Said once per process, not per error — a disabled transport would otherwise
+ * add a line to every single error it fails to forward.
+ */
+let warnedRemoteDisabled = false;
+
 function remoteLog(args: LogArg[]) {
   const appUrl = process.env.NEXTAUTH_URL || process.env.APP_URL;
-  if (!appUrl) return;
+  if (!appUrl) {
+    /**
+     * This used to `return` in silence, and the silence was the bug.
+     *
+     * Measured against production 2026-09-23: `systemlogs` holds 34 rows, ALL
+     * with source "Client Boundary" — browser error boundaries POSTing here
+     * directly — and the newest is six weeks old. **Not one server-side
+     * `serverLogger.error()` has ever reached the collection.** Every cron
+     * failure, every provisioning error, every payment exception went to
+     * stdout only, while the admin integration-health page showed an empty
+     * "recent errors" panel that reads as "nothing is wrong".
+     *
+     * The likely cause is `scripts/deploy-cloud-run.sh` passing
+     * `NEXTAUTH_URL=${NEXTAUTH_URL:-}` — an empty default, so a deployer whose
+     * shell lacks the variable ships an empty one and this branch takes itself
+     * out. AGENTS.md L91 is that exact shape: a missing value made plausible.
+     *
+     * Not fixed by writing to the database directly, which would be the
+     * obvious move and is wrong here: `middleware.ts` imports this module and
+     * runs in the EDGE runtime, where mongoose cannot load. The HTTP hop is
+     * why one logger can serve both.
+     *
+     * So the fix is to stop being quiet about it.
+     */
+    if (!warnedRemoteDisabled) {
+      warnedRemoteDisabled = true;
+      console.warn(
+        JSON.stringify({
+          severity: "WARNING",
+          message:
+            "serverLogger remote reporting is DISABLED: neither NEXTAUTH_URL nor APP_URL is " +
+            "set, so no server-side error will reach the systemlogs collection or the admin " +
+            "integration-health page. Errors still go to stdout. Set either variable on the " +
+            "service to restore it.",
+          service: "server-logger",
+          time: new Date().toISOString(),
+        })
+      );
+    }
+    return;
+  }
 
   try {
     const stack = (args.find((a) => a instanceof Error) as Error | undefined)?.stack;
