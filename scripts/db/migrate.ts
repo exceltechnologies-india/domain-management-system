@@ -12,6 +12,7 @@
  */
 
 import path from "path";
+import { pathToFileURL } from "url";
 import fs from "fs";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
@@ -86,7 +87,22 @@ async function connect() {
     const migrationPath = path.join(migrationsDir, file);
     log(`Running ${file}…`);
     try {
-      const mod = await import(migrationPath);
+      /**
+       * `pathToFileURL`, not the bare path. A dynamic `import()` of an
+       * absolute Windows path throws before the migration runs:
+       *
+       *   Only URLs with a scheme in: file, data, and node are supported by
+       *   the default ESM loader. Received protocol 'c:'
+       *
+       * It reads like a database failure in the runner's output — "008 FAILED"
+       * — and is nothing of the sort: the import never resolved, so `up()` had
+       * not been called and nothing was applied. The ledger row is written
+       * after `up()`, so a run that dies here leaves no false record either.
+       *
+       * Migrations 001-007 predate the Node version that enforces this, which
+       * is why this surfaced on 008 rather than at the start.
+       */
+      const mod = await import(pathToFileURL(migrationPath).href);
       await mod.up(mongoose.connection);
       await Migration.create({ name: file });
       log(`  ✅ ${file} applied`);
