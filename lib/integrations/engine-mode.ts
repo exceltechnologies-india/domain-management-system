@@ -29,19 +29,86 @@
  * Phase 9 replaces this with two fail-closed env gates plus a per-row human
  * confirmation, at which point this constant goes. Until then, anything that
  * reads LIVE_COMMANDS_ENABLED and finds it true is reading a lie.
+ *
+ * ─── AND THE FLAG IS NO LONGER THE WHOLE ANSWER ──────────────────────────────
+ * It was, when one no-op handler existed. It is not now that four handlers
+ * contact providers, so `LIVE_ELIGIBLE_COMMANDS` below decides WHICH commands
+ * the flag may enable, and `LIVE_INELIGIBLE_REASONS` names the ones it must
+ * never reach whatever it is set to. Still no env var: this is code, and
+ * changing it is still an edit, a review and a deploy.
  */
 
 export const ENGINE_MODES = ["test", "live"] as const;
 export type EngineMode = (typeof ENGINE_MODES)[number];
 
 /**
- * Whether a `live` command may run. FALSE, in code, at this phase.
+ * Whether a `live` command may run AT ALL. FALSE, in code, at this phase.
  *
  * Do not turn this into an env var as a convenience. The env-var version is
  * Phase 9's job and carries two gates and a human confirmation with it; a
  * single flag added here would look like the same thing and be much weaker.
  */
 export const LIVE_COMMANDS_ENABLED = false as boolean;
+
+/**
+ * Which commands this flag is allowed to enable — and the drift that made this
+ * list necessary.
+ *
+ * When `LIVE_COMMANDS_ENABLED` was written (Phase 4, commit 509a8ff) the only
+ * registered handler was `engine.selftest`, which contacts nothing. One boolean
+ * was a complete answer, because flipping it could not do anything. Phases 6
+ * and 7 then added four handlers that DO contact providers, and the boolean did
+ * not change — so the cheapest wrong action available today, flipping one
+ * constant, would enable every command at once, including any added later.
+ *
+ * That is AGENTS.md L74 exactly: a default encoding "nothing can happen yet"
+ * stopped being true when the code arrived, and nothing forced it to change.
+ *
+ * So eligibility is now per command, and the flag is necessary but NOT
+ * sufficient. Flipping it enables this list and nothing else.
+ */
+export const LIVE_ELIGIBLE_COMMANDS: readonly string[] = [
+  /**
+   * Contacts nothing by construction. Live is meaningless for it, which is
+   * exactly why it is here: it makes the live PATH provable without any
+   * provider being involved in the proof.
+   */
+  "engine.selftest",
+  /* Phase 6 — free and reversible. A record can be set back, an account
+     unsuspended. */
+  "dns.record.upsert",
+  "hosting.suspend",
+  "hosting.unsuspend",
+  /* Phase 7 — reversible spend. The boundary of this list: it costs money on
+     the DirectAdmin server, and changing the plan back undoes it. */
+  "hosting.change_plan",
+];
+
+/**
+ * The commands this flag must NEVER enable on its own, and why each one.
+ *
+ * These strings are the refusal the caller reads, so the reason lives in one
+ * place instead of being restated in a message that can drift from it. A
+ * command listed here is refused for live even when `LIVE_COMMANDS_ENABLED` is
+ * true — the flag cannot reach it.
+ *
+ * `engine-mode.test.ts` asserts every known command sits in exactly one of the
+ * two lists, so adding a handler in a later phase cannot quietly inherit a
+ * default. Whoever adds it has to decide, here, in writing.
+ */
+export const LIVE_INELIGIBLE_REASONS: Readonly<Record<string, string>> = {
+  "hosting.provision":
+    "provisioning a hosting account is blocked on a product decision, not on a switch: DMS " +
+    "mints a password it never returns because its customers arrive by SSO, so an " +
+    "engine-provisioned account for somebody with no DMS portal user has no way in at all.",
+  "domain.renew":
+    "a renewal spends a rupee that does not come back, and nobody has yet established whether " +
+    "a second call to ResellerClub adds a second year. Until that is known a retry could buy " +
+    "a year nobody asked for.",
+  "domain.register":
+    "registering a domain cannot be undone and its phase requires two fail-closed gates plus a " +
+    "per-row human release. A single flag is not that, and must not be mistaken for it.",
+};
 
 export type ModeCheck =
   | { ok: true; mode: EngineMode }
@@ -74,9 +141,66 @@ export function checkMode(raw: unknown): ModeCheck {
     };
   }
 
-  const mode = raw as EngineMode;
+  /**
+   * SHAPE ONLY. The live refusal used to live here and has moved to
+   * `checkLiveAllowed`, because this function cannot see the command and the
+   * refusal now depends on it.
+   *
+   * Leaving a general refusal here would have made the specific one
+   * unreachable: `domain.register` with mode:"live" would answer "live is
+   * switched off in this build", and the operator would conclude that waiting
+   * for live is enough. It is not, and that is the sentence worth getting
+   * right.
+   */
+  return { ok: true, mode: raw as EngineMode };
+}
 
-  if (mode === "live" && !LIVE_COMMANDS_ENABLED) {
+/**
+ * May THIS command run live, assuming live is on at all?
+ *
+ * Separate from `checkMode` because it answers a different question and needs
+ * something `checkMode` does not have: the command name. The route calls it
+ * after the command has been recognised, so a typo is still a 400 naming the
+ * typo rather than a 503 about eligibility.
+ *
+ * Checked BEFORE the global flag on purpose (AGENTS.md L12 — the specific
+ * before the general). "This command is permanently ineligible" is the durable
+ * answer and stays true after live is switched on; "live is off in this build"
+ * is temporary, and hearing it about `domain.register` would tell the operator
+ * that waiting is enough. It is not.
+ */
+export function checkLiveAllowed(mode: EngineMode, command: string): ModeCheck {
+  if (mode !== "live") return { ok: true, mode };
+
+  const ineligible = LIVE_INELIGIBLE_REASONS[command];
+  if (ineligible) {
+    return {
+      ok: false,
+      status: 503,
+      error:
+        `"${command}" cannot run live, and turning live on would not change that — ${ineligible} ` +
+        `Send mode:"test" to exercise the path, and do the work by hand in the provider's ` +
+        `console until its own phase builds the gates it needs.`,
+    };
+  }
+
+  if (!LIVE_ELIGIBLE_COMMANDS.includes(command)) {
+    /**
+     * Neither eligible nor explicitly refused. Fail closed and say so plainly:
+     * a command nobody has classified is a command nobody has thought about,
+     * and the safe reading of silence is "no".
+     */
+    return {
+      ok: false,
+      status: 503,
+      error:
+        `"${command}" has not been classified for live running, so it is refused. That is a gap ` +
+        `in this engine rather than something you did wrong — every command has to be listed as ` +
+        `eligible or refused, with a reason, before it can run live.`,
+    };
+  }
+
+  if (!LIVE_COMMANDS_ENABLED) {
     return {
       ok: false,
       /**
@@ -87,16 +211,28 @@ export function checkMode(raw: unknown): ModeCheck {
        */
       status: 503,
       error:
-        "Live commands are switched off in this build. Nothing here can spend money yet: the " +
-        "command path is being exercised end to end in test mode first. Send mode:\"test\" to " +
-        "use it now. Enabling live is a code change and a deploy, not a setting.",
+        `"${command}" is allowed to run live, but live commands are switched off in this build. ` +
+        `Nothing here can spend money yet: the command path is being exercised end to end in ` +
+        `test mode first. Send mode:"test" to use it now. Enabling live is a code change and a ` +
+        `deploy, not a setting.`,
     };
   }
 
   return { ok: true, mode };
 }
 
-/** True when a command in this mode is allowed to touch a real provider. */
-export function mayContactProvider(mode: EngineMode): boolean {
-  return mode === "live" && LIVE_COMMANDS_ENABLED;
+/**
+ * True when a command in this mode is allowed to touch a real provider.
+ *
+ * Takes the command because the flag alone is no longer the answer — the whole
+ * point of the eligibility list is that "live is on" and "this command may run
+ * live" are different questions.
+ */
+export function mayContactProvider(mode: EngineMode, command: string): boolean {
+  return (
+    mode === "live" &&
+    LIVE_COMMANDS_ENABLED &&
+    !LIVE_INELIGIBLE_REASONS[command] &&
+    LIVE_ELIGIBLE_COMMANDS.includes(command)
+  );
 }

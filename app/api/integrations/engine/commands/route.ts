@@ -17,10 +17,13 @@
  *   4. known command — a known-but-unimplemented command is 501, an unknown one
  *                      is 400. Same reasoning as the registry: "not built yet"
  *                      and "you typo'd" send you to different places.
- *   5. idempotency   — a repeated commandId REPLAYS, it does not re-run.
- *   6. subject mutex — one operation per {command, subject} at a time.
+ *   5. live eligible — per COMMAND, not one flag. 503 with the reason this one
+ *                      cannot run live, which for some of them stays true after
+ *                      live is switched on.
+ *   6. idempotency   — a repeated commandId REPLAYS, it does not re-run.
+ *   7. subject mutex — one operation per {command, subject} at a time.
  *
- * 5 before 6 on purpose: a retry of a command that is still running should be
+ * 6 before 7 on purpose: a retry of a command that is still running should be
  * told "already in progress" by its own record, not by failing to take a lock
  * it already holds.
  */
@@ -28,7 +31,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authorizeEngineCommandRequest } from "@/lib/integrations/engine-auth";
 import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { serverLogger } from "@/lib/server-logger";
-import { checkMode } from "@/lib/integrations/engine-mode";
+import { checkMode, checkLiveAllowed } from "@/lib/integrations/engine-mode";
 import { isKnownCommand, handlerFor } from "@/lib/integrations/engine-command-registry";
 import { transportOf } from "@/lib/integrations/engine-attempt";
 import {
@@ -90,6 +93,16 @@ export async function POST(request: NextRequest) {
       { error: `Unknown command "${command}". Check the name against the engine contract.` },
       { status: 400 }
     );
+  }
+
+  /**
+   * Eligibility is asked AFTER the command is recognised, so a typo gets the
+   * 400 that names it rather than a 503 about live running. Still before any
+   * write: a refused command leaves no row.
+   */
+  const live = checkLiveAllowed(mode.mode, command);
+  if (!live.ok) {
+    return NextResponse.json({ error: live.error }, { status: live.status });
   }
 
   const handler = handlerFor(command);
