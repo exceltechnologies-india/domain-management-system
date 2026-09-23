@@ -40,12 +40,17 @@ describe("the contract's command names", () => {
 });
 
 describe("what can actually be performed", () => {
-  it("only the free or reversible commands are performable", () => {
-    // Phase 6 added DNS and suspend/unsuspend (free: a record can be set back,
-    // an account unsuspended). Phase 7 added change_plan, which is reversible
-    // spend — a bigger package costs money and changing back undoes it.
+  it("the performable set, and what each addition cost in guarantees", () => {
+    // Phase 6: free (a record can be set back, an account unsuspended).
+    // Phase 7: reversible spend (a bigger package costs money; changing back
+    //   undoes it).
+    // Phase 8: domain.renew, which is NEITHER — the rupee does not come back.
+    //   It is performable because its ambiguity is resolvable by a pure read,
+    //   not because it is safe. Being here is not the same as being allowed to
+    //   run live; engine-mode.ts decides that and still refuses it.
     expect(Object.keys(HANDLERS).sort()).toEqual([
       "dns.record.upsert",
+      "domain.renew",
       "engine.selftest",
       "hosting.change_plan",
       "hosting.suspend",
@@ -53,7 +58,7 @@ describe("what can actually be performed", () => {
     ]);
   });
 
-  it.each(["hosting.provision", "domain.renew", "domain.register"])(
+  it.each(["hosting.provision", "domain.register"])(
     "%s still has NO handler",
     (c) => {
       // The day one of these gets a handler, this test fails and whoever added

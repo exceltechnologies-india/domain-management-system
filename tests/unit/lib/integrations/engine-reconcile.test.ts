@@ -34,13 +34,14 @@ describe("a reconciler exists only where the effect is observable", () => {
     // is a decision, not a formality.
     expect(Object.keys(RECONCILERS).sort()).toEqual([
       "dns.record.upsert",
+      "domain.renew",
       "hosting.change_plan",
       "hosting.suspend",
       "hosting.unsuspend",
     ]);
   });
 
-  it.each(["domain.register", "domain.renew", "hosting.provision"])(
+  it.each(["domain.register", "hosting.provision"])(
     "%s has no reconciler — its command is not built yet",
     (c) => expect(reconcilerFor(c)).toBeNull()
   );

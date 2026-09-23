@@ -11,15 +11,19 @@
  * reversible ones — DNS records, hosting suspend/unsuspend — which DO contact
  * providers. Phase 7 added hosting.change_plan (reversible spend).
  *
+ * Phase 8 added domain.renew, which DOES spend a rupee that does not come
+ * back — performable, but not live-eligible until the engine grows a spend
+ * control.
+ *
  * Still unhandled: hosting.provision, blocked on a product decision rather
- * than on effort (see engine-handlers-plan.ts), plus domain.renew (Phase 8)
- * and domain.register (Phase 9), each of which spends a rupee that does not
- * come back.
+ * than on effort (see engine-handlers-plan.ts), and domain.register (Phase 9),
+ * which cannot be undone at all.
  */
 import type { EngineMode } from "./engine-mode";
 import { upsertDnsRecord } from "./engine-handlers-dns";
 import { suspendHosting, unsuspendHosting } from "./engine-handlers-hosting";
 import { changeHostingPlan } from "./engine-handlers-plan";
+import { renewDomainCommand } from "./engine-handlers-domain";
 
 /** Every command the contract names, whether or not it is implemented. */
 export const KNOWN_COMMANDS = [
@@ -98,6 +102,9 @@ export const HANDLERS: Partial<Record<KnownCommand, CommandHandler>> = {
      account for somebody with no portal user has no way in, and nothing
      reports that. See engine-handlers-plan.ts and Todos.md §D. */
   "hosting.change_plan": changeHostingPlan,
+  /* Phase 8 — the first rupee that does not come back. Performable, and
+     deliberately NOT live-eligible: see LIVE_INELIGIBLE_REASONS. */
+  "domain.renew": renewDomainCommand,
 };
 
 export function handlerFor(command: KnownCommand): CommandHandler | null {

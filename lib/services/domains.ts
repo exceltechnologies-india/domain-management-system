@@ -84,14 +84,22 @@ export function reminderTriggerFor(expiresAt: Date): Date {
  * reported to a customer as a failed renewal.
  */
 export async function applyDomainRenewal(input: {
-  userId: string;
+  /**
+   * Optional. The customer-facing renewal route knows whose domain it is and
+   * passes it as a second narrowing. The engine command does not — it acts on
+   * a domain, not on behalf of a user — and does not need to: `domainName`
+   * carries a unique index among live rows
+   * (`{ unique: true, partialFilterExpression: { deletedAt: null } }`), so the
+   * name alone identifies at most one.
+   */
+  userId?: string;
   domainName: string;
   newExpiresAt: Date;
 }): Promise<boolean> {
   await connectDB();
   const res = await Domain.updateOne(
     {
-      userId: input.userId,
+      ...(input.userId ? { userId: input.userId } : {}),
       // Stored lower-cased by the provisioner; matched the same way the user
       // domains route compares them.
       domainName: input.domainName.toLowerCase().trim(),

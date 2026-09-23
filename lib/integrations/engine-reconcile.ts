@@ -25,6 +25,7 @@ import type { KnownCommand } from "./engine-command-registry";
 import { reconcileDnsUpsert } from "./engine-handlers-dns";
 import { reconcileSuspend, reconcileUnsuspend } from "./engine-handlers-hosting";
 import { reconcileChangePlan } from "./engine-handlers-plan";
+import { reconcileRenew } from "./engine-handlers-domain";
 
 export type ReconcileVerdict =
   /** The provider confirms the work exists. The command really did succeed. */
@@ -69,6 +70,10 @@ export const RECONCILERS: Partial<Record<KnownCommand, Reconciler>> = {
      hosting row — and BOTH are checked, because both are the command's
      effect. */
   "hosting.change_plan": reconcileChangePlan,
+  /* Phase 8. Observable because the command CARRIES its own baseline: the
+     caller's `expiryBefore`. Moved past it means the renewal landed. That is
+     what lets a money command be settled by reading instead of by a person. */
+  "domain.renew": reconcileRenew,
 };
 
 export function reconcilerFor(command: string): Reconciler | null {

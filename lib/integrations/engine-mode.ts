@@ -101,10 +101,22 @@ export const LIVE_INELIGIBLE_REASONS: Readonly<Record<string, string>> = {
     "provisioning a hosting account is blocked on a product decision, not on a switch: DMS " +
     "mints a password it never returns because its customers arrive by SSO, so an " +
     "engine-provisioned account for somebody with no DMS portal user has no way in at all.",
+  /**
+   * The reason CHANGED on 23 Sep 2026 and the old one must not linger: it said
+   * "nobody has yet established whether a second call adds a second year".
+   * That was answered — it does, and `domain.renew` now defends against it by
+   * requiring the caller's observed expiry and sending that verbatim, so a
+   * double renewal is refused before any money moves.
+   *
+   * It stays ineligible for a DIFFERENT reason, stated plainly so nobody reads
+   * the old one as still binding: nothing in this engine caps spending. The
+   * ambiguity is gone; the absence of a spend control is not.
+   */
   "domain.renew":
-    "a renewal spends a rupee that does not come back, and nobody has yet established whether " +
-    "a second call to ResellerClub adds a second year. Until that is known a retry could buy " +
-    "a year nobody asked for.",
+    "a renewal spends a rupee that does not come back, and this engine has no spend control at " +
+    "all — nothing caps how many renewals a caller could trigger. The double-renewal risk is " +
+    "handled (the command refuses unless the expiry you send still matches the registrar), so " +
+    "what is missing is a limit, not a guard.",
   "domain.register":
     "registering a domain cannot be undone and its phase requires two fail-closed gates plus a " +
     "per-row human release. A single flag is not that, and must not be mistaken for it.",
