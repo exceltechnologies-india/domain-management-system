@@ -10,7 +10,7 @@
  *    of the 3 failure branches) would create pending Domain rows that
  *    don't actually exist at the registrar. Pinned: NONE of the 3
  *    failure branches (balance_pending / transfer_rejected /
- *    hard_failure) writes to the DB or to appendUserDomain.
+ *    hard_failure) writes to the DB.
  *  - **Customer-actionable vs generic error copy**: transfer_rejected
  *    → 400 with EPP-code / unlocked / 60-day-rule hints; hard_failure
  *    → 500 with generic "team notified" copy. Mixing these would
@@ -24,7 +24,7 @@
  *  - getUserById null → 404 (handles deleted-mid-session edge)
  *  - getOrCreateCustomerAndContact error → 500 with RC error string
  *  - Happy path: Domain saved with status:'pending', registrationPeriod:1,
- *    currency:'INR', resellerClubOrderId from RC entityId; appendUserDomain
+ *    currency:'INR', resellerClubOrderId from RC entityId — and NO expiry,
  *    mirrors that with orderId=entityId
  *  - Outer catch → 500 generic; sentinel NOT leaked
  */
@@ -57,8 +57,7 @@ vi.mock("@/lib/integrations/resellerclub", () => ({
 }));
 
 const getUserById = vi.hoisted(() => vi.fn());
-const appendUserDomain = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/services/users", () => ({ getUserById, appendUserDomain }));
+vi.mock("@/lib/services/users", () => ({ getUserById }));
 
 vi.mock("@/lib/mongodb", () => ({
   default: vi.fn().mockResolvedValue(undefined),
@@ -121,7 +120,6 @@ beforeEach(() => {
   getOrCreateCustomerAndContact.mockReset();
   rcTransferDomain.mockReset();
   getUserById.mockReset().mockResolvedValue(dbUser);
-  appendUserDomain.mockReset().mockResolvedValue(undefined);
   domainInstanceSave.mockReset().mockResolvedValue(undefined);
   domainCtorCalls.length = 0;
 });
@@ -244,7 +242,7 @@ describe("RC 4-branch outcome dispatch", () => {
     });
   });
 
-  it("transfer_initiated → 200; Domain saved with pending+entityId; appendUserDomain mirrors", async () => {
+  it("transfer_initiated → 200; Domain saved with pending+entityId, and NO expiry", async () => {
     rcTransferDomain.mockResolvedValueOnce({
       kind: "transfer_initiated",
       entityId: "ENT-789",
@@ -267,16 +265,20 @@ describe("RC 4-branch outcome dispatch", () => {
       })
     );
 
-    expect(appendUserDomain).toHaveBeenCalledWith(
-      "U1",
-      expect.objectContaining({
-        domainName: "example.com",
-        status: "pending",
-        orderId: "ENT-789",
-        currency: "INR",
-        registrationPeriod: 1,
-      })
-    );
+    /**
+     * `appendUserDomain` was deleted on 2026-09-23 — it wrote to a path the
+     * model does not declare and nothing reads. What replaced its assertion is
+     * the gap this route actually has, measured the same day:
+     *
+     * The row is saved with NO `expiresAt`, so it gets no `next_action_at`, so
+     * `daily-scheduler` (which selects on `next_action_at <= now`) can never
+     * pick it up — a transferred-in domain is never reminded before it expires.
+     * Nothing is written rather than guessed, because the real expiry comes
+     * from the losing registrar days later. Pinned so that whoever builds the
+     * transfer-completion step sees what it has to fill in.
+     */
+    expect(ctorArg).not.toHaveProperty("expiresAt");
+    expect(ctorArg).not.toHaveProperty("next_action_at");
   });
 
   it("balance_pending → 202 'queued'; NO DB write; NO appendUserDomain", async () => {
@@ -287,7 +289,6 @@ describe("RC 4-branch outcome dispatch", () => {
     expect(body.status).toBe("pending");
     expect(body.error.toLowerCase()).toContain("queued");
     expect(domainInstanceSave).not.toHaveBeenCalled();
-    expect(appendUserDomain).not.toHaveBeenCalled();
   });
 
   it("transfer_rejected → 400 with customer-actionable EPP/unlock/60-day hints; NO DB write", async () => {
@@ -300,7 +301,6 @@ describe("RC 4-branch outcome dispatch", () => {
     expect(body.error.toLowerCase()).toContain("unlock");
     expect(body.error).toContain("60");
     expect(domainInstanceSave).not.toHaveBeenCalled();
-    expect(appendUserDomain).not.toHaveBeenCalled();
   });
 
   it("hard_failure → 500 with generic 'team notified' copy; NO DB write; sentinel NOT leaked", async () => {
@@ -310,7 +310,6 @@ describe("RC 4-branch outcome dispatch", () => {
     const body = await res.json();
     expect(body.error.toLowerCase()).toContain("team");
     expect(domainInstanceSave).not.toHaveBeenCalled();
-    expect(appendUserDomain).not.toHaveBeenCalled();
   });
 });
 

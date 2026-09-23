@@ -100,7 +100,6 @@ import {
   reactivateUser,
   resetUser2FA,
   clearDirectAdminUsernameForAll,
-  appendUserDomain,
   createUser,
   createUserWithCredentials,
   setUserResellerClubIds,
@@ -522,27 +521,16 @@ describe("clearDirectAdminUsernameForAll", () => {
   });
 });
 
-describe("appendUserDomain — legacy embedded-domain push", () => {
-  /**
-   * This used to assert the `$push`. The push is gone, deliberately, and the
-   * assertion is replaced rather than deleted — it now pins the two measured
-   * facts that made the push pointless, so neither can be forgotten:
-   *
-   *  1. `models/User.ts` declares no `domains` path, so Mongoose strict mode
-   *     dropped the write silently. It never stored anything.
-   *  2. Nothing reads `User.domains` anyway. `GET /api/user/domains` builds the
-   *     customer's list from orders, then pending domains, then the Domain
-   *     collection LAST, so Domain rows overwrite the rest.
-   *
-   * The function stays because the domain TRANSFER route still calls it and has
-   * no canonical write of its own; deleting it would erase the only trace of
-   * that gap. So it now warns instead of pretending.
-   */
-  it("writes NOTHING, and says so instead of pretending", async () => {
-    await appendUserDomain("U1", { domainName: "x.com" });
-    expect(User.findByIdAndUpdate).not.toHaveBeenCalled();
-  });
-
+/**
+ * `appendUserDomain` was DELETED on 2026-09-23 and its test with it. The
+ * function pushed onto `User.domains`, a path the model does not declare (so
+ * Mongoose dropped it silently) and which nothing reads — the customer's domain
+ * list is served from the Domain collection.
+ *
+ * The invariant it depended on is kept, because it is the reason the function
+ * could never have worked and the reason reviving it would be wrong.
+ */
+describe("User has no embedded `domains` path", () => {
   it("User declares no `domains` path — the reason the push never stored anything", async () => {
     /**
      * A SOURCE SCAN, because this file mocks `@/models/User`. The obvious

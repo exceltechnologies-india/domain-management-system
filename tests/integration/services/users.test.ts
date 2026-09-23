@@ -16,7 +16,6 @@ import { clearAllCollections } from "../setup";
 import User from "@/models/User";
 import {
   applyUserPatch,
-  appendUserDomain,
   countAdmins,
   countUsers,
   createUser,
@@ -194,23 +193,17 @@ describe("applyUserPatch", () => {
   });
 });
 
-describe("appendUserDomain", () => {
-  it("is a no-throw side effect — User schema doesn't declare a domains[] field, so mongoose strict-mode strips the $push silently", async () => {
-    const u = await createUser(buildUserPayload({ email: "dom@user.test" }));
-    // The helper is best-effort: callers (domain-renewal flow) treat it as a
-    // fire-and-forget audit hook. Test the contract that matters — it doesn't
-    // throw — rather than asserting a side-effect that strict-mode drops.
-    await expect(
-      appendUserDomain(String(u._id), {
-        domainName: "added.test",
-        price: 100,
-        currency: "INR",
-        registrationPeriod: 1,
-        status: "registered",
-      })
-    ).resolves.toBeUndefined();
-  });
-});
+/**
+ * `appendUserDomain` was deleted on 2026-09-23, and the test that stood here is
+ * worth a note rather than a silent removal.
+ *
+ * It asserted that the call "doesn't throw", and described the function as a
+ * "best-effort audit hook" whose dropped write was fine. That framing is what
+ * let the defect survive: the write went nowhere, the destination was read by
+ * nothing, and a test asserting the absence of a throw agreed with all of it.
+ * The unit suite now pins the invariant that actually mattered — the User
+ * schema declares no `domains` path.
+ */
 
 describe("setUserResellerClubIds / setUserDirectAdminUsername", () => {
   it("persists the registrar / hosting identifiers", async () => {

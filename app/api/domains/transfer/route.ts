@@ -5,7 +5,7 @@ import { AuthService } from "@/lib/auth";
 import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import connectDB from "@/lib/mongodb";
 import Domain from "@/models/Domain";
-import { appendUserDomain, getUserById } from "@/lib/services/users";
+import { getUserById } from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
 import { validatedBody, z } from "@/lib/api-validation";
 
@@ -135,15 +135,33 @@ export async function POST(request: NextRequest) {
 
     await domainRecord.save();
 
-    // Update user's domain list
-    await appendUserDomain(String(user._id), {
-      domainName: domainName.toLowerCase(),
-      price: 0,
-      currency: "INR",
-      registrationPeriod: 1,
-      status: "pending",
-      orderId: entityId,
-    });
+    /**
+     * ─── WHAT IS MISSING HERE, MEASURED 2026-09-23 ───────────────────────────
+     * The `appendUserDomain` call that used to sit at this line is gone. It
+     * wrote to `User.domains`, a path the model does not declare (Mongoose
+     * dropped it silently) and which nothing reads — the customer's list comes
+     * from the Domain collection above.
+     *
+     * Deleting it does NOT mean this flow is complete. Two gaps remain, and
+     * they are recorded here because this is where a reader will hit them:
+     *
+     *  1. **The row has no `expiresAt`, so it has no `next_action_at`.**
+     *     `daily-scheduler` selects renewal candidates on
+     *     `next_action_at <= now`, so a transferred-in domain matches nothing
+     *     and will NEVER be reminded before it expires. The expiry is not
+     *     knowable at this point — the transfer takes days and the date comes
+     *     from the losing registrar — so nothing is written rather than
+     *     guessed.
+     *  2. **Nothing ever completes the transfer.** No cron, sweeper or route
+     *     moves this row off `status: "pending"`, and `pending-sweeper` watches
+     *     the `PendingDomain` and `PendingHosting` collections, not `Domain` —
+     *     so it does not see this row at all.
+     *
+     * Both need a transfer-completion step that polls ResellerClub and then
+     * sets status and expiry together (the parsing already exists in
+     * `app/api/domains/sync`, which reads `orders.endtime`). That is its own
+     * piece of work; see Todos.md.
+     */
 
     return NextResponse.json({
       success: true,

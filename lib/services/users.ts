@@ -465,46 +465,6 @@ export async function clearDirectAdminUsernameForAll(
 }
 
 /**
- * @deprecated Writes nothing, and its destination is read by nothing.
- *
- * The docstring used to say this kept a user's "my domains" view
- * self-contained. Measured 2026-09-23, both halves of that are false:
- *
- *  1. **It does not write.** `models/User.ts` declares no `domains` path, and
- *     Mongoose strict mode (on by default; this schema sets no
- *     `strict:false`) silently drops the `$push`. `models/User.ts:93` and
- *     `:416` already document that exact hazard for other fields.
- *  2. **Nothing would read it if it did.** `GET /api/user/domains` builds the
- *     customer's list from recent orders, then pending domains, then the
- *     **Domain collection last** — so Domain rows overwrite the rest. Its own
- *     comment states that precedence and the insertion order implements it.
- *     `User.domains` appears nowhere in that path.
- *
- * So this was never a half-finished feature waiting on a decision about where
- * a domain list lives: the code had already decided, in favour of the Domain
- * collection. The renewal route now writes there through `applyDomainRenewal`
- * and no longer calls this.
- *
- * Kept, and made LOUD rather than silent, for one reason: the domain TRANSFER
- * route still calls it and has no equivalent canonical write. Deleting it would
- * remove the only trace of that gap while leaving the gap itself. The warning
- * names what is actually missing, so the next reader finds a hole rather than
- * an absence.
- */
-export async function appendUserDomain(
-  userId: string,
-  domain: Record<string, unknown>
-): Promise<void> {
-  await connectDB();
-  serverLogger.warn(
-    `[users] appendUserDomain(${userId}) wrote NOTHING: User declares no 'domains' path, and ` +
-      `the customer's domain list is served from the Domain collection. ` +
-      `${String((domain as { domainName?: unknown }).domainName ?? "This domain")} will not ` +
-      `appear there until a Domain row exists for it.`
-  );
-}
-
-/**
  * Create a fresh user document. Used by both registration and the guest-
  * checkout fallback (which passes a random throwaway password). Returns the
  * hydrated doc so the caller can `.save()` further mutations if needed.
