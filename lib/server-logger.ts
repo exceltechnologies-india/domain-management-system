@@ -33,8 +33,8 @@
  *   paths are never exposed in logs visible to operators.
  * - Remote error reporting: fires-and-forgets a POST to the admin log-error
  *   endpoint for ERROR-level events so they appear in the DB dashboard too.
- *   **It requires NEXTAUTH_URL or APP_URL**, and says so loudly when neither is
- *   set rather than disappearing — see remoteLog. It posts over HTTP instead of
+ *   **It requires NEXTAUTH_URL or APP_URL** (both are set in production) and
+ *   says so loudly when neither is, rather than disappearing — see remoteLog. It posts over HTTP instead of
  *   writing to Mongo directly because `middleware.ts` imports this module and
  *   runs in the Edge runtime, where mongoose cannot load.
  */
@@ -77,27 +77,35 @@ function remoteLog(args: LogArg[]) {
   const appUrl = process.env.NEXTAUTH_URL || process.env.APP_URL;
   if (!appUrl) {
     /**
-     * This used to `return` in silence, and the silence was the bug.
+     * This used to `return` in silence. The warning below is worth having on
+     * its own merits — a transport that switches itself off should say so —
+     * but the diagnosis first written here was WRONG, and the correction is
+     * left visible because it is the more useful half.
      *
-     * Measured against production 2026-09-23: `systemlogs` holds 34 rows, ALL
-     * with source "Client Boundary" — browser error boundaries POSTing here
-     * directly — and the newest is six weeks old. **Not one server-side
-     * `serverLogger.error()` has ever reached the collection.** Every cron
-     * failure, every provisioning error, every payment exception went to
-     * stdout only, while the admin integration-health page showed an empty
-     * "recent errors" panel that reads as "nothing is wrong".
+     * What was measured (23 Sep 2026): `systemlogs` holds 34 rows, all with
+     * source "Client Boundary", newest 2026-08-13. I concluded from that that
+     * no server-side `serverLogger.error()` had ever reached the collection and
+     * that this branch was the cause.
      *
-     * The likely cause is `scripts/deploy-cloud-run.sh` passing
-     * `NEXTAUTH_URL=${NEXTAUTH_URL:-}` — an empty default, so a deployer whose
-     * shell lacks the variable ships an empty one and this branch takes itself
-     * out. AGENTS.md L91 is that exact shape: a missing value made plausible.
+     * Both parts were wrong:
+     *  - `NEXTAUTH_URL` and `APP_URL` are BOTH set on the service to
+     *    `https://app.anutech.in`, so this branch is not taken in production.
+     *  - The transport demonstrably works. `middleware.ts` records this exact
+     *    failure being found and fixed on 2026-06-19 (the
+     *    SELF_AUTHENTICATING_ADMIN_API allowlist, without which the
+     *    server-to-self POST was 403'd before its own auth could run) — and the
+     *    OLDEST row in `systemlogs` is 2026-06-19. The data corroborates the
+     *    fix rather than contradicting it.
      *
-     * Not fixed by writing to the database directly, which would be the
-     * obvious move and is wrong here: `middleware.ts` imports this module and
-     * runs in the EDGE runtime, where mongoose cannot load. The HTTP hop is
-     * why one logger can serve both.
+     * The absence of server-side rows since is consistent with there having
+     * been no server-side errors: production holds 2 orders and 0 domains, so
+     * traffic is near zero. AGENTS.md L38/L39 — absence of evidence needed a
+     * second condition ("and something should have errored") before it meant
+     * anything, and I shipped a conclusion without it.
      *
-     * So the fix is to stop being quiet about it.
+     * The warning stays because the branch is still a silent no-op when the
+     * variables ARE missing, which is a real way to lose every server error in
+     * a future deployment.
      */
     if (!warnedRemoteDisabled) {
       warnedRemoteDisabled = true;

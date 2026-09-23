@@ -240,16 +240,18 @@ describe("remoteLog (error-only fire-and-forget POST)", () => {
 /**
  * The disabled remote transport must announce itself.
  *
- * Measured against production 2026-09-23: `systemlogs` held 34 rows, all from
- * "Client Boundary", newest six weeks old. Not one server-side
- * `serverLogger.error()` had ever reached it — every cron failure and payment
- * exception went to stdout only, while the admin "recent errors" panel sat
- * empty and read as "nothing is wrong".
+ * These assert the warning, not a production defect — and that distinction is
+ * the point. I first wrote them believing the transport had never worked,
+ * because `systemlogs` held 34 rows all from "Client Boundary". That
+ * conclusion was wrong: both variables ARE set in production, and middleware.ts
+ * records this failure being found and fixed on 2026-06-19 — which is the date
+ * of the oldest row. The absence since is consistent with no server-side error
+ * having happened, on a system holding 2 orders and 0 domains.
  *
- * The cause is a branch that returned in silence when neither NEXTAUTH_URL nor
- * APP_URL was set. It is not fixed by writing to Mongo directly — middleware.ts
- * imports this module and runs in the Edge runtime — so the fix is that the
- * no-op says so.
+ * The branch is still worth guarding: when the variables ARE missing it
+ * silently drops every server error, which is a real way to lose them in a
+ * future deployment. It is not fixed by writing to Mongo directly —
+ * middleware.ts imports this module and runs in the Edge runtime.
  */
 describe("remote reporting, when it is switched off", () => {
   const ORIGINAL = { n: process.env.NEXTAUTH_URL, a: process.env.APP_URL };
