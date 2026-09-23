@@ -25,6 +25,8 @@
  *   - DirectAdmin: modifyDomain (updateDNSNameservers permanently disabled).
  */
 
+import type { Transport } from "../transport";
+
 /**
  * Outcome of a `registerDomain` call. Replaces the previous pattern of
  * branching on `result.status` + 7 different `toLowerCase().includes(...)`
@@ -68,7 +70,17 @@ export type RegisterDomainOutcome =
 export type RenewDomainOutcome =
   | { kind: "renewed"; orderId?: string; price?: number }
   | { kind: "balance_pending" }
-  | { kind: "hard_failure"; reason: string };
+  /**
+   * `transport` is REQUIRED here, and it is the difference between a failure
+   * that is free to retry and one that may already have bought a year.
+   *
+   * A renewal is not idempotent as far as anyone here knows — whether a second
+   * call to ResellerClub adds a second year is an open question in Todos.md §E.
+   * So "the request never left" and "the socket died after the POST" cannot
+   * share a shape, because the caller's correct response to them is opposite.
+   * See lib/integrations/transport.ts, which exists for exactly this.
+   */
+  | { kind: "hard_failure"; reason: string; transport: Transport };
 
 /**
  * Outcome of a `transferDomain` call. RC kicks off the registry transfer

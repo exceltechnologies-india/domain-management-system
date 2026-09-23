@@ -216,8 +216,8 @@ export async function POST(request: NextRequest) {
     //   balance_pending — RC queued for ops top-up; surface a clear
     //                     user message, but DON'T return a 500 (the
     //                     renewal will complete asynchronously)
-    //   hard_failure    — anything else; user sees generic copy, raw
-    //                     reason stays in serverLogger
+    //   hard_failure    — carries a `transport` saying how far the request
+    //                     got, which is what decides the status below
     const outcome = await rcRenewDomain({ domainName, years });
 
     if (outcome.kind === "balance_pending") {
@@ -231,9 +231,58 @@ export async function POST(request: NextRequest) {
       );
     }
     if (outcome.kind === "hard_failure") {
+      /**
+       * The status is chosen by HOW FAR THE REQUEST GOT, not by whose fault it
+       * is — because the status is what a client acts on, and a renewal is not
+       * known to be idempotent (Todos.md §E: nobody has established whether a
+       * second call to ResellerClub adds a second year).
+       *
+       * This branch used to return 500 for every failure. 500 is the status
+       * clients, proxies and impatient customers all retry, so the one case
+       * that must never be repeated was the one being advertised as repeatable.
+       */
+      if (outcome.transport === "sent_unknown") {
+        serverLogger.error(
+          `[renew] AMBIGUOUS for ${domainName} (${user.email}): the request reached ` +
+            `ResellerClub and we never learned what it did. Payment ${razorpay_payment_id} ` +
+            `is already captured. Check the registrar before anyone retries. ${outcome.reason}`
+        );
+        return NextResponse.json(
+          {
+            error:
+              "We could not confirm whether this renewal went through, so we have stopped " +
+              "rather than risk renewing it twice. Your payment has been received and nothing " +
+              "is lost. Please contact support with this domain name — do NOT try again, " +
+              "because a second attempt could buy an extra year.",
+            domainName,
+            status: "unconfirmed",
+          },
+          /**
+           * 409, not 500 or 502. The request conflicts with a state nobody can
+           * currently establish, which is what this repo already uses 409 for
+           * (AGENTS.md L6) — and, the property actually being bought here, it
+           * is not a status anything retries on its own.
+           */
+          { status: 409 }
+        );
+      }
+
+      /**
+       * `not_sent` or `responded` — the renewal definitely did not happen, so
+       * a second attempt is free and the customer can be told to make one.
+       * Saying so matters: the old copy ("our team has been notified") left
+       * someone who had just been charged with no idea whether to wait, retry
+       * or ask for a refund.
+       */
       return NextResponse.json(
-        { error: "Failed to renew domain. Our team has been notified." },
-        { status: 500 }
+        {
+          error:
+            "The registrar did not accept this renewal, so nothing was renewed and no year " +
+            "was bought. It is safe to try again. If it keeps failing, contact support.",
+          domainName,
+          status: "not_renewed",
+        },
+        { status: 502 }
       );
     }
 
@@ -241,6 +290,28 @@ export async function POST(request: NextRequest) {
     const renewedPrice = outcome.price ?? 0;
     const renewedOrderId = outcome.orderId;
 
+    /**
+     * ─── PAST THIS LINE THE DOMAIN IS RENEWED AND THE MONEY IS SPENT ─────────
+     *
+     * Everything below is OUR bookkeeping, and it used to sit in the same try
+     * as the registrar call — so a throw from `createOrder` returned the outer
+     * catch's 500 and the sentence "Failed to renew domain" about a renewal
+     * that had just succeeded. That is not a cosmetic mislabel: the customer
+     * reads a failure, clicks renew again, and buys a second year. It is also
+     * not hypothetical — this route's own history is a ValidationError thrown
+     * here on every single run, after the registrar had been charged.
+     *
+     * So a bookkeeping failure is reported as what it is: the renewal worked,
+     * our record did not, and support has been told. Loudly for us, honestly
+     * for them, and never as a reason to try again.
+     *
+     * (Phase 7's hosting handler throws in the equivalent spot. Different
+     * answer, same reasoning: there the caller is the engine, which has a claim
+     * and a reconciler to catch it. Here the caller is a customer's browser,
+     * and a throw just means they press the button again.)
+     */
+    let recordedOrderId: string | null = null;
+    try {
     // Create order record for renewal
     const order = await createOrder({
       orderId: `RENEW_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -282,20 +353,46 @@ export async function POST(request: NextRequest) {
      * recorded in Todos.md §A — they need a decision about where a user's
      * domain list is canonically read from, which is not this fix's job.
      */
-    await appendUserDomain(String(user._id), {
-      domainName,
-      price: renewedPrice,
-      currency: "INR",
-      registrationPeriod: years,
-      status: "registered",
-      orderId: renewedOrderId,
-      expiresAt: new Date(Date.now() + years * 365 * 24 * 60 * 60 * 1000),
-    });
+      await appendUserDomain(String(user._id), {
+        domainName,
+        price: renewedPrice,
+        currency: "INR",
+        registrationPeriod: years,
+        status: "registered",
+        orderId: renewedOrderId,
+        expiresAt: new Date(Date.now() + years * 365 * 24 * 60 * 60 * 1000),
+      });
+
+      recordedOrderId = order.orderId;
+    } catch (bookkeepingError) {
+      const why =
+        bookkeepingError instanceof Error
+          ? bookkeepingError.message
+          : String(bookkeepingError);
+      serverLogger.error(
+        `[renew] RENEWED BUT NOT RECORDED — ${domainName} for ${user.email} was renewed at ` +
+          `ResellerClub (order ${renewedOrderId ?? "unknown"}, payment ${razorpay_payment_id}) ` +
+          `and the DMS order could not be written: ${why}. The customer has paid and holds the ` +
+          `renewal; only our record is missing.`
+      );
+      return NextResponse.json({
+        success: true,
+        message:
+          "Your domain has been renewed. Our own record of it did not save, so it may not " +
+          "appear in your order history yet — our team has been notified and will add it. " +
+          "There is no need to renew again.",
+        recorded: false,
+        domainName,
+        years,
+        newExpiryDate: new Date(Date.now() + years * 365 * 24 * 60 * 60 * 1000),
+      });
+    }
 
     return NextResponse.json({
       success: true,
       message: "Domain renewed successfully",
-      orderId: order.orderId,
+      orderId: recordedOrderId,
+      recorded: true,
       domainName,
       years,
       newExpiryDate: new Date(Date.now() + years * 365 * 24 * 60 * 60 * 1000),

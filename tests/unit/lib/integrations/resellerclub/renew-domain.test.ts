@@ -91,3 +91,60 @@ describe("renewDomain wrapper", () => {
     expect(rcRenewMock).toHaveBeenCalledWith("example.com", 5);
   });
 });
+
+/**
+ * How far did the request get?
+ *
+ * A renewal is not known to be idempotent — whether a second call to
+ * ResellerClub adds a second year is an open question (Todos.md §E). So the
+ * caller cannot be handed one undifferentiated `hard_failure`: "nothing left
+ * the machine" and "the socket died after the POST" demand opposite responses,
+ * and the route picks its HTTP status from this field.
+ */
+describe("hard_failure carries how far the request got", () => {
+  const withCode = (code: string) => Object.assign(new Error(code), { code });
+
+  it("a parsed RC refusal is `responded` — we know it did not happen", async () => {
+    rcRenewMock.mockResolvedValueOnce({ status: "error", message: "domain not in account" });
+    const out = await renewDomain({ domainName: "x.com", years: 1 });
+    expect(out.kind).toBe("hard_failure");
+    if (out.kind === "hard_failure") expect(out.transport).toBe("responded");
+  });
+
+  it.each(["ENOTFOUND", "ECONNREFUSED", "EAI_AGAIN"])(
+    "%s proves no connection was established → not_sent",
+    async (code) => {
+      rcRenewMock.mockRejectedValueOnce(withCode(code));
+      const out = await renewDomain({ domainName: "x.com", years: 1 });
+      if (out.kind === "hard_failure") expect(out.transport).toBe("not_sent");
+      else throw new Error(`expected hard_failure, got ${out.kind}`);
+    }
+  );
+
+  it.each(["ECONNRESET", "ETIMEDOUT"])(
+    "%s does NOT prove that → sent_unknown, and the year may already be bought",
+    async (code) => {
+      rcRenewMock.mockRejectedValueOnce(withCode(code));
+      const out = await renewDomain({ domainName: "x.com", years: 1 });
+      if (out.kind === "hard_failure") expect(out.transport).toBe("sent_unknown");
+      else throw new Error(`expected hard_failure, got ${out.kind}`);
+    }
+  );
+
+  it("an error with no code at all is sent_unknown, not not_sent", async () => {
+    // Fails toward "a human checks", which is the safe direction for a spend
+    // that cannot be taken back.
+    rcRenewMock.mockRejectedValueOnce(new Error("something went wrong"));
+    const out = await renewDomain({ domainName: "x.com", years: 1 });
+    if (out.kind === "hard_failure") expect(out.transport).toBe("sent_unknown");
+    else throw new Error(`expected hard_failure, got ${out.kind}`);
+  });
+
+  it("balance_pending is still balance_pending, not a transport question", async () => {
+    // It has its own meaning — RC queued it — and must not be swept into the
+    // ambiguous bucket, or a normal top-up wait would read as a lost renewal.
+    rcRenewMock.mockRejectedValueOnce(new Error("Insufficient balance in your account"));
+    const out = await renewDomain({ domainName: "x.com", years: 1 });
+    expect(out.kind).toBe("balance_pending");
+  });
+});

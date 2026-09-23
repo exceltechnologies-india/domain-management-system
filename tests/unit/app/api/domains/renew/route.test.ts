@@ -43,7 +43,9 @@
  *  - POST 3-branch outcome dispatch:
  *      renewed → 200 + createOrder + appendUserDomain + new-expiry-date
  *      balance_pending → 202 + queued message + NO writes
- *      hard_failure → 500 + generic message + NO writes
+ *      hard_failure → split by TRANSPORT: 502 "safe to try again" when the
+ *        registrar answered or was never reached, 409 "do NOT try again" when
+ *        the request may have landed. Both still write nothing.
  *  - new-expiry = now + years × 365 × 86_400_000 (matches the route's
  *    inline math)
  *  - createOrder + appendUserDomain mirror each other (same domain,
@@ -571,14 +573,91 @@ describe("POST — RC 3-branch outcome dispatch", () => {
     expect(appendUserDomain).not.toHaveBeenCalled();
   });
 
-  it("hard_failure → 500 + generic; NO createOrder; NO appendUserDomain; sentinel NOT leaked", async () => {
-    rcRenewDomain.mockResolvedValueOnce({ kind: "hard_failure" });
+  /**
+   * hard_failure used to be one branch returning 500. It is now split by
+   * TRANSPORT, and the split is the point: 500 is the status clients, proxies
+   * and impatient customers retry, so the one case that must never be repeated
+   * was the one advertised as repeatable. A renewal is not known to be
+   * idempotent (Todos.md §E).
+   *
+   * What the old assertion guarded — no createOrder, no appendUserDomain on a
+   * failed renewal — is asserted in BOTH branches below, because that guarantee
+   * did not change and is the more important half.
+   */
+  it.each([
+    ["responded", "the registrar answered no"],
+    ["not_sent", "the request never left"],
+  ])("hard_failure/%s → 502 and says a retry is safe; NO writes", async (transport) => {
+    rcRenewDomain.mockResolvedValueOnce({ kind: "hard_failure", reason: "x", transport });
     const res = await POST(makePost(VALID));
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(502);
     const body = await res.json();
-    expect(body.error.toLowerCase()).toContain("team");
+    expect(body.error.toLowerCase()).toContain("safe to try again");
+    expect(body.status).toBe("not_renewed");
     expect(createOrder).not.toHaveBeenCalled();
     expect(appendUserDomain).not.toHaveBeenCalled();
+  });
+
+  it("hard_failure/sent_unknown → 409, tells them NOT to retry; NO writes", async () => {
+    // The whole reason the transport field exists. The renewal may already
+    // have happened, so the customer must not be invited to buy a second year
+    // — by the copy or by the status code.
+    rcRenewDomain.mockResolvedValueOnce({
+      kind: "hard_failure",
+      reason: "socket hang up",
+      transport: "sent_unknown",
+    });
+    const res = await POST(makePost(VALID));
+    expect(res.status).toBe(409);
+    expect(res.status).not.toBe(500);
+    const body = await res.json();
+    expect(body.error).toMatch(/do NOT try again/);
+    expect(body.error).toMatch(/extra year/i);
+    expect(body.status).toBe("unconfirmed");
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(appendUserDomain).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Past the registrar call the money is spent and the domain is renewed. A
+ * failure in OUR bookkeeping after that point must not be reported as a failed
+ * renewal — the customer reads it, presses renew again, and buys a second year.
+ * This route's own history is a ValidationError thrown in exactly this spot on
+ * every run, after the registrar had been charged.
+ */
+describe("POST — a bookkeeping failure AFTER a successful renewal", () => {
+  const VALID = { domainName: "x.com", years: 1, ...PAID };
+
+  it("reports the renewal as DONE, flags the record, and does not invite a retry", async () => {
+    rcRenewDomain.mockResolvedValueOnce({
+      kind: "renewed",
+      orderId: "RC-1",
+      price: 900,
+    });
+    createOrder.mockRejectedValueOnce(new Error("ValidationError: razorpayOrderId required"));
+
+    const res = await POST(makePost(VALID));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.recorded).toBe(false);
+    expect(body.message).toMatch(/has been renewed/i);
+    expect(body.message).toMatch(/no need to renew again/i);
+  });
+
+  it("a successful run says so, and carries the order id", async () => {
+    // The control for the test above: without it, a route that always returned
+    // recorded:false would pass and prove nothing.
+    rcRenewDomain.mockResolvedValueOnce({
+      kind: "renewed",
+      orderId: "RC-1",
+      price: 900,
+    });
+    const res = await POST(makePost(VALID));
+    const body = await res.json();
+    expect(body.recorded).toBe(true);
+    expect(body.orderId).toBeTruthy();
   });
 });
 

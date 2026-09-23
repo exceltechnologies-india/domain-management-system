@@ -180,6 +180,13 @@ export function classifyRenewDomainResponse(
   return {
     kind: "hard_failure",
     reason: res.message || `RC returned status=${res.status} with no message`,
+    /**
+     * This function classifies a RESPONSE, so ResellerClub answered. That makes
+     * the renewal known NOT to have happened and a retry free — the opposite of
+     * a throw mid-flight, which cannot say either thing. renew-domain.ts sets
+     * the other two transports.
+     */
+    transport: "responded",
   };
 }
 
