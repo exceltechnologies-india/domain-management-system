@@ -10,6 +10,7 @@ import Footer from '@/components/Footer';
 import { PaymentSuccessPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import Link from 'next/link';
 import { logger } from '@/lib/logger';
+import { homeUrl } from '@/lib/reseller-os';
 
 const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@anutech.in';
 
@@ -158,7 +159,7 @@ export default function PaymentResultPage() {
                 Go to Dashboard
               </Link>
               <Link
-                href="/"
+                href={homeUrl()}
                 className="inline-flex items-center px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition-colors duration-200"
               >
                 <Home className="h-5 w-5 mr-2" />

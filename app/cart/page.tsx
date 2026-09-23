@@ -21,6 +21,7 @@ import toast from 'react-hot-toast';
 import { CartPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import { getMinRegistrationPeriod } from '@/lib/tld-min-periods';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { homeUrl } from '@/lib/reseller-os';
 
 interface User {
   firstName: string;
@@ -218,7 +219,7 @@ export default function CartPage() {
         {cartItems.length > 0 ? (
           <div className="mb-6">
             <Link
-              href="/"
+              href={homeUrl()}
               className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors mb-3"
             >
               <ArrowLeft className="h-4 w-4" /> Continue shopping
@@ -243,7 +244,7 @@ export default function CartPage() {
         ) : (
           <div className="flex flex-col items-center text-center mb-6 sm:mb-8">
             <Link
-              href="/"
+              href={homeUrl()}
               className="p-2 text-gray-600 hover:text-primary-600 transition-colors duration-200 bg-white shadow-sm rounded-full mb-3"
               title="Return to Home"
             >

@@ -7,6 +7,7 @@ import Button from '@/components/Button';
 import { logger } from '@/lib/logger';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
+import { homeUrl } from '@/lib/reseller-os';
 
 interface ErrorProps {
   error: Error & { digest?: string };
@@ -83,7 +84,7 @@ export default function Error({ error, reset }: ErrorProps) {
               <RefreshCw className="h-5 w-5" />
               Try Again
             </Button>
-            <Link href="/">
+            <Link href={homeUrl()}>
               <Button variant="outline" size="lg" className="flex items-center gap-2">
                 <Home className="h-5 w-5" />
                 Go Home

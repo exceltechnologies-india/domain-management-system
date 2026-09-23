@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Button from '@/components/Button';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
+import { homeUrl } from '@/lib/reseller-os';
 
 export default function NotFound() {
   return (
@@ -30,7 +31,7 @@ export default function NotFound() {
 
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-            <Link href="/">
+            <Link href={homeUrl()}>
               <Button variant="primary" size="lg" className="flex items-center gap-2">
                 <Home className="h-5 w-5" />
                 Go Home

@@ -7,6 +7,7 @@ import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import DomainSearch from '@/components/DomainSearch';
 import { useSession } from 'next-auth/react';
+import { homeUrl } from '@/lib/reseller-os';
 
 interface User {
   firstName: string;
@@ -43,7 +44,7 @@ function SearchContent() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <nav className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">
-                  <Link href="/" className="hover:text-primary-600 transition-colors">Home</Link>
+                  <Link href={homeUrl()} className="hover:text-primary-600 transition-colors">Home</Link>
                   <span className="text-gray-300">/</span>
                   <span className="text-primary-600">Domain Search</span>
                 </nav>

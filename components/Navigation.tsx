@@ -7,7 +7,7 @@ import { useSession } from 'next-auth/react';
 import { ShoppingCart, User } from 'lucide-react';
 import { useCartStore } from '@/store/cartStore';
 import Logo from './Logo';
-import { publicPageHref } from '@/lib/reseller-os';
+import { homeAnchorHref, homeUrl, publicPageHref } from '@/lib/reseller-os';
 
 interface NavigationProps {
   variant?: 'default' | 'dashboard' | 'admin';
@@ -176,16 +176,26 @@ export default function Navigation({
             logo doesn't grow the navbar or break the page's pt offset. */}
         <div className="flex justify-between items-center h-16 sm:h-[76px]">
           {/* No explicit href — Logo now defaults to home, which is
-              ResellerOS when it is the front door. The nav's own "Home" item
-              below is left pointing at DMS's `/`: it carries isActive('/')
-              styling, and `/` redirects to ResellerOS anyway, so the only
-              cost is one hop. */}
+              ResellerOS when it is the front door. "Home" below now does the
+              same via homeUrl().
+
+              It used to point at DMS's own `/` on the grounds that `/`
+              redirects there anyway "so the only cost is one hop". Measured
+              on /cart: it is a hop AND a refused prefetch, because Next
+              prefetches the Link and the 307 to another origin is policed by
+              connect-src. See lib/reseller-os.ts.
+
+              isActive('/') is deliberately left keyed on '/'. With a front
+              door DMS never serves `/` at all, so that branch cannot fire
+              there — and standalone DMS, where it can, still gets '/' from
+              homeUrl(). Keying it on the href would compare a pathname
+              against an absolute url and never match in either mode. */}
           <Logo size="xl" />
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-4 lg:space-x-6">
             <Link
-              href="/"
+              href={homeUrl()}
               className={`font-medium transition-colors duration-200 relative group ${isActive('/')
                 ? 'text-[var(--google-blue)]'
                 : 'text-[var(--google-text-primary)] hover:text-[var(--google-blue)]'
@@ -196,7 +206,7 @@ export default function Navigation({
               <span className={`absolute -bottom-1 left-0 h-0.5 transition-all duration-200 ${isActive('/') ? 'w-full' : 'w-0 group-hover:w-full'}`} style={{ backgroundColor: 'var(--google-blue)' }}></span>
             </Link>
             <Link
-              href="/#domain-search"
+              href={homeAnchorHref("domain-search")}
               className="font-medium transition-colors duration-200 relative group text-[var(--google-text-primary)] hover:text-[var(--google-blue)]"
               style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}
             >
@@ -204,7 +214,7 @@ export default function Navigation({
               <span className="absolute -bottom-1 left-0 h-0.5 w-0 group-hover:w-full transition-all duration-200" style={{ backgroundColor: 'var(--google-blue)' }}></span>
             </Link>
             <Link
-              href="/#pricing"
+              href={homeAnchorHref("pricing")}
               className={`font-medium transition-colors duration-200 relative group ${isActive('/hosting')
                 ? 'text-[var(--google-blue)]'
                 : 'text-[var(--google-text-primary)] hover:text-[var(--google-blue)]'
@@ -277,7 +287,7 @@ export default function Navigation({
             )}
 
             <Link
-              href="/#pricing"
+              href={homeAnchorHref("pricing")}
               className="hidden sm:inline-flex items-center px-4 py-2 rounded-lg font-semibold text-white shadow-sm hover:shadow-md transition-all bg-gradient-to-r from-[#7C3AED] to-[#6D28D9] hover:from-[#6D28D9] hover:to-[#5B21B6]"
               style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}
             >
@@ -309,7 +319,7 @@ export default function Navigation({
           }`}>
           <nav className="flex flex-col space-y-2 pt-4 border-t border-[var(--google-border-light)]">
             <Link
-              href="/"
+              href={homeUrl()}
               onClick={closeMobileMenu}
               className={`px-4 py-2 rounded-lg font-medium transition-colors duration-200 ${isActive('/')
                 ? 'text-[var(--google-blue)] bg-[var(--google-blue-light)]'
@@ -320,7 +330,7 @@ export default function Navigation({
               Home
             </Link>
             <Link
-              href="/#domain-search"
+              href={homeAnchorHref("domain-search")}
               onClick={closeMobileMenu}
               className="px-4 py-2 rounded-lg font-medium transition-colors duration-200 text-[var(--google-text-primary)] hover:text-[var(--google-blue)] hover:bg-[var(--google-bg-secondary)]"
               style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}
@@ -328,7 +338,7 @@ export default function Navigation({
               Domains
             </Link>
             <Link
-              href="/#pricing"
+              href={homeAnchorHref("pricing")}
               onClick={closeMobileMenu}
               className={`px-4 py-2 rounded-lg font-medium transition-colors duration-200 ${isActive('/hosting')
                 ? 'text-[var(--google-blue)] bg-[var(--google-blue-light)]'

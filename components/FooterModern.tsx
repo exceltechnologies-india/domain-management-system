@@ -54,7 +54,7 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
   {
     title: 'Company',
     links: [
-      { label: 'About Us', href: '/about' },
+      { label: 'About Us', href: publicPageHref('/about') },
       { label: 'Why Choose Us', href: '/hosting' },
       { label: 'Blog', href: '#' },
       { label: 'Careers', href: '#' },
@@ -63,8 +63,8 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
   {
     title: 'Support',
     links: [
-      { label: 'Help Center', href: '/contact' },
-      { label: 'Contact Us', href: '/contact' },
+      { label: 'Help Center', href: publicPageHref('/contact') },
+      { label: 'Contact Us', href: publicPageHref('/contact') },
       { label: 'Knowledge Base', href: '#' },
       { label: 'System Status', href: '#' },
     ],

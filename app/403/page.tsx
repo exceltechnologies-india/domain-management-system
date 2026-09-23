@@ -2,6 +2,7 @@
 
 import { ShieldX, Home, LogIn } from 'lucide-react';
 import Link from 'next/link';
+import { homeUrl } from '@/lib/reseller-os';
 
 export default function ForbiddenPage() {
   return (
@@ -27,7 +28,7 @@ export default function ForbiddenPage() {
             Log In
           </Link>
           <Link
-            href="/"
+            href={homeUrl()}
             className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-gray-100 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors"
           >
             <Home className="h-4 w-4" />

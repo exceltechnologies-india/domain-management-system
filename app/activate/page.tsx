@@ -9,6 +9,7 @@ import Button from '@/components/Button';
 import toast from 'react-hot-toast';
 import { safeLocalStorage } from '@/lib/storage';
 import { apiClient } from '@/lib/api-client';
+import { publicPageHref } from '@/lib/reseller-os';
 
 interface AuthUser {
   email?: string;
@@ -303,7 +304,7 @@ export default function ActivatePage() {
                     Try Again
                   </Button>
                   <Button
-                    onClick={() => router.push('/contact')}
+                    onClick={() => router.push(publicPageHref('/contact'))}
                     className="flex-1"
                   >
                     Contact Support

@@ -144,3 +144,55 @@ export function resellerOsOwnedPaths(): string[] {
 export function publicPageHref(pathname: string): string {
   return resellerOsOwnedUrl(pathname) ?? pathname;
 }
+
+
+/**
+ * Anchors into DMS's own homepage, and where each one lives once ResellerOS
+ * owns that homepage.
+ *
+ * These are the links that were BROKEN rather than merely slow, and the
+ * difference matters. A legal link that redirects still reaches the right
+ * page; `/#pricing` reaches ResellerOS's marketing home, which has no
+ * `pricing` anchor, so the browser lands at the top of a page that cannot
+ * sell anything — on the nav items whose entire job is to start a purchase.
+ *
+ * Every replacement below was checked rather than assumed, on 23 Sep 2026:
+ * each serves 200 from DMS, none is in the redirect map, and the anchor named
+ * in the target really exists in that page's source.
+ *
+ *   #domain-search  -> /domains-home   renders <DomainSearch> at the top, so
+ *                                      there is no anchor to carry; its own
+ *                                      docstring calls it "the domain-focused
+ *                                      landing (former homepage)".
+ *   #pricing        -> /hosting#pricing  `id="pricing"` is on
+ *                                      HostingPageClient.tsx:273.
+ *
+ * They stay inside DMS deliberately. DMS is still the only thing that can
+ * sell hosting or a domain, so "fixing" these by pointing them at the front
+ * door would route a buyer to an app with no checkout.
+ */
+const HOME_ANCHOR_TARGETS: Readonly<Record<string, string>> = Object.freeze({
+  "domain-search": "/domains-home",
+  pricing: "/hosting#pricing",
+});
+
+/**
+ * Where a nav item that used to point at `/#<anchor>` should point.
+ *
+ * Standalone DMS keeps the anchor — `/` is its own homepage there and
+ * `components/marketing/HostingLanding.tsx` carries both ids.
+ *
+ * An anchor with no entry falls back to the old behaviour rather than to
+ * nothing: an unmapped anchor is a link nobody has thought about yet, and one
+ * refused prefetch is a better failure than a link that goes nowhere.
+ */
+export function homeAnchorHref(anchor: string): string {
+  const key = anchor.replace(/^#/, "");
+  if (!frontpageIsDelegated()) return `/#${key}`;
+  return HOME_ANCHOR_TARGETS[key] ?? `/#${key}`;
+}
+
+/** The anchors this module knows how to re-point. Exported for tests. */
+export function homeAnchorKeys(): string[] {
+  return Object.keys(HOME_ANCHOR_TARGETS);
+}

@@ -24,6 +24,7 @@ import { getDeviceFingerprint } from '@/lib/device-fingerprint';
 import { logger } from '@/lib/logger';
 import { apiClient } from '@/lib/api-client';
 import { trackStartTrial } from '@/lib/journey';
+import { publicPageHref } from '@/lib/reseller-os';
 
 interface User {
   firstName: string;
@@ -404,9 +405,9 @@ export default function HostingPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6 max-w-6xl mx-auto">
             {([
-              { img: '/server-infrastructure.jpg', alt: 'SSL Certificates', title: 'SSL Certificates', body: 'Secure your website with trusted SSL certificates. Boost customer confidence and your search-engine ranking.', cta: 'Learn More', href: '/contact', variant: 'primary' as const },
-              { img: '/service-webdesign.jpg', alt: 'Web Design & Development', title: 'Web Design & Development', body: 'Build your website from scratch with our expert developers and designers — pixel-perfect, performance-tuned.', cta: 'Order Now', href: '/contact', variant: 'primary' as const },
-              { img: '/service-gcloud.jpg', alt: 'Google Cloud & Workspace', title: 'Google Cloud & Workspace', body: 'Professional email, online storage, shared calendars, video meetings, and the rest of the Google Workspace suite.', cta: 'Contact Us', href: '/contact', variant: 'outline' as const },
+              { img: '/server-infrastructure.jpg', alt: 'SSL Certificates', title: 'SSL Certificates', body: 'Secure your website with trusted SSL certificates. Boost customer confidence and your search-engine ranking.', cta: 'Learn More', href: publicPageHref('/contact'), variant: 'primary' as const },
+              { img: '/service-webdesign.jpg', alt: 'Web Design & Development', title: 'Web Design & Development', body: 'Build your website from scratch with our expert developers and designers — pixel-perfect, performance-tuned.', cta: 'Order Now', href: publicPageHref('/contact'), variant: 'primary' as const },
+              { img: '/service-gcloud.jpg', alt: 'Google Cloud & Workspace', title: 'Google Cloud & Workspace', body: 'Professional email, online storage, shared calendars, video meetings, and the rest of the Google Workspace suite.', cta: 'Contact Us', href: publicPageHref('/contact'), variant: 'outline' as const },
             ] as const).map((svc, i) => (
               <motion.div
                 key={svc.title}

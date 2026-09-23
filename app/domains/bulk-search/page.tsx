@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { apiClient } from '@/lib/api-client';
+import { homeUrl } from '@/lib/reseller-os';
 
 interface BulkResult {
   domainName: string;
@@ -165,7 +166,7 @@ function BulkSearchContent() {
         <div className="bg-white border-b border-gray-100 shadow-sm mb-8">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 py-5">
             <nav className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">
-              <Link href="/" className="hover:text-primary-600 transition-colors">Home</Link>
+              <Link href={homeUrl()} className="hover:text-primary-600 transition-colors">Home</Link>
               <ChevronRight className="h-3 w-3" />
               <Link href="/domains/search" className="hover:text-primary-600 transition-colors">Domain Search</Link>
               <ChevronRight className="h-3 w-3" />

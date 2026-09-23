@@ -21,7 +21,7 @@ const LinkedinIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 import Logo from './Logo';
-import { publicPageHref } from '@/lib/reseller-os';
+import { homeUrl, publicPageHref } from '@/lib/reseller-os';
 
 interface FooterProps {
   className?: string;
@@ -59,7 +59,7 @@ export default function FooterClassic({ className = '' }: FooterProps) {
             <h3 className="text-lg font-semibold mb-4">Quick Links</h3>
             <ul className="space-y-2">
               <li>
-                <Link href="/" className="text-gray-300 hover:text-white transition-colors">
+                <Link href={homeUrl()} className="text-gray-300 hover:text-white transition-colors">
                   Home
                 </Link>
               </li>
