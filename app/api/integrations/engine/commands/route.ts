@@ -20,10 +20,13 @@
  *   5. live eligible — per COMMAND, not one flag. 503 with the reason this one
  *                      cannot run live, which for some of them stays true after
  *                      live is switched on.
- *   6. idempotency   — a repeated commandId REPLAYS, it does not re-run.
- *   7. subject mutex — one operation per {command, subject} at a time.
+ *   6. provider safe — about the MACHINE, not the request: a non-production
+ *                      build may not contact a provider that can answer, because
+ *                      test mode still READS from one.
+ *   7. idempotency   — a repeated commandId REPLAYS, it does not re-run.
+ *   8. subject mutex — one operation per {command, subject} at a time.
  *
- * 6 before 7 on purpose: a retry of a command that is still running should be
+ * 7 before 8 on purpose: a retry of a command that is still running should be
  * told "already in progress" by its own record, not by failing to take a lock
  * it already holds.
  */
@@ -34,6 +37,7 @@ import { serverLogger } from "@/lib/server-logger";
 import { checkMode, checkLiveAllowed } from "@/lib/integrations/engine-mode";
 import { isKnownCommand, handlerFor } from "@/lib/integrations/engine-command-registry";
 import { transportOf } from "@/lib/integrations/engine-attempt";
+import { checkProviderSafety } from "@/lib/ops/stack-inertness";
 import {
   startCommand,
   acquireSubjectClaim,
@@ -103,6 +107,25 @@ export async function POST(request: NextRequest) {
   const live = checkLiveAllowed(mode.mode, command);
   if (!live.ok) {
     return NextResponse.json({ error: live.error }, { status: live.status });
+  }
+
+  /**
+   * Can this BUILD talk to a provider at all?
+   *
+   * Last gate before dispatch, and it is about the machine rather than the
+   * request. Test mode is not offline — every handler reads from its provider
+   * before deciding anything — so on a dev box holding a restored production
+   * database, one real credential in `.env.docker` is enough for a "safe" dry
+   * run to read a live customer's DNS. `LIVE_COMMANDS_ENABLED` does not cover
+   * it: that gates live mode, and this is test mode working as designed.
+   *
+   * 503 rather than 400: nothing is wrong with the request, and the same
+   * command is fine on production. Same reasoning as the live refusal above.
+   */
+  const safety = checkProviderSafety(process.env);
+  if (!safety.allowed) {
+    serverLogger.warn(`[engine] refused ${command} on ${subject}: ${safety.reason}`);
+    return NextResponse.json({ error: safety.reason }, { status: 503 });
   }
 
   const handler = handlerFor(command);
