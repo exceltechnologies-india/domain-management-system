@@ -122,14 +122,14 @@ export default function DomainRenewalModal({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+        <div className="p-6 border-b border-hairline flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Domain Renewal</h2>
-            <p className="text-gray-600 mt-1">{domainName}</p>
+            <h2 className="text-xl font-bold text-ink">Domain Renewal</h2>
+            <p className="text-ink-2 mt-1">{domainName}</p>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+            className="p-2 text-ink-4 hover:text-ink-2 transition-colors"
           >
             <X className="h-6 w-6" />
           </button>
@@ -139,27 +139,27 @@ export default function DomainRenewalModal({
         <div className="p-6">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
-              <RefreshCw className="h-6 w-6 animate-spin text-blue-600" />
-              <span className="ml-2 text-gray-600">Loading renewal information...</span>
+              <RefreshCw className="h-6 w-6 animate-spin text-indigo-ink" />
+              <span className="ml-2 text-ink-2">Loading renewal information...</span>
             </div>
           ) : renewalInfo ? (
             <div className="space-y-6">
               {/* Current Status */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+              <div className="bg-paper-2 rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-ink mb-3 flex items-center">
                   <Calendar className="h-5 w-5 mr-2" />
                   Current Status
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <span className="block text-sm font-medium text-gray-500">Expiry Date</span>
-                    <p className="text-lg font-semibold text-gray-900">
+                    <span className="block text-sm font-medium text-ink-3">Expiry Date</span>
+                    <p className="text-lg font-semibold text-ink">
                       {formatDate(expiryDate)}
                     </p>
                   </div>
                   <div>
-                    <span className="block text-sm font-medium text-gray-500">Days Until Expiry</span>
-                    <p className={`text-lg font-semibold ${isExpiringSoon ? 'text-red-600' : 'text-gray-900'}`}>
+                    <span className="block text-sm font-medium text-ink-3">Days Until Expiry</span>
+                    <p className={`text-lg font-semibold ${isExpiringSoon ? 'text-rose-ink' : 'text-ink'}`}>
                       {daysUntilExpiry} days
                       {isExpiringSoon && (
                         <AlertTriangle className="h-4 w-4 inline ml-1" />
@@ -168,10 +168,10 @@ export default function DomainRenewalModal({
                   </div>
                 </div>
                 {isExpiringSoon && (
-                  <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="mt-3 p-3 bg-rose-soft border border-rose-soft rounded-lg">
                     <div className="flex items-center">
-                      <AlertTriangle className="h-5 w-5 text-red-600 mr-2" />
-                      <p className="text-red-800 text-sm">
+                      <AlertTriangle className="h-5 w-5 text-rose-ink mr-2" />
+                      <p className="text-rose-ink text-sm">
                         Your domain is expiring soon! Renew now to avoid service interruption.
                       </p>
                     </div>
@@ -180,14 +180,14 @@ export default function DomainRenewalModal({
               </div>
 
               {/* Renewal Options */}
-              <div className="bg-blue-50 rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+              <div className="bg-indigo-soft rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-ink mb-3 flex items-center">
                   <CreditCard className="h-5 w-5 mr-2" />
                   Renewal Options
                 </h3>
                 <div className="mb-4">
                   {/* Labels a button group (not a single control) — span, not label. */}
-                  <span className="block text-sm font-medium text-gray-700 mb-2">
+                  <span className="block text-sm font-medium text-ink-2 mb-2">
                     Select Renewal Period
                   </span>
                   <div className="grid grid-cols-3 gap-2" role="group" aria-label="Select renewal period">
@@ -196,8 +196,8 @@ export default function DomainRenewalModal({
                         key={years}
                         onClick={() => setSelectedYears(years)}
                         className={`px-4 py-2 rounded-lg border transition-colors ${selectedYears === years
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'bg-white text-gray-700 border-gray-300 hover:border-amber/40'
+                          ? 'bg-primary-600 text-white border-indigo'
+                          : 'bg-white text-ink-2 border-hairline-strong hover:border-amber/40'
                           }`}
                       >
                         {years} {years === 1 ? 'Year' : 'Years'}
@@ -208,17 +208,17 @@ export default function DomainRenewalModal({
                 <div className="bg-white rounded-lg p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-gray-600">Renewal Cost</p>
-                      <p className="text-2xl font-bold text-gray-900">
+                      <p className="text-sm text-ink-2">Renewal Cost</p>
+                      <p className="text-2xl font-bold text-ink">
                         {formatIndianCurrency(renewalInfo.pricing.price)}
                       </p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm text-ink-3">
                         for {selectedYears} {selectedYears === 1 ? 'year' : 'years'}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm text-gray-600">New Expiry Date</p>
-                      <p className="text-lg font-semibold text-gray-900">
+                      <p className="text-sm text-ink-2">New Expiry Date</p>
+                      <p className="text-lg font-semibold text-ink">
                         {formatDate(new Date(Date.now() + selectedYears * 365 * 24 * 60 * 60 * 1000).toISOString())}
                       </p>
                     </div>
@@ -227,26 +227,26 @@ export default function DomainRenewalModal({
               </div>
 
               {/* Renewal Benefits */}
-              <div className="bg-green-50 rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-                  <CheckCircle className="h-5 w-5 mr-2 text-green-600" />
+              <div className="bg-emerald-soft rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-ink mb-3 flex items-center">
+                  <CheckCircle className="h-5 w-5 mr-2 text-emerald-ink" />
                   Renewal Benefits
                 </h3>
-                <ul className="space-y-2 text-sm text-gray-700">
+                <ul className="space-y-2 text-sm text-ink-2">
                   <li className="flex items-center">
-                    <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
+                    <CheckCircle className="h-4 w-4 text-emerald-ink mr-2" />
                     Maintain your domain ownership
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
+                    <CheckCircle className="h-4 w-4 text-emerald-ink mr-2" />
                     Keep your website and email services active
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
+                    <CheckCircle className="h-4 w-4 text-emerald-ink mr-2" />
                     Protect your brand and online presence
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
+                    <CheckCircle className="h-4 w-4 text-emerald-ink mr-2" />
                     Avoid domain expiration penalties
                   </li>
                 </ul>
@@ -256,7 +256,7 @@ export default function DomainRenewalModal({
               <div className="flex items-center justify-end space-x-4">
                 <button
                   onClick={onClose}
-                  className="px-6 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  className="px-6 py-2 text-ink-2 bg-paper-2 rounded-lg hover:bg-hairline transition-colors"
                 >
                   Cancel
                 </button>
@@ -265,7 +265,7 @@ export default function DomainRenewalModal({
                     the POST that spent the reseller's balance. */}
                 <button
                   onClick={handleRenewal}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+                  className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center"
                 >
                   <CreditCard className="h-4 w-4 mr-2" />
                   Renew Domain
@@ -273,12 +273,12 @@ export default function DomainRenewalModal({
               </div>
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-500">
-              <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+            <div className="text-center py-8 text-ink-3">
+              <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-ink-4" />
               <p>Failed to load renewal information.</p>
               <button
                 onClick={loadRenewalInfo}
-                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
               >
                 Try Again
               </button>
