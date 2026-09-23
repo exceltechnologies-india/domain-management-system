@@ -53,6 +53,19 @@ vi.mock("@/models/PendingDomain", () => ({
   default: { find: pendingDomainFind },
 }));
 
+/**
+ * The Domain collection joined the sweep on 2026-09-23. It is the one the
+ * customer's list is built from, and nothing had been watching it: both paths
+ * that create a Domain row write `status: "pending"` with no `expiresAt`, and
+ * only a manual admin sync ever advances them.
+ */
+const domainFindLean = vi.hoisted(() => vi.fn());
+const domainFindSelect = vi.hoisted(() => vi.fn());
+const domainFind = vi.hoisted(() => vi.fn());
+vi.mock("@/models/Domain", () => ({
+  default: { find: domainFind },
+}));
+
 vi.mock("@/lib/mongodb", () => ({
   default: vi.fn().mockResolvedValue(undefined),
 }));
@@ -82,6 +95,12 @@ function setupMongoChain(rows: unknown[]) {
   pendingDomainFind.mockReturnValue({ select: pendingDomainFindSelect });
 }
 
+function setupDomainChain(rows: unknown[]) {
+  domainFindLean.mockResolvedValue(rows);
+  domainFindSelect.mockReturnValue({ lean: domainFindLean });
+  domainFind.mockReturnValue({ select: domainFindSelect });
+}
+
 const NOW = Date.now();
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -94,7 +113,11 @@ beforeEach(() => {
   pendingDomainFindLean.mockReset();
   pendingDomainFindSelect.mockReset();
   pendingDomainFind.mockReset();
+  domainFindLean.mockReset();
+  domainFindSelect.mockReset();
+  domainFind.mockReset();
   setupMongoChain([]);
+  setupDomainChain([]);
 });
 
 describe("Dual auth", () => {
@@ -367,3 +390,68 @@ describe("Outer catch", () => {
     expect(JSON.stringify(body)).not.toContain("$2a$12$BCRYPT_LEAK_ME");
   });
 });
+
+/**
+ * The Domain sweep. Added because this collection was the blind spot: a domain
+ * with no `expiresAt` has no `next_action_at`, and `daily-scheduler` selects on
+ * `next_action_at <= now` — so it is never reminded before it expires, and
+ * nothing anywhere said so.
+ */
+describe("Domain collection — the one nothing was watching", () => {
+  const DOMAIN_ROW = {
+    _id: "D1",
+    domainName: "acme.in",
+    status: "pending",
+    createdAt: new Date(NOW - 3 * DAY),
+    expiresAt: null,
+  };
+
+  beforeEach(() => {
+    authorizeCronRequest.mockReturnValue(true);
+  });
+
+  it("queries live rows only, in non-terminal statuses, older than the 24h cutoff", async () => {
+    await GET(makeReq({ "x-cron-secret": "s" }));
+    const q = domainFind.mock.calls[0][0];
+    expect(q.status).toEqual({ $in: ["pending", "failed"] });
+    // deletedAt: null matches missing too, so an archived transfer-out does not
+    // come back as a daily alarm.
+    expect(q.deletedAt).toBeNull();
+    expect(q.createdAt.$lt).toBeInstanceOf(Date);
+  });
+
+  it("a stuck domain with NO expiry is CRITICAL, and the reason says why it matters", async () => {
+    setupDomainChain([DOMAIN_ROW]);
+    await GET(makeReq({ "x-cron-secret": "s" }));
+    // sendAdminNotification(adminEmail, subject, message, payload) — the whole
+    // call is stringified, because the domain can legitimately appear in the
+    // message or in the structured records.
+    const text = JSON.stringify(sendAdminNotification.mock.calls[0]);
+    expect(text).toContain("acme.in");
+    expect(text).toContain("CRITICAL");
+    expect(text).toMatch(/never be reminded before it expires/);
+    // §24: the row says what to do about it.
+    expect(text).toMatch(/run the admin domain sync/i);
+  });
+
+  it("a stuck domain that DOES have an expiry is only a WARN", async () => {
+    // The two problems are separate: a status that did not settle is untidy,
+    // a missing expiry costs the renewal. Collapsing them would hide which is
+    // which.
+    setupDomainChain([
+      { ...DOMAIN_ROW, createdAt: new Date(NOW - 2 * DAY), expiresAt: new Date(NOW + 200 * DAY) },
+    ]);
+    await GET(makeReq({ "x-cron-secret": "s" }));
+    const text = JSON.stringify(sendAdminNotification.mock.calls[0]);
+    expect(text).toContain("WARN");
+    expect(text).not.toMatch(/never be reminded/);
+  });
+
+  it("no stuck domains → this sweep adds nothing", async () => {
+    setupDomainChain([]);
+    await GET(makeReq({ "x-cron-secret": "s" }));
+    const text = JSON.stringify(sendAdminNotification.mock.calls[0] ?? "");
+    expect(text).not.toContain("acme.in");
+  });
+});
+

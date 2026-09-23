@@ -6,13 +6,32 @@ import { AuthService } from "@/lib/auth";
 import { authorizeCronRequest } from "@/lib/cron-auth";
 import connectDB from "@/lib/mongodb";
 import PendingDomain from "@/models/PendingDomain";
+import Domain from "@/models/Domain";
 import { listStuckPendingHostings } from "@/lib/services/pending-hostings";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Scans PendingDomain and PendingHosting for records stuck >24h in non-terminal
- * statuses (pending / processing / failed). Sends a single digest email to ADMIN_EMAIL
+ * Scans PendingDomain, PendingHosting AND the Domain collection for records stuck
+ * >24h in non-terminal statuses (pending / processing / failed).
+ *
+ * ─── WHY Domain WAS ADDED, 2026-09-23 ────────────────────────────────────────
+ * It was the collection nobody was watching, and it is where every domain
+ * actually lives. BOTH paths that create a Domain row write `status: "pending"`
+ * with no `expiresAt` — `provisioner-domain.ts` for a registration and
+ * `api/domains/transfer` for a transfer — and nothing automatic ever advances
+ * it. `DomainVerificationService` does the job properly (it sets status AND
+ * expiry from ResellerClub), but the only things that call it are admin sync
+ * buttons, plus the customer's own sync button on the dashboard.
+ *
+ * Until somebody presses one of those, the row has no expiry, so it has no
+ * `next_action_at`, so `daily-scheduler` — which selects on
+ * `next_action_at <= now` — can never see it. The domain silently reaches its
+ * expiry date with no reminder to anyone.
+ *
+ * This sweep does not FIX that; it makes it visible, which is the gap that
+ * mattered most (AGENTS.md L1: a failure nobody is told about is a silent one).
+ * The row says what to do — run the admin domain sync. Sends a single digest email to ADMIN_EMAIL
  * listing each stuck record with severity (WARN for 24h-7d, CRITICAL for >7d or
  * verificationAttempts > 5). Does not auto-archive or delete — admin acts manually
  * to avoid silently hiding provisioning failures.
@@ -36,7 +55,7 @@ const CRITICAL_ATTEMPT_THRESHOLD = 5;
 type Severity = "WARN" | "CRITICAL";
 
 interface StuckSummary {
-  collection: "PendingDomain" | "PendingHosting";
+  collection: "PendingDomain" | "PendingHosting" | "Domain";
   id: string;
   identifier: string;
   status: string;
@@ -77,6 +96,20 @@ export async function GET(request: NextRequest) {
     // PendingHosting: no isArchived flag. Status field is "pending" or "failed".
     const stuckPendingHostings = await listStuckPendingHostings(warnCutoff);
 
+    /**
+     * Domain: the collection the customer's list is actually built from.
+     * `deletedAt: null` matches both null and missing, the same way
+     * `listDomainsForUser` filters, so a domain transferred out and archived by
+     * an admin does not reappear here as an alarm.
+     */
+    const stuckDomains = await Domain.find({
+      status: { $in: ["pending", "failed"] },
+      createdAt: { $lt: warnCutoff },
+      deletedAt: null,
+    })
+      .select("domainName status createdAt expiresAt")
+      .lean();
+
     const summaries: StuckSummary[] = [];
 
     interface StuckPendingDomainRow {
@@ -106,6 +139,47 @@ export async function GET(request: NextRequest) {
         severity,
         reason: `${d.reason || "no reason recorded"} — ${reasonParts.join(", ")}`,
         attempts,
+      });
+    }
+
+    interface StuckDomainRow {
+      _id: unknown;
+      domainName: string;
+      status: string;
+      createdAt: Date;
+      expiresAt?: Date | null;
+    }
+    for (const d of stuckDomains as unknown as StuckDomainRow[]) {
+      const tooOld = new Date(d.createdAt).getTime() < criticalCutoff.getTime();
+      /**
+       * A missing expiry is the part that costs money, so it is called out
+       * rather than left implicit: without it the row has no `next_action_at`
+       * and the renewal ladder can never select it. A domain can be stuck in
+       * `pending` AND have an expiry (if a sync ran and the status did not
+       * settle), so the two are reported separately.
+       */
+      const noExpiry = !d.expiresAt;
+      const severity: Severity = tooOld || noExpiry ? "CRITICAL" : "WARN";
+
+      const reasonParts: string[] = [];
+      if (noExpiry) {
+        reasonParts.push(
+          "NO expiresAt — this domain has no next_action_at either, so it will never be " +
+            "reminded before it expires"
+        );
+      }
+      if (tooOld) reasonParts.push(`>${CRITICAL_AGE_MS / 86400000}d in this state`);
+      if (!reasonParts.length) reasonParts.push("stuck >24h");
+
+      summaries.push({
+        collection: "Domain",
+        id: String(d._id),
+        identifier: d.domainName,
+        status: d.status,
+        ageHours: ageHours(d.createdAt, now),
+        severity,
+        // §24: the row says what to do, not just what is wrong.
+        reason: `${reasonParts.join("; ")} — run the admin domain sync to pull status and expiry from ResellerClub`,
       });
     }
 
