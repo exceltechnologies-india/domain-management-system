@@ -107,3 +107,40 @@ export function resellerOsOwnedUrl(pathname: string): string | null {
 export function resellerOsOwnedPaths(): string[] {
   return Object.keys(RESELLEROS_OWNED_PAGES);
 }
+
+/**
+ * The href a DMS link to a public page should actually carry.
+ *
+ * Standalone DMS gets the path it always had. With ResellerOS as the front
+ * door it gets the absolute ResellerOS URL — the SAME url the middleware
+ * would have redirected to, so the destination is unchanged and the redirect
+ * hop is removed.
+ *
+ * It exists because of a console error, and the console error was the only
+ * symptom. Next prefetches a `<Link href="/privacy">`; the prefetch is an RSC
+ * *fetch*, so DMS's own 307 to the ResellerOS origin is a cross-origin
+ * connect and `connect-src 'self' …` refuses it:
+ *
+ *   Connecting to 'https://…/privacy' violates the following Content
+ *   Security Policy directive: "connect-src 'self' data: blob: wss: …"
+ *
+ * Measured before deciding anything: the CLICK still works. It is a plain
+ * navigation, which CSP does not police, and it lands on the ResellerOS page
+ * — error count 1 before the click and 1 after. So this is not a dead link,
+ * it is one refused prefetch per page view, on every public page, forever.
+ * That is worth removing precisely because it is harmless: a violation nobody
+ * needs to act on is what teaches the next reader to skim the console
+ * (AGENTS.md L6).
+ *
+ * The fix deliberately is NOT widening `connect-src` to admit the ResellerOS
+ * origin. That would buy a silent console by letting every DMS page fetch
+ * another origin, which is a real permission traded for a cosmetic one.
+ * Pointing the link at its true destination costs nothing and is faster.
+ *
+ * `prefetch={false}` at each call site would also have worked and was
+ * rejected: it is one decision copied to a dozen places, which is the exact
+ * shape AGENTS.md L98 keeps recording, and it leaves the wasted redirect.
+ */
+export function publicPageHref(pathname: string): string {
+  return resellerOsOwnedUrl(pathname) ?? pathname;
+}

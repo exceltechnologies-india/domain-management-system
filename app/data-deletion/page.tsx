@@ -4,6 +4,7 @@ import { Mail, Trash2, Shield, CheckCircle, AlertCircle, Clock, FileText } from 
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { motion } from 'framer-motion';
+import { publicPageHref } from '@/lib/reseller-os';
 
 export default function DataDeletionPage() {
   return (
@@ -299,15 +300,15 @@ export default function DataDeletionPage() {
         <div className="text-center text-gray-600">
           <p className="mb-2">Related Documents:</p>
           <div className="space-x-4">
-            <a href="/privacy" className="text-primary-600 hover:underline">
+            <a href={publicPageHref('/privacy')} className="text-primary-600 hover:underline">
               Privacy Policy
             </a>
             <span>•</span>
-            <a href="/terms-and-conditions" className="text-primary-600 hover:underline">
+            <a href={publicPageHref('/terms-and-conditions')} className="text-primary-600 hover:underline">
               Terms & Conditions
             </a>
             <span>•</span>
-            <a href="/contact" className="text-primary-600 hover:underline">
+            <a href={publicPageHref('/contact')} className="text-primary-600 hover:underline">
               Contact Us
             </a>
           </div>

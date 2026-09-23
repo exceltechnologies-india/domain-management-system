@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react';
 import { ShoppingCart, User } from 'lucide-react';
 import { useCartStore } from '@/store/cartStore';
 import Logo from './Logo';
+import { publicPageHref } from '@/lib/reseller-os';
 
 interface NavigationProps {
   variant?: 'default' | 'dashboard' | 'admin';
@@ -214,7 +215,7 @@ export default function Navigation({
               <span className={`absolute -bottom-1 left-0 h-0.5 transition-all duration-200 ${isActive('/hosting') ? 'w-full' : 'w-0 group-hover:w-full'}`} style={{ backgroundColor: 'var(--google-blue)' }}></span>
             </Link>
             <Link
-              href="/about"
+              href={publicPageHref('/about')}
               className={`font-medium transition-colors duration-200 relative group ${isActive('/about')
                 ? 'text-[var(--google-blue)]'
                 : 'text-[var(--google-text-primary)] hover:text-[var(--google-blue)]'
@@ -225,7 +226,7 @@ export default function Navigation({
               <span className={`absolute -bottom-1 left-0 h-0.5 transition-all duration-200 ${isActive('/about') ? 'w-full' : 'w-0 group-hover:w-full'}`} style={{ backgroundColor: 'var(--google-blue)' }}></span>
             </Link>
             <Link
-              href="/contact"
+              href={publicPageHref('/contact')}
               className={`font-medium transition-colors duration-200 relative group ${isActive('/contact')
                 ? 'text-[var(--google-blue)]'
                 : 'text-[var(--google-text-primary)] hover:text-[var(--google-blue)]'
@@ -338,7 +339,7 @@ export default function Navigation({
               Hosting
             </Link>
             <Link
-              href="/about"
+              href={publicPageHref('/about')}
               onClick={closeMobileMenu}
               className={`px-4 py-2 rounded-lg font-medium transition-colors duration-200 ${isActive('/about')
                 ? 'text-[var(--google-blue)] bg-[var(--google-blue-light)]'
@@ -349,7 +350,7 @@ export default function Navigation({
               About Us
             </Link>
             <Link
-              href="/contact"
+              href={publicPageHref('/contact')}
               onClick={closeMobileMenu}
               className={`px-4 py-2 rounded-lg font-medium transition-colors duration-200 ${isActive('/contact')
                 ? 'text-[var(--google-blue)] bg-[var(--google-blue-light)]'

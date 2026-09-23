@@ -21,6 +21,7 @@ const LinkedinIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 import Logo from './Logo';
+import { publicPageHref } from '@/lib/reseller-os';
 
 interface FooterProps {
   className?: string;
@@ -63,12 +64,12 @@ export default function FooterClassic({ className = '' }: FooterProps) {
                 </Link>
               </li>
               <li>
-                <Link href="/about" className="text-gray-300 hover:text-white transition-colors">
+                <Link href={publicPageHref('/about')} className="text-gray-300 hover:text-white transition-colors">
                   About Us
                 </Link>
               </li>
               <li>
-                <Link href="/contact" className="text-gray-300 hover:text-white transition-colors">
+                <Link href={publicPageHref('/contact')} className="text-gray-300 hover:text-white transition-colors">
                   Contact Us
                 </Link>
               </li>
@@ -133,16 +134,16 @@ export default function FooterClassic({ className = '' }: FooterProps) {
               © {new Date().getFullYear()} Anutech Digital Private Limited. All rights reserved.
             </p>
             <div className="flex flex-wrap gap-4 md:gap-6 mt-4 md:mt-0 justify-center md:justify-end">
-              <Link href="/privacy" className="text-gray-400 hover:text-white text-sm transition-colors">
+              <Link href={publicPageHref('/privacy')} className="text-gray-400 hover:text-white text-sm transition-colors">
                 Privacy Policy
               </Link>
-              <Link href="/terms-and-conditions" className="text-gray-400 hover:text-white text-sm transition-colors">
+              <Link href={publicPageHref('/terms-and-conditions')} className="text-gray-400 hover:text-white text-sm transition-colors">
                 Terms and Conditions
               </Link>
               <Link href="/data-deletion" className="text-gray-400 hover:text-white text-sm transition-colors">
                 Data Deletion
               </Link>
-              <Link href="/cancellation-refund" className="text-gray-400 hover:text-white text-sm transition-colors">
+              <Link href={publicPageHref('/cancellation-refund')} className="text-gray-400 hover:text-white text-sm transition-colors">
                 Cancellation & Refund
               </Link>
             </div>

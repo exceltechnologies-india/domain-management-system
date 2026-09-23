@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import Logo from './Logo';
 import { useSiteVisibility } from './hooks/useSiteVisibility';
+import { publicPageHref } from '@/lib/reseller-os';
 
 // Social icons — minimal inline SVGs (lucide dropped brand marks).
 const FacebookIcon = ({ className }: { className?: string }) => (
@@ -148,10 +149,10 @@ export default function FooterModern({ className = '' }: FooterProps) {
               © {new Date().getFullYear()} Anutech Digital Private Limited. All rights reserved.
             </p>
             <div className="flex flex-wrap gap-4 md:gap-6 justify-center md:justify-end">
-              <Link href="/privacy" className="text-gray-500 hover:text-white text-sm transition-colors">Privacy Policy</Link>
-              <Link href="/terms-and-conditions" className="text-gray-500 hover:text-white text-sm transition-colors">Terms and Conditions</Link>
+              <Link href={publicPageHref('/privacy')} className="text-gray-500 hover:text-white text-sm transition-colors">Privacy Policy</Link>
+              <Link href={publicPageHref('/terms-and-conditions')} className="text-gray-500 hover:text-white text-sm transition-colors">Terms and Conditions</Link>
               <Link href="/data-deletion" className="text-gray-500 hover:text-white text-sm transition-colors">Data Deletion</Link>
-              <Link href="/cancellation-refund" className="text-gray-500 hover:text-white text-sm transition-colors">Cancellation &amp; Refund</Link>
+              <Link href={publicPageHref('/cancellation-refund')} className="text-gray-500 hover:text-white text-sm transition-colors">Cancellation &amp; Refund</Link>
             </div>
           </div>
         </div>

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Cookie, X } from 'lucide-react';
 import { safeLocalStorage } from '@/lib/storage';
 import { useSession } from 'next-auth/react';
+import { publicPageHref } from '@/lib/reseller-os';
 
 const CONSENT_KEY = 'cookieConsent';
 
@@ -52,7 +53,7 @@ export default function CookieConsentBanner() {
                 This site uses strictly necessary cookies for authentication and security (session
                 tokens, CSRF protection, reCAPTCHA). These are required for the service to function
                 and cannot be disabled.{' '}
-                <Link href="/privacy" className="font-medium text-blue-600 underline hover:text-blue-700">
+                <Link href={publicPageHref('/privacy')} className="font-medium text-blue-600 underline hover:text-blue-700">
                   Privacy Policy
                 </Link>
               </p>

@@ -14,6 +14,7 @@ import {
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import Link from 'next/link';
+import { publicPageHref } from '@/lib/reseller-os';
 
 function ErrorContent() {
   const searchParams = useSearchParams();
@@ -95,7 +96,7 @@ function ErrorContent() {
           Back to Dashboard
         </button>
         <Link
-          href="/contact"
+          href={publicPageHref('/contact')}
           className="flex items-center justify-center gap-2 bg-white border-2 border-gray-200 text-gray-700 px-8 py-3 rounded-xl font-bold hover:bg-gray-50 hover:border-gray-300 transition-all"
         >
           <Headphones className="h-5 w-5" />
