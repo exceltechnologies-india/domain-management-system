@@ -11,6 +11,7 @@ import RefreshButton from "@/components/dashboard/RefreshButton";
 import { apiClient } from "@/lib/api-client";
 import { safeLocalStorage } from "@/lib/storage";
 import { Store, CheckCircle2, Ban, Clock } from "lucide-react";
+import { performLogout } from '@/lib/logout';
 
 interface OwnerRef {
   _id: string;
@@ -109,7 +110,7 @@ export default function AdminResellersPage() {
   return (
     <AdminLayout
       user={currentUser || { firstName: "Admin", lastName: "", email: "", role: "admin" }}
-      onLogout={() => { window.location.href = "/login"; }}
+      onLogout={performLogout}
     >
       <div className="space-y-6">
         {/* Header */}

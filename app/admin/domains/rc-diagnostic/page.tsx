@@ -15,6 +15,7 @@ import { apiClient } from '@/lib/api-client';
 import { confirmDialog } from '@/lib/confirm-dialog';
 import { safeLocalStorage } from '@/lib/storage';
 import { Search, ShieldAlert, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
+import { performLogout } from '@/lib/logout';
 
 interface DiagResult {
   domainName: string;
@@ -92,7 +93,7 @@ export default function RcDiagnosticPage() {
   );
 
   return (
-    <AdminLayout user={user || { firstName: 'Admin', lastName: '', email: '', role: 'admin' }} onLogout={() => { window.location.href = '/login'; }}>
+    <AdminLayout user={user || { firstName: 'Admin', lastName: '', email: '', role: 'admin' }} onLogout={performLogout}>
       <div className="space-y-6">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-amber-50 rounded-xl"><ShieldAlert className="h-5 w-5 text-amber-600" /></div>

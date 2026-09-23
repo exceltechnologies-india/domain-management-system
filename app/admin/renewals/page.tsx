@@ -22,6 +22,7 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import RefreshButton from "@/components/dashboard/RefreshButton";
 import { apiClient } from "@/lib/api-client";
 import { safeLocalStorage } from "@/lib/storage";
+import { performLogout } from '@/lib/logout';
 import {
   Loader2, ExternalLink, CalendarClock, Repeat, CreditCard, Clock, Layers, AlertTriangle,
 } from "lucide-react";
@@ -163,7 +164,7 @@ export default function AdminRenewalsPage() {
   return (
     <AdminLayout
       user={currentUser || { firstName: "Admin", lastName: "", email: "", role: "admin" }}
-      onLogout={() => { window.location.href = "/login"; }}
+      onLogout={performLogout}
     >
       <div className="space-y-6">
         {/* ── Page header ── */}

@@ -95,6 +95,41 @@ describe("the route layout exists at all", () => {
     expect(src).toMatch(/AdminShellContext\.Provider\s+value=\{true\}/);
   });
 
+  it("no admin page hand-rolls its own logout", async () => {
+    /**
+     * Five pages passed `onLogout={() => { window.location.href = "/login" }}`.
+     * That navigates WITHOUT clearing the NextAuth session or storage, which
+     * `performLogout` does — so if it ever ran, the operator would land on
+     * /login still authenticated.
+     *
+     * It never ran: inside the shell AdminLayout returns only its children, so
+     * a page's onLogout is dead, and the shell passes the real one. That is
+     * what made it survive — wrong AND unreachable, indistinguishable from
+     * live code, exactly like the dark-blue skeleton chrome deleted above.
+     *
+     * Kept as a scan rather than left to review because the props are dead:
+     * nothing renders them, so no component test can see one go wrong again.
+     */
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const walk = (dir: string): string[] =>
+      fs.readdirSync(dir).flatMap((e) => {
+        const f = path.join(dir, e);
+        return fs.statSync(f).isDirectory() ? walk(f) : f.endsWith(".tsx") ? [f] : [];
+      });
+    const pages = walk("app/admin");
+    expect(pages.length).toBeGreaterThan(15);
+
+    const offenders = pages.filter((f) =>
+      /onLogout=\{\(\)\s*=>/.test(fs.readFileSync(f, "utf8"))
+    );
+    expect(
+      offenders,
+      "pass performLogout (or a handler that calls it) — an inline navigation " +
+        "leaves the NextAuth session and localStorage intact."
+    ).toEqual([]);
+  });
+
   it("no admin page renders a shell skeleton of its own any more", async () => {
     /**
      * This replaces the two AdminLayoutSkeleton tests that were deleted, and

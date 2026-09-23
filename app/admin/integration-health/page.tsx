@@ -23,6 +23,7 @@ import RefreshButton from '@/components/dashboard/RefreshButton';
 import { apiClient } from '@/lib/api-client';
 import { formatIndianDateTime } from '@/lib/dateUtils';
 import { safeLocalStorage } from '@/lib/storage';
+import { performLogout } from '@/lib/logout';
 
 interface AffectedOrder {
   orderId: string;
@@ -147,7 +148,7 @@ export default function IntegrationHealthPage() {
   ];
 
   return (
-    <AdminLayout user={currentUser || { firstName: 'Admin', lastName: '', email: '', role: 'admin' }} onLogout={() => { window.location.href = '/login'; }}>
+    <AdminLayout user={currentUser || { firstName: 'Admin', lastName: '', email: '', role: 'admin' }} onLogout={performLogout}>
       <div className="space-y-6">
         {/* ── Page header ── */}
         <div className="flex items-start sm:items-center justify-between flex-col sm:flex-row gap-3 sm:gap-0">
