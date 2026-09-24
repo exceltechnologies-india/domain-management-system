@@ -121,6 +121,13 @@ says so — each waits for the owner's go-ahead.
 - **`tokens-charge-recurring` is to be paused in Cloud Scheduler** — the owner will run
   `gcloud scheduler jobs pause tokens-charge-recurring --location=asia-south1 --project=speedy-unison-453807-e9`.
   Until then the code gate (`DMS_TOKEN_RECURRING_ENABLED`) keeps it from charging anyone.
+- **Decisions 19–21 (the ResellerOS site cart), 24 Sep 2026.** ResellerOS now charges a domain
+  at the LIVE ResellerClub price, re-checked at payment, and writes one provisioning request per
+  product, each domain row carrying the exact name. The owner chose **automatic registration
+  after payment** (decision 21, against the recommendation of staff registering). It is the
+  next build: it will reach this repo as the engine's `domain.register` command, behind a
+  switch that stays OFF until the owner approves a first real registration. `LIVE_COMMANDS_ENABLED`
+  and the spend-control question in ResellerOS `Todos.md` §0.1 still apply to it.
 
 ## Zoho Books removed — our GST engine is the only invoice issuer (OWNER DECISION, 24 Sep 2026)
 
