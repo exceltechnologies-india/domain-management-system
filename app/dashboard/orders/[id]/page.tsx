@@ -53,7 +53,8 @@ interface Order {
   domains: OrderDomain[];
   successfulDomains: string[];
   invoiceNumber?: string;
-  zohoInvoiceId?: string;
+  /** Set once an invoice has been issued (our engine, or historically Zoho). */
+  invoiceProvider?: 'primary' | 'zoho';
   createdAt: string;
   updatedAt: string;
 }
@@ -360,9 +361,9 @@ export default function OrderStatusPage() {
                   <p className="text-xs text-ink-4 mb-0.5">Invoice</p>
                   <div className="flex items-center gap-1.5">
                     <p className="font-mono font-medium text-ink-2 text-xs">{order.invoiceNumber}</p>
-                    {order.zohoInvoiceId && !['pending_creation', 'creation_failed'].includes(order.zohoInvoiceId) && (
+                    {order.invoiceProvider && (
                       <Link
-                        href={`/dashboard/invoices/${order.zohoInvoiceId}`}
+                        href={`/dashboard/invoices/${order.orderId}/view`}
                         className="text-amber-ink hover:text-amber-ink"
                         title="View invoice"
                       >

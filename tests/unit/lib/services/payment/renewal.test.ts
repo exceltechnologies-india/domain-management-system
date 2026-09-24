@@ -11,19 +11,19 @@
  *  - **Invoice creation branch** (no existing invoiceId): builds
  *    cartItems from renewalOrder.domains with periodUnit defaulting
  *    to 'months' for hosting / 'years' for domain, and delegates to
- *    `createPrimaryInvoice` (Primary Billing Integration Phase 1c-2) —
- *    the chokepoint that tries the primary GST engine first and falls
- *    back to Zoho on failure. This is the SAME chokepoint
+ *    `createPrimaryInvoice` — our own GST engine, the only issuer since
+ *    Zoho Books was removed on 24 Sep 2026. This is the SAME chokepoint
  *    `/api/payments/verify` uses; its own decision logic is covered by
  *    tests/unit/lib/services/billing/createPrimaryInvoice.test.ts, so
  *    this suite only pins that renewal.ts calls it with the right
  *    context and reacts correctly to its result. A throw is SWALLOWED
- *    (renewal still proceeds — payment captured).
- *  - **Existing invoiceId branch** (notes.invoice_id present): applies
- *    payment to the existing invoice via applyPaymentToInvoice (still
- *    Zoho-direct — no primary-engine equivalent for "pay an existing
- *    pre-issued invoice" yet); amount converted from paise to rupees
- *    via Math.round/100
+ *    (renewal still proceeds — payment captured) but NOT silent: the
+ *    renewal order is flagged with markInvoiceCreationFailed so
+ *    lib/invoice-retry and integration-health can see it.
+ *  - **Legacy notes.invoice_id** (used to mean "customer paid an existing
+ *    Zoho invoice"): with a renewal order, the order is invoiced like any
+ *    other renewal; with no renewal order, nothing is invoiced and a
+ *    warning names the payment for a human to check.
  *  - **Hosting reactivation pre-fetches ALL user hostings once** + maps
  *    by domainName (O(N+M) instead of N round-trips per item)
  *  - daUnsuspendUser only called when status is 'expired' OR 'suspended'
@@ -52,26 +52,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const getOrderByRazorpayOrderId = vi.hoisted(() => vi.fn());
 const getOrderByOrderId = vi.hoisted(() => vi.fn());
+const markInvoiceCreationFailed = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/orders", () => ({
   getOrderByRazorpayOrderId,
   getOrderByOrderId,
+  markInvoiceCreationFailed,
 }));
 
 const listHostingsForUser = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/hostings", () => ({ listHostingsForUser }));
 
-// applyPaymentToInvoice stays Zoho-direct — renewal.ts's "pay an existing
-// pre-issued invoice" branch has no primary-engine equivalent yet.
-const applyPaymentToInvoice = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/zohobooks", () => ({
-  ZohoBooksService: {
-    getInstance: () => ({ applyPaymentToInvoice }),
-  },
-}));
-
 // createPrimaryInvoice is the chokepoint renewal.ts now calls for the
-// create-a-new-invoice branch (Phase 1c-2). Its own decision logic (flag
-// check, zero-amount skip, fallback-to-Zoho) is covered by
+// renewal invoice. Its own decision logic (zero-amount skip, claim,
+// throw-on-failure) is covered by
 // createPrimaryInvoice.test.ts — this suite just pins that renewal.ts calls
 // it correctly and reacts correctly to {invoiceId, invoiceNumber}.
 const createPrimaryInvoice = vi.hoisted(() => vi.fn());
@@ -97,9 +90,8 @@ vi.mock("@/lib/email", () => ({
 const getCurrentDate = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/dateUtils", () => ({ getCurrentDate }));
 
-vi.mock("@/lib/server-logger", () => ({
-  serverLogger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
-}));
+const serverLogger = vi.hoisted(() => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn() }));
+vi.mock("@/lib/server-logger", () => ({ serverLogger }));
 
 vi.unmock("next/server");
 const { NextResponse } = await vi.importActual<typeof import("next/server")>(
@@ -121,7 +113,8 @@ beforeEach(() => {
     invoiceId: "INV",
     invoiceNumber: "INV-NUM",
   });
-  applyPaymentToInvoice.mockReset();
+  markInvoiceCreationFailed.mockReset().mockResolvedValue(undefined);
+  serverLogger.warn.mockReset();
   daUnsuspendUser.mockReset();
   sendHostingProvisionedEmail.mockReset();
   sendHostingProvisionedEmail.mockResolvedValue(undefined);
@@ -253,7 +246,7 @@ describe("handleRenewalPayment — invoice handling", () => {
     expect(cartItems[1].periodUnit).toBe("years");
   });
 
-  it("createPrimaryInvoice throw SWALLOWED — flow continues to reactivation", async () => {
+  it("createPrimaryInvoice throw SWALLOWED — flow continues to reactivation, and the order is FLAGGED", async () => {
     const order = {
       _id: "O1",
       orderId: "rnw_42",
@@ -262,32 +255,72 @@ describe("handleRenewalPayment — invoice handling", () => {
       save: vi.fn().mockResolvedValue(undefined),
     };
     getOrderByRazorpayOrderId.mockResolvedValueOnce(order);
-    createPrimaryInvoice.mockRejectedValueOnce(new Error("both engines down"));
+    createPrimaryInvoice.mockRejectedValueOnce(new Error("COMPANY_STATE is not configured"));
     listHostingsForUser.mockResolvedValueOnce([]);
     const result = await handleRenewalPayment(makeCtx("rnw_42"));
     expect(result).not.toBeNull();
     const body = await result!.json();
     expect(body.success).toBe(true);
+    // Swallowed, not silent: the failure is recorded on the renewal order.
+    expect(markInvoiceCreationFailed).toHaveBeenCalledTimes(1);
+    expect(markInvoiceCreationFailed).toHaveBeenCalledWith("O1", "COMPANY_STATE is not configured");
   });
 
-  it("existing invoice_id in notes: applies payment + amount converted paise→rupees; createPrimaryInvoice NOT called", async () => {
+  it("a failing failure-flag write does not break the renewal either", async () => {
     getOrderByRazorpayOrderId.mockResolvedValueOnce({
       _id: "O1",
       orderId: "rnw_42",
       domains: [],
       save: vi.fn().mockResolvedValue(undefined),
     });
-    applyPaymentToInvoice.mockResolvedValueOnce(true);
+    createPrimaryInvoice.mockRejectedValueOnce(new Error("engine down"));
+    markInvoiceCreationFailed.mockRejectedValueOnce(new Error("mongo down"));
+    listHostingsForUser.mockResolvedValueOnce([]);
+    const result = await handleRenewalPayment(makeCtx("rnw_42"));
+    expect(result!.status).toBe(200);
+    expect((await result!.json()).success).toBe(true);
+  });
+
+  it("successful invoice → no failure flag written", async () => {
+    getOrderByRazorpayOrderId.mockResolvedValueOnce({
+      _id: "O1",
+      orderId: "rnw_42",
+      domains: [],
+      save: vi.fn().mockResolvedValue(undefined),
+    });
+    listHostingsForUser.mockResolvedValueOnce([]);
+    await handleRenewalPayment(makeCtx("rnw_42"));
+    expect(createPrimaryInvoice).toHaveBeenCalledTimes(1);
+    expect(markInvoiceCreationFailed).not.toHaveBeenCalled();
+  });
+
+  it("legacy notes.invoice_id WITH a renewal order → the renewal order is invoiced by our engine", async () => {
+    const order = {
+      _id: "O1",
+      orderId: "rnw_42",
+      domains: [],
+      save: vi.fn().mockResolvedValue(undefined),
+    };
+    getOrderByRazorpayOrderId.mockResolvedValueOnce(order);
     listHostingsForUser.mockResolvedValueOnce([]);
     await handleRenewalPayment(makeCtx("rnw_42", { invoice_id: "INV_EXISTING" }));
-    // paymentDetails.amount = 50000 paise → 500 rupees
-    expect(applyPaymentToInvoice).toHaveBeenCalledWith(
-      "INV_EXISTING",
-      500,
-      "Razorpay",
-      "pay_xyz"
-    );
+    expect(createPrimaryInvoice).toHaveBeenCalledTimes(1);
+    expect(createPrimaryInvoice.mock.calls[0][0].order).toBe(order);
+    expect(serverLogger.warn).not.toHaveBeenCalled();
+  });
+
+  it("legacy notes.invoice_id with NO renewal order → nothing invoiced, a warning names the payment and the legacy id", async () => {
+    getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
+    getOrderByOrderId.mockResolvedValueOnce(null);
+    listHostingsForUser.mockResolvedValueOnce([]);
+    const result = await handleRenewalPayment(makeCtx("rnw_42", { invoice_id: "INV_EXISTING" }));
+    expect(result!.status).toBe(200);
     expect(createPrimaryInvoice).not.toHaveBeenCalled();
+    expect(markInvoiceCreationFailed).not.toHaveBeenCalled();
+    const warned = serverLogger.warn.mock.calls.map((c) => String(c[0])).join(" ");
+    expect(warned).toContain("pay_xyz");
+    expect(warned).toContain("INV_EXISTING");
+    expect(warned).toContain("nothing was invoiced");
   });
 });
 

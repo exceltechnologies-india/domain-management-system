@@ -9,8 +9,8 @@ import type { IOrder } from "@/models/Order";
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import { DirectAdminService } from "@/lib/directadmin";
 import { HOSTING_PLANS } from "@/config/hosting-plans";
-// ZohoBooksService is intentionally NOT imported here.
-// Zoho invoices are created only after successful payment (in /api/payments/verify).
+// No invoice is issued here — invoices are issued only after a successful
+// payment (in /api/payments/verify and the renewal paths).
 import { EmailService } from "@/lib/email";
 import { WhatsAppService } from "@/lib/whatsapp";
 import { validatedBody, z } from "@/lib/api-validation";
@@ -61,10 +61,9 @@ export async function POST(request: NextRequest) {
         }
 
         // B. Create Pending Renewal Order & Send Notification
-        // NOTE: We do NOT create a Zoho Books invoice here.
-        // The invoice will be created (and immediately marked paid) only after
-        // the user completes the renewal payment. This avoids a "due invoice"
-        // appearing in Zoho Books before the user has paid anything.
+        // NOTE: We do NOT issue an invoice here. The tax invoice is issued only
+        // after the user completes the renewal payment, so no "due invoice"
+        // exists for money nobody has paid yet.
         const user = await getUserById(String(hosting.userId));
         
         if (user) {

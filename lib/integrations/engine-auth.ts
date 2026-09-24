@@ -38,7 +38,7 @@
  * An unset or empty env var returns false, so a misconfigured deployment
  * refuses every request rather than serving them unauthenticated. This is the
  * opposite of the usual "unset means default on" convention used by the feature
- * flags in this repo (`lib/reseller-flag.ts`, `lib/zoho-fallback-flag.ts`) —
+ * flags in this repo (`lib/reseller-flag.ts`) —
  * deliberately, because those gate a behaviour and this gates a door.
  *
  * ─── CONSTANT TIME ───────────────────────────────────────────────────────────

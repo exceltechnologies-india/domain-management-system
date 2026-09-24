@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import { serverLogger } from "@/lib/server-logger";
 import { isHostingItem } from "@/lib/billing";
-import { getOrderByRazorpayPaymentId } from "@/lib/services/orders";
+import { getOrderByRazorpayPaymentId, markInvoiceCreationFailed } from "@/lib/services/orders";
 import { createPrimaryInvoice } from "@/lib/services/billing/createPrimaryInvoice";
 import type { CartItem, RazorpayPaymentDetails } from "@/lib/types";
 import type { IUser } from "@/models/User";
@@ -41,7 +41,7 @@ export async function handleAlreadyProcessedPayment(
 
   // F13: Replace client-supplied cart items with the trusted DB order domains.
   // The order's domain rows aren't strictly typed as CartItem (extra registrar
-  // metadata, no min-period field) but the downstream Zoho-invoice path reads
+  // metadata, no min-period field) but the downstream invoice path reads
   // a compatible projection — narrow via `unknown` so the same code handles
   // both shapes without a runtime change.
   let resolvedCartItems: CartItem[] = cartItems;
@@ -81,17 +81,14 @@ export async function handleAlreadyProcessedPayment(
     existingOrder.orderId
   );
 
-  // Zoho Books recovery — ensure the invoice exists even on duplicate calls.
+  // Invoice recovery — ensure the invoice exists even on duplicate calls.
   //
-  // TRIAL / ZERO-AMOUNT GUARD (mirrors createZohoInvoice in post-tasks.ts):
-  // this recovery path calls zohoService.createInvoice DIRECTLY, so the guard
-  // in createZohoInvoice does NOT cover it. Without this check a ₹0 trial
-  // order (orderType='hosting_trial') that gets a duplicate /verify call —
-  // e.g. the payment-success page firing /verify after the tokens webhook has
-  // already completed the order — creates a bogus tax invoice for a free
-  // trial (Zoho coerces the ₹0 line to a ₹1 minimum). See CLAUDE.md "Trial
-  // order invoice policy" + the `project_trial_no_invoice` memory. The first
-  // real invoice fires at day-15 conversion via the renewal flow.
+  // TRIAL / ZERO-AMOUNT GUARD: createPrimaryInvoice has the same guard; this
+  // copy returns early so a duplicate /verify on a ₹0 trial order (e.g. the
+  // payment-success page firing /verify after the tokens webhook has already
+  // completed the order) never even builds an invoice payload. See CLAUDE.md
+  // "Trial order invoice policy" + the `project_trial_no_invoice` memory. The
+  // first real invoice fires at day-15 conversion via the renewal flow.
   const _amt = existingOrder.amount;
   if (!_amt || _amt <= 0 || existingOrder.orderType === "hosting_trial") {
     serverLogger.info(
@@ -114,10 +111,9 @@ export async function handleAlreadyProcessedPayment(
   }
 
   try {
-    // Covers BOTH engines — an order with a primary-issued invoice has no
-    // zohoInvoiceId at all, so checking that field alone would have this
-    // recovery path attempt (and duplicate) an invoice that already exists.
-    const hasInvoice = existingOrder.zohoInvoiceId || existingOrder.invoiceProvider;
+    // Any `invoiceProvider` — our engine's, or a historical Zoho one — means
+    // an invoice already exists and this recovery must not issue another.
+    const hasInvoice = existingOrder.invoiceProvider;
     if (hasInvoice) {
       serverLogger.info(
         `⏭️ [PAYMENT-VERIFY] Invoice already exists for order ${existingOrder.orderId}: ${existingOrder.invoiceNumber}. Skipping.`
@@ -143,7 +139,7 @@ export async function handleAlreadyProcessedPayment(
 
       // staleClaimAfterMs: this recovery path exists specifically because a
       // prior /verify call may have crashed mid-claim — without it, a
-      // genuinely stuck "pending_creation"/primary claim would block this
+      // genuinely stuck claim would block this
       // recovery attempt forever instead of being the thing that unsticks it.
       await createPrimaryInvoice(
         {
@@ -162,11 +158,17 @@ export async function handleAlreadyProcessedPayment(
         { claimOptions: { staleClaimAfterMs: 5 * 60 * 1000 } }
       );
     }
-  } catch (zohoError) {
+  } catch (invoiceError) {
     serverLogger.error(
-      "❌ [PAYMENT-VERIFY] Invoice Sync Failed (Recovery):",
-      zohoError
+      "❌ [PAYMENT-VERIFY] Invoice creation failed (Recovery):",
+      invoiceError
     );
+    // Flag it so the order stays visible to lib/invoice-retry and admin
+    // integration-health — a swallowed failure must not also be a silent one.
+    await markInvoiceCreationFailed(
+      existingOrder._id,
+      invoiceError instanceof Error ? invoiceError.message : String(invoiceError)
+    ).catch(() => {});
   }
 
   return NextResponse.json({

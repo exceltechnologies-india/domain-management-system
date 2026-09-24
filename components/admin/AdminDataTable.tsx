@@ -31,7 +31,7 @@ export interface AdminDataTableProps<T = unknown> {
   //
   // `totalItems` is for sources that genuinely KNOW their row count (our own
   // Mongo-backed lists return one). Leave it undefined for a cursor-paginated
-  // source that only knows whether another page exists — e.g. Zoho Books,
+  // source that only knows whether another page exists — e.g. an external API,
   // whose page_context carries `has_more_page` and only sometimes `total` —
   // and pass `hasMore` instead. The pager then shows an honest
   // "Showing 1 to 10" with Prev/Next rather than inventing a total.

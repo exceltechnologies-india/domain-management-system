@@ -1,6 +1,6 @@
 /**
  * Tests for `@/lib/services/orders` writer + remaining-readers subset
- * (rescan-4 slice 7ex). Covers what orders-zoho-claim.test.ts and
+ * (rescan-4 slice 7ex). Covers what orders-invoice-failure.test.ts and
  * orders-readers.test.ts don't:
  *  - listOrdersForUser pagination + populateUser + select; limit≤0
  *    returns all
@@ -15,11 +15,8 @@
  *    payment.order_id is null; isMonthly drives registrationPeriod
  *    (1/12) + periodUnit (months/years); razorpaySignature pinned to
  *    'webhook_verified' literal (audit trail marker)
- *  - forceMarkZohoCreationFailed: unconditional $set (no
- *    pending_creation guard — used from the catch-block where prior
- *    state is indeterminate)
- *  - listStuckZohoInvoiceOrders (user-scoped): filter + StuckZohoInvoiceOrder
- *    projection
+ *  - (the invoice-failure writers/readers — markInvoiceCreationFailed,
+ *    listFailedInvoiceOrders — live in orders-invoice-failure.test.ts)
  *  - listAllOrdersForAdminDomains excludes 'pending' (checkout intents
  *    not in admin-domain view)
  *  - userHasPriorTrialOrder uses Order.exists (cheap existence)
@@ -76,8 +73,6 @@ import {
   createOrder,
   createOrderInSession,
   createRenewalOrder,
-  forceMarkZohoCreationFailed,
-  listStuckZohoInvoiceOrders,
   listAllOrdersForAdminDomains,
   userHasPriorTrialOrder,
   findPriorHostingOrderForUser,
@@ -312,41 +307,6 @@ describe("createRenewalOrder", () => {
   });
 });
 
-describe("forceMarkZohoCreationFailed", () => {
-  it("unconditional $set — no pending_creation guard", async () => {
-    Order.updateOne.mockResolvedValueOnce({});
-    await forceMarkZohoCreationFailed("O1");
-    const [filter, update] = Order.updateOne.mock.calls[0];
-    expect(filter).toEqual({ _id: "O1" });
-    // No zohoInvoiceId predicate — just _id.
-    expect(filter.zohoInvoiceId).toBeUndefined();
-    expect(update).toEqual({ $set: { zohoInvoiceId: "creation_failed" } });
-  });
-});
-
-describe("listStuckZohoInvoiceOrders (user-scoped)", () => {
-  it("user-scoped filter + $or of 5 unclaimed forms + slim projection + lean", async () => {
-    const lean = vi.fn().mockResolvedValueOnce([]);
-    const select = vi.fn().mockReturnValue({ lean });
-    Order.find.mockReturnValueOnce({ select });
-    await listStuckZohoInvoiceOrders("USER_ID");
-    const [filter] = Order.find.mock.calls[0];
-    expect(filter.userId).toBe("USER_ID");
-    expect(filter.status.$in).toEqual(["completed", "paid"]);
-    expect(filter.isDeleted).toEqual({ $ne: true });
-    // 4 forms here (vs 5 in admin variant): not-exists / null / empty
-    // / creation_failed. The user-scoped path INTENTIONALLY excludes
-    // 'pending_creation' — in-flight claim is not "stuck" yet for the
-    // user's own retry UI.
-    expect(filter.$or).toEqual([
-      { zohoInvoiceId: { $exists: false } },
-      { zohoInvoiceId: null },
-      { zohoInvoiceId: "" },
-      { zohoInvoiceId: "creation_failed" },
-    ]);
-  });
-});
-
 describe("listAllOrdersForAdminDomains", () => {
   it("excludes 'pending' + populates owner + sort createdAt:-1 + lean", async () => {
     const lean = vi.fn().mockResolvedValueOnce([]);
@@ -437,11 +397,10 @@ describe("listUserInvoiceOrders", () => {
     expect(filter.invoiceNumber).toEqual({ $exists: true, $ne: null });
     expect(filter.isDeleted).toEqual({ $ne: true });
     expect(filter.status).toEqual({ $ne: "pending" });
-    // orderId + invoiceProvider were added 2026-09-02 so the invoice list can
-    // render a primary-engine tax invoice (no zohoInvoiceId) and link its PDF
-    // via the orderId-keyed route.
+    // orderId links the PDF via the orderId-keyed route; invoiceProvider and
+    // invoiceFailedAt let the list tell "issued" from "failed, retrying".
     expect(select).toHaveBeenCalledWith(
-      "orderId invoiceNumber zohoInvoiceId invoiceProvider amount currency status createdAt"
+      "orderId invoiceNumber invoiceProvider invoiceFailedAt amount currency status createdAt"
     );
   });
 });

@@ -1,7 +1,8 @@
 /**
  * Component tests for <StuckOrdersTable> (rescan-4 M14).
  * Pins the empty-render-nothing behaviour, the per-row identifying fields
- * (orderId, user, amount, zohoInvoiceId vs "missing"), the Re-sync row
+ * (orderId, user, amount, and the "Last error" column: invoiceFailureReason
+ * verbatim, truncated past 60 chars, or "no attempt recorded"), the Re-sync row
  * callback, the Re-sync-all visibility gate (only when there's > 1 stuck
  * order), the bulkProgress progress bar + counts + label, and the
  * pendingId/bulkProgress disable rules on the row + bulk buttons.
@@ -29,8 +30,25 @@ const stuckTwo: OrderSlim = {
   userEmail: "bob@example.com",
   status: "paid",
   amount: 2000,
-  zohoInvoiceId: "zoho-already-set",
+  invoiceFailedAt: "2025-02-01T10:05:00Z",
+  invoiceFailureReason: "GSTIN missing on company profile",
   createdAt: "2025-02-01T10:00:00Z",
+};
+
+/** 74 characters — past the 60-char cut-off. */
+const LONG_REASON =
+  "Invoice number series exhausted for FY 2025-26; widen the series and retry";
+
+const stuckLong: OrderSlim = {
+  _id: "o3",
+  orderId: "ord-3",
+  userName: "Carol",
+  userEmail: "carol@example.com",
+  status: "paid",
+  amount: 500,
+  invoiceFailedAt: "2025-03-01T10:05:00Z",
+  invoiceFailureReason: LONG_REASON,
+  createdAt: "2025-03-01T10:00:00Z",
 };
 
 describe("<StuckOrdersTable>", () => {
@@ -47,7 +65,22 @@ describe("<StuckOrdersTable>", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("renders identifying fields with 'missing' when there's no zohoInvoiceId", () => {
+  it("names the section for what it is — paid orders with no invoice, not a Zoho sync", () => {
+    render(
+      <StuckOrdersTable
+        stuckOrders={[stuckOne]}
+        pendingId={null}
+        bulkProgress={null}
+        onResync={vi.fn()}
+        onResyncAll={vi.fn()}
+      />
+    );
+    expect(screen.getByRole("heading", { name: "Paid orders without an invoice" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Last error" })).toBeInTheDocument();
+    expect(screen.queryByText(/zoho/i)).not.toBeInTheDocument();
+  });
+
+  it("renders identifying fields and 'no attempt recorded' when no failure is on file", () => {
     render(
       <StuckOrdersTable
         stuckOrders={[stuckOne]}
@@ -60,10 +93,10 @@ describe("<StuckOrdersTable>", () => {
     expect(screen.getByText("ord-1")).toBeInTheDocument();
     expect(screen.getByText("Alice")).toBeInTheDocument();
     expect(screen.getByText("₹1,180")).toBeInTheDocument();
-    expect(screen.getByText(/missing/i)).toBeInTheDocument();
+    expect(screen.getByText("no attempt recorded")).toBeInTheDocument();
   });
 
-  it("renders zohoInvoiceId verbatim when present", () => {
+  it("renders a short invoiceFailureReason verbatim", () => {
     render(
       <StuckOrdersTable
         stuckOrders={[stuckTwo]}
@@ -73,7 +106,23 @@ describe("<StuckOrdersTable>", () => {
         onResyncAll={vi.fn()}
       />
     );
-    expect(screen.getByText("zoho-already-set")).toBeInTheDocument();
+    expect(screen.getByText("GSTIN missing on company profile")).toBeInTheDocument();
+    expect(screen.queryByText("no attempt recorded")).not.toBeInTheDocument();
+  });
+
+  it("truncates a reason over 60 chars and keeps the full text in the title", () => {
+    expect(LONG_REASON.length).toBeGreaterThan(60);
+    render(
+      <StuckOrdersTable
+        stuckOrders={[stuckLong]}
+        pendingId={null}
+        bulkProgress={null}
+        onResync={vi.fn()}
+        onResyncAll={vi.fn()}
+      />
+    );
+    const cell = screen.getByTitle(LONG_REASON);
+    expect(cell.textContent).toBe(`${LONG_REASON.slice(0, 58)}…`);
   });
 
   it("hides the 'Re-sync all' button when there's only one stuck order", () => {

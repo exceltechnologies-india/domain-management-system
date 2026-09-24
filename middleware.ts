@@ -48,7 +48,7 @@ const ADMIN_API_PREFIXES = ["/api/admin"];
 // serverLogger.error → /api/v1/admin/log-error forwarder (a no-cookie
 // server-to-self fetch) gets 403'd by the admin-API check before its own
 // validation can run — which is why client + server errors weren't reaching
-// the SystemLog collection on 2026-06-17 (Zoho invoice failure), 2026-06-18
+// the SystemLog collection on 2026-06-17 (an invoice failure), 2026-06-18
 // (paymentVerification subdoc + linkedDomain saves), or 2026-06-19 (admin
 // dashboard render error). Each entry must match the post-/api/v1 strip
 // (classificationPath) so it applies to both /api/admin/X and

@@ -164,15 +164,6 @@ export interface RazorpayPlan {
   created_at: number;
 }
 
-export interface ZohoInvoice {
-  invoice_id: string;
-  invoice_number: string;
-  status: string;
-  total: number;
-  balance: number;
-  [key: string]: unknown;
-}
-
 export interface DomainSearchResult {
   domainName: string;
   available: boolean;

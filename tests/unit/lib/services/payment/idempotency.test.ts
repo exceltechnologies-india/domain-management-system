@@ -11,20 +11,22 @@
  *  - **F13 trust-DB-cart override**: when existingOrder.domains is
  *    non-empty, the trusted DB rows REPLACE the client-supplied cartItems
  *    (defense vs client-tampered cart on a re-fired verify)
- *  - **Fast-path skip covers BOTH engines**: an order with EITHER
- *    `zohoInvoiceId` OR `invoiceProvider` already set skips invoice
- *    recovery entirely — checking `zohoInvoiceId` alone would have this
- *    recovery path attempt (and duplicate) a primary-issued invoice, which
- *    has no `zohoInvoiceId` at all.
+ *  - **Fast-path skip keys on `invoiceProvider`**: ANY value — 'primary',
+ *    or the historical 'zoho' that migration 009 stamped on orders
+ *    Zoho Books invoiced before it was removed (24 Sep 2026) — skips
+ *    invoice recovery entirely, so a re-fired verify can never issue a
+ *    second tax invoice for the same payment.
  *  - Recovery branch delegates to `createPrimaryInvoice` (the same
  *    chokepoint `/api/payments/verify` uses) with
  *    `claimOptions:{staleClaimAfterMs:5*60*1000}` — allows a 5-minute-old
  *    stalled claim to be re-stolen by this recovery attempt. The
- *    chokepoint's own decision logic (flag check, fallback-to-Zoho, claim
- *    atomicity) is covered by createPrimaryInvoice.test.ts; this suite only
+ *    chokepoint's own decision logic (zero-amount skip, claim atomicity,
+ *    throw-on-failure) is covered by createPrimaryInvoice.test.ts; this suite only
  *    pins that idempotency.ts calls it correctly and tolerates its failure.
- *  - createPrimaryInvoice throw → swallowed by the outer try/catch (Zoho/
- *    primary failure NEVER blocks the already-processed response)
+ *  - createPrimaryInvoice throw → swallowed by the outer try/catch (an
+ *    invoice failure NEVER blocks the already-processed response) but
+ *    recorded with markInvoiceCreationFailed so the order stays visible to
+ *    lib/invoice-retry and integration-health
  *  - TRIAL/ZERO-AMOUNT GUARD (idempotency.ts's OWN early return, before the
  *    recovery branch is even entered) → NO createPrimaryInvoice call
  */
@@ -43,12 +45,14 @@ const isHostingItem = vi.hoisted(() =>
 vi.mock("@/lib/billing", () => ({ isHostingItem }));
 
 const getOrderByRazorpayPaymentId = vi.hoisted(() => vi.fn());
+const markInvoiceCreationFailed = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/orders", () => ({
   getOrderByRazorpayPaymentId,
+  markInvoiceCreationFailed,
 }));
 
 // createPrimaryInvoice is the chokepoint idempotency.ts now delegates
-// invoice recovery to (Phase 1c-2) — its own claim/retry/fallback logic is
+// invoice recovery to — its own claim / zero-amount / throw logic is
 // covered by createPrimaryInvoice.test.ts.
 const createPrimaryInvoice = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/billing/createPrimaryInvoice", () => ({
@@ -69,6 +73,7 @@ beforeEach(() => {
   getPlanByPlanId.mockReset();
   isHostingItem.mockClear();
   getOrderByRazorpayPaymentId.mockReset();
+  markInvoiceCreationFailed.mockReset().mockResolvedValue(undefined);
   createPrimaryInvoice.mockReset().mockResolvedValue({
     invoiceId: "INV",
     invoiceNumber: "INV-NUM",
@@ -101,12 +106,14 @@ describe("handleAlreadyProcessedPayment — early-return null (new payment)", ()
 });
 
 describe("handleAlreadyProcessedPayment — happy idempotent response", () => {
-  it("existingOrder with zohoInvoiceId already set → fast-path: NO createPrimaryInvoice call", async () => {
+  it("existingOrder with HISTORICAL invoiceProvider:'zoho' → fast-path: NO createPrimaryInvoice call (no second tax invoice)", async () => {
     const order = {
       _id: "ORD_DOC",
       orderId: "ORD_42",
       invoiceNumber: "INV-1",
-      zohoInvoiceId: "ZOHO_INV_1",
+      amount: 50000, // paid, invoiceable — only invoiceProvider stops recovery
+      orderType: "domain",
+      invoiceProvider: "zoho",
       domains: [
         { domainName: "x.com", status: "registered", orderId: "rc_1" },
       ],
@@ -124,13 +131,14 @@ describe("handleAlreadyProcessedPayment — happy idempotent response", () => {
     expect(body.successfulDomains).toEqual(["x.com"]);
   });
 
-  it("existingOrder with invoiceProvider:'primary' already set (no zohoInvoiceId) → also fast-path skips", async () => {
+  it("existingOrder with invoiceProvider:'primary' already set → also fast-path skips", async () => {
     const order = {
       _id: "ORD_DOC",
       orderId: "ORD_42",
       invoiceNumber: "TI/2026-27/00001",
       invoiceProvider: "primary",
-      zohoInvoiceId: undefined,
+      amount: 50000,
+      orderType: "domain",
       domains: [
         { domainName: "x.com", status: "registered", orderId: "rc_1" },
       ],
@@ -149,7 +157,7 @@ describe("handleAlreadyProcessedPayment — happy idempotent response", () => {
       _id: "ORD_DOC",
       orderId: "ORD_42",
       invoiceNumber: "INV-1",
-      zohoInvoiceId: "ZOHO_INV_1",
+      invoiceProvider: "primary",
       domains: [
         { domainName: "x.com", status: "registered", orderId: "rc_1" },
         { domainName: "y.com", status: "failed", orderId: null, error: "bad TLD" },
@@ -173,7 +181,7 @@ describe("handleAlreadyProcessedPayment — happy idempotent response", () => {
       invoiceNumber: "INV-1",
       amount: 50000, // paid order → invoiceable (guard passes)
       orderType: "domain",
-      zohoInvoiceId: null, // forces recovery branch
+      // no invoiceProvider → forces recovery branch
       domains: [
         { itemType: "domain", domainName: "trusted.com", status: "registered" },
       ],
@@ -203,7 +211,7 @@ describe("handleAlreadyProcessedPayment — invoice recovery branch", () => {
     invoiceNumber: "INV-1",
     amount: 50000, // paid order → invoiceable (guard passes)
     orderType: "domain",
-    zohoInvoiceId: null,
+    // no invoiceProvider → not yet invoiced
     domains: [
       { itemType: "domain", domainName: "x.com", status: "registered" },
     ],
@@ -217,7 +225,7 @@ describe("handleAlreadyProcessedPayment — invoice recovery branch", () => {
       invoiceNumber: undefined,
       amount: 2, // ₹2 mandate-validation charge (refunded) — still a trial
       orderType: "hosting_trial",
-      zohoInvoiceId: null,
+      // no invoiceProvider → not yet invoiced
       domains: [
         { itemType: "hosting", domainName: "trial.com", status: "pending" },
       ],
@@ -238,7 +246,7 @@ describe("handleAlreadyProcessedPayment — invoice recovery branch", () => {
       orderId: "ORD_ZERO",
       amount: 0,
       orderType: "hosting",
-      zohoInvoiceId: null,
+      // no invoiceProvider → not yet invoiced
       domains: [{ itemType: "hosting", domainName: "z.com", status: "registered" }],
       successfulDomains: ["z.com"],
     };
@@ -258,14 +266,32 @@ describe("handleAlreadyProcessedPayment — invoice recovery branch", () => {
     expect(options).toEqual({ claimOptions: { staleClaimAfterMs: 5 * 60 * 1000 } });
   });
 
-  it("createPrimaryInvoice throw → swallowed by outer catch (response still 200)", async () => {
-    createPrimaryInvoice.mockRejectedValueOnce(new Error("both engines down"));
+  it("createPrimaryInvoice throw → swallowed by outer catch (response still 200) and the order FLAGGED", async () => {
+    createPrimaryInvoice.mockRejectedValueOnce(new Error("counter unreachable"));
     const result = await handleAlreadyProcessedPayment(
       makeCtx({ existingOrder: ORDER_NO_INVOICE })
     );
     expect(result).toBeInstanceOf(Response);
     const body = await (result as Response).json();
     expect(body.success).toBe(true);
+    expect(markInvoiceCreationFailed).toHaveBeenCalledTimes(1);
+    expect(markInvoiceCreationFailed).toHaveBeenCalledWith("ORD_DOC", "counter unreachable");
+  });
+
+  it("a failing failure-flag write is also swallowed — the already-processed response still returns", async () => {
+    createPrimaryInvoice.mockRejectedValueOnce(new Error("engine down"));
+    markInvoiceCreationFailed.mockRejectedValueOnce(new Error("mongo down"));
+    const result = await handleAlreadyProcessedPayment(
+      makeCtx({ existingOrder: ORDER_NO_INVOICE })
+    );
+    expect((result as Response).status).toBe(200);
+    expect((await (result as Response).json()).success).toBe(true);
+  });
+
+  it("successful recovery → no failure flag written", async () => {
+    await handleAlreadyProcessedPayment(makeCtx({ existingOrder: ORDER_NO_INVOICE }));
+    expect(createPrimaryInvoice).toHaveBeenCalledTimes(1);
+    expect(markInvoiceCreationFailed).not.toHaveBeenCalled();
   });
 
   it("hosting cart item: enriches name via getPlanByPlanId (best-effort, swallow plan errors) BEFORE calling createPrimaryInvoice", async () => {

@@ -10,7 +10,9 @@ export interface OrderSlim {
   status: string;
   amount: number;
   invoiceNumber?: string;
-  zohoInvoiceId?: string;
+  invoiceProvider?: string;
+  invoiceFailedAt?: string;
+  invoiceFailureReason?: string;
   razorpayPaymentId?: string;
   createdAt: string;
   isDeleted?: boolean;

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  FileText, Download, ExternalLink, AlertCircle, Eye, CheckCircle2,
+  FileText, Download, AlertCircle, Eye, CheckCircle2,
   Clock, Inbox, IndianRupee, Receipt,
 } from 'lucide-react';
 import useSWR from 'swr';
@@ -17,8 +17,6 @@ import { DashboardLayoutSkeleton, InvoicesPageSkeleton } from '@/components/skel
 import { formatIndianDate, formatIndianDateTime } from '@/lib/dateUtils';
 import RefreshButton from '@/components/dashboard/RefreshButton';
 import { logger } from '@/lib/logger';
-import { useRazorpayCheckout } from '@/components/RazorpayCheckoutFrame';
-import { razorpayThemeColor } from '@/lib/theme-color';
 
 interface Invoice {
   invoice_id: string;
@@ -31,23 +29,15 @@ interface Invoice {
   currency_code: string;
   invoice_url?: string;
   created_time?: string;
-  zoho_pending?: boolean;
-  /**
-   * Which engine issued the invoice. A 'primary' (own GST engine) invoice has
-   * NO `invoice_id` — that field only ever holds a Zoho id — so every action
-   * below must key off `order_id` instead for those rows. Without this the
-   * customer sees a paid invoice with no view/download action at all.
-   */
-  provider?: 'primary' | 'zoho';
+  /** Paid, but the invoice attempt failed — offer the retry pill. */
+  invoice_failed?: boolean;
   order_id?: string;
 }
 
 export default function InvoicesPage() {
   const { user, isLoading: isAuthLoading } = useUser();
   const router = useRouter();
-  const razorpay = useRazorpayCheckout();
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
   const {
@@ -65,79 +55,12 @@ export default function InvoicesPage() {
 
   // While any paid invoice is still being generated in the background, poll
   // every 30s so the user sees it appear without having to refresh manually.
-  const hasPendingInvoice = invoices.some((inv) => inv.zoho_pending);
+  const hasPendingInvoice = invoices.some((inv) => inv.invoice_failed);
   useEffect(() => {
     if (!hasPendingInvoice) return;
     const id = setInterval(() => { void mutate(); }, 30000);
     return () => clearInterval(id);
   }, [hasPendingInvoice, mutate]);
-
-  const handlePayNow = async (invoice: Invoice) => {
-    try {
-      setIsProcessingPayment(true);
-      const response = await fetch(`/api/v1/user/invoices/${invoice.invoice_id}/pay`, {
-        method: 'POST',
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to initiate payment');
-
-      let payment;
-      try {
-        payment = await razorpay.open({
-          key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
-          amount: data.amount * 100,
-          currency: data.currency,
-          name: "Anutech Digital",
-          description: `Payment for Invoice ${data.invoiceNumber}`,
-          order_id: data.razorpayOrderId,
-          prefill: {
-            email: user?.email,
-            name: `${user?.firstName} ${user?.lastName}`
-          },
-          theme: { color: razorpayThemeColor() }
-        });
-      } catch (err: unknown) {
-        if ((err as { kind?: string })?.kind === 'dismissed') {
-          setIsProcessingPayment(false);
-          return;
-        }
-        throw err;
-      }
-
-      try {
-        const verifyRes = await fetch('/api/v1/payments/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...payment,
-            orderId: data.orderId,
-            cartItems: [{
-              itemType: 'hosting',
-              price: data.amount,
-              currency: data.currency,
-              domainName: 'Invoice Renewal'
-            }]
-          })
-        });
-
-        if (verifyRes.ok) {
-          showSuccessToast('Payment successful! Services are being reactivated.');
-          void mutate();
-          router.push('/dashboard/hosting');
-        } else {
-          showErrorToast('Payment verified but service reactivation failed. Please contact support.');
-        }
-      } catch (err) {
-        showErrorToast('Failed to verify payment');
-      }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      showErrorToast(message);
-    } finally {
-      setIsProcessingPayment(false);
-    }
-  };
 
   const handleSyncNow = async () => {
     setIsSyncing(true);
@@ -162,20 +85,10 @@ export default function InvoicesPage() {
     setIsSyncing(false);
   };
 
-  const handleDownload = async (
-    invoiceId: string,
-    invoiceNumber: string,
-    // Primary-engine invoices have no Zoho id, so their PDF is served by the
-    // orderId-keyed route instead of the zohoInvoiceId-keyed one.
-    fromOrder = false
-  ) => {
+  const handleDownload = async (orderId: string, invoiceNumber: string) => {
     try {
-      setDownloadingId(invoiceId);
-      const response = await fetch(
-        fromOrder
-          ? `/api/v1/orders/${invoiceId}/invoice`
-          : `/api/v1/user/invoices/${invoiceId}/pdf`
-      );
+      setDownloadingId(orderId);
+      const response = await fetch(`/api/v1/orders/${orderId}/invoice`);
 
       if (response.ok) {
         const blob = await response.blob();
@@ -231,7 +144,6 @@ export default function InvoicesPage() {
 
   return (
     <UserLayout user={user} onLogout={performLogout}>
-      <razorpay.Frame />
       <div className="p-6 space-y-6">
 
         {/* ── Page header ── */}
@@ -328,13 +240,9 @@ export default function InvoicesPage() {
                   {invoices.map((invoice) => {
                     const statusCfg = getStatusCfg(invoice.status);
                     const StatusIcon = statusCfg.icon;
-                    const canPay = invoice.invoice_id && invoice.balance > 0 &&
-                      ['sent', 'open', 'overdue'].includes(invoice.status.toLowerCase());
-                    // A primary-engine invoice carries no Zoho id — its
-                    // document is addressed by order id instead. `docId` is
-                    // whichever identifier this row's actions should use.
-                    const isPrimary = invoice.provider === 'primary';
-                    const docId = invoice.invoice_id || (isPrimary ? invoice.order_id ?? '' : '');
+                    // `invoice_id` is the order id, and is set only once an
+                    // invoice has actually been issued.
+                    const docId = invoice.invoice_id;
                     const hasDocument = Boolean(docId);
                     return (
                       <tr
@@ -376,22 +284,11 @@ export default function InvoicesPage() {
                         {/* Actions */}
                         <td className="px-5 py-3.5 whitespace-nowrap text-right">
                           <div className="inline-flex items-center justify-end gap-1.5">
-                            {canPay && (
-                              <button
-                                onClick={() => handlePayNow(invoice)}
-                                disabled={downloadingId === invoice.invoice_id}
-                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-amber hover:brightness-90 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 shadow-sm"
-                                title="Pay Now"
-                              >
-                                <ExternalLink className="h-3.5 w-3.5" />
-                                Pay Now
-                              </button>
-                            )}
                             {hasDocument && (
                               <button
                                 onClick={() =>
                                   router.push(
-                                    `/dashboard/invoices/${docId}/view${isPrimary ? '?src=order' : ''}`
+                                    `/dashboard/invoices/${docId}/view`
                                   )
                                 }
                                 className="p-2.5 text-ink-4 hover:text-amber-ink hover:bg-indigo-soft rounded-lg transition-colors"
@@ -402,7 +299,7 @@ export default function InvoicesPage() {
                             )}
                             {hasDocument && (
                               <button
-                                onClick={() => handleDownload(docId, invoice.invoice_number, isPrimary)}
+                                onClick={() => handleDownload(docId, invoice.invoice_number)}
                                 disabled={downloadingId === docId}
                                 className="p-2.5 text-ink-4 hover:text-amber-ink hover:bg-indigo-soft rounded-lg transition-colors disabled:opacity-50"
                                 title="Download PDF"
@@ -414,18 +311,17 @@ export default function InvoicesPage() {
                                 )}
                               </button>
                             )}
-                            {/* Only a genuinely un-issued (Zoho-pending) invoice
-                                offers the retry pill. A primary invoice is
-                                already issued — showing "we're finalising the
-                                accounting invoice" there would be false, and
-                                clicking it would run the Zoho self-heal. */}
-                            {!hasDocument && invoice.zoho_pending && (
+                            {/* Only a paid order whose invoice attempt FAILED
+                                offers the retry pill. An issued invoice has a
+                                document — "we're finalising your invoice"
+                                there would be false. */}
+                            {!hasDocument && invoice.invoice_failed && (
                               <button
                                 type="button"
                                 onClick={handleSyncNow}
                                 disabled={isSyncing}
                                 className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 hover:border-amber-300 px-2.5 py-1 rounded-full transition-colors disabled:opacity-60 disabled:cursor-wait"
-                                title="Click to retry. Your payment is complete — we're finalising the accounting invoice."
+                                title="Click to retry. Your payment is complete — we're finalising your invoice."
                               >
                                 {isSyncing ? (
                                   <>
@@ -454,11 +350,11 @@ export default function InvoicesPage() {
           )}
         </div>
 
-        {/* ── Sync info banner ── */}
+        {/* ── Info banner ── */}
         <div className="flex items-start gap-3 p-4 bg-indigo-soft border border-indigo/25 rounded-2xl">
           <AlertCircle className="h-4 w-4 text-amber-ink mt-0.5 shrink-0" />
           <p className="text-sm text-indigo-ink">
-            Invoices are synchronized from our accounting system. If you recently made a payment and don't see the invoice here yet, please check back in a few minutes.
+            A GST invoice is issued automatically when your payment completes. If one shows “Generating”, press Retry — or check back in a few minutes and it will appear here.
           </p>
         </div>
       </div>

@@ -3,7 +3,7 @@ import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import PendingDomain from "@/models/PendingDomain";
 import type { IOrder } from "@/models/Order";
-import { getOrderByOrderId, recordZohoInvoiceForOrder } from "@/lib/services/orders";
+import { getOrderByOrderId, markInvoiceCreationFailed } from "@/lib/services/orders";
 import { getUserById } from "@/lib/services/users";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import { classifyRegisterDomainResponse } from "@/lib/integrations/resellerclub/classify";
@@ -11,7 +11,9 @@ import type { RegisterDomainOutcome } from "@/lib/integrations/resellerclub/type
 import { DomainVerificationService } from "@/lib/domain-verification";
 import { EmailService } from "@/lib/email";
 import { serverLogger } from "@/lib/server-logger";
-import { ZohoBooksService } from "@/lib/zohobooks";
+import { createPrimaryInvoice } from "@/lib/services/billing/createPrimaryInvoice";
+import { cartItemsFromOrderDomains } from "@/lib/services/payment/order-creator";
+import type { RazorpayPaymentDetails } from "@/lib/types";
 
 // Force dynamic rendering - required for API routes
 /**
@@ -137,43 +139,42 @@ export async function POST(
           }
         }
 
-        // --- ZOHO BOOKS SYNC ---
+        // --- INVOICE CATCH-UP ---
+        // The order is normally invoiced at payment time. This only issues one
+        // if that never happened (no `invoiceProvider`); the engine's claim
+        // refuses an order that already has an invoice, so it cannot duplicate.
         try {
           const syncOrder = await getOrderByOrderId(pendingDomain.orderId);
           const syncUser = await getUserById(pendingDomain.userId);
 
-          if (syncUser && syncOrder && (!syncOrder.zohoInvoiceId || syncOrder.zohoInvoiceId === 'pending_creation')) {
-            const zohoService = ZohoBooksService.getInstance();
-            const invoiceItems = syncOrder.domains.map((d: IOrder['domains'][number]) => ({
-                itemType: d.itemType || 'domain',
-                domainName: d.domainName,
-                price: d.price,
-                registrationPeriod: d.registrationPeriod || 1,
-                periodUnit: d.periodUnit || (d.itemType === 'hosting' ? 'months' : 'years'),
-                hostingPlan: d.hostingPlan
-            }));
-
-            const invoice = await zohoService.createInvoice(
+          if (syncUser && syncOrder && !syncOrder.invoiceProvider) {
+            const paymentId = syncOrder.razorpayPaymentId || syncOrder.paymentId || "";
+            try {
+              await createPrimaryInvoice(
                 {
-                    orderId: syncOrder.orderId,
-                    razorpayPaymentId: syncOrder.razorpayPaymentId || syncOrder.paymentId,
-                    total: syncOrder.amount
+                  order: syncOrder,
+                  orderId: syncOrder.orderId,
+                  razorpay_payment_id: paymentId,
+                  paymentDetails: {
+                    id: paymentId,
+                    amount: syncOrder.amount,
+                    currency: syncOrder.currency || "INR",
+                  } as RazorpayPaymentDetails,
+                  user: syncUser,
+                  cartItems: cartItemsFromOrderDomains(syncOrder.domains || []),
                 },
-                syncUser,
-                invoiceItems,
-                'Razorpay',
-                true
-            );
-
-            if (invoice?.invoice_id) {
-                await recordZohoInvoiceForOrder(String(syncOrder._id), {
-                    invoiceId: invoice.invoice_id,
-                    invoiceNumber: invoice.invoice_number,
-                });
+                { claimOptions: { staleClaimAfterMs: 5 * 60 * 1000 } }
+              );
+            } catch (issueErr) {
+              await markInvoiceCreationFailed(
+                syncOrder._id,
+                issueErr instanceof Error ? issueErr.message : String(issueErr)
+              ).catch(() => {});
+              throw issueErr;
             }
           }
         } catch (e) {
-          serverLogger.error("Zoho sync failed in manual registration:", e);
+          serverLogger.error("Invoice catch-up failed in manual registration:", e);
         }
 
         return NextResponse.json({ success: true, message: "Domain registered successfully", result, pendingDomain });

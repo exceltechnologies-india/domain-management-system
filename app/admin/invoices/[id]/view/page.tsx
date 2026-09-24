@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, use } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { ArrowLeft, Download, FileText, Loader2, ExternalLink, RefreshCw } from 'lucide-react';
 import AdminLayout from '@/components/admin/AdminLayout';
@@ -18,17 +18,10 @@ interface User {
 }
 
 export default function AdminViewInvoicePage({ params }: { params: Promise<{ id: string }> }) {
+  // The id in the path is the order id; every invoice PDF is rendered by DMS
+  // from its order. (A `?src=order` suffix from older links is harmless.)
   const { id: invoiceId } = use(params);
-  const searchParams = useSearchParams();
-  // A primary-engine tax invoice has no Zoho id, so the Zoho-keyed PDF route
-  // can't serve it — the list links here with `?src=order` and the id in the
-  // path is then an Order id, served by the orderId-keyed admin route (which
-  // falls through to generateInvoicePdf and is already provider-aware).
-  // Mirrors the customer-side viewer fix in a19e841.
-  const isOrderSource = searchParams.get('src') === 'order';
-  const pdfUrl = isOrderSource
-    ? `/api/v1/admin/orders/${encodeURIComponent(invoiceId)}/invoice`
-    : `/api/v1/admin/invoices/${encodeURIComponent(invoiceId)}/pdf`;
+  const pdfUrl = `/api/v1/admin/orders/${encodeURIComponent(invoiceId)}/invoice`;
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);

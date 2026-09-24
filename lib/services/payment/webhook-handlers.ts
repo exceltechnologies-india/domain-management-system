@@ -275,17 +275,17 @@ export async function handleSubscriptionCharged(payload: RazorpayWebhookPayload)
     serverLogger.error(`[Webhook] Failed to create Order record: ${asErr(orderErr).message}`);
   }
 
-  // ── Step 9: Async Zoho accounting sync ───────────────────────────────────
+  // ── Step 9: Async invoice issue ──────────────────────────────────────────
   /**
-   * Rule: No Dependency on Zoho.
-   * Fire and forget — Zoho errors NEVER affect service activation.
-   * Cloud Tasks handles retries automatically.
+   * Fire and forget — an invoicing failure NEVER affects service activation.
+   * Cloud Tasks handles retries; the worker flags the order invoiceFailedAt
+   * if the engine fails, so it stays visible either way.
    */
   if (newOrder) {
-    const zohoQueueName = process.env.GCP_ZOHO_QUEUE_NAME || process.env.GCP_QUEUE_NAME || "service-expiry-queue";
-    const zohoWorkerUrl = `${process.env.NEXTAUTH_URL}/api/v1/workers/sync-zoho-invoice`;
+    const invoiceQueueName = process.env.GCP_INVOICE_QUEUE_NAME || process.env.GCP_QUEUE_NAME || "service-expiry-queue";
+    const invoiceWorkerUrl = `${process.env.NEXTAUTH_URL}/api/v1/workers/issue-invoice`;
 
-    createHttpTask(zohoQueueName, zohoWorkerUrl, {
+    createHttpTask(invoiceQueueName, invoiceWorkerUrl, {
       orderId: newOrder._id.toString(),
       userId: user._id.toString(),
       serviceType: "hosting",
@@ -297,7 +297,7 @@ export async function handleSubscriptionCharged(payload: RazorpayWebhookPayload)
       durationMonths: renewalDurationMonths,
     }).catch((err) =>
       serverLogger.error(
-        `[Webhook] Failed to queue Zoho sync task: ${err.message}`
+        `[Webhook] Failed to queue invoice task: ${err.message}`
       )
     );
   }

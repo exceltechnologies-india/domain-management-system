@@ -7,7 +7,7 @@
  *  - SDK constructor called with key_id + key_secret from env
  *  - **api.defaults.timeout is set to 30_000** (the L1 fix: a hung
  *    Razorpay slot would otherwise stall payment-verify indefinitely
- *    — mirrors the resolved [H3] Zoho axios timeout)
+ *    — same fix as the resolved [H3] axios timeout)
  *  - both `razorpayClient` and `razorpay` are exported and reference
  *    the same singleton SDK instance (the L1 collapse: prior to this
  *    module, 10 callsites each constructed their own SDK)

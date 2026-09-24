@@ -22,14 +22,14 @@ const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@anutech.in";
 
 /**
  * Project a persisted Order's `domains` subdocs to the `CartItem` shape
- * downstream consumers (Zoho invoice, post-payment tasks) expect. Returns
+ * downstream consumers (the invoice, post-payment tasks) expect. Returns
  * the DB-trusted view — pinned at /create-order time after the price
  * verifier passed — so callers can swap the request-body cartItems for
  * this without trusting client-supplied prices, names, or trial flags.
  *
  * Mirrors the projection in `finalizePendingOrder`'s rebuild block; kept
- * exported so /verify + /guest/verify can use it for the Zoho-invoice
- * step without re-deriving the shape inline.
+ * exported so /verify + /guest/verify can use it for the invoice step
+ * without re-deriving the shape inline.
  */
 export function cartItemsFromOrderDomains(
   domains: IOrder["domains"]
@@ -42,8 +42,8 @@ export function cartItemsFromOrderDomains(
     itemType: d.itemType,
     periodUnit: d.periodUnit as CartItem["periodUnit"],
     isTrial: d.isTrial === true,
-    // Restore linkedDomain so downstream consumers (Zoho invoice display,
-    // recurring-invoice line items) show the real domain for hosting
+    // Restore linkedDomain so downstream consumers (the invoice line items)
+    // show the real domain for hosting
     // items rather than the synthetic cart-store ID.
     linkedDomain: (d as { linkedDomain?: string }).linkedDomain,
     hostingPlan: d.hostingPlan
@@ -135,7 +135,7 @@ export interface CreateCompletedOrderResult {
  *   - Calling validateNoRestrictedDomains() first
  *   - Idempotency / existing-order handling
  *   - Building the user-facing success response
- *   - Triggering Zoho + post-payment tasks afterwards
+ *   - Triggering the invoice + post-payment tasks afterwards
  */
 export async function createCompletedOrder(
   input: CreateCompletedOrderInput
@@ -330,7 +330,7 @@ export interface FinalizePendingOrderInput {
  * /razorpay/webhook. Provisions the cart, writes the per-domain results
  * onto the existing document, and transitions it to `completed`. Mirrors
  * {@link createCompletedOrder}'s return shape so the calling route can
- * keep the same downstream code (Zoho invoice, post-payment tasks).
+ * keep the same downstream code (invoice, post-payment tasks).
  *
  * SECURITY: cartItems is derived from `order.domains` (pinned at
  * create-order time), NOT from the request body. The Razorpay signature

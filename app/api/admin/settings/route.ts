@@ -50,8 +50,6 @@ const SECURITY_KEYS = new Set<string>([
   "directadmin_api_key",
   "directadmin_admin_user",
   "resellerclub_secret",
-  "zoho_client_secret",
-  "zoho_refresh_token",
   "smtp_pass",
   "anthropic_api_key",
   "cron_secret",

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, use } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { ArrowLeft, Download, FileText, Loader2, ExternalLink, RefreshCw } from 'lucide-react';
 import UserLayout from '@/components/user/UserLayout';
@@ -18,15 +18,10 @@ interface User {
 }
 
 export default function ViewInvoicePage({ params }: { params: Promise<{ id: string }> }) {
+  // The id in the path is the order id — every invoice is rendered by DMS
+  // from its order. (A `?src=order` suffix from older links is harmless.)
   const { id: invoiceId } = use(params);
-  // `?src=order` means the id in the path is an Order id, not a Zoho invoice
-  // id — that's how a primary-engine (own GST engine) invoice is addressed,
-  // since it has no Zoho id at all. The invoices list sets this.
-  const searchParams = useSearchParams();
-  const pdfEndpoint =
-    searchParams.get('src') === 'order'
-      ? `/api/v1/orders/${invoiceId}/invoice`
-      : `/api/v1/user/invoices/${invoiceId}/pdf`;
+  const pdfEndpoint = `/api/v1/orders/${invoiceId}/invoice`;
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);

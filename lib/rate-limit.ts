@@ -217,7 +217,7 @@ export const rateLimiters = {
     keyGenerator: userOrIpKey("support_reply"),
   }),
 
-  // PDF invoice downloads: 10 per minute per user (Zoho Books API is expensive)
+  // PDF invoice downloads: 10 per minute per user (each one renders a PDF server-side)
   pdfInvoice: new RateLimiter({
     windowMs: 60 * 1000, // 1 minute
     maxRequests: 10,

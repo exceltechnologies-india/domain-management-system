@@ -121,8 +121,9 @@ describe("<AdminDataTable>", () => {
 
   // ── Cursor mode: the source does NOT know its total ──────────────────────
   //
-  // Zoho Books paginates by cursor: its page_context reports `has_more_page`
-  // and only sometimes a `total`. The admin pages used to paper over that by
+  // Zoho Books (removed 24 Sep 2026) paginated by cursor: its page_context
+  // reported `has_more_page` and only sometimes a `total`, and any external
+  // cursor-paginated source has the same shape. The admin pages used to paper over that by
   // synthesising `hasMore ? page*10+10 : page*10`, so the table rendered a
   // fabricated "of 20 results" and fabricated page numbers. Passing `hasMore`
   // without `totalItems` now puts the table in an honest cursor mode.

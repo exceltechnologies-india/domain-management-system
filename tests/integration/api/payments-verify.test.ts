@@ -17,7 +17,7 @@
  *      "completed" or "paid" → 200 with `orderId`, no new work).
  *
  * The full happy-path provisioning flow (createCompletedOrder branch)
- * touches DA / ResellerClub / Zoho / Cloud Tasks — covered by the unit
+ * touches DA / ResellerClub / Cloud Tasks — covered by the unit
  * suites in tests/unit/lib/** that exercise each helper directly.
  */
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -62,7 +62,6 @@ vi.mock("@/lib/services/payment/renewal", () => ({
   handleRenewalPayment: vi.fn(async () => null),
 }));
 vi.mock("@/lib/services/payment/post-tasks", () => ({
-  createZohoInvoice: vi.fn(async () => ({ invoiceNumber: "INV-TEST-1" })),
   runPostPaymentTasks: vi.fn(async () => undefined),
 }));
 vi.mock("@/lib/services/payment/order-creator", () => ({

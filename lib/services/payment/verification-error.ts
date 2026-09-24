@@ -68,7 +68,7 @@ export async function handleVerificationError(
   // that also means a provisioning failure leaves no trace anywhere the team
   // looks. A paid order stranded at "processing" with no invoice went unnoticed
   // on 2026-09-04 for exactly this reason: the only signal was a console line on
-  // one dev machine. Mirrors the Zoho-failure SystemLog the caller already
+  // one dev machine. Mirrors the invoice-failure SystemLog the caller already
   // writes, so admin integration-health surfaces both.
   await recordSystemLog({
     level: "error",

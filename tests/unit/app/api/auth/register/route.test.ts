@@ -3,12 +3,13 @@
  *
  * Customer registration entry point — the most safety-critical
  * public auth surface (creates a real account + signs activation
- * email + kicks off ResellerClub + Zoho sync).
+ * email + kicks off ResellerClub customer sync). The Zoho Books contact
+ * sync was removed with Zoho (24 Sep 2026).
  *
  * Threat model:
  *  - **Bot-flood account creation**: 6-layer defense; pinned per-layer.
  *  - **Background-sync failure rolling back registration**: ResellerClub
- *    or Zoho being down must NOT prevent a customer registering — pinned
+ *    being down must NOT prevent a customer registering — pinned
  *    via fire-and-forget bg sync mocked to throw; response is still 201.
  *  - **Activation-token replay**: a 64-char hex token w/ 24h expiry is
  *    stored on the user row; the email link carries it.
@@ -32,7 +33,7 @@
  *  - response: 201 + curated 7-field user shape (id, email, firstName,
  *    lastName, role, isActivated:false, profileCompleted, provider)
  *  - sendActivationEmail fire-and-forget; .catch swallows
- *  - ResellerClub + Zoho bg sync (fire-and-forget via dynamic import);
+ *  - ResellerClub bg sync (fire-and-forget via dynamic import);
  *    outer catch on the bg-IIFE — bg failure doesn't affect response
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -74,19 +75,6 @@ vi.mock("@/lib/resellerclub", () => ({
     getCustomerId: rcGetCustomerId,
     modifyCustomer: rcModifyCustomer,
     createCustomer: rcCreateCustomer,
-  },
-}));
-
-const zohoGetContact = vi.hoisted(() => vi.fn());
-const zohoUpdateContact = vi.hoisted(() => vi.fn());
-const zohoCreateContact = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/zohobooks", () => ({
-  ZohoBooksService: {
-    getInstance: () => ({
-      getContactByEmail: zohoGetContact,
-      updateContactDetails: zohoUpdateContact,
-      createContact: zohoCreateContact,
-    }),
   },
 }));
 
@@ -160,9 +148,6 @@ beforeEach(() => {
   rcGetCustomerId.mockReset().mockResolvedValue({ status: "error" });
   rcModifyCustomer.mockReset().mockResolvedValue({ status: "success" });
   rcCreateCustomer.mockReset().mockResolvedValue({ status: "success" });
-  zohoGetContact.mockReset().mockResolvedValue(null);
-  zohoUpdateContact.mockReset().mockResolvedValue(undefined);
-  zohoCreateContact.mockReset().mockResolvedValue(undefined);
 });
 
 describe("L1 — CSRF", () => {

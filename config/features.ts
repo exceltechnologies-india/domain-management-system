@@ -18,9 +18,6 @@ export const FEATURES = {
   // Show the domain privacy-protection upsell during checkout
   PRIVACY_PROTECTION_UPSELL: process.env.FEATURE_PRIVACY_PROTECTION_UPSELL !== "false",
 
-  // Enable Zoho Books invoice integration
-  ZOHO_INVOICING: process.env.FEATURE_ZOHO_INVOICING !== "false",
-
   // Enable DirectAdmin hosting provisioning
   HOSTING_PROVISIONING: process.env.FEATURE_HOSTING_PROVISIONING !== "false",
 

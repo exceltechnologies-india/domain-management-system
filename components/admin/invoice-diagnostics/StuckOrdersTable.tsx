@@ -13,9 +13,9 @@ interface Props {
 }
 
 /**
- * Renders the "paid orders without a Zoho invoice" section. Per-row
- * action: re-sync the single order. Top-right action: re-sync the entire
- * stuck-list sequentially (parent throttles to avoid hammering Zoho).
+ * Renders the "paid orders without an invoice" section. Per-row action:
+ * issue the invoice for that order. Top-right action: do the whole list
+ * sequentially.
  * Includes a thin progress bar while a bulk re-sync is in flight.
  */
 export default function StuckOrdersTable({
@@ -32,12 +32,12 @@ export default function StuckOrdersTable({
       <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
         <div className="min-w-0">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-amber-700">
-            Paid orders without a Zoho invoice
+            Paid orders without an invoice
           </h4>
           <p className="text-xs text-gray-500 mt-1 max-w-xl">
-            Customer payment succeeded but the Zoho Books invoice never
-            resolved. Re-sync to retry — the underlying error will be
-            logged if it fails again.
+            The customer&apos;s payment succeeded but no GST invoice was issued.
+            Re-sync to issue it now — if it fails again, the reason is shown
+            in the row and logged.
           </p>
         </div>
         {stuckOrders.length > 1 && (
@@ -74,7 +74,7 @@ export default function StuckOrdersTable({
               <th className="py-2 px-3 font-medium">Order</th>
               <th className="py-2 px-3 font-medium">User</th>
               <th className="py-2 px-3 font-medium">Amount</th>
-              <th className="py-2 px-3 font-medium">Zoho state</th>
+              <th className="py-2 px-3 font-medium">Last error</th>
               <th className="py-2 px-3 font-medium">Created</th>
               <th className="py-2 px-3 font-medium text-right">Action</th>
             </tr>
@@ -89,10 +89,14 @@ export default function StuckOrdersTable({
                 </td>
                 <td className="py-2 px-3 text-gray-700">₹{(o.amount || 0).toLocaleString()}</td>
                 <td className="py-2 px-3 text-gray-700">
-                  {o.zohoInvoiceId ? (
-                    <code className="text-amber-700">{o.zohoInvoiceId}</code>
+                  {o.invoiceFailureReason ? (
+                    <span className="text-amber-700" title={o.invoiceFailureReason}>
+                      {o.invoiceFailureReason.length > 60
+                        ? `${o.invoiceFailureReason.slice(0, 58)}…`
+                        : o.invoiceFailureReason}
+                    </span>
                   ) : (
-                    <span className="text-gray-400">missing</span>
+                    <span className="text-gray-400">no attempt recorded</span>
                   )}
                 </td>
                 <td className="py-2 px-3 text-gray-700">

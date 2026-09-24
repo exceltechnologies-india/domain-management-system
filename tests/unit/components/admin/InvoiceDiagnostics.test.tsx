@@ -211,6 +211,35 @@ describe("<InvoiceDiagnostics>", () => {
     expect(apiGetMock).toHaveBeenCalledTimes(2);
   });
 
+  it("the all-clear line and both confirm dialogs speak of our own invoices — Zoho Books is gone", async () => {
+    apiGetMock.mockResolvedValue(ok(EMPTY));
+    const user = userEvent.setup();
+    const { unmount } = render(<InvoiceDiagnostics />);
+    await waitFor(() => expect(screen.getByTestId("header")).toBeInTheDocument());
+    await user.click(screen.getByText("toggle"));
+    expect(
+      screen.getByText("All invoice numbers are unique and every paid order has an invoice.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/zoho/i)).not.toBeInTheDocument();
+    unmount();
+
+    confirmDialogMock.mockResolvedValue(false);
+    apiGetMock.mockResolvedValue(ok({ ...ONE_CONFLICT, stuckOrders: TWO_STUCK.stuckOrders }));
+    render(<InvoiceDiagnostics />);
+    await waitFor(() => expect(screen.getByText("clear-ord_1")).toBeInTheDocument());
+    await user.click(screen.getByText("clear-ord_1"));
+    await user.click(screen.getByText("resync-all"));
+    expect(confirmDialogMock).toHaveBeenCalledTimes(2);
+    const [clearCall, resyncCall] = confirmDialogMock.mock.calls.map(
+      (c) => c[0] as { title: string; message: string }
+    );
+    expect(clearCall.message).toContain("No issued invoice is changed.");
+    expect(resyncCall.message).toContain("Each one will be issued one at a time.");
+    for (const call of [clearCall, resyncCall]) {
+      expect(`${call.title} ${call.message}`).not.toMatch(/zoho/i);
+    }
+  });
+
   it("re-sync single → POST + success toast", async () => {
     apiGetMock.mockResolvedValue(ok(TWO_STUCK));
     apiPostMock.mockResolvedValueOnce(ok({ message: "Re-synced." }));

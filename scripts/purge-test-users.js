@@ -48,11 +48,7 @@
  *                                    30-day abuse-defense throttle so
  *                                    the operator can re-test from the
  *                                    same IP without waiting)
- *   8. Invoice rows                 (by userId / userEmail — Zoho-side
- *                                    invoices are NOT touched; legal
- *                                    record there is the merchant's
- *                                    responsibility to clean up
- *                                    separately if needed)
+ *   8. Invoice rows                 (by userId / userEmail)
  *   9. Order rows                   (by userId / userEmail)
  *  10. User document                (last — references above all
  *                                    pointed at this id)

@@ -6,7 +6,7 @@ import connectDB from "@/lib/mongodb";
 import mongoose from "mongoose";
 import type { IUser } from "@/models/User";
 import { createUser, getUserByEmail } from "@/lib/services/users";
-import { claimPendingOrderForProcessing, createOrder, createOrderInSession, forceMarkZohoCreationFailed, getOrderByOrderId, getOrderByRazorpayOrderId } from "@/lib/services/orders";
+import { claimPendingOrderForProcessing, createOrder, createOrderInSession, markInvoiceCreationFailed, getOrderByOrderId, getOrderByRazorpayOrderId } from "@/lib/services/orders";
 import { createPaymentInTransaction } from "@/lib/services/payments";
 import { provisionCartItems } from "@/lib/services/payment/provisioner";
 import {
@@ -416,17 +416,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── Zoho invoice (best-effort) ───────────────────────────────────────────
-    // createZohoInvoice retries internally (2 attempts, 1.5s gap) so transient
-    // cold-start / token-refresh races don't leave the order stuck. Only on
-    // final failure do we mark creation_failed and rely on the background
-    // self-heal in /api/user/invoices.
+    // ── Invoice (best-effort) ────────────────────────────────────────────────
+    // A failure flags the order (invoiceFailedAt); lib/invoice-retry picks it
+    // up on the customer's invoices page and admin integration-health lists it.
     //
-    // cartItems for Zoho must be the DB-trusted projection of order.domains,
-    // not the request body — Batch 5a [H1] closed the swap-domain hole on
-    // provisioning; mirror it here so the invoice/GST record matches what
-    // was actually sold.
-    const zohoCartItems = cartItemsFromOrderDomains(order.domains);
+    // cartItems must be the DB-trusted projection of order.domains, not the
+    // request body — Batch 5a [H1] closed the swap-domain hole on
+    // provisioning; mirror it here so the invoice/GST record matches what was
+    // actually sold.
+    const invoiceCartItems = cartItemsFromOrderDomains(order.domains);
 
     try {
       await createPrimaryInvoice({
@@ -435,22 +433,22 @@ export async function POST(request: NextRequest) {
         razorpay_payment_id,
         paymentDetails,
         user: guestUser,
-        cartItems: zohoCartItems,
+        cartItems: invoiceCartItems,
       });
-    } catch (zohoErr: unknown) {
-      const message = zohoErr instanceof Error ? zohoErr.message : String(zohoErr);
-      const stack = zohoErr instanceof Error ? zohoErr.stack : undefined;
-      serverLogger.error(`[GuestCheckout] Zoho invoice failed: ${message}`);
+    } catch (invoiceErr: unknown) {
+      const message = invoiceErr instanceof Error ? invoiceErr.message : String(invoiceErr);
+      const stack = invoiceErr instanceof Error ? invoiceErr.stack : undefined;
+      serverLogger.error(`[GuestCheckout] Invoice creation failed: ${message}`);
       // Durable record so we don't depend on Cloud Logging capturing stderr.
       await recordSystemLog({
         level: "error",
-        message: `[GuestCheckout] Zoho invoice failed after retries: ${message}`,
+        message: `[GuestCheckout] Invoice creation failed: ${message}`,
         source: "guest/verify",
         service: "payments",
         stack,
         metadata: { orderId, email: guestEmail, razorpayPaymentId: razorpay_payment_id },
       }).catch(() => {});
-      await forceMarkZohoCreationFailed(String(order._id)).catch(() => {});
+      await markInvoiceCreationFailed(String(order._id), message).catch(() => {});
     }
 
     // ── Post-payment notifications ────────────────────────────────────────────

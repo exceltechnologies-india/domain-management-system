@@ -3,16 +3,18 @@
  *
  * Daily worker: suspends an expired hosting account, creates a
  * pending renewal Order, sends the customer a renewal email.
- * Critically: NO Zoho invoice is created here (only on payment).
+ * Critically: NO invoice is issued here (only on payment).
  *
  * Threat model:
  *  - **Mass-suspension on a flaky probe**: a refactor that suspends
  *    based on stale data would lock customers out incorrectly.
  *    Pinned: status='active' AND expiryDate < now BOTH required.
- *  - **Phantom Zoho invoice for unpaid renewals**: a refactor that
- *    fired ZohoBooksService here would create a "due invoice" in
- *    Zoho Books for an account the customer hasn't paid yet. Pinned
- *    via the import-check + email payload without invoiceNumber.
+ *  - **Phantom invoice for unpaid renewals**: a refactor that called
+ *    the invoicing engine (createPrimaryInvoice) here would issue a tax
+ *    invoice — consuming a number from the gapless GST series — for an
+ *    account the customer hasn't paid yet. Pinned via a comment-stripped
+ *    source scan (no invoicing import) + email payload without
+ *    invoiceNumber.
  *  - **Permanent-vs-transient response**: 200 (no retry) for
  *    permanent skips; 500 (Cloud Tasks retries) for transient errors.
  *
@@ -34,7 +36,7 @@
  *  - createOrder: pending status, renewal-prefix orderId, fields
  *    locked
  *  - hosting.renewalStatus = 'pending'; status = 'suspended'; save
- *  - Email sent WITHOUT invoiceNumber (no Zoho invoice yet)
+ *  - Email sent WITHOUT invoiceNumber (no invoice yet)
  *  - Inner catch (DA suspend throw, etc.) → 500 PROCESSING_FAILED
  *  - Outer catch → 500 INTERNAL_ERROR
  */
@@ -339,8 +341,22 @@ describe("Renewal Order shape", () => {
   });
 });
 
-describe("Email — NO Zoho invoice", () => {
-  it("**email sent WITHOUT invoiceNumber** (no Zoho invoice created — Zoho only on payment)", async () => {
+describe("No invoicing on an unpaid renewal (source scan, comments stripped)", () => {
+  it("the route imports neither the invoicing engine nor a Zoho client", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const src = readFileSync(
+      resolve(process.cwd(), "app/api/workers/process-hosting-expiry/route.ts"),
+      "utf8"
+    )
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|[^:])\/\/.*$/gm, "$1");
+    expect(src).not.toMatch(/createPrimaryInvoice|billing\/createPrimaryInvoice|zohobooks|ZohoBooksService/);
+  });
+});
+
+describe("Email — NO invoice issued", () => {
+  it("**email sent WITHOUT invoiceNumber** (no invoice issued — invoices only on payment)", async () => {
     getHostingById.mockResolvedValueOnce(makeHosting());
     getOrderByOrderId.mockResolvedValueOnce({ domains: [] });
     getPlanByPlanId.mockResolvedValueOnce({ price: 1500 });
@@ -355,7 +371,7 @@ describe("Email — NO Zoho invoice", () => {
         invoiceAmount: 1500,
       })
     );
-    // CRITICAL: no invoiceNumber field — Zoho hasn't been called
+    // CRITICAL: no invoiceNumber field — nothing has been invoiced
     expect(payload.invoiceNumber).toBeUndefined();
   });
 

@@ -16,8 +16,9 @@
  *   1. The Order pre-save hook silently overwrote the legally-sequential
  *      `TI/YYYY-YY/NNNNN` tax-invoice number with a legacy random one, because
  *      the webhook's in-memory order predated the invoice write.
- *   2. Primary-invoiced orders matched the Zoho "stuck order" query, so the
- *      self-heal would have issued a SECOND tax invoice for the same payment.
+ *   2. Primary-invoiced orders matched the (since removed) Zoho "stuck order"
+ *      query, so the self-heal would have issued a SECOND tax invoice for the
+ *      same payment. The retry list now keys on `invoiceProvider`.
  *   3. A fully paid bill rendered as "Generating invoice…" forever.
  *
  * All three lived in the seams BETWEEN components, which per-component tests
@@ -31,7 +32,7 @@
  * standalone, so this file disconnects from it first. Costs ~10s of suite time.
  *
  * MOCKING BOUNDARY: only genuine external SaaS is stubbed — Razorpay,
- * DirectAdmin, ResellerClub, Zoho, email/WhatsApp, Meta. Everything else runs
+ * DirectAdmin, ResellerClub, email/WhatsApp, Meta. Everything else runs
  * for real: registration, auth, order creation, provisioning orchestration,
  * Hosting record creation, the payment transaction, GST math, invoice
  * numbering, PDF rendering, and every customer-facing read route.
@@ -42,12 +43,12 @@ import mongoose from "mongoose";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import type { IOrder } from "@/models/Order";
 
-// No invoicing flag is set on purpose. The primary GST engine is PERMANENT
-// as of 2026-09-03 — there is no switch that bypasses it — and the Zoho
-// fallback defaults on. So this whole journey runs exactly as production
-// does with nothing configured, which is the point: only this suite proves a
-// real customer purchase ends up holding a TI/... tax invoice.
-process.env.ZOHO_ORG_STATE = "Delhi";
+// No invoicing flag is set on purpose. Our own GST engine is the only issuer
+// — Zoho Books was removed on 24 Sep 2026 and there is no switch or fallback.
+// So this whole journey runs exactly as production does, which is the point:
+// only this suite proves a real customer purchase ends up holding a TI/...
+// tax invoice. COMPANY_STATE is the one required input (was ZOHO_ORG_STATE).
+process.env.COMPANY_STATE = "Delhi";
 const WEBHOOK_SECRET = "e2e_purchase_journey_secret";
 process.env.RAZORPAY_WEBHOOK_SECRET = WEBHOOK_SECRET;
 // NextAuth's provider config dereferences these at import time.
@@ -115,19 +116,6 @@ vi.mock("@/lib/directadmin", () => ({
   DA_SERVER_IP: "10.0.0.9",
 }));
 
-const zohoCreateInvoice = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/zohobooks", () => ({
-  ZohoBooksService: {
-    getInstance: () => ({
-      getContactByEmail: vi.fn(async () => null),
-      createContact: vi.fn(async () => null),
-      updateContactDetails: vi.fn(async () => null),
-      createInvoice: zohoCreateInvoice,
-      getInvoicePdf: vi.fn(async () => null),
-    }),
-  },
-}));
-
 vi.unmock("next/server");
 const { NextRequest, NextResponse } = await vi.importActual<
   typeof import("next/server")
@@ -141,7 +129,8 @@ const { POST: webhookHandler } = await import("@/app/razorpay/webhook/route");
 const { GET: userInvoicesHandler } = await import("@/app/api/user/invoices/route");
 const { GET: orderInvoicePdfHandler } = await import("@/app/api/orders/[id]/invoice/route");
 const { AuthService } = await import("@/lib/auth");
-const { listStuckZohoInvoiceOrders } = await import("@/lib/services/orders");
+const { listFailedInvoiceOrders } = await import("@/lib/services/orders");
+const { syncUserInvoicesNow } = await import("@/lib/invoice-retry");
 const { default: Order } = await import("@/models/Order");
 const { default: User } = await import("@/models/User");
 const { default: Hosting } = await import("@/models/Hosting");
@@ -176,7 +165,6 @@ beforeEach(async () => {
   rzpCreateOrder.mockReset();
   daCreateUser.mockReset().mockResolvedValue({ kind: "created", username: "e2euser1" });
   rcRegisterDomain.mockReset().mockResolvedValue({ kind: "registered", orderId: "rc_order_1" });
-  zohoCreateInvoice.mockReset();
 });
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -367,7 +355,7 @@ describe("E2E: register → buy hosting → pay → provision → bill", () => {
     // The bill itself.
     expect(final?.invoiceProvider).toBe("primary");
     expect(final?.invoiceNumber).toMatch(/^TI\/\d{4}-\d{2}\/\d{5}$/);
-    expect(zohoCreateInvoice).not.toHaveBeenCalled();
+    expect(final?.invoiceFailedAt).toBeUndefined();
   });
 
   it("bills CGST+SGST for an intra-state customer (company and customer both in Delhi)", async () => {
@@ -480,9 +468,10 @@ describe("E2E: register → buy hosting → pay → provision → bill", () => {
     expect(row.invoice_number).toBe(final?.invoiceNumber);
     expect(row.status).toBe("paid");
     expect(row.balance).toBe(0);
-    expect(row.provider).toBe("primary");
-    // REGRESSION: an issued bill must never advertise itself as still generating.
-    expect(row.zoho_pending).toBe(false);
+    // An issued bill links its PDF by orderId…
+    expect(row.invoice_id).toBe(final?.orderId);
+    // …and (REGRESSION) must never advertise itself as still generating.
+    expect(row.invoice_failed).toBe(false);
 
     // (b) the bill document itself
     const pdfRes = await orderInvoicePdfHandler(
@@ -499,7 +488,7 @@ describe("E2E: register → buy hosting → pay → provision → bill", () => {
     expect(pdf.length).toBeGreaterThan(1000);
   });
 
-  it("REGRESSION: never treats a primary-invoiced order as a stuck Zoho order (would double-bill)", async () => {
+  it("REGRESSION: never lists a primary-invoiced order for retry (would double-bill)", async () => {
     const { user } = await completePurchase({
       email: "stuck-cust@example.com",
       state: "Delhi",
@@ -507,40 +496,78 @@ describe("E2E: register → buy hosting → pay → provision → bill", () => {
       paymentId: "pay_H",
     });
 
-    // The Zoho self-heal runs on every /dashboard/invoices load. A primary
-    // invoice has no zohoInvoiceId by design — if it matched here, the customer
-    // would receive a SECOND tax invoice for the same payment.
-    const stuck = await listStuckZohoInvoiceOrders(String(user._id));
-    expect(stuck).toHaveLength(0);
+    // The retry runs on every /dashboard/invoices load. If an invoiced order
+    // matched here, the customer would receive a SECOND tax invoice for the
+    // same payment.
+    const failed = await listFailedInvoiceOrders(String(user._id));
+    expect(failed).toHaveLength(0);
   });
 
-  it("falls back to Zoho and still bills the customer when the primary engine is misconfigured", async () => {
+  it("a misconfigured engine leaves the order paid + provisioned but FLAGGED, and a retry after the fix issues exactly one invoice", async () => {
     await seedStarterPlan();
-    const { token } = await registerCustomer("fallback-cust@example.com", "Delhi");
+    const { token, user } = await registerCustomer("fallback-cust@example.com", "Delhi");
     await buyHosting(token, { rzpOrderId: "order_I" });
     const pending = await Order.findOne({ razorpayOrderId: "order_I" });
 
-    // Break the primary engine the way a real misconfiguration would.
-    const savedState = process.env.ZOHO_ORG_STATE;
-    delete process.env.ZOHO_ORG_STATE;
-    process.env.ZOHO_REFRESH_TOKEN = "test_refresh_token";
-    zohoCreateInvoice.mockResolvedValueOnce({
-      invoice_id: "zoho_inv_I",
-      invoice_number: "INV-000123",
-    });
-
+    // Break the engine the way a real misconfiguration would. There is no
+    // fallback engine any more: the invoice must fail LOUDLY, not be issued
+    // by something else.
+    const savedState = process.env.COMPANY_STATE;
+    delete process.env.COMPANY_STATE;
+    let listBody: { invoices: Array<{ invoice_failed: boolean; invoice_id: string }> };
     try {
       await razorpayConfirmsPayment("order_I", pending!.orderId, "pay_I");
-    } finally {
-      process.env.ZOHO_ORG_STATE = savedState;
-      delete process.env.ZOHO_REFRESH_TOKEN;
-    }
 
-    const final = await orderById(pending!._id);
-    expect(zohoCreateInvoice).toHaveBeenCalled();
-    expect(final?.zohoInvoiceId).toBe("zoho_inv_I");
-    expect(final?.invoiceNumber).toBe("INV-000123");
-    // The primary engine never claimed it, so no TI/... number was burned.
-    expect(final?.invoiceProvider).toBeUndefined();
+      // Still broken: the invoices page's self-heal retries, fails again, and
+      // the customer's list says so rather than pretending.
+      const listRes = await userInvoicesHandler(
+        new NextRequest("https://example.com/api/user/invoices", {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      );
+      listBody = await listRes.json();
+    } finally {
+      process.env.COMPANY_STATE = savedState;
+    }
+    expect(listBody.invoices[0].invoice_failed).toBe(true);
+    expect(listBody.invoices[0].invoice_id).toBe("");
+
+    const failed = await orderById(pending!._id);
+    // The customer paid and got their service…
+    expect(failed?.status).toBe("completed");
+    expect(await Hosting.findOne({ domainName: "realbiz-e2e.com" })).toBeTruthy();
+    // …but no tax invoice exists, and the failure is on record with its reason.
+    expect(failed?.invoiceProvider).toBeUndefined();
+    expect(failed?.invoiceFailedAt).toBeInstanceOf(Date);
+    expect(failed?.invoiceFailureReason).toMatch(/COMPANY_STATE is not configured/);
+    // No TI/... number was burned on either failed attempt.
+    expect(await Counter.findOne({ key: /tax-invoice/ })).toBeNull();
+
+    // Config fixed → "Sync now" issues exactly one invoice and clears the flag.
+    const results = await syncUserInvoicesNow(String(user._id));
+    expect(results).toHaveLength(1);
+    expect(results[0].ok).toBe(true);
+
+    const healed = await orderById(pending!._id);
+    expect(healed?.invoiceProvider).toBe("primary");
+    expect(healed?.invoiceNumber).toMatch(/^TI\/\d{4}-\d{2}\/00001$/);
+    expect(healed?.invoiceFailedAt).toBeUndefined();
+    expect(healed?.invoiceFailureReason).toBeUndefined();
+
+    // A second sync finds nothing to do — no second number.
+    expect(await syncUserInvoicesNow(String(user._id))).toEqual([]);
+    expect((await Counter.findOne({ key: /tax-invoice/ }))?.seq).toBe(1);
+
+    // And the list now shows an issued bill.
+    const after = await userInvoicesHandler(
+      new NextRequest("https://example.com/api/user/invoices", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+    );
+    const row = (await after.json()).invoices[0];
+    expect(row.invoice_failed).toBe(false);
+    expect(row.invoice_number).toBe(healed?.invoiceNumber);
   });
 });

@@ -312,7 +312,7 @@ describe("rateLimiters — per-endpoint contracts", () => {
 
   it("pdfInvoice falls back to IP when x-user-id is missing", async () => {
     // Useful for the guest-checkout invoice download path that doesn't have
-    // a user session yet but still needs Zoho-cost protection.
+    // a user session yet but still needs protection from server-side PDF rendering cost.
     const reqA = makeRequest({ ip: "10.0.0.1" });
     for (let i = 0; i < 10; i++) {
       expect((await rateLimiters.pdfInvoice.isAllowed(reqA)).allowed).toBe(true);

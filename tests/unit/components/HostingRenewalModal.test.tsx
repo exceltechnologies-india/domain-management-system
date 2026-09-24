@@ -105,6 +105,14 @@ describe("<HostingRenewalModal>", () => {
     expect(screen.getByText(/₹\s*12,000/)).toBeInTheDocument();
   });
 
+  it("promises a GST tax invoice from our own engine, not one 'generated in Zoho Books'", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => renewalInfoBody() });
+    render(<HostingRenewalModal isOpen onClose={vi.fn()} domainName="anutech.com" />);
+    await waitFor(() => expect(screen.getByText("Business")).toBeInTheDocument());
+    expect(screen.getByText("GST tax invoice issued automatically")).toBeInTheDocument();
+    expect(screen.queryByText(/zoho/i)).not.toBeInTheDocument();
+  });
+
   it("renew-info HTTP error → toast.error and onClose", async () => {
     const onClose = vi.fn();
     fetchMock.mockResolvedValueOnce({

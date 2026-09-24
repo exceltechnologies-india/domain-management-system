@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/auth";
-import { syncUserInvoicesNow } from "@/lib/zoho-invoice-retry";
+import { syncUserInvoicesNow } from "@/lib/invoice-retry";
 import { serverLogger } from "@/lib/server-logger";
 
 export const dynamic = "force-dynamic";
@@ -8,10 +8,10 @@ export const dynamic = "force-dynamic";
 /**
  * POST /api/user/invoices/sync
  *
- * User-initiated reconciliation for paid orders whose Zoho Books invoice
- * never finished creating. Searches Zoho by reference_number first
- * (idempotent — won't duplicate). Bypasses the background self-heal throttle
- * so the user can force an immediate retry.
+ * User-initiated retry for paid orders whose invoice attempt failed. Runs our
+ * own GST engine again; its claim refuses any order that already has an
+ * invoice, so it cannot duplicate one. Bypasses the background self-heal
+ * throttle so the user can force an immediate retry.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -35,8 +35,7 @@ export async function POST(request: NextRequest) {
       results,
     });
   } catch (err: unknown) {
-    // Log full error server-side; return generic message to the client.
-    // Zoho API errors can include access-token fragments + retry tokens.
+    // Log full error server-side; return a generic message to the client.
     serverLogger.error("[InvoiceSync] Unhandled error:", err);
     return NextResponse.json(
       { error: "Invoice sync failed. Please try again or contact support." },

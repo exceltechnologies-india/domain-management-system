@@ -4,9 +4,11 @@ import { DirectAdminService, DA_SERVER_IP } from "@/lib/directadmin";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 import { EmailService } from "@/lib/email";
-import { ZohoBooksService } from "@/lib/zohobooks";
+import { createPrimaryInvoice } from "@/lib/services/billing/createPrimaryInvoice";
+import { cartItemsFromOrderDomains } from "@/lib/services/payment/order-creator";
+import type { RazorpayPaymentDetails } from "@/lib/types";
 import { getUserById } from "@/lib/services/users";
-import { createOrder } from "@/lib/services/orders";
+import { createOrder, markInvoiceCreationFailed } from "@/lib/services/orders";
 import { createPendingHosting } from "@/lib/services/pending-hostings";
 import { createHosting } from "@/lib/services/hostings";
 import { calculateHostingDates } from "@/lib/hosting-dates";
@@ -169,68 +171,28 @@ export async function POST(request: NextRequest) {
         const newOrder = await createOrder(orderPayload);
         serverLogger.info(`Created Order record for admin-provisioned hosting: ${domain} (Price: ${totalPrice})`);
 
-        // 5c. Generate Zoho Invoice
+        // 5c. Issue the invoice — same engine and chokepoint as a paid order.
+        // Until 24 Sep 2026 this called Zoho Books directly. A ₹0 provision is
+        // skipped by the engine's zero-amount policy. A failure never blocks
+        // the provision; it flags the order for admin integration-health.
         try {
-            const zohoService = ZohoBooksService.getInstance();
-            const invoiceItems = [{
-                domainName: domain,
-                price: totalPrice,
-                registrationPeriod: period,
-                itemType: 'hosting',
-                hostingPlan: plan ? {
-                    name: plan.name || packageName
-                } : undefined
-            }];
-            
-            await zohoService.createInvoice(
-                newOrder as unknown as Parameters<typeof zohoService.createInvoice>[0],
+            const result = await createPrimaryInvoice({
+                order: newOrder,
+                orderId: newOrder.orderId,
+                razorpay_payment_id: "",
+                paymentDetails: {
+                    id: "",
+                    amount: totalPrice,
+                    currency: "INR",
+                } as RazorpayPaymentDetails,
                 user,
-                invoiceItems,
-                'Admin Provision'
-            );
-            serverLogger.info(`Generated Zoho Invoice for admin provision: ${domain}`);
-
-            // 5d. Generate Zoho Recurring Invoice for future renewals
-            try {
-                // Recurring invoice creation disabled to avoid "due invoices"
-                interface RecurringResult {
-                    success: boolean;
-                    recurringInvoiceId?: string;
-                    error?: string;
-                }
-                const recurringResults: RecurringResult[] = []; // await zohoService.createRecurringInvoice(
-
-                if (recurringResults && recurringResults.length > 0) {
-                     let orderModified = false;
-                     // We only have one domain/item here
-                     if (recurringResults[0].success && recurringResults[0].recurringInvoiceId) {
-                         type OrderDomainSub = (typeof newOrder.domains)[number] & {
-                             zohoRecurringInvoiceId?: string;
-                             zohoRecurringProfileStatus?: string;
-                         };
-                         const domainItem = newOrder.domains.find((d: OrderDomainSub) => d.domainName === domain) as OrderDomainSub | undefined;
-                         if (domainItem) {
-                             domainItem.zohoRecurringInvoiceId = recurringResults[0].recurringInvoiceId;
-                             domainItem.zohoRecurringProfileStatus = 'created';
-                             orderModified = true;
-                         }
-                         serverLogger.info(`Generated Zoho Recurring Invoice for admin provision: ${domain} (ID: ${recurringResults[0].recurringInvoiceId})`);
-                     } else {
-                         serverLogger.warn(`Failed to create Recurring Invoice: ${recurringResults[0].error}`);
-                     }
-
-                     if (orderModified) {
-                         await newOrder.save();
-                     }
-                }
-            } catch (recurringError: unknown) {
-                const message = recurringError instanceof Error ? recurringError.message : String(recurringError);
-                serverLogger.warn(`Failed to trigger recurring invoice generation: ${message}`);
-            }
-
-        } catch (zohoError: unknown) {
-             const message = zohoError instanceof Error ? zohoError.message : String(zohoError);
-             serverLogger.warn(`Failed to generate Zoho Invoice for admin provision: ${message}`);
+                cartItems: cartItemsFromOrderDomains(newOrder.domains || []),
+            });
+            serverLogger.info(`Invoice for admin provision ${domain}: ${result.provider} ${result.invoiceNumber ?? ""}`);
+        } catch (invoiceError: unknown) {
+            const message = invoiceError instanceof Error ? invoiceError.message : String(invoiceError);
+            serverLogger.warn(`Failed to issue invoice for admin provision ${domain}: ${message}`);
+            await markInvoiceCreationFailed(newOrder._id, message).catch(() => {});
         }
         // 5e. Create Hosting Record for visibility in Services Modal
         try {

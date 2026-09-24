@@ -3,12 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import connectDB from "@/lib/mongodb";
 import { type IOrder } from "@/models/Order";
-import { ZohoBooksService } from "@/lib/zohobooks";
 import { serverLogger } from "@/lib/server-logger";
 import {
   claimPendingOrderForProcessing,
   findOrderByRazorpayOrderIdOrInternalId,
-  forceMarkZohoCreationFailed,
+  markInvoiceCreationFailed,
   getOrderByRazorpayPaymentId,
   flagCreditNotePending,
 } from "@/lib/services/orders";
@@ -205,8 +204,7 @@ async function handlePaymentCaptured(payload: PaymentCapturedPayload) {
     } as RazorpayPaymentDetails;
 
     // Phase 4 (Primary Billing Integration Phase 1c-3): invoice creation via
-    // createPrimaryInvoice — primary GST engine first, Zoho as automatic
-    // fallback on any failure. Done inline (not inside finalizePendingOrder)
+    // createPrimaryInvoice — our own GST engine, the only issuer. Done inline (not inside finalizePendingOrder)
     // because /verify also creates its invoice before/alongside completing
     // the order — keeping both call sites symmetrical avoids the webhook
     // silently skipping invoicing on the unhappy path.
@@ -262,27 +260,34 @@ async function handlePaymentCaptured(payload: PaymentCapturedPayload) {
             // pre-save hook, and that hook mints a legacy `INV-<ts>-<hex>`
             // number whenever `status === 'completed' && !this.invoiceNumber`.
             // Without this sync the hook silently OVERWRITES the real
-            // TI/YYYY-YY/NNNNN tax-invoice number (or the Zoho one) that was
+            // TI/YYYY-YY/NNNNN tax-invoice number that was
             // just written to the database — destroying the legally
             // sequential number while leaving the GST breakdown in place.
             // Caught by an end-to-end purchase test, 2026-09-02.
             if (invoiceResult.provider === "primary") {
                 if (invoiceResult.invoiceNumber) claimed.invoiceNumber = invoiceResult.invoiceNumber;
                 claimed.invoiceProvider = "primary";
-            } else if (invoiceResult.provider === "zoho") {
-                if (invoiceResult.invoiceId) claimed.zohoInvoiceId = invoiceResult.invoiceId;
-                if (invoiceResult.invoiceNumber) claimed.invoiceNumber = invoiceResult.invoiceNumber;
             }
         } catch (error) {
-            // Don't rethrow — let provisioning proceed. The self-heal cron
-            // picks up `creation_failed` orders later. Throwing here would
+            // Don't rethrow — let provisioning proceed. Throwing here would
             // cause Razorpay to retry the webhook even though the payment
-            // is safely captured and the order is being provisioned.
-            // createPrimaryInvoice already tried BOTH engines before this
-            // throws, so mark the terminal-failure sentinel directly rather
-            // than leaving the claim dangling.
-            serverLogger.error("❌ Invoice Sync Failed", error);
-            await forceMarkZohoCreationFailed(claimed._id);
+            // is safely captured and the order is being provisioned. Flag the
+            // order instead: lib/invoice-retry picks it up and admin
+            // integration-health lists it until an invoice exists.
+            serverLogger.error("❌ Invoice creation failed", error);
+            // Guarded: a failure to write the flag must not escape this catch —
+            // that would skip finalizePendingOrder below (no provisioning) and
+            // make Razorpay retry a payment that is already captured.
+            await markInvoiceCreationFailed(
+                claimed._id,
+                error instanceof Error ? error.message : String(error)
+            ).catch((markErr: unknown) =>
+                serverLogger.error(
+                    `❌ [Webhook] ALSO failed to flag order ${claimed.orderId} as uninvoiced — ` +
+                    `it will NOT show in integration-health: ` +
+                    (markErr instanceof Error ? markErr.message : String(markErr))
+                )
+            );
         }
     }
 
@@ -474,28 +479,29 @@ async function handleRefundProcessed(payload: RefundProcessedPayload) {
     return;
   }
 
-  // ── Primary-engine invoice: a credit note is OWED, but we can't issue it ──
+  // ── An invoice exists: a credit note is OWED, but we can't issue it ──────
   //
   // Our GST engine mints tax invoices and has no credit-note counterpart yet
   // (operator decision 2026-09-03 — deferred until real refund volume exists
   // rather than shipping an unexercised reverse-numbering series). The refund
   // has already happened at Razorpay; the customer is legally owed a GST
-  // credit note referencing the original TI/... invoice, raised by hand in
-  // Zoho Books.
+  // credit note referencing the original invoice, raised by hand.
   //
-  // This MUST be distinguishable from the benign skip below. Both cases have
-  // no `zohoInvoiceId`, and until this branch existed they logged the same
-  // bland "no Zoho invoice — skipping credit note" line: a real compliance
-  // obligation was indistinguishable from a ₹2 trial reversal that never
-  // needed a credit note at all. Hence a loud, distinct log AND a persisted
+  // This covers historical Zoho-issued invoices too (`invoiceProvider:
+  // "zoho"`). Zoho Books used to raise their credit notes automatically; since
+  // Zoho was removed on 24 Sep 2026 they are owed by hand like any other.
+  //
+  // This MUST be distinguishable from the benign skip below: a real compliance
+  // obligation must never read like a ₹2 trial reversal that never needed a
+  // credit note at all. Hence a loud, distinct log AND a persisted
   // flag — Cloud Logging rolls over, the Order row doesn't, and
   // `app/api/admin/integration-health` reports on it until an operator clears
   // it.
-  if (order.invoiceProvider === "primary") {
+  if (order.invoiceProvider) {
     serverLogger.error(
-      `🧾 [Webhook] CREDIT NOTE OWED — refund ${refundId} (₹${refundAmountPaise / 100}) processed against PRIMARY tax invoice ` +
+      `🧾 [Webhook] CREDIT NOTE OWED — refund ${refundId} (₹${refundAmountPaise / 100}) processed against tax invoice ` +
       `${order.invoiceNumber || "(number missing)"} on order ${order.orderId}. Our GST engine cannot issue credit notes yet. ` +
-      `ACTION: raise a credit note manually in Zoho Books against invoice ${order.invoiceNumber || "(number missing)"} for ₹${refundAmountPaise / 100}. ` +
+      `ACTION: raise a credit note manually against invoice ${order.invoiceNumber || "(number missing)"} for ₹${refundAmountPaise / 100}. ` +
       `Flagged on the Order as creditNotePending and listed in admin integration-health until cleared.`
     );
     try {
@@ -516,37 +522,9 @@ async function handleRefundProcessed(payload: RefundProcessedPayload) {
     return;
   }
 
-  if (!order.zohoInvoiceId || order.zohoInvoiceId === "creation_failed") {
-    // Benign in the common case: ₹0 trial orders never get an invoice at all
-    // (see CLAUDE.md "Trial order invoice policy"), and the ₹2 mandate-
-    // validation reversal lands here every time. Nothing is owed.
-    serverLogger.warn(`[Webhook] refund.processed: order ${order.orderId} has no invoice from either engine — nothing to credit`);
-    return;
-  }
-
-  try {
-    const zohoService = ZohoBooksService.getInstance();
-    const user = await getUserById(String(order.userId));
-    if (!user) throw new Error("User not found for refunded order");
-
-    // Look up the Zoho contact for this user
-    const contact = await zohoService.getContactByEmail(user.email);
-    if (!contact) throw new Error(`Zoho contact not found for ${user.email}`);
-
-    await zohoService.createCreditNote(
-      order.zohoInvoiceId,
-      contact.contact_id,
-      refundId,
-      refundAmountPaise,
-      order.orderId
-    );
-
-    serverLogger.info(`[Webhook] Credit note created for refund ${refundId} on order ${order.orderId}`);
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    serverLogger.error(`[Webhook] Failed to create credit note for refund ${refundId}`, message);
-    // Don't throw — Razorpay doesn't need to retry refund webhooks for accounting failures.
-    // Admin should be alerted via Cloud Logging / monitoring alert.
-  }
+  // Benign in the common case: ₹0 trial orders never get an invoice at all
+  // (see CLAUDE.md "Trial order invoice policy"), and the ₹2 mandate-
+  // validation reversal lands here every time. Nothing is owed.
+  serverLogger.warn(`[Webhook] refund.processed: order ${order.orderId} has no invoice — nothing to credit`);
 }
 

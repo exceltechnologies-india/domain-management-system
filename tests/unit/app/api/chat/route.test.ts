@@ -720,8 +720,11 @@ describe("Guard rail — output-side secret-leak filter", () => {
       leak: "RAZORPAY_WEBHOOK_SECRET is needed for the webhook handler",
     },
     {
-      label: "ZOHO_REFRESH_TOKEN env name",
-      leak: "ZOHO_REFRESH_TOKEN must be set",
+      // Was ZOHO_REFRESH_TOKEN until Zoho Books was removed (24 Sep 2026)
+      // and its names left the redaction list; RESELLERCLUB_SECRET is a
+      // live credential name still on it.
+      label: "RESELLERCLUB_SECRET env name",
+      leak: "RESELLERCLUB_SECRET must be set",
     },
     {
       label: "ADMIN_PASSWORD env name",

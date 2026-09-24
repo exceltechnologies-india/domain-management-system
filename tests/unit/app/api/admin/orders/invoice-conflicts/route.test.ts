@@ -3,15 +3,15 @@
  * (slice 7hx, part 2).
  *
  * Admin diagnostic dashboard: surfaces invoiceNumber collisions +
- * stuck-Zoho-invoice orders. The two classes of bad state that cause
- * the user-visible "Generating invoice…" pill or E11000 duplicate-key
- * errors during the Zoho retry path.
+ * paid orders with no invoice (the engine failed or never ran). Since
+ * Zoho Books was removed (24 Sep 2026) "stuck" means no invoiceProvider
+ * at all, and the row carries the engine's failure reason when known.
  *
  * Threat model:
  *  - **Non-admin probe of payment internals**: this endpoint exposes
- *    user email + payment IDs + Zoho/Razorpay metadata. Must be
+ *    user email + payment IDs + invoice-failure metadata. Must be
  *    admin-only. Pinned: 401 before any DB read.
- *  - **Unbounded stuck-order list**: a runaway Zoho outage could
+ *  - **Unbounded stuck-order list**: a runaway invoicing outage could
  *    leave thousands of stuck orders, and an unbounded fetch would
  *    OOM the page. Pinned: 100-cap.
  *
@@ -21,13 +21,14 @@
  *  - listOrdersByIds called with the exact projection string
  *  - User cache: findUsersByIds dedup; second call skips already-cached
  *  - slim shape: { _id, orderId, userId, userEmail, userName,
- *    status, amount, invoiceNumber, zohoInvoiceId, razorpayPaymentId,
+ *    status, amount, invoiceNumber, invoiceProvider, invoiceFailedAt:string,
+ *    invoiceFailureReason, razorpayPaymentId,
  *    createdAt:string, isDeleted }
  *  - userName template-literal quirk: missing firstName/lastName →
  *    empty string (uses || '' fallback — better than the test-plan
  *    'undefined undefined' quirk)
  *  - createdAt converted to ISO string; missing → ''
- *  - listStuckZohoInvoiceOrdersAdmin called with limit:100
+ *  - listUninvoicedPaidOrdersAdmin called with limit:100
  *  - Summary block: conflictGroups, conflictedOrders, stuckOrders
  *  - Outer catch → 500 with err.message (no static masking — pin
  *    that this is currently a leak; future hardening would mask)
@@ -41,11 +42,11 @@ vi.mock("@/lib/auth", () => ({
 
 const findInvoiceNumberConflicts = vi.hoisted(() => vi.fn());
 const listOrdersByIds = vi.hoisted(() => vi.fn());
-const listStuckZohoInvoiceOrdersAdmin = vi.hoisted(() => vi.fn());
+const listUninvoicedPaidOrdersAdmin = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/orders", () => ({
   findInvoiceNumberConflicts,
   listOrdersByIds,
-  listStuckZohoInvoiceOrdersAdmin,
+  listUninvoicedPaidOrdersAdmin,
 }));
 
 const findUsersByIds = vi.hoisted(() => vi.fn());
@@ -74,7 +75,7 @@ beforeEach(() => {
   getAdminFromRequest.mockReset().mockResolvedValue({ _id: "ADMIN1" });
   findInvoiceNumberConflicts.mockReset().mockResolvedValue([]);
   listOrdersByIds.mockReset().mockResolvedValue([]);
-  listStuckZohoInvoiceOrdersAdmin.mockReset().mockResolvedValue([]);
+  listUninvoicedPaidOrdersAdmin.mockReset().mockResolvedValue([]);
   findUsersByIds.mockReset().mockResolvedValue([]);
 });
 
@@ -84,7 +85,7 @@ describe("Admin gate", () => {
     const res = await GET(makeReq());
     expect(res.status).toBe(401);
     expect(findInvoiceNumberConflicts).not.toHaveBeenCalled();
-    expect(listStuckZohoInvoiceOrdersAdmin).not.toHaveBeenCalled();
+    expect(listUninvoicedPaidOrdersAdmin).not.toHaveBeenCalled();
   });
 });
 
@@ -120,7 +121,7 @@ describe("Conflict group resolution", () => {
         status: "completed",
         amount: 999,
         invoiceNumber: "INV-001",
-        zohoInvoiceId: "ZH-1",
+        invoiceProvider: "primary",
         razorpayPaymentId: "PAY-1",
         createdAt: new Date("2026-06-01"),
       },
@@ -155,7 +156,7 @@ describe("Conflict group resolution", () => {
         userEmail: "alice@example.com",
         userName: "Alice Smith",
         invoiceNumber: "INV-001",
-        zohoInvoiceId: "ZH-1",
+        invoiceProvider: "primary",
         razorpayPaymentId: "PAY-1",
       })
     );
@@ -233,7 +234,7 @@ describe("Conflict group resolution", () => {
 });
 
 describe("listOrdersByIds projection", () => {
-  it("called with the exact projection string (10 fields pinned)", async () => {
+  it("called with the exact projection string (14 fields pinned)", async () => {
     findInvoiceNumberConflicts.mockResolvedValueOnce([
       { _id: "INV", count: 1, orderIds: ["O1"] },
     ]);
@@ -242,24 +243,52 @@ describe("listOrdersByIds projection", () => {
     await GET(makeReq());
     const projection = listOrdersByIds.mock.calls[0][1];
     expect(projection).toBe(
-      "_id orderId userId userEmail userName status amount invoiceNumber zohoInvoiceId razorpayPaymentId createdAt isDeleted"
+      "_id orderId userId userEmail userName status amount invoiceNumber invoiceProvider invoiceFailedAt invoiceFailureReason razorpayPaymentId createdAt isDeleted"
     );
   });
 });
 
 describe("Stuck-orders branch — 100-cap + projection", () => {
-  it("listStuckZohoInvoiceOrdersAdmin called with limit:100", async () => {
+  it("listUninvoicedPaidOrdersAdmin called with limit:100", async () => {
     await GET(makeReq());
-    expect(listStuckZohoInvoiceOrdersAdmin).toHaveBeenCalledWith(
+    expect(listUninvoicedPaidOrdersAdmin).toHaveBeenCalledWith(
       expect.objectContaining({ limit: 100 })
     );
   });
 
-  it("projection passed through; same 10-field shape", async () => {
+  it("projection passed through; same 14-field shape", async () => {
     await GET(makeReq());
-    const opts = listStuckZohoInvoiceOrdersAdmin.mock.calls[0][0];
+    const opts = listUninvoicedPaidOrdersAdmin.mock.calls[0][0];
     expect(opts.select).toContain("orderId");
-    expect(opts.select).toContain("zohoInvoiceId");
+    expect(opts.select).toBe(
+      "_id orderId userId userEmail userName status amount invoiceNumber invoiceProvider invoiceFailedAt invoiceFailureReason razorpayPaymentId createdAt isDeleted"
+    );
+    expect(opts.select).not.toContain("zohoInvoiceId");
+  });
+
+  it("a failed attempt surfaces its failure time (ISO) and reason on the stuck row", async () => {
+    listUninvoicedPaidOrdersAdmin.mockResolvedValueOnce([
+      {
+        _id: "S1",
+        orderId: "ORD-S1",
+        userId: "U9",
+        status: "completed",
+        amount: 1180,
+        invoiceFailedAt: new Date("2026-09-20T05:00:00.000Z"),
+        invoiceFailureReason: "COMPANY_STATE is not configured",
+      },
+    ]);
+    findUsersByIds.mockResolvedValueOnce([]).mockResolvedValueOnce([{ _id: "U9" }]);
+    const body = await (await GET(makeReq())).json();
+    expect(body.stuckOrders[0]).toEqual(
+      expect.objectContaining({
+        orderId: "ORD-S1",
+        invoiceFailedAt: "2026-09-20T05:00:00.000Z",
+        invoiceFailureReason: "COMPANY_STATE is not configured",
+      })
+    );
+    expect(body.stuckOrders[0].invoiceProvider).toBeUndefined();
+    expect(body.stuckOrders[0]).not.toHaveProperty("zohoInvoiceId");
   });
 });
 
@@ -277,7 +306,7 @@ describe("User-cache reuse across the two diagnostic legs", () => {
         amount: 100,
       },
     ]);
-    listStuckZohoInvoiceOrdersAdmin.mockResolvedValueOnce([
+    listUninvoicedPaidOrdersAdmin.mockResolvedValueOnce([
       {
         _id: "O2",
         orderId: "ORD-B",
@@ -316,7 +345,7 @@ describe("User-cache reuse across the two diagnostic legs", () => {
         amount: 100,
       },
     ]);
-    listStuckZohoInvoiceOrdersAdmin.mockResolvedValueOnce([
+    listUninvoicedPaidOrdersAdmin.mockResolvedValueOnce([
       {
         _id: "O2",
         orderId: "ORD-B",
@@ -351,7 +380,7 @@ describe("Summary block math", () => {
       { _id: "O5", orderId: "E", userId: "U1", status: "x", amount: 1 },
     ]);
     findUsersByIds.mockResolvedValue([{ _id: "U1" }]);
-    listStuckZohoInvoiceOrdersAdmin.mockResolvedValueOnce([
+    listUninvoicedPaidOrdersAdmin.mockResolvedValueOnce([
       { _id: "S1", orderId: "S1", userId: "U1", status: "x", amount: 1 },
       { _id: "S2", orderId: "S2", userId: "U1", status: "x", amount: 1 },
     ]);

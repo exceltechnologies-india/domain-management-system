@@ -2,7 +2,7 @@
  * Component tests for <ConflictsTable> (rescan-4 M14).
  * Pins the empty-render-nothing behaviour, the group-header invoiceNumber +
  * count, the per-order row rendering (orderId, user, status, amount,
- * zohoInvoiceId truncation with title tooltip, isDeleted tag), the
+ * "Issued by" provider label, isDeleted tag), the
  * Clear # callback, and the pendingId disable.
  */
 import { render, screen } from "@testing-library/react";
@@ -22,7 +22,7 @@ const sampleGroup: ConflictGroup = {
       userName: "Alice",
       status: "paid",
       amount: 1180,
-      zohoInvoiceId: "zoho-shortid",
+      invoiceProvider: "primary",
       createdAt: "2025-01-01T10:00:00Z",
     },
     {
@@ -32,7 +32,7 @@ const sampleGroup: ConflictGroup = {
       userName: "Bob",
       status: "failed",
       amount: 2000,
-      zohoInvoiceId: "this-is-a-very-long-zoho-invoice-id-string",
+      invoiceProvider: "zoho",
       createdAt: "2025-02-01T10:00:00Z",
       isDeleted: true,
     },
@@ -74,16 +74,24 @@ describe("<ConflictsTable>", () => {
     expect(screen.getByText(/deleted/i)).toBeInTheDocument();
   });
 
-  it("truncates a long zohoInvoiceId with an ellipsis and exposes the full value via the title attribute", () => {
+  it("labels who issued each invoice in the 'Issued by' column", () => {
+    const unissued: ConflictGroup = {
+      ...sampleGroup,
+      invoiceNumber: "INV-002",
+      orders: [{ ...sampleGroup.orders[0], _id: "o3", orderId: "ord-ccc", invoiceProvider: undefined }],
+      count: 1,
+    };
     render(
-      <ConflictsTable conflicts={[sampleGroup]} pendingId={null} onClearInvoiceNumber={vi.fn()} />
+      <ConflictsTable conflicts={[sampleGroup, unissued]} pendingId={null} onClearInvoiceNumber={vi.fn()} />
     );
-    // Short id renders verbatim
-    expect(screen.getByText("zoho-shortid")).toBeInTheDocument();
-    // Long id is truncated to first 14 chars + ellipsis
-    const truncated = screen.getByText(/this-is-a-very/);
-    expect(truncated.textContent).toMatch(/…$/);
-    expect(truncated.getAttribute("title")).toBe("this-is-a-very-long-zoho-invoice-id-string");
+    expect(screen.getAllByRole("columnheader", { name: "Issued by" })).toHaveLength(2);
+    const row = (orderId: string) => screen.getByText(orderId).closest("tr");
+    expect(row("ord-aaa")?.textContent).toContain("GST engine");
+    expect(row("ord-bbb")?.textContent).toContain("Zoho (historical)");
+    const unissuedRow = row("ord-ccc");
+    expect(unissuedRow?.textContent).toContain("—");
+    expect(unissuedRow?.textContent).not.toContain("GST engine");
+    expect(unissuedRow?.textContent).not.toContain("Zoho");
   });
 
   it("calls onClearInvoiceNumber with the order's orderId when Clear # is clicked", async () => {

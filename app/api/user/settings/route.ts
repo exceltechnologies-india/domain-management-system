@@ -364,24 +364,6 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // 3.5 Zoho Books Sync (Side Effect)
-    let zohoBooksSynced = false;
-    if (body.profile) {
-      try {
-        const { ZohoBooksService } = await import('@/lib/zohobooks');
-        const zohoService = ZohoBooksService.getInstance();
-        const contact = await zohoService.getContactByEmail(user.email);
-        if (contact) {
-            zohoBooksSynced = await zohoService.updateContactDetails(contact.contact_id, user);
-        } else {
-            await zohoService.createContact(user);
-            zohoBooksSynced = true;
-        }
-      } catch (error) {
-        serverLogger.error("Zoho Sync Error:", error);
-      }
-    }
-
     // 4. Password Email Notification (Side Effect)
     if (body.password) {
       try {
@@ -421,7 +403,6 @@ export async function PUT(request: NextRequest) {
     return secureJsonResponse({ 
       message: "Settings updated successfully",
       resellerClubSynced,
-      zohoBooksSynced,
       user: {
         id: user._id,
         email: user.email,

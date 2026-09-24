@@ -16,18 +16,15 @@ import { clearAllCollections } from "../setup";
 import Order from "@/models/Order";
 import {
   claimOrderForPrimaryInvoice,
-  claimOrderForZohoInvoice,
   claimPendingOrderForProcessing,
   clearOrderInvoiceNumber,
   createOrder,
   findOrderByDomain,
   findOrderByDomainForUser,
   findOrderByRazorpayPaymentField,
-  findOrderByZohoInvoiceForUser,
   findPriorHostingOrderForUser,
   flagCreditNotePending,
   listCreditNotePendingOrders,
-  forceMarkZohoCreationFailed,
   getOrderById,
   getOrderByIdOrOrderId,
   getOrderByOrderId,
@@ -35,16 +32,16 @@ import {
   listAllOrdersForAdminDomains,
   listOrdersByRazorpayPaymentIds,
   listOrdersForUser,
-  listPrimaryInvoiceOrdersAdmin,
+  listFailedInvoiceOrders,
+  listInvoiceOrdersAdmin,
   listStrandedProcessingOrders,
   listRecentCompletedOrdersForUser,
   listStuckCompletedOrders,
-  listStuckZohoInvoiceOrders,
+  listUninvoicedPaidOrdersAdmin,
   listUserInvoiceOrders,
   recordPrimaryInvoiceForOrder,
-  recordZohoInvoiceForOrder,
+  markInvoiceCreationFailed,
   releasePrimaryInvoiceClaim,
-  releaseZohoInvoiceClaim,
   userHasPriorTrialOrder,
 } from "@/lib/services/orders";
 
@@ -254,41 +251,6 @@ describe("findOrderByDomain (admin)", () => {
 
     expect((await findOrderByDomain("delta.com"))?.orderId).toBe("ord_adm_1");
     expect(await findOrderByDomain("epsilon.com")).toBeNull();
-  });
-});
-
-describe("findOrderByZohoInvoiceForUser", () => {
-  it("scopes by userId AND zohoInvoiceId, filtering soft-deletes", async () => {
-    const owner = validUserId();
-    const other = validUserId();
-    await createOrder(
-      buildOrderPayload({
-        orderId: "ord_zoho_1",
-        userId: owner,
-        zohoInvoiceId: "ZH-001",
-      })
-    );
-
-    expect((await findOrderByZohoInvoiceForUser(owner, "ZH-001"))?.orderId).toBe("ord_zoho_1");
-    // Wrong user — must be 404-equivalent.
-    expect(await findOrderByZohoInvoiceForUser(other, "ZH-001")).toBeNull();
-  });
-
-  it("honours the select option", async () => {
-    const owner = validUserId();
-    await createOrder(
-      buildOrderPayload({
-        orderId: "ord_zoho_2",
-        userId: owner,
-        zohoInvoiceId: "ZH-002",
-      })
-    );
-    const projected = await findOrderByZohoInvoiceForUser(owner, "ZH-002", {
-      select: "_id zohoInvoiceId",
-    });
-    // `orderId` was not selected — should be undefined on the projection.
-    expect(projected?.zohoInvoiceId).toBe("ZH-002");
-    expect(projected?.orderId).toBeUndefined();
   });
 });
 
@@ -593,72 +555,120 @@ describe("clearOrderInvoiceNumber", () => {
   });
 });
 
-describe("Zoho-invoice claim lifecycle", () => {
-  it("claim → record → reject second claim", async () => {
-    const order = await createOrder(buildOrderPayload({ orderId: "ord_claim_1" }));
+// Zoho Books was removed on 24 Sep 2026. Its `zohoInvoiceId` sentinel
+// ("pending_creation" / "creation_failed") is replaced by `invoiceFailedAt`,
+// and the only thing that means "already invoiced" is `invoiceProvider`.
+describe("invoice-failure lifecycle", () => {
+  it("markInvoiceCreationFailed stamps invoiceFailedAt + reason on an uninvoiced order", async () => {
+    const order = await createOrder(buildOrderPayload({ orderId: "ord_fail_1" }));
+    await markInvoiceCreationFailed(order._id, "COMPANY_STATE is not configured");
+    const found = await Order.findById(order._id);
+    expect(found?.invoiceFailedAt).toBeInstanceOf(Date);
+    expect(found?.invoiceFailureReason).toBe("COMPANY_STATE is not configured");
+    expect(found?.invoiceProvider).toBeUndefined();
+  });
 
-    const claimed = await claimOrderForZohoInvoice(order._id, { allowNull: true });
-    expect(claimed?.zohoInvoiceId).toBe("pending_creation");
+  it("markInvoiceCreationFailed caps the reason at 500 chars", async () => {
+    const order = await createOrder(buildOrderPayload({ orderId: "ord_fail_cap" }));
+    await markInvoiceCreationFailed(order._id, "e".repeat(2000));
+    const found = await Order.findById(order._id);
+    expect(found?.invoiceFailureReason).toHaveLength(500);
+  });
 
-    const second = await claimOrderForZohoInvoice(order._id, { allowNull: true });
-    // Second claim must fail — first worker holds it.
-    expect(second).toBeNull();
-
-    await recordZohoInvoiceForOrder(order._id, {
-      invoiceId: "ZH-real-001",
-      invoiceNumber: "INV-real-001",
+  it("markInvoiceCreationFailed is a NO-OP on an order that already has an invoice (either engine)", async () => {
+    const primary = await createOrder(buildOrderPayload({ orderId: "ord_fail_primary" }));
+    await recordPrimaryInvoiceForOrder(primary._id, {
+      invoiceNumber: "TI/2026-27/00101",
+      gstRate: 18,
+      taxableValue: 1000,
+      cgst: 90,
+      sgst: 90,
+      igst: 0,
+      placeOfSupply: "Delhi",
     });
-
-    const refetched = await Order.findById(order._id);
-    expect(refetched?.zohoInvoiceId).toBe("ZH-real-001");
-    expect(refetched?.invoiceNumber).toBe("INV-real-001");
-  });
-
-  it("releaseZohoInvoiceClaim clears pending_creation but no-ops otherwise", async () => {
-    const order = await createOrder(buildOrderPayload({ orderId: "ord_release_1" }));
-    await claimOrderForZohoInvoice(order._id, { allowNull: true });
-    await releaseZohoInvoiceClaim(order._id);
-    const refetched = await Order.findById(order._id);
-    expect(refetched?.zohoInvoiceId).toBeUndefined();
-
-    // No-op when not in pending_creation state.
-    await recordZohoInvoiceForOrder(order._id, { invoiceId: "ZH-final" });
-    await releaseZohoInvoiceClaim(order._id);
-    const after = await Order.findById(order._id);
-    expect(after?.zohoInvoiceId).toBe("ZH-final");
-  });
-
-  it("forceMarkZohoCreationFailed stamps creation_failed regardless of prior state", async () => {
-    const order = await createOrder(
-      buildOrderPayload({ orderId: "ord_force_1", zohoInvoiceId: "ZH-was-set" })
+    const historical = await createOrder(
+      buildOrderPayload({ orderId: "ord_fail_zoho", invoiceProvider: "zoho" })
     );
-    await forceMarkZohoCreationFailed(order._id);
-    const refetched = await Order.findById(order._id);
-    expect(refetched?.zohoInvoiceId).toBe("creation_failed");
+
+    await markInvoiceCreationFailed(primary._id, "late failure");
+    await markInvoiceCreationFailed(historical._id, "late failure");
+
+    for (const id of [primary._id, historical._id]) {
+      const found = await Order.findById(id);
+      expect(found?.invoiceFailedAt).toBeUndefined();
+      expect(found?.invoiceFailureReason).toBeUndefined();
+    }
   });
 
-  it("recordZohoInvoiceForOrder swallows E11000 invoice-number collision but still stores invoiceId", async () => {
-    const ordA = await createOrder(
-      buildOrderPayload({ orderId: "ord_dup_a", invoiceNumber: "INV-DUP" })
+  it("recordPrimaryInvoiceForOrder clears an earlier failure once the invoice lands", async () => {
+    const order = await createOrder(buildOrderPayload({ orderId: "ord_fail_then_ok" }));
+    await markInvoiceCreationFailed(order._id, "counter unreachable");
+    await claimOrderForPrimaryInvoice(order._id);
+    await recordPrimaryInvoiceForOrder(order._id, {
+      invoiceNumber: "TI/2026-27/00101",
+      gstRate: 18,
+      taxableValue: 1000,
+      cgst: 90,
+      sgst: 90,
+      igst: 0,
+      placeOfSupply: "Delhi",
+    });
+    const found = await Order.findById(order._id);
+    expect(found?.invoiceProvider).toBe("primary");
+    expect(found?.invoiceFailedAt).toBeUndefined();
+    expect(found?.invoiceFailureReason).toBeUndefined();
+  });
+
+  it("listFailedInvoiceOrders lists only the user's paid orders with a KNOWN failure and no invoice", async () => {
+    const userId = validUserId();
+    const failed = await createOrder(
+      buildOrderPayload({ orderId: "ord_lf_failed", userId, status: "completed" })
     );
-    const ordB = await createOrder(buildOrderPayload({ orderId: "ord_dup_b" }));
+    await markInvoiceCreationFailed(failed._id, "boom");
+    // Paid but never attempted — NOT retried (no path mints a first invoice
+    // for an order nobody tried to invoice).
+    await createOrder(buildOrderPayload({ orderId: "ord_lf_untried", userId, status: "completed" }));
+    // Another user's failure — not listed.
+    const other = await createOrder(
+      buildOrderPayload({ orderId: "ord_lf_other", userId: validUserId(), status: "completed" })
+    );
+    await markInvoiceCreationFailed(other._id, "boom");
+    // Soft-deleted failure — not listed.
+    const deleted = await createOrder(
+      buildOrderPayload({ orderId: "ord_lf_deleted", userId, status: "completed" })
+    );
+    await markInvoiceCreationFailed(deleted._id, "boom");
+    await Order.updateOne({ _id: deleted._id }, { $set: { isDeleted: true } });
 
-    // Order B tries to claim the same invoiceNumber — the unique index will
-    // reject it on the `{$set: {invoiceNumber}}` path. The helper must catch
-    // the dupe and fall back to storing zohoInvoiceId only.
-    await expect(
-      recordZohoInvoiceForOrder(ordB._id, {
-        invoiceId: "ZH-shared",
-        invoiceNumber: "INV-DUP",
-      })
-    ).resolves.toBeUndefined();
+    const ids = (await listFailedInvoiceOrders(String(userId))).map((o) => o.orderId);
+    expect(ids).toEqual(["ord_lf_failed"]);
+  });
 
-    const refetched = await Order.findById(ordB._id);
-    expect(refetched?.zohoInvoiceId).toBe("ZH-shared");
-    expect(refetched?.invoiceNumber).toBeUndefined();
-    // Order A still owns the invoiceNumber.
-    const refetchedA = await Order.findById(ordA._id);
-    expect(refetchedA?.invoiceNumber).toBe("INV-DUP");
+  it("listUninvoicedPaidOrdersAdmin: paid + no invoice, excluding ₹0, trial, invoiced and deleted orders", async () => {
+    await createOrder(buildOrderPayload({ orderId: "ord_un_paid", status: "completed" }));
+    await createOrder(buildOrderPayload({ orderId: "ord_un_zero", status: "completed", amount: 0 }));
+    await createOrder(
+      buildOrderPayload({ orderId: "ord_un_trial", status: "completed", orderType: "hosting_trial" })
+    );
+    await createOrder(
+      buildOrderPayload({ orderId: "ord_un_zoho", status: "completed", invoiceProvider: "zoho" })
+    );
+    const invoiced = await createOrder(buildOrderPayload({ orderId: "ord_un_primary", status: "completed" }));
+    await recordPrimaryInvoiceForOrder(invoiced._id, {
+      invoiceNumber: "TI/2026-27/00101",
+      gstRate: 18,
+      taxableValue: 1000,
+      cgst: 90,
+      sgst: 90,
+      igst: 0,
+      placeOfSupply: "Delhi",
+    });
+    const deleted = await createOrder(buildOrderPayload({ orderId: "ord_un_deleted", status: "completed" }));
+    await Order.updateOne({ _id: deleted._id }, { $set: { isDeleted: true } });
+    await createOrder(buildOrderPayload({ orderId: "ord_un_pending", status: "pending" }));
+
+    const ids = (await listUninvoicedPaidOrdersAdmin()).map((o) => o.orderId);
+    expect(ids).toEqual(["ord_un_paid"]);
   });
 });
 
@@ -909,8 +919,19 @@ describe("claimOrderForPrimaryInvoice / releasePrimaryInvoiceClaim / recordPrima
     expect(await claimOrderForPrimaryInvoice(order._id)).toBe(false);
   });
 
+  it("refuses an un-migrated Zoho-invoiced order (raw zohoInvoiceId, no invoiceProvider yet)", async () => {
+    // Deploy-order safety net: before migration 009 runs, a historical order
+    // still carries the raw `zohoInvoiceId` and no `invoiceProvider`. The
+    // field is not in the schema any more, so write it through the raw
+    // collection exactly as the old code left it.
+    const order = await createOrder(buildOrderPayload({ orderId: "ord_claim_legacy" }));
+    await Order.collection.updateOne({ _id: order._id }, { $set: { zohoInvoiceId: "4655000000123" } });
+    expect(await claimOrderForPrimaryInvoice(order._id)).toBe(false);
+    expect(await claimOrderForPrimaryInvoice(order._id, { staleClaimAfterMs: 1 })).toBe(false);
+  });
+
   // Stale-claim recovery (Phase 1c audit, 2026-09-03). Added when the
-  // sync-zoho-invoice Cloud Tasks worker became the first ASYNCHRONOUS,
+  // issue-invoice (then sync-zoho-invoice) Cloud Tasks worker became the first ASYNCHRONOUS,
   // queue-retried caller of the chokepoint: without stealing, a crash between
   // claim and persist strands the order behind a lease no retry can take, and
   // the renewal stays permanently uninvoiced.
@@ -1044,20 +1065,23 @@ describe("claimOrderForPrimaryInvoice / releasePrimaryInvoiceClaim / recordPrima
     expect(found?.primaryInvoiceClaimedAt).toBeInstanceOf(Date);
   });
 
-  // REGRESSION (2026-09-02): a primary-issued invoice has NO zohoInvoiceId by
-  // design, so the Zoho self-heal's "stuck order" query matched it and would
-  // have issued a SECOND tax invoice for the same payment — double-billing the
-  // customer. Caught by an end-to-end purchase test.
-  it("REGRESSION: listStuckZohoInvoiceOrders excludes primary-invoiced orders (no double-billing)", async () => {
+  // REGRESSION (2026-09-02, converted 24 Sep 2026): the Zoho self-heal's
+  // "stuck order" query once matched a primary-invoiced order and would have
+  // issued a SECOND tax invoice for the same payment. The retry list now keys
+  // on `invoiceProvider`, so an invoiced order is never listed — including a
+  // historical Zoho one, and including one carrying a stale failure flag.
+  it("REGRESSION: listFailedInvoiceOrders excludes invoiced orders even with a stale failure flag (no double-billing)", async () => {
     const userId = validUserId();
-    // A genuinely stuck order (Zoho never issued) — SHOULD be listed.
-    await createOrder(
-      buildOrderPayload({ orderId: "ord_stuck_zoho", userId, status: "completed" })
+    const stuck = await createOrder(
+      buildOrderPayload({ orderId: "ord_stuck_failed", userId, status: "completed" })
     );
-    // A primary-invoiced order — must NOT be listed.
+    await markInvoiceCreationFailed(stuck._id, "boom");
+
     const primaryOrder = await createOrder(
       buildOrderPayload({ orderId: "ord_primary_done", userId, status: "completed" })
     );
+    // Stamped BEFORE the invoice landed, then the invoice was recorded.
+    await markInvoiceCreationFailed(primaryOrder._id, "first attempt failed");
     await recordPrimaryInvoiceForOrder(primaryOrder._id, {
       invoiceNumber: "TI/2026-27/00009",
       gstRate: 18,
@@ -1068,10 +1092,17 @@ describe("claimOrderForPrimaryInvoice / releasePrimaryInvoiceClaim / recordPrima
       placeOfSupply: "Delhi",
     });
 
-    const stuck = await listStuckZohoInvoiceOrders(String(userId));
-    const ids = stuck.map((o) => o.orderId);
-    expect(ids).toContain("ord_stuck_zoho");
+    // Historical Zoho-invoiced order carrying a leftover failure flag written
+    // straight to the DB (the service refuses to write one on an invoiced order).
+    const zohoOrder = await createOrder(
+      buildOrderPayload({ orderId: "ord_zoho_done", userId, status: "completed", invoiceProvider: "zoho" })
+    );
+    await Order.updateOne({ _id: zohoOrder._id }, { $set: { invoiceFailedAt: new Date() } });
+
+    const ids = (await listFailedInvoiceOrders(String(userId))).map((o) => o.orderId);
+    expect(ids).toContain("ord_stuck_failed");
     expect(ids).not.toContain("ord_primary_done");
+    expect(ids).not.toContain("ord_zoho_done");
   });
 
   it("recordPrimaryInvoiceForOrder persists the full GST breakdown + provider", async () => {
@@ -1098,11 +1129,11 @@ describe("claimOrderForPrimaryInvoice / releasePrimaryInvoiceClaim / recordPrima
   });
 });
 
-// ─── Admin primary-invoice listing (Phase 1c audit, 2026-09-03) ───────────────
-// The admin invoices page is otherwise a pure Zoho passthrough, so a
-// primary-engine invoice — which exists only in our DB — was invisible to the
-// admin: no lookup, no download, for a bill the customer legally holds.
-describe("listPrimaryInvoiceOrdersAdmin", () => {
+// ─── Admin invoice listing ────────────────────────────────────────────────────
+// Since Zoho Books was removed (24 Sep 2026) our own DB is the only place an
+// invoice exists, so the admin list is every order with an `invoiceProvider`:
+// primary-engine invoices plus historical Zoho-issued ones.
+describe("listInvoiceOrdersAdmin", () => {
   /** Creates a completed order and stamps a primary invoice on it. */
   async function primaryInvoiced(
     orderId: string,
@@ -1124,20 +1155,28 @@ describe("listPrimaryInvoiceOrdersAdmin", () => {
     return order;
   }
 
-  it("returns only primary-engine invoices — Zoho-invoiced orders are excluded", async () => {
+  it("includes primary AND historical Zoho invoices, but not an order with no invoiceProvider", async () => {
     await primaryInvoiced("ord_admin_primary", "TI/2026-27/00001");
-    const zohoOrder = await createOrder(
-      buildOrderPayload({ orderId: "ord_admin_zoho", status: "completed" })
+    await createOrder(
+      buildOrderPayload({
+        orderId: "ord_admin_zoho",
+        status: "completed",
+        invoiceProvider: "zoho",
+        invoiceNumber: "INV-000123",
+      })
     );
-    await recordZohoInvoiceForOrder(zohoOrder._id, {
-      invoiceId: "zoho-1",
-      invoiceNumber: "INV-000123",
-    });
+    // status "completed" makes the pre-save hook mint a legacy invoiceNumber,
+    // so this order HAS a number — only the missing invoiceProvider excludes it.
+    const legacy = await createOrder(
+      buildOrderPayload({ orderId: "ord_admin_uninvoiced", status: "completed" })
+    );
+    expect((await Order.findById(legacy._id))?.invoiceNumber).toBeTruthy();
 
-    const { orders } = await listPrimaryInvoiceOrdersAdmin(1, 20);
-    const ids = orders.map((o) => o.orderId);
-    expect(ids).toContain("ord_admin_primary");
-    expect(ids).not.toContain("ord_admin_zoho");
+    const { orders } = await listInvoiceOrdersAdmin(1, 20);
+    const byId = new Map(orders.map((o) => [o.orderId, o]));
+    expect(byId.get("ord_admin_primary")?.invoiceProvider).toBe("primary");
+    expect(byId.get("ord_admin_zoho")?.invoiceProvider).toBe("zoho");
+    expect(byId.has("ord_admin_uninvoiced")).toBe(false);
   });
 
   it("spans all users — this is the ADMIN view, not a per-customer list", async () => {
@@ -1158,7 +1197,7 @@ describe("listPrimaryInvoiceOrdersAdmin", () => {
         placeOfSupply: "Delhi",
       });
     }
-    const { orders } = await listPrimaryInvoiceOrdersAdmin(1, 20);
+    const { orders } = await listInvoiceOrdersAdmin(1, 20);
     const ids = orders.map((o) => o.orderId);
     expect(ids).toContain("ord_u1");
     expect(ids).toContain("ord_u2");
@@ -1168,7 +1207,7 @@ describe("listPrimaryInvoiceOrdersAdmin", () => {
     const order = await primaryInvoiced("ord_deleted", "TI/2026-27/00020");
     await Order.updateOne({ _id: order._id }, { $set: { isDeleted: true } });
 
-    const { orders } = await listPrimaryInvoiceOrdersAdmin(1, 20);
+    const { orders } = await listInvoiceOrdersAdmin(1, 20);
     expect(orders.map((o) => o.orderId)).not.toContain("ord_deleted");
   });
 
@@ -1185,7 +1224,7 @@ describe("listPrimaryInvoiceOrdersAdmin", () => {
       { $set: { createdAt: new Date("2026-06-01T00:00:00Z") } }
     );
 
-    const { orders } = await listPrimaryInvoiceOrdersAdmin(1, 20);
+    const { orders } = await listInvoiceOrdersAdmin(1, 20);
     const ids = orders.map((o) => o.orderId);
     expect(ids.indexOf("ord_newer")).toBeLessThan(ids.indexOf("ord_older"));
   });
@@ -1199,9 +1238,9 @@ describe("listPrimaryInvoiceOrdersAdmin", () => {
       );
     }
 
-    const p1 = await listPrimaryInvoiceOrdersAdmin(1, 2);
-    const p2 = await listPrimaryInvoiceOrdersAdmin(2, 2);
-    const p3 = await listPrimaryInvoiceOrdersAdmin(3, 2);
+    const p1 = await listInvoiceOrdersAdmin(1, 2);
+    const p2 = await listInvoiceOrdersAdmin(2, 2);
+    const p3 = await listInvoiceOrdersAdmin(3, 2);
 
     expect(p1.orders).toHaveLength(2);
     expect(p1.hasMore).toBe(true);
@@ -1220,7 +1259,7 @@ describe("listPrimaryInvoiceOrdersAdmin", () => {
     for (let i = 1; i <= 3; i++) {
       await primaryInvoiced(`ord_look_${i}`, `TI/2026-27/0005${i}`);
     }
-    const { orders, hasMore } = await listPrimaryInvoiceOrdersAdmin(1, 2);
+    const { orders, hasMore } = await listInvoiceOrdersAdmin(1, 2);
     expect(orders).toHaveLength(2);
     expect(hasMore).toBe(true);
   });
@@ -1228,16 +1267,16 @@ describe("listPrimaryInvoiceOrdersAdmin", () => {
   it("clamps a garbage page/perPage instead of passing NaN to Mongo", async () => {
     await primaryInvoiced("ord_clamp", "TI/2026-27/00060");
     // NaN would make .skip()/.limit() throw or return nothing.
-    const { orders } = await listPrimaryInvoiceOrdersAdmin(NaN, NaN);
+    const { orders } = await listInvoiceOrdersAdmin(NaN, NaN);
     expect(orders.map((o) => o.orderId)).toContain("ord_clamp");
 
-    const negative = await listPrimaryInvoiceOrdersAdmin(-5, -5);
+    const negative = await listInvoiceOrdersAdmin(-5, -5);
     expect(negative.orders.map((o) => o.orderId)).toContain("ord_clamp");
   });
 
   it("caps perPage at 100 so a hand-crafted request can't pull the whole collection", async () => {
     await primaryInvoiced("ord_cap", "TI/2026-27/00070");
-    const { orders } = await listPrimaryInvoiceOrdersAdmin(1, 100000);
+    const { orders } = await listInvoiceOrdersAdmin(1, 100000);
     // Can't assert the limit directly through the public API; assert it still
     // returns correctly and doesn't throw, and that the page is bounded.
     expect(orders.length).toBeLessThanOrEqual(100);
@@ -1251,7 +1290,7 @@ describe("listPrimaryInvoiceOrdersAdmin", () => {
       userName: "Alice Anderson",
       userEmail: "alice@example.com",
     });
-    const { orders } = await listPrimaryInvoiceOrdersAdmin(1, 20);
+    const { orders } = await listInvoiceOrdersAdmin(1, 20);
     const row = orders.find((o) => o.orderId === "ord_fields")!;
     expect(row.invoiceNumber).toBe("TI/2026-27/00080");
     expect(row.userName).toBe("Alice Anderson");
@@ -1262,15 +1301,15 @@ describe("listPrimaryInvoiceOrdersAdmin", () => {
 
   it("does NOT leak fields outside the projection (e.g. razorpaySignature)", async () => {
     await primaryInvoiced("ord_proj", "TI/2026-27/00090");
-    const { orders } = await listPrimaryInvoiceOrdersAdmin(1, 20);
+    const { orders } = await listInvoiceOrdersAdmin(1, 20);
     const row = orders.find((o) => o.orderId === "ord_proj")! as unknown as Record<string, unknown>;
     expect(row.razorpaySignature).toBeUndefined();
     expect(row.paymentVerification).toBeUndefined();
   });
 
-  it("returns an empty page rather than throwing when nothing is primary-invoiced", async () => {
+  it("returns an empty page rather than throwing when nothing is invoiced", async () => {
     await createOrder(buildOrderPayload({ orderId: "ord_none", status: "completed" }));
-    const { orders, hasMore } = await listPrimaryInvoiceOrdersAdmin(1, 20);
+    const { orders, hasMore } = await listInvoiceOrdersAdmin(1, 20);
     expect(orders).toEqual([]);
     expect(hasMore).toBe(false);
   });
@@ -1279,7 +1318,7 @@ describe("listPrimaryInvoiceOrdersAdmin", () => {
 // ─── Manual credit-note obligation (Primary Billing Integration) ──────────────
 // The primary GST engine has no credit-note counterpart (deferred by operator
 // decision 2026-09-03), so a refund against a primary invoice leaves a real
-// statutory obligation that an operator discharges by hand in Zoho Books.
+// statutory obligation that an operator discharges by hand.
 // These helpers make that obligation queryable rather than log-only.
 describe("flagCreditNotePending / listCreditNotePendingOrders", () => {
   async function primaryInvoicedOrder(orderId: string, invoiceNumber: string) {
@@ -1479,8 +1518,5 @@ describe("getOrderById vs getOrderByIdOrOrderId (admin PDF route regression)", (
     const found = await getOrderByIdOrOrderId("ORD-primary-ui");
     expect(found?.invoiceProvider).toBe("primary");
     expect(found?.invoiceNumber).toBe("TI/2026-27/00001");
-    // No Zoho id by design — which is why the admin route must fall through
-    // to the local PDF generator rather than querying Zoho.
-    expect(found?.zohoInvoiceId).toBeUndefined();
   });
 });

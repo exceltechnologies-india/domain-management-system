@@ -51,38 +51,32 @@ Only for confirmed false positives — e.g., an intentional test fixture string 
 ## Trial order invoice policy (operator decision 2026-06-30)
 
 
-**Do NOT generate a Zoho Books invoice for ₹0 trial signups.** The Order row gets persisted (`amount: 0, status: 'pending', orderType: 'hosting_trial'`) as the audit trail; the Hosting row gets created with `isTrial: true` and `billingType: 'manual'`; the welcome email fires when the DA-provisioning cron flips the Hosting to active. None of that emits a tax invoice.
+**Do NOT generate an invoice for ₹0 trial signups.** The Order row gets persisted (`amount: 0, status: 'pending', orderType: 'hosting_trial'`) as the audit trail; the Hosting row gets created with `isTrial: true` and `billingType: 'manual'`; the welcome email fires when the DA-provisioning cron flips the Hosting to active. None of that emits a tax invoice.
 
-The customer's FIRST tax invoice fires at day 15+ when the trial converts via the renewal flow (`/api/user/hosting/renew` → Razorpay one-shot order → `/api/payments/verify` → `createZohoInvoice` in `lib/services/payment/post-tasks.ts`). At that point the renewal Order has the real ₹599.88 (Starter yearly) / ₹1,500 (Standard yearly) / ₹2,246.40 (Plus yearly) amount, and the invoice issued matches the actual charge.
+The customer's FIRST tax invoice fires at day 15+ when the trial converts via the renewal flow (`/api/user/hosting/renew` → Razorpay one-shot order → `/api/payments/verify` → `createPrimaryInvoice` in `lib/services/billing/createPrimaryInvoice.ts`). At that point the renewal Order has the real ₹599.88 (Starter yearly) / ₹1,500 (Standard yearly) / ₹2,246.40 (Plus yearly) amount, and the invoice issued matches the actual charge.
 
-**Why this is correct**: Indian GST requires a tax invoice only for a taxable supply with consideration > 0. Issuing ₹0 invoices in Zoho would clutter the books, complicate revenue reporting, and create unnecessary reconciliation work for the finance team. AWS / Netflix / Spotify / GoDaddy all follow the same pattern — invoice fires at first real charge, not at trial signup.
+**Why this is correct**: Indian GST requires a tax invoice only for a taxable supply with consideration > 0. Issuing ₹0 invoices would clutter the books, complicate revenue reporting, and create unnecessary reconciliation work for the finance team. AWS / Netflix / Spotify / GoDaddy all follow the same pattern — invoice fires at first real charge, not at trial signup.
 
-**Enforcement**: `createZohoInvoice` in `lib/services/payment/post-tasks.ts` short-circuits at the top with `if (!orderAmount || orderAmount <= 0 || orderType === 'hosting_trial') return earlyWithNoInvoice;`. The guard fires before any retry/claim logic so neither an accidental zero-amount caller nor a future code path that hands a trial Order can issue an invoice in Zoho. The guard is belt-and-suspenders — current callers (`payments/verify` + `payments/guest/verify`) only fire on a real Razorpay payment, which always has amount > 0; the guard defends against future regressions.
+**Enforcement**: `createPrimaryInvoice` in `lib/services/billing/createPrimaryInvoice.ts` short-circuits at the top with `if (!orderAmount || orderAmount <= 0 || orderType === 'hosting_trial') return skipped;`. The guard fires before any claim logic so neither an accidental zero-amount caller nor a future code path that hands a trial Order can issue an invoice. The guard is belt-and-suspenders — current callers (`payments/verify` + `payments/guest/verify`) only fire on a real Razorpay payment, which always has amount > 0; the guard defends against future regressions.
 
 
 If a customer ASKS for a trial-period invoice: there is none. Canned response: *"No invoice is issued for the free trial period since there's no charge. Your first invoice will be generated automatically when your trial converts on day 15 — that's when your card / UPI mandate is charged for the first time."*
 
-## Primary billing is PERMANENT; only the Zoho fallback is toggleable (operator decision 2026-09-03)
+## Zoho Books removed — our GST engine is the only invoice issuer (OWNER DECISION, 24 Sep 2026)
 
-Our own GST engine **always** issues the tax invoice — the legally-numbered `TI/YYYY-YY/NNNNN`. It is ungated: the former `PRIMARY_BILLING_ENABLED` var was **removed**, because a config slip should never be able to stop issuing our own tax invoices. Do not reintroduce a switch for it.
+**This is a user decision, not a refactor.** On 24 Sep 2026 the owner (Pardeep) asked for Zoho Books to be removed completely: *"Remove the Zoho completely. Mark it as user decision."* Do not reintroduce Zoho Books — as a fallback, a sync, a contact mirror or anything else — without the owner asking for it. If a future need looks like it wants an accounting system, raise it with the owner first; do not build it.
 
-What remains operator-controlled is the **safety net**: `ZOHO_INVOICE_FALLBACK_ENABLED` (default **ON**, opt-out shape like `RESELLER_FEATURE_ENABLED`). When the primary engine throws, Zoho Books issues the invoice instead so a paid customer is never left without one.
+What that means in code:
 
-**To disable the fallback:**
+- **One issuer.** `createPrimaryInvoice` (our GST engine, `TI/YYYY-YY/NNNNN`) issues every invoice. It is ungated — do not add a switch — and it has **no fallback**. The `ZOHO_INVOICE_FALLBACK_ENABLED` flag is gone. Two invoice series under one GSTIN can no longer happen going forward.
+- **A failure is flagged, never papered over.** When the engine throws, the caller writes a SystemLog row and `markInvoiceCreationFailed` stamps `invoiceFailedAt` + `invoiceFailureReason` on the Order (this replaces the old `zohoInvoiceId: 'creation_failed'` sentinel). It shows in admin integration-health (**Invoicing** card) and Admin → Invoices diagnostics, the customer's invoices page retries it (`lib/invoice-retry.ts`, throttled 5 min, plus a "Retry" pill), and an admin can press Re-sync (`app/api/admin/orders/[id]/re-sync-invoice`).
+- **Renewal invoices** go through the Cloud Tasks worker `app/api/workers/issue-invoice` (renamed from `sync-zoho-invoice`). Queue: `GCP_INVOICE_QUEUE_NAME`, else `GCP_QUEUE_NAME`.
+- **Prerequisite:** `COMPANY_STATE` (the state our GSTIN is registered in — Delhi) must be set, or the engine refuses every invoice by design (CGST/SGST vs IGST is unknowable). It was `ZOHO_ORG_STATE` before. `scripts/deploy-cloud-run.sh` preserves it from the running service and **refuses to deploy** when it is empty.
+- **Historical Zoho invoices.** Orders Zoho invoiced before the removal carry `invoiceProvider: 'zoho'` (stamped by Mongo migration `009_retire_zoho_invoice_fields`). That value is read-only history: it is what stops any retry issuing a second invoice for those payments. Their PDFs are re-rendered by DMS from the order (as a Proforma copy — the tax split lived in Zoho). Measured at removal: production held **2 orders, both Zoho-invoiced test orders**.
+- **Double-billing guards** in the re-sync route, the issue-invoice worker, `idempotency.ts` and the engine's own claim all refuse ANY `invoiceProvider` — primary or historical zoho.
+- **GSTR-1:** from 24 Sep 2026 only our `TI/...` series is issued. Zoho's numbers remain valid for the periods they were used.
 
-```bash
-gcloud run services update dms --region=europe-west1   --update-env-vars ZOHO_INVOICE_FALLBACK_ENABLED=false
-```
-
-`--remove-env-vars` does **not** disable it — unset means enabled, and `deploy-cloud-run.sh`'s `:-` chain treats an empty Cloud Run value as unset anyway. Only the literal `false` works.
-
-**What disabling actually costs you:** a primary-engine failure stops being papered over. `createPrimaryInvoice` rethrows, the caller writes a durable SystemLog row and marks the Order `zohoInvoiceId='creation_failed'`, and it surfaces in admin integration-health as a stuck invoice. A customer whose payment **succeeded** is then temporarily uninvoiced until an operator fixes it. That is the deliberate trade — no second-series Zoho invoice enters the GSTIN automatically, at the cost of manual recovery. Leave it ON unless you specifically want that.
-
-**Prerequisite for the primary engine:** `ZOHO_ORG_STATE` must be set, or `attemptCreatePrimaryInvoice` throws by design (GST place-of-supply is unknowable, so CGST/SGST vs IGST can't be trusted) and every invoice falls through to the fallback.
-
-**A disabled fallback does not unwind issued invoices.** Orders carrying `invoiceProvider: 'primary'` keep their `TI/...` numbers; those are issued tax documents. The guards in `app/api/admin/orders/[id]/re-sync-invoice` and `app/api/workers/sync-zoho-invoice` stop anything re-invoicing them through Zoho and double-billing.
-
-**GSTR-1:** two invoice-number series coexist under one GSTIN (ours, plus Zoho's own whenever the fallback fires). **Both must be reported.** Keep the CA informed.
+**Deploy order.** Run `npm run migrate` (applies 009) and make sure `COMPANY_STATE` is set on the service with the deploy of this code. If the migration runs late, nothing double-invoices: the engine's claim (`claimOrderForPrimaryInvoice`) also refuses any order still carrying a raw `zohoInvoiceId`, and the retry paths only touch orders with `invoiceFailedAt` — both pinned by tests. The two historical orders would just show as uninvoiced in admin diagnostics until it runs.
 
 ## Primary-invoice refunds — credit notes are MANUAL (operator decision 2026-09-03)
 
@@ -90,9 +84,9 @@ Our primary GST engine mints tax invoices (`TI/YYYY-YY/NNNNN`) but has **no cred
 
 **Consequence:** a refund against a primary-issued invoice leaves a real GST obligation that a human must discharge.
 
-**The flow:** `refund.processed` in `app/razorpay/webhook/route.ts` branches on `invoiceProvider === 'primary'` BEFORE the benign no-invoice skip, logs at ERROR with the order id / `TI/...` number / refund id / rupee amount / ACTION line, and stamps `creditNotePending` (+ refund id, amount in paise, timestamp) on the Order. `app/api/admin/integration-health` lists every flagged order on the **Zoho Books** card.
+**The flow:** `refund.processed` in `app/razorpay/webhook/route.ts` branches on ANY `invoiceProvider` (primary, or a historical Zoho invoice — whose credit notes Zoho used to raise automatically) BEFORE the benign no-invoice skip, logs at ERROR with the order id / `TI/...` number / refund id / rupee amount / ACTION line, and stamps `creditNotePending` (+ refund id, amount in paise, timestamp) on the Order. `app/api/admin/integration-health` lists every flagged order on the **Invoicing** card.
 
-**Operator action when a `[CREDIT-NOTE]` entry appears:** raise a credit note in Zoho Books against the named `TI/...` invoice for the named amount, then clear `creditNotePending` on the Order.
+**Operator action when a `[CREDIT-NOTE]` entry appears:** raise a credit note by hand against the named invoice for the named amount, then clear `creditNotePending` on the Order. (Owner, 24 Sep 2026: no credit-note engine for now — the only refunded-invoice candidates were test orders.)
 
 **Do NOT time-window that health check.** Every other source there is bounded by `since` because stale errors stop being actionable; this one is the opposite — GST credit notes must be issued by **30 November following the end of the financial year**, so an outstanding one gets *more* urgent with age. Ageing it out is the exact failure the check exists to prevent.
 

@@ -35,9 +35,10 @@
  *  - **PUT response data-minimization**: 5-field user projection
  *    (id, email, firstName, lastName, profileCompleted, role) —
  *    NEVER includes password / resetToken / TOTP / address
- *  - **PUT RC + Zoho + email side-effects all SWALLOWED** (best-
- *    effort — profile mutation must commit even if external sync
- *    fails); resellerClubSynced + zohoBooksSynced flags in response
+ *  - **PUT RC + email side-effects all SWALLOWED** (best-effort —
+ *    profile mutation must commit even if external sync fails);
+ *    resellerClubSynced flag in response. The Zoho Books contact sync
+ *    and its `zohoBooksSynced` flag were removed with Zoho (24 Sep 2026).
  *  - **PUT password change email**: isFirstTime detection
  *    (!hadPasswordBefore AND provider !== 'credentials')
  */
@@ -102,20 +103,6 @@ vi.mock("@/lib/api-response-wrapper", () => ({
 
 vi.mock("@/lib/server-logger", () => ({
   serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}));
-
-const zohoGetContactByEmail = vi.hoisted(() => vi.fn());
-const zohoUpdateContactDetails = vi.hoisted(() => vi.fn());
-const zohoCreateContact = vi.hoisted(() => vi.fn());
-const zohoGetInstance = vi.hoisted(() =>
-  vi.fn(() => ({
-    getContactByEmail: zohoGetContactByEmail,
-    updateContactDetails: zohoUpdateContactDetails,
-    createContact: zohoCreateContact,
-  }))
-);
-vi.mock("@/lib/zohobooks", () => ({
-  ZohoBooksService: { getInstance: zohoGetInstance },
 }));
 
 const sendPasswordChangeNotificationEmail = vi.hoisted(() => vi.fn());
@@ -203,9 +190,6 @@ beforeEach(() => {
     .mockReset()
     .mockReturnValue({ isValid: true, errors: [] });
   getUserWithPassword.mockReset();
-  zohoGetContactByEmail.mockReset().mockResolvedValue(null);
-  zohoUpdateContactDetails.mockReset().mockResolvedValue(true);
-  zohoCreateContact.mockReset().mockResolvedValue({ contact_id: "C1" });
   sendPasswordChangeNotificationEmail
     .mockReset()
     .mockResolvedValue(undefined);
@@ -681,7 +665,7 @@ describe("PUT — response data-minimization", () => {
     expect(data.user).not.toHaveProperty("address");
   });
 
-  it("response includes resellerClubSynced + zohoBooksSynced flags", async () => {
+  it("response includes resellerClubSynced and NO zohoBooksSynced flag", async () => {
     const user = makeUser();
     getUserFromRequest.mockResolvedValueOnce(user);
     profileUpdateSafeParse.mockReturnValueOnce({
@@ -692,12 +676,12 @@ describe("PUT — response data-minimization", () => {
     await PUT(makeReq("PUT", { profile: { firstName: "X" } }));
     const data = secureJsonResponse.mock.calls[0][0] as any;
     expect(data).toHaveProperty("resellerClubSynced");
-    expect(data).toHaveProperty("zohoBooksSynced");
+    expect(data).not.toHaveProperty("zohoBooksSynced");
   });
 });
 
 // ─── PUT: Side-effect resilience ───────────────────────────────────
-describe("PUT — RC + Zoho + email side-effects all SWALLOWED", () => {
+describe("PUT — RC + email side-effects all SWALLOWED", () => {
   it("RC modifyCustomer throw does NOT abort response", async () => {
     const user = makeUser();
     getUserFromRequest.mockResolvedValueOnce(user);
@@ -706,19 +690,6 @@ describe("PUT — RC + Zoho + email side-effects all SWALLOWED", () => {
       data: { firstName: "X" },
     });
     rcModifyCustomer.mockRejectedValueOnce(new Error("RC down"));
-
-    const res = await PUT(makeReq("PUT", { profile: { firstName: "X" } }));
-    expect(res.status).toBe(200);
-  });
-
-  it("Zoho sync failure does NOT abort response", async () => {
-    const user = makeUser();
-    getUserFromRequest.mockResolvedValueOnce(user);
-    profileUpdateSafeParse.mockReturnValueOnce({
-      success: true,
-      data: { firstName: "X" },
-    });
-    zohoGetContactByEmail.mockRejectedValueOnce(new Error("Zoho down"));
 
     const res = await PUT(makeReq("PUT", { profile: { firstName: "X" } }));
     expect(res.status).toBe(200);

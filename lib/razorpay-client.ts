@@ -37,7 +37,7 @@ const sdkClient = new Razorpay({
 
 // 30s upper bound on every Razorpay HTTP call. The SDK's internal axios
 // client has no default timeout — a hung Razorpay slot would otherwise
-// stall payment-verify indefinitely (mirrors the resolved [H3] Zoho axios
+// stall payment-verify indefinitely (same fix as the resolved [H3] axios
 // timeout). Set on `api.defaults` because the SDK doesn't expose a
 // constructor `timeout` option in v2.x.
 {

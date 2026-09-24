@@ -2,11 +2,10 @@ import connectDB from "@/lib/mongodb";
 import Counter from "@/models/Counter";
 
 /**
- * Primary tax-invoice numbering — see docs on the GST-compliance decision:
- * this series is DISTINCT from Zoho's own invoice-number series (Zoho
- * invoices, created only on primary-engine failure, keep whatever number
- * Zoho itself assigns). Both series are real, sequential, and need to be
- * reported together in GSTR-1 filings.
+ * Tax-invoice numbering (TI/YYYY-YY/NNNNN) — the only invoice series DMS
+ * issues. Historical Zoho Books invoices (issued before Zoho was removed on
+ * 24 Sep 2026) keep the numbers Zoho assigned; both series are real and must
+ * be reported for the periods they were used in GSTR-1.
  */
 const SERIES_PREFIX = "TI";
 

@@ -41,9 +41,10 @@ import mongoose from "mongoose";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import type { IOrder } from "@/models/Order";
 
-// No invoicing flag is set on purpose: the primary GST engine is permanent and
-// the Zoho fallback defaults on, so this runs exactly as production does.
-process.env.ZOHO_ORG_STATE = "Delhi";
+// No invoicing flag is set on purpose: our own GST engine is the only issuer
+// (Zoho Books was removed on 24 Sep 2026), so this runs exactly as production
+// does. COMPANY_STATE is its one required input (was ZOHO_ORG_STATE).
+process.env.COMPANY_STATE = "Delhi";
 process.env.GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "e2e_google_id";
 process.env.GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "e2e_google_secret";
 
@@ -110,19 +111,6 @@ vi.mock("@/lib/directadmin", () => ({
   DA_SERVER_IP: "10.0.0.9",
 }));
 
-const zohoCreateInvoice = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/zohobooks", () => ({
-  ZohoBooksService: {
-    getInstance: () => ({
-      getContactByEmail: vi.fn(async () => null),
-      createContact: vi.fn(async () => null),
-      updateContactDetails: vi.fn(async () => null),
-      createInvoice: zohoCreateInvoice,
-      getInvoicePdf: vi.fn(async () => null),
-    }),
-  },
-}));
-
 vi.unmock("next/server");
 const { NextRequest, NextResponse } = await vi.importActual<
   typeof import("next/server")
@@ -165,7 +153,6 @@ beforeEach(async () => {
   rzpGetOrderDetails.mockReset();
   daCreateUser.mockReset().mockResolvedValue({ kind: "created", username: "verifyuser1" });
   rcRegisterDomain.mockReset().mockResolvedValue({ kind: "registered", orderId: "rc_order_1" });
-  zohoCreateInvoice.mockReset();
 });
 
 // ── Helpers ─────────────────────────────────────────────────────────────────

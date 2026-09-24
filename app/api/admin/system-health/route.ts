@@ -6,7 +6,6 @@ import { authOptions } from "@/lib/auth-config";
 import { connectToDatabase } from "@/lib/mongoose";
 import PendingDomain from "@/models/PendingDomain";
 import { countPendingHostingsByStatus } from "@/lib/services/pending-hostings";
-import { getSettingValue } from "@/lib/services/settings";
 import { countUsers } from "@/lib/services/users";
 import { countAllOrders } from "@/lib/services/orders";
 import Domain from "@/models/Domain";
@@ -14,7 +13,6 @@ import { countOpenTickets } from "@/lib/services/support-tickets";
 import { ResellerClubAPI } from "@/lib/resellerclub";
 import { DirectAdminService } from "@/lib/directadmin";
 import { razorpay } from "@/lib/razorpay";
-import { ZohoBooksService } from "@/lib/zohobooks";
 import { serverLogger } from "@/lib/server-logger";
 
 export const dynamic = "force-dynamic";
@@ -127,102 +125,7 @@ export async function GET(req: NextRequest) {
       rzpLatencyMs = ms() - rzpStart;
     }
 
-    // ── 6. Zoho Books ────────────────────────────────────────────────────────
-    let zohoBooksStatus: "operational" | "down" = "operational";
-    let zohoPlanStatus = "active";
-    let zohoPlanName = "";
-    let zohoPlanType = "";
-    let zohoPlanExpiryDate: string | null = null;
-    let zohoDaysUntilExpiry: number | null = null;
-    let zohoLatencyMs = 0;
-
-    const zohoConfigured =
-      !!process.env.ZOHO_CLIENT_ID &&
-      !!process.env.ZOHO_CLIENT_SECRET &&
-      !!process.env.ZOHO_REFRESH_TOKEN;
-
-    let dbExpired = false;
-    if (zohoConfigured) {
-      try {
-        await connectToDatabase();
-        const expiryValue = await getSettingValue<{ expired?: boolean }>("zoho.subscription_expired");
-        dbExpired = expiryValue?.expired === true;
-      } catch (e: unknown) {
-        const message = e instanceof Error ? e.message : String(e);
-        serverLogger.warn("[System Health] Could not read Zoho expiry from DB", message);
-      }
-    }
-
-    if (!zohoConfigured) {
-      zohoBooksStatus = "down";
-      zohoPlanStatus = "misconfigured";
-    } else if (dbExpired) {
-      zohoBooksStatus = "down";
-      zohoPlanStatus = "expired";
-    } else {
-      const zohoStart = ms();
-      try {
-        const zohoService = ZohoBooksService.getInstance();
-        const org = await zohoService.getOrganizationDetails();
-        zohoLatencyMs = ms() - zohoStart;
-        if (!org) throw new Error("Could not fetch organization details from Zoho Books");
-
-        // Zoho returns plan_name + plan_type as either strings OR (in some
-        // org states) non-string values like booleans or numeric tier IDs.
-        // The TS cast above is a compile-time lie; coerce at runtime so the
-        // dashboard render path (which calls .charAt + .slice on these
-        // fields) never sees a non-string. Without this guard the admin
-        // dashboard crashed with "planType.charAt is not a function" —
-        // caught in the 2026-06-20 SystemLog after restoring error-log
-        // visibility via the SELF_AUTHENTICATING_ADMIN_API middleware fix.
-        zohoPlanName = org.plan_name != null ? String(org.plan_name) : "";
-        zohoPlanType = org.plan_type != null ? String(org.plan_type) : "";
-        const rawExpiry: string | undefined =
-          (org.trial_expiry_date as string | undefined) ||
-          (org.plan_expiry_date as string | undefined) ||
-          (org.subscription_end_date as string | undefined);
-
-        if (rawExpiry) {
-          zohoPlanExpiryDate = rawExpiry;
-          zohoDaysUntilExpiry = Math.ceil((new Date(rawExpiry).getTime() - Date.now()) / 86_400_000);
-        }
-
-        const isExpired =
-          zohoService.isSubscriptionExpired() ||
-          org.status === "expired" ||
-          org.is_expired === true ||
-          (zohoDaysUntilExpiry !== null && zohoDaysUntilExpiry <= 0);
-
-        const isExpiringSoon = !isExpired && zohoDaysUntilExpiry !== null && zohoDaysUntilExpiry <= 7;
-
-        if (isExpired) {
-          zohoPlanStatus = "expired";
-          zohoBooksStatus = "down";
-        } else if (isExpiringSoon) {
-          zohoPlanStatus = "trial_expiring";
-        } else if (org.plan_type === "trial") {
-          zohoPlanStatus = "trial";
-        } else {
-          zohoPlanStatus = "active";
-        }
-      } catch (e: unknown) {
-        interface ZohoErrLike { code?: string; message?: string }
-        const err = (e && typeof e === 'object' ? e : {}) as ZohoErrLike;
-        zohoLatencyMs = ms() - zohoStart;
-        serverLogger.error("System Health: Zoho Books ping failed", err.message || e);
-        if (err.code === "SUBSCRIPTION_EXPIRED" || err.message?.includes("103001")) {
-          zohoPlanStatus = "expired";
-          zohoBooksStatus = "down";
-        } else if (err.code === "AUTH_ERROR" || err.code === "MISSING_REFRESH_TOKEN") {
-          zohoBooksStatus = "down";
-          zohoPlanStatus = "misconfigured";
-        } else {
-          zohoBooksStatus = "down";
-        }
-      }
-    }
-
-    // ── 7. Server metrics ────────────────────────────────────────────────────
+    // ── 6. Server metrics ────────────────────────────────────────────────────
     const memUsage = process.memoryUsage();
     const serverMetrics = {
       uptimeSeconds: Math.floor(process.uptime()),
@@ -270,15 +173,6 @@ export async function GET(req: NextRequest) {
           status: razorpayStatus,
           mode: razorpayMode,
           latencyMs: rzpLatencyMs,
-        },
-        zohoBooks: {
-          status: zohoBooksStatus,
-          planStatus: zohoPlanStatus,
-          planName: zohoPlanName,
-          planType: zohoPlanType,
-          planExpiryDate: zohoPlanExpiryDate,
-          daysUntilExpiry: zohoDaysUntilExpiry,
-          latencyMs: zohoLatencyMs,
         },
       },
       server: serverMetrics,

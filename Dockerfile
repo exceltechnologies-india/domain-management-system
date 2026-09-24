@@ -83,7 +83,6 @@ ENV SMTP_PORT=587
 ENV SMTP_USER=build-time-placeholder
 ENV SMTP_PASS=build-time-placeholder
 ENV FROM_EMAIL=build-time-placeholder@invalid
-ENV ZOHO_ORG_STATE=build-time-placeholder
 ENV GOOGLE_CLIENT_ID=build-time-placeholder
 ENV GOOGLE_CLIENT_SECRET=build-time-placeholder
 

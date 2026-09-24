@@ -1,28 +1,26 @@
 /**
- * Tests for `app/api/user/invoices/sync/route.ts` (slice 7gs, part
- * 2). Customer-initiated reconciliation for paid orders whose
- * Zoho Books invoice never finished creating. Bypasses the
- * background self-heal throttle.
+ * Tests for `app/api/user/invoices/sync/route.ts`.
+ * Customer-initiated retry for paid orders whose invoice attempt FAILED
+ * (`invoiceFailedAt`, no `invoiceProvider`). Since Zoho Books was removed
+ * (24 Sep 2026) it runs our own GST engine again via
+ * `lib/invoice-retry`'s syncUserInvoicesNow, bypassing the self-heal
+ * throttle.
  *
- * The hazard with a manual sync button: a curious customer mashes
- * it. Idempotency is achieved at the syncUserInvoicesNow layer
- * (it searches Zoho by reference_number first), but the user-
- * scoping AND the categorise-by-outcome contract are this route's
- * job.
+ * The hazard with a manual sync button: a curious customer mashes it.
+ * Idempotency is the engine claim's job (it refuses any order that already
+ * has an invoiceProvider); user-scoping and the categorise-by-outcome
+ * contract are this route's.
  *
  * Pins:
- *  - Auth gate FIRST → 401; NO sync call (no anonymous Zoho calls)
- *  - **syncUserInvoicesNow scoped on String(user._id)** — no
- *    cross-user reconciliation possible
- *  - Result categorisation: `recovered` = results with ok:true;
- *    `failed` = !ok AND !skipped; `skipped` = !!result.skipped
+ *  - Auth gate FIRST → 401; NO sync call
+ *  - **syncUserInvoicesNow scoped on String(user._id)**
+ *  - Result categorisation: `recovered` = ok:true; `failed` = !ok AND
+ *    !skipped; `skipped` = !!skipped (reasons: throttled / already_done /
+ *    no_user / no_order)
  *  - Response shape: { success, total, recovered, failed, skipped,
  *    results } with `total === results.length`
- *  - **Empty results array** → all counts 0; success still true
- *  - Outer catch → 500 with generic message "Invoice sync failed.
- *    Please try again or contact support." — NO raw Zoho error
- *    (Zoho exceptions can carry access-token fragments + retry
- *    tokens that don't belong in a user-facing response)
+ *  - Empty results → all counts 0; success still true
+ *  - Outer catch → 500 with a generic message — no raw internal error
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -32,7 +30,7 @@ vi.mock("@/lib/auth", () => ({
 }));
 
 const syncUserInvoicesNow = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/zoho-invoice-retry", () => ({ syncUserInvoicesNow }));
+vi.mock("@/lib/invoice-retry", () => ({ syncUserInvoicesNow }));
 
 vi.mock("@/lib/server-logger", () => ({
   serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -60,7 +58,7 @@ beforeEach(() => {
 });
 
 describe("Auth gate FIRST", () => {
-  it("no user → 401 'Unauthorized'; NO sync call (no anonymous Zoho)", async () => {
+  it("no user → 401 'Unauthorized'; NO sync call (no anonymous retries)", async () => {
     getUserFromRequest.mockResolvedValueOnce(null);
     const res = await POST(makeReq());
     expect(res.status).toBe(401);
@@ -79,13 +77,13 @@ describe("IDOR — user-scoped reconciliation", () => {
 });
 
 describe("Result categorisation", () => {
-  it("ok:true → recovered; !ok && !skipped → failed; skipped:true → skipped", async () => {
+  it("ok:true → recovered; !ok && !skipped → failed; any skipped reason → skipped", async () => {
     syncUserInvoicesNow.mockResolvedValueOnce([
       { orderId: "O1", ok: true },
       { orderId: "O2", ok: true },
       { orderId: "O3", ok: false },
-      { orderId: "O4", ok: false, skipped: true },
-      { orderId: "O5", skipped: true },
+      { orderId: "O4", ok: false, skipped: "already_done" },
+      { orderId: "O5", ok: false, skipped: "no_order" },
     ]);
     const res = await POST(makeReq());
     expect(res.status).toBe(200);
@@ -100,19 +98,19 @@ describe("Result categorisation", () => {
         { orderId: "O1", ok: true },
         { orderId: "O2", ok: true },
         { orderId: "O3", ok: false },
-        { orderId: "O4", ok: false, skipped: true },
-        { orderId: "O5", skipped: true },
+        { orderId: "O4", ok: false, skipped: "already_done" },
+        { orderId: "O5", ok: false, skipped: "no_order" },
       ],
     });
   });
 
-  it("ok:true with skipped:true → counted as recovered (skipped flag overrides ONLY the failed bucket)", async () => {
+  it("ok:true with a skipped reason → counted as recovered (skipped flag overrides ONLY the failed bucket)", async () => {
     // Pin the current source order: failed counts `!ok && !skipped`,
     // so ok:true wins over skipped:true into 'recovered'. This is a
     // corner case worth pinning so a refactor that swaps the order
     // is flagged.
     syncUserInvoicesNow.mockResolvedValueOnce([
-      { orderId: "O1", ok: true, skipped: true },
+      { orderId: "O1", ok: true, skipped: "throttled" },
     ]);
     const body = await (await POST(makeReq())).json();
     expect(body.recovered).toBe(1);
@@ -135,11 +133,11 @@ describe("Result categorisation", () => {
   });
 });
 
-describe("Outer catch — anti-Zoho-token-leak", () => {
-  it("syncUserInvoicesNow throw → 500 with GENERIC message; raw Zoho fragments NOT leaked", async () => {
+describe("Outer catch — no internal-error leak", () => {
+  it("syncUserInvoicesNow throw → 500 with GENERIC message; raw error fragments NOT leaked", async () => {
     syncUserInvoicesNow.mockRejectedValueOnce(
       new Error(
-        "Zoho 401: access_token=zoho_oauth_LEAK_ME_PLEASE invalid, retry_token=rt_abc123"
+        "Mongo auth failed: access_token=db_LEAK_ME_PLEASE invalid, retry_token=rt_abc123"
       )
     );
     const res = await POST(makeReq());
@@ -148,7 +146,7 @@ describe("Outer catch — anti-Zoho-token-leak", () => {
     expect(body.error).toBe(
       "Invoice sync failed. Please try again or contact support."
     );
-    expect(body.error).not.toContain("zoho_oauth_LEAK");
+    expect(body.error).not.toContain("db_LEAK");
     expect(body.error).not.toContain("retry_token");
     expect(body.error).not.toContain("access_token");
   });

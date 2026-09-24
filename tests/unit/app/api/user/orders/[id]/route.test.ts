@@ -55,7 +55,7 @@ const user = { _id: "U1", email: "alice@example.com" };
 // Customer-safe field allow-list — must stay in sync with the route source
 const EXPECTED_FIELDS =
   "orderId purchaseOrderNumber amount currency status orderType " +
-  "domains successfulDomains invoiceNumber zohoInvoiceId " +
+  "domains successfulDomains invoiceNumber invoiceProvider invoiceFailedAt " +
   "createdAt updatedAt paymentVerification";
 
 beforeEach(() => {
@@ -101,6 +101,11 @@ describe("Field-selection allow-list (PII / admin-field leak guard)", () => {
       "rawRazorpayResponse",
       "rawZohoResponse",
       "razorpayKeyId",
+      // The engine's failure text is operator-facing (e.g. "COMPANY_STATE is
+      // not configured"); the customer only needs to know it failed.
+      "invoiceFailureReason",
+      // Retired with Zoho Books (24 Sep 2026).
+      "zohoInvoiceId",
     ];
     findUserOrder.mockResolvedValueOnce({ orderId: "ORD-1" });
     await GET(makeReq(), paramsOf("ORD-1"));

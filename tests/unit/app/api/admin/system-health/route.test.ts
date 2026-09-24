@@ -1,16 +1,17 @@
 /**
  * Tests for `app/api/admin/system-health/route.ts` (slice 7hp, part 2).
  *
- * Admin operational dashboard — 7 independent probes (DB, queues, RC,
- * DirectAdmin, Razorpay, Zoho Books, server metrics) each individually
- * try/catch-isolated.
+ * Admin operational dashboard — independent probes (DB, queues, RC,
+ * DirectAdmin, Razorpay, server metrics) each individually
+ * try/catch-isolated. The Zoho Books probe was removed with Zoho itself
+ * (24 Sep 2026); `externalApis` has exactly three keys.
  *
  * Threat model:
  *  - **One-upstream-down blanks the whole page**: a refactor that
  *    awaits all probes in a single Promise.all WITHOUT per-probe
  *    catch would propagate any single failure to a 500 and the
  *    dashboard would go dark when admin needs it most. Pinned via
- *    "RC down + DA down + Zoho down → status still 200, DB still
+ *    "RC down + DA down + Razorpay down → status still 200, DB still
  *    reports operational, other fields still populated".
  *  - **Cache leak of dashboard data**: the response is admin-only;
  *    upstream caches must not store it. Cache-Control: no-store
@@ -25,8 +26,8 @@
  *    Router); session is fallback
  *  - non-admin via both paths → 401
  *  - RC NoBilling branch: balance is NOT returned for credit accounts
- *  - Zoho 5-state diagnostic: misconfigured / expired / trial /
- *    trial_expiring / active
+ *  - externalApis is exactly { resellerClub, directAdmin, razorpay } —
+ *    no zohoBooks card, even with stale ZOHO_* env vars still set
  *  - Latency tracked on FAILURE too (failure-path latency is
  *    valuable telemetry — pinned as ≥0)
  *  - Server metrics included: uptimeSeconds, memory, nodeVersion,
@@ -61,9 +62,6 @@ vi.mock("@/lib/services/pending-hostings", () => ({
   countPendingHostingsByStatus,
 }));
 
-const getSettingValue = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/services/settings", () => ({ getSettingValue }));
-
 const countUsers = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/users", () => ({ countUsers }));
 
@@ -86,14 +84,6 @@ vi.mock("@/lib/directadmin", () => ({
 const razorpayOrdersAll = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/razorpay", () => ({
   razorpay: { orders: { all: razorpayOrdersAll } },
-}));
-
-const getOrganizationDetails = vi.hoisted(() => vi.fn());
-const isSubscriptionExpired = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/zohobooks", () => ({
-  ZohoBooksService: {
-    getInstance: () => ({ getOrganizationDetails, isSubscriptionExpired }),
-  },
 }));
 
 vi.mock("@/lib/server-logger", () => ({
@@ -137,15 +127,6 @@ function setupAllProbesHappy() {
   listPackages.mockResolvedValue([{ name: "basic" }, { name: "premium" }]);
   // ── Razorpay
   razorpayOrdersAll.mockResolvedValue({ items: [] });
-  // ── Zoho
-  getOrganizationDetails.mockResolvedValue({
-    plan_name: "Standard",
-    plan_type: "paid",
-    plan_expiry_date: new Date(Date.now() + 90 * 86_400_000).toISOString(),
-    status: "active",
-  });
-  isSubscriptionExpired.mockReturnValue(false);
-  getSettingValue.mockResolvedValue(null);
 }
 
 const origEnv = { ...process.env };
@@ -162,13 +143,7 @@ beforeEach(() => {
   getResellerDetails.mockReset();
   listPackages.mockReset();
   razorpayOrdersAll.mockReset();
-  getOrganizationDetails.mockReset();
-  isSubscriptionExpired.mockReset();
-  getSettingValue.mockReset();
   vi.stubEnv("RAZORPAY_KEY_ID", "rzp_test_xxx");
-  vi.stubEnv("ZOHO_CLIENT_ID", "zoho_client");
-  vi.stubEnv("ZOHO_CLIENT_SECRET", "zoho_secret");
-  vi.stubEnv("ZOHO_REFRESH_TOKEN", "zoho_refresh");
 });
 
 afterAll(() => {
@@ -213,13 +188,10 @@ describe("Dual auth (JWT-first, session-fallback)", () => {
 // ──────────────────────── Probe isolation ─────────────────────
 
 describe("Probe isolation — one upstream down doesn't blank the rest", () => {
-  it("RC + DA + Zoho all DOWN → 200; DB still operational; other fields populated", async () => {
+  it("RC + DA DOWN → 200; DB still operational; Razorpay still populated", async () => {
     setupAllProbesHappy();
-    getResellerDetails.mockRejectedValueOnce(new Error("RC unreachable"));
+    getResellerDetails.mockRejectedValueOnce(new Error("RC unreachable rc_LEAK_ME"));
     listPackages.mockRejectedValueOnce(new Error("DA unreachable"));
-    getOrganizationDetails.mockRejectedValueOnce(
-      Object.assign(new Error("zoho_oauth_LEAK_ME"), { code: "AUTH_ERROR" })
-    );
 
     const res = await GET(makeReq());
     expect(res.status).toBe(200);
@@ -227,10 +199,9 @@ describe("Probe isolation — one upstream down doesn't blank the rest", () => {
     expect(body.database.status).toBe("operational");
     expect(body.externalApis.resellerClub.status).toBe("down");
     expect(body.externalApis.directAdmin.status).toBe("down");
-    expect(body.externalApis.zohoBooks.status).toBe("down");
     expect(body.externalApis.razorpay.status).toBe("operational");
     // Sentinel leak guard — error message must NOT escape into body
-    expect(JSON.stringify(body)).not.toContain("zoho_oauth_LEAK_ME");
+    expect(JSON.stringify(body)).not.toContain("rc_LEAK_ME");
   });
 
   it("DB connect fail → dbStatus='down' BUT response still 200 and other probes still run", async () => {
@@ -243,14 +214,17 @@ describe("Probe isolation — one upstream down doesn't blank the rest", () => {
     expect(body.externalApis.resellerClub.status).toBe("operational");
   });
 
-  it("ALL 4 external probes fail → still 200, no probe crash propagates", async () => {
+  it("ALL 3 external probes fail → still 200, each reported down, no probe crash propagates", async () => {
     setupAllProbesHappy();
     getResellerDetails.mockRejectedValueOnce(new Error("rc"));
     listPackages.mockRejectedValueOnce(new Error("da"));
     razorpayOrdersAll.mockRejectedValueOnce(new Error("rzp"));
-    getOrganizationDetails.mockRejectedValueOnce(new Error("zoho"));
     const res = await GET(makeReq());
     expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.externalApis.resellerClub.status).toBe("down");
+    expect(body.externalApis.directAdmin.status).toBe("down");
+    expect(body.externalApis.razorpay.status).toBe("down");
   });
 });
 
@@ -290,71 +264,25 @@ describe("ResellerClub — NoBilling branch", () => {
   });
 });
 
-describe("Zoho 5-state diagnostic", () => {
-  it("Zoho env vars unset → status='down', planStatus='misconfigured'", async () => {
+describe("Zoho Books probe removed (24 Sep 2026)", () => {
+  it("externalApis has exactly resellerClub / directAdmin / razorpay — no zohoBooks", async () => {
     setupAllProbesHappy();
-    vi.stubEnv("ZOHO_CLIENT_ID", "");
-    const res = await GET(makeReq());
-    const body = await res.json();
-    expect(body.externalApis.zohoBooks.status).toBe("down");
-    expect(body.externalApis.zohoBooks.planStatus).toBe("misconfigured");
+    const body = await (await GET(makeReq())).json();
+    expect(Object.keys(body.externalApis).sort()).toEqual([
+      "directAdmin",
+      "razorpay",
+      "resellerClub",
+    ]);
   });
 
-  it("DB-flagged expired → planStatus='expired', status='down' BEFORE hitting Zoho", async () => {
+  it("stale ZOHO_* env vars on the server do not resurrect a Zoho card", async () => {
     setupAllProbesHappy();
-    getSettingValue.mockResolvedValueOnce({ expired: true });
-    const res = await GET(makeReq());
-    const body = await res.json();
-    expect(body.externalApis.zohoBooks.status).toBe("down");
-    expect(body.externalApis.zohoBooks.planStatus).toBe("expired");
-    expect(getOrganizationDetails).not.toHaveBeenCalled();
-  });
-
-  it("plan_expiry_date in 3 days → planStatus='trial_expiring' (≤7 days threshold)", async () => {
-    setupAllProbesHappy();
-    getOrganizationDetails.mockResolvedValueOnce({
-      plan_name: "Trial",
-      plan_type: "trial",
-      plan_expiry_date: new Date(Date.now() + 3 * 86_400_000).toISOString(),
-    });
-    const res = await GET(makeReq());
-    const body = await res.json();
-    expect(body.externalApis.zohoBooks.planStatus).toBe("trial_expiring");
-    expect(body.externalApis.zohoBooks.daysUntilExpiry).toBeGreaterThanOrEqual(
-      2
-    );
-    expect(body.externalApis.zohoBooks.daysUntilExpiry).toBeLessThanOrEqual(3);
-  });
-
-  it("plan_type='trial' + far-future expiry → planStatus='trial'", async () => {
-    setupAllProbesHappy();
-    getOrganizationDetails.mockResolvedValueOnce({
-      plan_name: "Trial",
-      plan_type: "trial",
-      plan_expiry_date: new Date(Date.now() + 30 * 86_400_000).toISOString(),
-    });
-    const res = await GET(makeReq());
-    const body = await res.json();
-    expect(body.externalApis.zohoBooks.planStatus).toBe("trial");
-  });
-
-  it("paid plan + far-future expiry → planStatus='active'", async () => {
-    setupAllProbesHappy();
-    const res = await GET(makeReq());
-    const body = await res.json();
-    expect(body.externalApis.zohoBooks.planStatus).toBe("active");
-  });
-
-  it("Zoho error with code='AUTH_ERROR' → planStatus='misconfigured'", async () => {
-    setupAllProbesHappy();
-    getOrganizationDetails.mockRejectedValueOnce({
-      code: "AUTH_ERROR",
-      message: "missing token",
-    });
-    const res = await GET(makeReq());
-    const body = await res.json();
-    expect(body.externalApis.zohoBooks.status).toBe("down");
-    expect(body.externalApis.zohoBooks.planStatus).toBe("misconfigured");
+    vi.stubEnv("ZOHO_CLIENT_ID", "zoho_client");
+    vi.stubEnv("ZOHO_CLIENT_SECRET", "zoho_secret");
+    vi.stubEnv("ZOHO_REFRESH_TOKEN", "zoho_refresh");
+    const body = await (await GET(makeReq())).json();
+    expect(body.externalApis).not.toHaveProperty("zohoBooks");
+    expect(JSON.stringify(body)).not.toMatch(/zoho/i);
   });
 });
 

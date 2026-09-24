@@ -129,9 +129,6 @@ SECRETS=(
   RESELLERCLUB_SECRET
   SMTP_PASS
   SMTP_USER
-  ZOHO_CLIENT_ID
-  ZOHO_CLIENT_SECRET
-  ZOHO_REFRESH_TOKEN
 )
 
 ENV_VARS=(
@@ -154,10 +151,7 @@ ENV_VARS=(
   SMTP_PORT
   SMTP_SECURE
   SUPPORT_EMAIL
-  ZOHO_DC
-  ZOHO_LOCATION_ID
-  ZOHO_ORG_ID
-  ZOHO_ORG_STATE
+  COMPANY_STATE
 )
 
 # ── Provision secrets ─────────────────────────────────────────────────────────

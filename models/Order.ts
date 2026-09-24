@@ -85,9 +85,6 @@ export interface IOrder extends Document {
     };
     periodUnit?: "minutes" | "months" | "years" | "days";
     isTrial?: boolean;
-    zohoRecurringInvoiceId?: string;
-    zohoRecurringProfileStatus?: string;
-    zohoRecurringProfileError?: string;
   }[];
   successfulDomains: string[];
   paymentVerification?: {
@@ -100,20 +97,33 @@ export interface IOrder extends Document {
   createdAt: Date;
   updatedAt: Date;
   invoiceNumber?: string;
-  zohoInvoiceId?: string;
   /**
-   * Which engine actually issued this order's tax invoice. 'primary' means
-   * `invoiceNumber` is a TI/YYYY-YY/NNNNN number from our own GST engine
-   * (lib/billing) and IS the legal tax invoice — no Zoho invoice exists.
-   * 'zoho' means the primary engine failed (or hasn't been enabled yet) and
-   * Zoho Books issued the invoice as before, referenced by `zohoInvoiceId`.
-   * Undefined on orders created before this field existed.
+   * Which engine issued this order's invoice — a FINAL outcome, set once.
+   *
+   *  - 'primary' — `invoiceNumber` is a TI/YYYY-YY/NNNNN number from our own
+   *    GST engine (lib/billing). This is the only engine that issues anything.
+   *  - 'zoho'    — HISTORICAL ONLY. Zoho Books was removed on 24 Sep 2026 by
+   *    owner decision (see CLAUDE.md, "Zoho Books removed"). Orders invoiced
+   *    before then were stamped 'zoho' by migration 009. Nothing writes this
+   *    value any more; it exists so those orders read as ALREADY INVOICED and
+   *    no retry ever issues a second tax invoice for the same payment.
+   *
+   * Undefined means no invoice has been issued yet.
    */
   invoiceProvider?: 'primary' | 'zoho';
+  /**
+   * Set when the primary engine failed to issue this order's invoice, cleared
+   * when an invoice is finally recorded. This is what the retry paths and
+   * admin integration-health read — "paid, no invoice, and we KNOW an attempt
+   * failed". It replaces the old `zohoInvoiceId: "creation_failed"` sentinel,
+   * which overloaded a Zoho id field with a failure flag.
+   */
+  invoiceFailedAt?: Date;
+  /** The engine's own error message from the most recent failed attempt. */
+  invoiceFailureReason?: string;
   // GST breakdown for invoiceProvider === 'primary' orders. Populated by
   // lib/services/billing/createPrimaryInvoice.ts at invoice-issue time;
-  // absent on Zoho-issued invoices, whose tax breakdown lives in Zoho, not
-  // here.
+  // absent on historical Zoho-issued invoices.
   gstRate?: number;
   taxableValue?: number;
   cgst?: number;
@@ -121,9 +131,8 @@ export interface IOrder extends Document {
   igst?: number;
   placeOfSupply?: string;
   customerGstin?: string;
-  // Atomic-claim marker for the primary invoice engine (mirrors the
-  // zohoInvoiceId="pending_creation" sentinel pattern used for Zoho, but on
-  // its own field since invoiceProvider only records a FINAL outcome).
+  // Atomic-claim marker for the primary invoice engine — its own field,
+  // because invoiceProvider only records a FINAL outcome.
   // Cleared on release; left behind harmlessly once invoiceProvider is set.
   primaryInvoiceClaimedAt?: Date;
   // ── Manual credit-note obligation (Primary Billing Integration) ───────────
@@ -132,7 +141,7 @@ export interface IOrder extends Document {
   // (operator decision 2026-09-03: deferred until real refund volume exists,
   // rather than shipping an unexercised reverse-numbering series). A refund
   // against a primary-issued invoice therefore still owes the customer a GST
-  // credit note, which an operator has to raise by hand in Zoho Books.
+  // credit note, which an operator has to raise by hand.
   //
   // These fields exist so that obligation is visible IN THE DATA rather than
   // only in prod-silenced logs — same reasoning as `mandateRefundStatus`.
@@ -142,8 +151,8 @@ export interface IOrder extends Document {
   creditNotePending?: boolean;
   creditNotePendingRefundId?: string;
   // Refund amount in PAISE, as Razorpay reports it — deliberately not
-  // converted, so the value the operator types into Zoho matches the refund
-  // record they're looking at.
+  // converted, so the value the operator enters on the credit note matches the
+  // refund record they're looking at.
   creditNotePendingAmountPaise?: number;
   creditNotePendingAt?: Date;
   // Renewal-payment dunning (Primary Billing Integration Phase 2) — tracks
@@ -361,15 +370,6 @@ const OrderSchema = new Schema<IOrder>(
           type: Boolean,
           default: false,
         },
-        zohoRecurringInvoiceId: {
-            type: String,
-            sparse: true
-        },
-        zohoRecurringProfileStatus: {
-            type: String, // 'pending', 'created', 'failed', 'skipped'
-            default: 'pending'
-        },
-        zohoRecurringProfileError: String,
       },
     ],
     successfulDomains: [String],
@@ -402,16 +402,12 @@ const OrderSchema = new Schema<IOrder>(
       unique: true,
       sparse: true,
     },
-    zohoInvoiceId: {
-      type: String, // ID of the invoice in Zoho Books
-      // Index defined explicitly below via OrderSchema.index(..., { sparse: true }).
-      // Don't add `sparse`/`index` here too — that builds a duplicate index
-      // (Mongoose "Duplicate schema index on {zohoInvoiceId:1}" warning).
-    },
     invoiceProvider: {
       type: String,
       enum: ['primary', 'zoho'],
     },
+    invoiceFailedAt: Date,
+    invoiceFailureReason: String,
     gstRate: Number,
     taxableValue: Number,
     cgst: Number,
@@ -500,14 +496,14 @@ OrderSchema.index({ userId: 1, status: 1 });                    // status filter
 // COLLSCANs the whole Order collection on every run.
 OrderSchema.index({ status: 1, orderType: 1, dunningAbandonedAt: 1, createdAt: 1 });
 
-// Razorpay / Zoho identifier lookups — touched by every webhook, payment-verify
-// idempotency check, and Zoho retry cron. Without these the queries COLLSCAN.
-// Sparse on zohoInvoiceId because most rows don't carry one until the invoice
-// step lands; sparse on razorpayPaymentId/Id because pending/renewal Orders
-// may write "pending" sentinels.
+// Razorpay identifier lookups — touched by every webhook and payment-verify
+// idempotency check. Without these the queries COLLSCAN. Sparse because
+// pending/renewal Orders may write "pending" sentinels.
 OrderSchema.index({ razorpayPaymentId: 1 }, { sparse: true });
 OrderSchema.index({ razorpayOrderId: 1 }, { sparse: true });
-OrderSchema.index({ zohoInvoiceId: 1 }, { sparse: true });
+// Invoice-retry scan: "paid orders whose invoice attempt failed". Sparse —
+// almost no order ever carries the field.
+OrderSchema.index({ invoiceFailedAt: 1 }, { sparse: true });
 
 /**
  * Pre-save Database Hook for Orders

@@ -3,7 +3,7 @@ import { AuthService } from "@/lib/auth";
 import {
   findInvoiceNumberConflicts,
   listOrdersByIds,
-  listStuckZohoInvoiceOrdersAdmin,
+  listUninvoicedPaidOrdersAdmin,
 } from "@/lib/services/orders";
 import { findUsersByIds } from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
@@ -19,7 +19,9 @@ interface OrderSlim {
   status: string;
   amount: number;
   invoiceNumber?: string;
-  zohoInvoiceId?: string;
+  invoiceProvider?: string;
+  invoiceFailedAt?: string;
+  invoiceFailureReason?: string;
   razorpayPaymentId?: string;
   createdAt: string;
   isDeleted?: boolean;
@@ -32,7 +34,9 @@ interface LeanOrder {
   status: string;
   amount: number;
   invoiceNumber?: string;
-  zohoInvoiceId?: string;
+  invoiceProvider?: string;
+  invoiceFailedAt?: Date;
+  invoiceFailureReason?: string;
   razorpayPaymentId?: string;
   createdAt?: Date;
   isDeleted?: boolean;
@@ -57,7 +61,9 @@ function slim(order: LeanOrder, user: LeanUser | undefined): OrderSlim {
     status: order.status,
     amount: order.amount,
     invoiceNumber: order.invoiceNumber,
-    zohoInvoiceId: order.zohoInvoiceId,
+    invoiceProvider: order.invoiceProvider,
+    invoiceFailedAt: order.invoiceFailedAt?.toISOString?.(),
+    invoiceFailureReason: order.invoiceFailureReason,
     razorpayPaymentId: order.razorpayPaymentId,
     createdAt: order.createdAt?.toISOString?.() || "",
     isDeleted: order.isDeleted,
@@ -67,14 +73,12 @@ function slim(order: LeanOrder, user: LeanUser | undefined): OrderSlim {
 /**
  * GET /api/admin/orders/invoice-conflicts
  *
- * Diagnostic for the Zoho-invoice reconciliation flow. Surfaces two classes
- * of bad state that cause the user-facing "Generating invoice…" pill or
- * E11000 duplicate-key errors during retries:
+ * Invoice diagnostics. Surfaces two classes of bad state:
  *
  *  1. invoiceNumber collisions — two or more Order docs share the same
- *     invoiceNumber (the unique index trips when reconciling).
- *  2. Stuck orders — paid orders whose zohoInvoiceId never resolved (missing
- *     or stuck at "creation_failed" / "pending_creation").
+ *     invoiceNumber (the unique index trips when a number is recorded).
+ *  2. Uninvoiced paid orders — payment succeeded, no invoice issued. Includes
+ *     the engine's failure reason when an attempt is known to have failed.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -89,7 +93,7 @@ export async function GET(request: NextRequest) {
     const allOrderIds = dupes.flatMap((d) => d.orderIds);
     const dupeOrders = await listOrdersByIds(
       allOrderIds,
-      "_id orderId userId userEmail userName status amount invoiceNumber zohoInvoiceId razorpayPaymentId createdAt isDeleted"
+      "_id orderId userId userEmail userName status amount invoiceNumber invoiceProvider invoiceFailedAt invoiceFailureReason razorpayPaymentId createdAt isDeleted"
     );
 
     const userIds = [
@@ -111,11 +115,11 @@ export async function GET(request: NextRequest) {
         .map((o) => slim(o, userById.get(String(o.userId)))),
     }));
 
-    // --- 2. Find paid orders whose Zoho invoice never resolved ---
-    const stuckDocs = await listStuckZohoInvoiceOrdersAdmin({
+    // --- 2. Find paid orders with no invoice ---
+    const stuckDocs = await listUninvoicedPaidOrdersAdmin({
       limit: 100,
       select:
-        "_id orderId userId userEmail userName status amount invoiceNumber zohoInvoiceId razorpayPaymentId createdAt isDeleted",
+        "_id orderId userId userEmail userName status amount invoiceNumber invoiceProvider invoiceFailedAt invoiceFailureReason razorpayPaymentId createdAt isDeleted",
     });
 
     const stuckUserIds = [

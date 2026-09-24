@@ -3,9 +3,10 @@
  * pins the new RecurringChargeAttempt source (Phase 2I admin-UI Finding 4)
  * + the new Razorpay-recurring signature/hint classification.
  *
- * Pre-existing sources (Order error scan + Zoho stuck invoice scan +
- * SystemLog scan) aren't tested here — they were untested before this
- * file existed, and adding coverage for them is its own effort.
+ * Pre-existing sources (Order error scan + SystemLog scan) are only
+ * lightly tested here. The failed-invoice source (paid orders with
+ * `invoiceFailedAt` and no `invoiceProvider`, which replaced the Zoho
+ * `creation_failed` sentinel on 24 Sep 2026) has its own block below.
  *
  * Pins for the new source:
  *  - 401 when caller isn't admin (gate works)
@@ -146,11 +147,11 @@ describe("/api/admin/integration-health — RecurringChargeAttempt source", () =
 
   it("order with mandateRefundStatus='failed' → razorpay card with [MANDATE-REFUND] hint + affectedOrder context", async () => {
     const now = new Date();
-    // Order.find calls in route order: (1) failed-domains, (2) zoho-stuck,
+    // Order.find calls in route order: (1) failed-domains, (2) failed-invoice,
     // (3) mandate-refund-failed. Inject empty for the first two, data for #3.
     OrderFind.mockReset()
       .mockReturnValueOnce(chainable([])) // failed domains
-      .mockReturnValueOnce(chainable([])) // zoho creation_failed
+      .mockReturnValueOnce(chainable([])) // failed invoices
       .mockReturnValueOnce(
         chainable([
           {
@@ -462,45 +463,59 @@ describe("/api/admin/integration-health — pending GST credit notes", () => {
     ...o,
   });
 
-  it("**a pending credit note lands on the Zoho Books card, not Razorpay** — the manual action is taken in Zoho", async () => {
+  it("**a pending credit note lands on the Invoicing card, not Razorpay** — the fix is a tax document, not a payment action", async () => {
     listCreditNotePendingOrders.mockResolvedValueOnce([owed()]);
     const res = await GET(makeReq());
     expect(res.status).toBe(200);
     const body = await res.json();
-    const zoho = body.providers.find((p: { id: string }) => p.id === "zoho");
-    expect(zoho).toBeDefined();
-    expect(zoho.totalErrors).toBe(1);
+    const invoicing = body.providers.find((p: { id: string }) => p.id === "invoicing");
+    expect(invoicing).toBeDefined();
+    expect(invoicing.label).toBe("Invoicing (GST engine)");
+    expect(invoicing.totalErrors).toBe(1);
+    expect(body.providers.find((p: { id: string }) => p.id === "zoho")).toBeUndefined();
   });
 
-  it("**gets the CREDIT-NOTE hint, not the generic Zoho one** — the errorText names Zoho Books, so a mis-ordered signature list would silently attach the wrong remediation", async () => {
+  it("**gets the CREDIT-NOTE hint, not the generic invoice-failure one** — a mis-ordered signature list would silently attach the wrong remediation", async () => {
     listCreditNotePendingOrders.mockResolvedValueOnce([owed()]);
     const body = await (await GET(makeReq())).json();
-    const zoho = body.providers.find((p: { id: string }) => p.id === "zoho");
-    const hint = zoho.patterns[0].hint as string;
+    const invoicing = body.providers.find((p: { id: string }) => p.id === "invoicing");
+    const hint = invoicing.patterns[0].hint as string;
     expect(hint).toMatch(/raise a credit note/i);
     expect(hint).toMatch(/30 November/i);
-    // The generic Zoho signature would have told the operator to click
-    // "Re-sync" — which is exactly the wrong action here.
+    // The generic invoice-failure signature would have told the operator to
+    // press "Re-sync" — which is exactly the wrong action here.
     expect(hint).not.toMatch(/Re-sync/i);
+    // Zoho is gone; the hint must not send the operator to it.
+    expect(hint).not.toMatch(/zoho/i);
+  });
+
+  it("the credit-note entry text no longer tells the operator to use Zoho Books", async () => {
+    listCreditNotePendingOrders.mockResolvedValueOnce([owed({ invoiceProvider: "zoho", invoiceNumber: "INV-000555" })]);
+    const body = await (await GET(makeReq())).json();
+    const invoicing = body.providers.find((p: { id: string }) => p.id === "invoicing");
+    const text = JSON.stringify(invoicing);
+    expect(text).toContain("INV-000555");
+    expect(text).toContain("raised manually");
+    expect(text).not.toMatch(/zoho/i);
   });
 
   it("the entry names the order, invoice number, refund id and rupee amount so it's actionable without opening the DB", async () => {
     listCreditNotePendingOrders.mockResolvedValueOnce([owed()]);
     const body = await (await GET(makeReq())).json();
-    const zoho = body.providers.find((p: { id: string }) => p.id === "zoho");
-    const text = JSON.stringify(zoho);
+    const invoicing = body.providers.find((p: { id: string }) => p.id === "invoicing");
+    const text = JSON.stringify(invoicing);
     expect(text).toContain("ORD-CN-1");
     expect(text).toContain("TI/2026-27/00001");
     expect(text).toContain("rfnd_1");
-    // Rupees, matching what gets typed into Zoho — not the paise figure.
+    // Rupees, matching what goes on the credit note — not the paise figure.
     expect(text).toContain("1180");
   });
 
   it("carries the customer context on the affected order", async () => {
     listCreditNotePendingOrders.mockResolvedValueOnce([owed()]);
     const body = await (await GET(makeReq())).json();
-    const zoho = body.providers.find((p: { id: string }) => p.id === "zoho");
-    expect(zoho.patterns[0].affectedOrders[0]).toEqual(
+    const invoicing = body.providers.find((p: { id: string }) => p.id === "invoicing");
+    expect(invoicing.patterns[0].affectedOrders[0]).toEqual(
       expect.objectContaining({ orderId: "ORD-CN-1", userEmail: "alice@example.com" })
     );
   });
@@ -512,7 +527,7 @@ describe("/api/admin/integration-health — pending GST credit notes", () => {
     const res = await GET(makeReq());
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.providers.find((p: { id: string }) => p.id === "zoho")).toBeDefined();
+    expect(body.providers.find((p: { id: string }) => p.id === "invoicing")).toBeDefined();
   });
 
   it("**a query failure does NOT crash the whole report** — one bad source must not hide every other provider", async () => {
@@ -523,10 +538,102 @@ describe("/api/admin/integration-health — pending GST credit notes", () => {
     expect(Array.isArray(body.providers)).toBe(true);
   });
 
-  it("nothing outstanding → no Zoho card raised from this source", async () => {
+  it("nothing outstanding → no Invoicing errors raised from this source", async () => {
     listCreditNotePendingOrders.mockResolvedValueOnce([]);
     const body = await (await GET(makeReq())).json();
-    const zoho = body.providers.find((p: { id: string }) => p.id === "zoho");
-    expect(zoho === undefined || zoho.totalErrors === 0).toBe(true);
+    const invoicing = body.providers.find((p: { id: string }) => p.id === "invoicing");
+    expect(invoicing === undefined || invoicing.totalErrors === 0).toBe(true);
+  });
+});
+
+describe("/api/admin/integration-health — paid orders whose invoice failed", () => {
+  function spyChain<T>(result: T) {
+    const limit = vi.fn();
+    const sort = vi.fn();
+    const obj = {
+      sort: (arg: unknown) => {
+        sort(arg);
+        return obj;
+      },
+      limit: (arg: unknown) => {
+        limit(arg);
+        return obj;
+      },
+      lean: () => Promise.resolve(result),
+    };
+    return { obj, limit, sort };
+  }
+
+  const failed = (o: Record<string, unknown> = {}) => ({
+    orderId: "ORD-F1",
+    userEmail: "bob@example.com",
+    userName: "Bob",
+    amount: 2360,
+    createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    invoiceFailedAt: new Date("2026-09-20T00:00:00.000Z"),
+    invoiceFailureReason: "Customer billing state could not be resolved",
+    ...o,
+  });
+
+  it("queries invoiceFailedAt-set / no-invoiceProvider / not-deleted orders, NOT time-windowed, newest failure first, capped at 50", async () => {
+    const chain = spyChain([]);
+    OrderFind.mockReset()
+      .mockReturnValueOnce(chainable([])) // failed domains
+      .mockReturnValueOnce(chain.obj) // failed invoices
+      .mockReturnValue(chainable([]));
+    await GET(makeReq());
+    const [filter, projection] = OrderFind.mock.calls[1];
+    expect(filter).toEqual({
+      invoiceFailedAt: { $exists: true },
+      invoiceProvider: { $exists: false },
+      isDeleted: { $ne: true },
+    });
+    // An unissued invoice is an open obligation — ageing it out would lose it.
+    expect(filter).not.toHaveProperty("createdAt");
+    expect(filter).not.toHaveProperty("zohoInvoiceId");
+    expect(projection).toEqual(
+      expect.objectContaining({ invoiceFailedAt: 1, invoiceFailureReason: 1 })
+    );
+    expect(chain.sort).toHaveBeenCalledWith({ invoiceFailedAt: -1 });
+    expect(chain.limit).toHaveBeenCalledWith(50);
+  });
+
+  it("a failed invoice lands on the Invoicing card with its recorded reason and the Re-sync hint", async () => {
+    OrderFind.mockReset()
+      .mockReturnValueOnce(chainable([]))
+      .mockReturnValueOnce(chainable([failed()]))
+      .mockReturnValue(chainable([]));
+    const body = await (await GET(makeReq())).json();
+    const invoicing = body.providers.find((p: { id: string }) => p.id === "invoicing");
+    expect(invoicing).toBeDefined();
+    expect(invoicing.totalErrors).toBe(1);
+    const text = JSON.stringify(invoicing);
+    expect(text).toContain("Customer billing state could not be resolved");
+    expect(invoicing.patterns[0].hint).toMatch(/Re-sync/);
+    expect(invoicing.patterns[0].affectedOrders[0]).toEqual(
+      expect.objectContaining({ orderId: "ORD-F1", userEmail: "bob@example.com" })
+    );
+  });
+
+  it("a COMPANY_STATE failure gets the COMPANY_STATE hint, not the generic one", async () => {
+    OrderFind.mockReset()
+      .mockReturnValueOnce(chainable([]))
+      .mockReturnValueOnce(
+        chainable([failed({ invoiceFailureReason: "COMPANY_STATE is not configured" })])
+      )
+      .mockReturnValue(chainable([]));
+    const body = await (await GET(makeReq())).json();
+    const invoicing = body.providers.find((p: { id: string }) => p.id === "invoicing");
+    expect(invoicing.patterns[0].hint).toMatch(/Set COMPANY_STATE/);
+  });
+
+  it("no recorded reason → says so rather than inventing one", async () => {
+    OrderFind.mockReset()
+      .mockReturnValueOnce(chainable([]))
+      .mockReturnValueOnce(chainable([failed({ invoiceFailureReason: undefined })]))
+      .mockReturnValue(chainable([]));
+    const body = await (await GET(makeReq())).json();
+    const invoicing = body.providers.find((p: { id: string }) => p.id === "invoicing");
+    expect(JSON.stringify(invoicing)).toContain("no reason recorded");
   });
 });

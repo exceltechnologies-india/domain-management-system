@@ -1,10 +1,10 @@
 /**
- * Tests for `@/lib/billing/gst` — the primary invoicing engine's GST
- * calculation, independent of lib/zohobooks.ts. Pins:
+ * Tests for `@/lib/billing/gst` — our invoicing engine's GST
+ * calculation. Pins:
  *  - intra-state (same org/customer state) -> CGST+SGST split, no IGST
  *  - inter-state (different state) -> IGST only, no CGST/SGST
  *  - no customer state on file -> treated as intra-state (conservative
- *    default, matches the existing Zoho-integration fallback behaviour)
+ *    default — avoids charging IGST on a supply not proven inter-state)
  *  - case/whitespace-insensitive state comparison
  *  - taxableValue back-computed from a GST-inclusive gross amount, and
  *    cgst+sgst+igst always reconciles exactly to totalTax (no paisa drift)

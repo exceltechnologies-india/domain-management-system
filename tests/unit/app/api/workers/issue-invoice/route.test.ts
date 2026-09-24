@@ -1,43 +1,41 @@
 /**
- * Tests for `app/api/workers/sync-zoho-invoice/route.ts` (slice 7i4, part 1;
- * rewritten for the Phase 1c audit when the worker moved onto the shared
- * `createPrimaryInvoice` chokepoint).
+ * Tests for `app/api/workers/issue-invoice/route.ts` (was
+ * `/workers/sync-zoho-invoice` until Zoho Books was removed on 24 Sep 2026).
  *
  * Cloud-Tasks-fired worker: issues the invoice for a paid mandate/autopay
- * renewal, fully decoupled from the payment webhook.
+ * renewal, fully decoupled from the payment webhook, through the shared
+ * `createPrimaryInvoice` chokepoint.
  *
  * Threat model:
- *  - **Silent invoice loss from double-claiming**: the worker used to take
- *    its own `claimOrderForZohoInvoice` lease and then call Zoho directly.
- *    Both engines behind the chokepoint claim internally, so a claim here
- *    too would make the inner claim see this worker's own sentinel, skip,
- *    and return an empty result — 200 success with NO invoice issued.
- *    Pinned: the worker takes NO claim of its own.
- *  - **Double-invoice from parallel retries**: still handled, but now by the
- *    chokepoint's own claim. A `provider: 'skipped'` result means somebody
- *    else holds it → 200, Cloud Tasks stops.
- *  - **Permanently stranded claim**: this is the first ASYNC, queue-retried
- *    caller of the chokepoint, so a crash mid-flight must not lock the order
- *    out forever. Pinned: `staleClaimAfterMs` is passed.
- *  - **Flag flip-flop double-billing**: an order already carrying a primary
- *    TI/... invoice has no `zohoInvoiceId`; with the flag later OFF a retry
- *    would go down the Zoho path and issue a second tax invoice under the
- *    same GSTIN. Pinned: explicit `invoiceProvider === 'primary'` pre-check.
+ *  - **Silent invoice loss from double-claiming**: the engine behind the
+ *    chokepoint claims internally, so a claim here too would make the inner
+ *    claim see this worker's own lease, skip, and return an empty result —
+ *    200 success with NO invoice issued. Pinned: the worker takes NO claim
+ *    of its own.
+ *  - **Double-invoice from parallel retries**: handled by the chokepoint's
+ *    own claim. A `provider: 'skipped'` result means somebody else holds it
+ *    → 200, Cloud Tasks stops.
+ *  - **Permanently stranded claim**: an async, queue-retried caller must be
+ *    able to steal a claim stranded by a crashed attempt. Pinned:
+ *    `staleClaimAfterMs` (and ONLY that) is passed.
+ *  - **Double-billing an already-invoiced order**: ANY `invoiceProvider` —
+ *    'primary', or a historical 'zoho' — means the payment already has a tax
+ *    invoice. Pinned: 200 and the chokepoint is never called, for both.
  *  - **Permanent-vs-transient response code**: 200 (no retry) for permanent
- *    outcomes (order not found, already invoiced by either engine, skipped);
- *    500 (Cloud Tasks retries) when both engines failed. Pinned per-branch.
+ *    outcomes (order not found, already invoiced, skipped); 500
+ *    INVOICE_ISSUE_ERROR (Cloud Tasks retries) when the engine failed — and
+ *    the order is flagged via markInvoiceCreationFailed FIRST, so it stays
+ *    visible even if every retry fails.
  *  - **Invoice metadata correctness**: durationMonths=12 → 'years' qty=1;
  *    otherwise months qty=durationMonths.
  *
  * Other pins:
  *  - cron-secret → 401 if missing
- *  - zod: 9-field strict schema; serviceType enum hosting|domain;
+ *  - zod: 9-field schema; serviceType enum hosting|domain;
  *    amount nonnegative; durationMonths positive int
  *  - getOrderById null → 200 success:false "skipped"
- *  - zohoInvoiceId already set + not 'pending_creation' → 200 "Already synced"
- *  - user not found → 404 USER_NOT_FOUND (pre-existing behaviour)
+ *  - user not found → 404 USER_NOT_FOUND
  *  - hostingPlan lookup ONLY when serviceType='hosting' AND hostingPlanId
- *  - `allowNull: true` preserved from the pre-chokepoint implementation
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -45,19 +43,15 @@ const authorizeCronRequest = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/cron-auth", () => ({ authorizeCronRequest }));
 
 const getOrderById = vi.hoisted(() => vi.fn());
-// The claim helpers are exported by the mock ON PURPOSE even though the
-// worker must no longer import them: that turns "the worker took a claim of
-// its own again" into a failing assertion below rather than an inscrutable
-// TypeError from an undefined import.
-const claimOrderForZohoInvoice = vi.hoisted(() => vi.fn());
-const releaseZohoInvoiceClaim = vi.hoisted(() => vi.fn());
-const recordZohoInvoiceForOrder = vi.hoisted(() => vi.fn());
+const markInvoiceCreationFailed = vi.hoisted(() => vi.fn());
+// The primary claim helper is exported by the mock ON PURPOSE even though the
+// worker must not import it: that turns "the worker took a claim of its own
+// again" into a failing assertion below rather than an inscrutable TypeError
+// from an undefined import.
 const claimOrderForPrimaryInvoice = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/orders", () => ({
   getOrderById,
-  claimOrderForZohoInvoice,
-  releaseZohoInvoiceClaim,
-  recordZohoInvoiceForOrder,
+  markInvoiceCreationFailed,
   claimOrderForPrimaryInvoice,
 }));
 
@@ -67,10 +61,9 @@ vi.mock("@/lib/services/users", () => ({ getUserById }));
 const getPlanByPlanId = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/hosting-plans", () => ({ getPlanByPlanId }));
 
-// The chokepoint is mocked at the module boundary: it owns the claim, the
-// engine choice and the Zoho fallback, and has its own test suite. Mocking it
-// also keeps this file from transitively importing post-tasks -> lib/email,
-// which throws without SMTP env configured.
+// The chokepoint is mocked at the module boundary: it owns the claim and has
+// its own test suite. Mocking it also keeps this file from transitively
+// importing post-tasks -> lib/email, which throws without SMTP env configured.
 const createPrimaryInvoice = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/billing/createPrimaryInvoice", () => ({
   createPrimaryInvoice,
@@ -86,7 +79,7 @@ const { NextRequest, NextResponse } = await vi.importActual<
 >("next/server");
 vi.doMock("next/server", () => ({ NextRequest, NextResponse }));
 
-import { POST } from "@/app/api/workers/sync-zoho-invoice/route";
+import { POST } from "@/app/api/workers/issue-invoice/route";
 
 const VALID = {
   orderId: "O1",
@@ -101,7 +94,7 @@ const VALID = {
 };
 
 function makeReq(body: unknown = VALID) {
-  return new NextRequest("https://example.com/api/workers/sync-zoho-invoice", {
+  return new NextRequest("https://example.com/api/workers/issue-invoice", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
@@ -119,13 +112,13 @@ function orderRow(overrides: Record<string, unknown> = {}) {
 }
 
 /** Wires the mocks for a run that reaches the chokepoint and succeeds. */
-function setupSuccess(provider: "primary" | "zoho" = "zoho") {
+function setupSuccess() {
   getOrderById.mockResolvedValueOnce(orderRow());
   getUserById.mockResolvedValueOnce({ _id: "U1", email: "a@b.com" });
   createPrimaryInvoice.mockResolvedValueOnce({
-    invoiceId: provider === "zoho" ? "INV-NEW" : "TI/2026-27/00001",
-    invoiceNumber: provider === "zoho" ? "INV-001" : "TI/2026-27/00001",
-    provider,
+    invoiceId: "TI/2026-27/00001",
+    invoiceNumber: "TI/2026-27/00001",
+    provider: "primary",
   });
 }
 
@@ -137,9 +130,7 @@ function itemsFromLastCall() {
 beforeEach(() => {
   authorizeCronRequest.mockReset().mockReturnValue(true);
   getOrderById.mockReset();
-  claimOrderForZohoInvoice.mockReset().mockResolvedValue({ _id: "O1" });
-  releaseZohoInvoiceClaim.mockReset().mockResolvedValue(undefined);
-  recordZohoInvoiceForOrder.mockReset().mockResolvedValue(undefined);
+  markInvoiceCreationFailed.mockReset().mockResolvedValue(undefined);
   claimOrderForPrimaryInvoice.mockReset().mockResolvedValue(true);
   getUserById.mockReset();
   getPlanByPlanId.mockReset();
@@ -184,66 +175,41 @@ describe("Zod schema", () => {
   });
 });
 
-describe("Chokepoint wiring (the point of this batch)", () => {
-  it("**issues via createPrimaryInvoice, NOT a direct Zoho call**", async () => {
+describe("Chokepoint wiring", () => {
+  it("**issues via createPrimaryInvoice**", async () => {
     setupSuccess();
     const res = await POST(makeReq());
     expect(res.status).toBe(200);
     expect(createPrimaryInvoice).toHaveBeenCalledTimes(1);
   });
 
-  it("**takes NO claim of its own** — the chokepoint's engines each claim internally, so a second lease here would make the inner claim skip and silently issue nothing", async () => {
+  it("**takes NO claim of its own** — the engine claims internally, so a second lease here would make the inner claim skip and silently issue nothing", async () => {
     setupSuccess();
     const res = await POST(makeReq());
     expect(res.status).toBe(200);
-    // Every claim helper stays untouched: the ONLY lease on this order is the
-    // one the chokepoint takes internally. Re-introducing a claim here is the
-    // regression this pins.
-    expect(claimOrderForZohoInvoice).not.toHaveBeenCalled();
     expect(claimOrderForPrimaryInvoice).not.toHaveBeenCalled();
-    expect(releaseZohoInvoiceClaim).not.toHaveBeenCalled();
-    // Recording the result is the chokepoint's job too.
-    expect(recordZohoInvoiceForOrder).not.toHaveBeenCalled();
   });
 
-  it("no claim is taken on ANY exit path — including the 404 and 500 branches, so a failed run leaves no lease behind for Cloud Tasks to trip over", async () => {
+  it("no claim is taken on ANY exit path — including the 404 and 500 branches", async () => {
     // user-missing branch
     getOrderById.mockResolvedValueOnce(orderRow());
     getUserById.mockResolvedValueOnce(null);
     await POST(makeReq());
-    // both-engines-failed branch
+    // engine-failed branch
     getOrderById.mockResolvedValueOnce(orderRow());
     getUserById.mockResolvedValueOnce({ _id: "U1", email: "a@b.com" });
     createPrimaryInvoice.mockRejectedValueOnce(new Error("boom"));
     await POST(makeReq());
 
-    expect(claimOrderForZohoInvoice).not.toHaveBeenCalled();
     expect(claimOrderForPrimaryInvoice).not.toHaveBeenCalled();
-    expect(releaseZohoInvoiceClaim).not.toHaveBeenCalled();
   });
 
-  it("**passes staleClaimAfterMs** — async, queue-retried caller must be able to steal a claim stranded by a crashed prior attempt", async () => {
+  it("**claimOptions is exactly { staleClaimAfterMs: 5 min }** — async, queue-retried caller must be able to steal a claim stranded by a crashed prior attempt; the Zoho-era `allowNull` is gone", async () => {
     setupSuccess();
     await POST(makeReq());
-    expect(createPrimaryInvoice).toHaveBeenCalledWith(
-      expect.any(Object),
-      expect.objectContaining({
-        claimOptions: expect.objectContaining({
-          staleClaimAfterMs: 5 * 60 * 1000,
-        }),
-      })
-    );
-  });
-
-  it("preserves `allowNull: true` from the pre-chokepoint implementation (legacy null zohoInvoiceId rows count as unclaimed)", async () => {
-    setupSuccess();
-    await POST(makeReq());
-    expect(createPrimaryInvoice).toHaveBeenCalledWith(
-      expect.any(Object),
-      expect.objectContaining({
-        claimOptions: expect.objectContaining({ allowNull: true }),
-      })
-    );
+    expect(createPrimaryInvoice.mock.calls[0][1]).toEqual({
+      claimOptions: { staleClaimAfterMs: 5 * 60 * 1000 },
+    });
   });
 
   it("builds the context from the loaded order + user, not the request payload alone", async () => {
@@ -251,7 +217,7 @@ describe("Chokepoint wiring (the point of this batch)", () => {
     await POST(makeReq());
     const ctx = createPrimaryInvoice.mock.calls[0][0];
     // orderId must be the user-facing Order.orderId, not the _id from the
-    // Cloud Tasks payload — it lands on the invoice as reference_number.
+    // Cloud Tasks payload.
     expect(ctx.orderId).toBe("ORD-RNW-1");
     expect(ctx.order).toEqual(expect.objectContaining({ _id: "O1" }));
     expect(ctx.user).toEqual(expect.objectContaining({ _id: "U1" }));
@@ -277,46 +243,35 @@ describe("Permanent-skip paths (200, NOT 500 — no Cloud Tasks retry)", () => {
     expect(createPrimaryInvoice).not.toHaveBeenCalled();
   });
 
-  it("**invoiceProvider === 'primary' → 200, chokepoint never called** — anti-double-billing across a flag flip-flop", async () => {
-    getOrderById.mockResolvedValueOnce(
-      orderRow({
-        invoiceProvider: "primary",
-        invoiceNumber: "TI/2026-27/00001",
-        zohoInvoiceId: undefined,
-      })
-    );
-    const res = await POST(makeReq());
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.success).toBe(true);
-    expect(body.provider).toBe("primary");
-    expect(body.invoiceNumber).toBe("TI/2026-27/00001");
-    expect(createPrimaryInvoice).not.toHaveBeenCalled();
-    expect(getUserById).not.toHaveBeenCalled();
-  });
+  it.each([
+    ["primary", "TI/2026-27/00001"],
+    ["zoho", "INV-000123"],
+  ])(
+    "**invoiceProvider '%s' → 200 'Already invoiced', chokepoint never called** — anti-double-billing",
+    async (provider, invoiceNumber) => {
+      getOrderById.mockResolvedValueOnce(orderRow({ invoiceProvider: provider, invoiceNumber }));
+      const res = await POST(makeReq());
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.success).toBe(true);
+      expect(body.message).toBe("Already invoiced");
+      expect(body.provider).toBe(provider);
+      expect(body.invoiceNumber).toBe(invoiceNumber);
+      expect(createPrimaryInvoice).not.toHaveBeenCalled();
+      expect(getUserById).not.toHaveBeenCalled();
+      expect(markInvoiceCreationFailed).not.toHaveBeenCalled();
+    }
+  );
 
-  it("**zohoInvoiceId already set (real ID) → 200 success:true 'Already synced'**", async () => {
+  it("a previously FAILED order (invoiceFailedAt, no provider) is retried, not skipped", async () => {
     getOrderById.mockResolvedValueOnce(
-      orderRow({ zohoInvoiceId: "INV-EXISTING" })
-    );
-    const res = await POST(makeReq());
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.success).toBe(true);
-    expect(body.message).toBe("Already synced");
-    expect(body.zohoInvoiceId).toBe("INV-EXISTING");
-    expect(createPrimaryInvoice).not.toHaveBeenCalled();
-  });
-
-  it("zohoInvoiceId === 'pending_creation' → proceeds (treated as unset)", async () => {
-    getOrderById.mockResolvedValueOnce(
-      orderRow({ zohoInvoiceId: "pending_creation" })
+      orderRow({ invoiceFailedAt: new Date("2026-09-20T00:00:00Z") })
     );
     getUserById.mockResolvedValueOnce({ _id: "U1", email: "a@b.com" });
     createPrimaryInvoice.mockResolvedValueOnce({
-      invoiceId: "INV-NEW",
-      invoiceNumber: "INV-001",
-      provider: "zoho",
+      invoiceId: "",
+      invoiceNumber: "TI/2026-27/00002",
+      provider: "primary",
     });
     const res = await POST(makeReq());
     expect(res.status).toBe(200);
@@ -336,10 +291,11 @@ describe("Permanent-skip paths (200, NOT 500 — no Cloud Tasks retry)", () => {
     const body = await res.json();
     expect(body.success).toBe(true);
     expect(body.provider).toBe("skipped");
+    expect(markInvoiceCreationFailed).not.toHaveBeenCalled();
   });
 });
 
-describe("Transient-retry paths (500, Cloud Tasks retries)", () => {
+describe("Transient-retry paths (Cloud Tasks retries)", () => {
   it("user not found → 404 USER_NOT_FOUND; chokepoint never called", async () => {
     getOrderById.mockResolvedValueOnce(orderRow());
     getUserById.mockResolvedValueOnce(null);
@@ -348,42 +304,49 @@ describe("Transient-retry paths (500, Cloud Tasks retries)", () => {
     expect(createPrimaryInvoice).not.toHaveBeenCalled();
   });
 
-  it("**chokepoint throws (both engines failed) → 500 ZOHO_SYNC_ERROR**", async () => {
+  it("**engine throws → order flagged via markInvoiceCreationFailed(order._id, message), then 500 INVOICE_ISSUE_ERROR**", async () => {
     getOrderById.mockResolvedValueOnce(orderRow());
     getUserById.mockResolvedValueOnce({ _id: "U1", email: "a@b.com" });
-    createPrimaryInvoice.mockRejectedValueOnce(new Error("Zoho 503"));
+    createPrimaryInvoice.mockRejectedValueOnce(new Error("COMPANY_STATE is not configured"));
     const res = await POST(makeReq());
     expect(res.status).toBe(500);
     const body = await res.json();
-    expect(body.code).toBe("ZOHO_SYNC_ERROR");
+    expect(body.code).toBe("INVOICE_ISSUE_ERROR");
+    expect(markInvoiceCreationFailed).toHaveBeenCalledWith(
+      "O1",
+      "COMPANY_STATE is not configured"
+    );
   });
 
-  it("outer catch (getOrderById throw) → 500 ZOHO_SYNC_ERROR", async () => {
+  it("the flag write failing too still returns 500 (Cloud Tasks retries), not a false 200", async () => {
+    getOrderById.mockResolvedValueOnce(orderRow());
+    getUserById.mockResolvedValueOnce({ _id: "U1", email: "a@b.com" });
+    createPrimaryInvoice.mockRejectedValueOnce(new Error("boom"));
+    markInvoiceCreationFailed.mockRejectedValueOnce(new Error("db down"));
+    const res = await POST(makeReq());
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.code).toBe("INVOICE_ISSUE_ERROR");
+  });
+
+  it("outer catch (getOrderById throw) → 500 INVOICE_ISSUE_ERROR", async () => {
     getOrderById.mockRejectedValueOnce(new Error("Mongo down"));
     const res = await POST(makeReq());
     expect(res.status).toBe(500);
     const body = await res.json();
-    expect(body.code).toBe("ZOHO_SYNC_ERROR");
+    expect(body.code).toBe("INVOICE_ISSUE_ERROR");
   });
 });
 
-describe("Response shape by provider", () => {
+describe("Response shape", () => {
   it("primary → provider:'primary', TI number, no zohoInvoiceId", async () => {
-    setupSuccess("primary");
+    setupSuccess();
     const res = await POST(makeReq());
     const body = await res.json();
+    expect(body.success).toBe(true);
     expect(body.provider).toBe("primary");
     expect(body.invoiceNumber).toBe("TI/2026-27/00001");
-    expect(body.zohoInvoiceId).toBeUndefined();
-  });
-
-  it("zoho → provider:'zoho', zohoInvoiceId carried through", async () => {
-    setupSuccess("zoho");
-    const res = await POST(makeReq());
-    const body = await res.json();
-    expect(body.provider).toBe("zoho");
-    expect(body.zohoInvoiceId).toBe("INV-NEW");
-    expect(body.invoiceNumber).toBe("INV-001");
+    expect(body).not.toHaveProperty("zohoInvoiceId");
   });
 });
 
@@ -408,9 +371,6 @@ describe("Period unit mapping", () => {
     setupSuccess();
     await POST(makeReq({ ...VALID, serviceType: "hosting", durationMonths: 3 }));
     const items = itemsFromLastCall();
-    // inferPeriodUnit returns item.periodUnit verbatim when present; without
-    // it, a hosting item would be re-derived from registrationPeriod, which
-    // is wrong for a renewal.
     expect(items[0].periodUnit).toBeDefined();
   });
 });

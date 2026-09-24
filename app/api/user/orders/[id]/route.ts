@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 const USER_ORDER_FIELDS =
   "orderId purchaseOrderNumber amount currency status orderType " +
-  "domains successfulDomains invoiceNumber zohoInvoiceId " +
+  "domains successfulDomains invoiceNumber invoiceProvider invoiceFailedAt " +
   "createdAt updatedAt paymentVerification";
 
 export async function GET(

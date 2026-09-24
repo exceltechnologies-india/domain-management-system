@@ -1,30 +1,25 @@
 /**
- * Tests for `app/api/user/invoices/route.ts` (slice 7hc, part 1).
- * Customer's invoice list. The interesting pin is the **self-heal
- * flow**: if any paid orders are missing a real Zoho invoice id
- * (because the bookkeeping step crashed on Zoho's end), this route
- * INLINE-retries invoice creation, then re-fetches the list before
- * returning. Inline because Cloud Run throttles CPU after the
- * response is sent, so fire-and-forget promises die.
+ * Tests for `app/api/user/invoices/route.ts`.
+ *
+ * Customer's invoice list. Since Zoho Books was removed (24 Sep 2026) an
+ * order is "issued" iff it has an `invoiceProvider` ('primary', or a
+ * historical 'zoho'), and DMS renders every PDF from the order by orderId.
  *
  * Pins:
  *  - Auth → 401 (NO listing call)
  *  - listUserInvoiceOrders scoped on user._id
  *  - **Order-status → invoice-status mapping** pinned VERBATIM:
- *      completed/paid → paid
- *      pending/processing → sent
- *      failed/refunded → void
- *      anything else → draft
- *  - **Sentinel-id filter**: zohoInvoiceId in {'pending_creation',
- *    'creation_failed'} → invoice_id becomes '' (empty string;
- *    not the sentinel value); `zoho_pending` flag flipped to true
- *    so UI can show 'Generating invoice…'
+ *      completed/paid → paid; pending/processing → sent;
+ *      failed/refunded → void; anything else → draft
+ *  - invoice_id = orderId ONLY when invoiceProvider is set; '' otherwise
+ *  - invoice_failed = paid && !issued && invoiceFailedAt — the only state
+ *    that offers the customer a retry
+ *  - No `provider` / `zoho_pending` fields any more
  *  - balance: 0 for paid orders, full amount otherwise
- *  - **Self-heal**: hasStuck=true (a paid order with empty
- *    invoice_id) triggers selfHealUserInvoices. ONLY if any
- *    retry returns ok=true does the route re-fetch + re-map.
- *    If none recovered, the original empty list is returned
- *    (cheaper than a pointless second DB read).
+ *  - **Self-heal**: runs ONLY when some row is invoice_failed. An issued
+ *    order (primary OR historical zoho) never triggers it — that would be
+ *    a second tax invoice for one payment. Re-fetch only if a retry
+ *    recovered something.
  *  - Outer catch → 500 'Internal Server Error'
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -38,7 +33,7 @@ const listUserInvoiceOrders = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/orders", () => ({ listUserInvoiceOrders }));
 
 const selfHealUserInvoices = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/zoho-invoice-retry", () => ({ selfHealUserInvoices }));
+vi.mock("@/lib/invoice-retry", () => ({ selfHealUserInvoices }));
 
 vi.mock("@/lib/server-logger", () => ({
   serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -63,8 +58,8 @@ const user = { _id: "U1", email: "alice@example.com" };
 function order(overrides: Record<string, unknown> = {}) {
   return {
     orderId: "ORD-1",
-    zohoInvoiceId: "zoho-real-id",
-    invoiceNumber: "INV-2026-00001",
+    invoiceProvider: "primary",
+    invoiceNumber: "TI/2026-27/00001",
     amount: 999,
     status: "completed",
     currency: "INR",
@@ -73,10 +68,18 @@ function order(overrides: Record<string, unknown> = {}) {
   };
 }
 
+const failedOrder = (o: Record<string, unknown> = {}) =>
+  order({
+    invoiceProvider: undefined,
+    invoiceNumber: undefined,
+    invoiceFailedAt: new Date("2026-06-01T10:05:00.000Z"),
+    ...o,
+  });
+
 beforeEach(() => {
   getUserFromRequest.mockReset().mockResolvedValue(user);
   listUserInvoiceOrders.mockReset();
-  selfHealUserInvoices.mockReset();
+  selfHealUserInvoices.mockReset().mockResolvedValue([]);
 });
 
 describe("Auth gate", () => {
@@ -106,53 +109,80 @@ describe("Order-status → invoice-status mapping", () => {
     ["refunded", "void"],
     ["unknown_status", "draft"], // fallback
   ])("status=%p → invoice status=%p", async (orderStatus, expected) => {
-    listUserInvoiceOrders.mockResolvedValueOnce([
-      order({ status: orderStatus }),
-    ]);
+    listUserInvoiceOrders.mockResolvedValueOnce([order({ status: orderStatus })]);
     const res = await GET(makeReq());
     const body = await res.json();
     expect(body.invoices[0].status).toBe(expected);
   });
 });
 
-describe("Sentinel-id filter", () => {
-  it.each(["pending_creation", "creation_failed"])(
-    "zohoInvoiceId=%p on paid order → invoice_id is empty string, zoho_pending:true",
-    async (sentinel) => {
-      listUserInvoiceOrders.mockResolvedValueOnce([
-        order({ zohoInvoiceId: sentinel, status: "completed" }),
-      ]);
-      // No self-heal stuck-recovery; just verify the sentinel is filtered out
-      selfHealUserInvoices.mockResolvedValueOnce([]);
-
-      const res = await GET(makeReq());
-      const body = await res.json();
-      expect(body.invoices[0].invoice_id).toBe("");
-      expect(body.invoices[0].zoho_pending).toBe(true);
-    }
-  );
-
-  it("real Zoho id → invoice_id passes through, zoho_pending:false", async () => {
-    listUserInvoiceOrders.mockResolvedValueOnce([
-      order({ zohoInvoiceId: "zoho-real-id", status: "completed" }),
-    ]);
-
-    const res = await GET(makeReq());
-    const body = await res.json();
-    expect(body.invoices[0].invoice_id).toBe("zoho-real-id");
-    expect(body.invoices[0].zoho_pending).toBe(false);
+describe("Row shape", () => {
+  it("issued primary invoice → full row; invoice_id is the orderId; no provider / zoho_pending fields", async () => {
+    listUserInvoiceOrders.mockResolvedValueOnce([order()]);
+    const body = await (await GET(makeReq())).json();
+    expect(body.invoices[0]).toEqual({
+      invoice_id: "ORD-1",
+      invoice_number: "TI/2026-27/00001",
+      date: "2026-06-01T10:00:00.000Z",
+      due_date: "2026-06-01T10:00:00.000Z",
+      total: 999,
+      balance: 0,
+      status: "paid",
+      currency_code: "INR",
+      created_time: "2026-06-01T10:00:00.000Z",
+      order_id: "ORD-1",
+      invoice_failed: false,
+    });
   });
 
-  it("missing zohoInvoiceId on UNPAID order → empty invoice_id but zoho_pending:false (no Zoho retry expected for unpaid)", async () => {
+  it("a historical Zoho-issued invoice is also 'issued' — invoice_id is the orderId, not a Zoho id", async () => {
     listUserInvoiceOrders.mockResolvedValueOnce([
-      order({ zohoInvoiceId: undefined, status: "pending" }),
+      order({ invoiceProvider: "zoho", invoiceNumber: "INV-000123" }),
     ]);
+    const body = await (await GET(makeReq())).json();
+    expect(body.invoices[0].invoice_id).toBe("ORD-1");
+    expect(body.invoices[0].invoice_number).toBe("INV-000123");
+    expect(body.invoices[0].invoice_failed).toBe(false);
+  });
 
-    const res = await GET(makeReq());
-    const body = await res.json();
+  it("no invoiceProvider → invoice_id is '' (nothing to download yet)", async () => {
+    listUserInvoiceOrders.mockResolvedValueOnce([
+      order({ invoiceProvider: undefined, status: "pending" }),
+    ]);
+    const body = await (await GET(makeReq())).json();
     expect(body.invoices[0].invoice_id).toBe("");
-    // zoho_pending only true when isPaid; pending order isn't paid
-    expect(body.invoices[0].zoho_pending).toBe(false);
+    expect(body.invoices[0].order_id).toBe("ORD-1");
+  });
+});
+
+describe("invoice_failed", () => {
+  it("paid + not issued + invoiceFailedAt → true", async () => {
+    listUserInvoiceOrders.mockResolvedValueOnce([failedOrder()]);
+    const body = await (await GET(makeReq())).json();
+    expect(body.invoices[0].invoice_failed).toBe(true);
+    expect(body.invoices[0].invoice_id).toBe("");
+  });
+
+  it("paid + not issued + NO invoiceFailedAt → false (no known failure; nothing to retry)", async () => {
+    listUserInvoiceOrders.mockResolvedValueOnce([
+      failedOrder({ invoiceFailedAt: undefined }),
+    ]);
+    const body = await (await GET(makeReq())).json();
+    expect(body.invoices[0].invoice_failed).toBe(false);
+  });
+
+  it("UNPAID + invoiceFailedAt → false (unpaid orders are never invoiced)", async () => {
+    listUserInvoiceOrders.mockResolvedValueOnce([failedOrder({ status: "pending" })]);
+    const body = await (await GET(makeReq())).json();
+    expect(body.invoices[0].invoice_failed).toBe(false);
+  });
+
+  it("issued + a stale invoiceFailedAt from an earlier attempt → false (the invoice exists)", async () => {
+    listUserInvoiceOrders.mockResolvedValueOnce([
+      order({ invoiceFailedAt: new Date("2026-06-01T10:05:00.000Z") }),
+    ]);
+    const body = await (await GET(makeReq())).json();
+    expect(body.invoices[0].invoice_failed).toBe(false);
   });
 });
 
@@ -168,105 +198,48 @@ describe("Balance computation", () => {
   });
 });
 
-describe("Self-heal flow (hasStuck → inline retry)", () => {
-  it("paid order with empty invoice_id → selfHealUserInvoices called; if any recover → re-fetch + re-map", async () => {
-    const stuckOrder = order({
-      zohoInvoiceId: "pending_creation",
-      status: "completed",
-    });
-    const recoveredOrder = order({
-      zohoInvoiceId: "zoho-now-real",
-      status: "completed",
-    });
-
+describe("Self-heal flow (a failed row → inline retry)", () => {
+  it("failed row → selfHealUserInvoices(userId); a recovery → re-fetch + re-map", async () => {
     listUserInvoiceOrders
-      .mockResolvedValueOnce([stuckOrder])
-      .mockResolvedValueOnce([recoveredOrder]);
-    selfHealUserInvoices.mockResolvedValueOnce([
-      { orderId: "ORD-1", ok: true },
-    ]);
+      .mockResolvedValueOnce([failedOrder()])
+      .mockResolvedValueOnce([order({ invoiceNumber: "TI/2026-27/00002" })]);
+    selfHealUserInvoices.mockResolvedValueOnce([{ orderId: "ORD-1", ok: true }]);
 
     const res = await GET(makeReq());
     expect(selfHealUserInvoices).toHaveBeenCalledWith("U1");
     expect(listUserInvoiceOrders).toHaveBeenCalledTimes(2);
     const body = await res.json();
-    expect(body.invoices[0].invoice_id).toBe("zoho-now-real");
-    expect(body.invoices[0].zoho_pending).toBe(false);
+    expect(body.invoices[0].invoice_id).toBe("ORD-1");
+    expect(body.invoices[0].invoice_number).toBe("TI/2026-27/00002");
+    expect(body.invoices[0].invoice_failed).toBe(false);
   });
 
-  it("self-heal recovers nothing → NO re-fetch (skip the second DB round-trip)", async () => {
-    listUserInvoiceOrders.mockResolvedValueOnce([
-      order({ zohoInvoiceId: "pending_creation", status: "completed" }),
-    ]);
+  it("self-heal recovers nothing → NO re-fetch; the failed row is still reported failed", async () => {
+    listUserInvoiceOrders.mockResolvedValueOnce([failedOrder()]);
     selfHealUserInvoices.mockResolvedValueOnce([
-      { orderId: "ORD-1", ok: false, skipped: true },
+      { orderId: "ORD-1", ok: false, skipped: "throttled" },
     ]);
 
     const res = await GET(makeReq());
     expect(listUserInvoiceOrders).toHaveBeenCalledTimes(1);
     const body = await res.json();
-    // Original empty invoice_id returned
     expect(body.invoices[0].invoice_id).toBe("");
-    expect(body.invoices[0].zoho_pending).toBe(true);
+    expect(body.invoices[0].invoice_failed).toBe(true);
   });
 
-  it("no stuck orders → selfHealUserInvoices NOT called (no Zoho hit on normal page-load)", async () => {
-    listUserInvoiceOrders.mockResolvedValueOnce([
-      order({ zohoInvoiceId: "zoho-real-id", status: "completed" }),
-    ]);
+  it.each(["primary", "zoho"])(
+    "**an issued (%s) invoice never triggers self-heal** — a retry there would be a second tax invoice for one payment",
+    async (provider) => {
+      listUserInvoiceOrders.mockResolvedValueOnce([order({ invoiceProvider: provider })]);
+      await GET(makeReq());
+      expect(selfHealUserInvoices).not.toHaveBeenCalled();
+    }
+  );
+
+  it("paid, not issued, no recorded failure → self-heal NOT called (it only retries known failures)", async () => {
+    listUserInvoiceOrders.mockResolvedValueOnce([failedOrder({ invoiceFailedAt: undefined })]);
     await GET(makeReq());
     expect(selfHealUserInvoices).not.toHaveBeenCalled();
-  });
-});
-
-// REGRESSION (2026-09-02): a primary-engine invoice has NO zohoInvoiceId by
-// design. The list was reporting it as `zoho_pending: true` (so the dashboard
-// showed "Generating invoice…" forever for a bill that was already issued),
-// and — worse — counted it as "stuck", which fires selfHealUserInvoices and
-// would issue a SECOND (Zoho) tax invoice for the same payment. Caught by an
-// end-to-end purchase test.
-describe("REGRESSION: primary-engine invoices are reported as issued, not pending", () => {
-  const primaryOrder = () =>
-    order({
-      zohoInvoiceId: undefined,
-      invoiceProvider: "primary",
-      invoiceNumber: "TI/2026-27/00001",
-      status: "completed",
-    });
-
-  it("zoho_pending is FALSE for a primary invoice (bill is issued, not generating)", async () => {
-    listUserInvoiceOrders.mockResolvedValueOnce([primaryOrder()]);
-    const res = await GET(makeReq());
-    const body = await res.json();
-    expect(body.invoices[0].zoho_pending).toBe(false);
-    expect(body.invoices[0].invoice_number).toBe("TI/2026-27/00001");
-    expect(body.invoices[0].status).toBe("paid");
-    expect(body.invoices[0].balance).toBe(0);
-  });
-
-  it("exposes provider + order_id so the client can fetch the primary PDF", async () => {
-    listUserInvoiceOrders.mockResolvedValueOnce([primaryOrder()]);
-    const res = await GET(makeReq());
-    const body = await res.json();
-    expect(body.invoices[0].provider).toBe("primary");
-    expect(body.invoices[0].order_id).toBe("ORD-1");
-  });
-
-  it("does NOT trigger the Zoho self-heal for a primary invoice (no duplicate bill)", async () => {
-    listUserInvoiceOrders.mockResolvedValueOnce([primaryOrder()]);
-    await GET(makeReq());
-    expect(selfHealUserInvoices).not.toHaveBeenCalled();
-  });
-
-  it("still flags a genuinely stuck Zoho order as pending and self-heals it", async () => {
-    listUserInvoiceOrders.mockResolvedValueOnce([
-      order({ zohoInvoiceId: undefined, invoiceProvider: undefined, status: "completed" }),
-    ]);
-    selfHealUserInvoices.mockResolvedValueOnce([]);
-    const res = await GET(makeReq());
-    const body = await res.json();
-    expect(body.invoices[0].zoho_pending).toBe(true);
-    expect(selfHealUserInvoices).toHaveBeenCalled();
   });
 });
 

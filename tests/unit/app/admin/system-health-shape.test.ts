@@ -70,7 +70,6 @@ describe("what must be accepted", () => {
           resellerClub: { status: "operational", balance: null, latencyMs: 12 },
           directAdmin: { status: "down", latencyMs: 0 },
           razorpay: { status: "operational", latencyMs: 30 },
-          zohoBooks: { status: "operational", latencyMs: 40 },
         },
       })
     ).toBe(true);
@@ -96,5 +95,20 @@ describe("the page uses this check, and clears rather than keeps a bad body", ()
   it("guard the guard: the comment strip did not eat the file", () => {
     expect(code).toContain("fetchHealth");
     expect(code).toContain("system-health");
+  });
+});
+
+describe("External Services after Zoho Books was removed (24 Sep 2026)", () => {
+  it("renders exactly the three live service cards, and no Zoho Books card", () => {
+    const names = [...code.matchAll(/name="([^"]+)"/g)].map((m) => m[1]);
+    expect(names).toEqual(expect.arrayContaining(["ResellerClub", "DirectAdmin", "Razorpay"]));
+    expect(code).not.toMatch(/zoho/i);
+  });
+
+  it("lays the services grid out in three columns, not four with a hole", () => {
+    const at = code.indexOf('title="External Services"');
+    expect(at).toBeGreaterThan(-1);
+    const firstGrid = /className="(grid [^"]+)"/.exec(code.slice(at))?.[1];
+    expect(firstGrid).toBe("grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4");
   });
 });

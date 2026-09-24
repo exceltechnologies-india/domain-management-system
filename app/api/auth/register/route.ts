@@ -138,8 +138,7 @@ export async function POST(request: NextRequest) {
     void (async () => {
       try {
         const { ResellerClubAPI } = await import("@/lib/resellerclub");
-        const { ZohoBooksService } = await import("@/lib/zohobooks");
-        
+
         // 1. ResellerClub Sync
         const rcLookup = await ResellerClubAPI.getCustomerId(user.email);
         if (rcLookup.status === "success" && rcLookup.customerId) {
@@ -184,14 +183,6 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // 2. Zoho Books Sync
-        const zohoService = ZohoBooksService.getInstance();
-        const zohoContact = await zohoService.getContactByEmail(user.email);
-        if (zohoContact) {
-            await zohoService.updateContactDetails(zohoContact.contact_id, user);
-        } else {
-            await zohoService.createContact(user);
-        }
       } catch (err) {
         serverLogger.error("[REGISTRATION] External provider sync error:", err);
       }

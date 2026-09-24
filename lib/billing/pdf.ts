@@ -12,9 +12,9 @@ import { getCompanyProfile } from "@/lib/billing/companyProfile";
  * app/api/orders/[id]/invoice/route.ts, and (as a missing fallback) would
  * have been copy-pasted a fourth time into app/api/user/invoices/[id]/pdf/route.ts.
  *
- * Behavior is unchanged for any order without a primary-engine GST
- * breakdown (order.invoiceProvider !== 'primary') — same "Proforma Invoice"
- * layout, same flat total, same fallback invoice-number format. An order
+ * An order without a primary-engine GST breakdown (including historical
+ * Zoho-issued orders, whose tax split lived in Zoho) renders as a "Proforma
+ * Invoice" — flat total, fallback invoice-number format. An order
  * WITH a primary breakdown (order.taxableValue set) renders as a real
  * "Tax Invoice" with the GST split shown as required by law, using our own
  * company profile instead of a hardcoded name/GSTIN string.
@@ -160,10 +160,8 @@ export function generateInvoicePdf(
     y += 5;
     // Hosting rows carry a SYNTHETIC cart-store id in `domainName`
     // (e.g. "hosting-Standard-1788506428638"); the domain the customer
-    // actually bought the plan for lives in `linkedDomain`. Zoho's builder
-    // already resolves it this way (`item.linkedDomain || item.domainName`
-    // in lib/zohobooks/invoices.ts) — this is the primary engine matching
-    // that, so our own tax invoice never shows an internal id to a customer.
+    // actually bought the plan for lives in `linkedDomain`, so resolve it
+    // that way and a tax invoice never shows an internal id to a customer.
     // Domain rows keep `domainName`: there it IS the real domain.
     const displayDomain =
       (isDomain ? item.domainName : item.linkedDomain || item.domainName) || "";

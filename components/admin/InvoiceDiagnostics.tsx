@@ -44,7 +44,7 @@ export default function InvoiceDiagnostics() {
       title: 'Clear invoice number?',
       message:
         `Clear the invoiceNumber on order ${orderId}?\n\n` +
-        `This frees the value so another order can claim it during reconciliation. Zoho invoice data is not affected.`,
+        `This frees the value so another order can claim it during reconciliation. No issued invoice is changed.`,
       confirmText: 'Clear number',
       tone: 'warning',
     });
@@ -84,7 +84,7 @@ export default function InvoiceDiagnostics() {
     const ok = await confirmDialog({
       title: `Re-sync ${orders.length} stuck invoice${orders.length === 1 ? '' : 's'}?`,
       message:
-        `Each one will be retried one-at-a-time to avoid rate-limiting Zoho. ` +
+        `Each one will be issued one at a time. ` +
         `This may take ~${Math.ceil(orders.length * 1.5)}s.`,
       confirmText: 'Re-sync all',
       tone: 'primary',
@@ -93,7 +93,7 @@ export default function InvoiceDiagnostics() {
     setBulkProgress({ total: orders.length, done: 0, success: 0, failed: 0 });
     let success = 0;
     let failed = 0;
-    // Sequential to avoid hammering Zoho. Each call is best-effort.
+    // Sequential — each call is best-effort and reports its own result.
     for (let i = 0; i < orders.length; i++) {
       const o = orders[i];
       const result = await apiClient.post<{ success?: boolean }>(
@@ -165,7 +165,7 @@ export default function InvoiceDiagnostics() {
           {!hasIssues && (
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <CheckCircle2 className="h-4 w-4 text-green-600" />
-              All invoice numbers are unique and every paid order is linked to a Zoho invoice.
+              All invoice numbers are unique and every paid order has an invoice.
             </div>
           )}
         </div>

@@ -4,7 +4,7 @@
  * Admin → Integration Health.
  *
  * Aggregated upstream-provider error feed. Each card is one provider
- * (DirectAdmin, Zoho Books, ResellerClub, Razorpay); within a card,
+ * (DirectAdmin, invoicing, ResellerClub, Razorpay); within a card,
  * errors are clustered by pattern so a recurring failure shows as a
  * single row with a count + actionable hint, not N separate rows.
  *
@@ -59,13 +59,13 @@ interface HealthResponse {
 
 const PROVIDER_DESCRIPTIONS: Record<string, string> = {
   directadmin: 'Customer hosting account provisioning (create-user, suspend, delete).',
-  zoho: 'Tax-compliant invoice generation post-payment.',
+  invoicing: 'GST tax-invoice generation after payment (our own engine).',
   resellerclub: 'Domain registration, transfer, and DNS management.',
   razorpay: 'Payment authorization, capture, and webhook handling.',
   email: 'Outbound SMTP — order confirmations, activation links, password resets.',
   whatsapp: 'WhatsApp Cloud API — reminders, payment confirmations, suspension notices + inbound STOP/delivery webhook.',
   auth: 'Sign-in, 2FA, JWT verification, rate-limit triggers.',
-  background: 'Cron jobs and worker queues — Zoho retry, RC pricing sync, daily cleanup.',
+  background: 'Cron jobs and worker queues — renewal invoicing, RC pricing sync, daily cleanup.',
   application: 'Other server-side errors — middleware, API routes, business logic.',
   unknown: 'Errors that did not match any known upstream-provider signature.',
 };
@@ -89,7 +89,7 @@ export default function IntegrationHealthPage() {
       );
       if (sh.ok && sh.data.externalApis) {
         const labels: Record<string, string> = {
-          directAdmin: 'DirectAdmin', resellerClub: 'ResellerClub', razorpay: 'Razorpay', zohoBooks: 'Zoho Books',
+          directAdmin: 'DirectAdmin', resellerClub: 'ResellerClub', razorpay: 'Razorpay',
         };
         setLiveDown(
           Object.entries(sh.data.externalApis)
@@ -159,7 +159,7 @@ export default function IntegrationHealthPage() {
             <div>
               <h1 className="text-2xl font-bold text-ink">Integration Health</h1>
               <p className="text-sm text-ink-3 mt-0.5 max-w-2xl">
-                Aggregated error feed for every upstream service — DirectAdmin, Zoho, ResellerClub, Razorpay, Email, WhatsApp. Recurring failures cluster into one row with a count + remediation hint.
+                Aggregated error feed for every upstream service — DirectAdmin, invoicing, ResellerClub, Razorpay, Email, WhatsApp. Recurring failures cluster into one row with a count + remediation hint.
               </p>
             </div>
           </div>

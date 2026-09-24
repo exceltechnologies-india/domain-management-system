@@ -77,6 +77,23 @@ large resellers.)
 FIRST; sub-reselling is a post-launch revenue feature (Phases 2–5 are weeks of work). Phase 1 was built
 now because it's fully additive/flag-gated and doesn't touch the go-live path.
 
+### ✅ Zoho Books REMOVED — USER DECISION (Pardeep, 24 Sep 2026)
+
+> *"Remove the Zoho completely. Mark it as user decision."* — owner, 24 Sep 2026.
+
+Our GST engine is now the ONLY invoice issuer; there is no fallback. Full record and the rules
+that follow from it: `CLAUDE.md` → "Zoho Books removed". The section below this one describes
+the Zoho-fallback era and is kept as history — where it says "Zoho as fallback" or
+`ZOHO_INVOICE_FALLBACK_ENABLED`, that is no longer true.
+
+- [ ] **Operator: before/with the next deploy** — set `COMPANY_STATE=Delhi` on the Cloud Run
+      service (the deploy script now refuses without it), then `npm run migrate` to apply
+      `009_retire_zoho_invoice_fields` (stamps the 2 historical Zoho-invoiced orders
+      `invoiceProvider: 'zoho'`, drops `zohoInvoiceId`).
+- Decided alongside it: no credit-note engine for now (the only invoiced orders were test
+  orders); historical Zoho invoices are re-rendered by DMS as Proforma copies rather than
+  archived from Zoho.
+
 ### 🆕 Primary Billing Integration — our own GST tax-invoice engine, Zoho as fallback (Phase 2 code-complete 2026-09-02; post-Phase-2 audit 2026-09-03 found **6 gaps: 5 closed, 1 deferred-by-decision (credit-note engine)**; **our GST engine is PERMANENT and ungated; only the Zoho fallback is toggleable (`ZOHO_INVOICE_FALLBACK_ENABLED`, default ON)**; remaining work is merge → deploy → `scripts/setup-cloud-scheduler-billing.sh`; branch-only, NOT deployed — **real Razorpay test purchases from a browser on 2026-09-04 found TWO separate bugs that stranded a paid order in `/api/payments/verify`, both now fixed** (`de7a1ad` idempotency short-circuit + the `razorpaySignature` required-schema crash), each with a new E2E regression test and both stuck customer orders recovered; the fixed flow still needs ONE clean browser purchase to confirm, then deploy)
 
 **What it is:** ported the invoicing *concept* (not the code — anutechbilling is Postgres/Supabase RLS,

@@ -1,16 +1,10 @@
 /**
- * GST tax-treatment engine for the primary invoicing system
- * (lib/services/billing/createPrimaryInvoice.ts).
+ * GST tax-treatment engine for our invoicing system
+ * (lib/services/billing/createPrimaryInvoice.ts). This module is the system
+ * of record for the tax breakdown printed on the customer's legal invoice.
  *
- * This is a from-scratch calculation, deliberately independent of
- * lib/zohobooks.ts — when invoiceProvider === 'primary' there is no Zoho
- * invoice at all, so this module (not Zoho) is the system of record for the
- * tax breakdown printed on the customer's legal invoice.
- *
- * Same interstate/intrastate rule as Zoho's (org state vs customer billing
- * state -> CGST+SGST or IGST), reimplemented locally rather than reusing
- * lib/zohobooks.ts's private ORG_STATE getter, which is coupled to the Zoho
- * service class and throws on Zoho-specific setup.
+ * Rule: org state vs customer billing state -> CGST+SGST (same state) or
+ * IGST (different state).
  */
 
 export interface GstBreakdown {
@@ -34,8 +28,7 @@ function normalizeState(state: string): string {
 
 /**
  * No customer state on file is treated as intra-state (CGST+SGST) rather
- * than inter-state — matches the conservative fallback already used by the
- * Zoho integration's own contact/GST handling, and avoids charging IGST
+ * than inter-state — the conservative choice, which avoids charging IGST
  * against a supply we can't actually prove crossed a state line.
  */
 export function isInterStateSupply(

@@ -315,7 +315,7 @@ describe("CSRF gate — EVERY authenticated mutating /api/*", () => {
   });
 
   it("PUBLIC /api/workers/* → NO CSRF check (x-cron-secret-authed)", async () => {
-    const req = makeReq("https://example.com/api/workers/sync-zoho-invoice", {
+    const req = makeReq("https://example.com/api/workers/issue-invoice", {
       method: "POST",
     });
     await middleware(req);
@@ -497,7 +497,9 @@ describe("Public routes / public APIs — no token fetch", () => {
     "/api/check-ip",
     "/api/contact",
     "/api/cron/process-expiry",
-    "/api/workers/sync-zoho-invoice",
+    "/api/workers/issue-invoice",
+    // The path webhook-handlers actually enqueues for Cloud Tasks.
+    "/api/v1/workers/issue-invoice",
     "/api/payments/guest/verify",
   ])("public API %s does not fetch token (CSRF-exempt)", async (path) => {
     const req = makeReq(`https://example.com${path}`, { method: "POST" });

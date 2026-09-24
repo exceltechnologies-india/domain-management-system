@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
  * Admin-only. Unsets the `invoiceNumber` field on a specific Order so the
  * unique-index value is freed. Used to resolve invoiceNumber collisions when
  * an orphan or duplicate Order is holding a number that legitimately belongs
- * to another Order awaiting reconciliation. Does NOT touch zohoInvoiceId.
+ * to another Order awaiting reconciliation. Does NOT touch invoiceProvider.
  */
 export async function POST(
   request: NextRequest,

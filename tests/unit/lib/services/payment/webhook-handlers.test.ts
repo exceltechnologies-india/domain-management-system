@@ -28,9 +28,11 @@
  *  - **createRenewalOrder failure NON-CRITICAL** (service already
  *    renewed — audit gap only); attachOrderToRenewal NOT called when
  *    Order creation failed
- *  - **Zoho sync is fire-and-forget** via createHttpTask — failure
- *    logged + flow continues (Cloud Tasks handles retries; service
- *    activation never depends on Zoho)
+ *  - **Invoice issue is fire-and-forget** via createHttpTask to the
+ *    `/api/v1/workers/issue-invoice` worker (was sync-zoho-invoice until
+ *    Zoho Books was removed, 24 Sep 2026) on GCP_INVOICE_QUEUE_NAME ||
+ *    GCP_QUEUE_NAME — failure logged + flow continues (Cloud Tasks handles
+ *    retries; service activation never depends on invoicing)
  *  - handleSubscriptionFailed: status:'expired' + billingType:'manual'
  *    + next_action_at:undefined; **da suspend called** (typed outcome
  *    logged inside wrapper, callsite continues regardless — DB is the
@@ -86,9 +88,8 @@ vi.mock("@/lib/integrations/directadmin", () => ({
 
 vi.mock("@/models/Hosting", () => ({ default: { findOne: vi.fn() } }));
 
-vi.mock("@/lib/server-logger", () => ({
-  serverLogger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
-}));
+const serverLogger = vi.hoisted(() => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn() }));
+vi.mock("@/lib/server-logger", () => ({ serverLogger }));
 
 import {
   handleSubscriptionCharged,
@@ -352,7 +353,7 @@ describe("handleSubscriptionCharged — renewal logic (Payment Always Wins)", ()
   });
 });
 
-describe("handleSubscriptionCharged — Order audit-trail + Zoho fire-and-forget", () => {
+describe("handleSubscriptionCharged — Order audit-trail + invoice task fire-and-forget", () => {
   it("createRenewalOrder called + attachOrderToRenewal links the Order to the RenewalPayment", async () => {
     await handleSubscriptionCharged(payload());
     expect(createRenewalOrder).toHaveBeenCalled();
@@ -363,23 +364,47 @@ describe("handleSubscriptionCharged — Order audit-trail + Zoho fire-and-forget
     createRenewalOrder.mockRejectedValueOnce(new Error("save conflict"));
     await handleSubscriptionCharged(payload());
     expect(attachOrderToRenewal).not.toHaveBeenCalled();
-    // Flow continues anyway, but Zoho task ALSO won't fire (no newOrder).
+    // Flow continues anyway, but the invoice task ALSO won't fire (no newOrder).
     expect(createHttpTask).not.toHaveBeenCalled();
   });
 
-  it("Zoho task: createHttpTask fire-and-forget after Order created", async () => {
+  it("invoice task: createHttpTask to /api/v1/workers/issue-invoice after Order created", async () => {
+    vi.stubEnv("NEXTAUTH_URL", "https://dms.example");
     await handleSubscriptionCharged(payload());
+    vi.unstubAllEnvs();
     expect(createHttpTask).toHaveBeenCalled();
-    const [queue, , payloadArg] = createHttpTask.mock.calls[0];
+    const [queue, url, payloadArg] = createHttpTask.mock.calls[0];
     expect(typeof queue).toBe("string");
+    expect(url).toBe("https://dms.example/api/v1/workers/issue-invoice");
+    expect(String(url)).not.toMatch(/zoho/i);
     expect(payloadArg.orderId).toBe("ORD_RNW_1");
     expect(payloadArg.serviceType).toBe("hosting");
     expect(payloadArg.amount).toBe(500); // 50000 paise → 500 rupees
   });
 
-  it("createHttpTask failure SWALLOWED (Cloud Tasks retries — service activation never depends on Zoho)", async () => {
+  it("queue: GCP_INVOICE_QUEUE_NAME wins; falls back to GCP_QUEUE_NAME", async () => {
+    vi.stubEnv("GCP_INVOICE_QUEUE_NAME", "invoice-queue");
+    vi.stubEnv("GCP_QUEUE_NAME", "general-queue");
+    await handleSubscriptionCharged(payload());
+    expect(createHttpTask.mock.calls[0][0]).toBe("invoice-queue");
+
+    createHttpTask.mockClear();
+    vi.stubEnv("GCP_INVOICE_QUEUE_NAME", "");
+    await handleSubscriptionCharged(payload());
+    vi.unstubAllEnvs();
+    expect(createHttpTask.mock.calls[0][0]).toBe("general-queue");
+  });
+
+  it("createHttpTask failure SWALLOWED but LOGGED (service activation never depends on invoicing)", async () => {
+    serverLogger.error.mockClear();
     createHttpTask.mockRejectedValueOnce(new Error("queue offline"));
-    await expect(handleSubscriptionCharged(payload())).resolves.toBeUndefined();
+    await handleSubscriptionCharged(payload());
+    // The rejection is handled by a .catch on a floating promise; let it run.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(createRenewalOrder).toHaveBeenCalled();
+    expect(serverLogger.error).toHaveBeenCalledWith(
+      "[Webhook] Failed to queue invoice task: queue offline"
+    );
   });
 });
 

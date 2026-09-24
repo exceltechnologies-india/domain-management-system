@@ -96,7 +96,7 @@ export async function listStuckCompletedOrders(opts: {
 /**
  * Admin diagnostic: find every set of orders sharing the same
  * `invoiceNumber`. Two or more orders sharing a number is the root cause
- * of the E11000 duplicate-key errors during the Zoho retry path.
+ * of E11000 duplicate-key errors when an invoice number is recorded.
  * Returns up to 100 conflict groups, largest first.
  */
 export interface InvoiceNumberConflictGroup {
@@ -135,26 +135,20 @@ export async function listOrdersByIds(ids: unknown[], select?: string): Promise<
 }
 
 /**
- * Admin diagnostic: paid/completed orders missing a resolved Zoho invoice
- * (unscoped — the user-scoped variant is {@link listStuckZohoInvoiceOrders}).
- * Used by the admin invoice-conflicts page.
+ * Admin diagnostic: paid/completed orders with no invoice. Broader than
+ * {@link listFailedInvoiceOrders} on purpose — an admin should also see a paid
+ * order whose attempt crashed before it could record the failure. Excludes
+ * zero-amount and trial orders, which are not invoiced by policy.
  */
-export async function listStuckZohoInvoiceOrdersAdmin(opts?: { limit?: number; select?: string }): Promise<IOrder[]> {
+export async function listUninvoicedPaidOrdersAdmin(opts?: { limit?: number; select?: string }): Promise<IOrder[]> {
   await connectDB();
   const limit = opts?.limit ?? 100;
   let query = Order.find({
     status: { $in: ["completed", "paid"] },
     isDeleted: { $ne: true },
-    // Primary-engine invoices have no zohoInvoiceId by design — they are not
-    // "stuck". See listStuckZohoInvoiceOrders for the double-billing hazard.
-    invoiceProvider: { $ne: "primary" },
-    $or: [
-      { zohoInvoiceId: { $exists: false } },
-      { zohoInvoiceId: null },
-      { zohoInvoiceId: "" },
-      { zohoInvoiceId: "creation_failed" },
-      { zohoInvoiceId: "pending_creation" },
-    ],
+    invoiceProvider: { $exists: false },
+    amount: { $gt: 0 },
+    orderType: { $ne: "hosting_trial" },
   })
     .sort({ createdAt: -1 })
     .limit(limit);
@@ -488,147 +482,10 @@ export async function unarchiveOrder(id: string): Promise<IOrder | null> {
   });
 }
 
-// ─── Zoho-invoice idempotency lease ───────────────────────────────────────────
-//
-// Three callers (post-tasks, idempotency, zoho-invoice-retry) all coordinate
-// Zoho-invoice creation through `Order.zohoInvoiceId`. The field acts as a
-// mutex:
-//   - unset / "" / null  → unclaimed, anyone may create
-//   - "pending_creation" → some worker is mid-flight
-//   - "<id>"             → invoice exists in Zoho, record the id locally
-//   - "creation_failed"  → terminal failure, retried by cron with throttling
-//
-// Inlining the atomic findOneAndUpdate calls across three files repeatedly
-// got the conditions subtly different (e.g. zoho-invoice-retry also accepts
-// `null` and a stale "pending_creation"; post-tasks doesn't). Centralising
-// the lease guarantees the same invariants everywhere.
-
-/**
- * Attempt to claim an order for Zoho-invoice creation. Returns the order if
- * the claim succeeded (caller is now responsible for finishing or releasing),
- * or null if someone else already holds the claim or already has an invoice.
- *
- * `opts.staleClaimAfterMs` lets retries (zoho-invoice-retry cron) steal an
- * abandoned "pending_creation" claim older than the supplied threshold. The
- * default (no stealing) is correct for the synchronous post-tasks path —
- * a concurrent in-flight claim is the same as a successful one for that flow.
- *
- * `opts.allowNull` accepts `zohoInvoiceId: null` as unclaimed. zoho-invoice-retry
- * has historically tolerated nulls; the synchronous paths do not write nulls
- * but read them defensively.
- */
-export async function claimOrderForZohoInvoice(
-  orderId: string | mongoose.Types.ObjectId,
-  opts?: {
-    staleClaimAfterMs?: number;
-    allowNull?: boolean;
-    allowFailed?: boolean;
-  }
-): Promise<IOrder | null> {
-  await connectDB();
-  const unclaimedConditions: Record<string, unknown>[] = [
-    { zohoInvoiceId: { $exists: false } },
-    { zohoInvoiceId: "" },
-  ];
-  if (opts?.allowNull) unclaimedConditions.push({ zohoInvoiceId: null });
-  if (opts?.allowFailed) {
-    // The retry cron picks up orders that previously hit a terminal failure
-    // (typically Zoho validation errors that need a config fix). Synchronous
-    // paths never want this — a failed claim there is correctly skipped.
-    unclaimedConditions.push({ zohoInvoiceId: "creation_failed" });
-  }
-  if (opts?.staleClaimAfterMs && opts.staleClaimAfterMs > 0) {
-    const cutoff = new Date(Date.now() - opts.staleClaimAfterMs);
-    unclaimedConditions.push({
-      zohoInvoiceId: "pending_creation",
-      updatedAt: { $lt: cutoff },
-    });
-  }
-  return Order.findOneAndUpdate(
-    { _id: orderId, $or: unclaimedConditions },
-    { $set: { zohoInvoiceId: "pending_creation" } },
-    { new: true }
-  );
-}
-
-/**
- * Happy-path completion of a Zoho-invoice claim: stores the real `invoiceId`
- * (plus `invoiceNumber` when provided) so subsequent payment-verify calls
- * skip the creation step.
- *
- * Handles the E11000 unique-index collision on `invoiceNumber`: Zoho's own
- * idempotency layer may return an existing invoice whose number is already
- * attributed to a different local Order. In that case we keep just the
- * `zohoInvoiceId` (View/Download links still work) and skip the conflicting
- * number to preserve the local Order index.
- */
-export async function recordZohoInvoiceForOrder(
-  orderId: string | mongoose.Types.ObjectId,
-  invoice: { invoiceId: string; invoiceNumber?: string }
-): Promise<void> {
-  await connectDB();
-  try {
-    await Order.updateOne(
-      { _id: orderId },
-      {
-        $set: {
-          zohoInvoiceId: invoice.invoiceId,
-          ...(invoice.invoiceNumber
-            ? { invoiceNumber: invoice.invoiceNumber }
-            : {}),
-        },
-      }
-    );
-  } catch (e: unknown) {
-    if ((e as { code?: number })?.code === 11000) {
-      await Order.updateOne(
-        { _id: orderId },
-        { $set: { zohoInvoiceId: invoice.invoiceId } }
-      );
-      return;
-    }
-    throw e;
-  }
-}
-
-/**
- * Release a "pending_creation" claim back to the unclaimed state. Use when a
- * retryable error occurred (network blip, transient Zoho 5xx). The guard
- * (`zohoInvoiceId: "pending_creation"`) makes the release a no-op if another
- * worker has already won the race.
- */
-export async function releaseZohoInvoiceClaim(
-  orderId: string | mongoose.Types.ObjectId
-): Promise<void> {
-  await connectDB();
-  await Order.updateOne(
-    { _id: orderId, zohoInvoiceId: "pending_creation" },
-    { $unset: { zohoInvoiceId: "" } }
-  );
-}
-
-/**
- * Mark a claim as terminally failed: the cron retrier respects this and
- * stops hammering Zoho for orders that consistently error (e.g. invalid
- * GST number). Differs from {@link releaseZohoInvoiceClaim} in that retries
- * won't pick this up automatically — admin intervention needed.
- */
-export async function markZohoInvoiceCreationFailed(
-  orderId: string | mongoose.Types.ObjectId
-): Promise<void> {
-  await connectDB();
-  await Order.updateOne(
-    { _id: orderId, zohoInvoiceId: "pending_creation" },
-    { $set: { zohoInvoiceId: "creation_failed" } }
-  );
-}
-
 // ─── Primary-invoice claim (see lib/services/billing/createPrimaryInvoice.ts) ──
 //
-// Same atomic-claim shape as the Zoho helpers above, but on its own field:
-// `invoiceProvider` only ever records a FINAL successful outcome, so it can't
-// double as an in-flight sentinel the way `zohoInvoiceId: "pending_creation"`
-// does for Zoho.
+// An atomic claim on its own field: `invoiceProvider` only ever records a
+// FINAL successful outcome, so it can't double as an in-flight sentinel.
 
 /**
  * Atomically claims an order for primary-invoice creation. Returns false if
@@ -637,12 +494,11 @@ export async function markZohoInvoiceCreationFailed(
  * callers must treat `false` as "skip silently", not as a failure.
  *
  * `opts.staleClaimAfterMs` lets an ASYNCHRONOUS, retried caller steal a
- * `primaryInvoiceClaimedAt` older than the supplied threshold — the exact
- * mirror of `claimOrderForZohoInvoice`'s option. Synchronous callers must
+ * `primaryInvoiceClaimedAt` older than the supplied threshold. Synchronous callers must
  * omit it and get the strict default (never steal a claim mid-flight): for
  * them a concurrent in-flight claim is the same as a successful one.
  *
- * Why this exists: the sync-zoho-invoice Cloud Tasks worker is the first
+ * Why this exists: the issue-invoice Cloud Tasks worker is the first
  * caller of the chokepoint that runs OUT of band and is retried by the
  * queue. Without stealing, a crash between the claim and
  * `recordPrimaryInvoiceForOrder` strands the order — `invoiceProvider`
@@ -667,6 +523,14 @@ export async function claimOrderForPrimaryInvoice(
     {
       _id: orderId,
       invoiceProvider: { $exists: false },
+      // Deploy-order safety net. An order Zoho Books invoiced before its
+      // removal carries a raw `zohoInvoiceId` until migration 009 stamps it
+      // `invoiceProvider: "zoho"` and drops the field. If this code ever runs
+      // against an un-migrated database, this is what stops it issuing a
+      // SECOND tax invoice for that payment. Not in the schema any more, so
+      // it relies on Mongoose's default `strictQuery: false` passing the key
+      // through; after migration 009 it matches every order and costs nothing.
+      zohoInvoiceId: { $exists: false },
       $or: unclaimedConditions,
     },
     { $set: { primaryInvoiceClaimedAt: new Date() } }
@@ -676,8 +540,8 @@ export async function claimOrderForPrimaryInvoice(
 
 /**
  * Releases a primary-invoice claim after a failed attempt, so a later retry
- * (fallback-to-Zoho happens in the same request; this only matters for a
- * possible future retry cron) isn't permanently blocked. No-ops if the order
+ * (lib/invoice-retry.ts, the issue-invoice worker, the admin re-sync) isn't
+ * permanently blocked. No-ops if the order
  * already has a final `invoiceProvider` — never undo a completed invoice.
  */
 export async function releasePrimaryInvoiceClaim(
@@ -705,7 +569,10 @@ export interface PrimaryInvoiceRecord {
  * Persists a successfully-issued primary invoice. Uses a targeted
  * `updateOne` (not `.save()` on an in-memory doc) so this can't clobber
  * fields the caller mutated on its own in-memory `order` object earlier in
- * the same request — same reasoning as `recordZohoInvoiceForOrder`.
+ * the same request.
+ *
+ * Also clears `invoiceFailedAt`/`invoiceFailureReason`: once an invoice
+ * exists, an earlier failed attempt is history, not an open problem.
  */
 export async function recordPrimaryInvoiceForOrder(
   orderId: string | mongoose.Types.ObjectId,
@@ -726,6 +593,7 @@ export async function recordPrimaryInvoiceForOrder(
         placeOfSupply: record.placeOfSupply,
         ...(record.customerGstin ? { customerGstin: record.customerGstin } : {}),
       },
+      $unset: { invoiceFailedAt: "", invoiceFailureReason: "" },
     }
   );
 }
@@ -736,7 +604,7 @@ export async function recordPrimaryInvoiceForOrder(
 // counterpart yet (operator decision 2026-09-03 — deferred until real refund
 // volume exists rather than shipping an unexercised reverse-numbering series).
 // A refund against a primary-issued invoice still legally owes the customer a
-// GST credit note, raised by hand in Zoho Books.
+// GST credit note, raised by hand.
 //
 // Recording it on the Order is the whole point: a log line alone is invisible
 // once Cloud Logging rolls over, and the refund webhook deliberately swallows
@@ -810,7 +678,7 @@ export async function listCreditNotePendingOrders(opts?: {
 // endpoint has committed the Order, we persist a row at create-order time
 // with `status: "pending"`. Both /verify and the webhook then converge on
 // the same row via atomic claim: whichever path wins the `pending →
-// processing` transition runs provisioning + Zoho-invoice creation; the
+// processing` transition runs provisioning + invoice creation; the
 // loser becomes an idempotent no-op.
 
 /**
@@ -934,7 +802,6 @@ export interface CreateOrderInput {
     razorpayOrderId: string;
   };
   invoiceNumber?: string;
-  zohoInvoiceId?: string;
   orderType?: "domain" | "hosting" | "bundle" | "renewal" | "hosting_upgrade" | "hosting_trial" | "unknown";
   // Tokens-flow recurring-payment fields. See models/Order.ts and
   // docs/razorpay-tokens-migration.md.
@@ -1067,61 +934,69 @@ export async function createRenewalOrder(
 }
 
 /**
- * Unconditional variant of {@link markZohoInvoiceCreationFailed}: stamps
- * `creation_failed` regardless of the prior value. Used from the payments/verify
- * catch-block where the post-create Zoho call threw and the prior state is
- * indeterminate (we don't want to depend on the `pending_creation` marker
- * having been written first).
+ * Records that the primary engine failed to issue this order's invoice.
+ * Unconditional: callers reach this from a catch block where the prior state is
+ * indeterminate. A later successful issue clears it
+ * (`recordPrimaryInvoiceForOrder`), and it never touches an order that already
+ * has an invoice.
  */
-export async function forceMarkZohoCreationFailed(
-  orderId: string | mongoose.Types.ObjectId
+export async function markInvoiceCreationFailed(
+  orderId: string | mongoose.Types.ObjectId,
+  reason?: string
 ): Promise<void> {
   await connectDB();
   await Order.updateOne(
-    { _id: orderId },
-    { $set: { zohoInvoiceId: "creation_failed" } }
+    { _id: orderId, invoiceProvider: { $exists: false } },
+    {
+      $set: {
+        invoiceFailedAt: new Date(),
+        ...(reason ? { invoiceFailureReason: reason.slice(0, 500) } : {}),
+      },
+    }
   );
 }
 
 /**
- * Find paid/completed orders that still don't have a Zoho invoice attached
- * (or carry a terminal `creation_failed` marker). The retry cron walks this
- * list per-user; the projection matches what the retry path actually reads.
+ * A paid order whose invoice attempt failed and has not since succeeded. The
+ * retry paths walk this list per-user; the projection matches what the retry
+ * actually reads.
  */
-export interface StuckZohoInvoiceOrder {
+export interface FailedInvoiceOrder {
   _id: mongoose.Types.ObjectId;
   orderId: string;
   userId: mongoose.Types.ObjectId | string;
   amount: number;
+  currency?: string;
+  orderType?: IOrder["orderType"];
+  createdAt?: Date;
   razorpayPaymentId?: string;
   paymentId?: string;
   domains: IOrder["domains"];
 }
 
-export async function listStuckZohoInvoiceOrders(
+/**
+ * Keyed on `invoiceFailedAt`, not on "paid and no invoiceProvider". The
+ * narrower key is deliberate: it only ever retries an order where an attempt
+ * is KNOWN to have failed, so no path can mint a first invoice for an order
+ * nobody tried to invoice — e.g. a historical order that predates the
+ * `invoiceProvider` field. `invoiceProvider: { $exists: false }` stays in the
+ * filter too, so an order that has an invoice is never listed however stale
+ * its failure flag.
+ */
+export async function listFailedInvoiceOrders(
   userId: string
-): Promise<StuckZohoInvoiceOrder[]> {
+): Promise<FailedInvoiceOrder[]> {
   await connectDB();
   const rows = await Order.find({
     userId,
     status: { $in: ["completed", "paid"] },
     isDeleted: { $ne: true },
-    // An order billed by the primary GST engine legitimately has NO
-    // zohoInvoiceId — it is NOT stuck, it already has a valid tax invoice.
-    // Without this exclusion the self-heal would issue a SECOND (Zoho) tax
-    // invoice for the same payment, double-billing the customer. Caught by
-    // an end-to-end purchase test, 2026-09-02.
-    invoiceProvider: { $ne: "primary" },
-    $or: [
-      { zohoInvoiceId: { $exists: false } },
-      { zohoInvoiceId: null },
-      { zohoInvoiceId: "" },
-      { zohoInvoiceId: "creation_failed" },
-    ],
+    invoiceProvider: { $exists: false },
+    invoiceFailedAt: { $exists: true },
   })
-    .select("_id orderId userId amount razorpayPaymentId paymentId domains")
+    .select("_id orderId userId amount currency orderType createdAt razorpayPaymentId paymentId domains")
     .lean();
-  return rows as unknown as StuckZohoInvoiceOrder[];
+  return rows as unknown as FailedInvoiceOrder[];
 }
 
 // ─── Subdocument helpers ────────────────────────────────────────────────────
@@ -1237,27 +1112,6 @@ export async function findOrdersByDomainName(
 }
 
 /**
- * Find an order by Zoho invoice id (the `zohoInvoiceId` field that
- * `payments/verify` writes after a successful Zoho create). User-scoped so
- * the route layer doesn't have to repeat the ownership filter for IDOR
- * defence.
- */
-export async function findOrderByZohoInvoiceForUser(
-  userId: unknown,
-  zohoInvoiceId: string,
-  options?: { select?: string }
-): Promise<IOrder | null> {
-  await connectDB();
-  let query = Order.findOne({
-    userId,
-    zohoInvoiceId,
-    isDeleted: { $ne: true },
-  });
-  if (options?.select) query = query.select(options.select);
-  return query;
-}
-
-/**
  * Find an order by Razorpay payment id. Used by the renewal flow when only
  * the payment id is known (no order id). Note: distinct from
  * `getOrderByRazorpayPaymentId` which uses the upstream field name —
@@ -1336,29 +1190,16 @@ export async function findPriorHostingOrderForUser(
 }
 
 /**
- * Admin invoice listing for the PRIMARY GST engine.
+ * Admin invoice listing — every order that carries an issued invoice, newest
+ * first. Since Zoho Books was removed (24 Sep 2026) our own database is the
+ * only place an invoice exists, so this is the whole list: primary-engine tax
+ * invoices plus the historical Zoho-issued ones (`invoiceProvider: "zoho"`),
+ * whose PDFs are now rendered by DMS from the order.
  *
- * The admin invoices page is otherwise a straight passthrough to Zoho Books
- * (`zohoService.getAllInvoices`). A primary-engine invoice exists ONLY in our
- * own database — Zoho never sees it — so without this it is invisible to the
- * admin, who can neither look it up nor download it for a customer.
- *
- * Deliberately NOT merged into the Zoho list: Zoho paginates server-side, so
- * a single interleaved page would need every Zoho page pulled first. The two
- * sources are paginated independently and the UI presents them as tabs, which
- * keeps both page counts honest.
- *
- * Returns one page plus `hasMore`, matching the `page_context.has_more_page`
- * contract the page already consumes for the Zoho source. Fetches `perPage+1`
- * rows to determine `hasMore` without a second count query.
- *
- * ALSO returns a real `total`. This source is our own collection, so the count
- * is one cheap indexed countDocuments — unlike Zoho, which only sometimes
- * reports one. The admin table used to synthesise a total from `hasMore`
- * (`hasMore ? page*10+10 : page*10`) and render a fabricated
- * "Showing 1 to 10 of 20 results"; with a real total it can state the truth.
+ * Returns one page, `hasMore`, and a real `total` (one indexed countDocuments),
+ * so the table states the true count rather than synthesising one.
  */
-export async function listPrimaryInvoiceOrdersAdmin(
+export async function listInvoiceOrdersAdmin(
   page = 1,
   perPage = 20
 ): Promise<{ orders: IOrder[]; hasMore: boolean; total: number }> {
@@ -1367,7 +1208,7 @@ export async function listPrimaryInvoiceOrdersAdmin(
   const safePerPage = Math.min(100, Math.max(1, Math.floor(perPage) || 20));
 
   const filter = {
-    invoiceProvider: "primary",
+    invoiceProvider: { $exists: true },
     invoiceNumber: { $exists: true, $ne: null },
     isDeleted: { $ne: true },
   };
@@ -1377,7 +1218,7 @@ export async function listPrimaryInvoiceOrdersAdmin(
     .skip((safePage - 1) * safePerPage)
     .limit(safePerPage + 1)
     .select(
-      "orderId invoiceNumber userName userEmail amount currency status createdAt gstRate taxableValue cgst sgst igst placeOfSupply"
+      "orderId invoiceNumber invoiceProvider userName userEmail amount currency status createdAt gstRate taxableValue cgst sgst igst placeOfSupply"
     )
     .lean<IOrder[]>();
 
@@ -1421,9 +1262,8 @@ export async function listUserInvoiceOrders(userId: unknown): Promise<IOrder[]> 
     status: { $ne: "pending" },
   })
     .sort({ createdAt: -1 })
-    // orderId + invoiceProvider are needed so the invoice list can render a
-    // primary-engine tax invoice (which has no zohoInvoiceId) and link its
-    // PDF via the orderId-keyed route.
-    .select("orderId invoiceNumber zohoInvoiceId invoiceProvider amount currency status createdAt")
+    // orderId links the PDF via the orderId-keyed route; invoiceProvider and
+    // invoiceFailedAt let the list tell "issued" from "failed, retrying".
+    .select("orderId invoiceNumber invoiceProvider invoiceFailedAt amount currency status createdAt")
     .lean<IOrder[]>();
 }

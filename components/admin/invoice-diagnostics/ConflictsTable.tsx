@@ -14,7 +14,7 @@ interface Props {
  * Renders the "invoiceNumber collisions" section: groups of orders that
  * share the same invoiceNumber (the unique index would trip during a
  * reconciliation run). Per-row action: clear the invoiceNumber field on
- * the duplicate that doesn't truly own the Zoho invoice.
+ * the duplicate that doesn't truly own the invoice.
  */
 export default function ConflictsTable({
   conflicts,
@@ -31,7 +31,7 @@ export default function ConflictsTable({
       <p className="text-xs text-gray-500 mb-3">
         Two or more orders share the same invoice number. The unique
         index trips during reconciliation. Clear the value on the
-        duplicate that doesn&apos;t truly belong to this Zoho invoice — then
+        duplicate that doesn&apos;t truly own this invoice — then
         re-sync the rightful owner.
       </p>
       <div className="space-y-3">
@@ -56,7 +56,7 @@ export default function ConflictsTable({
                     <th className="py-1.5 pr-3 font-medium">User</th>
                     <th className="py-1.5 pr-3 font-medium">Status</th>
                     <th className="py-1.5 pr-3 font-medium">Amount</th>
-                    <th className="py-1.5 pr-3 font-medium">Zoho ID</th>
+                    <th className="py-1.5 pr-3 font-medium">Issued by</th>
                     <th className="py-1.5 pr-3 font-medium">Created</th>
                     <th className="py-1.5 font-medium text-right">Action</th>
                   </tr>
@@ -79,12 +79,10 @@ export default function ConflictsTable({
                       <td className="py-2 pr-3 text-gray-700 capitalize">{o.status}</td>
                       <td className="py-2 pr-3 text-gray-700">₹{(o.amount || 0).toLocaleString()}</td>
                       <td className="py-2 pr-3 font-mono text-gray-700">
-                        {o.zohoInvoiceId ? (
-                          <span title={o.zohoInvoiceId}>
-                            {o.zohoInvoiceId.length > 16
-                              ? `${o.zohoInvoiceId.slice(0, 14)}…`
-                              : o.zohoInvoiceId}
-                          </span>
+                        {o.invoiceProvider === 'primary' ? (
+                          <span>GST engine</span>
+                        ) : o.invoiceProvider === 'zoho' ? (
+                          <span>Zoho (historical)</span>
                         ) : (
                           <span className="text-gray-400">—</span>
                         )}

@@ -1,7 +1,6 @@
 import type { IOrder } from "@/models/Order";
 import type { IUser } from "@/models/User";
 import { serverLogger } from "@/lib/server-logger";
-import { isZohoInvoiceFallbackEnabled } from "@/lib/zoho-fallback-flag";
 import { getCompanyProfile } from "@/lib/billing/companyProfile";
 import { computeGstBreakdown, placeOfSupply } from "@/lib/billing/gst";
 import { allocateInvoiceNumber } from "@/lib/billing/invoiceNumber";
@@ -10,14 +9,16 @@ import {
   releasePrimaryInvoiceClaim,
   recordPrimaryInvoiceForOrder,
 } from "@/lib/services/orders";
-import { createZohoInvoice, type ZohoClaimOptions, type ZohoInvoiceContext } from "@/lib/services/payment/post-tasks";
+import type { InvoiceClaimOptions, InvoiceContext } from "@/lib/services/payment/post-tasks";
 
 /**
- * Which engine actually issued the invoice on this call.
+ * What happened on this call.
  *  - 'primary' — our own GST engine minted a TI/... tax invoice
- *  - 'zoho'    — the fallback issued it (or the flag is off)
  *  - 'skipped' — nothing was issued (zero-amount/trial order, or a
  *                concurrent request already holds the claim)
+ *
+ * There is no other engine. Zoho Books was the fallback until it was removed
+ * on 24 Sep 2026 by owner decision; a failure now throws instead.
  *
  * Callers holding an in-memory Order document MUST use this to sync the
  * issued number back onto that document before saving it — see the
@@ -29,21 +30,20 @@ import { createZohoInvoice, type ZohoClaimOptions, type ZohoInvoiceContext } fro
 export interface PrimaryInvoiceResult {
   invoiceId: string;
   invoiceNumber: string | null;
-  provider: "primary" | "zoho" | "skipped";
+  provider: "primary" | "skipped";
 }
 
 /**
  * The primary GST engine's own attempt: claim -> compute -> allocate ->
  * persist. Returns null when a concurrent request already claimed/issued
  * this order's invoice (silent skip, not a failure — mirrors
- * attemptCreateZohoInvoice's "already claimed" skip in post-tasks.ts).
- * Throws on any real failure so the caller (createPrimaryInvoice below)
- * falls back to Zoho.
+ * the other claim-holders: a skip is not a failure).
+ * Throws on any real failure; createPrimaryInvoice below lets it propagate.
  */
 async function attemptCreatePrimaryInvoice(
   order: IOrder,
   user: IUser,
-  claimOptions?: ZohoClaimOptions
+  claimOptions?: InvoiceClaimOptions
 ): Promise<{ invoiceNumber: string } | null> {
   const claimed = await claimOrderForPrimaryInvoice(order._id, claimOptions);
   if (!claimed) {
@@ -58,10 +58,10 @@ async function attemptCreatePrimaryInvoice(
     if (!company.state) {
       // Fail loud HERE, not at PDF-render time (lib/billing/pdf.ts
       // deliberately tolerates a missing state) — GST math without a known
-      // org state can't be trusted, so this must fall back to Zoho instead
-      // of silently mis-computing CGST/SGST vs IGST.
+      // org state can't be trusted, so this must fail rather than silently
+      // mis-compute CGST/SGST vs IGST.
       throw new Error(
-        "ZOHO_ORG_STATE is not configured — cannot compute GST place of supply for the primary engine"
+        "COMPANY_STATE is not configured — cannot compute GST place of supply. Set COMPANY_STATE to the state our GSTIN is registered in."
       );
     }
 
@@ -96,60 +96,47 @@ async function attemptCreatePrimaryInvoice(
 }
 
 /**
- * Drop-in replacement for `createZohoInvoice` (same context shape, same
- * `{invoiceId, invoiceNumber}` return contract) that call sites can swap to
- * directly. Behavior:
- *  - The primary GST engine ALWAYS runs. It is permanent and ungated as of
- *    2026-09-03 — our `TI/...` number is the tax invoice of record. There is
- *    no switch that turns it off.
- *  - On ANY failure (thrown error), behaviour depends on
- *    `ZOHO_INVOICE_FALLBACK_ENABLED` (default ON): the fallback issues a
- *    Zoho invoice so a customer's payment never goes un-invoiced because our
- *    engine hit a bug. With the fallback explicitly disabled, the error is
- *    rethrown for the caller to record and surface instead — see
- *    lib/zoho-fallback-flag.ts for that trade-off.
+ * The single invoice chokepoint. Every paid order that is invoiced at all is
+ * invoiced here, by our own GST engine — the TI/... number is the tax invoice
+ * of record. There is no fallback engine and no switch: on failure this
+ * THROWS, and the caller records it (`markInvoiceCreationFailed` + a
+ * SystemLog row) so the order surfaces in admin integration-health and the
+ * retry paths pick it up. A paid-but-uninvoiced order needing an operator is
+ * the honest outcome; a silently second-series invoice is not.
  *
- * `invoiceId` in the returned pair has no meaning for a primary invoice
- * (there's no external gateway id) — set to the same value as
- * `invoiceNumber` for callers that log it, none of which currently branch
- * on its value.
+ * ZERO-AMOUNT INVOICE POLICY (operator decision 2026-06-30): ₹0 orders and
+ * `hosting_trial` orders are NOT invoiced. A trial creates an audit-trail
+ * Order with `amount: 0`; the first real tax invoice is issued when the
+ * renewal flow charges the real amount. Compliant with GST (a tax invoice is
+ * required only for taxable consideration > 0). See CLAUDE.md "Trial order
+ * invoice policy".
  *
- * `options.claimOptions` is forwarded to BOTH engines: the full object
- * (`allowNull`/`allowFailed`/`staleClaimAfterMs`) to the Zoho path, and
- * `staleClaimAfterMs` alone to the primary path — the only one of the three
- * that has a primary-claim equivalent. Recovery callers (idempotency.ts) and
- * asynchronous, queue-retried callers (the sync-zoho-invoice Cloud Tasks
- * worker) pass it so a crashed prior attempt's claim doesn't block them
- * forever.
+ * `invoiceId` in the returned pair has no external meaning — it is set to the
+ * invoice number for callers that log it.
  *
- * Synchronous call sites (both verify routes, renewal.ts, the webhook
- * handler) deliberately omit it: they run inside one request, so a
- * concurrent in-flight claim genuinely means another request is issuing the
- * invoice right now and skipping is correct. Stealing there would risk two
- * engines issuing for one payment. Note that stealing can never re-issue a
- * COMPLETED invoice under either engine — both claims also filter on the
- * final-outcome field (`invoiceProvider` / `zohoInvoiceId`).
+ * `options.claimOptions.staleClaimAfterMs` is for asynchronous, retried
+ * callers only (idempotency.ts, the issue-invoice worker, lib/invoice-retry,
+ * the admin re-sync), so a crashed prior attempt's claim doesn't block them
+ * forever. Synchronous call sites (both verify routes, renewal.ts, the
+ * webhook) omit it: a concurrent in-flight claim there genuinely means another
+ * request is issuing the invoice right now. Stealing can never re-issue a
+ * COMPLETED invoice — the claim also filters on `invoiceProvider`.
  */
 export async function createPrimaryInvoice(
-  ctx: ZohoInvoiceContext,
-  options: {
-    maxAttempts?: number;
-    retryDelayMs?: number;
-    claimOptions?: ZohoClaimOptions;
-  } = {}
+  ctx: InvoiceContext,
+  options: { claimOptions?: InvoiceClaimOptions } = {}
 ): Promise<PrimaryInvoiceResult> {
-  // Same zero-amount/trial skip as createZohoInvoice — applies before we
-  // even decide which engine would issue the invoice. See CLAUDE.md "Trial
-  // order invoice policy".
   const orderAmount = ctx.order?.amount;
   const orderType = ctx.order?.orderType;
   if (!orderAmount || orderAmount <= 0 || orderType === "hosting_trial") {
+    serverLogger.info(
+      `⏭️ [PrimaryInvoice] Skipping zero-amount/trial order ${ctx.orderId} ` +
+      `(amount=${orderAmount}, orderType=${orderType}) — Trial order invoice policy.`
+    );
     return { invoiceId: "", invoiceNumber: null, provider: "skipped" };
   }
 
   try {
-    // Passed through whole; the primary claim reads only `staleClaimAfterMs`
-    // and ignores the Zoho-specific `allowNull`/`allowFailed`.
     const result = await attemptCreatePrimaryInvoice(
       ctx.order,
       ctx.user,
@@ -165,24 +152,9 @@ export async function createPrimaryInvoice(
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-
-    // Fallback disabled: do NOT paper over the failure with a Zoho-numbered
-    // invoice. Rethrow so the caller's existing handling records it durably
-    // (SystemLog + `zohoInvoiceId: 'creation_failed'`) and the order shows up
-    // in admin integration-health. The customer's payment succeeded but is
-    // temporarily uninvoiced — that is the documented trade of turning the
-    // fallback off, and it needs an operator, not silence.
-    if (!isZohoInvoiceFallbackEnabled()) {
-      serverLogger.error(
-        `❌ [PrimaryInvoice] Engine failed for order ${ctx.orderId} and the Zoho fallback is DISABLED ` +
-        `(ZOHO_INVOICE_FALLBACK_ENABLED) — order will be left UNINVOICED pending operator action: ${message}`
-      );
-      throw err;
-    }
-
     serverLogger.error(
-      `❌ [PrimaryInvoice] Engine failed for order ${ctx.orderId} — falling back to Zoho: ${message}`
+      `❌ [PrimaryInvoice] Engine failed for order ${ctx.orderId} — order is UNINVOICED pending retry/operator action: ${message}`
     );
-    return { ...(await createZohoInvoice(ctx, options)), provider: "zoho" };
+    throw err;
   }
 }

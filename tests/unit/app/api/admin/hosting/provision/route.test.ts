@@ -1,7 +1,7 @@
 /**
  * Tests for `app/api/admin/hosting/provision/route.ts` (rescan-4
  * slice 7g7). Admin manual hosting-provision endpoint. Coordinates
- * DA createUser + DNS NS update + Order row + Zoho invoice +
+ * DA createUser + DNS NS update + Order row + invoice (createPrimaryInvoice) +
  * Hosting row + email notification + PendingHosting save-on-failure.
  *
  * Pins:
@@ -32,8 +32,9 @@
  *    progress 100
  *  - **Manual price wins over plan price**: manualPrice provided →
  *    used verbatim; absent → plan.price; absent both → 0
- *  - **All bookkeeping side-effects SWALLOWED**: Order create, Zoho
- *    invoice, Hosting record create, email — each in its own try/
+ *  - **All bookkeeping side-effects SWALLOWED**: Order create, the
+ *    invoice (a failure is RECORDED via markInvoiceCreationFailed so it
+ *    shows in integration-health), Hosting record create, email — each in its own try/
  *    catch (DA + user have already been committed; bookkeeping
  *    failures don't undo the provisioning)
  *  - **DA error 503 OR code 'DA_SERVER_DOWN'** → 503 with
@@ -67,7 +68,8 @@ const getUserById = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/users", () => ({ getUserById }));
 
 const createOrder = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/services/orders", () => ({ createOrder }));
+const markInvoiceCreationFailed = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/services/orders", () => ({ createOrder, markInvoiceCreationFailed }));
 
 const createPendingHosting = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/pending-hostings", () => ({ createPendingHosting }));
@@ -80,12 +82,18 @@ vi.mock("@/lib/email", () => ({
   EmailService: { sendHostingProvisionedEmail },
 }));
 
-const zohoCreateInvoice = vi.hoisted(() => vi.fn());
-const zohoGetInstance = vi.hoisted(() =>
-  vi.fn(() => ({ createInvoice: zohoCreateInvoice }))
+const createPrimaryInvoice = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/services/billing/createPrimaryInvoice", () => ({
+  createPrimaryInvoice,
+}));
+
+const cartItemsFromOrderDomains = vi.hoisted(() =>
+  vi.fn((domains: Array<Record<string, unknown>>) =>
+    domains.map((d) => ({ domainName: d.domainName }))
+  )
 );
-vi.mock("@/lib/zohobooks", () => ({
-  ZohoBooksService: { getInstance: zohoGetInstance },
+vi.mock("@/lib/services/payment/order-creator", () => ({
+  cartItemsFromOrderDomains,
 }));
 
 const calculateHostingDates = vi.hoisted(() =>
@@ -169,13 +177,21 @@ beforeEach(() => {
   daUpdateDNSNameservers.mockReset().mockResolvedValue(undefined);
   getUserById.mockReset();
   createOrder.mockReset().mockResolvedValue({
+    _id: "OBJ-ORDER-1",
+    orderId: "ORD-ADMIN-1",
     domains: [{ domainName: "alice.example.com" }],
     save: vi.fn().mockResolvedValue(undefined),
   });
   createPendingHosting.mockReset().mockResolvedValue(undefined);
   createHosting.mockReset().mockResolvedValue(undefined);
   sendHostingProvisionedEmail.mockReset().mockResolvedValue(undefined);
-  zohoCreateInvoice.mockReset().mockResolvedValue(undefined);
+  createPrimaryInvoice.mockReset().mockResolvedValue({
+    invoiceId: "",
+    invoiceNumber: "TI/2026-27/00001",
+    provider: "primary",
+  });
+  markInvoiceCreationFailed.mockReset().mockResolvedValue(undefined);
+  cartItemsFromOrderDomains.mockClear();
   HostingPlanFindOne.mockReset().mockResolvedValue(null);
 });
 
@@ -444,23 +460,53 @@ describe("Price resolution: manualPrice > plan.price > 0", () => {
   });
 });
 
-// ─── Zoho invoice (best-effort) ────────────────────────────────────
-describe("Zoho invoice (best-effort)", () => {
-  it("createInvoice called with paymentMode 'Admin Provision'", async () => {
-    getUserById.mockResolvedValueOnce(makeUser());
-    await POST(makeReq(validBody));
+// ─── Invoice via createPrimaryInvoice (best-effort) ────────────────
+describe("Invoice via createPrimaryInvoice (best-effort)", () => {
+  it("called once with the new order, the user, an admin (empty) payment id and the order's items", async () => {
+    const user = makeUser();
+    getUserById.mockResolvedValueOnce(user);
+    await POST(makeReq({ ...validBody, price: 999 }));
 
-    expect(zohoCreateInvoice).toHaveBeenCalled();
-    const args = zohoCreateInvoice.mock.calls[0];
-    expect(args[3]).toBe("Admin Provision");
+    expect(createPrimaryInvoice).toHaveBeenCalledTimes(1);
+    const [ctx] = createPrimaryInvoice.mock.calls[0];
+    expect(ctx.orderId).toBe("ORD-ADMIN-1");
+    expect(ctx.order._id).toBe("OBJ-ORDER-1");
+    expect(ctx.razorpay_payment_id).toBe("");
+    expect(ctx.paymentDetails).toEqual({ id: "", amount: 999, currency: "INR" });
+    expect(ctx.user).toBe(user);
+    expect(ctx.cartItems).toEqual([{ domainName: "alice.example.com" }]);
+    expect(markInvoiceCreationFailed).not.toHaveBeenCalled();
   });
 
-  it("Zoho failure SWALLOWED → response still 200", async () => {
+  it("invoice failure → RECORDED via markInvoiceCreationFailed(order._id, message); provisioning still 200", async () => {
     getUserById.mockResolvedValueOnce(makeUser());
-    zohoCreateInvoice.mockRejectedValueOnce(new Error("Zoho down"));
+    createPrimaryInvoice.mockRejectedValueOnce(new Error("COMPANY_STATE is not configured"));
 
     const res = await POST(makeReq(validBody));
     expect(res.status).toBe(200);
+    expect(markInvoiceCreationFailed).toHaveBeenCalledWith(
+      "OBJ-ORDER-1",
+      "COMPANY_STATE is not configured"
+    );
+    // The hosting record and the email still happen after an invoice failure.
+    expect(createHosting).toHaveBeenCalled();
+    expect(sendHostingProvisionedEmail).toHaveBeenCalled();
+  });
+
+  it("markInvoiceCreationFailed rejecting too is still swallowed → 200", async () => {
+    getUserById.mockResolvedValueOnce(makeUser());
+    createPrimaryInvoice.mockRejectedValueOnce(new Error("boom"));
+    markInvoiceCreationFailed.mockRejectedValueOnce(new Error("db down"));
+    const res = await POST(makeReq(validBody));
+    expect(res.status).toBe(200);
+  });
+
+  it("'skipped' (₹0 provision) is not recorded as a failure", async () => {
+    getUserById.mockResolvedValueOnce(makeUser());
+    createPrimaryInvoice.mockResolvedValueOnce({ invoiceId: "", invoiceNumber: null, provider: "skipped" });
+    const res = await POST(makeReq(validBody));
+    expect(res.status).toBe(200);
+    expect(markInvoiceCreationFailed).not.toHaveBeenCalled();
   });
 });
 

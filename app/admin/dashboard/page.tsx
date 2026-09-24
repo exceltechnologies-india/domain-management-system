@@ -15,7 +15,6 @@ import {
   Clock,
   XCircle,
   RefreshCw,
-  FileText,
   Globe,
   HardDrive,
   Cpu,
@@ -67,15 +66,6 @@ interface SystemHealthData {
     razorpay: {
       status: "operational" | "down";
       mode: "live" | "test";
-      latencyMs: number;
-    };
-    zohoBooks: {
-      status: "operational" | "down";
-      planStatus: "active" | "trial" | "trial_expiring" | "expired" | "misconfigured";
-      planName?: string;
-      planType?: string;
-      planExpiryDate?: string | null;
-      daysUntilExpiry?: number | null;
       latencyMs: number;
     };
   };
@@ -337,7 +327,6 @@ export default function AdminDashboard() {
         data.externalApis.resellerClub.status,
         data.externalApis.directAdmin.status,
         data.externalApis.razorpay.status,
-        data.externalApis.zohoBooks.status,
       ]
     : [];
   const downCount = allServices.filter((s) => s === "down").length;
@@ -348,12 +337,6 @@ export default function AdminDashboard() {
       : downCount === 1
       ? "1 Service Degraded"
       : `${downCount} Services Degraded`;
-
-  const zb = data?.externalApis.zohoBooks;
-  const zohoServiceStatus: "operational" | "down" | "warning" =
-    zb?.planStatus === "trial_expiring" ? "warning"
-    : zb?.status === "down" ? "down"
-    : "operational";
 
   return (
     <AdminLayout user={user} onLogout={performLogout}>
@@ -434,7 +417,7 @@ export default function AdminDashboard() {
             {/* ── External Services ──────────────────────────────────────── */}
             <div>
               <SectionHeader icon={Wifi} title="External Services" color="bg-purple-100 text-purple-600" />
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
 
                 {/* ResellerClub */}
                 <ServiceCard
@@ -509,64 +492,6 @@ export default function AdminDashboard() {
                   ]}
                 />
 
-                {/* Zoho Books */}
-                <ServiceCard
-                  name="Zoho Books"
-                  description="Invoicing & Accounting"
-                  icon={FileText}
-                  iconBg="bg-orange-100 text-orange-600"
-                  status={zohoServiceStatus}
-                  statusLabel={
-                    zb?.planStatus === "trial_expiring" ? "Expiring Soon"
-                    : zb?.planStatus === "expired" ? "Expired"
-                    : zb?.planStatus === "misconfigured" ? "Not Configured"
-                    : zb?.status === "operational" ? "Operational"
-                    : "Down"
-                  }
-                  latencyMs={data.externalApis.zohoBooks.latencyMs}
-                  tags={
-                    zb?.planName ? (
-                      <span className="text-[10px] px-2 py-0.5 rounded border bg-paper-2/60 text-ink-3 border-hairline font-medium">
-                        {zb.planName}
-                      </span>
-                    ) : undefined
-                  }
-                  details={[
-                    {
-                      label: "Plan Type",
-                      // Defensive String() coercion — Zoho Books' getOrganizationDetails
-                      // API can return plan_type as a non-string value (e.g. boolean
-                      // false, or a numeric tier id) for orgs in certain states.
-                      // The previous `zb.planType.charAt(...)` call crashed the whole
-                      // admin dashboard with "planType.charAt is not a function"
-                      // when this happened — caught in 2026-06-20 SystemLog.
-                      value: (() => {
-                        const pt = zb?.planType;
-                        if (pt === undefined || pt === null || pt === '') return '—';
-                        const s = String(pt);
-                        return s.charAt(0).toUpperCase() + s.slice(1);
-                      })(),
-                    },
-                    {
-                      label: "Subscription",
-                      value: zb?.planStatus === "active" ? "Active"
-                        : zb?.planStatus === "trial" ? "Trial"
-                        : zb?.planStatus === "trial_expiring" ? `Expiring in ${zb.daysUntilExpiry}d`
-                        : zb?.planStatus === "expired" ? "Expired"
-                        : "Not Configured",
-                    },
-                    {
-                      label: "Expiry Date",
-                      value: zb?.planExpiryDate
-                        ? new Date(zb.planExpiryDate).toLocaleDateString("en-IN", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })
-                        : "—",
-                    },
-                  ]}
-                />
               </div>
             </div>
 

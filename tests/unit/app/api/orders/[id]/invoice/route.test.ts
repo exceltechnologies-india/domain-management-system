@@ -1,11 +1,11 @@
 /**
  * Tests for `app/api/orders/[id]/invoice/route.ts` (slice 7i8, part 1).
  *
- * Customer-facing invoice PDF download. Two-path logic:
- *  - If order has `zohoInvoiceId` → fetch from Zoho Books. If Zoho
- *    returns null buffer → fall back to a locally-generated proforma
- *    PDF tagged "System is syncing your invoice. This is a proforma copy."
- *  - If no `zohoInvoiceId` → locally-generated proforma PDF.
+ * Customer-facing invoice PDF download. Since Zoho Books was removed
+ * (24 Sep 2026) there is ONE path: generateInvoicePdf from the order. A
+ * primary-engine order with its GST breakdown renders as a Tax Invoice;
+ * anything else — including a historical `invoiceProvider: 'zoho'`
+ * order — renders as a Proforma copy.
  *
  * Pins:
  *  - **Dual auth**: JWT first (AuthService.getUserFromRequest), then
@@ -17,15 +17,12 @@
  *  - **Anti-enumeration 404 'Order not found'** on missing OR
  *    non-owner — the response is identical for "doesn't exist" and
  *    "not yours" (no side-channel via response shape).
- *  - **Zoho null buffer → fallback PDF** (NOT 500): when Zoho fetch
- *    fails, the customer still gets a usable proforma. Pinned with a
- *    probe asserting the proforma message in headers/disposition.
  *  - **Filename construction**:
- *    - Zoho path: `Invoice-${invoiceNumber || orderId}.pdf` (attachment)
- *    - Custom path: `Proforma-${orderId}.pdf` (attachment)
+ *    - Tax Invoice: `Tax-Invoice-${invoiceNumber, / → -}.pdf`
+ *    - Proforma: `Proforma-${orderId}.pdf` (attachment)
  *  - **Content-Type application/pdf** on all success paths.
  *  - **Outer catch → 500 'Internal Server Error' generic** — upstream
- *    error text (Zoho 401, Mongo timeout, etc.) NEVER reaches the
+ *    error text (Mongo timeout, etc.) NEVER reaches the
  *    client body.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -46,11 +43,6 @@ vi.mock("@/lib/services/orders", () => ({ findUserOrder }));
 const getUserById = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/users", () => ({ getUserById }));
 
-const getInvoicePdf = vi.hoisted(() => vi.fn());
-const getInstance = vi.hoisted(() => vi.fn(() => ({ getInvoicePdf })));
-vi.mock("@/lib/zohobooks", () => ({
-  ZohoBooksService: { getInstance },
-}));
 
 vi.mock("@/lib/server-logger", () => ({
   serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -126,7 +118,8 @@ interface FakeOrder {
     hostingPlan?: { name: string };
   }>;
   invoiceNumber?: string;
-  zohoInvoiceId?: string;
+  invoiceProvider?: "primary" | "zoho";
+  taxableValue?: number;
 }
 
 function makeOrder(over: Partial<FakeOrder> = {}): FakeOrder {
@@ -147,8 +140,6 @@ beforeEach(() => {
   getToken.mockReset();
   getUserById.mockReset();
   findUserOrder.mockReset();
-  getInvoicePdf.mockReset();
-  getInstance.mockClear();
 });
 
 // ───────────────────────────────────────────────────────────────────
@@ -253,45 +244,41 @@ describe("Anti-IDOR — findUserOrder scoped on user._id", () => {
     expect(b1).toEqual(b2);
   });
 
-  it("Zoho is NOT called when order lookup returns null", async () => {
+  it("no PDF is rendered when order lookup returns null (JSON 404, not a PDF)", async () => {
     findUserOrder.mockResolvedValueOnce(null);
-    await GET(makeReq(), paramsOf("ORD-999"));
-    expect(getInvoicePdf).not.toHaveBeenCalled();
-    expect(getInstance).not.toHaveBeenCalled();
+    const res = await GET(makeReq(), paramsOf("ORD-999"));
+    expect(res.headers.get("Content-Type")).not.toBe("application/pdf");
+    expect(res.headers.get("Content-Disposition")).toBeNull();
   });
 });
 
 // ───────────────────────────────────────────────────────────────────
-// No-Zoho path: custom proforma
+// Proforma path (no primary GST breakdown)
 // ───────────────────────────────────────────────────────────────────
-describe("No zohoInvoiceId → custom proforma PDF", () => {
+describe("Order without a primary GST breakdown → proforma PDF", () => {
   it("returns 200 with application/pdf Content-Type", async () => {
-    findUserOrder.mockResolvedValueOnce(makeOrder({ zohoInvoiceId: undefined }));
+    findUserOrder.mockResolvedValueOnce(makeOrder());
     const res = await GET(makeReq(), paramsOf("ORD-1"));
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("application/pdf");
   });
 
   it("filename pattern Proforma-${orderId}.pdf as attachment", async () => {
-    findUserOrder.mockResolvedValueOnce(makeOrder({ orderId: "ORD-ALPHA", zohoInvoiceId: undefined }));
+    findUserOrder.mockResolvedValueOnce(makeOrder({ orderId: "ORD-ALPHA" }));
     const res = await GET(makeReq(), paramsOf("ORD-ALPHA"));
     expect(res.headers.get("Content-Disposition")).toBe(
       'attachment; filename="Proforma-ORD-ALPHA.pdf"'
     );
   });
 
-  it("empty-string zohoInvoiceId still triggers proforma (falsy)", async () => {
-    findUserOrder.mockResolvedValueOnce(makeOrder({ zohoInvoiceId: "" }));
+  it("primary provider but NO taxableValue → still a proforma", async () => {
+    findUserOrder.mockResolvedValueOnce(
+      makeOrder({ invoiceProvider: "primary", invoiceNumber: "TI/2026-27/00009" })
+    );
     const res = await GET(makeReq(), paramsOf("ORD-1"));
-    expect(res.status).toBe(200);
-    expect(getInvoicePdf).not.toHaveBeenCalled();
-  });
-
-  it("Zoho NOT consulted when zohoInvoiceId is missing", async () => {
-    findUserOrder.mockResolvedValueOnce(makeOrder({ zohoInvoiceId: undefined }));
-    await GET(makeReq(), paramsOf("ORD-1"));
-    expect(getInstance).not.toHaveBeenCalled();
-    expect(getInvoicePdf).not.toHaveBeenCalled();
+    expect(res.headers.get("Content-Disposition")).toBe(
+      'attachment; filename="Proforma-ORD-1.pdf"'
+    );
   });
 
   it("proforma generator does not crash when address fields are missing", async () => {
@@ -301,7 +288,7 @@ describe("No zohoInvoiceId → custom proforma PDF", () => {
       lastName: "Doe",
       // no address, no companyName, no gstNumber
     });
-    findUserOrder.mockResolvedValueOnce(makeOrder({ zohoInvoiceId: undefined }));
+    findUserOrder.mockResolvedValueOnce(makeOrder());
     const res = await GET(makeReq(), paramsOf("ORD-1"));
     expect(res.status).toBe(200);
   });
@@ -309,7 +296,6 @@ describe("No zohoInvoiceId → custom proforma PDF", () => {
   it("proforma generator handles hosting line items (different title prefix)", async () => {
     findUserOrder.mockResolvedValueOnce(
       makeOrder({
-        zohoInvoiceId: undefined,
         domains: [
           {
             domainName: "x.com",
@@ -329,7 +315,6 @@ describe("No zohoInvoiceId → custom proforma PDF", () => {
   it("proforma generator handles multiple domain items", async () => {
     findUserOrder.mockResolvedValueOnce(
       makeOrder({
-        zohoInvoiceId: undefined,
         domains: [
           { domainName: "a.com", itemType: "domain", price: 800, registrationPeriod: 1 },
           { domainName: "b.com", itemType: "domain", price: 900, registrationPeriod: 1 },
@@ -343,61 +328,44 @@ describe("No zohoInvoiceId → custom proforma PDF", () => {
 });
 
 // ───────────────────────────────────────────────────────────────────
-// Zoho path: real PDF
+// Tax Invoice path + historical Zoho orders — both rendered locally
 // ───────────────────────────────────────────────────────────────────
-describe("Zoho path — real invoice PDF", () => {
-  it("returns Zoho buffer as-is with application/pdf", async () => {
+describe("Rendered locally for every provider", () => {
+  it("primary order with taxableValue → Tax-Invoice filename (slashes → dashes)", async () => {
     findUserOrder.mockResolvedValueOnce(
-      makeOrder({ zohoInvoiceId: "ZINV-7", invoiceNumber: "INV/2026/123" })
+      makeOrder({ invoiceProvider: "primary", invoiceNumber: "TI/2026-27/00001", taxableValue: 1000 })
     );
-    getInvoicePdf.mockResolvedValueOnce(new ArrayBuffer(32));
     const res = await GET(makeReq(), paramsOf("ORD-1"));
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("application/pdf");
-  });
-
-  it("filename uses invoiceNumber when present", async () => {
-    findUserOrder.mockResolvedValueOnce(
-      makeOrder({ zohoInvoiceId: "ZINV-7", invoiceNumber: "INV/2026/123" })
-    );
-    getInvoicePdf.mockResolvedValueOnce(new ArrayBuffer(32));
-    const res = await GET(makeReq(), paramsOf("ORD-1"));
     expect(res.headers.get("Content-Disposition")).toBe(
-      'attachment; filename="Invoice-INV/2026/123.pdf"'
+      'attachment; filename="Tax-Invoice-TI-2026-27-00001.pdf"'
     );
   });
 
-  it("filename falls back to orderId when invoiceNumber is missing", async () => {
+  it("**a historical Zoho-issued order renders a local proforma copy** — there is no Zoho to fetch from any more", async () => {
     findUserOrder.mockResolvedValueOnce(
-      makeOrder({ zohoInvoiceId: "ZINV-7", invoiceNumber: undefined })
+      makeOrder({ invoiceProvider: "zoho", invoiceNumber: "INV-000123" })
     );
-    getInvoicePdf.mockResolvedValueOnce(new ArrayBuffer(32));
-    const res = await GET(makeReq(), paramsOf("ORD-1"));
-    expect(res.headers.get("Content-Disposition")).toBe(
-      'attachment; filename="Invoice-ORD-1.pdf"'
-    );
-  });
-
-  it("Zoho service is looked up exactly once via getInstance singleton", async () => {
-    findUserOrder.mockResolvedValueOnce(
-      makeOrder({ zohoInvoiceId: "ZINV-7" })
-    );
-    getInvoicePdf.mockResolvedValueOnce(new ArrayBuffer(8));
-    await GET(makeReq(), paramsOf("ORD-1"));
-    expect(getInstance).toHaveBeenCalledTimes(1);
-    expect(getInvoicePdf).toHaveBeenCalledWith("ZINV-7");
-  });
-
-  it("Zoho null buffer → falls back to custom proforma (NOT 500)", async () => {
-    findUserOrder.mockResolvedValueOnce(
-      makeOrder({ zohoInvoiceId: "ZINV-7" })
-    );
-    getInvoicePdf.mockResolvedValueOnce(null);
     const res = await GET(makeReq(), paramsOf("ORD-1"));
     expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("application/pdf");
     expect(res.headers.get("Content-Disposition")).toBe(
       'attachment; filename="Proforma-ORD-1.pdf"'
     );
+  });
+
+  it("the route source no longer references Zoho (comments stripped first)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const src = readFileSync(
+      resolve(process.cwd(), "app/api/orders/[id]/invoice/route.ts"),
+      "utf8"
+    )
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|[^:])\/\/.*$/gm, "$1");
+    expect(src).not.toMatch(/zoho/i);
+    expect(src).toContain("generateInvoicePdf(order, user)");
   });
 });
 
@@ -413,21 +381,6 @@ describe("Outer catch — generic 500, no leak", () => {
     expect(body.error).toBe("Internal Server Error");
     expect(JSON.stringify(body)).not.toContain("Mongo timeout");
     expect(JSON.stringify(body)).not.toContain("connection refused");
-  });
-
-  it("Zoho throw → 500 generic (no zoho fragment leak)", async () => {
-    findUserOrder.mockResolvedValueOnce(
-      makeOrder({ zohoInvoiceId: "ZINV-7" })
-    );
-    getInvoicePdf.mockRejectedValueOnce(
-      new Error("ZohoBooks 401 invalid_token: access_token expired")
-    );
-    const res = await GET(makeReq(), paramsOf("ORD-1"));
-    expect(res.status).toBe(500);
-    const body = await res.json();
-    expect(body.error).toBe("Internal Server Error");
-    expect(JSON.stringify(body)).not.toContain("access_token");
-    expect(JSON.stringify(body)).not.toContain("invalid_token");
   });
 
   it("getUserById throw on NextAuth path → 500 generic", async () => {

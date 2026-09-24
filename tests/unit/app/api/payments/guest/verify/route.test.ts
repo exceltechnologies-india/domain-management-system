@@ -41,10 +41,10 @@
  *    (webhook beat us); claim success → finalize
  *  - **Legacy path**: no pending Order → provisionCartItems +
  *    dbSession.withTransaction (createOrder + createPayment atomic)
- *  - **cartItemsFromOrderDomains for Zoho** (anti-swap-domain H1
- *    mirror — Zoho/GST record matches what was actually sold)
- *  - **Zoho failure SWALLOWED** + recordSystemLog + force-mark-
- *    creation-failed
+ *  - **cartItemsFromOrderDomains for the invoice** (anti-swap-domain H1
+ *    mirror — GST record matches what was actually sold)
+ *  - **Invoice failure SWALLOWED** + recordSystemLog +
+ *    markInvoiceCreationFailed(orderId, reason)
  *  - **Setup-password email** ONLY for new guest accounts (isGuest=
  *    true) — sets resetToken + 24h expiry, sends async (fire-and-
  *    forget — order is already provisioned)
@@ -87,14 +87,14 @@ vi.mock("@/lib/services/users", () => ({ createUser, getUserByEmail }));
 const claimPendingOrderForProcessing = vi.hoisted(() => vi.fn());
 const createOrder = vi.hoisted(() => vi.fn());
 const createOrderInSession = vi.hoisted(() => vi.fn());
-const forceMarkZohoCreationFailed = vi.hoisted(() => vi.fn());
+const markInvoiceCreationFailed = vi.hoisted(() => vi.fn());
 const getOrderByOrderId = vi.hoisted(() => vi.fn());
 const getOrderByRazorpayOrderId = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/orders", () => ({
   claimPendingOrderForProcessing,
   createOrder,
   createOrderInSession,
-  forceMarkZohoCreationFailed,
+  markInvoiceCreationFailed,
   getOrderByOrderId,
   getOrderByRazorpayOrderId,
 }));
@@ -117,23 +117,16 @@ vi.mock("@/lib/services/payment/verification", () => ({
   validateOrderAmountMatchesRazorpay,
 }));
 
-const createZohoInvoice = vi.hoisted(() => vi.fn());
 const runPostPaymentTasks = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/payment/post-tasks", () => ({
-  createZohoInvoice,
   runPostPaymentTasks,
 }));
 
-// createPrimaryInvoice is the ungated chokepoint that delegates to
-// createZohoInvoice when the flag is off (the default, and this test suite
-// never sets it) — forward to the same mock so every existing
-// createZohoInvoice assertion below keeps working unchanged, without
-// loading the real billing-engine module graph (models/Counter, mongoose
-// Schema, mongodb connect) into a route unit test that already replaces
-// mongoose with a minimal transaction-only stub above.
-const createPrimaryInvoice = vi.hoisted(() =>
-  vi.fn((ctx: unknown, opts: unknown) => createZohoInvoice(ctx, opts))
-);
+// createPrimaryInvoice is the only invoice issuer since Zoho Books was
+// removed (24 Sep 2026). Mocked at the module boundary so the real
+// billing-engine module graph (models/Counter, mongodb connect) is not
+// loaded into a route unit test.
+const createPrimaryInvoice = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/billing/createPrimaryInvoice", () => ({
   createPrimaryInvoice,
 }));
@@ -228,7 +221,7 @@ beforeEach(() => {
   claimPendingOrderForProcessing.mockReset();
   createOrder.mockReset();
   createOrderInSession.mockReset();
-  forceMarkZohoCreationFailed.mockReset().mockResolvedValue(undefined);
+  markInvoiceCreationFailed.mockReset().mockResolvedValue(undefined);
   getOrderByOrderId.mockReset();
   getOrderByRazorpayOrderId.mockReset().mockResolvedValue(null);
   createPaymentInTransaction.mockReset().mockResolvedValue(undefined);
@@ -241,7 +234,7 @@ beforeEach(() => {
   validateOrderAmountMatchesRazorpay
     .mockReset()
     .mockResolvedValue({ ok: true });
-  createZohoInvoice.mockReset().mockResolvedValue(undefined);
+  createPrimaryInvoice.mockReset().mockResolvedValue({ invoiceId: "", invoiceNumber: "TI/2026-27/00001", provider: "primary" });
   runPostPaymentTasks.mockReset().mockResolvedValue(undefined);
   recordSystemLog.mockReset().mockResolvedValue(undefined);
   isDomainSupported.mockReset().mockReturnValue(true);
@@ -693,8 +686,8 @@ describe("Legacy provision path — no pending order found", () => {
   });
 });
 
-// ─── Zoho invoice ──────────────────────────────────────────────────
-describe("Zoho invoice — best-effort + H1 mirror", () => {
+// ─── Invoice ───────────────────────────────────────────────────────
+describe("Invoice — best-effort + H1 mirror", () => {
   it("cartItemsFromOrderDomains called with order.domains (NOT request cartItems)", async () => {
     getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
     const dbDomains = [{ domainName: "real.com", price: 500 }];
@@ -708,20 +701,32 @@ describe("Zoho invoice — best-effort + H1 mirror", () => {
     expect(cartItemsFromOrderDomains).toHaveBeenCalledWith(dbDomains);
   });
 
-  it("Zoho failure SWALLOWED — main response still 200", async () => {
+  it("invoice failure SWALLOWED — main response still 200; failure recorded with its reason", async () => {
     getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
     setupLegacyHappyPath();
-    createZohoInvoice.mockRejectedValueOnce(new Error("Zoho down"));
+    createPrimaryInvoice.mockRejectedValueOnce(new Error("COMPANY_STATE is not configured"));
 
     const res = await POST(makeReq(validBody));
     expect(res.status).toBe(200); // guest verify is NOT 207 — silent fail
-    expect(forceMarkZohoCreationFailed).toHaveBeenCalledWith("OID-1");
+    expect(markInvoiceCreationFailed).toHaveBeenCalledWith(
+      "OID-1",
+      "COMPANY_STATE is not configured"
+    );
     expect(recordSystemLog).toHaveBeenCalledWith(
       expect.objectContaining({
         source: "guest/verify",
         service: "payments",
+        message: "[GuestCheckout] Invoice creation failed: COMPANY_STATE is not configured",
       })
     );
+  });
+
+  it("invoice success → markInvoiceCreationFailed NOT called", async () => {
+    getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
+    setupLegacyHappyPath();
+    await POST(makeReq(validBody));
+    expect(createPrimaryInvoice).toHaveBeenCalledTimes(1);
+    expect(markInvoiceCreationFailed).not.toHaveBeenCalled();
   });
 });
 
@@ -779,7 +784,7 @@ describe("Setup-password email — new guests only", () => {
 
 // ─── Post-payment tasks ────────────────────────────────────────────
 describe("runPostPaymentTasks", () => {
-  it("called after Zoho with orderStatus:'completed'", async () => {
+  it("called after the invoice step with orderStatus:'completed'", async () => {
     getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
     setupLegacyHappyPath();
 

@@ -1,7 +1,7 @@
 /**
  * Tests for `@/lib/services/orders` reader/finder helpers + 3 pure
  * helpers (rescan-4 slice 7ew). Picks up everything NOT covered by
- * orders-zoho-claim.test.ts. Pins:
+ * orders-invoice-failure.test.ts. Pins:
  *  - **getOrderByIdOrOrderId branches on 24-hex regex** (not $or) —
  *    the docs explicitly call out the latent footgun where a hex
  *    string that happens to equal an orderId could match the wrong row
@@ -14,8 +14,7 @@
  *    ($match-exists → $group-by-number → $match count>1 → $sort
  *    desc → $limit 100)
  *  - listOrdersByIds short-circuits on empty array (no Mongo round trip)
- *  - listStuckZohoInvoiceOrdersAdmin: $or 5 unclaimed forms + sort
- *    createdAt:-1 + default limit 100
+ *  - (listUninvoicedPaidOrdersAdmin lives in orders-invoice-failure.test.ts)
  *  - listOrdersForAdmin pagination: page>=1, perPage>=1, skip arithmetic;
  *    archived flag flips isDeleted filter; includePending default false
  *    excludes 'pending' (checkout intents); **HARD-DELETED-USER fallback**
@@ -55,7 +54,6 @@ import {
   listStuckCompletedOrders,
   findInvoiceNumberConflicts,
   listOrdersByIds,
-  listStuckZohoInvoiceOrdersAdmin,
   listOrdersWithInFlightDomains,
   countAllOrders,
   listOrdersByRazorpayPaymentIds,
@@ -176,37 +174,6 @@ describe("listOrdersByIds", () => {
     Order.find.mockReturnValueOnce({ lean });
     await listOrdersByIds(["a", "b"]);
     expect(Order.find).toHaveBeenCalledWith({ _id: { $in: ["a", "b"] } });
-  });
-});
-
-describe("listStuckZohoInvoiceOrdersAdmin", () => {
-  it("$or covers 5 unclaimed forms (not-exists / null / empty / creation_failed / pending_creation)", async () => {
-    const lean = vi.fn().mockResolvedValueOnce([]);
-    const limit = vi.fn().mockReturnValue({ lean });
-    const sort = vi.fn().mockReturnValue({ limit });
-    Order.find.mockReturnValueOnce({ sort });
-    await listStuckZohoInvoiceOrdersAdmin();
-    const [filter] = Order.find.mock.calls[0];
-    expect(filter.status.$in).toEqual(["completed", "paid"]);
-    expect(filter.isDeleted).toEqual({ $ne: true });
-    expect(filter.$or).toEqual([
-      { zohoInvoiceId: { $exists: false } },
-      { zohoInvoiceId: null },
-      { zohoInvoiceId: "" },
-      { zohoInvoiceId: "creation_failed" },
-      { zohoInvoiceId: "pending_creation" },
-    ]);
-    expect(sort).toHaveBeenCalledWith({ createdAt: -1 });
-    expect(limit).toHaveBeenCalledWith(100);
-  });
-
-  it("custom limit honoured", async () => {
-    const lean = vi.fn().mockResolvedValueOnce([]);
-    const limit = vi.fn().mockReturnValue({ lean });
-    const sort = vi.fn().mockReturnValue({ limit });
-    Order.find.mockReturnValueOnce({ sort });
-    await listStuckZohoInvoiceOrdersAdmin({ limit: 25 });
-    expect(limit).toHaveBeenCalledWith(25);
   });
 });
 

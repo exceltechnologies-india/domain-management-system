@@ -7,6 +7,7 @@ import { serverLogger } from "@/lib/server-logger";
 import { authorizeCronRequest } from "@/lib/cron-auth";
 import {
   getOrderById,
+  markInvoiceCreationFailed,
 } from "@/lib/services/orders";
 import { getUserById } from "@/lib/services/users";
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
@@ -16,7 +17,7 @@ import type { IUser } from "@/models/User";
 import type { CartItem, RazorpayPaymentDetails } from "@/lib/types";
 import { validatedBody, z } from "@/lib/api-validation";
 
-const syncZohoInvoiceSchema = z.object({
+const issueInvoiceSchema = z.object({
   orderId: z.string().min(1),
   userId: z.string().min(1),
   serviceType: z.enum(["hosting", "domain"]),
@@ -31,7 +32,7 @@ const syncZohoInvoiceSchema = z.object({
 export const dynamic = "force-dynamic";
 
 /**
- * POST /api/workers/sync-zoho-invoice
+ * POST /api/workers/issue-invoice
  *
  * Async background worker invoked via Cloud Tasks to issue the invoice for a
  * completed mandate/autopay renewal (enqueued by `handleSubscriptionCharged`
@@ -39,24 +40,20 @@ export const dynamic = "force-dynamic";
  * payment webhook — invoicing failures here do NOT affect service activation
  * (that already happened).
  *
- * Cloud Tasks will automatically retry on non-2xx responses.
- *
- * The route NAME is historical. As of the Phase 1c audit this worker no longer
- * calls Zoho directly: it goes through `createPrimaryInvoice`, the same
- * chokepoint as the four synchronous call sites, so a renewal gets a primary
- * TI/... tax invoice from our own GST engine, with Zoho as the automatic
- * fallback (gated by ZOHO_INVOICE_FALLBACK_ENABLED, default on). It is deliberately NOT renamed — the path is baked into the
- * enqueue URL in webhook-handlers.ts and into tasks already sitting in the
- * Cloud Tasks queue.
+ * It goes through `createPrimaryInvoice`, the same chokepoint as every other
+ * invoicing call site, so a renewal gets a TI/... tax invoice from our own GST
+ * engine. Until 24 Sep 2026 this route was `/workers/sync-zoho-invoice`; it
+ * was renamed when Zoho Books was removed. Production held 0 renewal orders at
+ * the time, so no queued task pointed at the old path.
  *
  * Response contract (Cloud Tasks reads only the status code):
- *  - 200 — invoice issued, OR nothing to do (already invoiced by either
- *          engine, claim held by a concurrent request, zero-amount/trial
- *          order, order row missing). Stop retrying.
- *  - 404 — user row missing. Pre-existing behaviour, left as-is: it makes
- *          Cloud Tasks retry, which only helps if the read was a transient
- *          replica miss.
- *  - 500 — both engines failed. Retry.
+ *  - 200 — invoice issued, OR nothing to do (already invoiced, claim held by
+ *          a concurrent request, zero-amount/trial order, order row missing).
+ *          Stop retrying.
+ *  - 404 — user row missing. Makes Cloud Tasks retry, which only helps if the
+ *          read was a transient replica miss.
+ *  - 500 — the engine failed. The order is flagged `invoiceFailedAt` so it is
+ *          visible in admin integration-health even if every retry fails.
  *
  * Auth: x-cron-secret header (same as other workers)
  *
@@ -80,7 +77,7 @@ export async function POST(request: NextRequest) {
       return secureErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
     }
 
-    const validation = await validatedBody(request, syncZohoInvoiceSchema);
+    const validation = await validatedBody(request, issueInvoiceSchema);
     if (!validation.ok) return validation.response;
     const {
       orderId,
@@ -97,7 +94,7 @@ export async function POST(request: NextRequest) {
     // 1. Idempotency guard — has this order already been invoiced?
     const order = await getOrderById(orderId);
     if (!order) {
-      serverLogger.warn(`[ZohoWorker] Order ${orderId} not found — skipping`);
+      serverLogger.warn(`[InvoiceWorker] Order ${orderId} not found — skipping`);
       // Return 200 so Cloud Tasks does not retry for a missing order
       return secureJsonResponse({
         success: false,
@@ -105,42 +102,27 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // A primary-engine invoice legitimately has NO zohoInvoiceId — its tax
-    // invoice is our own TI/... number. Without this check, a flag flip-flop
-    // (order invoiced by the primary engine, flag later turned OFF, Cloud
-    // Tasks retries this task) would send us down the Zoho path and issue a
-    // SECOND tax invoice under the same GSTIN for one payment. Same bug
-    // class as the admin re-sync guard.
-    if (order.invoiceProvider === "primary") {
+    // Already invoiced — by our engine, or historically by Zoho Books
+    // (`invoiceProvider: "zoho"`, stamped by migration 009). Either way a
+    // second invoice for the same payment would double-bill under one GSTIN.
+    // The engine's own claim refuses this case too; checking here gives the
+    // clearer log line and a 200 that stops Cloud Tasks.
+    if (order.invoiceProvider) {
       serverLogger.info(
-        `[ZohoWorker] Order ${orderId} already invoiced by the primary GST engine (${order.invoiceNumber}) — skipping`
+        `[InvoiceWorker] Order ${orderId} already invoiced (${order.invoiceProvider}, ${order.invoiceNumber}) — skipping`
       );
       return secureJsonResponse({
         success: true,
-        message: "Already invoiced by the primary engine",
-        provider: "primary",
+        message: "Already invoiced",
+        provider: order.invoiceProvider,
         invoiceNumber: order.invoiceNumber,
-      });
-    }
-
-    if (
-      order.zohoInvoiceId &&
-      order.zohoInvoiceId !== "pending_creation"
-    ) {
-      serverLogger.info(
-        `[ZohoWorker] Invoice already exists for order ${orderId} (${order.zohoInvoiceId}) — skipping`
-      );
-      return secureJsonResponse({
-        success: true,
-        message: "Already synced",
-        zohoInvoiceId: order.zohoInvoiceId,
       });
     }
 
     // 2. Load user
     const user = await getUserById(userId);
     if (!user) {
-      serverLogger.error(`[ZohoWorker] User ${userId} not found`);
+      serverLogger.error(`[InvoiceWorker] User ${userId} not found`);
       return secureErrorResponse("User not found", 404, "USER_NOT_FOUND");
     }
 
@@ -167,27 +149,18 @@ export async function POST(request: NextRequest) {
       },
     ] as unknown as CartItem[];
 
-    // 4. Issue the invoice through the single chokepoint — primary GST engine
-    //    first (always — it is ungated), Zoho as automatic fallback.
+    // 4. Issue the invoice through the single chokepoint.
     //
-    //    NO CLAIM IS TAKEN HERE, deliberately. This worker used to call
-    //    `claimOrderForZohoInvoice` itself and then hit Zoho directly. Both
-    //    engines behind the chokepoint take their OWN claim, so claiming here
-    //    too would make the inner Zoho claim see this worker's own
-    //    `pending_creation` sentinel, log "already claimed — skipping", and
-    //    return an empty result — the worker would report 200 success having
-    //    issued no invoice at all.
+    //    NO CLAIM IS TAKEN HERE, deliberately — the engine takes its own, and
+    //    a second claim here would make it see this worker's claim and skip,
+    //    reporting 200 with no invoice issued.
     //
-    //    `staleClaimAfterMs` matters here in a way it doesn't for the four
+    //    `staleClaimAfterMs` matters here in a way it doesn't for the
     //    synchronous call sites: this worker runs out of band and Cloud Tasks
     //    retries it. Without stealing, a crash between claim and persist
-    //    strands the order behind a claim no retry can take, and the renewal
-    //    stays permanently uninvoiced. 5 min matches idempotency.ts. Neither
-    //    engine can re-issue a COMPLETED invoice regardless — both claims
-    //    also filter on the final-outcome field.
-    //
-    //    `allowNull` preserves the previous behaviour of treating a legacy
-    //    `zohoInvoiceId: null` row as unclaimed.
+    //    strands the order behind a claim no retry can take. 5 min matches
+    //    idempotency.ts. A COMPLETED invoice can never be stolen — the claim
+    //    also filters on `invoiceProvider`.
     const paymentDetails = {
       id: razorpayPaymentId,
       amount,
@@ -203,20 +176,28 @@ export async function POST(request: NextRequest) {
         user: user as unknown as IUser,
         cartItems,
       },
-      {
-        claimOptions: {
-          allowNull: true,
-          staleClaimAfterMs: 5 * 60 * 1000,
-        },
-      }
-    );
+      { claimOptions: { staleClaimAfterMs: 5 * 60 * 1000 } }
+    ).catch(async (err: unknown) => {
+      // Flag it before rethrowing, so the order shows in integration-health
+      // and lib/invoice-retry even if every Cloud Tasks retry also fails.
+      await markInvoiceCreationFailed(
+        order._id,
+        err instanceof Error ? err.message : String(err)
+      ).catch((markErr: unknown) =>
+        serverLogger.error(
+          `[InvoiceWorker] ALSO failed to flag order ${orderId} as uninvoiced: ` +
+            (markErr instanceof Error ? markErr.message : String(markErr))
+        )
+      );
+      throw err;
+    });
 
     // `skipped` means a concurrent request holds the claim, or the order is a
     // zero-amount/trial row. Neither is a failure and neither is fixed by
     // retrying — 200 so Cloud Tasks stops.
     if (result.provider === "skipped") {
       serverLogger.info(
-        `[ZohoWorker] Nothing issued for order ${orderId} (already claimed, or zero-amount/trial) — skipping`
+        `[InvoiceWorker] Nothing issued for order ${orderId} (already claimed, or zero-amount/trial) — skipping`
       );
       return secureJsonResponse({
         success: true,
@@ -226,24 +207,22 @@ export async function POST(request: NextRequest) {
     }
 
     serverLogger.info(
-      `[ZohoWorker] Invoice ${result.invoiceNumber} created for order ${orderId} via ${result.provider}`
+      `[InvoiceWorker] Invoice ${result.invoiceNumber} created for order ${orderId} via ${result.provider}`
     );
     return secureJsonResponse({
       success: true,
       provider: result.provider,
-      zohoInvoiceId: result.provider === "zoho" ? result.invoiceId : undefined,
       invoiceNumber: result.invoiceNumber,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
-    serverLogger.error("[ZohoWorker] Unhandled error:", message);
-    // Both engines failed (the chokepoint only throws once Zoho's own retries
-    // are exhausted too) and each released its own claim on the way out.
-    // Return 500 so Cloud Tasks retries.
+    serverLogger.error("[InvoiceWorker] Unhandled error:", message);
+    // The engine failed and released its claim on the way out; the order is
+    // flagged invoiceFailedAt above. Return 500 so Cloud Tasks retries.
     return secureErrorResponse(
-      "Internal error during Zoho sync",
+      "Internal error while issuing the invoice",
       500,
-      "ZOHO_SYNC_ERROR"
+      "INVOICE_ISSUE_ERROR"
     );
   }
 }

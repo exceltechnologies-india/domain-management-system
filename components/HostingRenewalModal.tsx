@@ -282,7 +282,7 @@ export default function HostingRenewalModal({
                 </div>
                 <div className="flex items-center text-xs text-ink-2">
                   <CheckCircle className="h-3.5 w-3.5 mr-2 text-emerald-ink" />
-                  Tax Invoice generated in Zoho Books
+                  GST tax invoice issued automatically
                 </div>
                 <div className="flex items-center text-xs text-ink-2">
                     <CheckCircle className="h-3.5 w-3.5 mr-2 text-emerald-ink" />

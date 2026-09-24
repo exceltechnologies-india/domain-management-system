@@ -11,18 +11,17 @@
  *      into this field. The customer order page suppresses it (see
  *      dms-00195-wsk); this endpoint is where the operator actually sees it.
  *
- *   2. `Order.zohoInvoiceId === 'creation_failed'` — orders whose Zoho
- *      Books invoice never resolved. The existing Invoice Diagnostics
- *      panel already surfaces these, but we mirror them here so a single
- *      page covers ALL upstream-provider failures (DA + RC + Zoho + Razorpay)
- *      in one view.
+ *   2. `Order.invoiceFailedAt` set with no `invoiceProvider` — paid orders
+ *      whose GST invoice failed to issue. The Invoice Diagnostics panel
+ *      also surfaces these; mirrored here so a single page covers every
+ *      failure (DA + RC + invoicing + Razorpay) in one view.
  *
  * Each error is classified into a provider by keyword match, then grouped
  * with similar errors (normalised first 80 chars) so a recurring pattern
  * — e.g. license-cap rejection across 4 orders — shows as one row with a
  * count, not 4 separate rows. Each pattern carries an `actionableHint`
  * mapped from the matched signature: license cap → "Upgrade DA license or
- * delete unused accounts"; tax-code rejection → "Verify ZOHO_TAX_ID_*";
+ * delete unused accounts"; missing company state → "Set COMPANY_STATE";
  * etc. Adding a new hint is one entry in the map below.
  */
 
@@ -41,7 +40,7 @@ export const dynamic = "force-dynamic";
 type ProviderId =
   | "directadmin"
   | "resellerclub"
-  | "zoho"
+  | "invoicing"
   | "razorpay"
   | "email"
   | "whatsapp"
@@ -61,8 +60,9 @@ const SERVICE_TO_PROVIDER: Record<string, ProviderId> = {
   da: "directadmin",
   resellerclub: "resellerclub",
   rc: "resellerclub",
-  zoho: "zoho",
-  zohobooks: "zoho",
+  invoicing: "invoicing",
+  invoice: "invoicing",
+  billing: "invoicing",
   razorpay: "razorpay",
   payment: "razorpay",
   email: "email",
@@ -119,35 +119,22 @@ const PROVIDERS: ProviderClassifier[] = [
     ],
   },
   {
-    id: "zoho",
-    label: "Zoho Books",
+    id: "invoicing",
+    label: "Invoicing (GST engine)",
     signatures: [
-      // MUST stay ahead of the generic /Zoho|invoice_id/ signature below —
-      // classify() returns the first match and this errorText names Zoho
-      // Books, so a later position would silently get the wrong hint.
+      // MUST stay ahead of the generic invoice signature below — classify()
+      // returns the first match.
       {
         needle: /\[CREDIT-NOTE\]|credit note OWED/i,
-        hint: "A refund was processed against a tax invoice issued by OUR OWN GST engine (TI/YYYY-YY/NNNNN). That engine has no credit-note counterpart yet (deferred by operator decision 2026-09-03), so nothing was issued automatically and the customer is owed a GST credit note we have not raised. ACTION: in Zoho Books, raise a credit note for the refunded amount referencing the primary invoice number shown, then clear `creditNotePending` on the Order. This entry is NOT time-windowed and will keep appearing until cleared — GST credit notes must be issued by 30 November following the end of the financial year, so an old one is more urgent, not less.",
+        hint: "A refund was processed against an issued tax invoice. Our GST engine has no credit-note counterpart yet (deferred by operator decision 2026-09-03), so nothing was issued automatically and the customer is owed a GST credit note we have not raised. ACTION: raise a credit note by hand for the refunded amount, referencing the invoice number shown, then clear `creditNotePending` on the Order. This entry is NOT time-windowed and will keep appearing until cleared — GST credit notes must be issued by 30 November following the end of the financial year, so an old one is more urgent, not less.",
       },
       {
-        needle: /\(code 1016\)|some of the taxes have been deleted/i,
-        hint: "A tax_id this code is sending to Zoho is no longer registered in the org. Run a read-only Zoho probe (GET /api/v3/settings/taxes), confirm the active GST18 / IGST18 IDs match `ZOHO_TAX_ID_GST18` / `ZOHO_TAX_ID_IGST18` in .env.local AND in deploy-cloud-run.sh's ENV_VARS line. Redeploy after fixing.",
+        needle: /COMPANY_STATE/i,
+        hint: "The server has no COMPANY_STATE, so the GST engine cannot choose CGST+SGST vs IGST and refuses every invoice. Set COMPANY_STATE (the state our GSTIN is registered in — Delhi) on the Cloud Run service, then press Re-sync on each affected order in Admin → Invoices.",
       },
       {
-        needle: /\(code 3062\)|duplicate.*contact_name/i,
-        hint: "Zoho rejected a createContact because the customer name already exists in the org. The proactive name-based lookup fix from dms-00177-g9k should handle this — check `lib/zohobooks/invoices.ts` getOrCreateContact path.",
-      },
-      {
-        needle: /\(code 3057\)|gstin.*required/i,
-        hint: "Zoho rejected the invoice because customer GSTIN is required at this place_of_supply. Verify the contact has gst_no set OR set the customer as 'consumer' / 'business_none'.",
-      },
-      {
-        needle: /\(code 3032\)|tax.*mismatch|invalid tax_id/i,
-        hint: "Inter-state vs intra-state tax mismatch (CGST+SGST vs IGST). The createInvoice fallback should auto-retry with the swapped tax_id — check `lib/zohobooks/invoices.ts` line ~180 GST-mismatch fallback.",
-      },
-      {
-        needle: /Zoho|zohoapis|invoice_id|creation_failed/i,
-        hint: "Generic Zoho Books API failure. Click 'Re-sync' on the affected order from /admin/invoices to retry — the actual rejection reason is in the toast / server log.",
+        needle: /\[InvoiceRetry\]|\[InvoiceWorker\]|\[PrimaryInvoice\]|invoice creation failed|could not be issued/i,
+        hint: "The GST engine failed to issue an invoice for a paid order. The reason is in the row. Fix it, then press Re-sync on the order in Admin → Invoices — the customer's invoices page also retries on its own every 5 minutes.",
       },
     ],
   },
@@ -228,7 +215,7 @@ const PROVIDERS: ProviderClassifier[] = [
     label: "Background Jobs",
     signatures: [
       {
-        needle: /cron|scheduler|worker|daily-scheduler|sync-zoho-invoice|check-unprovisioned/i,
+        needle: /cron|scheduler|worker|daily-scheduler|issue-invoice|check-unprovisioned/i,
         hint: "Cron / worker failure. The endpoint typically requires x-cron-secret — if many fail with the same secret-mismatch message, the CRON_SECRET in Secret Manager may have rotated out of sync with Google Cloud Scheduler.",
       },
     ],
@@ -419,12 +406,14 @@ export async function GET(request: NextRequest) {
       createdAt: Date;
       domains?: Array<{ status?: string; error?: string; domainName?: string; itemType?: string }>;
     }
-    interface LeanedZohoStuckOrder {
+    interface LeanedFailedInvoiceOrder {
       orderId: string;
       userEmail?: string;
       userName?: string;
       amount: number;
       createdAt: Date;
+      invoiceFailedAt?: Date;
+      invoiceFailureReason?: string;
     }
 
     // 1. Failed domain / hosting line items
@@ -464,11 +453,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 2. Zoho-side: orders with creation_failed sentinel
-    const zohoStuckOrders = (await Order.find(
+    // 2. Paid orders whose invoice failed to issue.
+    //
+    // NOT time-windowed, for the same reason as the credit-note check below:
+    // a payment with no tax invoice is an open obligation, not an old error,
+    // and ageing it out of this report is how it would get lost.
+    const failedInvoiceOrders = (await Order.find(
       {
-        createdAt: { $gte: since },
-        zohoInvoiceId: "creation_failed",
+        invoiceFailedAt: { $exists: true },
+        invoiceProvider: { $exists: false },
+        isDeleted: { $ne: true },
       },
       {
         orderId: 1,
@@ -476,19 +470,24 @@ export async function GET(request: NextRequest) {
         userName: 1,
         amount: 1,
         createdAt: 1,
+        invoiceFailedAt: 1,
+        invoiceFailureReason: 1,
       }
     )
-      .sort({ createdAt: -1 })
-      .lean()) as unknown as LeanedZohoStuckOrder[];
+      .sort({ invoiceFailedAt: -1 })
+      .limit(50)
+      .lean()) as unknown as LeanedFailedInvoiceOrder[];
 
-    for (const o of zohoStuckOrders) {
+    for (const o of failedInvoiceOrders) {
       record({
-        errorText: "Zoho Books invoice creation_failed (no detail captured — click Re-sync from /admin/invoices to retry; the toast will surface the actual reason from dms-00188-lfm onwards)",
+        errorText:
+          `[PrimaryInvoice] Invoice could not be issued for a paid order: ` +
+          `${o.invoiceFailureReason || "no reason recorded"}`,
         orderId: o.orderId,
         userEmail: o.userEmail,
         userName: o.userName,
         amount: o.amount,
-        createdAt: o.createdAt,
+        createdAt: o.invoiceFailedAt ?? o.createdAt,
       });
     }
 
@@ -701,13 +700,12 @@ export async function GET(request: NextRequest) {
 
     // 5b. Orders owing a MANUALLY-raised GST credit note.
     //
-    // Our primary GST engine issues tax invoices but has no credit-note
-    // counterpart (operator decision 2026-09-03 — deferred until real refund
-    // volume exists rather than shipping an unexercised reverse-numbering
-    // series). The refund webhook stamps `creditNotePending` on any order
-    // refunded against a primary-issued invoice; until an operator raises the
-    // credit note by hand in Zoho Books, the customer is owed a tax document
-    // we have not issued.
+    // Our GST engine issues tax invoices but has no credit-note counterpart
+    // (operator decision 2026-09-03 — deferred until real refund volume
+    // exists rather than shipping an unexercised reverse-numbering series).
+    // The refund webhook stamps `creditNotePending` on any order refunded
+    // against an issued invoice; until an operator raises the credit note by
+    // hand, the customer is owed a tax document we have not issued.
     //
     // DELIBERATELY NOT time-windowed, unlike every other check here. `since`
     // bounds the log-derived checks because old errors stop being actionable;
@@ -726,9 +724,9 @@ export async function GET(request: NextRequest) {
         record({
           errorText:
             `[CREDIT-NOTE] GST credit note OWED for order ${o.orderId} — ₹${refundRupees} refunded ` +
-            `(refund ${o.creditNotePendingRefundId || "unknown"}) against primary tax invoice ` +
+            `(refund ${o.creditNotePendingRefundId || "unknown"}) against tax invoice ` +
             `${o.invoiceNumber || "(number missing)"}, outstanding ${daysOwed} day(s). ` +
-            `Our GST engine cannot issue credit notes; it must be raised manually in Zoho Books.`,
+            `Our GST engine cannot issue credit notes; it must be raised manually.`,
           orderId: o.orderId as string,
           userEmail: o.userEmail as string | undefined,
           amount: o.amount as number,
