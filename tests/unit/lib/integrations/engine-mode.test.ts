@@ -28,7 +28,7 @@
  * behaviour — they are not retired. `checkMode` now validates shape only,
  * because the refusal depends on WHICH command and it cannot see one.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import {
   checkMode,
   checkLiveAllowed,
@@ -37,6 +37,8 @@ import {
   LIVE_ELIGIBLE_COMMANDS,
   LIVE_INELIGIBLE_REASONS,
   ENGINE_MODES,
+  OWN_LIVE_GATES,
+  ownGateOpen,
 } from "@/lib/integrations/engine-mode";
 import { KNOWN_COMMANDS, HANDLERS } from "@/lib/integrations/engine-command-registry";
 
@@ -126,13 +128,48 @@ describe("eligibility is per command, and the flag cannot reach some of them", (
     }
   );
 
-  it("domain.register names the two gates and the human release", () => {
-    const r = checkLiveAllowed("live", "domain.register");
-    expect(r.ok).toBe(false);
-    if (!r.ok) {
-      expect(r.error).toMatch(/cannot be undone/i);
-      expect(r.error).toMatch(/per-row human release/i);
-    }
+  describe("domain.register has its own fail-closed gate (Phase 9)", () => {
+    const KEY = "ENGINE_DOMAIN_REGISTER_LIVE";
+    const ORIG = process.env[KEY];
+    afterEach(() => {
+      if (ORIG === undefined) delete process.env[KEY];
+      else process.env[KEY] = ORIG;
+    });
+
+    it("is refused live while the gate is unset, naming the gate", () => {
+      delete process.env[KEY];
+      const r = checkLiveAllowed("live", "domain.register");
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.status).toBe(503);
+        expect(r.error).toContain(KEY);
+        expect(r.error).toMatch(/owner approves/i);
+      }
+      expect(mayContactProvider("live", "domain.register")).toBe(false);
+    });
+
+    it("only an exact 1 opens it", () => {
+      for (const v of ["", "0", "true", "yes", " 1", "01"]) {
+        process.env[KEY] = v;
+        expect(ownGateOpen("domain.register"), JSON.stringify(v)).toBe(false);
+      }
+      process.env[KEY] = "1";
+      expect(checkLiveAllowed("live", "domain.register").ok).toBe(true);
+      expect(mayContactProvider("live", "domain.register")).toBe(true);
+    });
+
+    it("opening it puts NOTHING else live", () => {
+      process.env[KEY] = "1";
+      for (const c of ["dns.record.upsert", "hosting.suspend", "hosting.change_plan", "domain.renew"]) {
+        expect(checkLiveAllowed("live", c).ok, c).toBe(false);
+        expect(mayContactProvider("live", c), c).toBe(false);
+      }
+    });
+
+    it("test mode never needs the gate", () => {
+      delete process.env[KEY];
+      expect(checkLiveAllowed("test", "domain.register").ok).toBe(true);
+    });
   });
 
   it("an unclassified command is refused — silence is no", () => {
@@ -154,8 +191,13 @@ describe("eligibility is per command, and the flag cannot reach some of them", (
    */
   it("EVERY known command is classified, exactly once", () => {
     const unclassified = KNOWN_COMMANDS.filter(
-      (c) => !LIVE_ELIGIBLE_COMMANDS.includes(c) && !(c in LIVE_INELIGIBLE_REASONS)
+      (c) => !LIVE_ELIGIBLE_COMMANDS.includes(c) && !(c in LIVE_INELIGIBLE_REASONS) && !(c in OWN_LIVE_GATES)
     );
+    // ...and exactly once: a command in two lists has two answers.
+    for (const c of KNOWN_COMMANDS) {
+      const n = [LIVE_ELIGIBLE_COMMANDS.includes(c), c in LIVE_INELIGIBLE_REASONS, c in OWN_LIVE_GATES].filter(Boolean).length;
+      expect(n, c).toBeLessThanOrEqual(1);
+    }
     expect(
       unclassified,
       `neither live-eligible nor explicitly refused, so nobody has decided whether these may ` +

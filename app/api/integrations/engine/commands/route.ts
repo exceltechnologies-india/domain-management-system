@@ -238,6 +238,12 @@ export async function POST(request: NextRequest) {
           transport === "responded"
             ? `The provider refused the request: ${message}`
             : "The command failed before reaching any provider. Nothing was changed.",
+        /* The handler's own sentence. Without it a caller could not tell "held
+           for a person" (a spend limit, a test-mode payment — they start with
+           "[held]") from any other not-sent failure: the generic line above is
+           the same for both. It is stored on the command too, so a replay says
+           the same thing. */
+        detail: message,
         commandId,
         status,
         transport,

@@ -15,15 +15,18 @@
  * back — performable, but not live-eligible until the engine grows a spend
  * control.
  *
+ * Phase 9 (24 Sep 2026) added domain.register, which cannot be undone — live
+ * only behind its own gate and a spend limit.
+ *
  * Still unhandled: hosting.provision, blocked on a product decision rather
- * than on effort (see engine-handlers-plan.ts), and domain.register (Phase 9),
- * which cannot be undone at all.
+ * than on effort (see engine-handlers-plan.ts).
  */
 import type { EngineMode } from "./engine-mode";
 import { upsertDnsRecord } from "./engine-handlers-dns";
 import { suspendHosting, unsuspendHosting } from "./engine-handlers-hosting";
 import { changeHostingPlan } from "./engine-handlers-plan";
 import { renewDomainCommand } from "./engine-handlers-domain";
+import { registerDomainCommand } from "./engine-handlers-register";
 
 /** Every command the contract names, whether or not it is implemented. */
 export const KNOWN_COMMANDS = [
@@ -105,6 +108,10 @@ export const HANDLERS: Partial<Record<KnownCommand, CommandHandler>> = {
   /* Phase 8 — the first rupee that does not come back. Performable, and
      deliberately NOT live-eligible: see LIVE_INELIGIBLE_REASONS. */
   "domain.renew": renewDomainCommand,
+  /* Phase 9 (24 Sep 2026) — irreversible. Live only behind its OWN gate,
+     ENGINE_DOMAIN_REGISTER_LIVE=1 (engine-mode.ts OWN_LIVE_GATES), and only
+     within the spend limit in engine-register-policy.ts. */
+  "domain.register": registerDomainCommand,
 };
 
 export function handlerFor(command: KnownCommand): CommandHandler | null {

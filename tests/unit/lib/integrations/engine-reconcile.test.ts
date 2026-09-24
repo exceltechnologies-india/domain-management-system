@@ -32,8 +32,11 @@ describe("a reconciler exists only where the effect is observable", () => {
     // "is this account suspended", "is it on this package AND does DMS say
     // so". Adding a fifth means claiming its effect is observable too — which
     // is a decision, not a formality.
+    // Phase 9: domain.register — "is it in our reseller account, owned by
+    // this customer" is a pure read with a definite answer.
     expect(Object.keys(RECONCILERS).sort()).toEqual([
       "dns.record.upsert",
+      "domain.register",
       "domain.renew",
       "hosting.change_plan",
       "hosting.suspend",
@@ -41,13 +44,13 @@ describe("a reconciler exists only where the effect is observable", () => {
     ]);
   });
 
-  it.each(["domain.register", "hosting.provision"])(
+  it.each(["hosting.provision"])(
     "%s has no reconciler — its command is not built yet",
     (c) => expect(reconcilerFor(c)).toBeNull()
   );
 
   it("a command with no reconciler is unknown, and says what to do instead", async () => {
-    const r = await reconcileCommand("domain.register", ctx);
+    const r = await reconcileCommand("hosting.provision", ctx);
     expect(r.verdict).toBe("unknown");
     expect(r.detail).toMatch(/no automatic check/i);
     // CLAUDE.md §24 — not a bare "cannot".
@@ -60,11 +63,13 @@ describe("a reconciler's verdict is taken literally", () => {
   const withReconciler = async (
     fn: () => Promise<"done" | "not_done" | "unknown"> | never
   ) => {
-    (RECONCILERS as Record<string, unknown>)["domain.register"] = fn;
+    // A command with NO real reconciler, so installing and deleting a fake one
+    // cannot remove a real one (domain.register has had one since Phase 9).
+    (RECONCILERS as Record<string, unknown>)["hosting.provision"] = fn;
     try {
-      return await reconcileCommand("domain.register", ctx);
+      return await reconcileCommand("hosting.provision", ctx);
     } finally {
-      delete (RECONCILERS as Record<string, unknown>)["domain.register"];
+      delete (RECONCILERS as Record<string, unknown>)["hosting.provision"];
     }
   };
 

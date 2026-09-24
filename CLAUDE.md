@@ -121,6 +121,15 @@ says so — each waits for the owner's go-ahead.
 - **`tokens-charge-recurring` is to be paused in Cloud Scheduler** — the owner will run
   `gcloud scheduler jobs pause tokens-charge-recurring --location=asia-south1 --project=speedy-unison-453807-e9`.
   Until then the code gate (`DMS_TOKEN_RECURRING_ENABLED`) keeps it from charging anyone.
+- **`domain.register` is BUILT and OFF (Phase 9, decisions 21-24, 24 Sep 2026).**
+  `lib/integrations/engine-handlers-register.ts` + `engine-register-policy.ts`. Registers under the
+  customer's own details into a DMS account for them (found or created by email, no usable
+  password — they arrive by the engine-sso hand-off), within a spend limit: live payment, paid ≥
+  ResellerClub cost, ≤ `ENGINE_DOMAIN_REGISTER_MAX_PER_DAY` (5) and
+  `ENGINE_DOMAIN_REGISTER_MAX_RUPEES_PER_DAY` (₹10,000) in 24 h. A refusal starts `[held]` and is a
+  wait-for-a-person, not a failure. Live only when `ENGINE_DOMAIN_REGISTER_LIVE=1` — its OWN gate in
+  `engine-mode.ts` `OWN_LIVE_GATES`, deliberately not `LIVE_ELIGIBLE_COMMANDS`, so opening it puts
+  nothing else live. Do not set it without the owner (steps in ResellerOS `Todos.md` §0A).
 - **Decisions 19–21 (the ResellerOS site cart), 24 Sep 2026.** ResellerOS now charges a domain
   at the LIVE ResellerClub price, re-checked at payment, and writes one provisioning request per
   product, each domain row carrying the exact name. The owner chose **automatic registration

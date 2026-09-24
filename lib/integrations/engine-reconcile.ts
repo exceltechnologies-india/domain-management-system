@@ -26,6 +26,7 @@ import { reconcileDnsUpsert } from "./engine-handlers-dns";
 import { reconcileSuspend, reconcileUnsuspend } from "./engine-handlers-hosting";
 import { reconcileChangePlan } from "./engine-handlers-plan";
 import { reconcileRenew } from "./engine-handlers-domain";
+import { reconcileRegister } from "./engine-handlers-register";
 
 export type ReconcileVerdict =
   /** The provider confirms the work exists. The command really did succeed. */
@@ -74,6 +75,9 @@ export const RECONCILERS: Partial<Record<KnownCommand, Reconciler>> = {
      caller's `expiryBefore`. Moved past it means the renewal landed. That is
      what lets a money command be settled by reading instead of by a person. */
   "domain.renew": reconcileRenew,
+  /* Phase 9. Observable as a pure read: is the domain in our reseller account,
+     owned by this customer's ResellerClub id. */
+  "domain.register": reconcileRegister,
 };
 
 export function reconcilerFor(command: string): Reconciler | null {

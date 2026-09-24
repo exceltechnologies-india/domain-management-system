@@ -117,10 +117,34 @@ export const LIVE_INELIGIBLE_REASONS: Readonly<Record<string, string>> = {
     "all — nothing caps how many renewals a caller could trigger. The double-renewal risk is " +
     "handled (the command refuses unless the expiry you send still matches the registrar), so " +
     "what is missing is a limit, not a guard.",
-  "domain.register":
-    "registering a domain cannot be undone and its phase requires two fail-closed gates plus a " +
-    "per-row human release. A single flag is not that, and must not be mistaken for it.",
 };
+
+/**
+ * Commands with their OWN live gate, independent of `LIVE_COMMANDS_ENABLED`.
+ *
+ * `domain.register` (Phase 9, 24 Sep 2026). The owner decided registration is
+ * automatic after payment, within a spend limit (ResellerOS Todos.md §0A,
+ * decisions 21-24). It is NOT added to `LIVE_ELIGIBLE_COMMANDS`, because that
+ * list shares one flag: flipping it for registration would also put DNS,
+ * suspend and plan changes live. Instead it has its own env gate, and the gate
+ * fails closed — only the exact string "1" opens it, so an empty, misspelled or
+ * truthy-looking value keeps it shut (AGENTS.md L41).
+ *
+ * The two fail-closed gates the phase plan asked for are this one and the
+ * paying side's own (`DOMAIN_REGISTRATION_LIVE` in ResellerOS). The plan's
+ * per-row human release was replaced by the owner with the spend limit in
+ * engine-register-policy.ts: live payment, cost covered, daily count + ₹ cap;
+ * anything outside it is HELD for a person.
+ */
+export const OWN_LIVE_GATES: Readonly<Record<string, string>> = {
+  "domain.register": "ENGINE_DOMAIN_REGISTER_LIVE",
+};
+
+/** True only when the command's own gate is set to exactly "1". */
+export function ownGateOpen(command: string, env: Record<string, string | undefined> = process.env): boolean {
+  const name = OWN_LIVE_GATES[command];
+  return !!name && env[name] === "1";
+}
 
 export type ModeCheck =
   | { ok: true; mode: EngineMode }
@@ -196,6 +220,19 @@ export function checkLiveAllowed(mode: EngineMode, command: string): ModeCheck {
     };
   }
 
+  const ownGate = OWN_LIVE_GATES[command];
+  if (ownGate) {
+    if (ownGateOpen(command)) return { ok: true, mode };
+    return {
+      ok: false,
+      status: 503,
+      error:
+        `"${command}" can run live only when ${ownGate}=1 is set on this engine, and it is not. ` +
+        `That switch is off until the owner approves the first real run. Nothing was recorded. ` +
+        `Send mode:"test" to see exactly what a live run would do.`,
+    };
+  }
+
   if (!LIVE_ELIGIBLE_COMMANDS.includes(command)) {
     /**
      * Neither eligible nor explicitly refused. Fail closed and say so plainly:
@@ -241,8 +278,9 @@ export function checkLiveAllowed(mode: EngineMode, command: string): ModeCheck {
  * live" are different questions.
  */
 export function mayContactProvider(mode: EngineMode, command: string): boolean {
+  if (mode !== "live") return false;
+  if (OWN_LIVE_GATES[command]) return ownGateOpen(command);
   return (
-    mode === "live" &&
     LIVE_COMMANDS_ENABLED &&
     !LIVE_INELIGIBLE_REASONS[command] &&
     LIVE_ELIGIBLE_COMMANDS.includes(command)

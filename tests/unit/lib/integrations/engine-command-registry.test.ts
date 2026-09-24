@@ -48,8 +48,13 @@ describe("what can actually be performed", () => {
     //   It is performable because its ambiguity is resolvable by a pure read,
     //   not because it is safe. Being here is not the same as being allowed to
     //   run live; engine-mode.ts decides that and still refuses it.
+    // Phase 9 (24 Sep 2026): domain.register, which cannot be undone at all.
+    //   Performable, and live ONLY behind its own gate
+    //   (ENGINE_DOMAIN_REGISTER_LIVE=1) and the spend limit in
+    //   engine-register-policy.ts. This tripwire is why that was a deliberate edit.
     expect(Object.keys(HANDLERS).sort()).toEqual([
       "dns.record.upsert",
+      "domain.register",
       "domain.renew",
       "engine.selftest",
       "hosting.change_plan",
@@ -58,7 +63,7 @@ describe("what can actually be performed", () => {
     ]);
   });
 
-  it.each(["hosting.provision", "domain.register"])(
+  it.each(["hosting.provision"])(
     "%s still has NO handler",
     (c) => {
       // The day one of these gets a handler, this test fails and whoever added
