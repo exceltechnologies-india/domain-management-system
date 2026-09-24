@@ -21,6 +21,7 @@ import {
   hostingItemDomain,
   HOSTING_DOMAIN_REQUIRED_MESSAGE,
 } from "@/lib/validation/hosting-domain";
+import { isTrialPlan, TRIAL_PLAN_REFUSAL } from "@/lib/pricing/trial-plan";
 
 // Per-route schema. Structural shape only — TLD-policy / trial-eligibility
 // checks are business logic that runs after the Zod gate.
@@ -240,6 +241,11 @@ export async function POST(request: NextRequest) {
 
         // Server-side trial eligibility enforcement
         if (isTrial) {
+          // Starter only (owner, 24 Sep 2026). Checked before the trial claim
+          // or any abuse check runs, so a refused Plus trial costs nothing.
+          if (!isTrialPlan(item.hostingPlan?.id)) {
+            return NextResponse.json({ error: TRIAL_PLAN_REFUSAL }, { status: 400 });
+          }
           // Trials are yearly-only
           if (item.billingCycle !== 'yearly' && item.registrationPeriod !== 15) {
             return NextResponse.json({ error: "Trial is only available for yearly hosting plans" }, { status: 400 });

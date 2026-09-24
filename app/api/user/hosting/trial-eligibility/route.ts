@@ -11,6 +11,7 @@ import {
   hashIp,
 } from "@/lib/trial-abuse";
 import { validatedBody, z } from "@/lib/api-validation";
+import { isTrialPlan, TRIAL_PLAN_REFUSAL } from "@/lib/pricing/trial-plan";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +82,9 @@ async function runEligibility(
   //    for a free trial" because the gate didn't know about the
   //    non-Subscriptions flows.
   if (body.planId) {
+    if (!isTrialPlan(body.planId)) {
+      return secureJsonResponse({ eligible: false, reason: TRIAL_PLAN_REFUSAL });
+    }
     const plan = await getPlanByPlanId(body.planId);
     if (!plan) {
       return secureJsonResponse({ eligible: false, reason: "This plan is not available for a free trial" });

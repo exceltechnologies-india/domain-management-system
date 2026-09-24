@@ -212,10 +212,22 @@ describe("Layer 4 — planId yearly-Razorpay-mapping", () => {
     delete process.env.HOSTING_MANDATE_FLOW;
   });
 
+  // Only Starter is trialled (owner, 24 Sep 2026), so the plan lookup below is
+  // reached only for "starter" — these fixtures used made-up ids ("p-1",
+  // "p-ghost") before that rule, and now use the one id that gets that far.
+  it.each(["standard", "plus", "Plus"])("%s → eligible:false before any plan lookup", async (planId) => {
+    setupHappy();
+    const res = await POST(makePost({ planId }));
+    const body = await res.json();
+    expect(body.eligible).toBe(false);
+    expect(body.reason).toContain("only on the Starter plan");
+    expect(getPlanByPlanId).not.toHaveBeenCalled();
+  });
+
   it("plan missing → eligible:false 'plan is not available for a free trial'", async () => {
     setupHappy();
     getPlanByPlanId.mockResolvedValueOnce(null);
-    const res = await POST(makePost({ planId: "p-ghost" }));
+    const res = await POST(makePost({ planId: "starter" }));
     const body = await res.json();
     expect(body.eligible).toBe(false);
     expect(body.reason).toContain("not available");
@@ -224,10 +236,10 @@ describe("Layer 4 — planId yearly-Razorpay-mapping", () => {
   it("plan exists BUT razorpayPlans.yearly missing (under subscriptions flow) → eligible:false", async () => {
     setupHappy();
     getPlanByPlanId.mockResolvedValueOnce({
-      planId: "p-1",
+      planId: "starter",
       razorpayPlans: { monthly: "rzp-monthly" /* no yearly */ },
     });
-    const res = await POST(makePost({ planId: "p-1" }));
+    const res = await POST(makePost({ planId: "starter" }));
     const body = await res.json();
     expect(body.eligible).toBe(false);
   });
@@ -235,10 +247,10 @@ describe("Layer 4 — planId yearly-Razorpay-mapping", () => {
   it("plan with yearly Razorpay → eligible:true (when other layers pass)", async () => {
     setupHappy();
     getPlanByPlanId.mockResolvedValueOnce({
-      planId: "p-1",
+      planId: "starter",
       razorpayPlans: { yearly: "rzp-yearly" },
     });
-    const res = await POST(makePost({ planId: "p-1" }));
+    const res = await POST(makePost({ planId: "starter" }));
     const body = await res.json();
     expect(body.eligible).toBe(true);
   });
@@ -286,7 +298,7 @@ describe("Layer 4 — planId yearly-Razorpay-mapping", () => {
     process.env.HOSTING_MANDATE_FLOW = "manual";
     setupHappy();
     getPlanByPlanId.mockResolvedValueOnce(null);
-    const res = await POST(makePost({ planId: "p-ghost" }));
+    const res = await POST(makePost({ planId: "starter" }));
     const body = await res.json();
     expect(body.eligible).toBe(false);
     expect(body.reason).toContain("not available");
