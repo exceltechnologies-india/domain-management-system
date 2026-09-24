@@ -37,6 +37,14 @@ vi.mock("@/lib/auth", () => ({
 
 const userHasPriorTrialOrder = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/orders", () => ({ userHasPriorTrialOrder }));
+// The cross-app "one trial per customer" history (lib/trials/trial-history).
+// Default: no earlier trial anywhere; the cases that need one set it.
+const findPriorTrial = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/trials/trial-history", async (orig) => ({
+  ...(await orig<typeof import("@/lib/trials/trial-history")>()),
+  findPriorTrial,
+}));
+
 
 const getPlanByPlanId = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/hosting-plans", () => ({ getPlanByPlanId }));
@@ -95,6 +103,10 @@ function setupHappy() {
   hashIp.mockReturnValue("hashed_ip");
   evaluateTrialAbuse.mockResolvedValue({ allowed: true });
 }
+
+beforeEach(() => {
+  findPriorTrial.mockReset().mockResolvedValue({ found: false });
+});
 
 beforeEach(() => {
   getUserFromRequest.mockReset();
@@ -352,5 +364,24 @@ describe("Outer catch", () => {
     const body = await res.json();
     expect(body.error).toBe("Internal server error");
     expect(JSON.stringify(body)).not.toContain("abuse_secret_LEAK_ME");
+  });
+});
+
+describe("one trial per customer across BOTH apps (24 Sep 2026)", () => {
+  it("a trial the same email or phone had on the ResellerOS site → ineligible, with the start date", async () => {
+    setupHappy();
+    findPriorTrial.mockResolvedValueOnce({ found: true, where: "reselleros", startedAt: new Date("2026-09-20T00:00:00Z") });
+    const body = await (await POST(makePost({ planId: "starter" }))).json();
+    expect(body.eligible).toBe(false);
+    expect(body.reason).toContain("one per customer");
+    expect(body.reason).toContain("20 Sept 2026");
+  });
+
+  it("an unreadable history → ineligible, never a silent yes", async () => {
+    setupHappy();
+    findPriorTrial.mockRejectedValueOnce(new Error("mongo down"));
+    const body = await (await POST(makePost({ planId: "starter" }))).json();
+    expect(body.eligible).toBe(false);
+    expect(body.reason).toContain("couldn't check");
   });
 });

@@ -22,6 +22,7 @@ import {
   HOSTING_DOMAIN_REQUIRED_MESSAGE,
 } from "@/lib/validation/hosting-domain";
 import { isTrialPlan, TRIAL_PLAN_REFUSAL } from "@/lib/pricing/trial-plan";
+import { alreadyTrialledMessage, findPriorTrial } from "@/lib/trials/trial-history";
 
 // Per-route schema. Structural shape only — TLD-policy / trial-eligibility
 // checks are business logic that runs after the Zod gate.
@@ -277,6 +278,21 @@ export async function POST(request: NextRequest) {
           const priorTrial = await userHasPriorTrialOrder(user.id);
           if (priorTrial) {
             return NextResponse.json({ error: "You have already used your free trial" }, { status: 400 });
+          }
+          // One trial per customer across BOTH apps (owner, 24 Sep 2026): the email,
+          // phone or the trial's domain may already have had one on the ResellerOS
+          // site or on another DMS account. Unreadable history refuses (fail closed).
+          try {
+            const cross = await findPriorTrial({ email: user.email, phone: user.phone, domain: item.linkedDomain });
+            if (cross.found) {
+              return NextResponse.json({ error: alreadyTrialledMessage(cross) }, { status: 400 });
+            }
+          } catch (err) {
+            serverLogger.error("[CREATE-ORDER] trial history unreadable", err);
+            return NextResponse.json(
+              { error: "We couldn't check whether you've had a trial before, so the trial wasn't started. Nothing was charged. Please try again in a minute." },
+              { status: 503 },
+            );
           }
 
           // Defense-in-depth: re-run the same abuse checks here even though

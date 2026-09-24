@@ -46,6 +46,14 @@ vi.mock("@/lib/auth", () => ({ AuthService: { getUserFromRequest } }));
 
 const createOrder = vi.hoisted(() => vi.fn());
 const userHasPriorTrialOrder = vi.hoisted(() => vi.fn());
+// The cross-app "one trial per customer" history (lib/trials/trial-history).
+// Default: no earlier trial anywhere; the cases that need one set it.
+const findPriorTrial = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/trials/trial-history", async (orig) => ({
+  ...(await orig<typeof import("@/lib/trials/trial-history")>()),
+  findPriorTrial,
+}));
+
 vi.mock("@/lib/services/orders", () => ({
   createOrder,
   userHasPriorTrialOrder,
@@ -177,6 +185,7 @@ beforeEach(() => {
   // tests/unit/lib/pricing/hosting-price.test.ts and the block at the end.
   process.env.DMS_HOSTING_SUBSCRIPTIONS_ENABLED = "1";
   evaluateTrialAbuse.mockReset().mockResolvedValue({ allowed: true });
+  findPriorTrial.mockReset().mockResolvedValue({ found: false });
   recordTrialClaim.mockReset().mockResolvedValue(undefined);
   // Default: a resolvable hosting plan with Razorpay plan ids so the
   // subscription/tokens branches can fire. Tests exercising the "plan not
@@ -354,6 +363,26 @@ describe("Trial gates (4 distinct rejections)", () => {
     const res = await POST(makeReq({ cartItems: [noCycle] }));
     expect(res.status).toBe(400);
     expect((await res.json()).error).toContain("missing its billing cycle");
+  });
+
+  it("an earlier trial in EITHER app (email, phone or the trial's domain) → 400, nothing set up", async () => {
+    getSettingValue.mockResolvedValueOnce(true);
+    userHasPriorTrialOrder.mockResolvedValueOnce(false);
+    findPriorTrial.mockResolvedValueOnce({ found: true, where: "reselleros", startedAt: null });
+    const res = await POST(makeReq(trialCart));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain("one per customer");
+    expect(findPriorTrial).toHaveBeenCalledWith(expect.objectContaining({ domain: "trialsite.com" }));
+    expect(createManualFlowTrialHosting).not.toHaveBeenCalled();
+  });
+
+  it("an unreadable trial history → 503, nothing set up", async () => {
+    getSettingValue.mockResolvedValueOnce(true);
+    userHasPriorTrialOrder.mockResolvedValueOnce(false);
+    findPriorTrial.mockRejectedValueOnce(new Error("mongo down"));
+    const res = await POST(makeReq(trialCart));
+    expect(res.status).toBe(503);
+    expect(createManualFlowTrialHosting).not.toHaveBeenCalled();
   });
 
   it("a Plus trial → 400 before any trial check runs (Starter only)", async () => {

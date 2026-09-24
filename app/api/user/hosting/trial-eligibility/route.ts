@@ -12,6 +12,7 @@ import {
 } from "@/lib/trial-abuse";
 import { validatedBody, z } from "@/lib/api-validation";
 import { isTrialPlan, TRIAL_PLAN_REFUSAL } from "@/lib/pricing/trial-plan";
+import { alreadyTrialledMessage, findPriorTrial } from "@/lib/trials/trial-history";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,17 @@ async function runEligibility(
   const priorTrial = await userHasPriorTrialOrder(userId);
   if (priorTrial) {
     return secureJsonResponse({ eligible: false, reason: "You have already used your free trial" });
+  }
+
+  // 2b. …in EITHER app (owner, 24 Sep 2026): a trial started on the ResellerOS site,
+  // or one on another DMS account with the same email or phone, counts too. An
+  // unreadable history refuses rather than reads as "no earlier trial".
+  try {
+    const cross = await findPriorTrial({ email: user.email, phone: user.phone });
+    if (cross.found) return secureJsonResponse({ eligible: false, reason: alreadyTrialledMessage(cross) });
+  } catch (err) {
+    serverLogger.error("[TrialEligibility] trial history unreadable", err);
+    return secureJsonResponse({ eligible: false, reason: "We couldn't check whether you've had a trial before, so we can't start one right now. Please try again in a minute." });
   }
 
   // 3. Abuse defenses — disposable email, reCAPTCHA, IP & device throttles.

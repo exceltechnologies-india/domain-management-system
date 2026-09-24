@@ -150,6 +150,20 @@ says so — each waits for the owner's go-ahead.
   mandate or subscription would be set up; never convert it silently. Checkout no longer tells
   trial customers their card is "saved for automatic yearly billing": no trial path running takes
   a card.
+- **One free trial per customer ACROSS BOTH APPS — DMS holds the shared record** (24 Sep 2026).
+  DMS cannot reach ResellerOS, so DMS keeps the union:
+  - its own trials (orders and hostings);
+  - `ExternalTrial` rows, one per trial started on the ResellerOS site.
+
+  `lib/trials/trial-history.ts` `findPriorTrial` matches any one of: email (any case), phone
+  (last 10 digits), or domain. It THROWS on a database error, and every caller refuses the trial
+  (fail closed).
+
+  Engine route `/api/integrations/engine/trials`:
+  - **GET, read key:** ResellerOS asks it before starting a trial.
+  - **POST, command key:** ResellerOS records its trial, idempotent on the lead id.
+
+  Both DMS gates (eligibility and create-order) consult it too.
 - **A buyer's DMS account gets a "set your password" email at creation** (`engine-customer.ts`,
   shared by both commands), as guest checkout does. It is their only way in: ResellerOS has no
   customer portal, so there is no hand-off for a customer to start. (Earlier text in this file said
