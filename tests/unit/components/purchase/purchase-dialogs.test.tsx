@@ -108,11 +108,23 @@ describe("the hosting dialog", () => {
     expect(addItemMock.mock.calls[0][0].price).toBe(118);
   });
 
-  it("offers the trial on yearly Starter only", () => {
+  // Owner, 24 Sep 2026: the trial is on Starter only, on monthly AND yearly.
+  // This used to pin "yearly only" (no button on Monthly).
+  it("offers the trial on Starter only, on both yearly and monthly", () => {
     open("buy=hosting");
     expect(screen.getAllByRole("button", { name: /free trial/i })).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Monthly" }));
-    expect(screen.queryByRole("button", { name: /free trial/i })).toBeNull();
+    expect(screen.getAllByRole("button", { name: /free trial/i })).toHaveLength(1);
+  });
+
+  it("a trial started on Monthly converts to monthly billing", async () => {
+    postMock.mockResolvedValue({ ok: true, data: { eligible: true } });
+    open("buy=hosting");
+    fireEvent.click(screen.getByRole("button", { name: "Monthly" }));
+    fireEvent.click(screen.getByRole("button", { name: /free trial/i }));
+    await waitFor(() => expect(addItemMock).toHaveBeenCalled());
+    expect(addItemMock.mock.calls[0][0]).toMatchObject({ price: 0, isTrial: true, billingCycle: "monthly" });
+    expect(postMock.mock.calls[0][1]).toMatchObject({ planId: "starter" });
   });
 
   it("an eligible trial adds a ₹0 line and goes to the cart", async () => {

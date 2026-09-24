@@ -324,6 +324,28 @@ describe("12-month-locked pricing (server-authoritative)", () => {
   });
 });
 
+describe("a hosting set up MONTHLY renews one month (monthly Starter trial, 24 Sep 2026)", () => {
+  it("charges ResellerOS's monthly Starter price for one month, not a year", async () => {
+    setupHappy();
+    findUserHosting.mockResolvedValue({ ...activeHosting(10), billingCycle: "monthly" });
+    const { hostingCharge } = await import("@/lib/pricing/hosting-price");
+    const month = hostingCharge("starter", "monthly");
+    expect(month).not.toBeNull();
+    expect(month!.inclGst).not.toBe(708);
+    await POST(makeReq({ domainName: "example.com" }));
+    expect(rzpCreateOrder).toHaveBeenCalledWith(month!.inclGst, "INR", expect.any(String), expect.any(Object));
+    const order = createOrder.mock.calls[0][0];
+    expect(order.domains[0].registrationPeriod).toBe(1);
+  });
+
+  it("a hosting with NO cycle recorded (every row before this change) still renews a year", async () => {
+    setupHappy();
+    findUserHosting.mockResolvedValue({ ...activeHosting(10), billingCycle: undefined });
+    await POST(makeReq({ domainName: "example.com" }));
+    expect(rzpCreateOrder).toHaveBeenCalledWith(708, "INR", expect.any(String), expect.any(Object));
+  });
+});
+
 describe("Razorpay order shape", () => {
   it("metadata: type/domain_name/user_id (3 fields exactly)", async () => {
     setupHappy();

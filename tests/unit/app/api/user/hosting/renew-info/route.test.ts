@@ -150,6 +150,22 @@ describe("Business rule — 1-year-only renewal pricing (pinned VERBATIM)", () =
     });
   });
 
+  it("a hosting set up MONTHLY quotes one month — the same figure /renew charges", async () => {
+    findUserHosting.mockResolvedValueOnce({
+      domainName: "alice.com",
+      planId: "Starter",
+      status: "active",
+      billingCycle: "monthly",
+      expiryDate: new Date("2027-01-01"),
+    });
+    getPlanByPlanId.mockResolvedValueOnce({ planId: "Starter", name: "Starter", price: 150, currency: "INR" });
+    const { hostingCharge } = await import("@/lib/pricing/hosting-price");
+    const res = await GET(makeReq("domainName=alice.com"));
+    const body = await res.json();
+    expect(body.data.renewalPricing.periodMonths).toBe(1);
+    expect(body.data.renewalPricing.price).toBe(hostingCharge("starter", "monthly")!.inclGst);
+  });
+
   it("currency defaults to 'INR' when plan.currency is missing", async () => {
     findUserHosting.mockResolvedValueOnce({
       domainName: "alice.com",

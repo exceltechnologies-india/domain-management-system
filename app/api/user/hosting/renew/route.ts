@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { findUserHosting } from "@/lib/services/hostings";
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import { hostingCharge } from "@/lib/pricing/hosting-price";
+import { renewalCycle } from "@/lib/pricing/trial-plan";
 import { createOrder } from "@/lib/services/orders";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { AuthService } from "@/lib/auth";
@@ -21,7 +22,8 @@ export const dynamic = 'force-dynamic';
  * 
  * Initiates a manual renewal for a hosting account.
  * Creates a Razorpay order and a pending internal Order record.
- * Only supports 1-year (12 months) renewals.
+ * Renews for one year, or for one month when the hosting was set up monthly
+ * (`billingCycle: "monthly"`, a monthly Starter trial since 24 Sep 2026).
  */
 export async function POST(request: NextRequest) {
   try {
@@ -91,10 +93,12 @@ export async function POST(request: NextRequest) {
       return secureErrorResponse("Hosting plan not found", 404, "PLAN_NOT_FOUND");
     }
 
-    // Business Rule: Renewals are 1 Year ONLY (12 months), at ResellerOS's
-    // price + 18% GST (owner decision, 24 Sep 2026) — not `plan.price`, the
-    // DMS figure decision 7 disregards. See lib/pricing/hosting-price.ts.
-    const charge = hostingCharge(plan.planId, "yearly");
+    // At ResellerOS's price + 18% GST (owner decision, 24 Sep 2026) — not
+    // `plan.price`, the DMS figure decision 7 disregards. See
+    // lib/pricing/hosting-price.ts. One year, unless the hosting says it renews
+    // monthly; a row with no cycle is yearly, as every renewal was before.
+    const cycle = renewalCycle(hosting.billingCycle);
+    const charge = hostingCharge(plan.planId, cycle);
     if (!charge) {
       return secureErrorResponse(
         `Renewal for the "${plan.name}" plan can't be paid online: it is not on our price list. ` +
@@ -169,7 +173,7 @@ export async function POST(request: NextRequest) {
         hostingDetails: {
           domainName: hosting.domainName,
           planName: plan.name,
-          renewalPeriod: "1 Year"
+          renewalPeriod: cycle === "monthly" ? "1 Month" : "1 Year"
         }
       }
     });

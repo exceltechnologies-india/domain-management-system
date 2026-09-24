@@ -334,23 +334,35 @@ describe("Trial gates (4 distinct rejections)", () => {
     ],
   };
 
-  it("non-yearly + non-15-period → 400 'Trial is only available for yearly hosting plans'", async () => {
+  // Monthly trials exist since 24 Sep 2026 (Starter only, both cycles). This
+  // file opts into DMS Subscriptions (beforeEach), and that path sets up a
+  // YEARLY subscription, so a monthly trial must be refused here rather than
+  // billed for a year. The accepted case is in the Manual-flow block below.
+  it("monthly trial where a yearly subscription would be created → 400, nothing set up", async () => {
     const res = await POST(
-      makeReq({
-        cartItems: [
-          {
-            ...trialCart.cartItems[0],
-            billingCycle: "monthly",
-            registrationPeriod: 1,
-          },
-        ],
-      })
+      makeReq({ cartItems: [{ ...trialCart.cartItems[0], billingCycle: "monthly" }] })
     );
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.error).toBe(
-      "Trial is only available for yearly hosting plans"
+    expect(body.error).toContain("monthly free trial isn't available right now");
+    expect(createManualFlowTrialHosting).not.toHaveBeenCalled();
+  });
+
+  it("a trial line with no billing cycle → 400 that says how to recover", async () => {
+    const { billingCycle: _drop, ...noCycle } = trialCart.cartItems[0];
+    void _drop;
+    const res = await POST(makeReq({ cartItems: [noCycle] }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain("missing its billing cycle");
+  });
+
+  it("a Plus trial → 400 before any trial check runs (Starter only)", async () => {
+    const res = await POST(
+      makeReq({ cartItems: [{ ...trialCart.cartItems[0], hostingPlan: { id: "plus", name: "Plus" } }] })
     );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain("only on the Starter plan");
+    expect(userHasPriorTrialOrder).not.toHaveBeenCalled();
   });
 
   it("trialsEnabled=false → 400 'Free trials are currently unavailable'", async () => {
@@ -943,6 +955,23 @@ describe("Manual-flow branch (HOSTING_MANDATE_FLOW=manual)", () => {
 
   afterEach(() => {
     delete process.env.HOSTING_MANDATE_FLOW;
+  });
+
+  it("a MONTHLY Starter trial goes through, and the hosting is told it renews monthly", async () => {
+    const res = await POST(
+      makeReq({ cartItems: [{ ...manualTrialCart.cartItems[0], billingCycle: "monthly" }] })
+    );
+    expect(res.status).toBe(200);
+    expect(createManualFlowTrialHosting).toHaveBeenCalledWith(
+      expect.objectContaining({ billingCycle: "monthly", planId: "starter" })
+    );
+  });
+
+  it("a yearly trial still records yearly", async () => {
+    await POST(makeReq(manualTrialCart));
+    expect(createManualFlowTrialHosting).toHaveBeenCalledWith(
+      expect.objectContaining({ billingCycle: "yearly" })
+    );
   });
 
   it("with flag=manual + trial: calls createManualFlowTrialHosting; NO Razorpay calls of any kind", async () => {

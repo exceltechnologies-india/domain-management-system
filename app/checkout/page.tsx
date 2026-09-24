@@ -47,18 +47,20 @@ export default function CheckoutPage() {
   const razorpay = useRazorpayCheckout();
   const hasTrial = cartItems.some((i: CartItem) => i.isTrial === true);
   const trialItem = cartItems.find((i: CartItem) => i.isTrial === true);
-  // What the trial converts to: ResellerOS's yearly price incl. GST, from the
-  // same function create-order and the renewal route charge with (owner
-  // decision, 24 Sep 2026). Computed from the plan id first, because a cart
-  // saved before that date carries the old DMS figure in hostingPlan.price
-  // and would show ₹599.88 for a year that now costs ₹708. The stored value
-  // is only a last resort for a plan ResellerOS does not price.
-  const trialYearlyPrice = (() => {
+  // What the trial converts to: ResellerOS's price incl. GST for the trial's
+  // cycle — yearly, or monthly since 24 Sep 2026 — from the same function
+  // create-order and the renewal route charge with. Computed from the plan id
+  // first, because a cart saved before that date carries the old DMS figure in
+  // hostingPlan.price. The stored per-month value is only a last resort for a
+  // plan ResellerOS does not price.
+  const trialCycle: 'monthly' | 'yearly' = trialItem?.billingCycle === 'monthly' ? 'monthly' : 'yearly';
+  const trialPer = trialCycle === 'monthly' ? 'month' : 'year';
+  const trialAfterPrice = (() => {
     if (!trialItem) return 0;
-    const charge = hostingCharge(trialItem.hostingPlan?.id, 'yearly');
+    const charge = hostingCharge(trialItem.hostingPlan?.id, trialCycle);
     if (charge) return charge.inclGst;
     const stored = trialItem.hostingPlan?.price;
-    return typeof stored === 'number' && stored > 0 ? stored * 12 : 0;
+    return typeof stored === 'number' && stored > 0 ? stored * (trialCycle === 'monthly' ? 1 : 12) : 0;
   })();
 
   // Fire InitiateCheckout (Pixel) + internal checkout_started once on mount.
@@ -501,7 +503,7 @@ export default function CheckoutPage() {
                               )}
                               <p className="text-sm text-gray-600">
                                         {item.isTrial
-                                  ? '15-Day Free Trial → Yearly subscription'
+                                  ? `15-Day Free Trial → ${item.billingCycle === 'monthly' ? 'Monthly' : 'Yearly'} plan`
                                   : item.itemType === 'hosting' && item.periodUnit === 'days'
                                   ? `${item.registrationPeriod} day subscription`
                                   : item.itemType === 'hosting' && item.registrationPeriod === 12
@@ -533,11 +535,11 @@ export default function CheckoutPage() {
                               <>
                                 <p className="text-xl font-bold text-green-600">₹0.00</p>
                                 <p className="text-xs text-gray-500">Free for 15 days</p>
-                                {/* Post-trial yearly charge — `trialYearlyPrice`,
-                                    ResellerOS's price incl. GST, computed from
-                                    the plan id (see its definition above). */}
+                                {/* Post-trial charge for the trial's cycle —
+                                    `trialAfterPrice`, ResellerOS's price incl.
+                                    GST (see its definition above). */}
                                 <p className="text-xs text-purple-600 font-medium mt-0.5">
-                                  then ₹{trialYearlyPrice.toFixed(2)}/yr
+                                  then ₹{trialAfterPrice.toFixed(2)}/{trialCycle === 'monthly' ? 'mo' : 'yr'}
                                 </p>
                               </>
                             ) : (
@@ -636,7 +638,10 @@ export default function CheckoutPage() {
                       <div>
                         <p className="font-semibold text-purple-900 text-sm">Free 15-Day Trial</p>
                         <p className="text-xs text-purple-700 mt-0.5">
-                          Your card will be saved for automatic yearly billing after the trial ends. You can cancel anytime during the trial.
+                          {/* Was "your card will be saved for automatic yearly billing" — untrue
+                              since trials moved to the no-card path (create-order: the only trial
+                              path while DMS opens no subscriptions). */}
+                          No card is taken and nothing is charged automatically. Before the trial ends we&apos;ll remind you to pay for the next {trialPer} from your dashboard. You can cancel anytime during the trial.
                         </p>
                         <div className="mt-2 space-y-0.5">
                           <div className="flex justify-between text-xs">
@@ -645,7 +650,7 @@ export default function CheckoutPage() {
                           </div>
                           <div className="flex justify-between text-xs">
                             <span className="text-purple-700 font-medium">After trial (day 15+)</span>
-                            <span className="font-bold text-purple-900">₹{trialYearlyPrice.toFixed(2)}/year</span>
+                            <span className="font-bold text-purple-900">₹{trialAfterPrice.toFixed(2)}/{trialPer}</span>
                           </div>
                         </div>
                       </div>

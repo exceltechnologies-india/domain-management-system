@@ -76,14 +76,20 @@ export function buildHostingCartItem(
 }
 
 /**
- * A free-trial line: ₹0 today, then the plan's ResellerOS yearly price.
+ * A free-trial line: ₹0 today, then the plan's ResellerOS price for the chosen
+ * cycle — yearly, or monthly since 24 Sep 2026 (Starter only, both cycles).
  *
  * `price` is the today-charge and stays 0; `hostingPlan.price` carries the
- * post-trial per-month figure (GST-inclusive, so checkout's "× 12" shows the
- * real yearly charge). Eligibility is checked by the caller AND again by
+ * post-trial per-month figure (GST-inclusive). `billingCycle` is what the trial
+ * converts to, and create-order stores it on the hosting so the renewal charges
+ * the same cycle. Eligibility is checked by the caller AND again by
  * create-order — this only builds the line.
  */
-export function buildTrialCartItem(plan: HostingPlanConfig, now: number = Date.now()): CartItem {
+export function buildTrialCartItem(
+  plan: HostingPlanConfig,
+  cycle: "monthly" | "yearly" = "yearly",
+  now: number = Date.now(),
+): CartItem {
   return {
     domainName: `hosting-trial-${plan.id}-${now}`,
     price: 0,
@@ -91,15 +97,15 @@ export function buildTrialCartItem(plan: HostingPlanConfig, now: number = Date.n
     registrationPeriod: 15,
     periodUnit: "days",
     itemType: "hosting",
-    billingCycle: "yearly",
+    billingCycle: cycle,
     isTrial: true,
     hostingPlan: {
       id: plan.id,
       name: `${plan.name} Hosting`,
       period: 15,
-      features: [...plan.features, "15-Day Free Trial", "30-Day Money-Back Guarantee"],
+      features: [...plan.features, "15-Day Free Trial", ...(cycle === "yearly" ? ["30-Day Money-Back Guarantee"] : [])],
       serverPackage: plan.serverPackage,
-      price: cartLinePrice(chargeFor(plan, "yearly")),
+      price: cartLinePrice(chargeFor(plan, cycle)),
     },
   };
 }

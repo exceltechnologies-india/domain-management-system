@@ -21,6 +21,7 @@ import {
   chargeFor,
   type BillingCycle,
 } from '@/lib/purchase/hosting-cart-item';
+import { isTrialPlan } from '@/lib/pricing/trial-plan';
 import { getDeviceFingerprint } from '@/lib/device-fingerprint';
 import { apiClient } from '@/lib/api-client';
 import { trackStartTrial } from '@/lib/journey';
@@ -62,8 +63,8 @@ export default function BuyHostingModal({ isOpen, onClose }: BuyHostingModalProp
         toast.error(result.data.reason || 'You are not eligible for a free trial.');
         return;
       }
-      addItem(buildTrialCartItem(plan));
-      toast.success(`${plan.name} free trial added — ₹0 today, then billed yearly after 15 days.`);
+      addItem(buildTrialCartItem(plan, cycle));
+      toast.success(`${plan.name} free trial added — ₹0 today, then billed ${cycle === 'monthly' ? 'monthly' : 'yearly'} after 15 days.`);
       router.push('/cart');
     } finally {
       setCheckingTrial(false);
@@ -130,7 +131,9 @@ export default function BuyHostingModal({ isOpen, onClose }: BuyHostingModalProp
               >
                 Add to cart
               </button>
-              {cycle === 'yearly' && plan.id === 'starter' && (
+              {/* Starter only, on monthly AND yearly (owner, 24 Sep 2026). The
+                  server re-checks both: lib/pricing/trial-plan.ts. */}
+              {isTrialPlan(plan.id) && (
                 <button
                   type="button"
                   disabled={checkingTrial}

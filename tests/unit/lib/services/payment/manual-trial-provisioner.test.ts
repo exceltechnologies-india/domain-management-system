@@ -44,6 +44,7 @@ describe("createManualFlowTrialHosting", () => {
       planId: "starter",
       planName: "Starter Yearly",
       orderId: "ord_manual_1",
+      billingCycle: "yearly",
     });
 
     expect(createHosting).toHaveBeenCalledTimes(1);
@@ -68,6 +69,18 @@ describe("createManualFlowTrialHosting", () => {
     expect(args.directAdminUsername).toBe(""); // DA cron overwrites
   });
 
+  it("records the cycle the trial converts to, so the renewal charges that cycle", async () => {
+    await createManualFlowTrialHosting({
+      userId: "U1",
+      domainName: "example.com",
+      planId: "starter",
+      planName: "Starter",
+      orderId: "ord_manual_m",
+      billingCycle: "monthly",
+    });
+    expect(createHosting.mock.calls[0][0].billingCycle).toBe("monthly");
+  });
+
   it("sets expiryDate = now + 15 days", async () => {
     const before = Date.now();
     await createManualFlowTrialHosting({
@@ -76,6 +89,7 @@ describe("createManualFlowTrialHosting", () => {
       planId: "starter",
       planName: "Starter",
       orderId: "ord_x",
+      billingCycle: "yearly",
     });
     const after = Date.now();
 
@@ -94,6 +108,7 @@ describe("createManualFlowTrialHosting", () => {
       planId: "starter",
       planName: "Starter",
       orderId: "ord_x",
+      billingCycle: "yearly",
     });
 
     const args = createHosting.mock.calls[0][0];
@@ -113,6 +128,7 @@ describe("createManualFlowTrialHosting", () => {
       planId: "starter",
       planName: "Starter",
       orderId: "ord_rv",
+      billingCycle: "yearly",
     });
 
     expect(result.hostingId).toBe("H_MANUAL_1");
@@ -128,6 +144,7 @@ describe("createManualFlowTrialHosting", () => {
       planId: "starter",
       planName: "", // empty
       orderId: "ord_x",
+      billingCycle: "yearly",
     });
 
     const args = createHosting.mock.calls[0][0];
@@ -143,6 +160,7 @@ describe("createManualFlowTrialHosting", () => {
       planName: "Starter",
       serverPackage: "starter_da_package",
       orderId: "ord_x",
+      billingCycle: "yearly",
     });
 
     const args = createHosting.mock.calls[0][0];
@@ -158,6 +176,7 @@ describe("createManualFlowTrialHosting", () => {
         planId: "starter",
         planName: "Starter",
         orderId: "ord_x",
+        billingCycle: "yearly",
       })
     ).rejects.toThrow("Mongo write failed");
   });

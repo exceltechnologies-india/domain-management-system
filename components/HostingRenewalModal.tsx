@@ -29,6 +29,13 @@ interface RenewalInfo {
   };
 }
 
+/** Expiry after adding `months`, in UTC months — as the payment side extends it. */
+function newExpiryAfter(currentExpiry: string, months: number): Date {
+  const d = new Date(currentExpiry);
+  d.setUTCMonth(d.getUTCMonth() + months);
+  return d;
+}
+
 export default function HostingRenewalModal({
   isOpen,
   onClose,
@@ -103,7 +110,7 @@ export default function HostingRenewalModal({
           amount: data.amount * 100, // Not strictly required if order_id is present, but good practice
           currency: data.currency,
           name: 'AnuTech Hosting',
-          description: `Renewal for ${domainName} (1 Year)`,
+          description: `Renewal for ${domainName} (${renewalInfo?.renewalPricing.periodMonths === 1 ? '1 Month' : '1 Year'})`,
           order_id: data.razorpayOrderId,
           prefill: { email: session?.user?.email || '' },
           theme: { color: razorpayThemeColor() }
@@ -181,6 +188,9 @@ export default function HostingRenewalModal({
   if (!isOpen) return null;
 
   const daysUntilExpiry = renewalInfo ? getDaysUntilExpiry(renewalInfo.currentExpiry) : 0;
+  // One month for a hosting set up monthly (a monthly Starter trial, since
+  // 24 Sep 2026), otherwise one year — read off renew-info, which prices it.
+  const isMonthly = renewalInfo?.renewalPricing.periodMonths === 1;
   const isExpiringSoon = daysUntilExpiry <= 30;
 
   return (
@@ -259,8 +269,8 @@ export default function HostingRenewalModal({
                     <div className="flex items-center">
                       <div className="h-5 w-5 rounded-full border-4 border-indigo mr-3 bg-paper"></div>
                       <div>
-                        <p className="font-bold text-ink">1 Year Extension</p>
-                        <p className="text-xs text-ink-3">Add 12 months from current expiry</p>
+                        <p className="font-bold text-ink">{isMonthly ? '1 Month Extension' : '1 Year Extension'}</p>
+                        <p className="text-xs text-ink-3">{isMonthly ? 'Add 1 month from current expiry' : 'Add 12 months from current expiry'}</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -269,9 +279,11 @@ export default function HostingRenewalModal({
                     </div>
                   </div>
                 </div>
-                <p className="mt-4 text-[10px] text-ink-4 text-center uppercase tracking-widest font-bold">
-                    * Monthly renewals are restricted to new customers only
-                </p>
+                {!isMonthly && (
+                  <p className="mt-4 text-[10px] text-ink-4 text-center uppercase tracking-widest font-bold">
+                      * Monthly renewals are restricted to new customers only
+                  </p>
+                )}
               </div>
 
               {/* Benefits */}
@@ -286,7 +298,7 @@ export default function HostingRenewalModal({
                 </div>
                 <div className="flex items-center text-xs text-ink-2">
                     <CheckCircle className="h-3.5 w-3.5 mr-2 text-emerald-ink" />
-                    New Expiry: {formatIndianDate(new Date(new Date(renewalInfo.currentExpiry).setFullYear(new Date(renewalInfo.currentExpiry).getUTCFullYear() + 1)).toISOString())}
+                    New Expiry: {formatIndianDate(newExpiryAfter(renewalInfo.currentExpiry, renewalInfo.renewalPricing.periodMonths).toISOString())}
                 </div>
               </div>
 

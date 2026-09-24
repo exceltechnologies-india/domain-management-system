@@ -21,7 +21,8 @@ import { describe, it, expect } from "vitest";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { buyHref, parseBuyKind } from "@/lib/purchase/buy-dialog";
-import { buildHostingCartItem, buildTrialCartItem } from "@/lib/purchase/hosting-cart-item";
+import { buildHostingCartItem, buildTrialCartItem, chargeFor } from "@/lib/purchase/hosting-cart-item";
+import { cartLinePrice } from "@/lib/pricing/hosting-price";
 import { HOSTING_PLANS } from "@/config/hosting-plans";
 import type { CartItem } from "@/lib/types";
 
@@ -103,7 +104,7 @@ describe("buildHostingCartItem — the old page's shape, at ResellerOS's price i
 
 describe("buildTrialCartItem", () => {
   it("₹0 today for 15 days, carrying the post-trial rate (₹708 a year ÷ 12)", () => {
-    const item = buildTrialCartItem(starter, 1000);
+    const item = buildTrialCartItem(starter, "yearly", 1000);
     expect(item.price).toBe(0);
     expect(item.registrationPeriod).toBe(15);
     expect(item.periodUnit).toBe("days");
@@ -111,6 +112,17 @@ describe("buildTrialCartItem", () => {
     expect(item.billingCycle).toBe("yearly");
     expect(item.hostingPlan?.price).toBe(59);
     expect(item.domainName).toBe("hosting-trial-starter-1000");
+  });
+
+  it("a MONTHLY trial carries the monthly rate and says monthly, so the renewal charges one month", () => {
+    const item = buildTrialCartItem(starter, "monthly", 1000);
+    expect(item.price).toBe(0);
+    expect(item.billingCycle).toBe("monthly");
+    const monthly = cartLinePrice(chargeFor(starter, "monthly"));
+    expect(item.hostingPlan?.price).toBe(monthly);
+    expect(item.hostingPlan?.price).not.toBe(buildTrialCartItem(starter, "yearly", 1000).hostingPlan?.price);
+    // The money-back guarantee is a yearly-plan promise; a monthly line must not carry it.
+    expect(item.hostingPlan?.features).not.toContain("30-Day Money-Back Guarantee");
   });
 });
 

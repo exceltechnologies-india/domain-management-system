@@ -13,6 +13,14 @@ export const TRIAL_PLAN_ID = "starter";
 export const TRIAL_PLAN_REFUSAL =
   "The free trial is only on the Starter plan. Start a Starter trial, or add Standard or Plus to your cart and buy it.";
 
+/**
+ * The cycle a hosting renews on. Only an explicit "monthly" is monthly: a row
+ * written before `billingCycle` existed renews yearly, exactly as it did then.
+ */
+export function renewalCycle(billingCycle: string | null | undefined): "monthly" | "yearly" {
+  return billingCycle === "monthly" ? "monthly" : "yearly";
+}
+
 /** True only for Starter. Case-insensitive: the DB stores "Starter", the config "starter". */
 export function isTrialPlan(planId: string | null | undefined): boolean {
   return (planId ?? "").trim().toLowerCase() === TRIAL_PLAN_ID;

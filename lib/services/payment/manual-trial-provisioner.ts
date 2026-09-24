@@ -43,6 +43,8 @@ export interface ManualTrialInputs {
   planName: string;
   serverPackage?: string;
   orderId: string;
+  /** What the trial converts to at the end. Monthly since 24 Sep 2026. */
+  billingCycle: "monthly" | "yearly";
 }
 
 export interface ProvisionedManualTrialHosting {
@@ -80,6 +82,7 @@ export async function createManualFlowTrialHosting(
     // are operator/customer initiated via the existing renewal flow
     // at /api/user/hosting/renew.
     billingType: "manual",
+    billingCycle: input.billingCycle,
     isTrial: true,
     autoRenew: false, // manual mode means customer chooses when to pay
     next_action_at: reminderDate,

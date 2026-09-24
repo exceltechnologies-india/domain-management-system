@@ -217,6 +217,9 @@ export async function POST(request: NextRequest) {
       if (hasRecurringHosting) {
         const item = recurringHostingItems[0];
         const isTrial = item.isTrial === true;
+        // What a trial converts to. Monthly since 24 Sep 2026 (Starter, both
+        // cycles); anything but an explicit "monthly" stays yearly, as before.
+        const trialCycle: "monthly" | "yearly" = item.billingCycle === "monthly" ? "monthly" : "yearly";
 
         // Route the plan lookup through the service helper (not
         // HostingPlan.findOne directly) so the case-insensitive $regex
@@ -246,9 +249,23 @@ export async function POST(request: NextRequest) {
           if (!isTrialPlan(item.hostingPlan?.id)) {
             return NextResponse.json({ error: TRIAL_PLAN_REFUSAL }, { status: 400 });
           }
-          // Trials are yearly-only
-          if (item.billingCycle !== 'yearly' && item.registrationPeriod !== 15) {
-            return NextResponse.json({ error: "Trial is only available for yearly hosting plans" }, { status: 400 });
+          // A trial line says which cycle it converts to, and nothing else.
+          if (item.billingCycle !== 'yearly' && item.billingCycle !== 'monthly') {
+            return NextResponse.json(
+              { error: "This trial is missing its billing cycle. Remove it from your cart and start the trial again from Buy hosting." },
+              { status: 400 },
+            );
+          }
+          // A MONTHLY trial exists only on the no-mandate path, which records the
+          // cycle on the hosting and lets the customer renew one month at a time.
+          // The Tokens and Subscriptions paths set up a YEARLY mandate or
+          // subscription, so they would silently bill a monthly customer for a
+          // year. Refused rather than converted.
+          if (trialCycle === 'monthly' && !(process.env.HOSTING_MANDATE_FLOW === 'manual' || !dmsCreatesHostingSubscriptions())) {
+            return NextResponse.json(
+              { error: "A monthly free trial isn't available right now. Start the trial on yearly billing, or buy Starter monthly without a trial." },
+              { status: 400 },
+            );
           }
           // One trial per user lifetime
           const { getSettingValue } = await import("@/lib/services/settings");
@@ -305,8 +322,8 @@ export async function POST(request: NextRequest) {
         let subscriptionCreated = false;
 
         if (plan) {
-          // Trials always use the yearly plan ID
-          const period = isTrial ? 'yearly' : (item.registrationPeriod === 12 ? 'yearly' : 'monthly');
+          // A trial's period is the cycle it converts to (see trialCycle above).
+          const period = isTrial ? trialCycle : (item.registrationPeriod === 12 ? 'yearly' : 'monthly');
 
           // ── Manual-flow branch (no mandate at signup) ───────────────────
           // Temporary trial-without-mandate path while Razorpay UPI Autopay
@@ -386,6 +403,7 @@ export async function POST(request: NextRequest) {
                 planName: plan.name,
                 serverPackage: (plan as { directAdminPackage?: string }).directAdminPackage,
                 orderId: manualInternalOrderId,
+                billingCycle: trialCycle,
               });
 
               subscriptionData = {

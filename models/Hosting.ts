@@ -23,6 +23,13 @@ export interface IHosting extends Document {
   nameservers?: string[];
   autoRenew: boolean;
   billingType: "subscription" | "manual";
+  /**
+   * How the customer renews: one month or one year at a time. Written for trials
+   * since 24 Sep 2026, when a Starter trial became available on monthly as well
+   * as yearly. Absent on every older row, and absent means yearly — what the
+   * renew route charged for every hosting before this field existed.
+   */
+  billingCycle?: "monthly" | "yearly";
   isTrial: boolean;
   conversionEventSent?: boolean;
   // DA-provisioning failure capture. Stamped (awaited) by the tokens-da
@@ -133,6 +140,11 @@ const HostingSchema = new Schema<IHosting>(
       type: String,
       enum: ["subscription", "manual"],
       default: "manual",
+    },
+    billingCycle: {
+      type: String,
+      enum: ["monthly", "yearly"],
+      required: false,
     },
     isTrial: {
       type: Boolean,
