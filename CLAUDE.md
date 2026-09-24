@@ -98,6 +98,30 @@ Asked whether ₹49.99/month includes GST (DMS's reading) or not (ResellerOS's),
 - **Fixed on the way — both were customer-visible:** the expiry worker raised yearly renewals at the per-MONTH figure (₹49.99 for a year) and emailed that amount to the customer, and fell back to Starter's price for any plan it did not recognise. A plan with no ResellerOS price now gets no renewal order and no email with an invented amount — it is suspended as before and logged with an ACTION line.
 - **Known gap:** `config/hosting-plans.ts` is still a copy of ResellerOS's `LANDING_PLANS` (pinned equal by `tests/unit/lib/purchase/purchase.test.ts`). Reading the prices from ResellerOS over the engine API would remove the copy.
 
+## Further owner decisions, 24 Sep 2026 — what they mean for DMS
+
+Asked and answered the same day; the questions, the options offered and the exact answers are
+in the ResellerOS repo, `Todos.md` §0A ("Decisions 12–18"). None of these is built yet unless it
+says so — each waits for the owner's go-ahead.
+
+- **Money goes to ResellerOS's Razorpay account**, including purchases made inside this panel.
+  DMS's checkout still uses DMS's own keys today; moving it is pending.
+- **A bill shown in this panel is ResellerOS's own PDF.** DMS renders no bill of its own.
+- **If ResellerOS is down during an in-panel purchase: take the payment, bill later.** Queue the
+  bill request, retry, show "bill being prepared", alert the owner if it gets stuck.
+- **The three admin invoice actions are to be REMOVED** — re-sync invoice
+  (`app/api/admin/orders/[id]/re-sync-invoice`), invoice retry (`lib/invoice-retry.ts` and its
+  pill), the issue-invoice worker (`app/api/workers/issue-invoice`). The owner chose removal over
+  "fetch from ResellerOS": bill problems are handled in ResellerOS. Do this in the same change that
+  stops `createPrimaryInvoice`, so there is never a window with two issuers or none.
+- **Admin → Page management's dead controls are to be removed** (visibility of deleted pages,
+  homepage design).
+- **Production ResellerOS address: `https://reselleros.anutech.in`** — the value for
+  `NEXT_PUBLIC_RESELLEROS_URL`. Production deploys only on an explicit go.
+- **`tokens-charge-recurring` is to be paused in Cloud Scheduler** — the owner will run
+  `gcloud scheduler jobs pause tokens-charge-recurring --location=asia-south1 --project=speedy-unison-453807-e9`.
+  Until then the code gate (`DMS_TOKEN_RECURRING_ENABLED`) keeps it from charging anyone.
+
 ## Zoho Books removed — our GST engine is the only invoice issuer (OWNER DECISION, 24 Sep 2026)
 
 **This is a user decision, not a refactor.** On 24 Sep 2026 the owner (Pardeep) asked for Zoho Books to be removed completely: *"Remove the Zoho completely. Mark it as user decision."* Do not reintroduce Zoho Books — as a fallback, a sync, a contact mirror or anything else — without the owner asking for it. If a future need looks like it wants an accounting system, raise it with the owner first; do not build it.
