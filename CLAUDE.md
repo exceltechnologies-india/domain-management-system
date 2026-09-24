@@ -121,10 +121,22 @@ says so — each waits for the owner's go-ahead.
 - **`tokens-charge-recurring` is to be paused in Cloud Scheduler** — the owner will run
   `gcloud scheduler jobs pause tokens-charge-recurring --location=asia-south1 --project=speedy-unison-453807-e9`.
   Until then the code gate (`DMS_TOKEN_RECURRING_ENABLED`) keeps it from charging anyone.
+- **`hosting.provision` is BUILT and OFF (decision 25, 24 Sep 2026).** A sale made on ResellerOS
+  is provisioned HERE (this app stays the only DirectAdmin writer for a sale), into the buyer's DMS
+  account. `lib/integrations/engine-handlers-provision.ts`. **Usernames are deterministic per
+  domain** (`daUsernameFor`) and DirectAdmin is READ before any create — an account already on the
+  domain is adopted, never duplicated; do not switch this back to the random `generateDaUsername`
+  the other provisioners use. Package from the catalogue, test-mode payments held, own gate
+  `ENGINE_HOSTING_PROVISION_LIVE=1`.
+- **A buyer's DMS account gets a "set your password" email at creation** (`engine-customer.ts`,
+  shared by both commands), as guest checkout does. It is their only way in: ResellerOS has no
+  customer portal, so there is no hand-off for a customer to start. (Earlier text in this file said
+  they "arrive by the engine-sso hand-off" — that is how staff reach a panel, not how a customer
+  reaches their own.)
 - **`domain.register` is BUILT and OFF (Phase 9, decisions 21-24, 24 Sep 2026).**
   `lib/integrations/engine-handlers-register.ts` + `engine-register-policy.ts`. Registers under the
-  customer's own details into a DMS account for them (found or created by email, no usable
-  password — they arrive by the engine-sso hand-off), within a spend limit: live payment, paid ≥
+  customer's own details into a DMS account for them (found or created by email, with a
+  "set your password" email — see the entry above), within a spend limit: live payment, paid ≥
   ResellerClub cost, ≤ `ENGINE_DOMAIN_REGISTER_MAX_PER_DAY` (5) and
   `ENGINE_DOMAIN_REGISTER_MAX_RUPEES_PER_DAY` (₹10,000) in 24 h. A refusal starts `[held]` and is a
   wait-for-a-person, not a failure. Live only when `ENGINE_DOMAIN_REGISTER_LIVE=1` — its OWN gate in

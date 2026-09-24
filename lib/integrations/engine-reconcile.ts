@@ -27,6 +27,7 @@ import { reconcileSuspend, reconcileUnsuspend } from "./engine-handlers-hosting"
 import { reconcileChangePlan } from "./engine-handlers-plan";
 import { reconcileRenew } from "./engine-handlers-domain";
 import { reconcileRegister } from "./engine-handlers-register";
+import { reconcileProvision } from "./engine-handlers-provision";
 
 export type ReconcileVerdict =
   /** The provider confirms the work exists. The command really did succeed. */
@@ -78,6 +79,9 @@ export const RECONCILERS: Partial<Record<KnownCommand, Reconciler>> = {
   /* Phase 9. Observable as a pure read: is the domain in our reseller account,
      owned by this customer's ResellerClub id. */
   "domain.register": reconcileRegister,
+  /* Observable: does a DirectAdmin account for this domain exist under one of
+     its deterministic usernames. */
+  "hosting.provision": reconcileProvision,
 };
 
 export function reconcilerFor(command: string): Reconciler | null {

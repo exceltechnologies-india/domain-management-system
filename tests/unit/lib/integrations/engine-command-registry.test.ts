@@ -58,27 +58,17 @@ describe("what can actually be performed", () => {
       "domain.renew",
       "engine.selftest",
       "hosting.change_plan",
+      "hosting.provision",
       "hosting.suspend",
       "hosting.unsuspend",
     ]);
   });
 
-  it.each(["hosting.provision"])(
-    "%s still has NO handler",
-    (c) => {
-      // The day one of these gets a handler, this test fails and whoever added
-      // it has to come here and say so. It did its job on 21 Sep: Phase 7
-      // registered change_plan and this assertion is why that was a deliberate
-      // edit rather than a silent one.
-      //
-      // `hosting.provision` is on this list for a DIFFERENT reason from the
-      // other two. They spend an unrecoverable rupee. It is blocked on a
-      // product decision — DMS mints a Math.random() password it never returns
-      // because its customers arrive by SSO, so an engine-provisioned account
-      // has no way in. Todos.md §D.
-      expect(handlerFor(c as never)).toBeNull();
-    }
-  );
+  it("every known command is now performable — the two irreversible ones behind their own gates", () => {
+    // 24 Sep 2026: domain.register and hosting.provision got handlers. What
+    // keeps them from running is engine-mode.ts OWN_LIVE_GATES, not an absence.
+    for (const c of KNOWN_COMMANDS) expect(handlerFor(c), c).not.toBeNull();
+  });
 
   it("the selftest handler contacts nothing and says so", async () => {
     const h = handlerFor("engine.selftest");

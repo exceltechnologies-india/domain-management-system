@@ -39,18 +39,19 @@ describe("a reconciler exists only where the effect is observable", () => {
       "domain.register",
       "domain.renew",
       "hosting.change_plan",
+      "hosting.provision",
       "hosting.suspend",
       "hosting.unsuspend",
     ]);
   });
 
-  it.each(["hosting.provision"])(
-    "%s has no reconciler — its command is not built yet",
+  it.each(["engine.selftest"])(
+    "%s has no reconciler — it does nothing to reconcile",
     (c) => expect(reconcilerFor(c)).toBeNull()
   );
 
   it("a command with no reconciler is unknown, and says what to do instead", async () => {
-    const r = await reconcileCommand("hosting.provision", ctx);
+    const r = await reconcileCommand("engine.selftest", ctx);
     expect(r.verdict).toBe("unknown");
     expect(r.detail).toMatch(/no automatic check/i);
     // CLAUDE.md §24 — not a bare "cannot".
@@ -64,12 +65,12 @@ describe("a reconciler's verdict is taken literally", () => {
     fn: () => Promise<"done" | "not_done" | "unknown"> | never
   ) => {
     // A command with NO real reconciler, so installing and deleting a fake one
-    // cannot remove a real one (domain.register has had one since Phase 9).
-    (RECONCILERS as Record<string, unknown>)["hosting.provision"] = fn;
+    // cannot remove a real one (every other command has one since 24 Sep 2026).
+    (RECONCILERS as Record<string, unknown>)["engine.selftest"] = fn;
     try {
-      return await reconcileCommand("hosting.provision", ctx);
+      return await reconcileCommand("engine.selftest", ctx);
     } finally {
-      delete (RECONCILERS as Record<string, unknown>)["hosting.provision"];
+      delete (RECONCILERS as Record<string, unknown>)["engine.selftest"];
     }
   };
 

@@ -97,10 +97,6 @@ export const LIVE_ELIGIBLE_COMMANDS: readonly string[] = [
  * default. Whoever adds it has to decide, here, in writing.
  */
 export const LIVE_INELIGIBLE_REASONS: Readonly<Record<string, string>> = {
-  "hosting.provision":
-    "provisioning a hosting account is blocked on a product decision, not on a switch: DMS " +
-    "mints a password it never returns because its customers arrive by SSO, so an " +
-    "engine-provisioned account for somebody with no DMS portal user has no way in at all.",
   /**
    * The reason CHANGED on 23 Sep 2026 and the old one must not linger: it said
    * "nobody has yet established whether a second call adds a second year".
@@ -138,6 +134,11 @@ export const LIVE_INELIGIBLE_REASONS: Readonly<Record<string, string>> = {
  */
 export const OWN_LIVE_GATES: Readonly<Record<string, string>> = {
   "domain.register": "ENGINE_DOMAIN_REGISTER_LIVE",
+  /* 24 Sep 2026. Was permanently ineligible because an engine-created account
+     had no DMS user to reach it by SSO; the owner's decision to create that
+     account removed the reason. Its own gate, for the same reason as
+     domain.register: opening it must put nothing else live. */
+  "hosting.provision": "ENGINE_HOSTING_PROVISION_LIVE",
 };
 
 /** True only when the command's own gate is set to exactly "1". */

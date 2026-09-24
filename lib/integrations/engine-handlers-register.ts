@@ -41,6 +41,7 @@ import {
   type DailyUsage,
   type RegisterRequest,
 } from "./engine-register-policy";
+import { ensureDmsUser } from "./engine-customer";
 
 /** Lazy for the same reason as the other handlers: these modules throw at load without env. */
 async function deps() {
@@ -123,29 +124,6 @@ async function ownership(d: Deps, domain: string, email: string): Promise<"ours_
   return owner === customer.customerId ? "ours_this_customer" : "ours_other_customer";
 }
 
-/** Find the customer's DMS account by email, or create one they reach by SSO. */
-async function ensureDmsUser(d: Deps, req: RegisterRequest) {
-  const existing = await d.users.getUserByEmail(req.registrant.email);
-  if (existing) return { user: existing, created: false };
-  const { randomBytes } = await import("node:crypto");
-  const user = await d.users.createUser({
-    email: req.registrant.email,
-    // Never shown or stored anywhere else: the customer arrives by the signed
-    // ResellerOS hand-off (engine-sso), which needs an existing account — this.
-    password: randomBytes(24).toString("base64url"),
-    firstName: req.registrant.firstName,
-    lastName: req.registrant.lastName,
-    phone: req.registrant.phone,
-    phoneCc: req.registrant.phoneCc,
-    companyName: req.registrant.companyName,
-    address: req.registrant.address,
-    isActivated: true,
-    profileCompleted: true,
-  });
-  serverLogger.info(`[engine] domain.register created DMS account for ${req.registrant.email}`);
-  return { user, created: true };
-}
-
 export const registerDomainCommand: CommandHandler = async (ctx): Promise<HandlerResult> => {
   const req = parseRegister(ctx.payload);
   const domain = ctx.subject.trim().toLowerCase();
@@ -203,7 +181,7 @@ export const registerDomainCommand: CommandHandler = async (ctx): Promise<Handle
   if (!spend.ok) throw new Error(spend.hold);
 
   // ── 5. DMS account + ResellerClub customer/contact (found or created) ─────
-  const { user, created } = await ensureDmsUser(d, req);
+  const { user, created } = await ensureDmsUser(req.registrant);
   const rc = await d.ResellerClubAPI.getOrCreateCustomerAndContact({
     email: req.registrant.email,
     firstName: req.registrant.firstName,

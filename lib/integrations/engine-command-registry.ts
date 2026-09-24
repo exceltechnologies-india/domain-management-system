@@ -18,8 +18,8 @@
  * Phase 9 (24 Sep 2026) added domain.register, which cannot be undone — live
  * only behind its own gate and a spend limit.
  *
- * Still unhandled: hosting.provision, blocked on a product decision rather
- * than on effort (see engine-handlers-plan.ts).
+ * hosting.provision followed the same day, once the owner decided an
+ * engine-sourced buyer gets a DMS account — the reason it had been blocked.
  */
 import type { EngineMode } from "./engine-mode";
 import { upsertDnsRecord } from "./engine-handlers-dns";
@@ -27,6 +27,7 @@ import { suspendHosting, unsuspendHosting } from "./engine-handlers-hosting";
 import { changeHostingPlan } from "./engine-handlers-plan";
 import { renewDomainCommand } from "./engine-handlers-domain";
 import { registerDomainCommand } from "./engine-handlers-register";
+import { provisionHostingCommand } from "./engine-handlers-provision";
 
 /** Every command the contract names, whether or not it is implemented. */
 export const KNOWN_COMMANDS = [
@@ -112,6 +113,11 @@ export const HANDLERS: Partial<Record<KnownCommand, CommandHandler>> = {
      ENGINE_DOMAIN_REGISTER_LIVE=1 (engine-mode.ts OWN_LIVE_GATES), and only
      within the spend limit in engine-register-policy.ts. */
   "domain.register": registerDomainCommand,
+  /* 24 Sep 2026 — unblocked by creating the buyer's DMS account (decision 23).
+     Deterministic usernames + a read before the write, so a retry adopts the
+     account an earlier attempt made instead of creating a second one. Live only
+     behind ENGINE_HOSTING_PROVISION_LIVE=1. */
+  "hosting.provision": provisionHostingCommand,
 };
 
 export function handlerFor(command: KnownCommand): CommandHandler | null {
