@@ -128,6 +128,19 @@ says so — each waits for the owner's go-ahead.
   domain is adopted, never duplicated; do not switch this back to the random `generateDaUsername`
   the other provisioners use. Package from the catalogue, test-mode payments held, own gate
   `ENGINE_HOSTING_PROVISION_LIVE=1`.
+- **`hosting.provision` was run against the live DirectAdmin on 24 Sep 2026 and works:** test,
+  create, replay and no-duplicate all passed. It found two bugs, both fixed:
+  - `createPackage` must send `add=Save`; `action=create` is read as a listing request.
+  - `unwrapDAError` must unwrap a `DirectAdminError`, or every DA refusal reads as "Unknown".
+
+  DirectAdmin answers a missing user with **HTTP 200** and `error=1&text=Unable to show user`.
+  **Run a live probe in vitest's NODE environment** (`// @vitest-environment node`): the default
+  jsdom environment gives axios the browser adapter, which loses the reply and reproduces
+  "Unknown" for a reason that has nothing to do with the code. A container not rebuilt
+  after the fix gave the identical symptom too — `docker compose up -d --build` before believing
+  a live result. Between them, that cost an hour.
+  **server1's IP is now 35.207.233.155**, not the 34.93.167.160 in `DA_FALLBACK_IP` and in
+  production env. See ResellerOS `Todos.md` before trusting either.
 - **A buyer's DMS account gets a "set your password" email at creation** (`engine-customer.ts`,
   shared by both commands), as guest checkout does. It is their only way in: ResellerOS has no
   customer portal, so there is no hand-off for a customer to start. (Earlier text in this file said
