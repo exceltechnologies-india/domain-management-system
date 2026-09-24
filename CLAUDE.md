@@ -141,6 +141,15 @@ says so — each waits for the owner's go-ahead.
   a live result. Between them, that cost an hour.
   **server1's IP is now 35.207.233.155**, not the 34.93.167.160 in `DA_FALLBACK_IP` and in
   production env. See ResellerOS `Todos.md` before trusting either.
+- **The free hosting trial is Starter only, on monthly AND yearly** (owner, 24 Sep 2026). Both
+  server gates enforce the plan: the eligibility route and create-order, via
+  `lib/pricing/trial-plan.ts`. The panel dialog alone is not the rule. A monthly trial exists only
+  on the no-card path. It records `billingCycle: "monthly"` on the Hosting, and `renew` /
+  `renew-info` then charge and quote one month. A Hosting with no `billingCycle` (every row
+  before that date) renews yearly, as it always did. A monthly trial is refused where a YEARLY
+  mandate or subscription would be set up; never convert it silently. Checkout no longer tells
+  trial customers their card is "saved for automatic yearly billing": no trial path running takes
+  a card.
 - **A buyer's DMS account gets a "set your password" email at creation** (`engine-customer.ts`,
   shared by both commands), as guest checkout does. It is their only way in: ResellerOS has no
   customer portal, so there is no hand-off for a customer to start. (Earlier text in this file said
