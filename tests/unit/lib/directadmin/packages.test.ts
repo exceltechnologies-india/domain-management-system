@@ -276,7 +276,13 @@ describe("createPackage", () => {
     expect(url).toBe("https://da.test:2222/CMD_API_MANAGE_USER_PACKAGES");
     const params = new URLSearchParams(body as string);
     expect(params.get("packagename")).toBe("Standard");
-    expect(params.get("action")).toBe("create");
+    // add=Save — `action=create` is read by DirectAdmin as a LIST request and
+    // creates nothing (measured on the live server, 24 Sep 2026).
+    expect(params.get("add")).toBe("Save");
+    expect(params.get("action")).toBeNull();
+    // Limits not given are unlimited, in DirectAdmin's own u<limit>=ON form.
+    expect(params.get("uvdomains")).toBe("ON");
+    expect(params.get("unemails")).toBe("ON");
     expect(params.get("quota")).toBe("1000");
     expect(params.get("bandwidth")).toBe("10000");
     expect(params.get("mysql")).toBe("5");
@@ -285,6 +291,15 @@ describe("createPackage", () => {
     expect(params.get("cgi")).toBe("ON");
     expect(params.get("php")).toBe("ON");
     expect(params.get("spam")).toBe("ON");
+  });
+
+  it('"unlimited" becomes DirectAdmin\'s u<limit>=ON, never a literal value', async () => {
+    axiosPostMock.mockResolvedValueOnce({ data: "error=0&text=Saved" });
+    await createPackage("Plus", { quota: "50000", bandwidth: "unlimited" });
+    const params = new URLSearchParams(axiosPostMock.mock.calls[0][1] as string);
+    expect(params.get("ubandwidth")).toBe("ON");
+    expect(params.get("bandwidth")).toBeNull();
+    expect(params.get("quota")).toBe("50000");
   });
 
   it("options spread AFTER defaults → caller can override any default", async () => {

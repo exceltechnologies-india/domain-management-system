@@ -78,3 +78,14 @@ describe("unwrapDAError", () => {
     expect(unwrapDAError(undefined).message).toBe("undefined");
   });
 });
+
+describe("unwrapDAError keeps DirectAdmin's words (24 Sep 2026)", () => {
+  it("a DirectAdminError's raw reply reaches the caller, so parseDAError is not left with nothing", async () => {
+    const { unwrapDAError } = await import("@/lib/directadmin/types");
+    const { DirectAdminError, parseDAError } = await import("@/lib/directadmin/client");
+    const raw = "error=1&text=Unable%20to%20show%20user&details=Error%20reading%20their%20user%20files";
+    const u = unwrapDAError(new DirectAdminError("Unable to show user", "GetUserConfig", 200, raw));
+    expect(u.data).toBe(raw);
+    expect(parseDAError(u.data)).toContain("Unable to show user");
+  });
+});

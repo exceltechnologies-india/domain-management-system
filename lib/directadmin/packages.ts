@@ -104,20 +104,49 @@ export async function createPackage(packageName: string, options: Record<string,
   packageName = normalizePackageName(packageName);
   validatePackageName(packageName);
 
-  const payload = {
-    action: 'create',
+  /**
+   * `add: 'Save'`, not `action: 'create'` — measured 24 Sep 2026 against the live
+   * DirectAdmin (server1.anutech.in). The old payload was answered
+   * "error=1&text=Use these api commands for listing data": without `add`,
+   * DirectAdmin reads the call as a LIST request and creates nothing, so the
+   * admin "sync default packages" path could never have created one. The same
+   * request with `add=Save` and explicit limits returned `text=Saved`.
+   *
+   * A limit given as "unlimited" (the defaults route passes that string for a
+   * plan with no cap) becomes DirectAdmin's own form, `u<limit>=ON`. Limits the
+   * caller does not set default to unlimited, except the few below.
+   */
+  const LIMIT_KEYS = ['bandwidth', 'quota', 'vdomains', 'nsubdomains', 'nemails', 'nemailf', 'nemailml', 'nemailr', 'mysql', 'domainptr', 'ftp', 'inode'] as const;
+  const merged: Record<string, string | undefined> = {
+    quota: '1000',
+    bandwidth: '10000',
+    mysql: '5',
+    domainptr: '5',
+    ftp: '5',
+    ...options,
+  };
+  const payload: Record<string, string> = {
+    add: 'Save',
     packagename: packageName,
-    quota: options.quota || '1000',
-    bandwidth: options.bandwidth || '10000',
+    language: 'en',
+    skin: 'evolution',
     uemail: 'ON',
-    mysql: options.mysql || '5',
-    domainptr: options.domainptr || '5',
-    ftp: options.ftp || '5',
     cgi: 'ON',
     php: 'ON',
     spam: 'ON',
-    ...options,
+    cron: 'ON',
+    ssl: 'ON',
+    dnscontrol: 'ON',
+    suspend_at_limit: 'ON',
   };
+  for (const key of LIMIT_KEYS) {
+    const v = merged[key];
+    if (v === undefined || v === 'unlimited') payload[`u${key}`] = 'ON';
+    else payload[key] = v;
+  }
+  for (const [k, v] of Object.entries(merged)) {
+    if (v !== undefined && !(LIMIT_KEYS as readonly string[]).includes(k)) payload[k] = v;
+  }
 
   return executeRequest(
     async () => {
@@ -143,7 +172,7 @@ export async function createPackage(packageName: string, options: Record<string,
      if (error instanceof DirectAdminError) throw error;
 
      const u = unwrapDAError(error);
-     const errorMessage = parseDAError(u.data) || u.message;
+     const errorMessage = (u.data !== undefined ? parseDAError(u.data) : "") || u.message;
      serverLogger.error(`DirectAdmin Package Creation Error (${packageName}):`, errorMessage);
      throw new Error(`Failed to create hosting package: ${errorMessage}`);
   });

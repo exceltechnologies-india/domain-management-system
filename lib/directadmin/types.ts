@@ -60,6 +60,22 @@ export function unwrapDAError(err: unknown): {
       message: err.message,
     };
   }
+  /* A DirectAdminError (an "error=1" reply inside a 200) carries the raw reply on
+     `response` and the parsed sentence as its message. Before 24 Sep 2026 this
+     returned only the message and no data — so every caller's
+     `parseDAError(u.data) || u.message` got parseDAError's truthy default,
+     "Unknown DirectAdmin error", and DirectAdmin's own words were dropped. Found
+     on the live server: a missing user came back as "Unknown DirectAdmin error"
+     instead of "Unable to show user", so it could not be recognised as missing. */
+  if (err instanceof Error && err.name === "DirectAdminError") {
+    const e = err as Error & { status?: number; response?: unknown };
+    const raw = e.response;
+    return {
+      status: e.status,
+      data: typeof raw === "string" || (raw !== null && typeof raw === "object") ? (raw as DAErrorPayload | string) : undefined,
+      message: err.message,
+    };
+  }
   return {
     message: err instanceof Error ? err.message : String(err),
   };

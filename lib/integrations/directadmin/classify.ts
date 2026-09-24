@@ -27,6 +27,11 @@ export const USER_NOT_FOUND_FRAGMENTS = [
   "user not found",
   "unknown user",
   "cannot find user",
+  /* What the live DirectAdmin (server1.anutech.in) actually answers for
+     CMD_API_SHOW_USER_CONFIG on a username that does not exist — measured
+     24 Sep 2026: "error=1&text=Unable to show user&details=Error reading
+     their user files". */
+  "unable to show user",
 ] as const;
 
 /**

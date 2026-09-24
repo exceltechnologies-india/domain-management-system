@@ -34,7 +34,7 @@ describe("vocabulary constants", () => {
     expect(USERNAME_COLLISION_FRAGMENTS).toEqual(["already exists"]);
   });
 
-  it("USER_NOT_FOUND_FRAGMENTS covers 6 DA wordings", () => {
+  it("USER_NOT_FOUND_FRAGMENTS covers 7 DA wordings", () => {
     expect(USER_NOT_FOUND_FRAGMENTS).toEqual([
       "unable to find user",
       "no such user",
@@ -42,7 +42,13 @@ describe("vocabulary constants", () => {
       "user not found",
       "unknown user",
       "cannot find user",
+      // Measured on the live server, 24 Sep 2026 — none of the six above matched it.
+      "unable to show user",
     ]);
+  });
+
+  it("the live server's real missing-user reply is recognised", () => {
+    expect(matchesAny("Unable to show user - Error reading their user files", USER_NOT_FOUND_FRAGMENTS)).toBe(true);
   });
 
   it("PACKAGE_NOT_FOUND_FRAGMENTS covers 6 DA wordings", () => {

@@ -150,7 +150,7 @@ export async function createUser(username: string, email: string, domain: string
     if (error instanceof DirectAdminError) throw error;
 
     const u = unwrapDAError(error);
-    const errorMessage = parseDAError(u.data) || u.message;
+    const errorMessage = (u.data !== undefined ? parseDAError(u.data) : "") || u.message;
     serverLogger.error(`DirectAdmin User Creation Error (${username}):`, errorMessage);
 
     // Provide user-friendly errors for common scenarios
@@ -189,7 +189,7 @@ export async function getUserConfig(username: string): Promise<Record<string, st
     `GetUserConfig-${username}`
   ).catch((error: unknown) => {
      const u = unwrapDAError(error);
-    const errorMessage = parseDAError(u.data) || u.message;
+    const errorMessage = (u.data !== undefined ? parseDAError(u.data) : "") || u.message;
      serverLogger.error(`DirectAdmin Get User Config Error (${username}):`, errorMessage);
      throw new Error(`Failed to fetch user config: ${errorMessage}`);
   });
@@ -222,7 +222,7 @@ export async function getUserUsage(username: string): Promise<Record<string, str
     `GetUserUsage-${username}`
   ).catch((error: unknown) => {
      const u = unwrapDAError(error);
-    const errorMessage = parseDAError(u.data) || u.message;
+    const errorMessage = (u.data !== undefined ? parseDAError(u.data) : "") || u.message;
      serverLogger.error(`DirectAdmin Get User Usage Error (${username}):`, errorMessage);
      throw new Error(`Failed to fetch user usage: ${errorMessage}`);
   });
@@ -269,7 +269,7 @@ export async function getUserDomains(username: string): Promise<string[]> {
     `GetUserDomains-${username}`
   ).catch((error: unknown) => {
       const u = unwrapDAError(error);
-    const errorMessage = parseDAError(u.data) || u.message;
+    const errorMessage = (u.data !== undefined ? parseDAError(u.data) : "") || u.message;
       serverLogger.warn(`DirectAdmin Get User Domains Error (${username}): ${errorMessage}`);
       // Return empty array on failure to be safe, or throw if critical?
       // Throwing allows the caller to decide.
