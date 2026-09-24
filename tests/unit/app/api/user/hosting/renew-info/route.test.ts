@@ -123,15 +123,17 @@ describe("Plan-lookup defensive guard", () => {
 });
 
 describe("Business rule — 1-year-only renewal pricing (pinned VERBATIM)", () => {
-  it("price = plan.price × 12; periodMonths = 12; periodYears = 1", async () => {
+  it("price = ResellerOS year incl. GST (₹708 Starter), NOT Mongo price × 12; periodMonths = 12", async () => {
+    // Owner decision, 24 Sep 2026. Mongo says ₹150/month; that figure is
+    // disregarded, and quoting it would disagree with what /renew charges.
     findUserHosting.mockResolvedValueOnce({
       domainName: "alice.com",
-      planId: "plan_STARTER",
+      planId: "Starter",
       status: "active",
       expiryDate: new Date("2027-01-01"),
     });
     getPlanByPlanId.mockResolvedValueOnce({
-      planId: "plan_STARTER",
+      planId: "Starter",
       name: "Starter",
       price: 150,
       currency: "INR",
@@ -141,7 +143,7 @@ describe("Business rule — 1-year-only renewal pricing (pinned VERBATIM)", () =
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.data.renewalPricing).toEqual({
-      price: 1800, // 150 × 12
+      price: 708, // ResellerOS ₹600 + ₹108 GST
       currency: "INR",
       periodMonths: 12,
       periodYears: 1,
@@ -151,12 +153,12 @@ describe("Business rule — 1-year-only renewal pricing (pinned VERBATIM)", () =
   it("currency defaults to 'INR' when plan.currency is missing", async () => {
     findUserHosting.mockResolvedValueOnce({
       domainName: "alice.com",
-      planId: "plan_X",
+      planId: "Standard",
       status: "active",
       expiryDate: new Date("2027-01-01"),
     });
     getPlanByPlanId.mockResolvedValueOnce({
-      planId: "plan_X",
+      planId: "Standard",
       name: "X",
       price: 99,
       // no currency
@@ -172,7 +174,7 @@ describe("Response shape", () => {
     findUserHosting.mockResolvedValueOnce({
       _id: "H_INTERNAL_ID",
       domainName: "alice.com",
-      planId: "plan_X",
+      planId: "Standard",
       status: "active",
       expiryDate: new Date("2027-01-01"),
       autoRenew: true,
@@ -181,7 +183,7 @@ describe("Response shape", () => {
     });
     getPlanByPlanId.mockResolvedValueOnce({
       _id: "PLAN_DOC_INTERNAL",
-      planId: "plan_X",
+      planId: "Standard",
       name: "X",
       price: 99,
       currency: "INR",
@@ -198,7 +200,7 @@ describe("Response shape", () => {
       currentExpiry: new Date("2027-01-01").toISOString(),
       planName: "X",
       renewalPricing: {
-        price: 1188, // 99 × 12
+        price: 1770, // ResellerOS Standard year: ₹1,500 + ₹270 GST
         currency: "INR",
         periodMonths: 12,
         periodYears: 1,
@@ -224,5 +226,20 @@ describe("Outer catch", () => {
     expect(body.code).toBe("INTERNAL_ERROR");
     expect(body.error).toBe("Failed to get renewal info");
     expect(body.error).not.toContain("Mongo");
+  });
+});
+
+describe("a plan ResellerOS does not price", () => {
+  it("is refused with a next step instead of quoting the Mongo figure", async () => {
+    findUserHosting.mockResolvedValueOnce({
+      domainName: "alice.com",
+      planId: "25GB-wp",
+      status: "active",
+      expiryDate: new Date("2027-01-01"),
+    });
+    getPlanByPlanId.mockResolvedValueOnce({ planId: "25GB-wp", name: "25GB-wp", price: 99 });
+    const res = await GET(makeReq("domainName=alice.com"));
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("HOSTING_PLAN_UNPRICED");
   });
 });

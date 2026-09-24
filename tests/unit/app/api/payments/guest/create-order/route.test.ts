@@ -365,7 +365,8 @@ describe("Cart validation", () => {
         cartItems: [
           {
             domainName: "host-x",
-            price: 1500,
+            price: 147.5, // Standard yearly: ₹1,770 incl. GST ÷ 12
+            hostingPlan: { id: "standard" },
             currency: "INR",
             registrationPeriod: 12,
             itemType: "hosting",
@@ -459,7 +460,8 @@ describe("Live price verification", () => {
           },
           {
             domainName: "host-x",
-            price: 1500,
+            price: 147.5, // Standard yearly: ₹1,770 incl. GST ÷ 12
+            hostingPlan: { id: "standard" },
             currency: "INR",
             registrationPeriod: 12,
             itemType: "hosting" as const,
@@ -467,9 +469,9 @@ describe("Live price verification", () => {
         ],
       })
     );
-    // serverTotal(999) + hostingTotal(1500*12=18000) = 18999
+    // serverTotal(999) + hostingTotal(server-priced Standard year ₹1,770) = 2769
     expect(createRazorpayOrder).toHaveBeenCalledWith(
-      18999,
+      2769,
       "INR",
       expect.any(String)
     );
@@ -599,7 +601,8 @@ describe("createOrder pending-row persistence", () => {
           {
             domainName: "host-x",
             linkedDomain: "hostsite.com",
-            price: 1500,
+            price: 147.5, // Standard yearly: ₹1,770 incl. GST ÷ 12
+            hostingPlan: { id: "standard" },
             currency: "INR",
             registrationPeriod: 12,
             itemType: "hosting" as const,
@@ -624,7 +627,8 @@ describe("createOrder pending-row persistence", () => {
           },
           {
             domainName: "host-x",
-            price: 1500,
+            price: 147.5, // Standard yearly: ₹1,770 incl. GST ÷ 12
+            hostingPlan: { id: "standard" },
             currency: "INR",
             registrationPeriod: 12,
             itemType: "hosting" as const,
@@ -656,7 +660,8 @@ describe("createOrder pending-row persistence", () => {
           },
           {
             domainName: "host-x",
-            price: 1500,
+            price: 147.5, // Standard yearly: ₹1,770 incl. GST ÷ 12
+            hostingPlan: { id: "standard" },
             currency: "INR",
             registrationPeriod: 12,
             itemType: "hosting" as const,
@@ -698,5 +703,37 @@ describe("Outer catch — 500 fallback", () => {
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.error).toBe("Failed to create payment order");
+  });
+});
+
+// ── Hosting is priced by the server (24 Sep 2026) ──────────────────────
+/**
+ * Before this date the guest route summed the browser's hosting price as
+ * sent — its comment said the figure came "from our HostingPlan DB"; it did
+ * not. A cart claiming ₹1 for a Standard year would have been charged ₹12.
+ */
+describe("guest hosting price is the server's, never the browser's", () => {
+  it("a tampered hosting price is refused, and nothing is charged", async () => {
+    const res = await POST(
+      makeReq({
+        ...validBody,
+        cartItems: [
+          {
+            domainName: "host-x.com",
+            price: 1,
+            currency: "INR",
+            registrationPeriod: 12,
+            itemType: "hosting",
+            hostingPlan: { id: "standard" },
+            linkedDomain: "host-x.com",
+          },
+        ],
+      })
+    );
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.code).toBe("PRICE_CHANGED");
+    expect(body.serverTotal).toBe(1770);
+    expect(createRazorpayOrder).not.toHaveBeenCalled();
   });
 });

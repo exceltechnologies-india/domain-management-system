@@ -8,7 +8,10 @@
  *  - **Client-supplied amount trust**: a hostile client could pass
  *    a tiny amount and complete the upgrade for pennies. Pinned:
  *    the route ignores any body amount and recomputes server-side
- *    from current+target plan prices.
+ *    from current+target plan prices — ResellerOS's yearly price incl.
+ *    GST ÷ 12 per plan (owner decision, 24 Sep 2026;
+ *    lib/pricing/hosting-price.ts). The Mongo `price` on the fixtures
+ *    below is deliberately nonsense: it must not be read.
  *  - **Cross-tenant hosting upgrade**: a customer must NOT be able
  *    to upgrade another customer's hosting. Pinned: `findUserHosting`
  *    keyed on session user._id.
@@ -94,7 +97,7 @@ const user = {
   lastName: "Smith",
 };
 
-const VALID = { domainName: "example.com", targetPlanId: "premium" };
+const VALID = { domainName: "example.com", targetPlanId: "plus" };
 
 function setupHappy() {
   getUserFromRequest.mockResolvedValue(user);
@@ -114,7 +117,7 @@ function setupHappy() {
       directAdminPackage: "Starter",
     })
     .mockResolvedValueOnce({
-      planId: "premium",
+      planId: "plus",
       name: "Premium",
       price: 5000,
       directAdminPackage: "Premium",
@@ -172,7 +175,7 @@ describe("Zod schema", () => {
 
   it("domain trim+lower applied before lookup", async () => {
     setupHappy();
-    await POST(makeReq({ domainName: "  EXAMPLE.COM  ", targetPlanId: "premium" }));
+    await POST(makeReq({ domainName: "  EXAMPLE.COM  ", targetPlanId: "plus" }));
     expect(findUserHosting).toHaveBeenCalledWith(
       "U1",
       expect.objectContaining({ domainName: "example.com" })
@@ -260,14 +263,14 @@ describe("Plan lookups", () => {
     const body = await res.json();
     expect(body.code).toBe("TARGET_PLAN_NOT_FOUND");
     expect(getPlanByPlanId).toHaveBeenLastCalledWith(
-      "premium",
+      "plus",
       expect.objectContaining({ activeOnly: true })
     );
   });
 
-  it("**DOWNGRADE BLOCKED: target.price ≤ current.price → 400 INVALID_UPGRADE**", async () => {
+  it("**DOWNGRADE BLOCKED: target rate ≤ current rate → 400 INVALID_UPGRADE**", async () => {
     getPlanByPlanId
-      .mockResolvedValueOnce({ planId: "premium", price: 5000 })
+      .mockResolvedValueOnce({ planId: "plus", price: 5000 })
       .mockResolvedValueOnce({ planId: "starter", price: 1000 });
     const res = await POST(
       makeReq({ domainName: "example.com", targetPlanId: "starter" })
@@ -282,9 +285,9 @@ describe("Plan lookups", () => {
   it("equal price → 400 INVALID_UPGRADE (sidegrade rejected)", async () => {
     getPlanByPlanId
       .mockResolvedValueOnce({ planId: "starter", price: 1000 })
-      .mockResolvedValueOnce({ planId: "starter_alt", price: 1000 });
+      .mockResolvedValueOnce({ planId: "Starter", price: 1000 });
     const res = await POST(
-      makeReq({ domainName: "example.com", targetPlanId: "starter_alt" })
+      makeReq({ domainName: "example.com", targetPlanId: "Starter" })
     );
     expect(res.status).toBe(400);
     const body = await res.json();
@@ -300,18 +303,18 @@ describe("Server-authoritative prorated math", () => {
     createOrder.mockImplementation(async (data) => data);
   });
 
-  it("**typical prorate: (5000-1000) × 15 / 30 = 2000**", async () => {
+  it("**typical prorate: Starter→Plus, 60 days: (220.83 − 59) × 60 / 30 = 324**", async () => {
     findUserHosting.mockResolvedValueOnce({
       _id: "H1",
       domainName: "example.com",
       status: "active",
       planId: "starter",
-      expiryDate: new Date(Date.now() + 15 * 86_400_000),
+      expiryDate: new Date(Date.now() + 60 * 86_400_000),
     });
     getPlanByPlanId
       .mockResolvedValueOnce({ planId: "starter", price: 1000 })
       .mockResolvedValueOnce({
-        planId: "premium",
+        planId: "plus",
         price: 5000,
         name: "Premium",
         directAdminPackage: "Premium",
@@ -319,14 +322,14 @@ describe("Server-authoritative prorated math", () => {
     const res = await POST(makeReq(VALID));
     expect(res.status).toBe(200);
     expect(rzpCreateOrder).toHaveBeenCalledWith(
-      2000, // computed server-side
+      324, // computed server-side from ResellerOS prices
       "INR",
       expect.any(String),
       expect.any(Object)
     );
   });
 
-  it("**₹100 FLOOR**: tiny prorate (5 days, ₹100 diff → 16) floors to ₹100", async () => {
+  it("**₹100 FLOOR**: tiny prorate (Starter→Standard, 5 days → 15) floors to ₹100", async () => {
     findUserHosting.mockResolvedValueOnce({
       _id: "H1",
       domainName: "example.com",
@@ -337,30 +340,30 @@ describe("Server-authoritative prorated math", () => {
     getPlanByPlanId
       .mockResolvedValueOnce({ planId: "starter", price: 1000 })
       .mockResolvedValueOnce({
-        planId: "premium_lite",
+        planId: "standard",
         price: 1100,
         name: "Premium Lite",
         directAdminPackage: "Standard",
       });
     const res = await POST(
-      makeReq({ domainName: "example.com", targetPlanId: "premium_lite" })
+      makeReq({ domainName: "example.com", targetPlanId: "standard" })
     );
     expect(res.status).toBe(200);
     expect(rzpCreateOrder.mock.calls[0][0]).toBe(100);
   });
 
-  it("**CLIENT-SUPPLIED AMOUNT IGNORED**: hostile body amount→9 ignored; server still computes 2000", async () => {
+  it("**CLIENT-SUPPLIED AMOUNT IGNORED**: hostile body amount→9 ignored; server still computes 324", async () => {
     findUserHosting.mockResolvedValueOnce({
       _id: "H1",
       domainName: "example.com",
       status: "active",
       planId: "starter",
-      expiryDate: new Date(Date.now() + 15 * 86_400_000),
+      expiryDate: new Date(Date.now() + 60 * 86_400_000),
     });
     getPlanByPlanId
       .mockResolvedValueOnce({ planId: "starter", price: 1000 })
       .mockResolvedValueOnce({
-        planId: "premium",
+        planId: "plus",
         price: 5000,
         name: "Premium",
         directAdminPackage: "Premium",
@@ -368,12 +371,12 @@ describe("Server-authoritative prorated math", () => {
     await POST(
       makeReq({
         domainName: "example.com",
-        targetPlanId: "premium",
+        targetPlanId: "plus",
         amount: 9, // hostile
         chargeAmount: 9, // hostile
       } as Record<string, unknown>)
     );
-    expect(rzpCreateOrder.mock.calls[0][0]).toBe(2000);
+    expect(rzpCreateOrder.mock.calls[0][0]).toBe(324);
   });
 });
 
@@ -388,7 +391,7 @@ describe("Razorpay metadata", () => {
         hosting_id: "H1",
         domain_name: "example.com",
         from_plan: "starter",
-        to_plan: "premium",
+        to_plan: "plus",
         user_id: "U1",
       })
     );
@@ -421,7 +424,7 @@ describe("Internal Order shape", () => {
       expect.objectContaining({
         hostingId: "H1",
         fromPlanId: "starter",
-        toPlanId: "premium",
+        toPlanId: "plus",
       })
     );
     expect(order.domains[0].bookingStatus[0]).toEqual(
@@ -441,5 +444,26 @@ describe("Outer catch", () => {
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.code).toBe("INTERNAL_ERROR");
+  });
+});
+
+describe("a plan ResellerOS does not price", () => {
+  it("is refused with a next step, never prorated from the Mongo figure", async () => {
+    getUserFromRequest.mockResolvedValue(user);
+    checkKey.mockResolvedValue({ allowed: true });
+    findUserHosting.mockResolvedValueOnce({
+      _id: "H1",
+      domainName: "example.com",
+      status: "active",
+      planId: "starter",
+      expiryDate: new Date(Date.now() + 60 * 86_400_000),
+    });
+    getPlanByPlanId
+      .mockResolvedValueOnce({ planId: "starter", price: 1000 })
+      .mockResolvedValueOnce({ planId: "25GB-wp", price: 5000 });
+    const res = await POST(makeReq({ domainName: "example.com", targetPlanId: "25GB-wp" }));
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("HOSTING_PLAN_UNPRICED");
+    expect(rzpCreateOrder).not.toHaveBeenCalled();
   });
 });

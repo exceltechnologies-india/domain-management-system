@@ -27,12 +27,13 @@
  *  - DA suspendUser called with the directAdminUsername + reason
  *  - missing directAdminUsername → skipped DA call (but still
  *    creates renewal order)
- *  - Renewal-price chain:
- *      1. From original order's domain match
- *      2. Fallback: getPlanByPlanId
- *      3. Last-resort: HOSTING_PLANS.starter.price
- *  - Period inference: domain item's periodUnit if valid enum,
- *    else default 'months' qty:1
+ *  - Renewal price: ResellerOS's yearly price incl. GST, 12 months
+ *    (owner decision, 24 Sep 2026; lib/pricing/hosting-price.ts). This
+ *    replaced a 3-step chain that took the original line's per-MONTH
+ *    price as the yearly amount and fell back to Starter's price for any
+ *    plan — both emailed to the customer as the renewal figure.
+ *  - A plan with no ResellerOS price: suspended as before, but NO renewal
+ *    order and NO email with an invented amount; logged for a human.
  *  - createOrder: pending status, renewal-prefix orderId, fields
  *    locked
  *  - hosting.renewalStatus = 'pending'; status = 'suspended'; save
@@ -66,12 +67,9 @@ vi.mock("@/lib/directadmin", () => ({
   DirectAdminService: { suspendUser },
 }));
 
-vi.mock("@/config/hosting-plans", () => ({
-  HOSTING_PLANS: {
-    starter: { price: 999, name: "Starter" },
-    standard: { price: 1999, name: "Standard" },
-  },
-}));
+// No @/config/hosting-plans mock: the renewal price is the REAL ResellerOS
+// figure (lib/pricing/hosting-price.ts). Mocking it with invented prices is
+// how the old per-month-as-yearly bug stayed invisible.
 
 const sendRenewalInvoiceEmail = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/email", () => ({
@@ -213,74 +211,43 @@ describe("DA suspension", () => {
   });
 });
 
-describe("Renewal price 3-step fallback chain", () => {
-  it("(1) Original-order domain match → use its price + period", async () => {
+describe("Renewal price — ResellerOS's year incl. GST, nothing else", () => {
+  it("Starter → ₹708 for 12 months, whatever the original order line said", async () => {
     getHostingById.mockResolvedValueOnce(makeHosting());
     getOrderByOrderId.mockResolvedValueOnce({
       domains: [
-        {
-          domainName: "example.com",
-          price: 1234,
-          periodUnit: "months",
-          registrationPeriod: 6,
-        },
+        // A per-month line: the old code charged 1234 for the whole renewal.
+        { domainName: "example.com", price: 1234, periodUnit: "months", registrationPeriod: 6 },
       ],
     });
     await POST(makeReq());
     const order = createOrder.mock.calls[0][0];
-    expect(order.amount).toBe(1234);
-    expect(order.domains[0].registrationPeriod).toBe(6);
+    expect(order.amount).toBe(708);
+    expect(order.domains[0].registrationPeriod).toBe(12);
     expect(order.domains[0].periodUnit).toBe("months");
+    expect(order.domains[0].price * order.domains[0].registrationPeriod).toBe(708);
   });
 
-  it("(1b) Original order: domain-name miss → fallback by itemType+planId match", async () => {
-    getHostingById.mockResolvedValueOnce(
-      makeHosting({ planId: "premium" })
-    );
-    getOrderByOrderId.mockResolvedValueOnce({
-      domains: [
-        // No domain-name match
-        { domainName: "different.com", itemType: "domain", price: 10 },
-        // Hosting item with planId match
-        {
-          itemType: "hosting",
-          hostingPlan: { planId: "premium" },
-          price: 5000,
-        },
-      ],
-    });
+  it("Plus → ₹2,650 (ResellerOS ₹2,246 + GST); the Mongo plan price is never read", async () => {
+    getHostingById.mockResolvedValueOnce(makeHosting({ planId: "Plus" }));
+    getPlanByPlanId.mockResolvedValue({ planId: "Plus", price: 1 });
     await POST(makeReq());
-    expect(createOrder.mock.calls[0][0].amount).toBe(5000);
+    expect(createOrder.mock.calls[0][0].amount).toBe(2650);
+    expect(getPlanByPlanId).not.toHaveBeenCalled();
   });
 
-  it("(2) Original order has no matching item → getPlanByPlanId fallback", async () => {
-    getHostingById.mockResolvedValueOnce(makeHosting());
-    getOrderByOrderId.mockResolvedValueOnce({ domains: [] });
-    getPlanByPlanId.mockResolvedValueOnce({
-      planId: "starter",
-      price: 1500,
-    });
-    await POST(makeReq());
-    expect(getPlanByPlanId).toHaveBeenCalledWith("starter");
-    expect(createOrder.mock.calls[0][0].amount).toBe(1500);
-  });
-
-  it("(3) No order, no plan → HOSTING_PLANS.starter.price last-resort", async () => {
-    getHostingById.mockResolvedValueOnce(
-      makeHosting({ orderId: undefined, planId: undefined })
-    );
-    await POST(makeReq());
-    expect(createOrder.mock.calls[0][0].amount).toBe(999); // HOSTING_PLANS.starter
-  });
-
-  it("plan lookup returns null → last-resort starter fallback fires", async () => {
-    getHostingById.mockResolvedValueOnce(
-      makeHosting({ orderId: undefined })
-    );
-    getPlanByPlanId.mockResolvedValueOnce(null);
-    await POST(makeReq());
-    expect(createOrder.mock.calls[0][0].amount).toBe(999);
-  });
+  it.each([["25GB-wp"], [undefined]])(
+    "plan %s has no ResellerOS price → suspended, but no order and no email with an invented amount",
+    async (planId) => {
+      const hosting = makeHosting({ planId });
+      getHostingById.mockResolvedValueOnce(hosting);
+      const res = await POST(makeReq());
+      expect(res.status).toBe(200);
+      expect(createOrder).not.toHaveBeenCalled();
+      expect(sendRenewalInvoiceEmail).not.toHaveBeenCalled();
+      expect(hosting.save).toHaveBeenCalledTimes(1);
+    }
+  );
 });
 
 describe("Renewal Order shape", () => {
@@ -303,7 +270,7 @@ describe("Renewal Order shape", () => {
     const order = createOrder.mock.calls[0][0];
     expect(order.status).toBe("pending");
     expect(order.currency).toBe("INR");
-    expect(order.amount).toBe(1500);
+    expect(order.amount).toBe(708);
     expect(order.userId).toBe("U1");
     expect(order.domains[0]).toEqual(
       expect.objectContaining({
@@ -368,7 +335,7 @@ describe("Email — NO invoice issued", () => {
     expect(payload).toEqual(
       expect.objectContaining({
         domainName: "example.com",
-        invoiceAmount: 1500,
+        invoiceAmount: 708, // Starter year at the ResellerOS price
       })
     );
     // CRITICAL: no invoiceNumber field — nothing has been invoiced

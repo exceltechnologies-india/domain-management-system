@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { findUserHosting } from "@/lib/services/hostings";
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
+import { hostingCharge } from "@/lib/pricing/hosting-price";
 import { createOrder } from "@/lib/services/orders";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { AuthService } from "@/lib/auth";
@@ -90,9 +91,20 @@ export async function POST(request: NextRequest) {
       return secureErrorResponse("Hosting plan not found", 404, "PLAN_NOT_FOUND");
     }
 
-    // Business Rule: Renewals are 1 Year ONLY (12 months)
-    const renewalMonths = 12;
-    const price = plan.price * renewalMonths;
+    // Business Rule: Renewals are 1 Year ONLY (12 months), at ResellerOS's
+    // price + 18% GST (owner decision, 24 Sep 2026) — not `plan.price`, the
+    // DMS figure decision 7 disregards. See lib/pricing/hosting-price.ts.
+    const charge = hostingCharge(plan.planId, "yearly");
+    if (!charge) {
+      return secureErrorResponse(
+        `Renewal for the "${plan.name}" plan can't be paid online: it is not on our price list. ` +
+          "Nothing was charged. Please raise a ticket from Dashboard → Support and we will renew it for you.",
+        409,
+        "HOSTING_PLAN_UNPRICED"
+      );
+    }
+    const renewalMonths = charge.months;
+    const price = charge.inclGst;
 
     // Generate unique local order ID using the renewal prefix 'rnw_' for recognition in verify/webhook
     const shortTs = Date.now().toString().slice(-10);
@@ -127,7 +139,7 @@ export async function POST(request: NextRequest) {
       razorpaySignature: "pending",
       domains: [{
         domainName: hosting.domainName,
-        price: plan.price,
+        price: charge.inclGst / charge.months,
         currency: "INR",
         registrationPeriod: renewalMonths,
         periodUnit: "months",

@@ -21,12 +21,7 @@ import { describe, it, expect } from "vitest";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { buyHref, parseBuyKind } from "@/lib/purchase/buy-dialog";
-import {
-  buildHostingCartItem,
-  buildTrialCartItem,
-  displayRate,
-  monthlyRate,
-} from "@/lib/purchase/hosting-cart-item";
+import { buildHostingCartItem, buildTrialCartItem } from "@/lib/purchase/hosting-cart-item";
 import { HOSTING_PLANS } from "@/config/hosting-plans";
 import type { CartItem } from "@/lib/types";
 
@@ -60,19 +55,16 @@ describe("hosting prices match ResellerOS's (owner decision 7, 24 Sep 2026)", ()
     expect(HOSTING_PLANS.plus.price).toBe(187.2);
   });
 
-  it("monthly billing is twice that, as ResellerOS computes it", () => {
-    expect(monthlyRate(starter)).toBeCloseTo(99.98, 2);
-    expect(displayRate(starter, "monthly")).toBeCloseTo(99.98, 2);
-    expect(displayRate(starter, "yearly")).toBe(49.99);
-  });
+  // What is CHARGED from those figures (ResellerOS's rate + 18% GST) is
+  // pinned in tests/unit/lib/pricing/hosting-price.test.ts.
 });
 
-describe("buildHostingCartItem — the shape the deleted /hosting page produced", () => {
-  it("yearly: 12 months at the yearly rate, with the money-back line", () => {
+describe("buildHostingCartItem — the old page's shape, at ResellerOS's price incl. GST", () => {
+  it("yearly: 12 months totalling ₹708, with the money-back line", () => {
     const item = buildHostingCartItem(starter, "yearly", [], 1000);
     expect(item).toEqual({
       domainName: "hosting-starter-1000",
-      price: 49.99,
+      price: 59, // ₹708 ÷ 12
       currency: "INR",
       registrationPeriod: 12,
       periodUnit: "months",
@@ -88,9 +80,9 @@ describe("buildHostingCartItem — the shape the deleted /hosting page produced"
     });
   });
 
-  it("monthly: 1 month at twice the rate, no money-back line", () => {
+  it("monthly: 1 month at ₹118 (₹100 + GST), no money-back line", () => {
     const item = buildHostingCartItem(starter, "monthly", [], 1000);
-    expect(item.price).toBeCloseTo(99.98, 2);
+    expect(item.price).toBe(118);
     expect(item.registrationPeriod).toBe(1);
     expect(item.hostingPlan?.features).toEqual(starter.features);
   });
@@ -110,14 +102,14 @@ describe("buildHostingCartItem — the shape the deleted /hosting page produced"
 });
 
 describe("buildTrialCartItem", () => {
-  it("₹0 today for 15 days, carrying the post-trial yearly rate", () => {
+  it("₹0 today for 15 days, carrying the post-trial rate (₹708 a year ÷ 12)", () => {
     const item = buildTrialCartItem(starter, 1000);
     expect(item.price).toBe(0);
     expect(item.registrationPeriod).toBe(15);
     expect(item.periodUnit).toBe("days");
     expect(item.isTrial).toBe(true);
     expect(item.billingCycle).toBe("yearly");
-    expect(item.hostingPlan?.price).toBe(49.99);
+    expect(item.hostingPlan?.price).toBe(59);
     expect(item.domainName).toBe("hosting-trial-starter-1000");
   });
 });

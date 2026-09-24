@@ -86,23 +86,26 @@ describe("which dialog opens", () => {
 });
 
 describe("the hosting dialog", () => {
-  it("adds the yearly line the /hosting page used to, then goes to the cart", () => {
+  it("adds a Starter year at ResellerOS's price (₹708 incl. GST), then goes to the cart", () => {
     open("buy=hosting");
     fireEvent.click(screen.getAllByRole("button", { name: "Add to cart" })[0]);
     const item = addItemMock.mock.calls[0][0];
     expect(item.itemType).toBe("hosting");
     expect(item.hostingPlan.id).toBe("starter");
-    expect(item.price).toBe(49.99);
+    expect(item.price * item.registrationPeriod).toBe(708);
     expect(item.registrationPeriod).toBe(12);
+    expect(screen.getAllByText(/₹708 a year including 18% GST/).length).toBeGreaterThan(0);
     expect(pushMock).toHaveBeenCalledWith("/cart");
   });
 
-  it("monthly shows and adds twice the per-month rate", () => {
+  it("monthly shows ResellerOS's ₹100 + GST and adds ₹118", () => {
     open("buy=hosting");
     fireEvent.click(screen.getByRole("button", { name: "Monthly" }));
-    expect(screen.getByText("₹99.98")).toBeInTheDocument();
+    expect(screen.getByText("₹100")).toBeInTheDocument();
+    expect(screen.getByText(/₹118 a month including 18% GST/)).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: "Add to cart" })[0]);
     expect(addItemMock.mock.calls[0][0].registrationPeriod).toBe(1);
+    expect(addItemMock.mock.calls[0][0].price).toBe(118);
   });
 
   it("offers the trial on yearly Starter only", () => {

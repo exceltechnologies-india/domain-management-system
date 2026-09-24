@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { findUserHosting } from "@/lib/services/hostings";
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
+import { upgradeCharge } from "@/lib/pricing/hosting-price";
 import { createOrder } from "@/lib/services/orders";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { AuthService } from "@/lib/auth";
@@ -83,19 +84,25 @@ export async function POST(request: NextRequest) {
       return secureErrorResponse("Target plan not found", 404, "TARGET_PLAN_NOT_FOUND");
     }
 
-    if (targetPlan.price <= currentPlan.price) {
+    // Server-authoritative prorated calculation, on ResellerOS's prices
+    // (owner decision, 24 Sep 2026) — lib/pricing/hosting-price.ts.
+    const upgrade = upgradeCharge(currentPlan.planId, targetPlan.planId, remainingDays);
+    if (!upgrade.ok && upgrade.reason === "not-higher") {
       return secureErrorResponse(
         "Target plan must have a higher price than the current plan",
         400,
         "INVALID_UPGRADE"
       );
     }
-
-    // Server-authoritative prorated calculation
-    const proratedAmount = Math.round(
-      (targetPlan.price - currentPlan.price) * remainingDays / 30
-    );
-    const chargeAmount = Math.max(100, proratedAmount);
+    if (!upgrade.ok) {
+      return secureErrorResponse(
+        "This upgrade can't be paid online: one of the plans is not on our price list. " +
+          "Nothing was charged. Please raise a ticket from Dashboard → Support and we will upgrade it for you.",
+        409,
+        "HOSTING_PLAN_UNPRICED"
+      );
+    }
+    const chargeAmount = upgrade.amount;
 
     const shortTs = Date.now().toString().slice(-10);
     const rand = Math.random().toString(36).substring(2, 8);

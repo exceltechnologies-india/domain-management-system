@@ -122,7 +122,7 @@ describe("IDOR + active-only + expired guards", () => {
         _id: "H1",
         status,
         expiryDate: new Date(NOW + 30 * 86_400_000),
-        planId: "p_starter",
+        planId: "Starter",
       });
       const res = await GET(makeReq("domainName=alice.com"));
       expect(res.status).toBe(400);
@@ -136,7 +136,7 @@ describe("IDOR + active-only + expired guards", () => {
       _id: "H1",
       status: "active",
       expiryDate: new Date(NOW - 86_400_000), // yesterday
-      planId: "p_starter",
+      planId: "Starter",
     });
     const res = await GET(makeReq("domainName=alice.com"));
     expect(res.status).toBe(400);
@@ -162,32 +162,34 @@ describe("IDOR + active-only + expired guards", () => {
 });
 
 describe("Upgrades-only filter (no downgrades exposed)", () => {
-  it("only plans with price > currentPlan.price appear in eligiblePlans", async () => {
+  it("only plans dearer than the current one appear; a plan ResellerOS does not price is never offered", async () => {
+    // Rates are ResellerOS's (owner decision, 24 Sep 2026): Starter ₹59/mo,
+    // Standard ₹147.50, Plus ₹220.83. The Mongo `price` values are ignored.
     findUserHosting.mockResolvedValueOnce({
       _id: "H1",
       status: "active",
       expiryDate: new Date(NOW + 30 * 86_400_000),
-      planId: "p_starter",
+      planId: "Starter",
       subscriptionId: undefined,
     });
     getPlanByPlanId.mockResolvedValueOnce({
-      planId: "p_starter",
+      planId: "Starter",
       name: "Starter",
       price: 500,
     });
     listActivePlans.mockResolvedValueOnce([
-      { planId: "p_basic", name: "Basic", price: 300, features: [] },
-      { planId: "p_starter", name: "Starter", price: 500, features: [] },
-      { planId: "p_pro", name: "Pro", price: 1000, features: [] },
-      { planId: "p_ent", name: "Enterprise", price: 2500, features: [] },
+      { planId: "25GB-wp", name: "Basic", price: 300, features: [] },
+      { planId: "Starter", name: "Starter", price: 500, features: [] },
+      { planId: "Plus", name: "Pro", price: 1000, features: [] },
+      { planId: "Standard", name: "Enterprise", price: 2500, features: [] },
     ]);
 
     const res = await GET(makeReq("domainName=alice.com"));
     const body = await res.json();
     expect(body.data.eligiblePlans).toHaveLength(2);
     expect(body.data.eligiblePlans.map((p: { planId: string }) => p.planId)).toEqual([
-      "p_pro",
-      "p_ent",
+      "Plus",
+      "Standard",
     ]);
   });
 
@@ -196,15 +198,15 @@ describe("Upgrades-only filter (no downgrades exposed)", () => {
       _id: "H1",
       status: "active",
       expiryDate: new Date(NOW + 30 * 86_400_000),
-      planId: "p_starter",
+      planId: "Starter",
     });
     getPlanByPlanId.mockResolvedValueOnce({
-      planId: "p_starter",
+      planId: "Starter",
       name: "Starter",
       price: 500,
     });
     listActivePlans.mockResolvedValueOnce([
-      { planId: "p_starter", name: "Starter", price: 500, features: [] },
+      { planId: "Starter", name: "Starter", price: 500, features: [] },
     ]);
 
     const body = await (
@@ -216,44 +218,43 @@ describe("Upgrades-only filter (no downgrades exposed)", () => {
 
 describe("Prorated pricing formula", () => {
   it("formula pinned VERBATIM: Math.max(100, round((target-current)*remainingDays/30))", async () => {
-    // current=500, target=1500, remainingDays=15 →
-    // (1500-500) * 15 / 30 = 500, max(100, 500) = 500
+    // Starter ₹59/mo → Plus ₹220.83/mo, 30 days →
+    // 161.83 × 30 / 30 = 161.83, round → 162
     findUserHosting.mockResolvedValueOnce({
       _id: "H1",
       status: "active",
-      expiryDate: new Date(NOW + 15 * 86_400_000), // 15 days
-      planId: "p_starter",
+      expiryDate: new Date(NOW + 30 * 86_400_000), // 30 days
+      planId: "Starter",
     });
     getPlanByPlanId.mockResolvedValueOnce({
-      planId: "p_starter",
+      planId: "Starter",
       price: 500,
     });
     listActivePlans.mockResolvedValueOnce([
-      { planId: "p_pro", name: "Pro", price: 1500, features: [] },
+      { planId: "Plus", name: "Pro", price: 1500, features: [] },
     ]);
 
     const body = await (
       await GET(makeReq("domainName=alice.com"))
     ).json();
-    expect(body.data.eligiblePlans[0].chargeAmount).toBe(500);
-    expect(body.data.remainingDays).toBe(15);
+    expect(body.data.eligiblePlans[0].chargeAmount).toBe(162);
+    expect(body.data.remainingDays).toBe(30);
   });
 
   it("**₹100 minimum floor**: tiny prorate is bumped to 100 (anti-gateway-fee-trap)", async () => {
-    // current=500, target=600, remainingDays=3 →
-    // (600-500) * 3 / 30 = 10, max(100, 10) = 100
+    // Starter ₹59 → Standard ₹147.50, 3 days → 88.5 × 3 / 30 = 8.85 → 100
     findUserHosting.mockResolvedValueOnce({
       _id: "H1",
       status: "active",
       expiryDate: new Date(NOW + 3 * 86_400_000),
-      planId: "p_starter",
+      planId: "Starter",
     });
     getPlanByPlanId.mockResolvedValueOnce({
-      planId: "p_starter",
+      planId: "Starter",
       price: 500,
     });
     listActivePlans.mockResolvedValueOnce([
-      { planId: "p_basic_plus", name: "Basic+", price: 600, features: [] },
+      { planId: "Standard", name: "Basic+", price: 600, features: [] },
     ]);
 
     const body = await (
@@ -263,26 +264,25 @@ describe("Prorated pricing formula", () => {
   });
 
   it("Math.round applied (not Math.floor / Math.ceil)", async () => {
-    // current=500, target=1500, remainingDays=29 →
-    // (1500-500) * 29 / 30 = 966.66..., round → 967
+    // Starter → Plus, 20 days → 161.83 × 20 / 30 = 107.89, round → 108 (floor 107)
     findUserHosting.mockResolvedValueOnce({
       _id: "H1",
       status: "active",
-      expiryDate: new Date(NOW + 29 * 86_400_000),
-      planId: "p_starter",
+      expiryDate: new Date(NOW + 20 * 86_400_000),
+      planId: "Starter",
     });
     getPlanByPlanId.mockResolvedValueOnce({
-      planId: "p_starter",
+      planId: "Starter",
       price: 500,
     });
     listActivePlans.mockResolvedValueOnce([
-      { planId: "p_pro", name: "Pro", price: 1500, features: [] },
+      { planId: "Plus", name: "Pro", price: 1500, features: [] },
     ]);
 
     const body = await (
       await GET(makeReq("domainName=alice.com"))
     ).json();
-    expect(body.data.eligiblePlans[0].chargeAmount).toBe(967);
+    expect(body.data.eligiblePlans[0].chargeAmount).toBe(108);
   });
 });
 
@@ -292,15 +292,15 @@ describe("Currency default + response shape", () => {
       _id: "H1",
       status: "active",
       expiryDate: new Date(NOW + 10 * 86_400_000),
-      planId: "p_starter",
+      planId: "Starter",
     });
     getPlanByPlanId.mockResolvedValueOnce({
-      planId: "p_starter",
+      planId: "Starter",
       price: 500,
     });
     listActivePlans.mockResolvedValueOnce([
       {
-        planId: "p_pro",
+        planId: "Plus",
         name: "Pro",
         price: 1000,
         features: [],
@@ -320,16 +320,16 @@ describe("Currency default + response shape", () => {
       _id: "H1",
       status: "active",
       expiryDate: expiry,
-      planId: "p_starter",
+      planId: "Starter",
       subscriptionId: "sub_X",
     });
     getPlanByPlanId.mockResolvedValueOnce({
-      planId: "p_starter",
+      planId: "Starter",
       name: "Starter",
       price: 500,
     });
     listActivePlans.mockResolvedValueOnce([
-      { planId: "p_pro", name: "Pro", price: 1000, features: [] },
+      { planId: "Plus", name: "Pro", price: 1000, features: [] },
     ]);
 
     const body = await (
@@ -337,9 +337,9 @@ describe("Currency default + response shape", () => {
     ).json();
     expect(body.success).toBe(true);
     expect(body.data.currentPlan).toEqual({
-      planId: "p_starter",
+      planId: "Starter",
       name: "Starter",
-      price: 500,
+      price: 59, // ResellerOS ₹708/yr incl. GST ÷ 12 — not the Mongo ₹500
     });
     expect(body.data.eligiblePlans).toHaveLength(1);
     expect(body.data.remainingDays).toBe(20);
@@ -354,11 +354,11 @@ describe("Currency default + response shape", () => {
       _id: "H1",
       status: "active",
       expiryDate: new Date(NOW + 20 * 86_400_000),
-      planId: "p_starter",
+      planId: "Starter",
       // no subscriptionId
     });
     getPlanByPlanId.mockResolvedValueOnce({
-      planId: "p_starter",
+      planId: "Starter",
       price: 500,
     });
     listActivePlans.mockResolvedValueOnce([]);

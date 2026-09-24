@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { findUserHosting } from "@/lib/services/hostings";
 import { getPlanByPlanId, listActivePlans } from "@/lib/services/hosting-plans";
+import { perMonthRate, upgradeCharge } from "@/lib/pricing/hosting-price";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { AuthService } from "@/lib/auth";
 import { serverLogger } from "@/lib/server-logger";
@@ -62,18 +63,19 @@ export async function GET(request: NextRequest) {
 
     const allPlans = await listActivePlans();
 
+    // Quoted exactly as api/user/hosting/upgrade charges — ResellerOS's
+    // prices (lib/pricing/hosting-price.ts). A plan with no ResellerOS price
+    // is not offered, rather than quoted at the disregarded DMS figure.
     const eligiblePlans = allPlans
-      .filter((plan) => plan.price > currentPlan.price)
-      .map((plan) => {
-        const proratedAmount = Math.round(
-          (plan.price - currentPlan.price) * remainingDays / 30
-        );
-        const chargeAmount = Math.max(100, proratedAmount);
+      .map((plan) => ({ plan, upgrade: upgradeCharge(currentPlan.planId, plan.planId, remainingDays) }))
+      .filter((x): x is { plan: typeof x.plan; upgrade: { ok: true; amount: number } } => x.upgrade.ok)
+      .map(({ plan, upgrade }) => {
+        const chargeAmount = upgrade.amount;
         return {
           planId: plan.planId,
           name: plan.name,
           description: plan.description,
-          price: plan.price,
+          price: perMonthRate(plan.planId) ?? 0,
           currency: plan.currency || "INR",
           features: plan.features,
           quota: plan.quota,
@@ -89,7 +91,7 @@ export async function GET(request: NextRequest) {
         currentPlan: {
           planId: currentPlan.planId,
           name: currentPlan.name,
-          price: currentPlan.price,
+          price: perMonthRate(currentPlan.planId),
         },
         eligiblePlans,
         remainingDays,

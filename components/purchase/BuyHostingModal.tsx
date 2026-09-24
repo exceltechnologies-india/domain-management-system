@@ -18,8 +18,7 @@ import { HOSTING_PLANS, type HostingPlanConfig } from '@/config/hosting-plans';
 import {
   buildHostingCartItem,
   buildTrialCartItem,
-  displayRate,
-  monthlyRate,
+  chargeFor,
   type BillingCycle,
 } from '@/lib/purchase/hosting-cart-item';
 import { getDeviceFingerprint } from '@/lib/device-fingerprint';
@@ -31,8 +30,8 @@ interface BuyHostingModalProps {
   onClose: () => void;
 }
 
-const inr = (n: number) =>
-  `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// Whole rupees: ResellerOS's hosting prices are whole-rupee figures.
+const inr = (n: number) => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 
 export default function BuyHostingModal({ isOpen, onClose }: BuyHostingModalProps) {
   const router = useRouter();
@@ -93,7 +92,8 @@ export default function BuyHostingModal({ isOpen, onClose }: BuyHostingModalProp
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {Object.values(HOSTING_PLANS).map((plan) => {
-          const rate = displayRate(plan, cycle);
+          const charge = chargeFor(plan, cycle);
+          const per = cycle === 'yearly' ? 'year' : 'month';
           return (
             <div
               key={plan.id}
@@ -109,13 +109,11 @@ export default function BuyHostingModal({ isOpen, onClose }: BuyHostingModalProp
               </div>
               <p className="text-xs text-ink-3 mb-3">{plan.description}</p>
               <p className="text-2xl font-semibold text-ink">
-                {inr(rate)}
-                <span className="text-sm font-normal text-ink-3">/mo</span>
+                {inr(charge.exGst)}
+                <span className="text-sm font-normal text-ink-3">/{per} + GST</span>
               </p>
               <p className="text-xs text-ink-3 mb-3">
-                {cycle === 'yearly'
-                  ? `Billed ${inr(rate * 12)} a year · ${inr(monthlyRate(plan))}/mo on monthly billing`
-                  : 'Billed every month'}
+                {`${inr(charge.inclGst)} a ${per} including 18% GST (${inr(charge.gst)})`}
               </p>
               <ul className="space-y-1 mb-4 flex-1">
                 {plan.features.slice(0, 5).map((f) => (
@@ -147,11 +145,10 @@ export default function BuyHostingModal({ isOpen, onClose }: BuyHostingModalProp
         })}
       </div>
 
-      {/* No GST sentence here, deliberately. DMS's cart treats these figures
-          as GST-INCLUSIVE (CartOrderSummary: subtotal = total / 1.18) while
-          ResellerOS adds 18% on top of the same figure — ₹600 vs ₹708 for a
-          Starter year. Which is right is an open owner question (ResellerOS
-          Todos.md §0A); asserting either here would be guessing. */}
+      {/* Prices are ResellerOS's, GST added on top — owner decision,
+          24 Sep 2026 ("ResellerOS is correct price one"). Figures come from
+          lib/pricing/hosting-price.ts, the same function create-order uses
+          to charge, so the dialog and the charge cannot disagree. */}
       <p className="mt-4 text-xs text-ink-3 text-center">
         Yearly plans carry a 30-day money-back guarantee.
       </p>

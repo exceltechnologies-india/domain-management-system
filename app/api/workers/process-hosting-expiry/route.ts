@@ -4,11 +4,9 @@ import { serverLogger } from "@/lib/server-logger";
 import { authorizeCronRequest } from "@/lib/cron-auth";
 import { getHostingById } from "@/lib/services/hostings";
 import { getUserById } from "@/lib/services/users";
-import { createOrder, getOrderByOrderId } from "@/lib/services/orders";
-import type { IOrder } from "@/models/Order";
-import { getPlanByPlanId } from "@/lib/services/hosting-plans";
+import { createOrder } from "@/lib/services/orders";
 import { DirectAdminService } from "@/lib/directadmin";
-import { HOSTING_PLANS } from "@/config/hosting-plans";
+import { hostingCharge } from "@/lib/pricing/hosting-price";
 // No invoice is issued here — invoices are issued only after a successful
 // payment (in /api/payments/verify and the renewal paths).
 import { EmailService } from "@/lib/email";
@@ -66,44 +64,27 @@ export async function POST(request: NextRequest) {
         // exists for money nobody has paid yet.
         const user = await getUserById(String(hosting.userId));
         
-        if (user) {
-            let renewalPrice = 0;
-            let period = 1;
-            let periodUnit: 'minutes' | 'months' | 'years' = 'months';
+        // The renewal is one year at ResellerOS's price + 18% GST — the same
+        // charge api/user/hosting/renew takes (owner decision, 24 Sep 2026).
+        //
+        // This used to take the ORIGINAL order line's `price` as the amount.
+        // That field is a per-MONTH figure (the line is price × 12 months), so
+        // a yearly Starter renewal was raised — and emailed to the customer —
+        // as ₹49.99. And when nothing matched it fell back to Starter's price
+        // for whatever plan the customer actually had. Both were §2: a
+        // plausible number standing in for the real one.
+        const renewalCharge = hostingCharge(hosting.planId, 'yearly');
+        if (user && !renewalCharge) {
+            serverLogger.error(
+                `[Worker] ${hosting.domainName} suspended, but plan "${hosting.planId}" has no ResellerOS price, ` +
+                `so no renewal order or renewal email was sent. ACTION: renew this account by hand and tell the customer.`
+            );
+        }
 
-            // Logic to find renewal price from original order
-            if (hosting.orderId) {
-                const originalOrder = await getOrderByOrderId(hosting.orderId);
-                if (originalOrder && originalOrder.domains) {
-                    type OrderDomainSub = IOrder['domains'][number] & { hostingPlan?: { planId?: string; serverPackage?: string } };
-                    let domainItem = originalOrder.domains.find((d: OrderDomainSub) => d.domainName === hosting.domainName) as OrderDomainSub | undefined;
-
-                    if (!domainItem) {
-                        domainItem = originalOrder.domains.find((d: OrderDomainSub) =>
-                            d.itemType === 'hosting' && (
-                                d.hostingPlan?.planId === hosting.planId ||
-                                d.hostingPlan?.serverPackage === hosting.planId ||
-                                d.hostingPlan?.serverPackage === hosting.serverPackage
-                            )
-                        ) as OrderDomainSub | undefined;
-                    }
-
-                    if (domainItem && domainItem.price) {
-                        renewalPrice = domainItem.price;
-                        if (domainItem.periodUnit && (domainItem.periodUnit === 'minutes' || domainItem.periodUnit === 'months' || domainItem.periodUnit === 'years')) {
-                            periodUnit = domainItem.periodUnit;
-                        }
-                        if (domainItem.registrationPeriod) period = domainItem.registrationPeriod;
-                    }
-                }
-            }
-
-            if (!renewalPrice && hosting.planId) {
-                const plan = await getPlanByPlanId(hosting.planId);
-                if (plan) renewalPrice = plan.price || 0;
-            }
-
-            if (!renewalPrice) renewalPrice = HOSTING_PLANS.starter.price;
+        if (user && renewalCharge) {
+            const renewalPrice = renewalCharge.inclGst;
+            const period = renewalCharge.months;
+            const periodUnit: 'minutes' | 'months' | 'years' = 'months';
             
             // Create a pending Order so the payment-verify flow can find it
             const renewalOrderId = `ord_renew_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
@@ -127,7 +108,8 @@ export async function POST(request: NextRequest) {
                 },
                 domains: [{
                     domainName: hosting.domainName,
-                    price: renewalPrice,
+                    // Per-month figure: the line totals price × registrationPeriod.
+                    price: renewalPrice / period,
                     currency: 'INR',
                     registrationPeriod: period,
                     periodUnit: periodUnit,

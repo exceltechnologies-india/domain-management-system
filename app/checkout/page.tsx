@@ -16,7 +16,7 @@ import { CheckoutPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import OrderTimeline from '@/components/checkout/OrderTimeline';
 import { getMinRegistrationPeriod } from '@/lib/tld-min-periods';
 import { getDeviceFingerprint } from '@/lib/device-fingerprint';
-import { HOSTING_PLANS } from '@/config/hosting-plans';
+import { hostingCharge } from '@/lib/pricing/hosting-price';
 import type { CartItem } from '@/lib/types';
 import { razorpayThemeColor } from '@/lib/theme-color';
 import { logger } from '@/lib/logger';
@@ -47,23 +47,19 @@ export default function CheckoutPage() {
   const razorpay = useRazorpayCheckout();
   const hasTrial = cartItems.some((i: CartItem) => i.isTrial === true);
   const trialItem = cartItems.find((i: CartItem) => i.isTrial === true);
-  // Resolve the monthly plan rate for a trial item. Prefer the value
-  // stored on the CartItem (set by addTrialToCart since `e586aef`); fall
-  // back to the HOSTING_PLANS config keyed by hostingPlan.id when the
-  // field is missing — covers legacy cart items added before that fix
-  // landed AND any future code path that constructs a trial item
-  // without populating the price. Result is always a finite number
-  // when an active plan id is present, so neither render site ever
-  // shows "—" for a trial we actually offer.
-  const trialMonthlyPrice = (() => {
+  // What the trial converts to: ResellerOS's yearly price incl. GST, from the
+  // same function create-order and the renewal route charge with (owner
+  // decision, 24 Sep 2026). Computed from the plan id first, because a cart
+  // saved before that date carries the old DMS figure in hostingPlan.price
+  // and would show ₹599.88 for a year that now costs ₹708. The stored value
+  // is only a last resort for a plan ResellerOS does not price.
+  const trialYearlyPrice = (() => {
     if (!trialItem) return 0;
+    const charge = hostingCharge(trialItem.hostingPlan?.id, 'yearly');
+    if (charge) return charge.inclGst;
     const stored = trialItem.hostingPlan?.price;
-    if (typeof stored === 'number' && stored > 0) return stored;
-    const planId = trialItem.hostingPlan?.id;
-    if (planId && HOSTING_PLANS[planId]?.price) return HOSTING_PLANS[planId].price;
-    return 0;
+    return typeof stored === 'number' && stored > 0 ? stored * 12 : 0;
   })();
-  const trialYearlyPrice = trialMonthlyPrice * 12;
 
   // Fire InitiateCheckout (Pixel) + internal checkout_started once on mount.
   useEffect(() => {
@@ -537,13 +533,9 @@ export default function CheckoutPage() {
                               <>
                                 <p className="text-xl font-bold text-green-600">₹0.00</p>
                                 <p className="text-xs text-gray-500">Free for 15 days</p>
-                                {/* Post-trial recurring rate — routed through
-                                    `trialYearlyPrice` which prefers the value
-                                    stored on the CartItem and falls back to
-                                    HOSTING_PLANS config when missing (covers
-                                    legacy items added before e586aef). The
-                                    fallback means we never render "—" for a
-                                    trial plan we actually offer. */}
+                                {/* Post-trial yearly charge — `trialYearlyPrice`,
+                                    ResellerOS's price incl. GST, computed from
+                                    the plan id (see its definition above). */}
                                 <p className="text-xs text-purple-600 font-medium mt-0.5">
                                   then ₹{trialYearlyPrice.toFixed(2)}/yr
                                 </p>

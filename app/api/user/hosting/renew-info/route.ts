@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { findUserHosting } from "@/lib/services/hostings";
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
+import { hostingCharge } from "@/lib/pricing/hosting-price";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { AuthService } from "@/lib/auth";
 import { serverLogger } from "@/lib/server-logger";
@@ -40,10 +41,20 @@ export async function GET(request: NextRequest) {
       return secureErrorResponse("Hosting plan details not found", 404, "PLAN_NOT_FOUND");
     }
 
-    // Business Rule: Renewals are only for 1 year (12 months)
+    // Business Rule: Renewals are only for 1 year (12 months), priced exactly
+    // as api/user/hosting/renew charges them — ResellerOS's price + 18% GST.
+    const charge = hostingCharge(plan.planId, "yearly");
+    if (!charge) {
+      return secureErrorResponse(
+        `Renewal for the "${plan.name}" plan can't be paid online: it is not on our price list. ` +
+          "Nothing was charged. Please raise a ticket from Dashboard → Support and we will renew it for you.",
+        409,
+        "HOSTING_PLAN_UNPRICED"
+      );
+    }
     const renewalYears = 1;
-    const renewalMonths = 12;
-    const price = plan.price * renewalMonths;
+    const renewalMonths = charge.months;
+    const price = charge.inclGst;
 
     return secureJsonResponse({
       success: true,

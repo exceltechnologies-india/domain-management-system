@@ -6,6 +6,8 @@ import { validateDomainPeriod } from "@/lib/tld-policies";
 import { verifyDomainPrices } from "@/lib/services/payment/price-verifier";
 import { createOrder } from "@/lib/services/orders";
 import { createManualFlowTrialHosting } from "@/lib/services/payment/manual-trial-provisioner";
+import { repriceHostingItems } from "@/lib/pricing/reprice-hosting";
+import { dmsCreatesHostingSubscriptions } from "@/lib/pricing/hosting-billing-mode";
 import type { CartItem } from "@/lib/types";
 import {
   evaluateTrialAbuse,
@@ -51,6 +53,14 @@ const createOrderSchema = z.object({
   deviceFingerprint: z.string().optional(),
   recaptchaToken: z.string().nullable().optional(),
 });
+
+/** §7: what happened, why, and what to do next. */
+const TRIAL_NEEDS_OWN_CHECKOUT = {
+  error:
+    "We couldn't start the free trial with other items in the same cart. Nothing was charged. " +
+    "Remove the other items, start the trial on its own, then buy them separately.",
+  code: "TRIAL_NEEDS_OWN_CHECKOUT",
+} as const;
 
 // Force dynamic rendering - required for API routes
 export const dynamic = 'force-dynamic';
@@ -142,6 +152,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ── Hosting is priced by the server, never by the browser ─────────────
+    // ResellerOS's price + 18% GST (owner decision, 24 Sep 2026). A cart
+    // whose hosting figure differs is refused with the real one — see
+    // lib/pricing/reprice-hosting.ts.
+    const hostingPrice = repriceHostingItems(cartItems);
+    if (!hostingPrice.ok) {
+      return NextResponse.json(hostingPrice.body, { status: hostingPrice.status });
+    }
+
     // ── Live price verification ──────────────────────────────────────────
     // Fetch fresh RC pricing and recompute the domain total server-side.
     // We never trust client-supplied prices for the actual charge — caching
@@ -210,6 +229,14 @@ export async function POST(request: NextRequest) {
         // reaching the other create-order call site.
         const { getPlanByPlanId } = await import("@/lib/services/hosting-plans");
         const { userHasPriorTrialOrder } = await import("@/lib/services/orders");
+
+        // A trial can only start on its own while DMS opens no subscriptions:
+        // the no-mandate flow below needs an otherwise-empty cart. Refused
+        // HERE, before the trial claim is recorded — recording it and then
+        // refusing would throttle the customer's retry of the trial alone.
+        if (isTrial && oneTimeAmount > 0 && !dmsCreatesHostingSubscriptions()) {
+          return NextResponse.json(TRIAL_NEEDS_OWN_CHECKOUT, { status: 400 });
+        }
 
         // Server-side trial eligibility enforcement
         if (isTrial) {
@@ -292,8 +319,14 @@ export async function POST(request: NextRequest) {
           //
           // Gated the same way as the Tokens branch: trial + no mixed
           // cart. Falls through to Subscriptions on any miss.
+          //
+          // Since 24 Sep 2026 this is the ONLY trial path while
+          // dmsCreatesHostingSubscriptions() is false: a DMS subscription
+          // would collect the conversion at the old DMS price, and renewals
+          // are ResellerOS's. The conversion is paid through
+          // api/user/hosting/renew, at the ResellerOS price.
           const manualFlowAllowed =
-            process.env.HOSTING_MANDATE_FLOW === 'manual' &&
+            (process.env.HOSTING_MANDATE_FLOW === 'manual' || !dmsCreatesHostingSubscriptions()) &&
             isTrial &&
             oneTimeAmount === 0;
 
@@ -543,8 +576,11 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          // ── Subscriptions-flow branch (existing default path) ─────────────
-          if (!subscriptionCreated) {
+          // ── Subscriptions-flow branch — OFF (lib/pricing/hosting-billing-mode.ts)
+          // Its Razorpay plans cannot carry ResellerOS's price, and a
+          // subscription is a DMS-collected renewal. Paid hosting falls through
+          // to the one-time order below at the server's price.
+          if (!subscriptionCreated && dmsCreatesHostingSubscriptions()) {
             const razorpayPlanId = plan.razorpayPlans?.[period];
 
             if (razorpayPlanId) {
@@ -574,6 +610,21 @@ export async function POST(request: NextRequest) {
           }
         } else {
           serverLogger.warn(`⚠️ [CREATE-ORDER] HostingPlan not found in DB for planId: ${(item.hostingPlan as { planId?: string } | undefined)?.planId || (item as CartItem & { planId?: string }).planId}`);
+        }
+
+        // A trial no trial path took (the no-mandate provisioner failed) must
+        // not silently become a ₹0 line inside a one-time order: nothing would
+        // provision it and nothing would convert it.
+        if (isTrial && !subscriptionCreated && !dmsCreatesHostingSubscriptions()) {
+          return NextResponse.json(
+            {
+              error:
+                "We couldn't start your free trial just now. Nothing was charged. " +
+                "Please try again in a few minutes, or raise a ticket from Dashboard → Support.",
+              code: "TRIAL_NOT_STARTED",
+            },
+            { status: 503 }
+          );
         }
 
         // For trials, price=0 so adding it to oneTimeAmount is a no-op either way

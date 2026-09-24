@@ -7,8 +7,10 @@
  *
  * Threat model:
  *  - **Client-supplied price**: trusted client could submit amount=1.
- *    Pinned: amount is `plan.price * 12` server-side; body has no
- *    amount/price fields.
+ *    Pinned: amount is ResellerOS's yearly price incl. GST, computed
+ *    server-side (lib/pricing/hosting-price.ts) — ₹708 for Starter. Not
+ *    Mongo `plan.price × 12`, the DMS figure the owner disregarded on
+ *    24 Sep 2026 (a Mongo price of ₹500 here proves it is not read).
  *  - **Anti-IDOR**: `findUserHosting` keyed on session user._id only.
  *  - **Mass-termination order spam**: a logged-in attacker could
  *    mint pending orders endlessly. Pinned: per-user rate-limit
@@ -304,7 +306,7 @@ describe("Plan lookup", () => {
 });
 
 describe("12-month-locked pricing (server-authoritative)", () => {
-  it("**price = plan.price × 12 = 500 × 12 = 6000; client-supplied amount IGNORED**", async () => {
+  it("**price = ResellerOS Starter year ₹708 incl. GST; Mongo price and client amount both IGNORED**", async () => {
     setupHappy();
     await POST(
       makeReq({
@@ -314,7 +316,7 @@ describe("12-month-locked pricing (server-authoritative)", () => {
       } as Record<string, unknown>)
     );
     expect(rzpCreateOrder).toHaveBeenCalledWith(
-      6000,
+      708,
       "INR",
       expect.any(String),
       expect.any(Object)
@@ -349,11 +351,11 @@ describe("Internal Order shape", () => {
     const order = createOrder.mock.calls[0][0];
     expect(order.orderType).toBe("renewal");
     expect(order.status).toBe("pending");
-    expect(order.amount).toBe(6000);
+    expect(order.amount).toBe(708);
     expect(order.domains[0]).toEqual(
       expect.objectContaining({
         domainName: "example.com",
-        price: 500, // per-month plan price
+        price: 59, // per-month: ₹708 ÷ 12
         registrationPeriod: 12,
         periodUnit: "months",
         itemType: "hosting",
@@ -380,5 +382,16 @@ describe("Outer catch", () => {
     const body = await res.json();
     expect(body.code).toBe("INTERNAL_ERROR");
     expect(JSON.stringify(body)).not.toContain("rzp_secret_LEAK_ME");
+  });
+});
+
+describe("a plan ResellerOS does not price", () => {
+  it("is refused with a next step, not renewed at the Mongo figure", async () => {
+    setupHappy();
+    getPlanByPlanId.mockResolvedValue({ planId: "25GB-wp", name: "25GB-wp", price: 500 });
+    const res = await POST(makeReq({ domainName: "example.com" }));
+    expect(res.status).toBe(409);
+    expect(JSON.stringify(await res.json())).toMatch(/Dashboard → Support/);
+    expect(rzpCreateOrder).not.toHaveBeenCalled();
   });
 });

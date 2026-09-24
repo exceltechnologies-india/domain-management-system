@@ -171,6 +171,11 @@ beforeEach(() => {
   // individual Tokens-flow tests opt-in via `process.env.HOSTING_MANDATE_FLOW = 'tokens'`
   // and clean up at the end (see the Tokens-flow describe block).
   delete process.env.HOSTING_MANDATE_FLOW;
+  // DMS's own hosting Subscriptions are OFF by default since 24 Sep 2026
+  // (lib/pricing/hosting-billing-mode.ts). Most of this file tests that kept
+  // machinery, so it opts in here; the default-off behaviour is pinned in
+  // tests/unit/lib/pricing/hosting-price.test.ts and the block at the end.
+  process.env.DMS_HOSTING_SUBSCRIPTIONS_ENABLED = "1";
   evaluateTrialAbuse.mockReset().mockResolvedValue({ allowed: true });
   recordTrialClaim.mockReset().mockResolvedValue(undefined);
   // Default: a resolvable hosting plan with Razorpay plan ids so the
@@ -249,11 +254,13 @@ describe("TLD policy check", () => {
         cartItems: [
           {
             domainName: "host-pkg.com",
-            price: 1500,
+            // Standard, monthly: ResellerOS ₹250 + GST = ₹295 (lib/pricing/hosting-price.ts)
+            price: 295,
             currency: "INR",
             itemType: "hosting",
             registrationPeriod: 1,
-            billingCycle: "yearly",
+            billingCycle: "monthly",
+            hostingPlan: { id: "standard" },
           },
         ],
       })
@@ -428,12 +435,12 @@ describe("Trial gates (4 distinct rejections)", () => {
         cartItems: [
           {
             domainName: "host-x.com",
-            price: 1500,
+            price: 147.5, // Standard yearly: ₹1,770 incl. GST ÷ 12
             currency: "INR",
             itemType: "hosting" as const,
             billingCycle: "yearly" as const,
             registrationPeriod: 12,
-            hostingPlan: { id: "pro" },
+            hostingPlan: { id: "standard" },
           },
         ],
       })
@@ -457,12 +464,12 @@ describe("Subscription creation failure → falls back to one-time", () => {
         cartItems: [
           {
             domainName: "host-x.com",
-            price: 1500,
+            price: 147.5, // Standard yearly: ₹1,770 incl. GST ÷ 12
             currency: "INR",
             itemType: "hosting" as const,
             billingCycle: "yearly" as const,
             registrationPeriod: 12,
-            hostingPlan: { id: "pro" },
+            hostingPlan: { id: "standard" },
           },
         ],
       })
@@ -470,7 +477,7 @@ describe("Subscription creation failure → falls back to one-time", () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.amount).toBe(18000); // 1500 * 12
+    expect(body.amount).toBe(1770); // Standard yearly at ResellerOS price incl. GST
     expect(body.hasSubscription).toBe(false);
   });
 
@@ -481,12 +488,12 @@ describe("Subscription creation failure → falls back to one-time", () => {
         cartItems: [
           {
             domainName: "host-x.com",
-            price: 1500,
+            price: 147.5, // Standard yearly: ₹1,770 incl. GST ÷ 12
             currency: "INR",
             itemType: "hosting" as const,
             billingCycle: "yearly" as const,
             registrationPeriod: 12,
-            hostingPlan: { id: "missing" },
+            hostingPlan: { id: "standard" },
           },
         ],
       })
@@ -533,12 +540,12 @@ describe("createOrder pending-row persistence", () => {
         cartItems: [
           {
             domainName: "host-x.com",
-            price: 1500,
+            price: 147.5, // Standard yearly: ₹1,770 incl. GST ÷ 12
             currency: "INR",
             itemType: "hosting" as const,
             billingCycle: "yearly" as const,
             registrationPeriod: 12,
-            hostingPlan: { id: "pro" },
+            hostingPlan: { id: "standard" },
           },
         ],
       })
@@ -560,12 +567,12 @@ describe("createOrder pending-row persistence", () => {
           },
           {
             domainName: "host-x.com",
-            price: 1500,
+            price: 147.5, // Standard yearly: ₹1,770 incl. GST ÷ 12
             currency: "INR",
             itemType: "hosting" as const,
             billingCycle: "yearly" as const,
             registrationPeriod: 12,
-            hostingPlan: { id: "pro" },
+            hostingPlan: { id: "standard" },
           },
         ],
       })
@@ -594,12 +601,12 @@ describe("createOrder pending-row persistence", () => {
           },
           {
             domainName: "host-x.com",
-            price: 1500,
+            price: 147.5, // Standard yearly: ₹1,770 incl. GST ÷ 12
             currency: "INR",
             itemType: "hosting" as const,
             billingCycle: "yearly" as const,
             registrationPeriod: 12,
-            hostingPlan: { id: "pro" },
+            hostingPlan: { id: "standard" },
           },
         ],
       })
@@ -694,12 +701,12 @@ describe("Response shape — payment targets returned", () => {
         cartItems: [
           {
             domainName: "host-x.com",
-            price: 1500,
+            price: 147.5, // Standard yearly: ₹1,770 incl. GST ÷ 12
             currency: "INR",
             itemType: "hosting" as const,
             billingCycle: "yearly" as const,
             registrationPeriod: 12,
-            hostingPlan: { id: "pro" },
+            hostingPlan: { id: "standard" },
           },
         ],
       })
@@ -865,7 +872,7 @@ describe("Tokens-flow branch (Phase 2A)", () => {
       cartItems: [
         {
           domainName: "host-paid.com",
-          price: 49.99,
+          price: 59, // Starter yearly: ₹708 incl. GST ÷ 12 (the old ₹49.99 is now refused)
           currency: "INR",
           itemType: "hosting" as const,
           billingCycle: "yearly" as const,
@@ -1021,7 +1028,7 @@ describe("Manual-flow branch (HOSTING_MANDATE_FLOW=manual)", () => {
       cartItems: [
         {
           domainName: "host-paid.com",
-          price: 49.99,
+          price: 59, // Starter yearly: ₹708 incl. GST ÷ 12 (the old ₹49.99 is now refused)
           currency: "INR",
           itemType: "hosting" as const,
           billingCycle: "yearly" as const,
@@ -1052,6 +1059,142 @@ describe("Manual-flow branch (HOSTING_MANDATE_FLOW=manual)", () => {
   it("does NOT create a one-shot Razorpay order (oneTimeAmount stays 0 since item.price=0 + subscriptionCreated=true)", async () => {
     await POST(makeReq(manualTrialCart));
     // The post-branch `if (oneTimeAmount > 0)` block should be skipped
+    expect(createRazorpayOrder).not.toHaveBeenCalled();
+  });
+});
+
+// ── Default since 24 Sep 2026: ResellerOS prices, no DMS subscriptions ──
+/**
+ * Owner decisions: hosting is charged at ResellerOS's price + 18% GST, and
+ * renewals are ResellerOS's — so DMS opens no Razorpay Subscription for
+ * hosting (lib/pricing/hosting-billing-mode.ts). These run with the flag in
+ * its production default: unset.
+ */
+describe("default mode — ResellerOS prices, no DMS hosting subscriptions", () => {
+  beforeEach(() => {
+    delete process.env.DMS_HOSTING_SUBSCRIPTIONS_ENABLED;
+  });
+
+  const paidStarterYear = (price: number) => ({
+    cartItems: [
+      {
+        domainName: "host-paid.com",
+        price,
+        currency: "INR",
+        itemType: "hosting" as const,
+        billingCycle: "yearly" as const,
+        registrationPeriod: 12,
+        hostingPlan: { id: "starter", name: "Starter" },
+      },
+    ],
+  });
+
+  it("paid hosting is ONE payment of ₹708 for a Starter year — no subscription", async () => {
+    const res = await POST(makeReq(paidStarterYear(59)));
+    expect(res.status).toBe(200);
+    expect(createSubscription).not.toHaveBeenCalled();
+    expect(createRazorpayOrder).toHaveBeenCalledWith(708, "INR", expect.any(String));
+  });
+
+  it("the old DMS price (₹49.99 × 12 = ₹599.88) is refused with the real figure, nothing charged", async () => {
+    const res = await POST(makeReq(paidStarterYear(49.99)));
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.code).toBe("PRICE_CHANGED");
+    expect(body.serverTotal).toBe(708);
+    expect(body.error).toMatch(/Nothing was charged/);
+    expect(createRazorpayOrder).not.toHaveBeenCalled();
+  });
+
+  it("a hosting plan ResellerOS does not price is refused, never charged at the browser's figure", async () => {
+    const res = await POST(
+      makeReq({
+        cartItems: [
+          {
+            domainName: "host-x.com",
+            price: 1,
+            currency: "INR",
+            itemType: "hosting" as const,
+            registrationPeriod: 12,
+            hostingPlan: { id: "25GB-wp" },
+          },
+        ],
+      })
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe("HOSTING_PLAN_UNPRICED");
+    expect(createRazorpayOrder).not.toHaveBeenCalled();
+  });
+
+  it("a trial on its own takes the no-mandate flow even without HOSTING_MANDATE_FLOW=manual", async () => {
+    const res = await POST(
+      makeReq({
+        cartItems: [
+          {
+            domainName: "host-trial.com",
+            price: 0,
+            currency: "INR",
+            itemType: "hosting" as const,
+            billingCycle: "yearly" as const,
+            registrationPeriod: 15,
+            isTrial: true,
+            hostingPlan: { id: "starter", name: "Starter" },
+          },
+        ],
+      })
+    );
+    expect(res.status).toBe(200);
+    expect(createManualFlowTrialHosting).toHaveBeenCalled();
+    expect(createSubscription).not.toHaveBeenCalled();
+  });
+
+  it("a trial in a cart with other items is refused rather than becoming an unprovisioned ₹0 line", async () => {
+    const res = await POST(
+      makeReq({
+        cartItems: [
+          { domainName: "trial-extra.com", price: 999, currency: "INR", registrationPeriod: 1 },
+          {
+            domainName: "host-trial.com",
+            price: 0,
+            currency: "INR",
+            itemType: "hosting" as const,
+            billingCycle: "yearly" as const,
+            registrationPeriod: 15,
+            isTrial: true,
+            linkedDomain: "trial-extra.com",
+            hostingPlan: { id: "starter", name: "Starter" },
+          },
+        ],
+      })
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe("TRIAL_NEEDS_OWN_CHECKOUT");
+    expect(createRazorpayOrder).not.toHaveBeenCalled();
+    expect(createSubscription).not.toHaveBeenCalled();
+    // Refused BEFORE the claim: recording it would throttle the retry.
+    expect(recordTrialClaim).not.toHaveBeenCalled();
+  });
+
+  it("a trial whose no-mandate provisioning fails says so (503), never a silent ₹0 order", async () => {
+    createManualFlowTrialHosting.mockRejectedValueOnce(new Error("DB down"));
+    const res = await POST(
+      makeReq({
+        cartItems: [
+          {
+            domainName: "host-trial.com",
+            price: 0,
+            currency: "INR",
+            itemType: "hosting" as const,
+            billingCycle: "yearly" as const,
+            registrationPeriod: 15,
+            isTrial: true,
+            hostingPlan: { id: "starter", name: "Starter" },
+          },
+        ],
+      })
+    );
+    expect(res.status).toBe(503);
+    expect((await res.json()).code).toBe("TRIAL_NOT_STARTED");
     expect(createRazorpayOrder).not.toHaveBeenCalled();
   });
 });

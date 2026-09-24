@@ -9,6 +9,7 @@ import {
 import { InputValidator } from "@/lib/validation";
 import { validateDomainPeriod } from "@/lib/tld-policies";
 import { verifyDomainPrices } from "@/lib/services/payment/price-verifier";
+import { repriceHostingItems } from "@/lib/pricing/reprice-hosting";
 import { isDisposableEmail } from "@/lib/disposable-emails";
 import { getClientIp, hashIp } from "@/lib/trial-abuse";
 import { createOrder } from "@/lib/services/orders";
@@ -264,6 +265,14 @@ export async function POST(request: NextRequest) {
       `[GuestCheckout] create-order ip=${hashIp(clientIp).slice(0, 12)} dev=${deviceFingerprint?.slice(0, 12) || "none"}`
     );
 
+    // ── Hosting is priced by the server, never by the browser ─────────────
+    // ResellerOS's price + 18% GST (owner decision, 24 Sep 2026); refused
+    // with the real figure when the cart disagrees. lib/pricing/reprice-hosting.ts.
+    const hostingPrice = repriceHostingItems(cartItems);
+    if (!hostingPrice.ok) {
+      return NextResponse.json(hostingPrice.body, { status: hostingPrice.status });
+    }
+
     // ── Live price verification ──────────────────────────────────────────
     // Same protection as the logged-in flow: never trust client-supplied
     // prices for the actual charge. Live-fetch RC pricing and refuse if
@@ -291,9 +300,10 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Calculate total (server-verified) ────────────────────────────────────
-    // `serverTotal` from the verifier is domain-only. Hosting items use prices
-    // from our HostingPlan DB (not RC), so they're trusted as-is — add their
-    // sum back in for a mixed cart.
+    // `serverTotal` from the verifier is domain-only. Hosting lines were
+    // re-priced by repriceHostingItems() above, so their sum is the server's
+    // figure. (This comment used to say they came "from our HostingPlan DB";
+    // they did not — the browser's price was summed as sent.)
     const hostingTotal = cartItems
       .filter((i: CartItem) => i.itemType === "hosting")
       .reduce(
