@@ -118,6 +118,16 @@ function makeHosting(over: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
+  /* The tokens flow is DISABLED in production as of 24 Sep 2026 — recurring
+     billing moved to ResellerOS (Razorpay Subscriptions). These tests exercise
+     the MACHINERY, which is deliberately kept rather than deleted, so they opt
+     in explicitly.
+
+     Note what this does NOT hide: that the gate exists at all is pinned
+     separately by recurring-charge-disabled.test.ts, so switching it on here
+     cannot quietly cover its removal. */
+  process.env.DMS_TOKEN_RECURRING_ENABLED = "1";
+
   HostingFind.mockClear();
   findHostingDocs.mockReset().mockResolvedValue([]);
   RCACreate.mockReset();

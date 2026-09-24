@@ -128,6 +128,39 @@ export async function chargeRecurringHosting(
     domainName: hosting.domainName,
   };
 
+  /* ─── THE TOKENS FLOW IS SWITCHED OFF (Pardeep, 24 Sep 2026) ───────────────
+     Recurring billing moved to ResellerOS, which collects through Razorpay
+     SUBSCRIPTIONS (UPI Autopay / e-NACH) rather than the Tokens API. The two
+     are different instruments: with Autopay the customer's bank debits on
+     Razorpay's schedule, while the Tokens flow requires US to fire each debit
+     — which is the only reason this service and its nightly cron exist.
+
+     Gated here, at the chokepoint, rather than in the cron route: `scripts/
+     charge-recurring-hostings.js` calls this function too, and a guard that a
+     second caller can walk around is not a guard (AGENTS.md L65).
+
+     NOT DELETED, by instruction — "until we need it someday later". The dedup
+     row, the abandon-on-first-failure rule and the yearly/monthly inference
+     above are hard-won and stay exactly as they are.
+
+     DEFAULT OFF, and `=== "1"` rather than a truthy test, so an empty or
+     misspelled value keeps it off (L41). Re-enabling is deliberate.
+
+     THE REAL RISK THIS CLOSES is not cost, it is DOUBLE COLLECTION. This
+     service dedups on (hostingId, dueDate) inside DMS's own Mongo and knows
+     nothing about ResellerOS. With both systems live on one subscription,
+     nothing anywhere would catch the second debit. */
+  if (process.env.DMS_TOKEN_RECURRING_ENABLED !== "1") {
+    return {
+      ...baseResult,
+      outcome: "skipped",
+      attemptCount: 0,
+      reason:
+        "tokens recurring billing is disabled — ResellerOS collects renewals via " +
+        "Razorpay Subscriptions. Set DMS_TOKEN_RECURRING_ENABLED=1 to re-enable.",
+    };
+  }
+
   if (!hosting.razorpayTokenId || !hosting.razorpayCustomerId) {
     return { ...baseResult, outcome: "skipped", attemptCount: 0, reason: "no mandate token / customer id on Hosting" };
   }
