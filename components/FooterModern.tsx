@@ -37,25 +37,25 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
   {
     title: 'Hosting',
     links: [
-      { label: 'Web Hosting', href: '/hosting' },
-      { label: 'Business Hosting', href: '/hosting' },
-      { label: 'Reseller Hosting', href: '/hosting' },
-      { label: 'VPS Hosting', href: '/hosting' },
+      { label: 'Web Hosting', href: publicPageHref('/hosting') },
+      { label: 'Business Hosting', href: publicPageHref('/hosting') },
+      { label: 'Reseller Hosting', href: publicPageHref('/hosting') },
+      { label: 'VPS Hosting', href: publicPageHref('/hosting') },
     ],
   },
   {
     title: 'Domain',
     links: [
-      { label: 'Domain Search', href: '/domains-home' },
-      { label: 'Transfer Domain', href: '/domains-home' },
-      { label: 'WHOIS Lookup', href: '/domains-home' },
+      { label: 'Domain Search', href: publicPageHref('/domains-home') },
+      { label: 'Transfer Domain', href: publicPageHref('/domains-home') },
+      { label: 'WHOIS Lookup', href: publicPageHref('/domains-home') },
     ],
   },
   {
     title: 'Company',
     links: [
       { label: 'About Us', href: publicPageHref('/about') },
-      { label: 'Why Choose Us', href: '/hosting' },
+      { label: 'Why Choose Us', href: publicPageHref('/hosting') },
       { label: 'Blog', href: '#' },
       { label: 'Careers', href: '#' },
     ],
@@ -151,7 +151,6 @@ export default function FooterModern({ className = '' }: FooterProps) {
             <div className="flex flex-wrap gap-4 md:gap-6 justify-center md:justify-end">
               <Link href={publicPageHref('/privacy')} className="text-gray-500 hover:text-white text-sm transition-colors">Privacy Policy</Link>
               <Link href={publicPageHref('/terms-and-conditions')} className="text-gray-500 hover:text-white text-sm transition-colors">Terms and Conditions</Link>
-              <Link href="/data-deletion" className="text-gray-500 hover:text-white text-sm transition-colors">Data Deletion</Link>
               <Link href={publicPageHref('/cancellation-refund')} className="text-gray-500 hover:text-white text-sm transition-colors">Cancellation &amp; Refund</Link>
             </div>
           </div>

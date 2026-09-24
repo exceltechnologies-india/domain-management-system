@@ -6,13 +6,13 @@
  *
  *   set   → `/` redirects to ResellerOS, and every "home"/brand link in DMS
  *           points there instead of at DMS's own marketing pages.
- *   unset → DMS behaves exactly as it always has, standalone, with its own
- *           homepage. Nothing is deleted, so a DMS deployment that is not
- *           behind ResellerOS is unaffected.
- *
- * The default is "unset" on purpose. A brake that changes what the app does
- * the moment it is merged is not a brake — turning the frontpage off has to
- * be a visible decision someone makes, not a side effect of deploying.
+ *   unset → there is NO public site. Until 24 Sep 2026 this meant "DMS
+ *           behaves as it always has, standalone, with its own homepage". The
+ *           owner then had DMS's public pages deleted, so a DMS without this
+ *           variable 404s on `/`, the legal pages and the old shop pages.
+ *           The panel, cart and checkout still work. That is why the deploy
+ *           script now refuses to run with it unset: the variable is a
+ *           requirement, no longer an opt-in.
  *
  * ── Why NEXT_PUBLIC_, and what that costs ────────────────────────────────
  * The value has to reach the BROWSER: Navigation and UserLayout are
@@ -82,6 +82,28 @@ export function frontpageIsDelegated(): boolean {
  * `/contact` maps to `/enquiry` because that is ResellerOS's public
  * get-in-touch page; there is no `/contact` there, and `(app)/contacts` is the
  * CRM module, which is a different thing behind a login.
+ *
+ * ── The pages themselves are GONE, not merely redirected (24 Sep 2026) ────
+ * Owner decision: DMS's public frontend pages are removed, because the
+ * ResellerOS frontend is the one in use. None of the paths below has a page
+ * in `app/` any more; this map is the only thing those URLs still do. So with
+ * the front door unset they 404 — which is why `scripts/deploy-cloud-run.sh`
+ * refuses to deploy without NEXT_PUBLIC_RESELLEROS_URL. Before that date an
+ * admin was shown DMS's own copy instead of being redirected; there is no
+ * copy to show now.
+ *
+ *   /hosting, /domains-home, /domains/search, /domains/bulk-search
+ *       -> ResellerOS's own /hosting and /domains. A customer already inside
+ *          the panel buys through the panel dialogs instead
+ *          (lib/purchase/buy-dialog.ts), which never pass through here.
+ *   /data-deletion -> /privacy. ResellerOS has no data-deletion page; the
+ *          owner chose to remove DMS's anyway. If Facebook login is ever
+ *          switched on, Meta will want a data-deletion URL — that is the
+ *          consequence of this line, recorded so it is not rediscovered.
+ *
+ * `/hosting/error` is NOT here and must not be: it is where the control-panel
+ * SSO routes land on failure (api/user/hosting/sso), a panel page rather than
+ * marketing. Matching is by exact path, so it is unaffected.
  */
 const RESELLEROS_OWNED_PAGES: Readonly<Record<string, string>> = Object.freeze({
   "/privacy": "/privacy",
@@ -89,6 +111,11 @@ const RESELLEROS_OWNED_PAGES: Readonly<Record<string, string>> = Object.freeze({
   "/cancellation-refund": "/refund",
   "/contact": "/enquiry",
   "/about": "/about",
+  "/hosting": "/hosting",
+  "/domains-home": "/domains",
+  "/domains/search": "/domains",
+  "/domains/bulk-search": "/domains",
+  "/data-deletion": "/privacy",
 });
 
 /**
@@ -160,20 +187,23 @@ export function publicPageHref(pathname: string): string {
  * each serves 200 from DMS, none is in the redirect map, and the anchor named
  * in the target really exists in that page's source.
  *
- *   #domain-search  -> /domains-home   renders <DomainSearch> at the top, so
- *                                      there is no anchor to carry; its own
- *                                      docstring calls it "the domain-focused
- *                                      landing (former homepage)".
- *   #pricing        -> /hosting#pricing  `id="pricing"` is on
- *                                      HostingPageClient.tsx:273.
+ *   #domain-search  -> /domains-home
+ *   #pricing        -> /hosting#pricing
  *
- * They stay inside DMS deliberately. DMS is still the only thing that can
- * sell hosting or a domain, so "fixing" these by pointing them at the front
- * door would route a buyer to an app with no checkout.
+ * ── Superseded 24 Sep 2026 ──────────────────────────────────────────────
+ * Those targets were kept inside DMS "because DMS is still the only thing
+ * that can sell hosting or a domain". That stopped being true: ResellerOS's
+ * cart is primary for a first purchase, and DMS's /hosting and /domains-home
+ * pages are deleted. So both anchors now resolve to the ResellerOS pages that
+ * sell those things, through the same map as every other public page.
+ *
+ * A SIGNED-IN customer does not use these at all — Navigation sends them to
+ * the in-panel purchase dialogs (lib/purchase/buy-dialog.ts), because the
+ * owner's decision keeps in-panel buying on DMS's own cart.
  */
 const HOME_ANCHOR_TARGETS: Readonly<Record<string, string>> = Object.freeze({
   "domain-search": "/domains-home",
-  pricing: "/hosting#pricing",
+  pricing: "/hosting",
 });
 
 /**
@@ -189,7 +219,8 @@ const HOME_ANCHOR_TARGETS: Readonly<Record<string, string>> = Object.freeze({
 export function homeAnchorHref(anchor: string): string {
   const key = anchor.replace(/^#/, "");
   if (!frontpageIsDelegated()) return `/#${key}`;
-  return HOME_ANCHOR_TARGETS[key] ?? `/#${key}`;
+  const target = HOME_ANCHOR_TARGETS[key];
+  return target ? publicPageHref(target) : `/#${key}`;
 }
 
 /** The anchors this module knows how to re-point. Exported for tests. */

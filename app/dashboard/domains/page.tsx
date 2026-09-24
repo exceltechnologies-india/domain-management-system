@@ -18,6 +18,7 @@ import ClientOnly from '@/components/ClientOnly';
 import RefreshButton from '@/components/dashboard/RefreshButton';
 import DomainRenewalModal from '@/components/DomainRenewalModal';
 import ExpiryBadge from '@/components/dashboard/ExpiryBadge';
+import { buyHref } from '@/lib/purchase/buy-dialog';
 
 interface Domain {
   id: string;
@@ -135,7 +136,7 @@ export default function UserDomains() {
                 Transfer Domain
               </button>
               <button
-                onClick={() => router.push('/')}
+                onClick={() => router.push(buyHref('domain'))}
                 className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-paper bg-amber rounded-xl hover:brightness-90 transition-colors shadow-sm"
               >
                 <Plus className="h-4 w-4" />
@@ -188,7 +189,7 @@ export default function UserDomains() {
                   </p>
                   {!searchTerm && filterStatus === 'all' && (
                     <button
-                      onClick={() => router.push('/')}
+                      onClick={() => router.push(buyHref('domain'))}
                       className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber text-paper text-sm font-semibold rounded-xl hover:brightness-90 transition-colors shadow-sm"
                     >
                       <Plus className="h-4 w-4" />

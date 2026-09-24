@@ -95,7 +95,7 @@ export default function FooterClassic({ className = '' }: FooterProps) {
               <li className="text-gray-300">Backup</li>
               <li className="text-gray-300">SSL Certificates</li>
               <li>
-                <Link href="/hosting" className="text-gray-300 hover:text-white transition-colors">
+                <Link href={publicPageHref('/hosting')} className="text-gray-300 hover:text-white transition-colors">
                   Web Hosting
                 </Link>
               </li>
@@ -139,9 +139,6 @@ export default function FooterClassic({ className = '' }: FooterProps) {
               </Link>
               <Link href={publicPageHref('/terms-and-conditions')} className="text-gray-400 hover:text-white text-sm transition-colors">
                 Terms and Conditions
-              </Link>
-              <Link href="/data-deletion" className="text-gray-400 hover:text-white text-sm transition-colors">
-                Data Deletion
               </Link>
               <Link href={publicPageHref('/cancellation-refund')} className="text-gray-400 hover:text-white text-sm transition-colors">
                 Cancellation & Refund

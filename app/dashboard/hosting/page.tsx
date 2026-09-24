@@ -20,6 +20,7 @@ import HostingRenewalModal from '@/components/HostingRenewalModal';
 import HostingUpgradeModal from '@/components/HostingUpgradeModal';
 import ExpiryBadge from '@/components/dashboard/ExpiryBadge';
 import TrialCountdownBanner from '@/components/dashboard/TrialCountdownBanner';
+import { buyHref } from '@/lib/purchase/buy-dialog';
 
 interface HostingStats {
   domain: string;
@@ -512,7 +513,7 @@ export default function HostingPage() {
             <h3 className="text-sm font-semibold text-ink mb-1.5">No Hosting Services</h3>
             <p className="text-sm text-ink-3 mb-5 max-w-sm mx-auto">You don't have any active hosting packages yet — pick a plan to get started.</p>
             <button
-              onClick={() => router.push('/hosting#pricing')}
+              onClick={() => router.push(buyHref('hosting'))}
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber text-white text-sm font-semibold rounded-xl hover:brightness-90 transition-colors shadow-sm"
             >
               <Plus className="h-4 w-4" />

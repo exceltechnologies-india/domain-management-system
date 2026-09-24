@@ -8,6 +8,7 @@ import { ShoppingCart, User } from 'lucide-react';
 import { useCartStore } from '@/store/cartStore';
 import Logo from './Logo';
 import { homeAnchorHref, homeUrl, publicPageHref } from '@/lib/reseller-os';
+import { buyHref } from '@/lib/purchase/buy-dialog';
 
 interface NavigationProps {
   variant?: 'default' | 'dashboard' | 'admin';
@@ -108,6 +109,13 @@ export default function Navigation({
   };
   const loginHref = buildLoginHref();
 
+  // A signed-in customer buys inside the panel, through the purchase dialogs
+  // (owner decision, 24 Sep 2026 — first purchases on ResellerOS, in-panel
+  // purchases on DMS's own cart). Everyone else goes to ResellerOS's pages;
+  // DMS's own /hosting and /domains pages no longer exist.
+  const domainsHref = isLoggedIn ? buyHref('domain') : homeAnchorHref("domain-search");
+  const hostingHref = isLoggedIn ? buyHref('hosting') : homeAnchorHref("pricing");
+
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
   };
@@ -206,7 +214,7 @@ export default function Navigation({
               <span className={`absolute -bottom-1 left-0 h-0.5 transition-all duration-200 ${isActive('/') ? 'w-full' : 'w-0 group-hover:w-full'}`} style={{ backgroundColor: 'var(--google-blue)' }}></span>
             </Link>
             <Link
-              href={homeAnchorHref("domain-search")}
+              href={domainsHref}
               className="font-medium transition-colors duration-200 relative group text-[var(--google-text-primary)] hover:text-[var(--google-blue)]"
               style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}
             >
@@ -214,7 +222,7 @@ export default function Navigation({
               <span className="absolute -bottom-1 left-0 h-0.5 w-0 group-hover:w-full transition-all duration-200" style={{ backgroundColor: 'var(--google-blue)' }}></span>
             </Link>
             <Link
-              href={homeAnchorHref("pricing")}
+              href={hostingHref}
               className={`font-medium transition-colors duration-200 relative group ${isActive('/hosting')
                 ? 'text-[var(--google-blue)]'
                 : 'text-[var(--google-text-primary)] hover:text-[var(--google-blue)]'
@@ -287,7 +295,7 @@ export default function Navigation({
             )}
 
             <Link
-              href={homeAnchorHref("pricing")}
+              href={hostingHref}
               className="hidden sm:inline-flex items-center px-4 py-2 rounded-lg font-semibold text-white shadow-sm hover:shadow-md transition-all bg-gradient-to-r from-[#7C3AED] to-[#6D28D9] hover:from-[#6D28D9] hover:to-[#5B21B6]"
               style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}
             >
@@ -330,7 +338,7 @@ export default function Navigation({
               Home
             </Link>
             <Link
-              href={homeAnchorHref("domain-search")}
+              href={domainsHref}
               onClick={closeMobileMenu}
               className="px-4 py-2 rounded-lg font-medium transition-colors duration-200 text-[var(--google-text-primary)] hover:text-[var(--google-blue)] hover:bg-[var(--google-bg-secondary)]"
               style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}
@@ -338,7 +346,7 @@ export default function Navigation({
               Domains
             </Link>
             <Link
-              href={homeAnchorHref("pricing")}
+              href={hostingHref}
               onClick={closeMobileMenu}
               className={`px-4 py-2 rounded-lg font-medium transition-colors duration-200 ${isActive('/hosting')
                 ? 'text-[var(--google-blue)] bg-[var(--google-blue-light)]'

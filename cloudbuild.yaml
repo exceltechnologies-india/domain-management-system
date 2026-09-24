@@ -16,6 +16,8 @@ substitutions:
   _NEXT_PUBLIC_FACEBOOK_ENABLED: 'false'
   _NEXT_PUBLIC_GITHUB_ENABLED: 'false'
   _NEXT_PUBLIC_SUPPORT_EMAIL: 'support@anutech.in'
+  # Required since 24 Sep 2026 — DMS has no public pages; see deploy-cloud-run.sh.
+  _NEXT_PUBLIC_RESELLEROS_URL: ''
 
 steps:
   - name: 'gcr.io/cloud-builders/docker'
@@ -26,6 +28,7 @@ steps:
       - '--build-arg=NEXT_PUBLIC_FACEBOOK_ENABLED=${_NEXT_PUBLIC_FACEBOOK_ENABLED}'
       - '--build-arg=NEXT_PUBLIC_GITHUB_ENABLED=${_NEXT_PUBLIC_GITHUB_ENABLED}'
       - '--build-arg=NEXT_PUBLIC_SUPPORT_EMAIL=${_NEXT_PUBLIC_SUPPORT_EMAIL}'
+      - '--build-arg=NEXT_PUBLIC_RESELLEROS_URL=${_NEXT_PUBLIC_RESELLEROS_URL}'
       - '--tag=us-central1-docker.pkg.dev/$PROJECT_ID/dms/dms:latest'
       - '.'
 

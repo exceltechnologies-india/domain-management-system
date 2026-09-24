@@ -1,0 +1,139 @@
+/**
+ * The in-panel purchase dialogs (owner decision, 24 Sep 2026).
+ *
+ *  - `?buy=` opens exactly the named dialog, and closing strips only the
+ *    dialog's own parameters.
+ *  - The hosting dialog puts the same cart line the deleted /hosting page did
+ *    into the cart, then goes to /cart.
+ *  - The trial is refused client-side when the eligibility check says no, and
+ *    an unreachable check is reported rather than read as "eligible".
+ */
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+const pushMock = vi.hoisted(() => vi.fn());
+const replaceMock = vi.hoisted(() => vi.fn());
+const searchParams = vi.hoisted(() => ({ value: new URLSearchParams() }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: pushMock, replace: replaceMock }),
+  usePathname: () => "/dashboard/hosting",
+  useSearchParams: () => searchParams.value,
+}));
+
+const addItemMock = vi.hoisted(() => vi.fn());
+vi.mock("@/store/cartStore", () => ({
+  useCartStore: () => ({ addItem: addItemMock, items: [] }),
+}));
+
+const toastMock = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock("react-hot-toast", () => ({ default: toastMock }));
+
+const postMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/api-client", () => ({ apiClient: { post: postMock } }));
+vi.mock("@/lib/device-fingerprint", () => ({ getDeviceFingerprint: () => Promise.resolve("fp") }));
+vi.mock("@/lib/journey", () => ({ trackStartTrial: vi.fn() }));
+vi.mock("@/hooks/useModalScroll", () => ({ useModalScroll: () => {} }));
+
+// The domain dialog is DomainSearch in a frame; DomainSearch has its own suite.
+const domainSearchMock = vi.hoisted(() =>
+  vi.fn((props: { initialSearchTerm?: string; autoSearch?: boolean }) => (
+    <div data-testid="domain-search" data-term={props.initialSearchTerm} data-auto={String(props.autoSearch)} />
+  ))
+);
+vi.mock("@/components/DomainSearch", () => ({ default: domainSearchMock }));
+
+import PurchaseDialogs from "@/components/purchase/PurchaseDialogs";
+
+function open(qs: string) {
+  searchParams.value = new URLSearchParams(qs);
+  return render(<PurchaseDialogs />);
+}
+
+beforeEach(() => {
+  pushMock.mockReset();
+  replaceMock.mockReset();
+  addItemMock.mockReset();
+  postMock.mockReset();
+  toastMock.success.mockReset();
+  toastMock.error.mockReset();
+});
+
+describe("which dialog opens", () => {
+  it("nothing without ?buy=", () => {
+    open("");
+    expect(screen.queryByText("Buy hosting")).toBeNull();
+    expect(screen.queryByTestId("domain-search")).toBeNull();
+  });
+
+  it("?buy=hosting opens only the hosting dialog", () => {
+    open("buy=hosting");
+    expect(screen.getByText("Buy hosting")).toBeInTheDocument();
+    expect(screen.queryByTestId("domain-search")).toBeNull();
+  });
+
+  it("?buy=domain opens the search, pre-filled and run from ?q=", () => {
+    open("buy=domain&q=example");
+    const s = screen.getByTestId("domain-search");
+    expect(s).toHaveAttribute("data-term", "example");
+    expect(s).toHaveAttribute("data-auto", "true");
+  });
+
+  it("closing removes buy and q, keeps anything else, and does not push history", () => {
+    open("buy=domain&q=example&tab=active");
+    fireEvent.click(screen.getByRole("button", { name: "" }));
+    expect(replaceMock).toHaveBeenCalledWith("/dashboard/hosting?tab=active", { scroll: false });
+  });
+});
+
+describe("the hosting dialog", () => {
+  it("adds the yearly line the /hosting page used to, then goes to the cart", () => {
+    open("buy=hosting");
+    fireEvent.click(screen.getAllByRole("button", { name: "Add to cart" })[0]);
+    const item = addItemMock.mock.calls[0][0];
+    expect(item.itemType).toBe("hosting");
+    expect(item.hostingPlan.id).toBe("starter");
+    expect(item.price).toBe(49.99);
+    expect(item.registrationPeriod).toBe(12);
+    expect(pushMock).toHaveBeenCalledWith("/cart");
+  });
+
+  it("monthly shows and adds twice the per-month rate", () => {
+    open("buy=hosting");
+    fireEvent.click(screen.getByRole("button", { name: "Monthly" }));
+    expect(screen.getByText("₹99.98")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Add to cart" })[0]);
+    expect(addItemMock.mock.calls[0][0].registrationPeriod).toBe(1);
+  });
+
+  it("offers the trial on yearly Starter only", () => {
+    open("buy=hosting");
+    expect(screen.getAllByRole("button", { name: /free trial/i })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Monthly" }));
+    expect(screen.queryByRole("button", { name: /free trial/i })).toBeNull();
+  });
+
+  it("an eligible trial adds a ₹0 line and goes to the cart", async () => {
+    postMock.mockResolvedValue({ ok: true, data: { eligible: true } });
+    open("buy=hosting");
+    fireEvent.click(screen.getByRole("button", { name: /free trial/i }));
+    await waitFor(() => expect(addItemMock).toHaveBeenCalled());
+    expect(addItemMock.mock.calls[0][0]).toMatchObject({ price: 0, isTrial: true });
+    expect(pushMock).toHaveBeenCalledWith("/cart");
+  });
+
+  it("an ineligible trial says why and adds nothing", async () => {
+    postMock.mockResolvedValue({ ok: true, data: { eligible: false, reason: "You have already used your free trial" } });
+    open("buy=hosting");
+    fireEvent.click(screen.getByRole("button", { name: /free trial/i }));
+    await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith("You have already used your free trial"));
+    expect(addItemMock).not.toHaveBeenCalled();
+  });
+
+  it("a failed eligibility check is reported, never treated as eligible", async () => {
+    postMock.mockResolvedValue({ ok: false });
+    open("buy=hosting");
+    fireEvent.click(screen.getByRole("button", { name: /free trial/i }));
+    await waitFor(() => expect(toastMock.error).toHaveBeenCalled());
+    expect(addItemMock).not.toHaveBeenCalled();
+  });
+});

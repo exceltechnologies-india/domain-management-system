@@ -598,26 +598,33 @@ describe("Front door — `/` when ResellerOS owns the public site", () => {
 });
 
 /**
- * Marketing/legal pages ResellerOS owns once it is the front door.
+ * DMS's public pages, which were DELETED on 24 Sep 2026 (owner decision: the
+ * ResellerOS frontend is the one in use). The redirect is now everything
+ * these URLs do.
  *
  * Threat model:
  *  - **A 404 here is a payments risk, not a cosmetic choice.** Razorpay
  *    requires a merchant's policy pages to stay publicly reachable, so these
  *    redirect to real ResellerOS pages rather than disappearing.
- *  - **"Inaccessible to normal users" must not mean inaccessible to
- *    everyone.** An admin still gets DMS's copy, which is how the pages stay
- *    checkable without unsetting the front door.
- *  - **Taking over too much would remove the only way to buy.** /hosting,
- *    /domains, /cart and /checkout are the working purchase funnel; the panels
- *    are the point of DMS. Pinned that none of them are touched.
+ *  - **An admin must be redirected too.** Until the deletion an admin was
+ *    shown DMS's own copy; there is no copy now, so exempting admins would
+ *    send them to a 404. Pinned for every path.
+ *  - **Taking over the wrong thing would break the panel.** /cart, /checkout,
+ *    /login, the dashboard and /hosting/error (where control-panel SSO lands
+ *    on failure) are DMS's own and must not move.
  */
-describe("Pages ResellerOS owns — normal visitors redirected, admins not", () => {
+describe("DMS's deleted public pages — everyone is redirected to ResellerOS", () => {
   const OWNED: Array<[string, string]> = [
     ["/privacy", "https://app.example.com/privacy"],
     ["/terms-and-conditions", "https://app.example.com/terms"],
     ["/cancellation-refund", "https://app.example.com/refund"],
     ["/contact", "https://app.example.com/enquiry"],
     ["/about", "https://app.example.com/about"],
+    ["/hosting", "https://app.example.com/hosting"],
+    ["/domains-home", "https://app.example.com/domains"],
+    ["/domains/search", "https://app.example.com/domains"],
+    ["/domains/bulk-search", "https://app.example.com/domains"],
+    ["/data-deletion", "https://app.example.com/privacy"],
   ];
 
   it.each(OWNED)("signed-out visitor on %s → 307 to %s", async (path, target) => {
@@ -636,25 +643,32 @@ describe("Pages ResellerOS owns — normal visitors redirected, admins not", () 
     expect(res?.headers.get("location")).toBe(target);
   });
 
-  it.each(OWNED)("an ADMIN still gets DMS's own %s", async (path) => {
+  it.each(OWNED)("an ADMIN on %s is redirected as well — there is no DMS copy left", async (path, target) => {
     vi.stubEnv("NEXT_PUBLIC_RESELLEROS_URL", "https://app.example.com");
     getToken.mockResolvedValue({ role: "admin", email: "a@example.com" });
     const res = await middleware(makeReq(`https://dms.example.com${path}`));
-    expect(res?.status).not.toBe(307);
-    expect(res?.headers.get("location")).toBeNull();
+    expect(res?.status).toBe(307);
+    expect(res?.headers.get("location")).toBe(target);
   });
 
-  it.each(OWNED)("unset front door → %s is served by DMS as before", async (path) => {
+  it("decides without looking up a session — a role no longer changes the answer", async () => {
+    vi.stubEnv("NEXT_PUBLIC_RESELLEROS_URL", "https://app.example.com");
+    getToken.mockClear();
+    await middleware(makeReq("https://dms.example.com/privacy"));
+    expect(getToken).not.toHaveBeenCalled();
+  });
+
+  it.each(OWNED)("unset front door → %s is not redirected (and has no page: the deploy refuses this)", async (path) => {
     vi.stubEnv("NEXT_PUBLIC_RESELLEROS_URL", "");
     getToken.mockResolvedValue(null);
     const res = await middleware(makeReq(`https://dms.example.com${path}`));
     expect(res?.headers.get("location")).toBeNull();
   });
 
-  it("the purchase funnel and the panels are NOT taken over", async () => {
+  it("the panel, the cart and the SSO error page are NOT taken over", async () => {
     vi.stubEnv("NEXT_PUBLIC_RESELLEROS_URL", "https://app.example.com");
     getToken.mockResolvedValue(null);
-    for (const path of ["/hosting", "/domains/search", "/cart", "/login"]) {
+    for (const path of ["/cart", "/checkout/guest", "/login", "/hosting/error", "/sso"]) {
       const res = await middleware(makeReq(`https://dms.example.com${path}`));
       const loc = res?.headers.get("location") ?? "";
       expect(loc.startsWith("https://app.example.com"), `${path} was taken over`).toBe(false);

@@ -215,6 +215,29 @@ if ! $SKIP_BUILD; then
   # shellcheck disable=SC1091
   set -a; source .env.local; set +a
 
+  # NEXT_PUBLIC_RESELLEROS_URL — REQUIRED since 24 Sep 2026. DMS's public
+  # pages (/, /privacy, /terms-and-conditions, /cancellation-refund, /about,
+  # /contact, /hosting, /domains/*) were deleted by owner decision; the ONLY
+  # thing those URLs do now is redirect to ResellerOS, and they 404 without
+  # this value. Razorpay requires the policy pages to stay reachable, so a
+  # build without it is a payments risk, not a cosmetic one. It is a BUILD
+  # arg (inlined by next build), so it is checked here, before building.
+  # See lib/reseller-os.ts.
+  if [ -z "${NEXT_PUBLIC_RESELLEROS_URL:-}" ]; then
+    echo "❌ NEXT_PUBLIC_RESELLEROS_URL is not set in this shell or .env.local."
+    echo "   DMS has no public pages of its own any more; without this, /, the policy"
+    echo "   pages and the old shop URLs would 404 in production."
+    echo "   Fix: add NEXT_PUBLIC_RESELLEROS_URL=https://<the ResellerOS origin> to .env.local, then re-run."
+    exit 1
+  fi
+  case "${NEXT_PUBLIC_RESELLEROS_URL}" in
+    http://*|https://*) ;;
+    *) echo "❌ NEXT_PUBLIC_RESELLEROS_URL must start with https:// (got: ${NEXT_PUBLIC_RESELLEROS_URL})."
+       echo "   A bare host is refused by lib/reseller-os.ts, which would leave the public URLs 404ing."
+       exit 1 ;;
+  esac
+  echo "   NEXT_PUBLIC_RESELLEROS_URL resolved to: ${NEXT_PUBLIC_RESELLEROS_URL}"
+
   if [ "$BUILD_MODE" = "local" ]; then
     # Local docker build on this VPS, then push to Artifact Registry. The
     # build runs synchronously so the user sees Docker's normal layered
@@ -235,7 +258,7 @@ if ! $SKIP_BUILD; then
       --build-arg "NEXT_PUBLIC_RECAPTCHA_SITE_KEY=${NEXT_PUBLIC_RECAPTCHA_SITE_KEY:-}" \
       --build-arg "NEXT_PUBLIC_FACEBOOK_ENABLED=${NEXT_PUBLIC_FACEBOOK_ENABLED:-false}" \
       --build-arg "NEXT_PUBLIC_GITHUB_ENABLED=${NEXT_PUBLIC_GITHUB_ENABLED:-false}" \
-      --build-arg "NEXT_PUBLIC_SUPPORT_EMAIL=${NEXT_PUBLIC_SUPPORT_EMAIL:-support@anutech.in}" \
+      --build-arg "NEXT_PUBLIC_SUPPORT_EMAIL=${NEXT_PUBLIC_SUPPORT_EMAIL:-support@anutech.in}"       --build-arg "NEXT_PUBLIC_RESELLEROS_URL=${NEXT_PUBLIC_RESELLEROS_URL}" \
       --tag "$IMAGE" \
       --tag "us-central1-docker.pkg.dev/${PROJECT}/dms/dms:${SHORT_SHA}" \
       .
@@ -260,7 +283,7 @@ if ! $SKIP_BUILD; then
     echo "📍 [1/2] Building image via Cloud Build (~4 min)..."
     gcloud builds submit \
       --config=cloudbuild.yaml \
-      --substitutions="_NEXT_PUBLIC_RAZORPAY_KEY_ID=${NEXT_PUBLIC_RAZORPAY_KEY_ID:-},_NEXT_PUBLIC_RECAPTCHA_SITE_KEY=${NEXT_PUBLIC_RECAPTCHA_SITE_KEY:-},_NEXT_PUBLIC_FACEBOOK_ENABLED=${NEXT_PUBLIC_FACEBOOK_ENABLED:-false},_NEXT_PUBLIC_GITHUB_ENABLED=${NEXT_PUBLIC_GITHUB_ENABLED:-false},_NEXT_PUBLIC_SUPPORT_EMAIL=${NEXT_PUBLIC_SUPPORT_EMAIL:-support@anutech.in}" \
+      --substitutions="_NEXT_PUBLIC_RAZORPAY_KEY_ID=${NEXT_PUBLIC_RAZORPAY_KEY_ID:-},_NEXT_PUBLIC_RECAPTCHA_SITE_KEY=${NEXT_PUBLIC_RECAPTCHA_SITE_KEY:-},_NEXT_PUBLIC_FACEBOOK_ENABLED=${NEXT_PUBLIC_FACEBOOK_ENABLED:-false},_NEXT_PUBLIC_GITHUB_ENABLED=${NEXT_PUBLIC_GITHUB_ENABLED:-false},_NEXT_PUBLIC_SUPPORT_EMAIL=${NEXT_PUBLIC_SUPPORT_EMAIL:-support@anutech.in},_NEXT_PUBLIC_RESELLEROS_URL=${NEXT_PUBLIC_RESELLEROS_URL}" \
       >/dev/null 2>&1 &
     BUILD_PID=$!
     while kill -0 $BUILD_PID 2>/dev/null; do printf "."; sleep 5; done

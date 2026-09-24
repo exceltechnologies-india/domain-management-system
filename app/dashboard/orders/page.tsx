@@ -18,6 +18,7 @@ import UserLayout from '@/components/user/UserLayout';
 import { DashboardLayoutSkeleton, OrdersPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import ClientOnly from '@/components/ClientOnly';
 import RefreshButton from '@/components/dashboard/RefreshButton';
+import { buyHref } from '@/lib/purchase/buy-dialog';
 
 interface Order {
   _id: string;
@@ -224,7 +225,7 @@ export default function UserOrders() {
                   </p>
                   {!searchTerm && filterStatus === 'all' && (
                     <button
-                      onClick={() => router.push('/')}
+                      onClick={() => router.push(buyHref('domain'))}
                       className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-amber rounded-lg hover:brightness-90 transition-colors"
                     >
                       <ExternalLink className="h-4 w-4 mr-2" />

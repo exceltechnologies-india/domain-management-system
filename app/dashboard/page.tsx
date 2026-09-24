@@ -21,6 +21,7 @@ import { apiClient } from '@/lib/api-client';
 import { useUser } from '@/hooks/useUser';
 import UserLayout from '@/components/user/UserLayout';
 import { DashboardLayoutSkeleton, DashboardHomeSkeleton } from '@/components/skeletons/PageSkeletons';
+import { buyHref } from '@/lib/purchase/buy-dialog';
 
 interface User {
   id: string;
@@ -436,7 +437,7 @@ export default function UserDashboard() {
                       <h3 className="text-sm font-semibold text-ink mb-1.5">No services yet</h3>
                       <p className="text-sm text-ink-3 mb-5">Get started by registering a domain.</p>
                       <button
-                        onClick={() => router.push('/')}
+                        onClick={() => router.push(buyHref('domain'))}
                         className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber text-paper text-sm font-semibold rounded-xl hover:brightness-90 transition-colors shadow-sm"
                       >
                         <Search className="h-4 w-4" />
@@ -465,7 +466,7 @@ export default function UserDashboard() {
                     <h3 className="font-bold text-lg mb-1">Need a new domain?</h3>
                     <p className="text-paper/85 text-sm mb-4">Search and register your perfect domain name.</p>
                     <button
-                      onClick={() => router.push('/')}
+                      onClick={() => router.push(buyHref('domain'))}
                       className="w-full inline-flex items-center justify-center gap-2 bg-paper text-amber-ink font-semibold text-sm py-2.5 rounded-xl hover:bg-paper-2 transition-colors shadow-sm"
                     >
                       <Search className="h-4 w-4" />

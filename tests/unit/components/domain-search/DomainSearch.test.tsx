@@ -277,7 +277,7 @@ describe("<DomainSearch> orchestration", () => {
     // Login link carries returnUrl with `q=taken` (the base domain before the dot).
     const signInLink = screen.getByRole("link", { name: /^sign in$/i });
     expect(signInLink.getAttribute("href")).toMatch(/^\/login\?returnUrl=/);
-    expect(signInLink.getAttribute("href")).toContain(encodeURIComponent("/domains/search?q=taken"));
+    expect(signInLink.getAttribute("href")).toContain(encodeURIComponent("/dashboard/domains?buy=domain&q=taken"));
   });
 
   it("handleWatch 409 → 'Already watching' error toast (no sign-in prompt)", async () => {
@@ -323,10 +323,10 @@ describe("<DomainSearch> orchestration", () => {
     render(<DomainSearch />);
     await user.click(screen.getByText("watch"));
     expect(screen.getByRole("link", { name: /^sign in$/i }).getAttribute("href")).toContain(
-      encodeURIComponent("/domains/search?q=taken")
+      encodeURIComponent("/dashboard/domains?buy=domain&q=taken")
     );
     expect(screen.getByRole("link", { name: /^create account$/i }).getAttribute("href")).toContain(
-      encodeURIComponent("/domains/search?q=taken")
+      encodeURIComponent("/dashboard/domains?buy=domain&q=taken")
     );
   });
 });

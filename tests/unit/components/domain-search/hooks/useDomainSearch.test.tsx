@@ -22,7 +22,7 @@
  *  - handleSearch with invalid input → toast.error + early return (no API)
  *  - handleSearch with bare 'example' → searches base + '.com' tld + sets
  *    multi-search state
- *  - handleSearch with redirectOnSearch=true → router.push(/domains/search?q=...)
+ *  - handleSearch with redirectOnSearch=true → router.push(the panel domain dialog, ?buy=domain&q=...)
  *  - handleSearch happy path: quick result → setResults; then Phase-2
  *    suggestions fetch
  *  - quick result 'restricted_tld' → setError + toast.error (no suggestions)
@@ -212,7 +212,7 @@ describe("useDomainSearch", () => {
     await act(async () => {
       await result.current.handleSearch();
     });
-    expect(pushMock).toHaveBeenCalledWith(expect.stringContaining("/domains/search?q=example"));
+    expect(pushMock).toHaveBeenCalledWith("/dashboard/domains?buy=domain&q=example");
     expect(apiPostMock).not.toHaveBeenCalled();
   });
 

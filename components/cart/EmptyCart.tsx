@@ -1,5 +1,6 @@
 import { ShoppingCart, Globe, Shield, CreditCard, Clock, CheckCircle, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+import { buyHref } from '@/lib/purchase/buy-dialog';
 
 export default function EmptyCart() {
   return (
@@ -23,7 +24,7 @@ export default function EmptyCart() {
 
       <div className="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-4">
         <Link
-          href="/domains/search"
+          href={buyHref('domain')}
           className="group inline-flex items-center px-8 py-4 bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 text-white font-bold rounded-xl transition-all duration-300 shadow-xl hover:shadow-2xl transform hover:-translate-y-1"
         >
           <Globe className="h-5 w-5 mr-3 group-hover:rotate-12 transition-transform duration-300" />
@@ -31,7 +32,7 @@ export default function EmptyCart() {
           <ArrowRight className="ml-2 h-5 w-5 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
         </Link>
         <Link
-          href="/hosting"
+          href={buyHref('hosting')}
           className="px-8 py-4 bg-white border-2 border-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 hover:border-gray-200 transition-all duration-200"
         >
           Browse Hosting

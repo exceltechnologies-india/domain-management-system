@@ -143,13 +143,25 @@ describe("resellerOsOwnedUrl — pages ResellerOS takes over", () => {
     }
   });
 
-  it("does NOT take over the purchase funnel or the panels", () => {
-    // /hosting, /domains, /cart and /checkout are the only working way to buy
-    // hosting or a domain; /login and the panels are the whole point of DMS.
+  it("takes over the deleted shop pages (owner decision, 24 Sep 2026)", () => {
+    // DMS's /hosting and domain pages were removed; first purchases happen on
+    // ResellerOS, in-panel ones through the panel dialogs.
+    set("https://app.example.com");
+    expect(resellerOsOwnedUrl("/hosting")).toBe("https://app.example.com/hosting");
+    expect(resellerOsOwnedUrl("/domains-home")).toBe("https://app.example.com/domains");
+    expect(resellerOsOwnedUrl("/domains/search")).toBe("https://app.example.com/domains");
+    expect(resellerOsOwnedUrl("/domains/bulk-search")).toBe("https://app.example.com/domains");
+    expect(resellerOsOwnedUrl("/data-deletion")).toBe("https://app.example.com/privacy");
+  });
+
+  it("does NOT take over the cart, checkout, the panels or the SSO error page", () => {
+    // In-panel purchases still check out through DMS's own cart, and
+    // /hosting/error is where control-panel SSO lands on failure — exact-path
+    // matching is what keeps it apart from /hosting.
     set("https://app.example.com");
     for (const path of [
-      "/hosting", "/domains", "/domains/search", "/cart", "/checkout",
-      "/login", "/dashboard", "/admin", "/admin/dashboard",
+      "/cart", "/checkout", "/checkout/guest", "/hosting/error", "/sso",
+      "/login", "/dashboard", "/dashboard/hosting", "/admin", "/admin/dashboard",
     ]) {
       expect(resellerOsOwnedUrl(path), `${path} must not be taken over`).toBeNull();
     }

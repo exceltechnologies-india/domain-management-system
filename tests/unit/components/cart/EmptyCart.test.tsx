@@ -15,9 +15,9 @@ describe("<EmptyCart>", () => {
     expect(screen.getByText(/no domains or hosting plans in your cart yet/i)).toBeInTheDocument();
   });
 
-  it("links to domain search and hosting", () => {
+  it("opens the in-panel purchase dialogs — DMS has no public shop pages any more", () => {
     render(<EmptyCart />);
-    expect(screen.getByRole("link", { name: /find my domain/i })).toHaveAttribute("href", "/domains/search");
-    expect(screen.getByRole("link", { name: /browse hosting/i })).toHaveAttribute("href", "/hosting");
+    expect(screen.getByRole("link", { name: /find my domain/i })).toHaveAttribute("href", "/dashboard/domains?buy=domain");
+    expect(screen.getByRole("link", { name: /browse hosting/i })).toHaveAttribute("href", "/dashboard/hosting?buy=hosting");
   });
 });

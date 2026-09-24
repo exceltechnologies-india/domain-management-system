@@ -42,6 +42,12 @@ vi.mock("@/components/user/LoadingComponents", () => ({
   ),
 }));
 
+// The purchase dialogs read the URL and have their own tests
+// (purchase-dialogs.test.tsx); here they only need to mount.
+vi.mock("@/components/purchase/PurchaseDialogs", () => ({
+  default: () => <div data-testid="purchase-dialogs" />,
+}));
+
 import UserLayout from "@/components/user/UserLayout";
 
 const USER = { firstName: "Ada", lastName: "Lovelace", email: "ada@example.test" };
@@ -67,6 +73,23 @@ describe("<UserLayout>", () => {
       ).toBeInTheDocument();
     }
     expect(screen.getByRole("link", { name: /Invoices/i })).toBeInTheDocument();
+  });
+
+  it("offers in-panel purchase, since DMS has no public shop any more", () => {
+    render(
+      <UserLayout user={USER}>
+        <div data-testid="page" />
+      </UserLayout>
+    );
+    expect(screen.getByRole("link", { name: /^Buy hosting$/i })).toHaveAttribute(
+      "href",
+      "/dashboard/hosting?buy=hosting"
+    );
+    expect(screen.getByRole("link", { name: /^Register domain$/i })).toHaveAttribute(
+      "href",
+      "/dashboard/domains?buy=domain"
+    );
+    expect(screen.getByTestId("purchase-dialogs")).toBeInTheDocument();
   });
 
   it("active link picks up the amber active state", () => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -26,6 +26,8 @@ import ProfileCompletionWarning from '@/components/ProfileCompletionWarning';
 import { DataLoading } from '@/components/user/LoadingComponents';
 import { useCartStore } from '@/store/cartStore';
 import { homeUrl } from '@/lib/reseller-os';
+import PurchaseDialogs from '@/components/purchase/PurchaseDialogs';
+import { buyHref } from '@/lib/purchase/buy-dialog';
 
 interface UserLayoutProps {
   children: React.ReactNode;
@@ -204,6 +206,29 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
               );
             })}
           </div>
+
+          {/* In-panel purchase. DMS has no public shop any more (owner
+              decision, 24 Sep 2026), so these dialogs are the only way a
+              signed-in customer adds hosting or a domain from here. */}
+          <div className="mt-4 pt-3 border-t border-hairline space-y-0.5">
+            <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-ink-4">Buy</p>
+            <Link
+              href={buyHref('hosting')}
+              onClick={() => setSidebarOpen(false)}
+              className="flex items-center gap-2.5 px-3 py-2 lg:py-1.5 text-sm rounded-md text-ink-2 hover:bg-paper-2 hover:text-ink transition-colors"
+            >
+              <Server className="h-4 w-4 flex-shrink-0 text-ink-3" />
+              Buy hosting
+            </Link>
+            <Link
+              href={buyHref('domain')}
+              onClick={() => setSidebarOpen(false)}
+              className="flex items-center gap-2.5 px-3 py-2 lg:py-1.5 text-sm rounded-md text-ink-2 hover:bg-paper-2 hover:text-ink transition-colors"
+            >
+              <Search className="h-4 w-4 flex-shrink-0 text-ink-3" />
+              Register domain
+            </Link>
+          </div>
         </nav>
 
       </div>
@@ -284,6 +309,12 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
             )}
           </motion.div>
         </main>
+
+        {/* PurchaseDialogs reads useSearchParams, which Next requires to sit
+            under a Suspense boundary on a statically rendered page. */}
+        <Suspense fallback={null}>
+          <PurchaseDialogs />
+        </Suspense>
 
         {/* Floating Home Button — the customer panel's only way "out", so it
             follows the front door: ResellerOS when it owns it, DMS's own `/`

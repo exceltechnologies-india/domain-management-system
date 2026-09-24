@@ -24,6 +24,7 @@ import { useDomainSearch } from './hooks/useDomainSearch';
 import type { SearchResult } from './hooks/useDomainSearch';
 import { apiClient } from '@/lib/api-client';
 import SearchInput from './SearchInput';
+import { buyHref } from '@/lib/purchase/buy-dialog';
 import SearchResults from './SearchResults';
 
 export interface DomainSearchProps {
@@ -238,14 +239,14 @@ export default function DomainSearch({
 
               <div className="space-y-2.5">
                 <a
-                  href={`/login?returnUrl=${encodeURIComponent(`/domains/search?q=${watchSignInDomain.split('.')[0]}`)}`}
+                  href={`/login?returnUrl=${encodeURIComponent(buyHref('domain', watchSignInDomain.split('.')[0]))}`}
                   className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-xl transition-colors"
                 >
                   <LogIn className="h-4 w-4" />
                   Sign In
                 </a>
                 <a
-                  href={`/register?returnUrl=${encodeURIComponent(`/domains/search?q=${watchSignInDomain.split('.')[0]}`)}`}
+                  href={`/register?returnUrl=${encodeURIComponent(buyHref('domain', watchSignInDomain.split('.')[0]))}`}
                   className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-xl transition-colors"
                 >
                   <UserPlus className="h-4 w-4" />

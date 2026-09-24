@@ -89,22 +89,19 @@ describe("homeAnchorHref", () => {
     expect(homeAnchorHref("pricing")).toBe("/#pricing");
   });
 
-  it("with a front door, goes to the DMS page that really has that content", () => {
+  it("with a front door, goes to the ResellerOS page that sells that thing", () => {
+    // Until 24 Sep 2026 these stayed inside DMS "because DMS is the only thing
+    // that can sell". The owner reversed that: ResellerOS's cart is primary,
+    // and DMS's /hosting and /domains-home were deleted.
     set("https://app.example.com");
-    // No anchor: /domains-home renders <DomainSearch> at the top, so there is
-    // nothing to scroll to. Carrying "#domain-search" would be a scroll
-    // target that does not exist on the destination.
-    expect(homeAnchorHref("domain-search")).toBe("/domains-home");
-    // Anchor kept: id="pricing" is on HostingPageClient.tsx.
-    expect(homeAnchorHref("pricing")).toBe("/hosting#pricing");
+    expect(homeAnchorHref("domain-search")).toBe("https://app.example.com/domains");
+    expect(homeAnchorHref("pricing")).toBe("https://app.example.com/hosting");
   });
 
-  it("stays inside DMS, because DMS is still the only thing that can sell", () => {
-    // The purchase funnel is deliberately DMS's. This must not be "fixed"
-    // later by pointing it at the front door.
+  it("never points at a DMS shop page, which no longer exists", () => {
     set("https://app.example.com");
     for (const key of homeAnchorKeys()) {
-      expect(homeAnchorHref(key).startsWith("http")).toBe(false);
+      expect(homeAnchorHref(key).startsWith("https://app.example.com/")).toBe(true);
     }
   });
 

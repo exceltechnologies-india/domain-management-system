@@ -74,6 +74,18 @@ If a customer ASKS for a trial-period invoice: there is none. Canned response: *
 
 Full record, open questions and build list: ResellerOS repo, `Todos.md` §0A.
 
+## DMS has no public pages — ResellerOS's frontend is the one in use (OWNER DECISION, 24 Sep 2026)
+
+Owner: *"Remove the frontend pages of DMS completely since we are using the frontend page of ResellerOS now."* Deleted: `/`, `/about`, `/contact`, `/privacy`, `/terms-and-conditions`, `/cancellation-refund`, `/data-deletion`, `/hosting`, `/domains-home`, `/domains/search`, `/domains/bulk-search`, and `components/marketing/`. Do not rebuild any of them without the owner asking.
+
+- **Every one of those URLs is now a 307 to ResellerOS**, for every visitor including admins (there is no DMS copy left to show an admin). The map is `RESELLEROS_OWNED_PAGES` in `lib/reseller-os.ts`; the redirect runs in `middleware.ts` before any session lookup.
+- **`NEXT_PUBLIC_RESELLEROS_URL` is now REQUIRED.** Without it those URLs 404 — including the Razorpay policy pages. `scripts/deploy-cloud-run.sh` refuses to build without it (pinned by `tests/unit/scripts/deploy-requires-reselleros-url.test.ts`). Production is deliberately untouched until the owner supplies the production ResellerOS address.
+- **In-panel buying** is two dialogs in the customer panel, opened by `?buy=hosting` / `?buy=domain` (`lib/purchase/buy-dialog.ts`, `components/purchase/`, mounted in `UserLayout`). They feed DMS's existing cart and checkout unchanged: the hosting lines are the old `/hosting` page's logic moved verbatim into `lib/purchase/hosting-cart-item.ts`, and the domain dialog is the same `DomainSearch` component.
+- **Kept on purpose:** `/cart`, `/checkout`, `/login`, `/register`, `/sso`, `/payment-success`, the panel, and **`/hosting/error`** — the control-panel SSO failure page, not marketing. Exact-path matching keeps it apart from `/hosting`.
+- **`/data-deletion` now redirects to ResellerOS `/privacy`**, which has no data-deletion section. Owner's choice; if Facebook login is switched on, Meta will want a data-deletion URL.
+- **Known dead controls:** Admin → Page management still offers visibility toggles for the deleted pages and a homepage-design switch. They change nothing now.
+- **Open price question:** DMS's cart treats hosting prices as GST-INCLUSIVE (`CartOrderSummary`: subtotal = total ÷ 1.18); ResellerOS adds 18% on top of the same figure. A Starter year is ₹599.88 here and ₹708 on ResellerOS. Decision 7 says ResellerOS's prices win; which reading of the figure is right is the owner's call.
+
 ## Zoho Books removed — our GST engine is the only invoice issuer (OWNER DECISION, 24 Sep 2026)
 
 **This is a user decision, not a refactor.** On 24 Sep 2026 the owner (Pardeep) asked for Zoho Books to be removed completely: *"Remove the Zoho completely. Mark it as user decision."* Do not reintroduce Zoho Books — as a fallback, a sync, a contact mirror or anything else — without the owner asking for it. If a future need looks like it wants an accounting system, raise it with the owner first; do not build it.

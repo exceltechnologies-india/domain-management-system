@@ -26,14 +26,16 @@ describe("<Footer>", () => {
     expect(screen.getByRole("link", { name: /^transfer domain$/i })).toHaveAttribute("href", "/domains-home");
   });
 
-  it("renders the four policy links in the bottom strip", () => {
+  it("renders the three policy links in the bottom strip, and no data-deletion link", () => {
     render(<Footer />);
     expect(screen.getByRole("link", { name: /privacy policy/i })).toHaveAttribute("href", "/privacy");
     expect(screen.getByRole("link", { name: /terms and conditions/i })).toHaveAttribute(
       "href",
       "/terms-and-conditions"
     );
-    expect(screen.getByRole("link", { name: /data deletion/i })).toHaveAttribute("href", "/data-deletion");
+    // Owner decision, 24 Sep 2026: DMS's /data-deletion page was removed and
+    // ResellerOS has none, so the link went with it (lib/reseller-os.ts).
+    expect(screen.queryByRole("link", { name: /data deletion/i })).toBeNull();
     expect(screen.getByRole("link", { name: /cancellation & refund/i })).toHaveAttribute(
       "href",
       "/cancellation-refund"

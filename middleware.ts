@@ -13,8 +13,6 @@ const PUBLIC_ROUTES = new Set([
   "/",
   "/login",
   "/register",
-  "/about",
-  "/contact",
   "/reset-password",
   "/complete-profile",
   "/activate",
@@ -28,8 +26,6 @@ const PUBLIC_ROUTES = new Set([
 ]);
 
 const PUBLIC_PREFIXES = [
-  "/about/",
-  "/contact/",
   "/reset-password/",
   "/complete-profile/",
   "/activate/",
@@ -65,7 +61,7 @@ const SELF_AUTHENTICATING_ADMIN_API = new Set<string>([
 //   rest of the app interacts with Razorpay through this isolated route
 //   (see components/RazorpayCheckoutFrame.tsx), so /checkout, /dashboard/*,
 //   /cart, etc. all run strict.
-// - login / register / forgot-password / reset-password / contact: render
+// - login / register / forgot-password / reset-password: render
 //   the Google reCAPTCHA v2 widget, which loads google.com/recaptcha/api.js
 //   and requires unsafe-eval. Migrating reCAPTCHA behind a similar iframe
 //   shim would be the next step to make these strict too.
@@ -75,7 +71,6 @@ const RELAXED_CSP_PAGE_PATHS = new Set([
   "/register",
   "/forgot-password",
   "/reset-password",
-  "/contact",
 ]);
 
 // API routes that are explicitly public (auth, webhooks, or operational)
@@ -282,19 +277,12 @@ async function handleMiddleware(request: NextRequest, nonce: string, requestId: 
   // 1b. Front door. When ResellerOS owns the public site, DMS serves no
   // homepage of its own — it is the hosting/domain panel behind it.
   //
-  // app/page.tsx makes the same call and is the guarantee (middleware runs
-  // only where its matcher says). This one is here for the STATUS: app/
-  // has a loading.tsx, so Next starts streaming before the page component
-  // resolves, and a redirect discovered after the first byte cannot change
-  // headers that have already gone out. It degrades to a 200 carrying
-  // `<meta http-equiv="refresh" content="1;url=...">` — a one-second stare
-  // at a loading skeleton, and nothing at all for a crawler. Measured, not
-  // assumed. Deciding here, before any rendering, gives a real 307.
-  //
-  // Both read resellerOsUrl(), so there is one source of truth for the
-  // value and two places that enforce it. Safe in Edge: lib/reseller-os
-  // touches nothing but process.env (unlike page-visibility, whose header
-  // warns it must never be imported here).
+  // This is now the ONLY thing `/` does: app/page.tsx (DMS's own homepage)
+  // was deleted on 24 Sep 2026 with the rest of the public pages, by owner
+  // decision. With the front door unset, `/` is a 404. Deciding here, before
+  // any rendering, also gives a real 307 rather than a streamed
+  // meta-refresh (app/ has a loading.tsx). Safe in Edge: lib/reseller-os
+  // touches nothing but process.env.
   if (pathname === "/") {
     const front = resellerOsUrl();
     if (front) {
@@ -317,11 +305,21 @@ async function handleMiddleware(request: NextRequest, nonce: string, requestId: 
   const isPublicApi = PUBLIC_API_PREFIXES.some(p => classificationPath === p || classificationPath.startsWith(p + "/"));
   const isPublicRoute = PUBLIC_ROUTES.has(pathname) || PUBLIC_PREFIXES.some(p => pathname.startsWith(p));
 
-  // Marketing/legal pages ResellerOS owns once it is the front door. Null when
-  // DMS is standalone, so none of this costs anything in that shape — which is
-  // also why the "public routes fetch no token" guarantee below still holds
-  // for a standalone DMS.
+  // Marketing/legal/shop pages ResellerOS owns. DMS no longer has these pages
+  // at all (owner decision, 24 Sep 2026), so this redirect is everything the
+  // URL still does — for every visitor, admin included, since there is no DMS
+  // copy left to show an admin. Decided here, before the token fetch: a role
+  // no longer changes the answer, so there is nothing to look up.
+  //
+  // A redirect, never a 404: Razorpay requires a merchant's policy pages to be
+  // publicly reachable, so the content has to keep existing somewhere public.
+  // Each target is a real ResellerOS page — see lib/reseller-os.ts. Null when
+  // the front door is unset, and then these paths 404; the deploy script
+  // refuses to ship that configuration.
   const resellerOsTarget = resellerOsOwnedUrl(pathname);
+  if (resellerOsTarget) {
+    return addSecurityHeaders(NextResponse.redirect(resellerOsTarget, 307), { nonce, strictCSP: isStrictCSPRoute });
+  }
 
   // Machine-to-machine admin calls (operator scripts + cron one-offs like
   // scripts/purge-test-users.js) authenticate via the x-cron-secret bearer
@@ -348,7 +346,7 @@ async function handleMiddleware(request: NextRequest, nonce: string, requestId: 
   }
 
   // --- 3. Token Fetching (Single call, only when security/logic requires it) ---
-  const needsToken = (isAdminApi || isAdminPage || isAuthPage || isProtectedRoute || !!resellerOsTarget || (isApi && !isPublicApi)) && !isHeadRequest;
+  const needsToken = (isAdminApi || isAdminPage || isAuthPage || isProtectedRoute || (isApi && !isPublicApi)) && !isHeadRequest;
 
   let token = null;
   if (needsToken) {
@@ -356,20 +354,6 @@ async function handleMiddleware(request: NextRequest, nonce: string, requestId: 
       req: request,
       secret: AUTH_SECRET,
     });
-  }
-
-  // 3b. Pages ResellerOS now owns. Normal visitors go to the ResellerOS
-  // equivalent; an admin still gets DMS's copy, which is how these pages stay
-  // checkable without unsetting the front door. Same shape as the existing
-  // Admin -> Pages draft gate (see app/domains-home/page.tsx), moved to
-  // middleware because three of the five are `'use client'` and cannot read a
-  // session at all.
-  //
-  // A redirect, never a 404: Razorpay requires a merchant's policy pages to be
-  // publicly reachable, so the content has to keep existing somewhere public.
-  // Each target is a real ResellerOS page — see lib/reseller-os.ts.
-  if (resellerOsTarget && token?.role !== "admin") {
-    return addSecurityHeaders(NextResponse.redirect(resellerOsTarget, 307), { nonce, strictCSP: isStrictCSPRoute });
   }
 
   // CSRF gate for every authenticated mutating /api/* request, regardless

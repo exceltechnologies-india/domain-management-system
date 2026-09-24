@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { safeLocalStorage } from '@/lib/storage';
 import { isRestrictedTLD } from '@/lib/domainRequirements';
 import { apiClient } from '@/lib/api-client';
+import { buyHref } from '@/lib/purchase/buy-dialog';
 import { TOP_TLDS } from '../data/tlds';
 
 export interface SearchResult {
@@ -147,7 +148,7 @@ export function useDomainSearch({
     if (!cleanedSearchTerm) return;
 
     if (redirectOnSearch && !overrideTerm) {
-      router.push(`/domains/search?q=${encodeURIComponent(cleanedSearchTerm)}`);
+      router.push(buyHref('domain', cleanedSearchTerm));
       return;
     }
 
