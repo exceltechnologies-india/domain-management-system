@@ -198,6 +198,23 @@ says so — each waits for the owner's go-ahead.
   (₹10,000), counted from the last 24 h of `domain.renew` commands only
   (`engine-spend-usage.ts`). Live only when `ENGINE_DOMAIN_RENEW_LIVE=1` — its own entry in
   `OWN_LIVE_GATES`, separate from the register gate. Do not set it without the owner.
+- **`hosting.renew` is BUILT and OFF (owner, 25 Sep 2026: a hosting renewal paid in ResellerOS must
+  reach DMS, or the expiry worker suspends an account the customer paid for).**
+  `lib/integrations/engine-handlers-hosting-renew.ts`. Subject = the hosting's domain (lower-case).
+  Payload: `months` (1-36, required), `expiryBefore` (epoch SECONDS, required — the
+  `hostings[].expiryDate` the caller read from `/api/integrations/engine/services`, floored),
+  `paymentMode` (`"live"`/`"test"`, required), `sourceRef` (optional, the ResellerOS quote id).
+  Finds the one non-terminated Hosting for the domain; a test-mode payment is `[held]`; the same
+  expiryBefore defence as `domain.renew` (already extended → refused, earlier → refused, nothing
+  written), then a compare-and-set sets `expiryDate` = expiryBefore + `months` calendar months in
+  UTC (clamped: 31 Jan + 1 = 28/29 Feb), `next_action_at` = expiry − 15 days,
+  `last_reminder_sent` = null (as `lib/services/payment/renewal.ts` does). A `suspended`/`expired`
+  row is then unsuspended by calling the `hosting.unsuspend` handler and set `active`; if that
+  fails the renewal is still reported, with `unsuspended: false` and `unsuspendError`. Result:
+  `hostingId, domain, expiryBefore, expiryAfter (ISO), months, unsuspended, unsuspendError,
+  sourceRef`. Reconciler: expiry moved past expiryBefore → done. No spend limit — it spends no
+  rupee at any provider. Live only when `ENGINE_HOSTING_RENEW_LIVE=1` — its own `OWN_LIVE_GATES`
+  entry. Do not set it without the owner.
 - **Decisions 19–21 (the ResellerOS site cart), 24 Sep 2026.** ResellerOS now charges a domain
   at the LIVE ResellerClub price, re-checked at payment, and writes one provisioning request per
   product, each domain row carrying the exact name. The owner chose **automatic registration

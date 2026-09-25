@@ -20,6 +20,9 @@
  *
  * hosting.provision followed the same day, once the owner decided an
  * engine-sourced buyer gets a DMS account — the reason it had been blocked.
+ *
+ * hosting.renew (25 Sep 2026) records a hosting renewal paid in ResellerOS, so
+ * DMS's expiry worker stops suspending accounts the customer has paid for.
  */
 import type { EngineMode } from "./engine-mode";
 import { upsertDnsRecord } from "./engine-handlers-dns";
@@ -28,6 +31,7 @@ import { changeHostingPlan } from "./engine-handlers-plan";
 import { renewDomainCommand } from "./engine-handlers-domain";
 import { registerDomainCommand } from "./engine-handlers-register";
 import { provisionHostingCommand } from "./engine-handlers-provision";
+import { renewHostingCommand } from "./engine-handlers-hosting-renew";
 
 /** Every command the contract names, whether or not it is implemented. */
 export const KNOWN_COMMANDS = [
@@ -38,6 +42,7 @@ export const KNOWN_COMMANDS = [
   "hosting.unsuspend",
   "hosting.provision",
   "hosting.change_plan",
+  "hosting.renew",
   "domain.renew",
   "domain.register",
 ] as const;
@@ -119,6 +124,10 @@ export const HANDLERS: Partial<Record<KnownCommand, CommandHandler>> = {
      account an earlier attempt made instead of creating a second one. Live only
      behind ENGINE_HOSTING_PROVISION_LIVE=1. */
   "hosting.provision": provisionHostingCommand,
+  /* 25 Sep 2026 — a hosting renewal paid in ResellerOS moves DMS's expiry, so
+     the expiry worker stops suspending paid accounts. Spends nothing; guarded
+     by expiryBefore like domain.renew. Live only behind ENGINE_HOSTING_RENEW_LIVE=1. */
+  "hosting.renew": renewHostingCommand,
 };
 
 export function handlerFor(command: KnownCommand): CommandHandler | null {

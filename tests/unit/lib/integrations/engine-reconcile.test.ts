@@ -40,6 +40,7 @@ describe("a reconciler exists only where the effect is observable", () => {
       "domain.renew",
       "hosting.change_plan",
       "hosting.provision",
+      "hosting.renew",
       "hosting.suspend",
       "hosting.unsuspend",
     ]);

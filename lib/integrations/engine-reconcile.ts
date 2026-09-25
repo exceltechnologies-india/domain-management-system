@@ -28,6 +28,7 @@ import { reconcileChangePlan } from "./engine-handlers-plan";
 import { reconcileRenew } from "./engine-handlers-domain";
 import { reconcileRegister } from "./engine-handlers-register";
 import { reconcileProvision } from "./engine-handlers-provision";
+import { reconcileHostingRenew } from "./engine-handlers-hosting-renew";
 
 export type ReconcileVerdict =
   /** The provider confirms the work exists. The command really did succeed. */
@@ -82,6 +83,9 @@ export const RECONCILERS: Partial<Record<KnownCommand, Reconciler>> = {
   /* Observable: does a DirectAdmin account for this domain exist under one of
      its deterministic usernames. */
   "hosting.provision": reconcileProvision,
+  /* Observable exactly like domain.renew: the command carries its baseline
+     (expiryBefore), and the Hosting row's expiry either moved past it or not. */
+  "hosting.renew": reconcileHostingRenew,
 };
 
 export function reconcilerFor(command: string): Reconciler | null {

@@ -135,6 +135,14 @@ export const OWN_LIVE_GATES: Readonly<Record<string, string>> = {
      defence (expiryBefore sent verbatim) is unchanged. Its own gate, so opening
      it puts nothing else live. */
   "domain.renew": "ENGINE_DOMAIN_RENEW_LIVE",
+  /* 25 Sep 2026. Records a hosting renewal the customer paid in ResellerOS by
+     moving DMS's Hosting.expiryDate (and unsuspending a suspended account).
+     It needs NO spend limit: it spends no rupee at any registrar or provider —
+     the money was taken by ResellerOS, and the unsuspend is free and
+     reversible. Its double-application defence is expiryBefore, as for
+     domain.renew. Its own gate rather than the shared list, so opening it puts
+     nothing else live and nothing else opens it. */
+  "hosting.renew": "ENGINE_HOSTING_RENEW_LIVE",
 };
 
 /** True only when the command's own gate is set to exactly "1". */

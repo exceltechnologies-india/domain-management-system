@@ -53,6 +53,8 @@ describe("what can actually be performed", () => {
     //   Performable, and live ONLY behind its own gate
     //   (ENGINE_DOMAIN_REGISTER_LIVE=1) and the spend limit in
     //   engine-register-policy.ts. This tripwire is why that was a deliberate edit.
+    // 25 Sep 2026: hosting.renew — records a renewal ResellerOS was paid for.
+    //   Spends nothing; live only behind ENGINE_HOSTING_RENEW_LIVE=1.
     expect(Object.keys(HANDLERS).sort()).toEqual([
       "dns.record.upsert",
       "domain.register",
@@ -60,6 +62,7 @@ describe("what can actually be performed", () => {
       "engine.selftest",
       "hosting.change_plan",
       "hosting.provision",
+      "hosting.renew",
       "hosting.suspend",
       "hosting.unsuspend",
     ]);

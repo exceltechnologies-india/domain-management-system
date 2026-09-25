@@ -174,9 +174,67 @@ describe("eligibility is per command, and the flag cannot reach some of them", (
       delete process.env.ENGINE_DOMAIN_REGISTER_LIVE;
       process.env[KEY] = "1";
       expect(checkLiveAllowed("live", "domain.register").ok).toBe(false);
-      for (const c of ["dns.record.upsert", "hosting.suspend", "hosting.change_plan", "hosting.provision"]) {
+      for (const c of ["dns.record.upsert", "hosting.suspend", "hosting.change_plan", "hosting.provision", "hosting.renew"]) {
         expect(checkLiveAllowed("live", c).ok, c).toBe(false);
       }
+    });
+  });
+
+  describe("hosting.renew has its own fail-closed gate (25 Sep 2026)", () => {
+    const KEY = "ENGINE_HOSTING_RENEW_LIVE";
+    const OTHERS = ["ENGINE_DOMAIN_RENEW_LIVE", "ENGINE_DOMAIN_REGISTER_LIVE", "ENGINE_HOSTING_PROVISION_LIVE"];
+    const ORIG: Record<string, string | undefined> = Object.fromEntries(
+      [KEY, ...OTHERS].map((k) => [k, process.env[k]])
+    );
+    afterEach(() => {
+      for (const [k, v] of Object.entries(ORIG)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    });
+
+    it("is its own gate, not in the shared live list", () => {
+      expect(OWN_LIVE_GATES["hosting.renew"]).toBe(KEY);
+      expect(LIVE_ELIGIBLE_COMMANDS).not.toContain("hosting.renew");
+      expect(LIVE_INELIGIBLE_REASONS["hosting.renew"]).toBeUndefined();
+    });
+
+    it("is refused live while the gate is unset, naming the gate", () => {
+      delete process.env[KEY];
+      const r = checkLiveAllowed("live", "hosting.renew");
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.status).toBe(503);
+        expect(r.error).toContain(KEY);
+        expect(r.error).toMatch(/mode:"test"/);
+      }
+      expect(mayContactProvider("live", "hosting.renew")).toBe(false);
+    });
+
+    it("only an exact 1 opens it", () => {
+      for (const v of ["", "0", "true", "yes", " 1", "01"]) {
+        process.env[KEY] = v;
+        expect(ownGateOpen("hosting.renew"), JSON.stringify(v)).toBe(false);
+      }
+      process.env[KEY] = "1";
+      expect(checkLiveAllowed("live", "hosting.renew").ok).toBe(true);
+      expect(mayContactProvider("live", "hosting.renew")).toBe(true);
+    });
+
+    it("no other gate opens it, and it opens nothing else", () => {
+      delete process.env[KEY];
+      for (const k of OTHERS) process.env[k] = "1";
+      expect(checkLiveAllowed("live", "hosting.renew").ok).toBe(false);
+      for (const k of OTHERS) delete process.env[k];
+      process.env[KEY] = "1";
+      for (const c of KNOWN_COMMANDS.filter((c) => c !== "hosting.renew" && c !== "engine.selftest")) {
+        expect(checkLiveAllowed("live", c).ok, c).toBe(false);
+      }
+    });
+
+    it("test mode never needs the gate", () => {
+      delete process.env[KEY];
+      expect(checkLiveAllowed("test", "hosting.renew").ok).toBe(true);
     });
   });
 
@@ -212,7 +270,7 @@ describe("eligibility is per command, and the flag cannot reach some of them", (
 
     it("opening it puts NOTHING else live", () => {
       process.env[KEY] = "1";
-      for (const c of ["dns.record.upsert", "hosting.suspend", "hosting.change_plan", "domain.renew"]) {
+      for (const c of ["dns.record.upsert", "hosting.suspend", "hosting.change_plan", "domain.renew", "hosting.renew"]) {
         expect(checkLiveAllowed("live", c).ok, c).toBe(false);
         expect(mayContactProvider("live", c), c).toBe(false);
       }
