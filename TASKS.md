@@ -58,7 +58,12 @@ ResellerOS repo `Todos.md` "Decisions 29-30".
   `models/Order.ts` INV hook removed in one commit; re-sync-invoice, `lib/invoice-retry.ts` + the Retry
   pill + `/api/user/invoices/sync`, and `api/workers/issue-invoice` deleted. DMS-collected payments are
   flagged (`lib/billing/no-dms-bills.ts`). Scan: `tests/unit/lib/billing/no-dms-bills-scan.test.ts`.
-- [ ] **Step 3 — the Invoices page shows ResellerOS bills** (`/api/v1` read API).
+- [x] **Step 3 — the Invoices page shows ResellerOS bills.** `lib/reselleros/bills.ts` →
+  `GET /api/user/billing` → `components/billing/ResellerOsBills.tsx` ("Your bills": paid orders, pending
+  renewals with ResellerOS's Pay link, GST invoices with PDFs). Env `RESELLEROS_BILLING_API_KEY`. "No bills
+  yet" only on the customer lookup's 404; any other failure says so. A customer record whose email is not
+  this account's is never shown (ResellerOS's `ilike` lookup). DMS's own invoices stay below as "Earlier
+  invoices issued by this panel".
 - [ ] **Step 4 — renewals go to ResellerOS** (renew buttons, expiry worker, trial end).
 - [ ] **Open, not in the brief:** `/cart` → `/checkout` → `api/payments/create-order` still takes a
   PAID cart on DMS's own Razorpay keys if a paid line reaches it (the cart page's

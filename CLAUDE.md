@@ -124,7 +124,10 @@ says so — each waits for the owner's go-ahead.
   The panel dialogs do so since 25 Sep 2026 (above). `/cart` + `/checkout` (`api/payments/create-order`)
   still take a PAID cart on DMS's own keys if one reaches them; nothing in the panel now feeds
   them a paid line except the cart page's own upsell/cross-sell widgets. Open — see TASKS/Todos.
-- **A bill shown in this panel is ResellerOS's own PDF.** DMS renders no bill of its own.
+- **A bill shown in this panel is ResellerOS's own PDF.** DMS renders no bill of its own. **Built 25 Sep 2026:**
+  the Invoices page reads them server-side through ResellerOS's `/api/v1` (`lib/reselleros/bills.ts`, key
+  `RESELLEROS_BILLING_API_KEY`), matched on the account email. DMS's pre-25-Sep invoices stay listed below as
+  history.
 - ~~If ResellerOS is down during an in-panel purchase: take the payment, bill later.~~
   **SUPERSEDED by decision 30 (25 Sep 2026): ResellerOS creates every Razorpay order.** The
   `?buy=hosting` / `?buy=domain` dialogs call `/api/user/panel-order`, which asks ResellerOS's

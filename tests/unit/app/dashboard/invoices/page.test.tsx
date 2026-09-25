@@ -46,6 +46,10 @@ vi.mock("@/components/skeletons/PageSkeletons", () => ({
   DashboardLayoutSkeleton: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   InvoicesPageSkeleton: () => <div>loading</div>,
 }));
+// "Your bills" (ResellerOS) has its own suite: tests/unit/components/billing.
+vi.mock("@/components/billing/ResellerOsBills", () => ({
+  default: () => <section data-testid="reselleros-bills" />,
+}));
 vi.mock("@/components/dashboard/RefreshButton", () => ({
   default: () => <button type="button">Refresh</button>,
 }));
@@ -237,5 +241,28 @@ describe("<InvoicesPage> — info banner", () => {
     expect(screen.getByText(/New bills are issued by our billing system and emailed to you/)).toBeInTheDocument();
     expect(screen.queryByText(/press Retry/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/synchronized from our accounting system/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("<InvoicesPage> — ResellerOS bills first, DMS invoices as history", () => {
+  it("mounts the ResellerOS bills section", () => {
+    swrData.current = { invoices: [] };
+    render(<InvoicesPage />);
+    expect(screen.getByTestId("reselleros-bills")).toBeInTheDocument();
+  });
+
+  it("lists only orders DMS actually invoiced, under 'Earlier invoices issued by this panel'", () => {
+    swrData.current = { invoices: [issuedInvoice(), failedInvoice(), unpaidInvoice()] };
+    render(<InvoicesPage />);
+    expect(screen.getByText("Earlier invoices issued by this panel")).toBeInTheDocument();
+    expect(screen.getAllByTitle("View invoice")).toHaveLength(1);
+    expect(screen.getAllByRole("row")).toHaveLength(2); // header + the one issued invoice
+  });
+
+  it("with no DMS invoices, the history card is not shown at all", () => {
+    swrData.current = { invoices: [failedInvoice()] };
+    render(<InvoicesPage />);
+    expect(screen.queryByText("Earlier invoices issued by this panel")).not.toBeInTheDocument();
+    expect(screen.queryByText(/No invoices found/)).not.toBeInTheDocument();
   });
 });

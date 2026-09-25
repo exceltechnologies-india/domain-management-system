@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   FileText, Download, AlertCircle, Eye, CheckCircle2,
-  Clock, Inbox, IndianRupee, Receipt,
+  Clock, Inbox, Receipt,
 } from 'lucide-react';
 import useSWR from 'swr';
 import { fetcher } from '@/lib/fetcher';
@@ -15,6 +15,7 @@ import { performLogout } from '@/lib/logout';
 import { DashboardLayoutSkeleton, InvoicesPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import { formatIndianDate, formatIndianDateTime } from '@/lib/dateUtils';
 import RefreshButton from '@/components/dashboard/RefreshButton';
+import ResellerOsBills from '@/components/billing/ResellerOsBills';
 import { logger } from '@/lib/logger';
 
 interface Invoice {
@@ -47,7 +48,10 @@ export default function InvoicesPage() {
     { revalidateOnFocus: false }
   );
 
-  const invoices = invoicesData?.invoices ?? [];
+  // Only orders that DMS actually invoiced (before 25 Sep 2026) are shown
+  // here, as earlier invoices. An order with no DMS invoice is not an
+  // invoice, and its bill (if any) is ResellerOS's, shown above.
+  const invoices = (invoicesData?.invoices ?? []).filter((inv) => Boolean(inv.invoice_id));
 
   const handleDownload = async (orderId: string, invoiceNumber: string) => {
     try {
@@ -118,59 +122,23 @@ export default function InvoicesPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-ink">Invoices</h1>
-              <p className="text-sm text-ink-3 mt-0.5">View and download your billing history</p>
+              <p className="text-sm text-ink-3 mt-0.5">Your bills, orders and renewals</p>
             </div>
           </div>
           <RefreshButton onClick={() => mutate()} isLoading={isValidating} />
         </div>
 
-        {/* ── Summary stats ── */}
-        {!isLoadingInvoices && invoices.length > 0 && (() => {
-          const paid = invoices.filter(i => i.status.toLowerCase() === 'paid').length;
-          const due = invoices.filter(i => i.balance > 0).length;
-          const totalDue = invoices.reduce((s, i) => s + (i.balance > 0 ? i.balance : 0), 0);
-          return (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="bg-white border border-hairline rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3">
-                <div className="p-2 bg-indigo-soft rounded-xl">
-                  <FileText className="h-4 w-4 text-amber-ink" />
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-ink-3">Total Invoices</p>
-                  <p className="text-xl font-bold text-ink">{invoices.length}</p>
-                </div>
-              </div>
-              <div className="bg-white border border-hairline rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3">
-                <div className="p-2 bg-green-50 rounded-xl">
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-ink-3">Paid</p>
-                  <p className="text-xl font-bold text-ink">{paid}</p>
-                </div>
-              </div>
-              <div className={`bg-white border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 ${due > 0 ? 'border-amber-200' : 'border-hairline'}`}>
-                <div className={`p-2 rounded-xl ${due > 0 ? 'bg-amber-50' : 'bg-paper-2/60'}`}>
-                  <IndianRupee className={`h-4 w-4 ${due > 0 ? 'text-amber-600' : 'text-ink-3'}`} />
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-ink-3">{due > 0 ? 'Amount Due' : 'All Cleared'}</p>
-                  <p className="text-xl font-bold text-ink">
-                    {due > 0 ? `₹${totalDue.toLocaleString()}` : '—'}
-                  </p>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
+        {/* ── ResellerOS's bills — every bill since 25 Sep 2026 ── */}
+        <ResellerOsBills />
 
-        {/* ── Invoices card ── */}
+        {/* ── Earlier invoices issued by this panel (read-only history) ── */}
+        {(isLoadingInvoices || invoices.length > 0) && (
         <div className="bg-white border border-hairline rounded-2xl shadow-sm overflow-hidden">
           {!isLoadingInvoices && invoices.length > 0 && (
             <div className="px-6 py-4 border-b border-hairline bg-paper-2/60 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <FileText className="h-4 w-4 text-ink-3" />
-                <h3 className="text-sm font-semibold text-ink">Billing History</h3>
+                <h3 className="text-sm font-semibold text-ink">Earlier invoices issued by this panel</h3>
               </div>
               <span className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-3 bg-white border border-hairline px-2.5 py-1 rounded-full">
                 {invoices.length} invoice{invoices.length !== 1 ? 's' : ''}
@@ -180,14 +148,6 @@ export default function InvoicesPage() {
 
           {isLoadingInvoices ? (
             <InvoicesPageSkeleton />
-          ) : invoices.length === 0 ? (
-            <div className="py-16 px-6 text-center">
-              <div className="w-14 h-14 bg-paper-2 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Inbox className="h-7 w-7 text-ink-4" />
-              </div>
-              <h3 className="text-sm font-semibold text-ink mb-1.5">No invoices found</h3>
-              <p className="text-sm text-ink-3">You don't have any invoices yet — they'll appear here after your first purchase.</p>
-            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -285,6 +245,8 @@ export default function InvoicesPage() {
             </div>
           )}
         </div>
+
+        )}
 
         {/* ── Info banner ── */}
         <div className="flex items-start gap-3 p-4 bg-indigo-soft border border-indigo/25 rounded-2xl">
