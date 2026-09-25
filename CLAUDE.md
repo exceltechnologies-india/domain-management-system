@@ -142,8 +142,10 @@ says so — each waits for the owner's go-ahead.
   "Unknown" for a reason that has nothing to do with the code. A container not rebuilt
   after the fix gave the identical symptom too — `docker compose up -d --build` before believing
   a live result. Between them, that cost an hour.
-  **server1's IP is now 35.207.233.155**, not the 34.93.167.160 in `DA_FALLBACK_IP` and in
-  production env. See ResellerOS `Todos.md` before trusting either.
+  **server1's IP is 35.207.233.155.** It is the only address in server1's own IP list. As of
+  25 Sep 2026 `DA_FALLBACK_IP` and `.env.local` say so; before that they said 34.93.167.160. The
+  deploy script reads `DIRECTADMIN_IP` from `.env.local`, so the live service changes on its next
+  deploy.
 - **The free hosting trial is Starter only, on monthly AND yearly** (owner, 24 Sep 2026). Both
   server gates enforce the plan: the eligibility route and create-order, via
   `lib/pricing/trial-plan.ts`. The panel dialog alone is not the rule. A monthly trial exists only

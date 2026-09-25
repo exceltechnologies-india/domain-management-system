@@ -37,8 +37,13 @@ export const API_KEY = process.env.DIRECTADMIN_API_KEY;
  * error. `34.93.167.160` is server1.anutech.in's primary IP. DIRECTADMIN_IP
  * is now in the deploy script's ENV_VARS, so the .env.local value is the
  * source of truth; this literal is only the local-dev / missing-env fallback.
+ *
+ * Updated 2026-09-25 to `35.207.233.155`. Measured the day before: server1's
+ * own IP list (CMD_API_SHOW_RESELLER_IPS) holds exactly that address and no
+ * other, so a create sent with `34.93.167.160` would be refused. The owner
+ * confirmed server1 as the server and asked for the address to be updated.
  */
-const DA_FALLBACK_IP = "34.93.167.160";
+const DA_FALLBACK_IP = "35.207.233.155";
 export const DA_SERVER_IP =
   process.env.DIRECTADMIN_IP ||
   (process.env.NODE_ENV === "production"
