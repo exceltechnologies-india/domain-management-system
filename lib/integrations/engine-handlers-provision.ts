@@ -1,5 +1,5 @@
 /**
- * `hosting.provision` — create a paid customer's hosting account on DirectAdmin.
+ * `hosting.provision` — create a customer's hosting account on DirectAdmin: a paid sale, or a free Starter trial.
  *
  * Owner decision, 24 Sep 2026: hosting bought on ResellerOS is provisioned by
  * THIS engine (DMS stays the only app that writes to DirectAdmin), into a DMS
@@ -23,6 +23,28 @@
  * The reconciler asks the same question.
  *
  * Live only behind its own gate, `ENGINE_HOSTING_PROVISION_LIVE=1`.
+ *
+ * ─── A FREE TRIAL IS THE SAME COMMAND (25 Sep 2026) ──────────────────────────
+ * ResellerOS's hosting trial used to create its DirectAdmin account itself — a
+ * second DirectAdmin writer. It now sends this command with `trial: true`, so
+ * this engine stays the only writer. A trial is kept apart from a sale on
+ * every axis a mistake could cross:
+ *   - `trial: true` and `paymentMode: "trial"` come TOGETHER or not at all. A
+ *     paid provision cannot claim to be a trial, and a trial is never read as a
+ *     live payment (it never reaches the invariant-10 branch below).
+ *   - Starter only (`isTrialPlan`, the owner's rule), refused before any read.
+ *   - One trial per customer across both apps (`findPriorTrial` on email, phone
+ *     and domain). An unreadable history refuses: an unanswered question is not
+ *     "no earlier trial". The trial being provisioned is excluded by its exact
+ *     ids — `trialRef` (ResellerOS's ExternalTrial.ref) and this command's own
+ *     Hosting row — so it does not block itself on a first run or on a retry.
+ *   - The row says what it is: `isTrial`, 15 days, `billingType: "manual"`,
+ *     `autoRenew: false`, the first reminder 2 days before expiry (the same
+ *     shape lib/services/payment/manual-trial-provisioner.ts writes), and
+ *     `orderId`/`paymentId` = `rsos-trial:<sourceRef>`. No money moved, so no
+ *     Order is written — as for a paid provision, which writes none either.
+ * Username choice, read-before-write adoption, the DMS account and its
+ * set-your-password email, and the reconciler are exactly the paid path's.
  */
 import crypto from "crypto";
 import { serverLogger } from "@/lib/server-logger";
@@ -31,6 +53,12 @@ import type { Reconciler, ReconcileVerdict } from "./engine-reconcile";
 import { attemptProviderWrite, brandTransport } from "./engine-attempt";
 import { HOLD_PREFIX, isRegistrableName } from "./engine-register-policy";
 import { ensureDmsUser, parseCustomer, type EngineCustomer } from "./engine-customer";
+import { isTrialPlan, TRIAL_PLAN_ID } from "@/lib/pricing/trial-plan";
+import { alreadyTrialledMessage, findPriorTrial, type PriorTrial } from "@/lib/trials/trial-history";
+
+/** Same as the manual-flow trial (lib/services/payment/manual-trial-provisioner.ts). */
+export const TRIAL_DAYS = 15;
+export const TRIAL_FIRST_REMINDER_LEAD_DAYS = 2;
 
 export const USERNAME_CANDIDATES = 3;
 
@@ -46,24 +74,112 @@ export function daUsernameFor(domain: string, i: number): string {
   return `${prefix}${hex}`;
 }
 
-export interface ProvisionRequest {
+interface ProvisionBase {
   planId: string;
-  months: 1 | 12;
   customer: EngineCustomer;
-  paymentMode: "live" | "test";
   sourceRef: string;
+}
+
+export interface PaidProvisionRequest extends ProvisionBase {
+  trial: false;
+  months: 1 | 12;
+  paymentMode: "live" | "test";
+}
+
+export interface TrialProvisionRequest extends ProvisionBase {
+  trial: true;
+  paymentMode: "trial";
+  /** What the trial converts to at the end (Hosting.billingCycle). */
+  cycle: "monthly" | "yearly";
+  /** ResellerOS's ExternalTrial.ref for this same trial, so it does not block itself. */
+  trialRef: string | null;
+}
+
+export type ProvisionRequest = PaidProvisionRequest | TrialProvisionRequest;
+
+/** `rsos-trial:<sourceRef>` for a trial, `rsos:<sourceRef>` for a sale — on orderId and paymentId. */
+export function provisionOrderRef(req: ProvisionRequest): string {
+  return `${req.trial ? "rsos-trial" : "rsos"}:${req.sourceRef}`;
 }
 
 export function parseProvision(payload: Record<string, unknown>): ProvisionRequest {
   const planId = typeof payload.planId === "string" ? payload.planId.trim() : "";
   if (!planId) throw new Error(`"planId" is required — the hosting plan to create (starter / standard / plus).`);
-  const months = Number(payload.months);
-  if (months !== 1 && months !== 12) throw new Error(`"months" must be 1 or 12. Received ${JSON.stringify(payload.months)}.`);
+
+  if (payload.trial !== undefined && typeof payload.trial !== "boolean") {
+    throw new Error(`"trial" must be true or false (a JSON boolean). Received ${JSON.stringify(payload.trial)}. Nothing was created.`);
+  }
+  const trial = payload.trial === true;
   const paymentMode = payload.paymentMode;
-  if (paymentMode !== "live" && paymentMode !== "test") throw new Error(`"paymentMode" must be "live" or "test".`);
+
   const sourceRef = typeof payload.sourceRef === "string" ? payload.sourceRef.trim().slice(0, 80) : "";
   if (!sourceRef) throw new Error(`"sourceRef" (the paying side's order reference) is required.`);
-  return { planId, months, customer: parseCustomer(payload.customer), paymentMode, sourceRef };
+
+  if (!trial) {
+    if (paymentMode === "trial") {
+      throw new Error(
+        `"paymentMode": "trial" is only valid with "trial": true. A paid provision cannot be recorded as a free trial. ` +
+          `Send "paymentMode": "live" or "test" for a sale, or "trial": true for a Starter trial. Nothing was created.`,
+      );
+    }
+    const months = Number(payload.months);
+    if (months !== 1 && months !== 12) throw new Error(`"months" must be 1 or 12. Received ${JSON.stringify(payload.months)}.`);
+    if (paymentMode !== "live" && paymentMode !== "test") throw new Error(`"paymentMode" must be "live" or "test".`);
+    return { trial: false, planId, months, customer: parseCustomer(payload.customer), paymentMode, sourceRef };
+  }
+
+  if (paymentMode !== "trial") {
+    throw new Error(
+      `A free trial must send "paymentMode": "trial" (received ${JSON.stringify(paymentMode)}). A trial has no payment, ` +
+        `so it is never treated as a live or test payment. Nothing was created.`,
+    );
+  }
+  if (!isTrialPlan(planId)) {
+    throw new Error(
+      `The free trial is only on the Starter plan, and "${planId}" was asked for. Send "planId": "${TRIAL_PLAN_ID}", ` +
+        `or provision ${planId} as a paid sale. Nothing was created.`,
+    );
+  }
+  const rawCycle = payload.cycle;
+  if (rawCycle !== undefined && rawCycle !== "monthly" && rawCycle !== "yearly") {
+    throw new Error(`"cycle" must be "monthly" or "yearly" (what the trial converts to). Received ${JSON.stringify(rawCycle)}. Nothing was created.`);
+  }
+  if (payload.trialRef !== undefined && typeof payload.trialRef !== "string") {
+    throw new Error(`"trialRef" must be a string (the ResellerOS trial record's ref). Nothing was created.`);
+  }
+  const trialRef = typeof payload.trialRef === "string" ? payload.trialRef.trim().slice(0, 80) || null : null;
+  return {
+    trial: true,
+    planId,
+    paymentMode: "trial",
+    cycle: rawCycle === "monthly" ? "monthly" : "yearly",
+    trialRef,
+    customer: parseCustomer(payload.customer),
+    sourceRef,
+  };
+}
+
+/**
+ * Refuses when this customer has had a free trial in either app. Throws; never
+ * reads a question it could not answer as "no earlier trial".
+ */
+async function assertNoPriorTrial(req: TrialProvisionRequest, domain: string): Promise<void> {
+  let prior: PriorTrial;
+  try {
+    prior = await findPriorTrial(
+      { email: req.customer.email, phone: req.customer.phone, domain },
+      { externalRef: req.trialRef ?? undefined, hostingOrderId: provisionOrderRef(req) },
+    );
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `Could not read the free-trial history for ${domain} (${reason.slice(0, 200)}), so no trial account was created — ` +
+        `a trial is only started once we know it is this customer's first. Try again shortly.`,
+    );
+  }
+  if (prior.found) {
+    throw new Error(`No trial account was created for ${domain}: ${alreadyTrialledMessage(prior)}`);
+  }
 }
 
 async function deps() {
@@ -124,6 +240,10 @@ export const provisionHostingCommand: CommandHandler = async (ctx): Promise<Hand
     }
   }
 
+  // One free trial per customer, across both apps — after the retry check above
+  // (a finished trial is answered as done, not refused as a second trial).
+  if (req.trial) await assertNoPriorTrial(req, domain);
+
   const slot = await findSlot(d, domain);
   if (slot.kind === "unknown") {
     throw new Error(`Could not ask DirectAdmin whether ${domain} already has an account (${slot.reason}), so nothing was created. Try again shortly.`);
@@ -139,15 +259,18 @@ export const provisionHostingCommand: CommandHandler = async (ctx): Promise<Hand
         package: pkg, planName: plan.name, daUsername: slot.username,
         action: slot.kind === "adopt" ? "would_adopt_existing_account" : "would_create_account",
         dmsAccount: existingUser ? "exists" : "would_be_created",
-        wouldProvision: req.paymentMode === "live",
-        hold: req.paymentMode === "live" ? null : `${HOLD_PREFIX} test-mode payment`,
+        trial: req.trial,
+        ...(req.trial ? { cycle: req.cycle, trialDays: TRIAL_DAYS } : {}),
+        wouldProvision: req.trial || req.paymentMode === "live",
+        hold: req.trial || req.paymentMode === "live" ? null : `${HOLD_PREFIX} test-mode payment`,
         note: "Test mode: DirectAdmin and DMS were READ and nothing was created.",
       },
     };
   }
 
-  // Invariant 10: a test-mode payment never reaches a live command.
-  if (req.paymentMode !== "live") {
+  // Invariant 10: a test-mode payment never reaches a live command. A trial has
+  // no payment at all; parseProvision guarantees its paymentMode is "trial".
+  if (!req.trial && req.paymentMode !== "live") {
     throw new Error(`${HOLD_PREFIX} ${domain} was paid through a TEST-mode Razorpay key, so no money settled. No account is created automatically at any setting.`);
   }
 
@@ -155,9 +278,13 @@ export const provisionHostingCommand: CommandHandler = async (ctx): Promise<Hand
   const { user, created } = await ensureDmsUser(req.customer);
   const now = new Date();
   const expiryDate = new Date(now);
-  expiryDate.setMonth(expiryDate.getMonth() + req.months);
+  if (req.trial) expiryDate.setDate(expiryDate.getDate() + TRIAL_DAYS);
+  else expiryDate.setMonth(expiryDate.getMonth() + req.months);
+  const orderRef = provisionOrderRef(req);
   let hosting = await d.Hosting.findOne({ userId: user._id, domainName: domain });
   if (!hosting) {
+    const reminderAt = new Date(expiryDate);
+    reminderAt.setDate(reminderAt.getDate() - TRIAL_FIRST_REMINDER_LEAD_DAYS);
     hosting = await d.Hosting.create({
       userId: user._id,
       domainName: domain,
@@ -167,9 +294,12 @@ export const provisionHostingCommand: CommandHandler = async (ctx): Promise<Hand
       status: "pending",
       startDate: now,
       expiryDate,
-      orderId: `rsos:${req.sourceRef}`,
-      paymentId: `rsos:${req.sourceRef}`,
+      orderId: orderRef,
+      paymentId: orderRef,
       billingType: "manual",
+      ...(req.trial
+        ? { isTrial: true, billingCycle: req.cycle, autoRenew: false, next_action_at: reminderAt, last_reminder_sent: null }
+        : {}),
     });
   }
 
@@ -213,12 +343,14 @@ export const provisionHostingCommand: CommandHandler = async (ctx): Promise<Hand
     );
   }
 
-  serverLogger.warn(`[engine] PROVISIONED hosting ${domain} as ${slot.username} (${pkg}) for ${user.email}`);
+  serverLogger.warn(`[engine] PROVISIONED ${req.trial ? "TRIAL " : ""}hosting ${domain} as ${slot.username} (${pkg}) for ${user.email}`);
   return {
     result: {
       ok: true, domain, changed: slot.kind === "create", adopted: slot.kind === "adopt",
       daUsername: slot.username, package: pkg, hostingId: String(hosting._id),
       dmsUserCreated: created, recorded,
+      trial: req.trial,
+      ...(req.trial ? { cycle: req.cycle, amount: 0, expiryDate: expiryDate.toISOString() } : {}),
     },
   };
 };

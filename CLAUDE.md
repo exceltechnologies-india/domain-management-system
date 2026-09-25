@@ -129,6 +129,24 @@ says so — each waits for the owner's go-ahead.
   domain is adopted, never duplicated; do not switch this back to the random `generateDaUsername`
   the other provisioners use. Package from the catalogue, test-mode payments held, own gate
   `ENGINE_HOSTING_PROVISION_LIVE=1`.
+- **`hosting.provision` can create a free TRIAL account (built 25 Sep 2026, same gate, still OFF).**
+  So ResellerOS's trial stops writing to DirectAdmin itself and this engine stays the only writer.
+  Payload: `{ planId: "starter", trial: true, paymentMode: "trial", cycle?: "monthly"|"yearly"
+  (default yearly), trialRef?: string, customer: {…same as paid…}, sourceRef }`, subject = the domain;
+  `months` is ignored. Rules, all refused with nothing written: `trial:true` and `paymentMode:"trial"`
+  only together (a sale cannot claim trial; a trial is never a live/test payment); Starter only
+  (`isTrialPlan`); one trial per customer — `findPriorTrial` on email, phone and domain, and a read
+  error REFUSES. The trial being provisioned is excluded by exact id: `trialRef` = the ExternalTrial
+  `ref` ResellerOS recorded (its lead id), and this command's own Hosting row
+  (`orderId: rsos-trial:<sourceRef>`), so neither a first run nor a retry blocks itself. The row:
+  `isTrial`, 15 days, `billingType: "manual"`, `billingCycle` from `cycle`, `autoRenew: false`,
+  `next_action_at` 2 days before expiry, `orderId`/`paymentId` `rsos-trial:<sourceRef>`; no Order
+  (a paid provision writes none either), result carries `trial: true, amount: 0`. Username,
+  adopt-before-create, DMS account + set-your-password email and the reconciler are the paid path's.
+  Tests: `tests/unit/lib/integrations/engine-handlers-provision-trial.test.ts`. **Known:** such a row is
+  picked up by DMS's existing trial-end machinery (reminders via `next_action_at`, and at expiry the
+  worker suspends and raises a DMS renewal order + email) — the same as any DMS trial, and one more
+  place the "DMS issues no bills" switch-off (ResellerOS `Todos.md` §0A) has to cover.
 - **`hosting.provision` was run against the live DirectAdmin on 24 Sep 2026 and works:** test,
   create, replay and no-duplicate all passed. The test account it made (`rsospf34b2` /
   `rsosprovtest2409.in`) was deleted from server1 on 25 Sep 2026. So were its local records: the

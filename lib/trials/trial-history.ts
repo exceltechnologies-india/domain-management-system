@@ -42,27 +42,46 @@ export function trialKeys(k: TrialKeys): { email: string; phoneKey: string; doma
 }
 
 /**
+ * The trial being provisioned right now, so it does not count against itself.
+ *
+ * `hosting.provision` with `trial: true` checks history before creating, and at
+ * that moment the SAME trial can already be on record twice: ResellerOS records
+ * it here (ExternalTrial, `ref` = its lead id) before asking for the account, and
+ * a retried command finds the Hosting row its first attempt wrote. Each is
+ * excluded by its exact id — never by customer, which would let a genuine
+ * second trial through.
+ */
+export interface IgnoreOwnTrial {
+  /** ExternalTrial.ref of the trial being provisioned (ResellerOS's lead id). */
+  externalRef?: string;
+  /** Hosting.orderId of the row this very provision writes (`rsos-trial:<sourceRef>`). */
+  hostingOrderId?: string;
+}
+
+/**
  * The earliest trial matching any of the keys, or `{ found: false }`.
  *
  * Throws on a database error: callers must refuse the trial rather than read an
  * unanswered question as "no earlier trial" (AGENTS.md §2).
  */
-export async function findPriorTrial(k: TrialKeys): Promise<PriorTrial> {
+export async function findPriorTrial(k: TrialKeys, ignore: IgnoreOwnTrial = {}): Promise<PriorTrial> {
   const { email, phoneKey, domain } = trialKeys(k);
   if (!email && !phoneKey && !domain) return { found: false };
   await connectDB();
+  const notOwnExternal = ignore.externalRef ? { ref: { $ne: ignore.externalRef } } : {};
+  const notOwnHosting = ignore.hostingOrderId ? { orderId: { $ne: ignore.hostingOrderId } } : {};
 
   // 1. Trials ResellerOS started and recorded here.
   const extOr: Record<string, string>[] = [];
   if (email) extOr.push({ email });
   if (phoneKey) extOr.push({ phoneKey });
   if (domain) extOr.push({ domain });
-  const ext = await ExternalTrial.findOne({ $or: extOr }).sort({ createdAt: 1 }).lean();
+  const ext = await ExternalTrial.findOne({ $or: extOr, ...notOwnExternal }).sort({ createdAt: 1 }).lean();
   if (ext) return { found: true, where: "reselleros", startedAt: ext.createdAt ?? null };
 
   // 2. DMS's own trials: a trial hosting on this domain…
   if (domain) {
-    const h = await Hosting.findOne({ isTrial: true, domainName: domain }).sort({ createdAt: 1 }).lean<{ startDate?: Date }>();
+    const h = await Hosting.findOne({ isTrial: true, domainName: domain, ...notOwnHosting }).sort({ createdAt: 1 }).lean<{ startDate?: Date }>();
     if (h) return { found: true, where: "dms", startedAt: h.startDate ?? null };
   }
 
@@ -87,7 +106,7 @@ export async function findPriorTrial(k: TrialKeys): Promise<PriorTrial> {
     .lean();
   if (order) return { found: true, where: "dms", startedAt: (order as { createdAt?: Date }).createdAt ?? null };
 
-  const trialHosting = await Hosting.findOne({ isTrial: true, userId: { $in: ids } }).sort({ createdAt: 1 }).lean<{ startDate?: Date }>();
+  const trialHosting = await Hosting.findOne({ isTrial: true, userId: { $in: ids }, ...notOwnHosting }).sort({ createdAt: 1 }).lean<{ startDate?: Date }>();
   if (trialHosting) return { found: true, where: "dms", startedAt: trialHosting.startDate ?? null };
 
   return { found: false };

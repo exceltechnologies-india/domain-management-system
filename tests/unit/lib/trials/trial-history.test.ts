@@ -72,6 +72,22 @@ describe("findPriorTrial — a trial in EITHER app counts", () => {
   });
 });
 
+describe("findPriorTrial — the trial being provisioned is excluded by its exact ids", () => {
+  it("with no ignore, the queries are exactly as before", async () => {
+    await findPriorTrial({ email: "a@b.in", domain: "acme.in" });
+    expect(ext.findOne.mock.calls[0][0]).toEqual({ $or: [{ email: "a@b.in" }, { domain: "acme.in" }] });
+    expect(hosting.findOne.mock.calls[0][0]).toEqual({ isTrial: true, domainName: "acme.in" });
+  });
+
+  it("externalRef excludes that ExternalTrial ref only; hostingOrderId excludes that Hosting row on both Hosting reads", async () => {
+    user.find.mockReturnValue(q([{ _id: "U1" }]));
+    await findPriorTrial({ email: "a@b.in", domain: "acme.in" }, { externalRef: "L-1", hostingOrderId: "rsos-trial:L-1" });
+    expect(ext.findOne.mock.calls[0][0]).toEqual({ $or: [{ email: "a@b.in" }, { domain: "acme.in" }], ref: { $ne: "L-1" } });
+    expect(hosting.findOne.mock.calls[0][0]).toEqual({ isTrial: true, domainName: "acme.in", orderId: { $ne: "rsos-trial:L-1" } });
+    expect(hosting.findOne.mock.calls[1][0]).toMatchObject({ isTrial: true, orderId: { $ne: "rsos-trial:L-1" } });
+  });
+});
+
 describe("recordExternalTrial", () => {
   it("upserts on the ResellerOS lead id, so a retried record is a no-op", async () => {
     await recordExternalTrial({ ref: "L-1", email: "A@B.in", phone: "+91 98765 43210", domain: "Acme.in", cycle: "monthly" });
