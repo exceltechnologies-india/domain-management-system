@@ -121,8 +121,22 @@ export function tldOf(d: string): string {
   return d.slice(d.indexOf(".") + 1);
 }
 
+/**
+ * Which spend the limit is guarding. `domain.renew` reuses these rules (owner,
+ * 25 Sep 2026: renewals are automatic after the customer pays in ResellerOS),
+ * with its OWN caps and its OWN daily usage, so a burst of renewals cannot eat
+ * the registration allowance and vice versa. The action only changes the env
+ * names and the wording; the checks and their order are identical.
+ */
+export type SpendAction = "register" | "renew";
+
+const WORDS: Record<SpendAction, { done: string; noun: string; env: string }> = {
+  register: { done: "registered", noun: "registrations", env: "ENGINE_DOMAIN_REGISTER" },
+  renew: { done: "renewed", noun: "renewals", env: "ENGINE_DOMAIN_RENEW" },
+};
+
 export interface DailyUsage {
-  /** Automatic registrations in the last 24 hours, not counting this one. */
+  /** Automatic spends of THIS action in the last 24 hours, not counting this one. */
   count: number;
   /** Their ResellerClub cost in rupees. */
   rupees: number;
@@ -137,22 +151,26 @@ export interface Caps {
  * The daily cap, from env with conservative defaults. Unset or unparseable
  * values fall back to the default rather than to "no limit" — a missing limit
  * must never read as unlimited spending.
+ *
+ * register: ENGINE_DOMAIN_REGISTER_MAX_PER_DAY (5), ENGINE_DOMAIN_REGISTER_MAX_RUPEES_PER_DAY (10000)
+ * renew:    ENGINE_DOMAIN_RENEW_MAX_PER_DAY (5),    ENGINE_DOMAIN_RENEW_MAX_RUPEES_PER_DAY (10000)
  */
-export function capsFromEnv(env: Record<string, string | undefined>): Caps {
+export function capsFromEnv(env: Record<string, string | undefined>, action: SpendAction = "register"): Caps {
   const n = (v: string | undefined, dflt: number) => {
     const x = Number(v);
     return Number.isFinite(x) && x >= 0 ? x : dflt;
   };
+  const prefix = WORDS[action].env;
   return {
-    maxPerDay: n(env.ENGINE_DOMAIN_REGISTER_MAX_PER_DAY, 5),
-    maxRupeesPerDay: n(env.ENGINE_DOMAIN_REGISTER_MAX_RUPEES_PER_DAY, 10_000),
+    maxPerDay: n(env[`${prefix}_MAX_PER_DAY`], 5),
+    maxRupeesPerDay: n(env[`${prefix}_MAX_RUPEES_PER_DAY`], 10_000),
   };
 }
 
 export type SpendDecision = { ok: true } | { ok: false; hold: string };
 
 /**
- * May this registration spend `costRupees`? Checked in the order a person would
+ * May this spend of `costRupees` go ahead? Checked in the order a person would
  * want the reason: the payment first, then this order's cover, then the day.
  */
 export function decideSpend(input: {
@@ -162,39 +180,44 @@ export function decideSpend(input: {
   usage: DailyUsage;
   caps: Caps;
   domain: string;
+  /** Defaults to "register", so the registration wording is unchanged. */
+  action?: SpendAction;
 }): SpendDecision {
   const hold = (why: string): SpendDecision => ({ ok: false, hold: `${HOLD_PREFIX} ${why}` });
+  const w = WORDS[input.action ?? "register"];
+  const verb = w.done === "registered" ? "registering" : "renewing";
+  const byHand = w.done === "registered" ? "Register" : "Renew";
 
   if (input.paymentMode !== "live") {
     return hold(
       `${input.domain} was paid through a TEST-mode Razorpay key, so no money settled. It is not ` +
-        `registered automatically at any setting.`
+        `${w.done} automatically at any setting.`
     );
   }
   if (input.costRupees === null || !(input.costRupees > 0)) {
     return hold(
       `ResellerClub's cost for ${input.domain} could not be read, so it cannot be checked against ` +
-        `what was paid. Register it by hand after checking the price.`
+        `what was paid. ${byHand} it by hand after checking the price.`
     );
   }
   if (input.coverRupees < input.costRupees) {
     return hold(
       `${input.domain} costs ₹${input.costRupees} at ResellerClub but only ₹${input.coverRupees} was ` +
-        `paid (before GST). Check the order before registering it by hand.`
+        `paid (before GST). Check the order before ${verb} it by hand.`
     );
   }
   if (input.usage.count + 1 > input.caps.maxPerDay) {
     return hold(
-      `the daily limit of ${input.caps.maxPerDay} automatic registrations is reached ` +
+      `the daily limit of ${input.caps.maxPerDay} automatic ${w.noun} is reached ` +
         `(${input.usage.count} in the last 24 hours). Release it by hand, or raise ` +
-        `ENGINE_DOMAIN_REGISTER_MAX_PER_DAY.`
+        `${w.env}_MAX_PER_DAY.`
     );
   }
   if (input.usage.rupees + input.costRupees > input.caps.maxRupeesPerDay) {
     return hold(
       `the daily spend limit of ₹${input.caps.maxRupeesPerDay} would be passed ` +
         `(₹${input.usage.rupees} spent in the last 24 hours + ₹${input.costRupees}). Release it by ` +
-        `hand, or raise ENGINE_DOMAIN_REGISTER_MAX_RUPEES_PER_DAY.`
+        `hand, or raise ${w.env}_MAX_RUPEES_PER_DAY.`
     );
   }
   return { ok: true };

@@ -12,8 +12,8 @@
  * providers. Phase 7 added hosting.change_plan (reversible spend).
  *
  * Phase 8 added domain.renew, which DOES spend a rupee that does not come
- * back — performable, but not live-eligible until the engine grows a spend
- * control.
+ * back. Performable; since 25 Sep 2026 live only behind its own gate
+ * (ENGINE_DOMAIN_RENEW_LIVE) and the same spend limit as domain.register.
  *
  * Phase 9 (24 Sep 2026) added domain.register, which cannot be undone — live
  * only behind its own gate and a spend limit.
@@ -106,8 +106,9 @@ export const HANDLERS: Partial<Record<KnownCommand, CommandHandler>> = {
      account for somebody with no portal user has no way in, and nothing
      reports that. See engine-handlers-plan.ts and Todos.md §D. */
   "hosting.change_plan": changeHostingPlan,
-  /* Phase 8 — the first rupee that does not come back. Performable, and
-     deliberately NOT live-eligible: see LIVE_INELIGIBLE_REASONS. */
+  /* Phase 8 — the first rupee that does not come back. Live only behind its OWN
+     gate, ENGINE_DOMAIN_RENEW_LIVE=1 (engine-mode.ts OWN_LIVE_GATES, since
+     25 Sep 2026), and only within the spend limit in engine-handlers-domain.ts. */
   "domain.renew": renewDomainCommand,
   /* Phase 9 (24 Sep 2026) — irreversible. Live only behind its OWN gate,
      ENGINE_DOMAIN_REGISTER_LIVE=1 (engine-mode.ts OWN_LIVE_GATES), and only

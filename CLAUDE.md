@@ -185,6 +185,19 @@ says so — each waits for the owner's go-ahead.
   wait-for-a-person, not a failure. Live only when `ENGINE_DOMAIN_REGISTER_LIVE=1` — its OWN gate in
   `engine-mode.ts` `OWN_LIVE_GATES`, deliberately not `LIVE_ELIGIBLE_COMMANDS`, so opening it puts
   nothing else live. Do not set it without the owner (steps in ResellerOS `Todos.md` §0A).
+- **`domain.renew` is BUILT and OFF, with its own gate and spend limit (owner, 25 Sep 2026:
+  renewals are automatic once the customer has paid the renewal in ResellerOS, at the live
+  ResellerClub price).** `lib/integrations/engine-handlers-domain.ts`. It used to be permanently
+  live-ineligible because nothing capped spending; it now reuses `decideSpend` from
+  `engine-register-policy.ts`. Payload: `years` (1-10), `expiryBefore` (epoch seconds, sent to
+  ResellerClub verbatim — the double-renewal defence is unchanged), `coverRupees` (rupees paid
+  before GST, required), `paymentMode` (`"live"`/`"test"`, required), `sourceRef` (optional,
+  the ResellerOS quote id). Held (`[held]`, nothing spent) on a test-mode payment, an unreadable
+  or stale RENEWAL cost (`renewdomain` × years), `coverRupees` below that cost, or its OWN daily
+  caps `ENGINE_DOMAIN_RENEW_MAX_PER_DAY` (5) / `ENGINE_DOMAIN_RENEW_MAX_RUPEES_PER_DAY`
+  (₹10,000), counted from the last 24 h of `domain.renew` commands only
+  (`engine-spend-usage.ts`). Live only when `ENGINE_DOMAIN_RENEW_LIVE=1` — its own entry in
+  `OWN_LIVE_GATES`, separate from the register gate. Do not set it without the owner.
 - **Decisions 19–21 (the ResellerOS site cart), 24 Sep 2026.** ResellerOS now charges a domain
   at the LIVE ResellerClub price, re-checked at payment, and writes one provisioning request per
   product, each domain row carrying the exact name. The owner chose **automatic registration

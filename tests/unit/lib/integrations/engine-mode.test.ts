@@ -115,18 +115,70 @@ describe("live is hard-disabled in this build", () => {
 });
 
 describe("eligibility is per command, and the flag cannot reach some of them", () => {
-  it.each(Object.keys(LIVE_INELIGIBLE_REASONS))(
-    "%s is refused with a reason that survives live being switched on",
-    (command) => {
+  it("every ineligible command is refused with a reason that survives live being switched on", () => {
+    // A loop, not it.each: the list is EMPTY since domain.renew got its own
+    // gate (25 Sep 2026), and the check must still bite when one is added.
+    for (const command of Object.keys(LIVE_INELIGIBLE_REASONS)) {
       const r = checkLiveAllowed("live", command);
-      expect(r.ok).toBe(false);
+      expect(r.ok, command).toBe(false);
       if (!r.ok) {
         expect(r.status).toBe(503);
         // The sentence that matters: waiting is NOT enough for these.
         expect(r.error).toMatch(/turning live on would not change that/i);
       }
     }
-  );
+  });
+
+  it("domain.renew is no longer permanently ineligible — it has its own gate", () => {
+    expect(LIVE_INELIGIBLE_REASONS["domain.renew"]).toBeUndefined();
+    expect(OWN_LIVE_GATES["domain.renew"]).toBe("ENGINE_DOMAIN_RENEW_LIVE");
+  });
+
+  describe("domain.renew has its own fail-closed gate (25 Sep 2026)", () => {
+    const KEY = "ENGINE_DOMAIN_RENEW_LIVE";
+    const ORIG = process.env[KEY];
+    const ORIG_REG = process.env.ENGINE_DOMAIN_REGISTER_LIVE;
+    afterEach(() => {
+      if (ORIG === undefined) delete process.env[KEY];
+      else process.env[KEY] = ORIG;
+      if (ORIG_REG === undefined) delete process.env.ENGINE_DOMAIN_REGISTER_LIVE;
+      else process.env.ENGINE_DOMAIN_REGISTER_LIVE = ORIG_REG;
+    });
+
+    it("is refused live while the gate is unset, naming the gate", () => {
+      delete process.env[KEY];
+      const r = checkLiveAllowed("live", "domain.renew");
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.status).toBe(503);
+        expect(r.error).toContain(KEY);
+        expect(r.error).toMatch(/owner approves/i);
+      }
+      expect(mayContactProvider("live", "domain.renew")).toBe(false);
+    });
+
+    it("only an exact 1 opens it", () => {
+      for (const v of ["", "0", "true", "yes", " 1", "01"]) {
+        process.env[KEY] = v;
+        expect(ownGateOpen("domain.renew"), JSON.stringify(v)).toBe(false);
+      }
+      process.env[KEY] = "1";
+      expect(checkLiveAllowed("live", "domain.renew").ok).toBe(true);
+      expect(mayContactProvider("live", "domain.renew")).toBe(true);
+    });
+
+    it("the REGISTER gate does not open renewals, and the renew gate does not open registration", () => {
+      delete process.env[KEY];
+      process.env.ENGINE_DOMAIN_REGISTER_LIVE = "1";
+      expect(checkLiveAllowed("live", "domain.renew").ok).toBe(false);
+      delete process.env.ENGINE_DOMAIN_REGISTER_LIVE;
+      process.env[KEY] = "1";
+      expect(checkLiveAllowed("live", "domain.register").ok).toBe(false);
+      for (const c of ["dns.record.upsert", "hosting.suspend", "hosting.change_plan", "hosting.provision"]) {
+        expect(checkLiveAllowed("live", c).ok, c).toBe(false);
+      }
+    });
+  });
 
   describe("domain.register has its own fail-closed gate (Phase 9)", () => {
     const KEY = "ENGINE_DOMAIN_REGISTER_LIVE";

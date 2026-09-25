@@ -38,14 +38,14 @@ import {
   isRegistrableName,
   parseRegister,
   tldOf,
-  type DailyUsage,
   type RegisterRequest,
 } from "./engine-register-policy";
+import { readDailyUsage } from "./engine-spend-usage";
 import { ensureDmsUser } from "./engine-customer";
 
 /** Lazy for the same reason as the other handlers: these modules throw at load without env. */
 async function deps() {
-  const [rcIntegrations, { ResellerClubAPI }, { PricingService }, classify, users, { default: Domain }, { default: EngineCommand }, { default: connectDB }, domains] =
+  const [rcIntegrations, { ResellerClubAPI }, { PricingService }, classify, users, { default: Domain }, { default: connectDB }, domains] =
     await Promise.all([
       import("@/lib/integrations/resellerclub"),
       import("@/lib/resellerclub"),
@@ -53,11 +53,10 @@ async function deps() {
       import("@/lib/integrations/resellerclub/classify"),
       import("@/lib/services/users"),
       import("@/models/Domain"),
-      import("@/models/EngineCommand"),
       import("@/lib/mongodb"),
       import("@/lib/services/domains"),
     ]);
-  return { rcIntegrations, ResellerClubAPI, PricingService, classify, users, Domain, EngineCommand, connectDB, domains };
+  return { rcIntegrations, ResellerClubAPI, PricingService, classify, users, Domain, connectDB, domains };
 }
 type Deps = Awaited<ReturnType<typeof deps>>;
 
@@ -79,35 +78,6 @@ async function readPricing(d: Deps, tld: string): Promise<Pricing> {
     return Number.isFinite(n) && n > 0 ? n : null;
   };
   return { costRupees: one(detail?.reseller), customerRupees: one(detail?.customer), stale: false };
-}
-
-/**
- * Automatic registrations in the last 24 hours, excluding this command and any
- * dry run. A command still running or awaiting reconciliation counts at this
- * domain's cost — it may already have spent, and a cap that ignored it would
- * let a burst through while the first ones are in flight.
- */
-async function readUsage(d: Deps, commandId: string, thisCost: number): Promise<DailyUsage> {
-  await d.connectDB();
-  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const rows = await d.EngineCommand.find({
-    command: "domain.register",
-    commandId: { $ne: commandId },
-    createdAt: { $gte: since },
-    status: { $in: ["succeeded", "in_progress", "needs_reconciliation"] },
-  })
-    .select("status result")
-    .lean<{ status: string; result?: Record<string, unknown> }[]>();
-  let count = 0;
-  let rupees = 0;
-  for (const r of rows) {
-    if (r.result?.dryRun === true) continue;
-    if (r.status === "succeeded" && r.result?.changed !== true) continue; // already-ours: no spend
-    count += 1;
-    const c = Number(r.result?.costRupees);
-    rupees += Number.isFinite(c) && c > 0 ? c : thisCost;
-  }
-  return { count, rupees };
 }
 
 /** Is the domain already in OUR reseller account, and whose is it? */
@@ -148,7 +118,7 @@ export const registerDomainCommand: CommandHandler = async (ctx): Promise<Handle
 
   // ── 3. Cost and today's usage ─────────────────────────────────────────────
   const pricing = await readPricing(d, tld);
-  const usage = await readUsage(d, ctx.commandId, pricing.costRupees ?? 0);
+  const usage = await readDailyUsage("domain.register", ctx.commandId, pricing.costRupees ?? 0);
   const caps = capsFromEnv(process.env);
   const spend = decideSpend({ paymentMode: req.paymentMode, costRupees: pricing.costRupees, coverRupees: req.coverRupees, usage, caps, domain });
 

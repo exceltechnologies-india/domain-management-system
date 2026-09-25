@@ -47,7 +47,8 @@ describe("what can actually be performed", () => {
     // Phase 8: domain.renew, which is NEITHER — the rupee does not come back.
     //   It is performable because its ambiguity is resolvable by a pure read,
     //   not because it is safe. Being here is not the same as being allowed to
-    //   run live; engine-mode.ts decides that and still refuses it.
+    //   run live; engine-mode.ts decides that — since 25 Sep 2026 only behind
+    //   ENGINE_DOMAIN_RENEW_LIVE=1 and the same spend limit as domain.register.
     // Phase 9 (24 Sep 2026): domain.register, which cannot be undone at all.
     //   Performable, and live ONLY behind its own gate
     //   (ENGINE_DOMAIN_REGISTER_LIVE=1) and the spend limit in

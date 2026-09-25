@@ -39,12 +39,31 @@
  * not. A pure read with a definite answer — the bar Phase 6 set for giving a
  * command a reconciler — which is why this does not need the per-row human
  * release the phase plan assumed.
+ *
+ * ─── AND A SPEND LIMIT, SO IT MAY RUN LIVE (25 Sep 2026) ─────────────────────
+ * Owner decision: a domain renewal is automatic once the customer has paid it in
+ * ResellerOS, at the live ResellerClub price. What kept this command
+ * permanently live-ineligible was that nothing capped spending. It now has the
+ * same limit `domain.register` got (engine-register-policy.ts `decideSpend`),
+ * checked after the expiry comparison and BEFORE `renewDomain`:
+ *   - a TEST-mode payment is held;
+ *   - ResellerClub's RENEWAL cost for the TLD (`renewdomain`) must be readable
+ *     from a fresh price cache, or it is held — never guessed;
+ *   - what was paid (`coverRupees`, before GST) must cover that cost;
+ *   - renewals have their OWN daily count and ₹ cap
+ *     (ENGINE_DOMAIN_RENEW_MAX_PER_DAY / _MAX_RUPEES_PER_DAY), counted from
+ *     the last 24 hours of `domain.renew` commands only.
+ * A hold throws a `[held]` sentence, unbranded (nothing was sent), exactly as
+ * register's holds do. Live additionally needs ENGINE_DOMAIN_RENEW_LIVE=1, its
+ * own gate in engine-mode.ts.
  */
 import { serverLogger } from "@/lib/server-logger";
 import type { CommandHandler, HandlerResult } from "./engine-command-registry";
 import type { Reconciler, ReconcileVerdict } from "./engine-reconcile";
 import { attemptProviderWrite, brandTransport } from "./engine-attempt";
 import type { Transport } from "./transport";
+import { capsFromEnv, decideSpend, tldOf } from "./engine-register-policy";
+import { readDailyUsage } from "./engine-spend-usage";
 
 /**
  * ResellerClub and the Domain service are loaded lazily, for the reason the
@@ -53,22 +72,42 @@ import type { Transport } from "./transport";
  * make the whole command registry un-importable.
  */
 async function deps() {
-  const [{ getDomainOrderId, getDomainDetails }, { ResellerClubAPI }, { applyDomainRenewal }] =
+  const [{ getDomainOrderId, getDomainDetails }, { ResellerClubAPI }, { applyDomainRenewal }, { PricingService }] =
     await Promise.all([
       import("@/lib/integrations/resellerclub"),
       import("@/lib/resellerclub"),
       import("@/lib/services/domains"),
+      import("@/lib/pricing-service"),
     ]);
-  return { getDomainOrderId, getDomainDetails, ResellerClubAPI, applyDomainRenewal };
+  return { getDomainOrderId, getDomainDetails, ResellerClubAPI, applyDomainRenewal, PricingService };
 }
+type Deps = Awaited<ReturnType<typeof deps>>;
 
-interface RenewRequest {
+/** What the reconciler needs: the baseline, and nothing about money. */
+interface RenewBaseline {
   years: number;
   /** Epoch SECONDS, the unit RC's `orders.endtime` uses. */
   expiryBefore: number;
 }
 
-function parseRenew(payload: Record<string, unknown>): RenewRequest {
+interface RenewRequest extends RenewBaseline {
+  /**
+   * Rupees the customer paid for this renewal, BEFORE GST. The spend limit
+   * holds the renewal unless this covers ResellerClub's renewal cost.
+   */
+  coverRupees: number;
+  /** From the Razorpay key prefix on the paying side. Only "live" may renew. */
+  paymentMode: "live" | "test";
+  /** The paying side's reference (ResellerOS quote id), echoed in the result. Optional. */
+  sourceRef: string | null;
+}
+
+/**
+ * The years + expiryBefore half of the payload. Separate from `parseRenew` so
+ * the reconciler can settle a stored command without the money fields — its
+ * only question is "did the expiry move".
+ */
+function parseRenewBaseline(payload: Record<string, unknown>): RenewBaseline {
   const years = Number(payload.years);
   if (!Number.isInteger(years) || years < 1 || years > 10) {
     throw new Error(
@@ -89,6 +128,55 @@ function parseRenew(payload: Record<string, unknown>): RenewRequest {
   return { years, expiryBefore };
 }
 
+function parseRenew(payload: Record<string, unknown>): RenewRequest {
+  const base = parseRenewBaseline(payload);
+
+  const rawCover = payload.coverRupees;
+  const coverRupees = Number(rawCover);
+  if (rawCover === undefined || rawCover === null || rawCover === "" || !Number.isFinite(coverRupees) || coverRupees < 0) {
+    throw new Error(
+      `"coverRupees" is required: the rupees the customer paid for this renewal, before GST. ` +
+        `Received ${JSON.stringify(rawCover)}. Nothing was renewed.`
+    );
+  }
+
+  const paymentMode = payload.paymentMode;
+  if (paymentMode !== "live" && paymentMode !== "test") {
+    throw new Error(
+      `"paymentMode" must be "live" or "test" — the paying side's Razorpay key mode. Nothing was renewed.`
+    );
+  }
+
+  const sourceRef =
+    typeof payload.sourceRef === "string" && payload.sourceRef.trim() ? payload.sourceRef.trim().slice(0, 80) : null;
+  return { ...base, coverRupees, paymentMode, sourceRef };
+}
+
+interface RenewPricing {
+  costRupees: number | null;
+  stale: boolean;
+}
+
+/**
+ * ResellerClub's RENEWAL cost (what ANUTECH pays) for `years` of this TLD.
+ *
+ * Same source and the same refusals as register's `readPricing`: the raw
+ * reseller price block (not `resellerPrice`, which falls back across tenures),
+ * and a stale cache is refused — a cost check against an old price is not a
+ * check. RC quotes each tenure as a PER-YEAR price, so the cost is that price ×
+ * years. If a tenure were ever quoted as a total, this overstates the cost and
+ * HOLDS the renewal; it can never understate it.
+ */
+async function readRenewalCost(d: Deps, tld: string, years: number): Promise<RenewPricing> {
+  const payload = await d.PricingService.getDomainPricing();
+  if (payload.stale) return { costRupees: null, stale: true };
+  const detail = (await d.PricingService.getTLDPricing([tld]))[tld];
+  const v = (detail?.reseller as { renewdomain?: Record<string, string> } | undefined)?.renewdomain?.[String(years)];
+  const perYear = Number(v);
+  if (!Number.isFinite(perYear) || !(perYear > 0)) return { costRupees: null, stale: false };
+  return { costRupees: Math.round(perYear * years * 100) / 100, stale: false };
+}
+
 /** RC returns `orders.endtime` / `endtime` as epoch seconds, in a string. */
 function readEndtime(details: Record<string, unknown>): number | null {
   const raw = details.endtime ?? details["orders.endtime"];
@@ -99,7 +187,8 @@ function readEndtime(details: Record<string, unknown>): number | null {
 export const renewDomainCommand: CommandHandler = async (ctx): Promise<HandlerResult> => {
   const req = parseRenew(ctx.payload);
   const domain = ctx.subject;
-  const { getDomainOrderId, getDomainDetails, ResellerClubAPI, applyDomainRenewal } = await deps();
+  const d = await deps();
+  const { getDomainOrderId, getDomainDetails, ResellerClubAPI, applyDomainRenewal } = d;
 
   // ── 1. Which order is this domain? Read; spends nothing. ──────────────────
   const order = await getDomainOrderId({ domainName: domain });
@@ -149,6 +238,20 @@ export const renewDomainCommand: CommandHandler = async (ctx): Promise<HandlerRe
     );
   }
 
+  // ── 3. The spend limit: cost, cover, today's renewals. Reads only. ────────
+  const pricing = await readRenewalCost(d, tldOf(domain.trim().toLowerCase()), req.years);
+  const usage = await readDailyUsage("domain.renew", ctx.commandId, pricing.costRupees ?? 0);
+  const caps = capsFromEnv(process.env, "renew");
+  const spend = decideSpend({
+    paymentMode: req.paymentMode,
+    costRupees: pricing.costRupees,
+    coverRupees: req.coverRupees,
+    usage,
+    caps,
+    domain,
+    action: "renew",
+  });
+
   if (ctx.mode === "test") {
     return {
       result: {
@@ -159,6 +262,13 @@ export const renewDomainCommand: CommandHandler = async (ctx): Promise<HandlerRe
         expiryBefore: req.expiryBefore,
         changed: false,
         dryRun: true,
+        costRupees: pricing.costRupees,
+        pricingStale: pricing.stale,
+        usage,
+        caps,
+        wouldRenew: spend.ok,
+        hold: spend.ok ? null : spend.hold,
+        sourceRef: req.sourceRef,
         note:
           "Test mode: the order and the current expiry were READ and matched, and nothing was " +
           "renewed. A live run would extend this domain and spend money that does not come back.",
@@ -166,7 +276,10 @@ export const renewDomainCommand: CommandHandler = async (ctx): Promise<HandlerRe
     };
   }
 
-  // ── 3. Spend. `expiryBefore` is sent verbatim — never a fresh read. ───────
+  // ── 4. A hold stops here, before any money moves. Unbranded: not_sent. ──
+  if (!spend.ok) throw new Error(spend.hold);
+
+  // ── 5. Spend. `expiryBefore` is sent verbatim — never a fresh read. ───────
   const res = await attemptProviderWrite(() =>
     ResellerClubAPI.renewDomain(order.orderId, req.years, req.expiryBefore)
   );
@@ -221,6 +334,9 @@ export const renewDomainCommand: CommandHandler = async (ctx): Promise<HandlerRe
       expiryBefore: req.expiryBefore,
       expiryAfter: recordedExpiry,
       changed: true,
+      /* readDailyUsage caps today's renewals on this figure. */
+      costRupees: pricing.costRupees,
+      sourceRef: req.sourceRef,
       recorded: Boolean(recordedExpiry && recordedExpiry > req.expiryBefore),
     },
   };
@@ -236,9 +352,9 @@ export const renewDomainCommand: CommandHandler = async (ctx): Promise<HandlerRe
  * parked in front of it.
  */
 export const reconcileRenew: Reconciler = async (ctx): Promise<ReconcileVerdict> => {
-  let req: RenewRequest;
+  let req: RenewBaseline;
   try {
-    req = parseRenew(ctx.request);
+    req = parseRenewBaseline(ctx.request);
   } catch {
     return "unknown";
   }

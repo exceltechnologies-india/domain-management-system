@@ -18,6 +18,10 @@
  *  - **The reconciler must be exact.** Moved past the baseline → done.
  *    Unchanged → not_done. Anything else → unknown, because settling a money
  *    command on a nonsensical reading is worse than asking a human.
+ *  - **The spend limit (25 Sep 2026) runs BEFORE the spend.** A test-mode
+ *    payment, an unreadable renewal cost, a payment short of that cost, and a
+ *    full daily allowance each HOLD with `[held]` and call renewDomain zero
+ *    times. Every hold is unbranded, so the route reads not_sent.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -40,11 +44,27 @@ vi.mock("@/lib/server-logger", () => ({
   serverLogger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 
+const pricing = vi.hoisted(() => ({ getDomainPricing: vi.fn(), getTLDPricing: vi.fn() }));
+vi.mock("@/lib/pricing-service", () => ({ PricingService: pricing }));
+
+/** Today's domain.renew command rows, and the filter the usage read asked for. */
+const usage = vi.hoisted(() => ({ rows: [] as unknown[], filters: [] as unknown[] }));
+vi.mock("@/models/EngineCommand", () => ({
+  default: {
+    find: (filter: unknown) => {
+      usage.filters.push(filter);
+      return { select: () => ({ lean: async () => usage.rows }) };
+    },
+  },
+}));
+vi.mock("@/lib/mongodb", () => ({ default: async () => undefined }));
+
 import {
   renewDomainCommand,
   reconcileRenew,
 } from "@/lib/integrations/engine-handlers-domain";
 import { transportOf } from "@/lib/integrations/engine-attempt";
+import { HOLD_PREFIX, capsFromEnv } from "@/lib/integrations/engine-register-policy";
 
 /** 1 Jan 2027 and 1 Jan 2028, epoch seconds. */
 const BEFORE = 1798761600;
@@ -52,9 +72,12 @@ const AFTER = 1830297600;
 
 const found = (endtime: number) => ({ kind: "found" as const, details: { endtime: String(endtime) } });
 
+/** The contract ResellerOS sends: rupees before GST, the Razorpay key mode, its quote id. */
+const PAY = { coverRupees: 900, paymentMode: "live", sourceRef: "Q-REN-1" };
+
 const ctx = (
   mode: "test" | "live",
-  payload: Record<string, unknown> = { years: 1, expiryBefore: BEFORE }
+  payload: Record<string, unknown> = { years: 1, expiryBefore: BEFORE, ...PAY }
 ) => ({ commandId: "c1", subject: "acme.in", mode, payload });
 
 beforeEach(() => {
@@ -62,24 +85,133 @@ beforeEach(() => {
   getDomainDetails.mockReset().mockResolvedValue(found(BEFORE));
   rcRenew.mockReset().mockResolvedValue({ status: "success", transport: "responded" });
   applyDomainRenewal.mockReset().mockResolvedValue(true);
+  pricing.getDomainPricing.mockReset().mockResolvedValue({ stale: false });
+  pricing.getTLDPricing.mockReset().mockResolvedValue({
+    in: {
+      // Registration is deliberately a different figure: renew must read renewdomain.
+      reseller: { addnewdomain: { "1": "550.00" }, renewdomain: { "1": "700.00", "2": "690.00" } },
+      customer: { renewdomain: { "1": "899.00" } },
+    },
+  });
+  usage.rows = [];
+  usage.filters = [];
 });
 
 describe("the payload is checked before anything is read", () => {
   it.each([0, 11, 1.5, "two", undefined])("years=%p is refused", async (years) => {
-    await expect(renewDomainCommand(ctx("live", { years, expiryBefore: BEFORE }))).rejects.toThrow(
+    await expect(renewDomainCommand(ctx("live", { years, expiryBefore: BEFORE, ...PAY }))).rejects.toThrow(
       /"years" must be a whole number from 1 to 10/
     );
     expect(rcRenew).not.toHaveBeenCalled();
   });
 
   it("a missing expiryBefore is refused, and the message says WHY it is not optional", async () => {
-    const err = await renewDomainCommand(ctx("live", { years: 1 })).catch((e) => e);
+    const err = await renewDomainCommand(ctx("live", { years: 1, ...PAY })).catch((e) => e);
     expect(err.message).toMatch(/"expiryBefore" is required/);
     // The reason matters more than the rule: somebody will want to "helpfully"
     // default it, and that is the bug.
     expect(err.message).toMatch(/retry buys a second year/i);
     expect(err.message).toMatch(/Read it, then send what you read/);
     expect(getDomainOrderId).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ coverRupees: undefined }, /"coverRupees" is required/],
+    [{ coverRupees: null }, /"coverRupees" is required/],
+    [{ coverRupees: -1 }, /"coverRupees" is required/],
+    [{ coverRupees: "lots" }, /"coverRupees" is required/],
+    [{ paymentMode: undefined }, /"paymentMode" must be "live" or "test"/],
+    [{ paymentMode: "LIVE" }, /"paymentMode" must be "live" or "test"/],
+  ])("the money fields are REQUIRED: %j is refused before anything is read", async (over, re) => {
+    await expect(
+      renewDomainCommand(ctx("live", { years: 1, expiryBefore: BEFORE, ...PAY, ...over }))
+    ).rejects.toThrow(re);
+    expect(getDomainOrderId).not.toHaveBeenCalled();
+    expect(rcRenew).not.toHaveBeenCalled();
+  });
+
+  it("sourceRef is optional", async () => {
+    const { result } = await renewDomainCommand(ctx("live", { years: 1, expiryBefore: BEFORE, coverRupees: 900, paymentMode: "live" }));
+    expect(result).toMatchObject({ changed: true, sourceRef: null });
+  });
+});
+
+describe("the spend limit — every hold is before the spend", () => {
+  const held = async (c: ReturnType<typeof ctx>, re: RegExp) => {
+    const err = await renewDomainCommand(c).catch((e) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err.message.startsWith(HOLD_PREFIX)).toBe(true);
+    expect(err.message).toMatch(re);
+    // Unbranded: nothing was sent, so the route reads not_sent — as register's holds.
+    expect(transportOf(err)).toBeNull();
+    expect(rcRenew).not.toHaveBeenCalled();
+    expect(applyDomainRenewal).not.toHaveBeenCalled();
+  };
+
+  it("a TEST-mode payment is held", () => held(ctx("live", { years: 1, expiryBefore: BEFORE, ...PAY, paymentMode: "test" }), /TEST-mode Razorpay key.*not renewed automatically/));
+
+  it("an unreadable renewal cost is held, never guessed", async () => {
+    pricing.getTLDPricing.mockResolvedValue({ in: { reseller: { addnewdomain: { "1": "550.00" } } } });
+    await held(ctx("live"), /could not be read.*Renew it by hand/);
+  });
+
+  it("a stale price cache is held — a cost check against an old price is not a check", async () => {
+    pricing.getDomainPricing.mockResolvedValue({ stale: true });
+    await held(ctx("live"), /could not be read/);
+    expect(pricing.getTLDPricing).not.toHaveBeenCalled();
+  });
+
+  it("paid less than the RENEWAL cost is held, naming both figures", async () => {
+    // 600 would cover the ₹550 registration price; the renewal costs ₹700.
+    await held(ctx("live", { years: 1, expiryBefore: BEFORE, ...PAY, coverRupees: 600 }), /costs ₹700 at ResellerClub but only ₹600 was paid/);
+  });
+
+  it("the cost is per year × years", async () => {
+    await held(ctx("live", { years: 2, expiryBefore: BEFORE, ...PAY, coverRupees: 1300 }), /costs ₹1380/);
+  });
+
+  it("the daily COUNT cap holds the next renewal", async () => {
+    usage.rows = Array.from({ length: 5 }, () => ({ status: "succeeded", result: { changed: true, costRupees: 700 } }));
+    await held(ctx("live", { years: 1, expiryBefore: BEFORE, ...PAY, coverRupees: 900 }), /daily limit of 5 automatic renewals.*ENGINE_DOMAIN_RENEW_MAX_PER_DAY/);
+  });
+
+  it("the daily RUPEE cap holds the next renewal, and in-flight ones count at this cost", async () => {
+    usage.rows = [
+      ...Array.from({ length: 3 }, () => ({ status: "succeeded", result: { changed: true, costRupees: 3000 } })),
+      { status: "in_progress" }, // may already have spent: counted at ₹700
+    ];
+    await held(ctx("live"), /daily spend limit of ₹10000.*₹9700 spent.*ENGINE_DOMAIN_RENEW_MAX_RUPEES_PER_DAY/);
+  });
+
+  it("usage counts domain.renew commands only, excluding this one", async () => {
+    await renewDomainCommand(ctx("live"));
+    expect(usage.filters[0]).toMatchObject({ command: "domain.renew", commandId: { $ne: "c1" } });
+  });
+
+  it("dry runs and no-spend successes do not count toward the cap", async () => {
+    usage.rows = [
+      ...Array.from({ length: 5 }, () => ({ status: "succeeded", result: { dryRun: true } })),
+      ...Array.from({ length: 5 }, () => ({ status: "succeeded", result: { changed: false } })),
+    ];
+    const { result } = await renewDomainCommand(ctx("live"));
+    expect(result.changed).toBe(true);
+  });
+
+  it("renewal caps are their own env vars, with conservative defaults", () => {
+    expect(capsFromEnv({}, "renew")).toEqual({ maxPerDay: 5, maxRupeesPerDay: 10000 });
+    expect(capsFromEnv({ ENGINE_DOMAIN_RENEW_MAX_PER_DAY: "abc" }, "renew").maxPerDay).toBe(5);
+    expect(
+      capsFromEnv({ ENGINE_DOMAIN_RENEW_MAX_PER_DAY: "20", ENGINE_DOMAIN_RENEW_MAX_RUPEES_PER_DAY: "50000" }, "renew")
+    ).toEqual({ maxPerDay: 20, maxRupeesPerDay: 50000 });
+    // Raising the registration cap does not raise the renewal cap.
+    expect(capsFromEnv({ ENGINE_DOMAIN_REGISTER_MAX_PER_DAY: "99" }, "renew").maxPerDay).toBe(5);
+  });
+
+  it("test mode reports the hold instead of throwing, and spends nothing", async () => {
+    const { result } = await renewDomainCommand(ctx("test", { years: 1, expiryBefore: BEFORE, ...PAY, coverRupees: 100 }));
+    expect(result).toMatchObject({ dryRun: true, wouldRenew: false, costRupees: 700 });
+    expect(String(result.hold)).toMatch(/only ₹100 was paid/);
+    expect(rcRenew).not.toHaveBeenCalled();
   });
 });
 
@@ -155,7 +287,7 @@ describe("reads that fail stop the command before it spends", () => {
 describe("test mode", () => {
   it("reads and reports, and spends nothing", async () => {
     const { result } = await renewDomainCommand(ctx("test"));
-    expect(result).toMatchObject({ ok: true, changed: false, dryRun: true, orderId: "ORD-1" });
+    expect(result).toMatchObject({ ok: true, changed: false, dryRun: true, orderId: "ORD-1", wouldRenew: true, hold: null, costRupees: 700 });
     expect(String(result.note)).toMatch(/does not come back/);
     expect(rcRenew).not.toHaveBeenCalled();
     expect(applyDomainRenewal).not.toHaveBeenCalled();
@@ -169,6 +301,8 @@ describe("a live renewal", () => {
       .mockResolvedValueOnce(found(AFTER)); // the read-back
     const { result } = await renewDomainCommand(ctx("live"));
 
+    // Exactly once, with the caller's expiry verbatim.
+    expect(rcRenew).toHaveBeenCalledTimes(1);
     expect(rcRenew).toHaveBeenCalledWith("ORD-1", 1, BEFORE);
     // Written from RC's answer, never computed — a renewal extends the CURRENT
     // expiry, so now + years would be wrong by whatever was left.
@@ -176,7 +310,8 @@ describe("a live renewal", () => {
       domainName: "acme.in",
       newExpiresAt: new Date(AFTER * 1000),
     });
-    expect(result).toMatchObject({ changed: true, recorded: true, expiryAfter: AFTER });
+    // costRupees is what the next command's daily usage reads.
+    expect(result).toMatchObject({ changed: true, recorded: true, expiryAfter: AFTER, costRupees: 700, sourceRef: "Q-REN-1" });
   });
 
   it("still reports success when the read-back fails — the renewal DID happen", async () => {
@@ -248,6 +383,11 @@ describe("the reconciler answers by reading, which is why this needs no human", 
   it("details with no expiry → unknown", async () => {
     getDomainDetails.mockResolvedValue({ kind: "found", details: {} });
     expect(await reconcileRenew(rctx)).toBe("unknown");
+  });
+
+  it("settles a stored request that has no money fields — the reconciler asks only about the expiry", async () => {
+    getDomainDetails.mockResolvedValue(found(AFTER));
+    expect(await reconcileRenew({ subject: "acme.in", request: { years: 1, expiryBefore: BEFORE } })).toBe("done");
   });
 
   it("a stored request without a baseline → unknown, and asks nothing", async () => {

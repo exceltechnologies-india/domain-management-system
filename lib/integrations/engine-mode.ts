@@ -97,22 +97,10 @@ export const LIVE_ELIGIBLE_COMMANDS: readonly string[] = [
  * default. Whoever adds it has to decide, here, in writing.
  */
 export const LIVE_INELIGIBLE_REASONS: Readonly<Record<string, string>> = {
-  /**
-   * The reason CHANGED on 23 Sep 2026 and the old one must not linger: it said
-   * "nobody has yet established whether a second call adds a second year".
-   * That was answered — it does, and `domain.renew` now defends against it by
-   * requiring the caller's observed expiry and sending that verbatim, so a
-   * double renewal is refused before any money moves.
-   *
-   * It stays ineligible for a DIFFERENT reason, stated plainly so nobody reads
-   * the old one as still binding: nothing in this engine caps spending. The
-   * ambiguity is gone; the absence of a spend control is not.
-   */
-  "domain.renew":
-    "a renewal spends a rupee that does not come back, and this engine has no spend control at " +
-    "all — nothing caps how many renewals a caller could trigger. The double-renewal risk is " +
-    "handled (the command refuses unless the expiry you send still matches the registrar), so " +
-    "what is missing is a limit, not a guard.",
+  /* Empty since 25 Sep 2026. `domain.renew` sat here until it got its own gate
+     and spend limit — it is now in OWN_LIVE_GATES below. The list stays, and
+     checkLiveAllowed still reads it, so the next command that must never go
+     live has a place to say why. */
 };
 
 /**
@@ -139,6 +127,14 @@ export const OWN_LIVE_GATES: Readonly<Record<string, string>> = {
      account removed the reason. Its own gate, for the same reason as
      domain.register: opening it must put nothing else live. */
   "hosting.provision": "ENGINE_HOSTING_PROVISION_LIVE",
+  /* 25 Sep 2026. Owner: renewals are automatic once the customer has paid the
+     renewal in ResellerOS, at the live ResellerClub price. Was permanently
+     ineligible because nothing capped spending; it now has the same spend limit
+     as domain.register (live payment, paid >= ResellerClub's renewal cost, its
+     own daily count + ₹ cap — engine-handlers-domain.ts), and the double-renewal
+     defence (expiryBefore sent verbatim) is unchanged. Its own gate, so opening
+     it puts nothing else live. */
+  "domain.renew": "ENGINE_DOMAIN_RENEW_LIVE",
 };
 
 /** True only when the command's own gate is set to exactly "1". */
