@@ -217,7 +217,7 @@ says so — each waits for the owner's go-ahead.
 
   Both DMS gates (eligibility and create-order) consult it too.
 - **A buyer's DMS account gets a "set your password" email at creation** (`engine-customer.ts`,
-  shared by both commands), as guest checkout does. It is their only way in: ResellerOS has no
+  shared by both commands), as guest checkout did (removed 25 Sep 2026). It is their only way in: ResellerOS has no
   customer portal, so there is no hand-off for a customer to start. (Earlier text in this file said
   they "arrive by the engine-sso hand-off" — that is how staff reach a panel, not how a customer
   reaches their own.)
@@ -403,6 +403,15 @@ markup, then mirror `app/api/user/hosting/renew/route.ts`.~~ **Superseded 25 Sep
 are ResellerOS's. The Renew button now shows the customer's ResellerOS renewal bill
 (`components/billing/RenewViaResellerOs.tsx`) and ResellerOS's `domain.renew` engine command
 renews at the registrar. This route is no longer reached from the UI (kept; gated).
+
+## Guest checkout and DMS autopay are REMOVED (owner: "Remove both", 25 Sep 2026)
+
+`/checkout/guest`, `api/payments/guest/*`, `lib/guest-token.ts`, `api/payments/create-subscription` and
+`api/payments/cancel-subscription` are deleted; so are the cart's "Continue as Guest" option and the
+middleware bypasses for them. Both took payment on DMS's own Razorpay account. A visitor signs in or
+creates an account; the cart is kept. Existing subscription/order data is untouched. Do not rebuild them.
+`/razorpay-checkout` + `components/RazorpayCheckoutFrame.tsx` stay: they only open a checkout, and the
+panel's ResellerOS-created order uses them.
 
 ## Renewals go to ResellerOS — DMS raises no renewal order (built 25 Sep 2026)
 

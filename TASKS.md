@@ -41,6 +41,17 @@ Eight days of focused safety-check additions are complete. Every production-faci
 
 ## In Flight
 
+### 🆕 Round 3 — no payment on DMS's own Razorpay keys (owner answers, 25 Sep 2026)
+
+- [x] **Step 3 — guest checkout and autopay removed** (owner: "Remove both"). Deleted `/checkout/guest`,
+  `api/payments/guest/{create-order,verify}`, `lib/guest-token.ts`, `api/payments/create-subscription`,
+  `api/payments/cancel-subscription`, the guest option in `CartOrderSummary`, the middleware bypasses and the
+  `guestCheckout` rate limiter. There was no Settings UI for autopay (nothing called either route).
+  `/razorpay-checkout` + `RazorpayCheckoutFrame` KEPT: `PanelCheckout` opens ResellerOS's order with it.
+- [ ] **Step 1 — DMS /cart pays through ResellerOS** ("Route through ResellerOS").
+- [ ] **Step 2 — hosting upgrade becomes a request billed by ResellerOS.**
+- [ ] **Step 4 — guard: no Razorpay order/subscription/capture outside an allow-list.**
+
 ### 🆕 Billing moves to ResellerOS — round 2 (owner decisions 29-30, 25 Sep 2026)
 
 Decision 29: the customer's bill is ResellerOS's paid-order (quote) PDF at once, and the GST

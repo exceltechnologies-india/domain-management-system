@@ -7,7 +7,7 @@
  *
  * HOW THE CUSTOMER GETS IN. The account is created with an unusable random
  * password and a "set your password" email is sent at once — the same thing
- * DMS's guest checkout does (app/api/payments/guest/verify). ResellerOS has no
+ * DMS's guest checkout did (removed 25 Sep 2026). ResellerOS has no
  * customer portal (AGENTS.md §0), so there is no hand-off for a customer to
  * start: this email is their way in. (A first draft said "they arrive by the
  * engine-sso hand-off"; that is how STAFF reach a customer's panel, not how a
@@ -70,7 +70,7 @@ export async function ensureDmsUser(customer: EngineCustomer) {
   });
   serverLogger.info(`[engine] created DMS account for ${customer.email}`);
 
-  // "Set your password" — sent at creation, like guest checkout, so the customer
+  // "Set your password" — sent at creation (as the removed guest checkout did), so the customer
   // can always reach what they paid for whatever happens after this point.
   // Best-effort: a mail failure must not undo a sale.
   try {

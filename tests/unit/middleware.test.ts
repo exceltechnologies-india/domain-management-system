@@ -459,10 +459,13 @@ describe("Protected user routes — auth gate", () => {
     expect(location).toContain("returnUrl=%2Fcheckout");
   });
 
-  it("**guest checkout (/checkout/guest) is PUBLIC** (no token required)", async () => {
-    const req = makeReq("https://example.com/checkout/guest");
-    await middleware(req);
-    expect(getToken).not.toHaveBeenCalled();
+  // Guest checkout was removed on 25 Sep 2026 (it took payment on DMS's own
+  // Razorpay account). Its bypass must not linger for a page that is gone.
+  it("/checkout/guest is no longer public — treated like /checkout", async () => {
+    getToken.mockResolvedValueOnce(null);
+    const res = await middleware(makeReq("https://example.com/checkout/guest"));
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location") || "").toContain("/login");
   });
 });
 
@@ -497,10 +500,8 @@ describe("Public routes / public APIs — no token fetch", () => {
     "/api/check-ip",
     "/api/contact",
     "/api/cron/process-expiry",
-    "/api/workers/issue-invoice",
-    // The path webhook-handlers actually enqueues for Cloud Tasks.
-    "/api/v1/workers/issue-invoice",
-    "/api/payments/guest/verify",
+    "/api/workers/process-hosting-expiry",
+    "/api/v1/workers/process-hosting-expiry",
   ])("public API %s does not fetch token (CSRF-exempt)", async (path) => {
     const req = makeReq(`https://example.com${path}`, { method: "POST" });
     await middleware(req);
@@ -668,7 +669,7 @@ describe("DMS's deleted public pages — everyone is redirected to ResellerOS", 
   it("the panel, the cart and the SSO error page are NOT taken over", async () => {
     vi.stubEnv("NEXT_PUBLIC_RESELLEROS_URL", "https://app.example.com");
     getToken.mockResolvedValue(null);
-    for (const path of ["/cart", "/checkout/guest", "/login", "/hosting/error", "/sso"]) {
+    for (const path of ["/cart", "/login", "/hosting/error", "/sso"]) {
       const res = await middleware(makeReq(`https://dms.example.com${path}`));
       const loc = res?.headers.get("location") ?? "";
       expect(loc.startsWith("https://app.example.com"), `${path} was taken over`).toBe(false);
@@ -682,5 +683,13 @@ describe("DMS's deleted public pages — everyone is redirected to ResellerOS", 
       const res = await middleware(makeReq(`https://dms.example.com${path}`));
       expect(res?.status, `${path} must redirect, not 404`).not.toBe(404);
     }
+  });
+});
+
+describe("the removed guest-checkout API is not CSRF-exempt any more", () => {
+  it("/api/payments/guest/verify goes through the normal gates", async () => {
+    getToken.mockResolvedValueOnce(null);
+    await middleware(makeReq("https://example.com/api/payments/guest/verify", { method: "POST" }));
+    expect(getToken).toHaveBeenCalled();
   });
 });

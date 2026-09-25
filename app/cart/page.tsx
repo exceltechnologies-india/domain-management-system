@@ -354,7 +354,6 @@ export default function CartPage() {
                 onCheckout={handleCheckout}
                 onClearCart={clearCart}
                 returnUrl="/cart"
-                allowsGuestCheckout={hasDomainItems() || hasHostingItems()}
               />
             </div>
           </div>

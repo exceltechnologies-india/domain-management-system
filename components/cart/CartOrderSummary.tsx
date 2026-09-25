@@ -1,9 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { CreditCard, Shield, User, Receipt, Mail, X, AlertCircle } from 'lucide-react';
+import { CreditCard, Shield, Receipt } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 
 interface CartOrderSummaryProps {
   isLoggedIn: boolean;
@@ -14,7 +12,6 @@ interface CartOrderSummaryProps {
   onCheckout: () => void;
   onClearCart: () => void;
   returnUrl: string;
-  allowsGuestCheckout?: boolean;
 }
 
 export default function CartOrderSummary({
@@ -26,15 +23,9 @@ export default function CartOrderSummary({
   onCheckout,
   onClearCart,
   returnUrl,
-  allowsGuestCheckout = false,
 }: CartOrderSummaryProps) {
-  const router = useRouter();
   const subtotal = totalPrice / 1.18;
   const gst = totalPrice - subtotal;
-
-  const [showEmailInput, setShowEmailInput] = useState(false);
-  const [guestEmail, setGuestEmail] = useState('');
-  const [emailError, setEmailError] = useState('');
 
   const checkoutLabel = !isLoggedIn
     ? 'Login to Checkout'
@@ -47,17 +38,9 @@ export default function CartOrderSummary({
       ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105'
       : 'bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white shadow-lg hover:shadow-xl transform hover:scale-105';
 
-  const handleGuestContinue = () => {
-    const email = guestEmail.trim().toLowerCase();
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setEmailError('Please enter a valid email address');
-      return;
-    }
-    setEmailError('');
-    router.push(`/checkout/guest?email=${encodeURIComponent(email)}`);
-  };
-
-  const showGuestOption = !isLoggedIn && !hasSession && allowsGuestCheckout;
+  // Guest checkout was removed on 25 Sep 2026 (owner decision): it took
+  // payment on DMS's own Razorpay account. A visitor signs in or creates an
+  // account; the cart itself is kept for them.
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 lg:sticky lg:top-24 overflow-hidden">
@@ -102,55 +85,6 @@ export default function CartOrderSummary({
           <CreditCard className="h-4 w-4 sm:h-5 sm:w-5" />
           <span>{checkoutLabel}</span>
         </button>
-
-        {/* Guest checkout option */}
-        {showGuestOption && (
-          <div className="mb-3">
-            {!showEmailInput ? (
-              <button
-                onClick={() => setShowEmailInput(true)}
-                className="w-full font-semibold py-2.5 sm:py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center space-x-2 text-sm sm:text-base border border-gray-300 text-gray-700 hover:border-primary-400 hover:text-primary-700 hover:bg-primary-50/40"
-              >
-                <User className="h-4 w-4 sm:h-5 sm:w-5" />
-                <span>Continue as Guest</span>
-              </button>
-            ) : (
-              <div className="space-y-2 p-3 border border-gray-200 rounded-xl bg-gray-50/60">
-                <p className="text-xs font-medium text-gray-700">Enter your email to receive your order confirmation:</p>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                  <input
-                    type="email"
-                    value={guestEmail}
-                    onChange={(e) => { setGuestEmail(e.target.value); setEmailError(''); }}
-                    onKeyDown={(e) => e.key === 'Enter' && handleGuestContinue()}
-                    placeholder="you@example.com"
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
-                  />
-                </div>
-                {emailError && (
-                  <p className="text-xs text-red-600 flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" /> {emailError}
-                  </p>
-                )}
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleGuestContinue}
-                    className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-3 rounded-lg text-sm transition-colors"
-                  >
-                    Continue
-                  </button>
-                  <button
-                    onClick={() => { setShowEmailInput(false); setGuestEmail(''); setEmailError(''); }}
-                    className="px-3 py-2 text-gray-500 hover:text-gray-900 text-sm rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-1"
-                  >
-                    <X className="h-3.5 w-3.5" /> Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         {!isLoggedIn && !hasSession && (
           <p className="text-center text-xs sm:text-sm text-gray-600 mb-3 px-2">

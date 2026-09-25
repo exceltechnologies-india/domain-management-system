@@ -33,8 +33,6 @@ const PUBLIC_PREFIXES = [
 
 const AUTH_PAGES = new Set(["/login", "/register"]);
 const PROTECTED_PREFIXES = ["/dashboard", "/checkout"];
-// Guest checkout is public — unauthenticated users access it by design
-const GUEST_PUBLIC_ROUTES = new Set(["/checkout/guest"]);
 const ADMIN_PREFIXES = ["/admin"];
 const ADMIN_API_PREFIXES = ["/api/admin"];
 
@@ -122,8 +120,6 @@ const PUBLIC_API_PREFIXES = [
   "/api/workers",
   // Email-change verification link is clicked while unauthenticated (from email client)
   "/api/user/settings/verify-email-change",
-  // Guest checkout: no account required — route handler validates guest JWT token
-  "/api/payments/guest",
   // Server-to-server: the Engine API that ResellerOS reads. Same shape as the
   // cron bypass above — the caller is another application's backend, not a
   // browser, so there is no NextAuth session to check and the JWT gate would
@@ -299,8 +295,8 @@ async function handleMiddleware(request: NextRequest, nonce: string, requestId: 
     !SELF_AUTHENTICATING_ADMIN_API.has(classificationPath);
   const isAdminPage = ADMIN_PREFIXES.some(p => pathname === p || pathname.startsWith(p + "/"));
   const isAuthPage = AUTH_PAGES.has(pathname);
-  const isGuestPublicRoute = GUEST_PUBLIC_ROUTES.has(pathname) || Array.from(GUEST_PUBLIC_ROUTES).some(p => pathname.startsWith(p + "/"));
-  const isProtectedRoute = !isGuestPublicRoute && PROTECTED_PREFIXES.some(p => pathname === p || pathname.startsWith(p + "/"));
+  // (Guest checkout, /checkout/guest, was removed on 25 Sep 2026.)
+  const isProtectedRoute = PROTECTED_PREFIXES.some(p => pathname === p || pathname.startsWith(p + "/"));
   const isApi = pathname.startsWith("/api/");
   const isPublicApi = PUBLIC_API_PREFIXES.some(p => classificationPath === p || classificationPath.startsWith(p + "/"));
   const isPublicRoute = PUBLIC_ROUTES.has(pathname) || PUBLIC_PREFIXES.some(p => pathname.startsWith(p));
@@ -402,8 +398,8 @@ async function handleMiddleware(request: NextRequest, nonce: string, requestId: 
     return addSecurityHeaders(NextResponse.redirect(new URL(redirectPath, request.url)), { nonce, strictCSP: isStrictCSPRoute });
   }
 
-  // Public / Public API / HEAD requests / Guest checkout: Bypass further checks
-  if (isPublicRoute || isPublicApi || isHeadRequest || isGuestPublicRoute) {
+  // Public / Public API / HEAD requests: Bypass further checks
+  if (isPublicRoute || isPublicApi || isHeadRequest) {
     return addSecurityHeaders(nextWithNonce(request, nonce, requestId), { nonce, strictCSP: isStrictCSPRoute });
   }
 

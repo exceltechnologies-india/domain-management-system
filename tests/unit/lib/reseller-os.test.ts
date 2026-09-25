@@ -160,7 +160,7 @@ describe("resellerOsOwnedUrl — pages ResellerOS takes over", () => {
     // matching is what keeps it apart from /hosting.
     set("https://app.example.com");
     for (const path of [
-      "/cart", "/checkout", "/checkout/guest", "/hosting/error", "/sso",
+      "/cart", "/checkout", "/hosting/error", "/sso",
       "/login", "/dashboard", "/dashboard/hosting", "/admin", "/admin/dashboard",
     ]) {
       expect(resellerOsOwnedUrl(path), `${path} must not be taken over`).toBeNull();

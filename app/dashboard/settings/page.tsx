@@ -480,7 +480,7 @@ export default function UserSettings() {
           // neighbourhood, quarter, residential or building. Chain through the
           // common shapes, then fall back to the first two display_name
           // segments, so Line 1 is never left blank while city/state/PIN fill.
-          // Mirrors the same fix already shipped in app/checkout/guest/page.tsx
+          // Mirrors the same fix shipped in the (since removed) guest checkout page
           // — this copy was missed. Reported 2026-09-04 (Delhi 110085: only
           // suburb/city_district returned, so Line 1 stayed empty).
           const lineParts = [

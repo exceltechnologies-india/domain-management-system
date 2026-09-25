@@ -1,12 +1,9 @@
 /**
  * Component tests for <CartOrderSummary> (rescan-4 M14 — cart UI slice).
  * Pins the conditional checkout-label states, the GST/subtotal math, the
- * item-count pluralisation, the action callbacks, and the guest-checkout
- * email-validation flow (including the router.push on a valid address).
- *
- * Mocks next/navigation's useRouter so handleGuestContinue's redirect is
- * observable; next/link renders a plain <a> under jsdom so href assertions
- * work without a mock.
+ * item-count pluralisation, the action callbacks, and (since 25 Sep 2026)
+ * that no guest checkout is offered. next/link renders a plain <a> under
+ * jsdom so href assertions work without a mock.
  */
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -30,7 +27,6 @@ function renderSummary(overrides: Partial<Props> = {}) {
     onCheckout: vi.fn(),
     onClearCart: vi.fn(),
     returnUrl: "/cart",
-    allowsGuestCheckout: false,
     ...overrides,
   };
   render(<CartOrderSummary {...props} />);
@@ -84,29 +80,12 @@ describe("<CartOrderSummary>", () => {
     expect(props.onClearCart).toHaveBeenCalledTimes(1);
   });
 
-  it("hides the guest option unless allowed and unauthenticated", () => {
-    renderSummary({ isLoggedIn: false, hasSession: false, allowsGuestCheckout: false });
+  // Guest checkout was removed on 25 Sep 2026: it took payment on DMS's
+  // own Razorpay account. A visitor signs in or creates an account.
+  it("offers no guest checkout to a signed-out visitor", () => {
+    renderSummary({ isLoggedIn: false, hasSession: false });
     expect(screen.queryByRole("button", { name: /continue as guest/i })).not.toBeInTheDocument();
-  });
-
-  it("validates the guest email and redirects on a valid address", async () => {
-    const user = userEvent.setup();
-    renderSummary({ isLoggedIn: false, hasSession: false, allowsGuestCheckout: true });
-
-    await user.click(screen.getByRole("button", { name: /continue as guest/i }));
-    const input = screen.getByPlaceholderText("you@example.com");
-
-    // Invalid → inline error, no redirect
-    await user.type(input, "not-an-email");
-    await user.click(screen.getByRole("button", { name: /^continue$/i }));
-    expect(screen.getByText(/please enter a valid email address/i)).toBeInTheDocument();
-    expect(pushMock).not.toHaveBeenCalled();
-
-    // Valid → redirect to guest checkout with the encoded email
-    await user.clear(input);
-    await user.type(input, "buyer@example.com");
-    await user.click(screen.getByRole("button", { name: /^continue$/i }));
-    expect(pushMock).toHaveBeenCalledWith("/checkout/guest?email=buyer%40example.com");
+    expect(screen.queryByPlaceholderText("you@example.com")).not.toBeInTheDocument();
   });
 
   it("offers account creation for unauthenticated users", () => {

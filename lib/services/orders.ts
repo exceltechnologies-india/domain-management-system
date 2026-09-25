@@ -838,7 +838,7 @@ export async function createOrder(
  * in the caller's `withTransaction(...)` block. Returns the saved doc.
  *
  * Use this from routes that need atomic Order+Payment inserts (currently
- * `payments/verify` and `payments/guest/verify`). For non-transactional
+ * `payments/verify`; `payments/guest/verify` was removed 25 Sep 2026). For non-transactional
  * inserts, prefer {@link createOrder}.
  */
 export async function createOrderInSession(

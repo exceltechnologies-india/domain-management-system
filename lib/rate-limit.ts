@@ -235,17 +235,6 @@ export const rateLimiters = {
     keyGenerator: ipKey("chat"),
   }),
 
-  // Guest checkout (unauthenticated /payments/guest/{create-order,verify}).
-  // Each request hits Razorpay create-order or payment-fetch + writes a
-  // user row + a pending Order. 5 attempts/min/IP is enough for a real
-  // human juggling cart UI but caps abusers from minting Razorpay orders
-  // at scale.
-  guestCheckout: new RateLimiter({
-    windowMs: 60 * 1000, // 1 minute
-    maxRequests: 5,
-    keyGenerator: ipKey("guest_checkout"),
-  }),
-
   // Public analytics journey beacon (/api/analytics/track). Unauthenticated,
   // and since dms-00443 a `view_content` / `checkout_started` hit also fires a
   // Meta Conversions API send + writes a CustomerActivity row — so an
