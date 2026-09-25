@@ -191,7 +191,8 @@ export async function sendRenewalInvoiceEmail(
 /**
  * Renewal-payment dunning email (Primary Billing Integration Phase 2) —
  * fires when a customer started a hosting renewal (opened the Razorpay
- * checkout via /api/user/hosting/renew) but never completed payment, so the
+ * checkout via /api/user/hosting/renew, deleted 25 Sep 2026 — so this now only
+ * concerns orders raised before then) but never completed payment, so the
  * internal Order is still sitting in status='pending'. Distinct from
  * `sendRenewalInvoiceEmail` above, which fires AFTER a service has already
  * been suspended — this email's hosting may well still be active (renewal

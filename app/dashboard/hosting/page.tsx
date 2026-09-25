@@ -16,7 +16,7 @@ import UserLayout from '@/components/user/UserLayout';
 import { performLogout } from '@/lib/logout';
 import { DashboardLayoutSkeleton, HostingPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import RefreshButton from '@/components/dashboard/RefreshButton';
-import HostingRenewalModal from '@/components/HostingRenewalModal';
+import RenewViaResellerOs from '@/components/billing/RenewViaResellerOs';
 import HostingUpgradeModal from '@/components/HostingUpgradeModal';
 import ExpiryBadge from '@/components/dashboard/ExpiryBadge';
 import TrialCountdownBanner from '@/components/dashboard/TrialCountdownBanner';
@@ -527,10 +527,13 @@ export default function HostingPage() {
         )}
       </div>
 
-      <HostingRenewalModal
+      {/* Renewals are ResellerOS's (owner decisions, 24-25 Sep 2026): this
+          points at the customer's pending renewal bill; DMS takes no payment. */}
+      <RenewViaResellerOs
         isOpen={isRenewalModalOpen}
         onClose={() => setIsRenewalModalOpen(false)}
-        domainName={selectedDomainName}
+        serviceName={selectedDomainName}
+        serviceType="hosting"
       />
 
       <HostingUpgradeModal

@@ -171,8 +171,8 @@ says so — each waits for the owner's go-ahead.
   adopt-before-create, DMS account + set-your-password email and the reconciler are the paid path's.
   Tests: `tests/unit/lib/integrations/engine-handlers-provision-trial.test.ts`. **Known:** such a row is
   picked up by DMS's existing trial-end machinery (reminders via `next_action_at`, and at expiry the
-  worker suspends and raises a DMS renewal order + email) — the same as any DMS trial, and one more
-  place the "DMS issues no bills" switch-off (ResellerOS `Todos.md` §0A) has to cover.
+  worker suspends it) — the same as any DMS trial. **Since 25 Sep 2026 the worker raises NO renewal
+  order** (see "Renewals go to ResellerOS" below).
 - **`hosting.provision` was run against the live DirectAdmin on 24 Sep 2026 and works:** test,
   create, replay and no-duplicate all passed. The test account it made (`rsospf34b2` /
   `rsosprovtest2409.in`) was deleted from server1 on 25 Sep 2026. So were its local records: the
@@ -196,8 +196,8 @@ says so — each waits for the owner's go-ahead.
 - **The free hosting trial is Starter only, on monthly AND yearly** (owner, 24 Sep 2026). Both
   server gates enforce the plan: the eligibility route and create-order, via
   `lib/pricing/trial-plan.ts`. The panel dialog alone is not the rule. A monthly trial exists only
-  on the no-card path. It records `billingCycle: "monthly"` on the Hosting, and `renew` /
-  `renew-info` then charge and quote one month. A Hosting with no `billingCycle` (every row
+  on the no-card path. It records `billingCycle: "monthly"` on the Hosting. (`renew` / `renew-info`,
+  which charged one month for it, were deleted on 25 Sep 2026 — renewals are ResellerOS's.) A Hosting with no `billingCycle` (every row
   before that date) renews yearly, as it always did. A monthly trial is refused where a YEARLY
   mandate or subscription would be set up; never convert it silently. Checkout no longer tells
   trial customers their card is "saved for automatic yearly billing": no trial path running takes
@@ -398,8 +398,30 @@ been charged, and the customer was told it failed.
 
 There is no retail renewal price for domains in this codebase, so nothing can
 produce the payment the route now demands and the UI routes to support instead.
-**Do not "fix" that by relaxing the gate.** Finish it the other way: set a
-markup, then mirror `app/api/user/hosting/renew/route.ts`.
+**Do not "fix" that by relaxing the gate.** ~~Finish it the other way: set a
+markup, then mirror `app/api/user/hosting/renew/route.ts`.~~ **Superseded 25 Sep 2026:** renewals
+are ResellerOS's. The Renew button now shows the customer's ResellerOS renewal bill
+(`components/billing/RenewViaResellerOs.tsx`) and ResellerOS's `domain.renew` engine command
+renews at the registrar. This route is no longer reached from the UI (kept; gated).
+
+## Renewals go to ResellerOS — DMS raises no renewal order (built 25 Sep 2026)
+
+Owner: *"Renewals subscription will be handled by ResellerOS. Period."*
+
+- **Renew buttons** (hosting page, domains page, the trial countdown's convert button) open
+  `RenewViaResellerOs`: the customer's PENDING ResellerOS quote(s) with ResellerOS's Pay link, or "no
+  renewal bill yet — ResellerOS emails one before expiry; contact support". It takes no payment. Quotes
+  carry no domain in ResellerOS's API, so every pending quote is offered rather than a guessed one
+  (`lib/reselleros/renewal-choice.ts`).
+- **Deleted:** `HostingRenewalModal`, `DomainRenewalModal`, `api/user/hosting/renew`, `renew-info`.
+- **The expiry worker** (`api/workers/process-hosting-expiry`, which also handles a trial's end) still
+  suspends exactly as before, but raises no renewal Order and sends no DMS amount; it sends the
+  suspension email + WhatsApp. Paying the ResellerOS renewal runs `hosting.renew` / `domain.renew` here,
+  which move the expiry and unsuspend.
+- **Left alone, found:** `process-service-expiry` reminder emails still quote `service.price` (a DMS
+  figure); `cron/renewal-payment-dunning` still chases DMS renewal orders raised before this date;
+  `api/domains/renew` is unreached from the UI; `HostingUpgradeModal` still takes an upgrade payment on
+  DMS's Razorpay account.
 
 ## Other persistent conventions
 

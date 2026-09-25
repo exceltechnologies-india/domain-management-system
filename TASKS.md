@@ -64,7 +64,10 @@ ResellerOS repo `Todos.md` "Decisions 29-30".
   yet" only on the customer lookup's 404; any other failure says so. A customer record whose email is not
   this account's is never shown (ResellerOS's `ilike` lookup). DMS's own invoices stay below as "Earlier
   invoices issued by this panel".
-- [ ] **Step 4 — renewals go to ResellerOS** (renew buttons, expiry worker, trial end).
+- [x] **Step 4 — renewals go to ResellerOS.** Renew buttons open `components/billing/RenewViaResellerOs.tsx`
+  (pending ResellerOS quote → its Pay link; none → explain + support). Deleted `HostingRenewalModal`,
+  `DomainRenewalModal`, `api/user/hosting/renew`, `renew-info`. The expiry worker (also trial end) raises
+  no renewal Order and sends no DMS amount; suspension unchanged.
 - [ ] **Open, not in the brief:** `/cart` → `/checkout` → `api/payments/create-order` still takes a
   PAID cart on DMS's own Razorpay keys if a paid line reaches it (the cart page's
   `HostingUpsell` / `DomainCrossSell`, or a persisted cart). Decision 30 says ResellerOS creates

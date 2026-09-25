@@ -78,9 +78,9 @@ export async function createManualFlowTrialHosting(
     expiryDate,
     directAdminUsername: "",
     orderId: input.orderId,
-    // Manual flow has no Razorpay payment / mandate at all. Renewals
-    // are operator/customer initiated via the existing renewal flow
-    // at /api/user/hosting/renew.
+    // Manual flow has no Razorpay payment / mandate at all. Renewals are
+    // ResellerOS's (the DMS /api/user/hosting/renew route was deleted on
+    // 25 Sep 2026); Renew points at the ResellerOS renewal bill.
     billingType: "manual",
     billingCycle: input.billingCycle,
     isTrial: true,

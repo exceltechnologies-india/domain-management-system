@@ -346,9 +346,9 @@ export async function POST(request: NextRequest) {
           // activation is pending (~2026-07-08) and eSign (~2026-06-27).
           // Lets customers sign up + start a trial WITHOUT a Razorpay
           // mandate auth at signup. At trial expiry, the existing renewal-
-          // reminder cron (next_action_at) fires + the customer pays
-          // manually via /dashboard/hosting/renew → one-shot Razorpay
-          // order. No mandate is ever set up; renewals stay manual.
+          // reminder cron (next_action_at) fires. (The DMS one-shot renewal
+          // checkout it pointed at was deleted on 25 Sep 2026.) No mandate
+          // is ever set up.
           //
           // When UPI Autopay activates, the operator flips
           // `HOSTING_MANDATE_FLOW=tokens` and new signups go through the
@@ -362,8 +362,9 @@ export async function POST(request: NextRequest) {
           // Since 24 Sep 2026 this is the ONLY trial path while
           // dmsCreatesHostingSubscriptions() is false: a DMS subscription
           // would collect the conversion at the old DMS price, and renewals
-          // are ResellerOS's. The conversion is paid through
-          // api/user/hosting/renew, at the ResellerOS price.
+          // are ResellerOS's. The conversion is not paid in DMS: since
+          // 25 Sep 2026 Renew points at the ResellerOS renewal bill (the DMS
+          // /renew route is deleted).
           const manualFlowAllowed =
             (process.env.HOSTING_MANDATE_FLOW === 'manual' || !dmsCreatesHostingSubscriptions()) &&
             isTrial &&

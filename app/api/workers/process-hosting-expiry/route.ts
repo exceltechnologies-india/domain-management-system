@@ -4,11 +4,8 @@ import { serverLogger } from "@/lib/server-logger";
 import { authorizeCronRequest } from "@/lib/cron-auth";
 import { getHostingById } from "@/lib/services/hostings";
 import { getUserById } from "@/lib/services/users";
-import { createOrder } from "@/lib/services/orders";
 import { DirectAdminService } from "@/lib/directadmin";
-import { hostingCharge } from "@/lib/pricing/hosting-price";
-// No invoice is issued here — invoices are issued only after a successful
-// payment (in /api/payments/verify and the renewal paths).
+// No renewal order and no bill are raised here: renewals are ResellerOS's.
 import { EmailService } from "@/lib/email";
 import { WhatsAppService } from "@/lib/whatsapp";
 import { validatedBody, z } from "@/lib/api-validation";
@@ -58,104 +55,30 @@ export async function POST(request: NextRequest) {
                 await DirectAdminService.suspendUser(hosting.directAdminUsername, "Expired Subscription (Auto-Suspend)");
         }
 
-        // B. Create Pending Renewal Order & Send Notification
-        // NOTE: We do NOT issue an invoice here. The tax invoice is issued only
-        // after the user completes the renewal payment, so no "due invoice"
-        // exists for money nobody has paid yet.
-        const user = await getUserById(String(hosting.userId));
-        
-        // The renewal is one year at ResellerOS's price + 18% GST — the same
-        // charge api/user/hosting/renew takes (owner decision, 24 Sep 2026).
+        // B. Tell the customer — and raise NO renewal order.
         //
-        // This used to take the ORIGINAL order line's `price` as the amount.
-        // That field is a per-MONTH figure (the line is price × 12 months), so
-        // a yearly Starter renewal was raised — and emailed to the customer —
-        // as ₹49.99. And when nothing matched it fell back to Starter's price
-        // for whatever plan the customer actually had. Both were §2: a
-        // plausible number standing in for the real one.
-        const renewalCharge = hostingCharge(hosting.planId, 'yearly');
-        if (user && !renewalCharge) {
-            serverLogger.error(
-                `[Worker] ${hosting.domainName} suspended, but plan "${hosting.planId}" has no ResellerOS price, ` +
-                `so no renewal order or renewal email was sent. ACTION: renew this account by hand and tell the customer.`
-            );
-        }
-
-        if (user && renewalCharge) {
-            const renewalPrice = renewalCharge.inclGst;
-            const period = renewalCharge.months;
-            const periodUnit: 'minutes' | 'months' | 'years' = 'months';
-            
-            // Create a pending Order so the payment-verify flow can find it
-            const renewalOrderId = `ord_renew_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-            
-            const renewalOrder = await createOrder({
-                orderId: renewalOrderId,
-                userId: user._id,
-                paymentId: `pay_pending_${Date.now()}`,
-                razorpayOrderId: `rpay_renew_${Date.now()}`,
-                razorpayPaymentId: 'pending',
-                razorpaySignature: 'pending',
-                amount: renewalPrice,
-                currency: 'INR',
-                status: 'pending',
-                paymentVerification: {
-                    verifiedAt: new Date(),
-                    paymentStatus: 'pending',
-                    paymentAmount: renewalPrice,
-                    paymentCurrency: 'INR',
-                    razorpayOrderId: 'pending'
-                },
-                domains: [{
-                    domainName: hosting.domainName,
-                    // Per-month figure: the line totals price × registrationPeriod.
-                    price: renewalPrice / period,
-                    currency: 'INR',
-                    registrationPeriod: period,
-                    periodUnit: periodUnit,
-                    status: 'pending',
-                    itemType: 'hosting',
-                    hostingPlan: {
-                        planId: hosting.planId,
-                        name: hosting.name,
-                        serverPackage: hosting.serverPackage
-                    },
-                    bookingStatus: [{
-                        step: 'suspended',
-                        message: 'Awaiting Renewal Payment',
-                        progress: 10
-                    }]
-                }]
-            });
-
-            // Mark hosting as pending renewal (no invoice yet).
-            // `renewalStatus` is a loose-typed field — cast preserves the
-            // mongoose persistence path while satisfying strict TS.
-            (hosting as unknown as { renewalStatus?: string }).renewalStatus = 'pending';
-
-            // Send renewal notification email (no invoice number — invoice will be
-            // created only after the user pays)
-            await EmailService.sendRenewalInvoiceEmail(
-                user.email,
-                `${user.firstName} ${user.lastName}`,
-                {
-                    domainName: hosting.domainName,
-                    invoiceAmount: renewalOrder.amount,
-                    // invoiceNumber intentionally omitted — no invoice created yet
-                    dueDate: new Date(),
-                    renewalOrderId: renewalOrder.orderId,
-                    renewalPeriod: period,
-                    periodUnit: periodUnit
-                }
+        // Renewals are ResellerOS's (owner decisions, 24-25 Sep 2026). This
+        // worker used to create a pending DMS renewal Order at a DMS-computed
+        // price and email it as a "renewal invoice" — including at the end of
+        // every free TRIAL. That was a second place a renewal could be billed
+        // and paid, on DMS's own account. Now the customer is told the service
+        // is suspended and pointed at the panel, where Renew shows their
+        // ResellerOS renewal bill (components/billing/RenewViaResellerOs.tsx).
+        // When ResellerOS is paid its `hosting.renew` command moves the expiry
+        // and unsuspends. The suspension itself is unchanged.
+        const user = await getUserById(String(hosting.userId));
+        if (user) {
+            await EmailService.sendServiceSuspensionEmail(user.email, {
+                serviceName: hosting.domainName,
+                serviceType: "hosting",
+            }).catch((err: unknown) =>
+                serverLogger.error(
+                    `[Worker] Suspension email failed for ${hosting.domainName}: ${err instanceof Error ? err.message : String(err)}`
+                )
             );
 
-            // WhatsApp renewal-due nudge alongside the email — this is the
-            // expiry→suspend→renew event, so the "suspended, renew to
-            // restore" template is the accurate fit (vs the "expires in N
-            // days" reminder, which would read wrong for an already-expired
-            // account). Gated on a WhatsApp number on file + not opted out;
-            // self-gating on the master flag inside the service. Best-effort:
-            // a WhatsApp failure never blocks the suspension/renewal flow.
+            // WhatsApp "suspended, renew to restore" alongside the email.
+            // Gated on a number on file + not opted out; best-effort.
             const userWithWa = user as unknown as { whatsappNumber?: string; whatsappOptOut?: boolean };
             if (userWithWa.whatsappNumber && userWithWa.whatsappOptOut !== true) {
                 try {
@@ -165,10 +88,12 @@ export async function POST(request: NextRequest) {
                     });
                 } catch (waErr) {
                     serverLogger.warn(
-                        `[Worker] Renewal-due WhatsApp failed for ${hosting.domainName}: ${waErr instanceof Error ? waErr.message : String(waErr)}`
+                        `[Worker] Suspension WhatsApp failed for ${hosting.domainName}: ${waErr instanceof Error ? waErr.message : String(waErr)}`
                     );
                 }
             }
+        } else {
+            serverLogger.warn(`[Worker] ${hosting.domainName} suspended, but its user was not found — nobody was told.`);
         }
 
         // C. Update Local DB
@@ -178,7 +103,7 @@ export async function POST(request: NextRequest) {
         (hosting as unknown as { status: string }).status = 'suspended';
         await hosting.save();
         
-        serverLogger.info(`[Worker] Successfully suspended and invoiced ${hosting.domainName}`);
+        serverLogger.info(`[Worker] Suspended ${hosting.domainName}; no DMS renewal order raised (renewals are ResellerOS's)`);
         return secureJsonResponse({ success: true, hostingId });
 
     } catch (error: unknown) {

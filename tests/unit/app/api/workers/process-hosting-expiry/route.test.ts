@@ -1,9 +1,10 @@
 /**
  * Tests for `app/api/workers/process-hosting-expiry/route.ts` (slice 7i4, part 2).
  *
- * Daily worker: suspends an expired hosting account, creates a
- * pending renewal Order, sends the customer a renewal email.
- * Critically: NO invoice is issued here (only on payment).
+ * Daily worker: suspends an expired hosting account (a paid one, or a free
+ * trial at its end) and tells the customer. Since 25 Sep 2026 it raises NO
+ * DMS renewal order and sends no DMS renewal amount: renewals are
+ * ResellerOS's (owner decisions, 24-25 Sep 2026). No invoice is issued.
  *
  * Threat model:
  *  - **Mass-suspension on a flaky probe**: a refactor that suspends
@@ -25,19 +26,9 @@
  *  - status !== 'active' → 200 "Skipped (not active)" (idempotent)
  *  - expiryDate missing OR > now → 200 "Skipped (not expired)"
  *  - DA suspendUser called with the directAdminUsername + reason
- *  - missing directAdminUsername → skipped DA call (but still
- *    creates renewal order)
- *  - Renewal price: ResellerOS's yearly price incl. GST, 12 months
- *    (owner decision, 24 Sep 2026; lib/pricing/hosting-price.ts). This
- *    replaced a 3-step chain that took the original line's per-MONTH
- *    price as the yearly amount and fell back to Starter's price for any
- *    plan — both emailed to the customer as the renewal figure.
- *  - A plan with no ResellerOS price: suspended as before, but NO renewal
- *    order and NO email with an invented amount; logged for a human.
- *  - createOrder: pending status, renewal-prefix orderId, fields
- *    locked
- *  - hosting.renewalStatus = 'pending'; status = 'suspended'; save
- *  - Email sent WITHOUT invoiceNumber (no invoice yet)
+ *  - missing directAdminUsername → skipped DA call
+ *  - NO createOrder and NO renewal-invoice email, for any plan and for a
+ *    trial; the suspension email is sent instead; status = 'suspended'; save
  *  - Inner catch (DA suspend throw, etc.) → 500 PROCESSING_FAILED
  *  - Outer catch → 500 INTERNAL_ERROR
  */
@@ -72,9 +63,12 @@ vi.mock("@/lib/directadmin", () => ({
 // how the old per-month-as-yearly bug stayed invisible.
 
 const sendRenewalInvoiceEmail = vi.hoisted(() => vi.fn());
+const sendServiceSuspensionEmail = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/email", () => ({
-  EmailService: { sendRenewalInvoiceEmail },
+  EmailService: { sendRenewalInvoiceEmail, sendServiceSuspensionEmail },
 }));
+const sendServiceSuspended = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/whatsapp", () => ({ WhatsAppService: { sendServiceSuspended } }));
 
 vi.mock("@/lib/server-logger", () => ({
   serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -132,6 +126,8 @@ beforeEach(() => {
   getPlanByPlanId.mockReset();
   suspendUser.mockReset().mockResolvedValue(undefined);
   sendRenewalInvoiceEmail.mockReset().mockResolvedValue(undefined);
+  sendServiceSuspensionEmail.mockReset().mockResolvedValue(true);
+  sendServiceSuspended.mockReset().mockResolvedValue(undefined);
 });
 
 describe("Auth gate", () => {
@@ -200,44 +196,23 @@ describe("DA suspension", () => {
     );
   });
 
-  it("directAdminUsername absent → suspendUser NOT called (still proceeds with renewal order)", async () => {
+  it("directAdminUsername absent → suspendUser NOT called (still marks suspended and tells the customer)", async () => {
     getHostingById.mockResolvedValueOnce(
       makeHosting({ directAdminUsername: undefined })
     );
     const res = await POST(makeReq());
     expect(suspendUser).not.toHaveBeenCalled();
     expect(res.status).toBe(200);
-    expect(createOrder).toHaveBeenCalled();
+    expect(sendServiceSuspensionEmail).toHaveBeenCalledTimes(1);
   });
 });
 
-describe("Renewal price — ResellerOS's year incl. GST, nothing else", () => {
-  it("Starter → ₹708 for 12 months, whatever the original order line said", async () => {
-    getHostingById.mockResolvedValueOnce(makeHosting());
-    getOrderByOrderId.mockResolvedValueOnce({
-      domains: [
-        // A per-month line: the old code charged 1234 for the whole renewal.
-        { domainName: "example.com", price: 1234, periodUnit: "months", registrationPeriod: 6 },
-      ],
-    });
-    await POST(makeReq());
-    const order = createOrder.mock.calls[0][0];
-    expect(order.amount).toBe(708);
-    expect(order.domains[0].registrationPeriod).toBe(12);
-    expect(order.domains[0].periodUnit).toBe("months");
-    expect(order.domains[0].price * order.domains[0].registrationPeriod).toBe(708);
-  });
-
-  it("Plus → ₹2,650 (ResellerOS ₹2,246 + GST); the Mongo plan price is never read", async () => {
-    getHostingById.mockResolvedValueOnce(makeHosting({ planId: "Plus" }));
-    getPlanByPlanId.mockResolvedValue({ planId: "Plus", price: 1 });
-    await POST(makeReq());
-    expect(createOrder.mock.calls[0][0].amount).toBe(2650);
-    expect(getPlanByPlanId).not.toHaveBeenCalled();
-  });
-
-  it.each([["25GB-wp"], [undefined]])(
-    "plan %s has no ResellerOS price → suspended, but no order and no email with an invented amount",
+// Renewals are ResellerOS's (owner decisions, 24-25 Sep 2026). This worker
+// used to raise a pending DMS renewal Order at a DMS-computed price and email
+// it as a "renewal invoice" — at the end of a free trial too. It raises none.
+describe("No DMS renewal order — renewals are ResellerOS's", () => {
+  it.each([["starter"], ["Plus"], ["25GB-wp"], [undefined]])(
+    "plan %s: suspended, NO renewal order, NO renewal-invoice email",
     async (planId) => {
       const hosting = makeHosting({ planId });
       getHostingById.mockResolvedValueOnce(hosting);
@@ -245,66 +220,27 @@ describe("Renewal price — ResellerOS's year incl. GST, nothing else", () => {
       expect(res.status).toBe(200);
       expect(createOrder).not.toHaveBeenCalled();
       expect(sendRenewalInvoiceEmail).not.toHaveBeenCalled();
+      expect(hosting.status).toBe("suspended");
       expect(hosting.save).toHaveBeenCalledTimes(1);
     }
   );
-});
 
-describe("Renewal Order shape", () => {
-  beforeEach(() => {
-    getHostingById.mockResolvedValueOnce(makeHosting());
-    getOrderByOrderId.mockResolvedValueOnce({
-      domains: [
-        {
-          domainName: "example.com",
-          price: 1500,
-          periodUnit: "months",
-          registrationPeriod: 1,
-        },
-      ],
-    });
+  it("a free trial at its end raises no order either", async () => {
+    const hosting = makeHosting({ isTrial: true });
+    getHostingById.mockResolvedValueOnce(hosting);
+    await POST(makeReq());
+    expect(createOrder).not.toHaveBeenCalled();
+    expect(sendRenewalInvoiceEmail).not.toHaveBeenCalled();
+    expect(hosting.status).toBe("suspended");
   });
 
-  it("status:'pending', currency:'INR', orderType implicit, hostingPlan locked", async () => {
-    await POST(makeReq());
-    const order = createOrder.mock.calls[0][0];
-    expect(order.status).toBe("pending");
-    expect(order.currency).toBe("INR");
-    expect(order.amount).toBe(708);
-    expect(order.userId).toBe("U1");
-    expect(order.domains[0]).toEqual(
-      expect.objectContaining({
-        domainName: "example.com",
-        currency: "INR",
-        status: "pending",
-        itemType: "hosting",
-      })
-    );
-    expect(order.domains[0].hostingPlan).toEqual(
-      expect.objectContaining({
-        planId: "starter",
-        name: "Starter",
-        serverPackage: "Starter",
-      })
-    );
-  });
-
-  it("bookingStatus[0] step:'suspended' message:'Awaiting Renewal Payment' progress:10", async () => {
-    await POST(makeReq());
-    const order = createOrder.mock.calls[0][0];
-    expect(order.domains[0].bookingStatus[0]).toEqual(
-      expect.objectContaining({
-        step: "suspended",
-        message: "Awaiting Renewal Payment",
-        progress: 10,
-      })
-    );
-  });
-
-  it("orderId starts with 'ord_renew_'", async () => {
-    await POST(makeReq());
-    const order = createOrder.mock.calls[0][0];
-    expect(order.orderId).toMatch(/^ord_renew_/);
+  it("the route no longer imports the order service or a price (source scan, comments stripped)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const src = readFileSync(resolve(process.cwd(), "app/api/workers/process-hosting-expiry/route.ts"), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|[^:])\/\/.*$/gm, "$1");
+    expect(src).not.toMatch(/createOrder|hostingCharge|sendRenewalInvoiceEmail/);
   });
 });
 
@@ -322,24 +258,25 @@ describe("No invoicing on an unpaid renewal (source scan, comments stripped)", (
   });
 });
 
-describe("Email — NO invoice issued", () => {
-  it("**email sent WITHOUT invoiceNumber** (no invoice issued — invoices only on payment)", async () => {
+describe("Telling the customer", () => {
+  it("the suspension email is sent (no amount, no invoice number), plus WhatsApp when on file", async () => {
     getHostingById.mockResolvedValueOnce(makeHosting());
-    getOrderByOrderId.mockResolvedValueOnce({ domains: [] });
-    getPlanByPlanId.mockResolvedValueOnce({ price: 1500 });
+    getUserById.mockResolvedValueOnce({ ...user, whatsappNumber: "9876543210" });
     await POST(makeReq());
-    expect(sendRenewalInvoiceEmail).toHaveBeenCalledTimes(1);
-    const [email, name, payload] = sendRenewalInvoiceEmail.mock.calls[0];
-    expect(email).toBe("alice@example.com");
-    expect(name).toBe("Alice Smith");
-    expect(payload).toEqual(
-      expect.objectContaining({
-        domainName: "example.com",
-        invoiceAmount: 708, // Starter year at the ResellerOS price
-      })
-    );
-    // CRITICAL: no invoiceNumber field — nothing has been invoiced
-    expect(payload.invoiceNumber).toBeUndefined();
+    expect(sendServiceSuspensionEmail).toHaveBeenCalledWith("alice@example.com", {
+      serviceName: "example.com",
+      serviceType: "hosting",
+    });
+    expect(sendServiceSuspended).toHaveBeenCalledWith("9876543210", { serviceName: "example.com", serviceType: "hosting" });
+  });
+
+  it("a failing email does not stop the suspension", async () => {
+    const h = makeHosting();
+    getHostingById.mockResolvedValueOnce(h);
+    sendServiceSuspensionEmail.mockRejectedValueOnce(new Error("smtp down"));
+    const res = await POST(makeReq());
+    expect(res.status).toBe(200);
+    expect(h.status).toBe("suspended");
   });
 
   it("user not found → email NOT sent; hosting still suspended", async () => {
@@ -348,8 +285,7 @@ describe("Email — NO invoice issued", () => {
     getUserById.mockResolvedValueOnce(null);
     const res = await POST(makeReq());
     expect(res.status).toBe(200);
-    expect(sendRenewalInvoiceEmail).not.toHaveBeenCalled();
-    // hosting.save still called (status flipped to suspended)
+    expect(sendServiceSuspensionEmail).not.toHaveBeenCalled();
     expect(h.save).toHaveBeenCalledTimes(1);
     expect(h.status).toBe("suspended");
   });
@@ -375,9 +311,8 @@ describe("Inner-catch (transient retry)", () => {
     expect(body.code).toBe("PROCESSING_FAILED");
   });
 
-  it("createOrder throw → 500 PROCESSING_FAILED", async () => {
-    getHostingById.mockResolvedValueOnce(makeHosting());
-    createOrder.mockRejectedValueOnce(new Error("Mongo blip"));
+  it("hosting.save throw → 500 PROCESSING_FAILED", async () => {
+    getHostingById.mockResolvedValueOnce(makeHosting({ save: vi.fn().mockRejectedValue(new Error("Mongo blip")) }));
     const res = await POST(makeReq());
     expect(res.status).toBe(500);
   });

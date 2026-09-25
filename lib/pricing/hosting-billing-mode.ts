@@ -13,8 +13,9 @@
  * charges a year at 6 × its monthly-billing rate (₹600 vs ₹100/month for
  * Starter). And a subscription is a DMS-collected renewal, which decision 4
  * gave to ResellerOS. So paid hosting bought in the panel is one payment for
- * its period, and a trial goes through the no-mandate flow, whose conversion
- * is paid through `api/user/hosting/renew` at the ResellerOS price.
+ * its period, and a trial goes through the no-mandate flow. Its conversion is
+ * no longer paid in DMS: `api/user/hosting/renew` was deleted on 25 Sep 2026
+ * and Renew points at the customer's ResellerOS renewal bill.
  *
  * Same posture as the tokens charger (DMS_TOKEN_RECURRING_ENABLED): the code
  * is kept, off by default, and only an exact "1" turns it on — an empty or

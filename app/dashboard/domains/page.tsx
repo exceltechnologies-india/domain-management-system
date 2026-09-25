@@ -16,7 +16,7 @@ import UserLayout from '@/components/user/UserLayout';
 import { DashboardLayoutSkeleton, DomainsPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import ClientOnly from '@/components/ClientOnly';
 import RefreshButton from '@/components/dashboard/RefreshButton';
-import DomainRenewalModal from '@/components/DomainRenewalModal';
+import RenewViaResellerOs from '@/components/billing/RenewViaResellerOs';
 import ExpiryBadge from '@/components/dashboard/ExpiryBadge';
 import { buyHref } from '@/lib/purchase/buy-dialog';
 
@@ -302,10 +302,12 @@ export default function UserDomains() {
 
         </div>
 
-        <DomainRenewalModal
+        {/* Renewals are ResellerOS's (owner decisions, 24-25 Sep 2026). */}
+        <RenewViaResellerOs
           isOpen={isRenewalModalOpen}
           onClose={() => setIsRenewalModalOpen(false)}
-          domainName={selectedDomainName}
+          serviceName={selectedDomainName}
+          serviceType="domain"
         />
       </UserLayout>
     </ClientOnly >
