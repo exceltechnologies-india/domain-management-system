@@ -143,9 +143,11 @@ says so — each waits for the owner's go-ahead.
   after the fix gave the identical symptom too — `docker compose up -d --build` before believing
   a live result. Between them, that cost an hour.
   **server1's IP is 35.207.233.155.** It is the only address in server1's own IP list. As of
-  25 Sep 2026 `DA_FALLBACK_IP` and `.env.local` say so; before that they said 34.93.167.160. The
-  deploy script reads `DIRECTADMIN_IP` from `.env.local`, so the live service changes on its next
-  deploy.
+  25 Sep 2026 `DA_FALLBACK_IP` and `.env.local` say so; before that they said 34.93.167.160.
+- **The live / production DMS (Cloud Run) is a SEPARATE project, not ours** (owner, 25 Sep 2026:
+  "Ignore the Live DMS or Production DMS. That is a separate project from ours"). Work here is on
+  this repo and its local container. Do not deploy to, reconfigure, or report on the production
+  service, its env vars or its data.
 - **The free hosting trial is Starter only, on monthly AND yearly** (owner, 24 Sep 2026). Both
   server gates enforce the plan: the eligibility route and create-order, via
   `lib/pricing/trial-plan.ts`. The panel dialog alone is not the rule. A monthly trial exists only
