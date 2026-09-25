@@ -83,7 +83,8 @@ Owner: *"Remove the frontend pages of DMS completely since we are using the fron
 - **In-panel buying** is two dialogs in the customer panel, opened by `?buy=hosting` / `?buy=domain` (`lib/purchase/buy-dialog.ts`, `components/purchase/`, mounted in `UserLayout`). They feed DMS's existing cart and checkout unchanged: the hosting lines are the old `/hosting` page's logic moved verbatim into `lib/purchase/hosting-cart-item.ts`, and the domain dialog is the same `DomainSearch` component.
 - **Kept on purpose:** `/cart`, `/checkout`, `/login`, `/register`, `/sso`, `/payment-success`, the panel, and **`/hosting/error`** — the control-panel SSO failure page, not marketing. Exact-path matching keeps it apart from `/hosting`.
 - **`/data-deletion` now redirects to ResellerOS `/privacy`**, which has no data-deletion section. Owner's choice; if Facebook login is switched on, Meta will want a data-deletion URL.
-- **Known dead controls:** Admin → Page management still offers visibility toggles for the deleted pages and a homepage-design switch. They change nothing now.
+- **The dead page controls are REMOVED (decision 15, done 25 Sep 2026).** Admin → Page management's publish/draft switches for the deleted pages and its homepage-design switch are gone, with everything that existed only for them: `config/managed-pages.ts`, `lib/services/page-visibility.ts`, `app/api/admin/pages`, and `homeVariant` in `lib/services/appearance.ts` and `api/admin/appearance`. The screen is now **Admin → Appearance** (same URL, `/admin/page-management`) and keeps the controls that style pages DMS still serves: footer template, frontend colour theme, GSTIN + social links in the footer. Pinned by `tests/unit/app/admin/page-management-dead-controls.test.ts`. The Mongo `page_visibility` / `home_variant` settings rows, if present, are now read by nothing; they were left in place (no migration for dead data).
+- **Found, not removed (not in decision 15):** two more controls on that screen also change nothing now. The **Support widget** switch + WhatsApp number (`components/SupportWidget.tsx` was mounted only on the deleted marketing pages, so nothing renders it), and the **Phone number (Call Us)** toggle (its only reader, `components/ContactInfo.tsx`, is mounted nowhere). Ask the owner before removing them.
 - **Price question — answered.** See the next section.
 
 ## Hosting is charged at ResellerOS's price + GST (OWNER DECISION, 24 Sep 2026)
@@ -114,8 +115,8 @@ says so — each waits for the owner's go-ahead.
   pill), the issue-invoice worker (`app/api/workers/issue-invoice`). The owner chose removal over
   "fetch from ResellerOS": bill problems are handled in ResellerOS. Do this in the same change that
   stops `createPrimaryInvoice`, so there is never a window with two issuers or none.
-- **Admin → Page management's dead controls are to be removed** (visibility of deleted pages,
-  homepage design).
+- **Admin → Page management's dead controls — REMOVED 25 Sep 2026** (visibility of deleted pages,
+  homepage design). See "DMS has no public pages" above.
 - **Production ResellerOS address: `https://reselleros.anutech.in`** — the value for
   `NEXT_PUBLIC_RESELLEROS_URL`. Production deploys only on an explicit go.
 - **`tokens-charge-recurring` is to be paused in Cloud Scheduler** — the owner will run

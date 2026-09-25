@@ -9,7 +9,7 @@ type SupportVariant = 'chatbot' | 'whatsapp';
 
 /**
  * Support-widget switcher. Renders the AI chatbot by default and swaps to the
- * WhatsApp button if an admin selects it in Admin → Pages → Appearance. The
+ * WhatsApp button if an admin selects it in Admin → Appearance. The
  * variant + company number are read at runtime from a public endpoint so the
  * toggle takes effect without a redeploy. Falls back to the chatbot if
  * WhatsApp is selected but no number is configured yet.

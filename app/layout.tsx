@@ -54,7 +54,7 @@ export default async function RootLayout({
   // nonce to all its generated inline RSC scripts, satisfying the nonce-based CSP.
   const h = await headers();
 
-  // Public frontend colour scheme is an admin toggle (Admin → Pages →
+  // Public frontend colour scheme is an admin toggle (Admin →
   // Appearance). When set to violet, frontend pages follow the landing's
   // scheme. Scoped to frontend paths (dashboard + admin stay azure). Degrades
   // to azure on any error so the app never renders unthemed.

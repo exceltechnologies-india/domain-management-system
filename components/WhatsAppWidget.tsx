@@ -15,7 +15,7 @@ interface WhatsAppWidgetProps {
  * Floating WhatsApp support button. Opens a WhatsApp chat with the company
  * number directly (wa.me deep link — works on both mobile app and WhatsApp
  * Web). Rendered in place of the AI chatbot when an admin selects the
- * "WhatsApp" support widget in Admin → Pages → Appearance.
+ * "WhatsApp" support widget in Admin → Appearance.
  */
 export default function WhatsAppWidget({ number, message }: WhatsAppWidgetProps) {
   const [showTip, setShowTip] = useState(true);

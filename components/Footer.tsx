@@ -13,7 +13,7 @@ type FooterVariant = 'classic' | 'modern';
 
 /**
  * Footer switcher. Renders the Modern footer by default (current design) and
- * swaps to the Classic footer if an admin selects it in Admin → Pages.
+ * swaps to the Classic footer if an admin selects it in Admin → Appearance.
  * The variant is read at runtime from a public endpoint so the toggle takes
  * effect without a redeploy.
  */

@@ -3,18 +3,24 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import Link from 'next/link';
-import {
-  LayoutTemplate, ExternalLink, Loader2, Lock, Eye, EyeOff,
-  Home, Server, Info, Mail, Globe, FileText, Palette,
-} from 'lucide-react';
+import { LayoutTemplate, Loader2, Palette } from 'lucide-react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { AdminGenericPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import RefreshButton from '@/components/dashboard/RefreshButton';
-import { Switch } from '@/components/ui/switch';
 import { apiClient } from '@/lib/api-client';
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
 import { performLogout } from '@/lib/logout';
+
+/*
+ * Admin → Appearance (route kept at /admin/page-management so bookmarks work).
+ *
+ * This screen used to open with publish/draft switches for the public marketing
+ * pages and a "Homepage design" switch. DMS's public pages were deleted on
+ * 24 Sep 2026 and every one of those URLs is a 307 to ResellerOS, so those
+ * controls changed nothing; the owner chose to remove them (decision 15). What
+ * is left styles pages DMS still serves: the footer on cart / checkout / error
+ * pages, and the colour theme of login / cart / checkout.
+ */
 
 interface AdminUser {
   firstName: string;
@@ -22,36 +28,15 @@ interface AdminUser {
   role: string;
 }
 
-interface ManagedPageRow {
-  slug: string;
-  title: string;
-  path: string;
-  description: string;
-  lockedPublished: boolean;
-  status: 'published' | 'draft';
-}
-
-const ICONS: Record<string, typeof Home> = {
-  home: Home,
-  hosting: Server,
-  about: Info,
-  contact: Mail,
-  'domains-home': Globe,
-};
-
 export default function PageManagementPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
   const [user, setUser] = useState<AdminUser | null>(null);
-  const [pages, setPages] = useState<ManagedPageRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [savingSlug, setSavingSlug] = useState<string | null>(null);
   const [footerVariant, setFooterVariant] = useState<'classic' | 'modern'>('modern');
   const [savingFooter, setSavingFooter] = useState(false);
-  const [homeVariant, setHomeVariant] = useState<'landing' | 'classic'>('landing');
-  const [savingHome, setSavingHome] = useState(false);
   const [frontendTheme, setFrontendTheme] = useState<'azure' | 'violet'>('violet');
   const [savingTheme, setSavingTheme] = useState(false);
   const [showGstin, setShowGstin] = useState(true);
@@ -71,22 +56,18 @@ export default function PageManagementPage() {
   const [whatsappInput, setWhatsappInput] = useState('');
   const [savingNumber, setSavingNumber] = useState(false);
 
-  const loadPages = useCallback(async () => {
+  const loadAppearance = useCallback(async () => {
     setIsRefreshing(true);
-    const [pagesRes, appearanceRes] = await Promise.all([
-      apiClient.get<{ success?: boolean; pages?: ManagedPageRow[] }>('/api/v1/admin/pages'),
-      apiClient.get<{ success?: boolean; footerVariant?: 'classic' | 'modern'; homeVariant?: 'landing' | 'classic'; frontendTheme?: 'azure' | 'violet'; showGstin?: boolean; showPhone?: boolean; socialLinks?: { linkedin: SocialRow; facebook: SocialRow; instagram: SocialRow }; supportWidgetVariant?: 'chatbot' | 'whatsapp'; supportWhatsappNumber?: string }>('/api/v1/admin/appearance'),
-    ]);
-    if (pagesRes.ok && pagesRes.data.success) {
-      setPages(pagesRes.data.pages || []);
-    } else {
-      showErrorToast(pagesRes.ok ? 'Failed to load pages' : pagesRes.error.message || 'Failed to load pages');
+    const appearanceRes = await apiClient.get<{ success?: boolean; footerVariant?: 'classic' | 'modern'; frontendTheme?: 'azure' | 'violet'; showGstin?: boolean; showPhone?: boolean; socialLinks?: { linkedin: SocialRow; facebook: SocialRow; instagram: SocialRow }; supportWidgetVariant?: 'chatbot' | 'whatsapp'; supportWhatsappNumber?: string }>('/api/v1/admin/appearance');
+    if (!appearanceRes.ok || !appearanceRes.data.success) {
+      showErrorToast(
+        appearanceRes.ok
+          ? 'Could not load the appearance settings. Press Refresh to try again.'
+          : appearanceRes.error.message || 'Could not load the appearance settings. Press Refresh to try again.',
+      );
     }
     if (appearanceRes.ok && appearanceRes.data.footerVariant) {
       setFooterVariant(appearanceRes.data.footerVariant);
-    }
-    if (appearanceRes.ok && appearanceRes.data.homeVariant) {
-      setHomeVariant(appearanceRes.data.homeVariant);
     }
     if (appearanceRes.ok && appearanceRes.data.frontendTheme) {
       setFrontendTheme(appearanceRes.data.frontendTheme);
@@ -125,22 +106,6 @@ export default function PageManagementPage() {
       showErrorToast(res.ok ? 'Update failed' : res.error.message || 'Update failed');
     }
     setSavingFooter(false);
-  };
-
-  const changeHome = async (variant: 'landing' | 'classic') => {
-    if (variant === homeVariant || savingHome) return;
-    setSavingHome(true);
-    const res = await apiClient.patch<{ success?: boolean; homeVariant?: 'landing' | 'classic' }>(
-      '/api/v1/admin/appearance',
-      { homeVariant: variant },
-    );
-    if (res.ok && res.data.success) {
-      setHomeVariant(res.data.homeVariant || variant);
-      showSuccessToast(`Homepage set to ${variant === 'landing' ? 'Landing (new)' : 'Classic (domain homepage)'}.`);
-    } else {
-      showErrorToast(res.ok ? 'Update failed' : res.error.message || 'Update failed');
-    }
-    setSavingHome(false);
   };
 
   const changeTheme = async (theme: 'azure' | 'violet') => {
@@ -263,34 +228,14 @@ export default function PageManagementPage() {
       return;
     }
     setUser(userObj);
-    void loadPages();
-  }, [session, status, router, loadPages]);
+    void loadAppearance();
+  }, [session, status, router, loadAppearance]);
 
-  const toggleStatus = async (row: ManagedPageRow) => {
-    if (row.lockedPublished) return;
-    const next = row.status === 'published' ? 'draft' : 'published';
-    setSavingSlug(row.slug);
-    const res = await apiClient.patch<{ success?: boolean; pages?: ManagedPageRow[] }>(
-      '/api/v1/admin/pages',
-      { slug: row.slug, status: next },
-    );
-    if (res.ok && res.data.success) {
-      setPages(res.data.pages || []);
-      showSuccessToast(`"${row.title}" is now ${next === 'published' ? 'Published' : 'Draft'}.`);
-    } else {
-      showErrorToast(res.ok ? 'Update failed' : res.error.message || 'Update failed');
-    }
-    setSavingSlug(null);
-  };
-
-  if (status === 'loading' || (isLoading && pages.length === 0)) {
+  if (status === 'loading' || isLoading) {
     return (
       <AdminGenericPageSkeleton />
     );
   }
-
-  const publishedCount = pages.filter((p) => p.status === 'published').length;
-  const draftCount = pages.length - publishedCount;
 
   return (
     <AdminLayout user={user} onLogout={performLogout}>
@@ -302,123 +247,14 @@ export default function PageManagementPage() {
               <LayoutTemplate className="h-5 w-5 text-amber-ink" />
             </div>
             <div>
-              <h1 className="text-2xl font-serif font-bold text-ink">Pages</h1>
+              <h1 className="text-2xl font-serif font-bold text-ink">Appearance</h1>
               <p className="text-sm text-ink-3 mt-0.5">
-                Publish or draft the public marketing pages. A drafted page redirects visitors to the
-                homepage — admins can still preview it.
+                How the pages DMS still serves look: login, cart, checkout and the error pages. The
+                public website (home, hosting, domains, legal pages) is ResellerOS&apos;s and is edited there.
               </p>
             </div>
           </div>
-          <RefreshButton onClick={loadPages} isLoading={isRefreshing} />
-        </div>
-
-        {/* Summary tiles — icon-card style shared across admin pages */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {[
-            { label: 'Published', value: publishedCount, Icon: Eye, box: 'bg-green-50', ic: 'text-green-600', val: 'text-green-600' },
-            { label: 'Draft', value: draftCount, Icon: EyeOff, box: 'bg-amber-50', ic: 'text-amber-600', val: 'text-amber-600' },
-            { label: 'Total Pages', value: pages.length, Icon: LayoutTemplate, box: 'bg-indigo-soft', ic: 'text-indigo-ink', val: 'text-ink' },
-          ].map((s) => {
-            const Icon = s.Icon;
-            return (
-              <div key={s.label} className="bg-paper border border-hairline rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3">
-                <div className={`p-2 ${s.box} rounded-xl`}><Icon className={`h-4 w-4 ${s.ic}`} /></div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-ink-3">{s.label}</p>
-                  <p className={`text-xl font-bold ${s.val}`}>{s.value}</p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Page list */}
-        <div className="space-y-3">
-          {pages.map((row) => {
-            const isPublished = row.status === 'published';
-            const isSaving = savingSlug === row.slug;
-            const Icon = ICONS[row.slug] || FileText;
-            const accent = row.lockedPublished
-              ? 'bg-hairline'
-              : isPublished
-                ? 'bg-green-400'
-                : 'bg-amber-400';
-            const iconTint = row.lockedPublished
-              ? 'bg-paper-2 text-ink-3'
-              : isPublished
-                ? 'bg-green-50 text-green-600'
-                : 'bg-amber-50 text-amber-600';
-
-            return (
-              <div
-                key={row.slug}
-                className="relative bg-paper rounded-2xl border border-hairline shadow-sm hover:shadow-md transition-all overflow-hidden"
-              >
-                <span className={`absolute left-0 top-0 bottom-0 w-1.5 ${accent}`} aria-hidden />
-                <div className="pl-5 sm:pl-6 pr-4 sm:pr-5 py-4 sm:py-5 flex flex-col sm:flex-row sm:items-center gap-4">
-                  <div className={`p-3 rounded-xl shrink-0 ${iconTint}`}>
-                    <Icon className="h-5 w-5" />
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-base font-bold text-ink">{row.title}</h3>
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
-                          isPublished
-                            ? 'bg-green-50 text-green-700 border border-green-200'
-                            : 'bg-amber-50 text-amber-700 border border-amber-200'
-                        }`}
-                      >
-                        {isPublished ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                        {isPublished ? 'Published' : 'Draft'}
-                      </span>
-                      {row.lockedPublished && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-paper-2 text-ink-3">
-                          <Lock className="h-3 w-3" />
-                          Locked
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-ink-3 mt-1">{row.description}</p>
-                    <Link
-                      href={row.path}
-                      target="_blank"
-                      className="inline-flex items-center gap-1 text-xs font-medium text-amber-ink hover:brightness-90 mt-2"
-                    >
-                      {row.path}
-                      <ExternalLink className="h-3 w-3" />
-                    </Link>
-                  </div>
-
-                  {/* Toggle */}
-                  <div className="shrink-0 flex items-center gap-3 sm:pl-4 sm:border-l sm:border-hairline">
-                    {row.lockedPublished ? (
-                      <span className="text-xs font-medium text-ink-4">Always on</span>
-                    ) : (
-                      <>
-                        {isSaving && <Loader2 className="h-4 w-4 text-ink-4 animate-spin" />}
-                        <span
-                          className={`text-sm font-semibold w-14 text-right ${
-                            isPublished ? 'text-green-600' : 'text-amber-600'
-                          }`}
-                        >
-                          {isPublished ? 'Live' : 'Draft'}
-                        </span>
-                        <Switch
-                          checked={isPublished}
-                          onCheckedChange={() => toggleStatus(row)}
-                          disabled={isSaving}
-                          className="data-[state=checked]:bg-green-600"
-                          aria-label={`Toggle ${row.title} ${isPublished ? 'to draft' : 'to published'}`}
-                        />
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          <RefreshButton onClick={loadAppearance} isLoading={isRefreshing} />
         </div>
 
         {/* Appearance */}
@@ -428,44 +264,12 @@ export default function PageManagementPage() {
             Appearance
           </h2>
           <div className="space-y-3">
-            {/* Homepage design */}
-            <div className="bg-paper rounded-2xl border border-hairline shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="min-w-0">
-                <h3 className="text-base font-bold text-ink">Homepage design (served at /)</h3>
-                <p className="text-sm text-ink-3 mt-0.5">
-                  Switch which homepage renders at the root URL. The logo everywhere links to / and shows this design.
-                </p>
-              </div>
-              <div className="shrink-0 flex items-center gap-2">
-                {savingHome && <Loader2 className="h-4 w-4 text-ink-4 animate-spin" />}
-                <div className="inline-flex items-center gap-1 bg-paper-2 rounded-full p-1">
-                  {([
-                    { v: 'landing', label: 'Landing' },
-                    { v: 'classic', label: 'Classic' },
-                  ] as const).map(({ v, label }) => (
-                    <button
-                      key={v}
-                      type="button"
-                      onClick={() => changeHome(v)}
-                      disabled={savingHome}
-                      aria-pressed={homeVariant === v}
-                      className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all disabled:opacity-60 ${
-                        homeVariant === v ? 'bg-paper text-ink shadow-sm' : 'text-ink-3 hover:text-ink-2'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
             {/* Footer template */}
             <div className="bg-paper rounded-2xl border border-hairline shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="min-w-0">
                 <h3 className="text-base font-bold text-ink">Footer template</h3>
                 <p className="text-sm text-ink-3 mt-0.5">
-                  Choose which footer renders across the public site. Takes effect immediately (no redeploy).
+                  Choose which footer renders on the cart, checkout and error pages. Takes effect immediately (no redeploy).
                 </p>
               </div>
               <div className="shrink-0 flex items-center gap-2">

@@ -73,7 +73,7 @@ export default function AdminLayout({ children, user, onLogout }: AdminLayoutPro
     { name: 'Hosting', href: '/admin/hosting', icon: Server },
     { name: 'Domains', href: '/admin/domains', icon: Globe },
     { name: 'TLD Pricing', href: '/admin/pricing-management', icon: Tag },
-    { name: 'Pages', href: '/admin/page-management', icon: LayoutTemplate },
+    { name: 'Appearance', href: '/admin/page-management', icon: LayoutTemplate },
     { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
     { name: 'Settings', href: '/admin/settings', icon: Settings },
   ];
