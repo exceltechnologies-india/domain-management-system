@@ -1,14 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, ArrowUp, AlertTriangle, RefreshCw, ShieldCheck } from 'lucide-react';
-import { useSession } from 'next-auth/react';
-import { safeSessionStorage } from '@/lib/storage';
-import { useRouter } from 'next/navigation';
-import { useRazorpayCheckout } from '@/components/RazorpayCheckoutFrame';
+/**
+ * "Request upgrade" — owner decision, 25 Sep 2026 ("Request, billed by
+ * ResellerOS"). DMS takes no payment for an upgrade any more: this sends a
+ * request (POST /api/user/hosting/upgrade → ResellerOS), shows the prorated
+ * figure as an ESTIMATE, and tells the customer a quote will follow and the
+ * plan changes once it is paid. No Razorpay, no verify, no local order.
+ */
+import { X, ArrowUp, AlertTriangle, RefreshCw, CheckCircle } from 'lucide-react';
 import SelectPlanStep from './hosting-upgrade/SelectPlanStep';
 import ConfirmStep from './hosting-upgrade/ConfirmStep';
-import { razorpayThemeColor } from '@/lib/theme-color';
 import type {
   EligiblePlan,
   UpgradeInfo,
@@ -30,12 +32,7 @@ export default function HostingUpgradeModal({
   const [upgradeInfo, setUpgradeInfo] = useState<UpgradeInfo | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<EligiblePlan | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
-  const router = useRouter();
-  const { data: session } = useSession();
-  // Razorpay checkout is loaded inside an isolated iframe (see
-  // components/RazorpayCheckoutFrame.tsx) so this page can keep a strict CSP
-  // without the eval-using checkout.js script.
-  const razorpay = useRazorpayCheckout();
+  const [alreadyRequested, setAlreadyRequested] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -78,92 +75,32 @@ export default function HostingUpgradeModal({
     setStep('confirm');
   };
 
-  const handlePayment = async () => {
+  const handleRequest = async () => {
     if (!selectedPlan || !upgradeInfo) return;
-    setStep('paying');
-
+    setStep('sending');
     try {
-      // 1. Create the Razorpay order via our backend.
-      const orderRes = await fetch('/api/v1/user/hosting/upgrade', {
+      const res = await fetch('/api/v1/user/hosting/upgrade', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ domainName, targetPlanId: selectedPlan.planId }),
       });
-
-      const orderJson = await orderRes.json();
-      if (!orderRes.ok) {
-        throw new Error(orderJson.error || 'Failed to create upgrade order');
-      }
-
-      const { razorpayOrderId, amount, currency } = orderJson.data;
-      const userEmail = session?.user?.email || '';
-
-      // 2. Open Razorpay Checkout inside the isolated iframe.
-      let paymentResponse;
-      try {
-        paymentResponse = await razorpay.open({
-          key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
-          amount: amount * 100,
-          currency,
-          name: 'AnuTech Hosting',
-          description: `Upgrade to ${selectedPlan.name} for ${domainName}`,
-          order_id: razorpayOrderId,
-          prefill: { email: userEmail },
-          theme: { color: razorpayThemeColor() },
-        });
-      } catch (err: unknown) {
-        // The iframe-checkout helper throws a tagged `{ kind: 'dismissed' }`
-        // when the user closes the modal — handle that as a soft cancel.
-        const tagged = err as { kind?: string; message?: string };
-        if (tagged?.kind === 'dismissed') {
-          setStep('confirm');
-          return;
-        }
-        setErrorMessage(tagged?.message || (err instanceof Error ? err.message : 'Payment was not completed'));
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // The route writes every refusal for the customer (what, why, next).
+        setErrorMessage(
+          typeof json.error === 'string'
+            ? json.error
+            : "We couldn't send your upgrade request. Nothing was charged and your plan is unchanged. Please try again, or contact support."
+        );
         setStep('error');
         return;
       }
-
-      // 3. Verify Payment
-      setStep('verifying');
-      const verifyRes = await fetch('/api/v1/payments/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          razorpay_order_id: paymentResponse.razorpay_order_id,
-          razorpay_payment_id: paymentResponse.razorpay_payment_id,
-          razorpay_signature: paymentResponse.razorpay_signature,
-          cartItems: [{
-            itemType: 'hosting',
-            domainName,
-            price: amount,
-            registrationPeriod: 1,
-            periodUnit: 'months',
-            currency: 'INR',
-          }],
-        }),
-      });
-
-      const verifyJson = await verifyRes.json();
-      if (verifyRes.ok && verifyJson.success) {
-        safeSessionStorage.setItem('paymentResult', JSON.stringify({
-          status: 'success',
-          message: `Your hosting has been upgraded to ${selectedPlan.name} successfully.`,
-          orderId: verifyJson.orderId,
-          timestamp: Date.now(),
-        }));
-        setStep('success');
-        setTimeout(() => {
-          onClose();
-          router.push('/payment-success');
-        }, 2500);
-      } else {
-        throw new Error(verifyJson.error || 'Payment verification failed');
-      }
-    } catch (err: unknown) {
-      setErrorMessage(err instanceof Error ? err.message : 'Failed to initiate payment');
+      setAlreadyRequested(json.data?.alreadyRequested === true);
+      setStep('requested');
+    } catch {
+      // Never reached DMS, so nothing was sent onward.
+      setErrorMessage("We couldn't reach our server, so the request wasn't sent. Nothing was charged. Check your connection and try again.");
       setStep('error');
     }
   };
@@ -172,7 +109,6 @@ export default function HostingUpgradeModal({
 
   return (
     <>
-      <razorpay.Frame />
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
         <div className="bg-paper rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200">
           {/* Header */}
@@ -180,11 +116,11 @@ export default function HostingUpgradeModal({
             <div>
               <h2 className="text-xl font-bold text-ink flex items-center">
                 <ArrowUp className="h-5 w-5 mr-2 text-indigo-ink" />
-                Upgrade Hosting Plan
+                Request a plan upgrade
               </h2>
               <p className="text-sm text-ink-3 mt-1">{domainName}</p>
             </div>
-            {step !== 'paying' && step !== 'verifying' && (
+            {step !== 'sending' && (
               <button
                 onClick={onClose}
                 className="p-2 text-ink-4 hover:text-ink-2 hover:bg-paper-2 rounded-full transition-all"
@@ -203,16 +139,19 @@ export default function HostingUpgradeModal({
               </div>
             )}
 
-            {step === 'verifying' && (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="relative mb-6">
-                  <div className="h-20 w-20 rounded-full border-4 border-indigo-soft border-t-indigo animate-spin" />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <ShieldCheck className="h-8 w-8 text-indigo-ink" />
-                  </div>
-                </div>
-                <h3 className="text-lg font-bold text-ink">Verifying Payment</h3>
-                <p className="text-ink-3 mt-2">Upgrading your plan on the server. Please do not close this window.</p>
+            {step === 'requested' && selectedPlan && (
+              <div className="text-center py-8">
+                <CheckCircle className="h-12 w-12 text-emerald-600 mx-auto mb-4" />
+                <h3 className="text-lg font-bold text-ink mb-2">
+                  {alreadyRequested ? 'You have already asked for this upgrade' : 'Upgrade requested'}
+                </h3>
+                <p className="text-sm text-ink-2 max-w-sm mx-auto">
+                  Our team will email you a quote for the move to {selectedPlan.name}. Your plan changes once that
+                  quote is paid — until then nothing changes and nothing is charged.
+                </p>
+                <button onClick={onClose} className="mt-6 px-5 py-2 bg-primary-600 text-white font-semibold rounded-xl hover:bg-primary-700 text-sm">
+                  Close
+                </button>
               </div>
             )}
 
@@ -229,15 +168,14 @@ export default function HostingUpgradeModal({
                 upgradeInfo={upgradeInfo}
                 selectedPlan={selectedPlan}
                 onBack={() => setStep('select')}
-                onPay={handlePayment}
+                onRequest={handleRequest}
               />
             )}
 
-            {step === 'paying' && (
+            {step === 'sending' && (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <RefreshCw className="h-10 w-10 animate-spin text-indigo-ink mb-4" />
-                <h3 className="text-lg font-bold text-ink">Opening Payment Window</h3>
-                <p className="text-ink-3 mt-2 text-sm">Complete the payment in the Razorpay window.</p>
+                <h3 className="text-lg font-bold text-ink">Sending your request…</h3>
               </div>
             )}
 

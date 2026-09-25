@@ -27,7 +27,6 @@ export type ModalStep =
   | 'loading'
   | 'select'
   | 'confirm'
-  | 'paying'
-  | 'verifying'
-  | 'success'
+  | 'sending'
+  | 'requested'
   | 'error';

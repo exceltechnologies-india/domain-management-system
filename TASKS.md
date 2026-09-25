@@ -49,7 +49,10 @@ Eight days of focused safety-check additions are complete. Every production-faci
   `guestCheckout` rate limiter. There was no Settings UI for autopay (nothing called either route).
   `/razorpay-checkout` + `RazorpayCheckoutFrame` KEPT: `PanelCheckout` opens ResellerOS's order with it.
 - [ ] **Step 1 — DMS /cart pays through ResellerOS** ("Route through ResellerOS").
-- [ ] **Step 2 — hosting upgrade becomes a request billed by ResellerOS.**
+- [x] **Step 2 — hosting upgrade is a request billed by ResellerOS.** `HostingUpgradeModal` → "Request
+  upgrade"; `api/user/hosting/upgrade` now sends `lib/reselleros/upgrade-request.ts` →
+  ResellerOS `POST /api/dms/upgrade-request` with the server's proration as `estimateRupees`, creates no
+  Razorpay order and no Order. `upgrade-info` unchanged (it only computes the estimate).
 - [ ] **Step 4 — guard: no Razorpay order/subscription/capture outside an allow-list.**
 
 ### 🆕 Billing moves to ResellerOS — round 2 (owner decisions 29-30, 25 Sep 2026)

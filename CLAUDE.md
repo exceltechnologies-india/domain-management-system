@@ -429,8 +429,16 @@ Owner: *"Renewals subscription will be handled by ResellerOS. Period."*
   which move the expiry and unsuspend.
 - **Left alone, found:** `process-service-expiry` reminder emails still quote `service.price` (a DMS
   figure); `cron/renewal-payment-dunning` still chases DMS renewal orders raised before this date;
-  `api/domains/renew` is unreached from the UI; `HostingUpgradeModal` still takes an upgrade payment on
-  DMS's Razorpay account.
+  `api/domains/renew` is unreached from the UI.
+
+## A hosting upgrade is a REQUEST billed by ResellerOS (owner, 25 Sep 2026)
+
+`HostingUpgradeModal` sends "Request upgrade" → `POST /api/user/hosting/upgrade` →
+`lib/reselleros/upgrade-request.ts` → ResellerOS `POST /api/dms/upgrade-request` (same `DMS_PANEL_API_KEY`).
+Identity from the session; the server's prorated figure (ResellerOS prices, incl. GST, int) goes as
+`estimateRupees` and is shown to the customer as an ESTIMATE. Nothing is created in DMS and no payment is
+taken; staff send a quote and change the plan once it is paid. A timeout is not retried: the customer is
+told it may have been recorded. `upgrade-info` still only computes the estimate.
 
 ## Other persistent conventions
 

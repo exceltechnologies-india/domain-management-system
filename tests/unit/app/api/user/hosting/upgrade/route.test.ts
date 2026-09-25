@@ -1,59 +1,29 @@
 /**
- * Tests for `app/api/user/hosting/upgrade/route.ts` (slice 7i1, part 1).
+ * Tests for `app/api/user/hosting/upgrade/route.ts` — since 25 Sep 2026 an
+ * upgrade REQUEST sent to ResellerOS (owner: "Request, billed by ResellerOS").
  *
- * Customer hosting-plan upgrade — creates a Razorpay order + a
- * pending internal Order with server-computed prorated pricing.
- *
- * Threat model:
- *  - **Client-supplied amount trust**: a hostile client could pass
- *    a tiny amount and complete the upgrade for pennies. Pinned:
- *    the route ignores any body amount and recomputes server-side
- *    from current+target plan prices — ResellerOS's yearly price incl.
- *    GST ÷ 12 per plan (owner decision, 24 Sep 2026;
- *    lib/pricing/hosting-price.ts). The Mongo `price` on the fixtures
- *    below is deliberately nonsense: it must not be read.
- *  - **Cross-tenant hosting upgrade**: a customer must NOT be able
- *    to upgrade another customer's hosting. Pinned: `findUserHosting`
- *    keyed on session user._id.
- *  - **Downgrade smuggled as upgrade**: a refactor that dropped the
- *    `targetPlan.price > currentPlan.price` check would let a
- *    customer "upgrade" to a cheaper plan, locking in lower
- *    pricing. Pinned with explicit 400.
- *
- * Other pins:
- *  - Auth gate → 401 UNAUTHORIZED; no rate-limit consulted
- *  - Per-user rate-limit (5/min) keyed `hosting_upgrade:${user._id}`
- *  - zod: domainName trim+lower 3-253; targetPlanId min:1
- *  - hosting not found → 404 NOT_FOUND
- *  - hosting.status !== 'active' → 400 NOT_ELIGIBLE
- *  - remainingDays ≤ 0 → 400 HOSTING_EXPIRED
- *  - currentPlan missing → 404 PLAN_NOT_FOUND
- *  - targetPlan missing → 404 TARGET_PLAN_NOT_FOUND (called with
- *    { activeOnly: true })
- *  - Prorated math: round((target-current) × remainingDays / 30);
- *    ₹100 floor via Math.max(100, prorated)
- *  - Razorpay metadata: hosting_id, domain_name, from_plan, to_plan,
- *    user_id (5 fields exactly)
- *  - Order shape: bookingStatus[0] step='payment_verified', progress:10
- *  - orderId starts with 'upg_'
- *  - Outer catch → 500 INTERNAL_ERROR
+ * Pinned:
+ *  - Auth → 401; per-user rate-limit; the eligibility checks are unchanged
+ *    (owner's hosting only, active, not expired, target plan higher)
+ *  - NOTHING is created in DMS and no Razorpay order: the route imports no
+ *    order service and no Razorpay client (source scan, comments stripped)
+ *  - identity sent to ResellerOS is the session user's, never the body's
+ *  - estimateRupees is the SERVER's proration on ResellerOS's prices, an int;
+ *    a body amount is ignored; an unpriced plan sends no estimate at all
+ *  - a timeout says the request may have been recorded; nothing is retried
+ *  - ResellerOS refusing our key → 503, never 401
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 const getUserFromRequest = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/auth", () => ({
-  AuthService: { getUserFromRequest },
-}));
+vi.mock("@/lib/auth", () => ({ AuthService: { getUserFromRequest } }));
 
 const checkKey = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/rate-limit", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/rate-limit")>(
-    "@/lib/rate-limit"
-  );
-  return {
-    ...actual,
-    rateLimiters: { hostingRenewUpgrade: { checkKey } },
-  };
+  const actual = await vi.importActual<typeof import("@/lib/rate-limit")>("@/lib/rate-limit");
+  return { ...actual, rateLimiters: { hostingRenewUpgrade: { checkKey } } };
 });
 
 const findUserHosting = vi.hoisted(() => vi.fn());
@@ -62,68 +32,40 @@ vi.mock("@/lib/services/hostings", () => ({ findUserHosting }));
 const getPlanByPlanId = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/hosting-plans", () => ({ getPlanByPlanId }));
 
-const createOrder = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/services/orders", () => ({ createOrder }));
-
-const rzpCreateOrder = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/razorpay", () => ({
-  RazorpayService: { createOrder: rzpCreateOrder },
+const sendUpgradeRequest = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/reselleros/upgrade-request", async (orig) => ({
+  ...(await orig<typeof import("@/lib/reselleros/upgrade-request")>()),
+  sendUpgradeRequest,
 }));
 
-vi.mock("@/lib/server-logger", () => ({
-  serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}));
+vi.mock("@/lib/server-logger", () => ({ serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 
 vi.unmock("next/server");
-const { NextRequest, NextResponse } = await vi.importActual<
-  typeof import("next/server")
->("next/server");
+const { NextRequest, NextResponse } = await vi.importActual<typeof import("next/server")>("next/server");
 vi.doMock("next/server", () => ({ NextRequest, NextResponse }));
 
 import { POST } from "@/app/api/user/hosting/upgrade/route";
 
-function makeReq(body: unknown) {
-  return new NextRequest("https://example.com/api/user/hosting/upgrade", {
+const makeReq = (body: unknown) =>
+  new NextRequest("https://example.com/api/user/hosting/upgrade", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
-}
 
-const user = {
-  _id: "U1",
-  email: "alice@example.com",
-  firstName: "Alice",
-  lastName: "Smith",
-};
-
+const USER = { _id: "U1", email: "alice@example.com", firstName: "Alice", lastName: "Smith", phone: "9876543210", companyName: "Acme" };
 const VALID = { domainName: "example.com", targetPlanId: "plus" };
+const EXPIRY = new Date(Date.now() + 15 * 86_400_000);
 
-function setupHappy() {
-  getUserFromRequest.mockResolvedValue(user);
+function setupHappy(currentPlanId = "starter", targetPlanId = "plus") {
+  getUserFromRequest.mockResolvedValue(USER);
   checkKey.mockResolvedValue({ allowed: true });
-  findUserHosting.mockResolvedValue({
-    _id: "H1",
-    domainName: "example.com",
-    status: "active",
-    planId: "starter",
-    expiryDate: new Date(Date.now() + 15 * 86_400_000), // 15 days remaining
-  });
+  findUserHosting.mockResolvedValue({ _id: "H1", domainName: "example.com", status: "active", planId: currentPlanId, expiryDate: EXPIRY });
   getPlanByPlanId
-    .mockResolvedValueOnce({
-      planId: "starter",
-      name: "Starter",
-      price: 1000,
-      directAdminPackage: "Starter",
-    })
-    .mockResolvedValueOnce({
-      planId: "plus",
-      name: "Premium",
-      price: 5000,
-      directAdminPackage: "Premium",
-    });
-  rzpCreateOrder.mockResolvedValue({ id: "order_rzp_xyz" });
-  createOrder.mockImplementation(async (data) => data);
+    // Deliberately nonsense Mongo prices: they must not be read.
+    .mockResolvedValueOnce({ planId: currentPlanId, name: "Current", price: 1 })
+    .mockResolvedValueOnce({ planId: targetPlanId, name: "Plus", price: 1 });
+  sendUpgradeRequest.mockResolvedValue({ kind: "ok", leadId: "L-1", alreadyRequested: false });
 }
 
 beforeEach(() => {
@@ -131,339 +73,110 @@ beforeEach(() => {
   checkKey.mockReset();
   findUserHosting.mockReset();
   getPlanByPlanId.mockReset();
-  rzpCreateOrder.mockReset();
-  createOrder.mockReset();
+  sendUpgradeRequest.mockReset();
 });
 
-describe("Auth gate", () => {
-  it("no user → 401 UNAUTHORIZED; rate-limit NOT consulted", async () => {
-    getUserFromRequest.mockResolvedValueOnce(null);
-    const res = await POST(makeReq(VALID));
-    expect(res.status).toBe(401);
-    expect(checkKey).not.toHaveBeenCalled();
+describe("gates (unchanged)", () => {
+  it("signed out → 401; ResellerOS not asked", async () => {
+    getUserFromRequest.mockResolvedValue(null);
+    expect((await POST(makeReq(VALID))).status).toBe(401);
+    expect(sendUpgradeRequest).not.toHaveBeenCalled();
   });
-});
 
-describe("Per-user rate-limit", () => {
-  it("denied → 429; no downstream", async () => {
-    getUserFromRequest.mockResolvedValueOnce(user);
-    checkKey.mockResolvedValueOnce({
-      allowed: false,
-      remaining: 0,
-      resetAt: Date.now() + 60_000,
-    });
+  it("rate-limited per user", async () => {
+    getUserFromRequest.mockResolvedValue(USER);
+    checkKey.mockResolvedValue({ allowed: false, remaining: 0, resetTime: Date.now() + 60_000 });
     const res = await POST(makeReq(VALID));
     expect(res.status).toBe(429);
-    expect(findUserHosting).not.toHaveBeenCalled();
-  });
-
-  it("rate-limit keyed on user._id (NOT IP) — anti-shared-network", async () => {
-    setupHappy();
-    await POST(makeReq(VALID));
     expect(checkKey).toHaveBeenCalledWith("hosting_upgrade:U1");
   });
-});
 
-describe("Zod schema", () => {
-  it("missing targetPlanId → 400", async () => {
-    getUserFromRequest.mockResolvedValueOnce(user);
-    checkKey.mockResolvedValueOnce({ allowed: true });
-    const res = await POST(makeReq({ domainName: "example.com" }));
-    expect(res.status).toBe(400);
-    expect(findUserHosting).not.toHaveBeenCalled();
+  it("another customer's hosting → 404 (lookup keyed on the session user)", async () => {
+    getUserFromRequest.mockResolvedValue(USER);
+    checkKey.mockResolvedValue({ allowed: true });
+    findUserHosting.mockResolvedValue(null);
+    expect((await POST(makeReq(VALID))).status).toBe(404);
+    expect(findUserHosting).toHaveBeenCalledWith("U1", { domainName: "example.com" });
   });
 
-  it("domain trim+lower applied before lookup", async () => {
+  it("not active → 400; expired → 400", async () => {
+    getUserFromRequest.mockResolvedValue(USER);
+    checkKey.mockResolvedValue({ allowed: true });
+    findUserHosting.mockResolvedValueOnce({ status: "suspended", expiryDate: EXPIRY, planId: "starter" });
+    expect((await POST(makeReq(VALID))).status).toBe(400);
+    findUserHosting.mockResolvedValueOnce({ status: "active", expiryDate: new Date(Date.now() - 1000), planId: "starter" });
+    expect((await POST(makeReq(VALID))).status).toBe(400);
+    expect(sendUpgradeRequest).not.toHaveBeenCalled();
+  });
+
+  it("a downgrade is refused before ResellerOS is asked", async () => {
+    setupHappy("plus", "starter");
+    const res = await POST(makeReq({ ...VALID, targetPlanId: "starter" }));
+    expect(res.status).toBe(400);
+    expect(sendUpgradeRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe("the request", () => {
+  it("identity from the session; estimate from the server's proration (int); a body amount is ignored", async () => {
     setupHappy();
-    await POST(makeReq({ domainName: "  EXAMPLE.COM  ", targetPlanId: "plus" }));
-    expect(findUserHosting).toHaveBeenCalledWith(
-      "U1",
-      expect.objectContaining({ domainName: "example.com" })
-    );
-  });
-});
-
-describe("Anti-IDOR scope", () => {
-  it("findUserHosting keyed on session user._id (NOT body override)", async () => {
-    setupHappy();
-    await POST(
-      makeReq({ ...VALID, userId: "U_HOSTILE" } as Record<string, unknown>)
-    );
-    expect(findUserHosting).toHaveBeenCalledWith(
-      "U1",
-      expect.objectContaining({ domainName: "example.com" })
-    );
-  });
-});
-
-describe("Hosting eligibility gates", () => {
-  beforeEach(() => {
-    getUserFromRequest.mockResolvedValue(user);
-    checkKey.mockResolvedValue({ allowed: true });
-  });
-
-  it("hosting not found → 404 NOT_FOUND", async () => {
-    findUserHosting.mockResolvedValueOnce(null);
-    const res = await POST(makeReq(VALID));
-    expect(res.status).toBe(404);
-  });
-
-  it("hosting.status !== 'active' → 400 NOT_ELIGIBLE", async () => {
-    findUserHosting.mockResolvedValueOnce({
-      status: "suspended",
-      expiryDate: new Date(Date.now() + 30 * 86_400_000),
-      planId: "starter",
-    });
-    const res = await POST(makeReq(VALID));
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.code).toBe("NOT_ELIGIBLE");
-  });
-
-  it("remainingDays ≤ 0 (expired) → 400 HOSTING_EXPIRED", async () => {
-    findUserHosting.mockResolvedValueOnce({
-      status: "active",
-      expiryDate: new Date(Date.now() - 86_400_000), // expired yesterday
-      planId: "starter",
-    });
-    const res = await POST(makeReq(VALID));
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.code).toBe("HOSTING_EXPIRED");
-  });
-});
-
-describe("Plan lookups", () => {
-  beforeEach(() => {
-    getUserFromRequest.mockResolvedValue(user);
-    checkKey.mockResolvedValue({ allowed: true });
-    findUserHosting.mockResolvedValue({
-      _id: "H1",
-      domainName: "example.com",
-      status: "active",
-      planId: "starter",
-      expiryDate: new Date(Date.now() + 15 * 86_400_000),
-    });
-  });
-
-  it("currentPlan null → 404 PLAN_NOT_FOUND", async () => {
-    getPlanByPlanId.mockResolvedValueOnce(null);
-    const res = await POST(makeReq(VALID));
-    expect(res.status).toBe(404);
-    const body = await res.json();
-    expect(body.code).toBe("PLAN_NOT_FOUND");
-  });
-
-  it("targetPlan null → 404 TARGET_PLAN_NOT_FOUND; called with activeOnly:true", async () => {
-    getPlanByPlanId
-      .mockResolvedValueOnce({ planId: "starter", price: 1000 })
-      .mockResolvedValueOnce(null);
-    const res = await POST(makeReq(VALID));
-    expect(res.status).toBe(404);
-    const body = await res.json();
-    expect(body.code).toBe("TARGET_PLAN_NOT_FOUND");
-    expect(getPlanByPlanId).toHaveBeenLastCalledWith(
-      "plus",
-      expect.objectContaining({ activeOnly: true })
-    );
-  });
-
-  it("**DOWNGRADE BLOCKED: target rate ≤ current rate → 400 INVALID_UPGRADE**", async () => {
-    getPlanByPlanId
-      .mockResolvedValueOnce({ planId: "plus", price: 5000 })
-      .mockResolvedValueOnce({ planId: "starter", price: 1000 });
-    const res = await POST(
-      makeReq({ domainName: "example.com", targetPlanId: "starter" })
-    );
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.code).toBe("INVALID_UPGRADE");
-    expect(rzpCreateOrder).not.toHaveBeenCalled();
-    expect(createOrder).not.toHaveBeenCalled();
-  });
-
-  it("equal price → 400 INVALID_UPGRADE (sidegrade rejected)", async () => {
-    getPlanByPlanId
-      .mockResolvedValueOnce({ planId: "starter", price: 1000 })
-      .mockResolvedValueOnce({ planId: "Starter", price: 1000 });
-    const res = await POST(
-      makeReq({ domainName: "example.com", targetPlanId: "Starter" })
-    );
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.code).toBe("INVALID_UPGRADE");
-  });
-});
-
-describe("Server-authoritative prorated math", () => {
-  beforeEach(() => {
-    getUserFromRequest.mockResolvedValue(user);
-    checkKey.mockResolvedValue({ allowed: true });
-    rzpCreateOrder.mockResolvedValue({ id: "order_rzp" });
-    createOrder.mockImplementation(async (data) => data);
-  });
-
-  it("**typical prorate: Starter→Plus, 60 days: (220.83 − 59) × 60 / 30 = 324**", async () => {
-    findUserHosting.mockResolvedValueOnce({
-      _id: "H1",
-      domainName: "example.com",
-      status: "active",
-      planId: "starter",
-      expiryDate: new Date(Date.now() + 60 * 86_400_000),
-    });
-    getPlanByPlanId
-      .mockResolvedValueOnce({ planId: "starter", price: 1000 })
-      .mockResolvedValueOnce({
-        planId: "plus",
-        price: 5000,
-        name: "Premium",
-        directAdminPackage: "Premium",
-      });
-    const res = await POST(makeReq(VALID));
+    const res = await POST(makeReq({ ...VALID, email: "mallory@example.com", amount: 1, estimateRupees: 1 }));
     expect(res.status).toBe(200);
-    expect(rzpCreateOrder).toHaveBeenCalledWith(
-      324, // computed server-side from ResellerOS prices
-      "INR",
-      expect.any(String),
-      expect.any(Object)
-    );
-  });
-
-  it("**₹100 FLOOR**: tiny prorate (Starter→Standard, 5 days → 15) floors to ₹100", async () => {
-    findUserHosting.mockResolvedValueOnce({
-      _id: "H1",
-      domainName: "example.com",
-      status: "active",
-      planId: "starter",
-      expiryDate: new Date(Date.now() + 5 * 86_400_000),
+    const sent = sendUpgradeRequest.mock.calls[0][0];
+    expect(sent).toMatchObject({
+      dmsUserId: "U1",
+      email: "alice@example.com",
+      fullName: "Alice Smith",
+      phone: "9876543210",
+      companyName: "Acme",
+      domain: "example.com",
+      currentPlan: "starter",
+      targetPlan: "plus",
+      expiresAt: EXPIRY.toISOString(),
     });
-    getPlanByPlanId
-      .mockResolvedValueOnce({ planId: "starter", price: 1000 })
-      .mockResolvedValueOnce({
-        planId: "standard",
-        price: 1100,
-        name: "Premium Lite",
-        directAdminPackage: "Standard",
-      });
-    const res = await POST(
-      makeReq({ domainName: "example.com", targetPlanId: "standard" })
-    );
-    expect(res.status).toBe(200);
-    expect(rzpCreateOrder.mock.calls[0][0]).toBe(100);
+    // Starter ₹708/yr, Plus ₹2,650/yr incl. GST; 15 days → (2650-708)/12 × 15/30 ≈ 81 → ₹100 floor.
+    expect(sent.estimateRupees).toBe(100);
+    expect(Number.isInteger(sent.estimateRupees)).toBe(true);
+    expect(await res.json()).toMatchObject({ success: true, data: { leadId: "L-1", alreadyRequested: false, estimateRupees: 100 } });
   });
 
-  it("**CLIENT-SUPPLIED AMOUNT IGNORED**: hostile body amount→9 ignored; server still computes 324", async () => {
-    findUserHosting.mockResolvedValueOnce({
-      _id: "H1",
-      domainName: "example.com",
-      status: "active",
-      planId: "starter",
-      expiryDate: new Date(Date.now() + 60 * 86_400_000),
-    });
-    getPlanByPlanId
-      .mockResolvedValueOnce({ planId: "starter", price: 1000 })
-      .mockResolvedValueOnce({
-        planId: "plus",
-        price: 5000,
-        name: "Premium",
-        directAdminPackage: "Premium",
-      });
-    await POST(
-      makeReq({
-        domainName: "example.com",
-        targetPlanId: "plus",
-        amount: 9, // hostile
-        chargeAmount: 9, // hostile
-      } as Record<string, unknown>)
-    );
-    expect(rzpCreateOrder.mock.calls[0][0]).toBe(324);
+  it("a plan ResellerOS does not price → the request goes WITHOUT an estimate", async () => {
+    setupHappy("starter", "25GB-wp");
+    await POST(makeReq({ ...VALID, targetPlanId: "25GB-wp" }));
+    expect(sendUpgradeRequest.mock.calls[0][0]).not.toHaveProperty("estimateRupees");
   });
-});
 
-describe("Razorpay metadata", () => {
-  it("carries 5 fields: hosting_id, domain_name, from_plan, to_plan, user_id", async () => {
+  it("a timeout: 503, 'may have been recorded', sent once", async () => {
     setupHappy();
-    await POST(makeReq(VALID));
-    const meta = rzpCreateOrder.mock.calls[0][3];
-    expect(meta).toEqual(
-      expect.objectContaining({
-        type: "hosting_upgrade",
-        hosting_id: "H1",
-        domain_name: "example.com",
-        from_plan: "starter",
-        to_plan: "plus",
-        user_id: "U1",
-      })
-    );
-  });
-
-  it("orderId starts with 'upg_'", async () => {
-    setupHappy();
-    await POST(makeReq(VALID));
-    const orderId = rzpCreateOrder.mock.calls[0][2];
-    expect(orderId).toMatch(/^upg_/);
-  });
-});
-
-describe("Internal Order shape", () => {
-  it("orderType:'hosting_upgrade'; status:'pending'; bookingStatus[0] step='payment_verified' progress:10", async () => {
-    setupHappy();
-    await POST(makeReq(VALID));
-    const order = createOrder.mock.calls[0][0];
-    expect(order).toEqual(
-      expect.objectContaining({
-        orderType: "hosting_upgrade",
-        status: "pending",
-        currency: "INR",
-        userId: "U1",
-        userEmail: "alice@example.com",
-        razorpayOrderId: "order_rzp_xyz",
-      })
-    );
-    expect(order.upgradeDetails).toEqual(
-      expect.objectContaining({
-        hostingId: "H1",
-        fromPlanId: "starter",
-        toPlanId: "plus",
-      })
-    );
-    expect(order.domains[0].bookingStatus[0]).toEqual(
-      expect.objectContaining({
-        step: "payment_verified",
-        progress: 10,
-      })
-    );
-  });
-});
-
-describe("Outer catch", () => {
-  it("rzpCreateOrder throw → 500 INTERNAL_ERROR", async () => {
-    setupHappy();
-    rzpCreateOrder.mockRejectedValueOnce(new Error("Razorpay 5xx"));
+    sendUpgradeRequest.mockResolvedValue({ kind: "unreachable", detail: "TimeoutError", mayHaveRecorded: true });
     const res = await POST(makeReq(VALID));
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(503);
     const body = await res.json();
-    expect(body.code).toBe("INTERNAL_ERROR");
+    expect(body.mayHaveRecorded).toBe(true);
+    expect(body.error).toMatch(/may have been recorded/);
+    expect(sendUpgradeRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it("ResellerOS refusing our key → 503, never 401", async () => {
+    setupHappy();
+    sendUpgradeRequest.mockResolvedValue({ kind: "config", status: 401, detail: "bad key" });
+    expect((await POST(makeReq(VALID))).status).toBe(503);
+  });
+
+  it("a ResellerOS 400 is shown as written", async () => {
+    setupHappy();
+    sendUpgradeRequest.mockResolvedValue({ kind: "refused", message: "That domain has no hosting with us." });
+    const res = await POST(makeReq(VALID));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("That domain has no hosting with us.");
   });
 });
 
-describe("a plan ResellerOS does not price", () => {
-  it("is refused with a next step, never prorated from the Mongo figure", async () => {
-    getUserFromRequest.mockResolvedValue(user);
-    checkKey.mockResolvedValue({ allowed: true });
-    findUserHosting.mockResolvedValueOnce({
-      _id: "H1",
-      domainName: "example.com",
-      status: "active",
-      planId: "starter",
-      expiryDate: new Date(Date.now() + 60 * 86_400_000),
-    });
-    getPlanByPlanId
-      .mockResolvedValueOnce({ planId: "starter", price: 1000 })
-      .mockResolvedValueOnce({ planId: "25GB-wp", price: 5000 });
-    const res = await POST(makeReq({ domainName: "example.com", targetPlanId: "25GB-wp" }));
-    expect(res.status).toBe(409);
-    expect((await res.json()).code).toBe("HOSTING_PLAN_UNPRICED");
-    expect(rzpCreateOrder).not.toHaveBeenCalled();
+describe("creates nothing in DMS (source scan, comments stripped)", () => {
+  it("imports no order service and no Razorpay client", () => {
+    const code = readFileSync(path.join(process.cwd(), "app/api/user/hosting/upgrade/route.ts"), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|[^:])\/\/.*$/gm, "$1");
+    expect(code).not.toMatch(/@\/lib\/services\/orders|@\/lib\/razorpay["']|createOrder/);
   });
 });
