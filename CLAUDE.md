@@ -129,7 +129,10 @@ says so — each waits for the owner's go-ahead.
   the other provisioners use. Package from the catalogue, test-mode payments held, own gate
   `ENGINE_HOSTING_PROVISION_LIVE=1`.
 - **`hosting.provision` was run against the live DirectAdmin on 24 Sep 2026 and works:** test,
-  create, replay and no-duplicate all passed. It found two bugs, both fixed:
+  create, replay and no-duplicate all passed. The test account it made (`rsospf34b2` /
+  `rsosprovtest2409.in`) was deleted from server1 on 25 Sep 2026. So were its local records: the
+  test user, its hosting row and the `live-da-test-*` engine commands. server1 keeps the three
+  packages and has no users. It found two bugs, both fixed:
   - `createPackage` must send `add=Save`; `action=create` is read as a listing request.
   - `unwrapDAError` must unwrap a `DirectAdminError`, or every DA refusal reads as "Unknown".
 
