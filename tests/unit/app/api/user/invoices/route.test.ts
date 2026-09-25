@@ -12,14 +12,9 @@
  *      completed/paid → paid; pending/processing → sent;
  *      failed/refunded → void; anything else → draft
  *  - invoice_id = orderId ONLY when invoiceProvider is set; '' otherwise
- *  - invoice_failed = paid && !issued && invoiceFailedAt — the only state
- *    that offers the customer a retry
+ *  - no invoice_failed field and no retry (DMS issues no bills since 25 Sep 2026)
  *  - No `provider` / `zoho_pending` fields any more
  *  - balance: 0 for paid orders, full amount otherwise
- *  - **Self-heal**: runs ONLY when some row is invoice_failed. An issued
- *    order (primary OR historical zoho) never triggers it — that would be
- *    a second tax invoice for one payment. Re-fetch only if a retry
- *    recovered something.
  *  - Outer catch → 500 'Internal Server Error'
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -32,8 +27,6 @@ vi.mock("@/lib/auth", () => ({
 const listUserInvoiceOrders = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/orders", () => ({ listUserInvoiceOrders }));
 
-const selfHealUserInvoices = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/invoice-retry", () => ({ selfHealUserInvoices }));
 
 vi.mock("@/lib/server-logger", () => ({
   serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -79,7 +72,6 @@ const failedOrder = (o: Record<string, unknown> = {}) =>
 beforeEach(() => {
   getUserFromRequest.mockReset().mockResolvedValue(user);
   listUserInvoiceOrders.mockReset();
-  selfHealUserInvoices.mockReset().mockResolvedValue([]);
 });
 
 describe("Auth gate", () => {
@@ -131,7 +123,6 @@ describe("Row shape", () => {
       currency_code: "INR",
       created_time: "2026-06-01T10:00:00.000Z",
       order_id: "ORD-1",
-      invoice_failed: false,
     });
   });
 
@@ -142,7 +133,6 @@ describe("Row shape", () => {
     const body = await (await GET(makeReq())).json();
     expect(body.invoices[0].invoice_id).toBe("ORD-1");
     expect(body.invoices[0].invoice_number).toBe("INV-000123");
-    expect(body.invoices[0].invoice_failed).toBe(false);
   });
 
   it("no invoiceProvider → invoice_id is '' (nothing to download yet)", async () => {
@@ -155,34 +145,15 @@ describe("Row shape", () => {
   });
 });
 
-describe("invoice_failed", () => {
-  it("paid + not issued + invoiceFailedAt → true", async () => {
+// Since 25 Sep 2026 DMS issues no bills, so there is no retry: no row carries
+// invoice_failed and nothing re-issues an invoice while the list is read.
+describe("No retry", () => {
+  it("a paid, uninvoiced, flagged order is listed with no document and no retry field", async () => {
     listUserInvoiceOrders.mockResolvedValueOnce([failedOrder()]);
     const body = await (await GET(makeReq())).json();
-    expect(body.invoices[0].invoice_failed).toBe(true);
     expect(body.invoices[0].invoice_id).toBe("");
-  });
-
-  it("paid + not issued + NO invoiceFailedAt → false (no known failure; nothing to retry)", async () => {
-    listUserInvoiceOrders.mockResolvedValueOnce([
-      failedOrder({ invoiceFailedAt: undefined }),
-    ]);
-    const body = await (await GET(makeReq())).json();
-    expect(body.invoices[0].invoice_failed).toBe(false);
-  });
-
-  it("UNPAID + invoiceFailedAt → false (unpaid orders are never invoiced)", async () => {
-    listUserInvoiceOrders.mockResolvedValueOnce([failedOrder({ status: "pending" })]);
-    const body = await (await GET(makeReq())).json();
-    expect(body.invoices[0].invoice_failed).toBe(false);
-  });
-
-  it("issued + a stale invoiceFailedAt from an earlier attempt → false (the invoice exists)", async () => {
-    listUserInvoiceOrders.mockResolvedValueOnce([
-      order({ invoiceFailedAt: new Date("2026-06-01T10:05:00.000Z") }),
-    ]);
-    const body = await (await GET(makeReq())).json();
-    expect(body.invoices[0].invoice_failed).toBe(false);
+    expect(body.invoices[0]).not.toHaveProperty("invoice_failed");
+    expect(listUserInvoiceOrders).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -195,51 +166,6 @@ describe("Balance computation", () => {
     const body = await (await GET(makeReq())).json();
     expect(body.invoices[0].balance).toBe(0);
     expect(body.invoices[1].balance).toBe(555);
-  });
-});
-
-describe("Self-heal flow (a failed row → inline retry)", () => {
-  it("failed row → selfHealUserInvoices(userId); a recovery → re-fetch + re-map", async () => {
-    listUserInvoiceOrders
-      .mockResolvedValueOnce([failedOrder()])
-      .mockResolvedValueOnce([order({ invoiceNumber: "TI/2026-27/00002" })]);
-    selfHealUserInvoices.mockResolvedValueOnce([{ orderId: "ORD-1", ok: true }]);
-
-    const res = await GET(makeReq());
-    expect(selfHealUserInvoices).toHaveBeenCalledWith("U1");
-    expect(listUserInvoiceOrders).toHaveBeenCalledTimes(2);
-    const body = await res.json();
-    expect(body.invoices[0].invoice_id).toBe("ORD-1");
-    expect(body.invoices[0].invoice_number).toBe("TI/2026-27/00002");
-    expect(body.invoices[0].invoice_failed).toBe(false);
-  });
-
-  it("self-heal recovers nothing → NO re-fetch; the failed row is still reported failed", async () => {
-    listUserInvoiceOrders.mockResolvedValueOnce([failedOrder()]);
-    selfHealUserInvoices.mockResolvedValueOnce([
-      { orderId: "ORD-1", ok: false, skipped: "throttled" },
-    ]);
-
-    const res = await GET(makeReq());
-    expect(listUserInvoiceOrders).toHaveBeenCalledTimes(1);
-    const body = await res.json();
-    expect(body.invoices[0].invoice_id).toBe("");
-    expect(body.invoices[0].invoice_failed).toBe(true);
-  });
-
-  it.each(["primary", "zoho"])(
-    "**an issued (%s) invoice never triggers self-heal** — a retry there would be a second tax invoice for one payment",
-    async (provider) => {
-      listUserInvoiceOrders.mockResolvedValueOnce([order({ invoiceProvider: provider })]);
-      await GET(makeReq());
-      expect(selfHealUserInvoices).not.toHaveBeenCalled();
-    }
-  );
-
-  it("paid, not issued, no recorded failure → self-heal NOT called (it only retries known failures)", async () => {
-    listUserInvoiceOrders.mockResolvedValueOnce([failedOrder({ invoiceFailedAt: undefined })]);
-    await GET(makeReq());
-    expect(selfHealUserInvoices).not.toHaveBeenCalled();
   });
 });
 

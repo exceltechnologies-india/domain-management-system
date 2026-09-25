@@ -54,8 +54,10 @@ ResellerOS repo `Todos.md` "Decisions 29-30".
   Razorpay with ResellerOS's key. Nothing recorded in DMS. Env `RESELLEROS_SERVER_URL`,
   `DMS_PANEL_API_KEY`. The ₹0 trial still uses DMS's cart. `buildHostingCartItem` deleted with
   its last caller (4 tests with it).
-- [ ] **Step 2 — stop DMS issuing bills** (`createPrimaryInvoice`, the `models/Order.ts` INV hook,
-  re-sync-invoice, `lib/invoice-retry.ts` + pill, `api/workers/issue-invoice`).
+- [x] **Step 2 — stop DMS issuing bills.** `createPrimaryInvoice`, the TI allocator and the
+  `models/Order.ts` INV hook removed in one commit; re-sync-invoice, `lib/invoice-retry.ts` + the Retry
+  pill + `/api/user/invoices/sync`, and `api/workers/issue-invoice` deleted. DMS-collected payments are
+  flagged (`lib/billing/no-dms-bills.ts`). Scan: `tests/unit/lib/billing/no-dms-bills-scan.test.ts`.
 - [ ] **Step 3 — the Invoices page shows ResellerOS bills** (`/api/v1` read API).
 - [ ] **Step 4 — renewals go to ResellerOS** (renew buttons, expiry worker, trial end).
 - [ ] **Open, not in the brief:** `/cart` → `/checkout` → `api/payments/create-order` still takes a

@@ -215,7 +215,7 @@ const PROVIDERS: ProviderClassifier[] = [
     label: "Background Jobs",
     signatures: [
       {
-        needle: /cron|scheduler|worker|daily-scheduler|issue-invoice|check-unprovisioned/i,
+        needle: /cron|scheduler|worker|daily-scheduler|check-unprovisioned/i,
         hint: "Cron / worker failure. The endpoint typically requires x-cron-secret — if many fail with the same secret-mismatch message, the CRON_SECRET in Secret Manager may have rotated out of sync with Google Cloud Scheduler.",
       },
     ],

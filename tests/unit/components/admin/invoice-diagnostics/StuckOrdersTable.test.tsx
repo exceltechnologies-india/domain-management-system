@@ -2,14 +2,11 @@
  * Component tests for <StuckOrdersTable> (rescan-4 M14).
  * Pins the empty-render-nothing behaviour, the per-row identifying fields
  * (orderId, user, amount, and the "Last error" column: invoiceFailureReason
- * verbatim, truncated past 60 chars, or "no attempt recorded"), the Re-sync row
- * callback, the Re-sync-all visibility gate (only when there's > 1 stuck
- * order), the bulkProgress progress bar + counts + label, and the
- * pendingId/bulkProgress disable rules on the row + bulk buttons.
+ * verbatim, truncated past 60 chars, or "no attempt recorded"), and — since
+ * 25 Sep 2026 — that the table is read-only (no Re-sync).
  */
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import StuckOrdersTable from "@/components/admin/invoice-diagnostics/StuckOrdersTable";
 import type { OrderSlim } from "@/components/admin/invoice-diagnostics/types";
 
@@ -54,41 +51,23 @@ const stuckLong: OrderSlim = {
 describe("<StuckOrdersTable>", () => {
   it("renders nothing when stuckOrders is empty", () => {
     const { container } = render(
-      <StuckOrdersTable
-        stuckOrders={[]}
-        pendingId={null}
-        bulkProgress={null}
-        onResync={vi.fn()}
-        onResyncAll={vi.fn()}
-      />
+      <StuckOrdersTable stuckOrders={[]} />
     );
     expect(container.firstChild).toBeNull();
   });
 
-  it("names the section for what it is — paid orders with no invoice, not a Zoho sync", () => {
+  it("names the section for what it is — paid orders with no bill, not a Zoho sync", () => {
     render(
-      <StuckOrdersTable
-        stuckOrders={[stuckOne]}
-        pendingId={null}
-        bulkProgress={null}
-        onResync={vi.fn()}
-        onResyncAll={vi.fn()}
-      />
+      <StuckOrdersTable stuckOrders={[stuckOne]} />
     );
-    expect(screen.getByRole("heading", { name: "Paid orders without an invoice" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Last error" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Paid orders with no bill" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Reason" })).toBeInTheDocument();
     expect(screen.queryByText(/zoho/i)).not.toBeInTheDocument();
   });
 
   it("renders identifying fields and 'no attempt recorded' when no failure is on file", () => {
     render(
-      <StuckOrdersTable
-        stuckOrders={[stuckOne]}
-        pendingId={null}
-        bulkProgress={null}
-        onResync={vi.fn()}
-        onResyncAll={vi.fn()}
-      />
+      <StuckOrdersTable stuckOrders={[stuckOne]} />
     );
     expect(screen.getByText("ord-1")).toBeInTheDocument();
     expect(screen.getByText("Alice")).toBeInTheDocument();
@@ -98,13 +77,7 @@ describe("<StuckOrdersTable>", () => {
 
   it("renders a short invoiceFailureReason verbatim", () => {
     render(
-      <StuckOrdersTable
-        stuckOrders={[stuckTwo]}
-        pendingId={null}
-        bulkProgress={null}
-        onResync={vi.fn()}
-        onResyncAll={vi.fn()}
-      />
+      <StuckOrdersTable stuckOrders={[stuckTwo]} />
     );
     expect(screen.getByText("GSTIN missing on company profile")).toBeInTheDocument();
     expect(screen.queryByText("no attempt recorded")).not.toBeInTheDocument();
@@ -113,91 +86,19 @@ describe("<StuckOrdersTable>", () => {
   it("truncates a reason over 60 chars and keeps the full text in the title", () => {
     expect(LONG_REASON.length).toBeGreaterThan(60);
     render(
-      <StuckOrdersTable
-        stuckOrders={[stuckLong]}
-        pendingId={null}
-        bulkProgress={null}
-        onResync={vi.fn()}
-        onResyncAll={vi.fn()}
-      />
+      <StuckOrdersTable stuckOrders={[stuckLong]} />
     );
     const cell = screen.getByTitle(LONG_REASON);
     expect(cell.textContent).toBe(`${LONG_REASON.slice(0, 58)}…`);
   });
 
-  it("hides the 'Re-sync all' button when there's only one stuck order", () => {
-    render(
-      <StuckOrdersTable
-        stuckOrders={[stuckOne]}
-        pendingId={null}
-        bulkProgress={null}
-        onResync={vi.fn()}
-        onResyncAll={vi.fn()}
-      />
-    );
-    expect(screen.queryByRole("button", { name: /re-sync all/i })).not.toBeInTheDocument();
-  });
-
-  it("shows 'Re-sync all (N)' when there are multiple stuck orders and fires onResyncAll on click", async () => {
-    const user = userEvent.setup();
-    const onResyncAll = vi.fn();
-    render(
-      <StuckOrdersTable
-        stuckOrders={[stuckOne, stuckTwo]}
-        pendingId={null}
-        bulkProgress={null}
-        onResync={vi.fn()}
-        onResyncAll={onResyncAll}
-      />
-    );
-    const bulkBtn = screen.getByRole("button", { name: /re-sync all \(2\)/i });
-    await user.click(bulkBtn);
-    expect(onResyncAll).toHaveBeenCalledTimes(1);
-  });
-
-  it("calls onResync with the row's orderId on per-row Re-sync click", async () => {
-    const user = userEvent.setup();
-    const onResync = vi.fn();
-    render(
-      <StuckOrdersTable
-        stuckOrders={[stuckOne]}
-        pendingId={null}
-        bulkProgress={null}
-        onResync={onResync}
-        onResyncAll={vi.fn()}
-      />
-    );
-    await user.click(screen.getByRole("button", { name: /^re-sync$/i }));
-    expect(onResync).toHaveBeenCalledWith("ord-1");
-  });
-
-  it("renders the progress bar + summary line + 'Re-syncing X/Y…' label while a bulk run is in flight", () => {
-    render(
-      <StuckOrdersTable
-        stuckOrders={[stuckOne, stuckTwo]}
-        pendingId={null}
-        bulkProgress={{ total: 2, done: 1, success: 1, failed: 0 }}
-        onResync={vi.fn()}
-        onResyncAll={vi.fn()}
-      />
-    );
-    expect(screen.getByRole("button", { name: /re-syncing 1\/2/i })).toBeDisabled();
-    // Summary: "1 synced · 0 failed · 1 remaining"
-    expect(screen.getByText(/1 synced · 0 failed · 1 remaining/)).toBeInTheDocument();
-  });
-
-  it("disables the per-row button matching pendingId and disables every Re-sync while bulkProgress is active", () => {
-    render(
-      <StuckOrdersTable
-        stuckOrders={[stuckOne, stuckTwo]}
-        pendingId="ord-2"
-        bulkProgress={null}
-        onResync={vi.fn()}
-        onResyncAll={vi.fn()}
-      />
-    );
-    const rowButtons = screen.getAllByRole("button", { name: /^re-sync$/i });
-    expect(rowButtons[0]).not.toBeDisabled();
-    expect(rowButtons[1]).toBeDisabled();
+  // DMS issues no bills (owner decision, 24 Sep 2026): the Re-sync actions
+  // that issued one from here were removed with the engine. The table is a
+  // read-only list for an operator to bill in ResellerOS.
+  it("offers no Re-sync action of any kind", () => {
+    render(<StuckOrdersTable stuckOrders={[stuckOne, stuckTwo]} />);
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByText(/re-sync/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/raise each bill in ResellerOS/)).toBeInTheDocument();
   });
 });

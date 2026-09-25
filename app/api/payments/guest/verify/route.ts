@@ -6,17 +6,13 @@ import connectDB from "@/lib/mongodb";
 import mongoose from "mongoose";
 import type { IUser } from "@/models/User";
 import { createUser, getUserByEmail } from "@/lib/services/users";
-import { claimPendingOrderForProcessing, createOrder, createOrderInSession, markInvoiceCreationFailed, getOrderByOrderId, getOrderByRazorpayOrderId } from "@/lib/services/orders";
+import { claimPendingOrderForProcessing, createOrder, createOrderInSession, getOrderByOrderId, getOrderByRazorpayOrderId } from "@/lib/services/orders";
 import { createPaymentInTransaction } from "@/lib/services/payments";
 import { provisionCartItems } from "@/lib/services/payment/provisioner";
-import {
-  finalizePendingOrder,
-  cartItemsFromOrderDomains,
-} from "@/lib/services/payment/order-creator";
+import { finalizePendingOrder } from "@/lib/services/payment/order-creator";
 import { validateOrderAmountMatchesRazorpay } from "@/lib/services/payment/verification";
 import { runPostPaymentTasks } from "@/lib/services/payment/post-tasks";
-import { createPrimaryInvoice } from "@/lib/services/billing/createPrimaryInvoice";
-import { recordSystemLog } from "@/lib/services/system-logs";
+import { flagPaymentWithoutBill } from "@/lib/billing/no-dms-bills";
 import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
 import { isDomainSupported, requiresAdditionalDetails } from "@/lib/domainRequirements";
 import { EmailService } from "@/lib/email";
@@ -416,40 +412,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── Invoice (best-effort) ────────────────────────────────────────────────
-    // A failure flags the order (invoiceFailedAt); lib/invoice-retry picks it
-    // up on the customer's invoices page and admin integration-health lists it.
-    //
-    // cartItems must be the DB-trusted projection of order.domains, not the
-    // request body — Batch 5a [H1] closed the swap-domain hole on
-    // provisioning; mirror it here so the invoice/GST record matches what was
-    // actually sold.
-    const invoiceCartItems = cartItemsFromOrderDomains(order.domains);
-
-    try {
-      await createPrimaryInvoice({
-        order,
-        orderId,
-        razorpay_payment_id,
-        paymentDetails,
-        user: guestUser,
-        cartItems: invoiceCartItems,
-      });
-    } catch (invoiceErr: unknown) {
-      const message = invoiceErr instanceof Error ? invoiceErr.message : String(invoiceErr);
-      const stack = invoiceErr instanceof Error ? invoiceErr.stack : undefined;
-      serverLogger.error(`[GuestCheckout] Invoice creation failed: ${message}`);
-      // Durable record so we don't depend on Cloud Logging capturing stderr.
-      await recordSystemLog({
-        level: "error",
-        message: `[GuestCheckout] Invoice creation failed: ${message}`,
-        source: "guest/verify",
-        service: "payments",
-        stack,
-        metadata: { orderId, email: guestEmail, razorpayPaymentId: razorpay_payment_id },
-      }).catch(() => {});
-      await markInvoiceCreationFailed(String(order._id), message).catch(() => {});
-    }
+    // ── No bill from DMS (owner decision, 24 Sep 2026) ──────────────────────
+    // DMS issues no bills. A payment taken here is flagged for an operator to
+    // bill in ResellerOS — see lib/billing/no-dms-bills.ts.
+    await flagPaymentWithoutBill(order, "guest/verify");
 
     // ── Post-payment notifications ────────────────────────────────────────────
     await runPostPaymentTasks({

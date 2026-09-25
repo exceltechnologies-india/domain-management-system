@@ -122,13 +122,12 @@ vi.mock("@/lib/services/payment/post-tasks", () => ({
   runPostPaymentTasks,
 }));
 
-// createPrimaryInvoice is the only invoice issuer since Zoho Books was
-// removed (24 Sep 2026). Mocked at the module boundary so the real
-// billing-engine module graph (models/Counter, mongodb connect) is not
-// loaded into a route unit test.
-const createPrimaryInvoice = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/services/billing/createPrimaryInvoice", () => ({
-  createPrimaryInvoice,
+// DMS issues no bills (owner decision, 24 Sep 2026): the code under test
+// flags a paid order for billing in ResellerOS instead of invoicing it.
+const flagPaymentWithoutBill = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/billing/no-dms-bills", async (orig) => ({
+  ...(await orig<typeof import("@/lib/billing/no-dms-bills")>()),
+  flagPaymentWithoutBill,
 }));
 
 const recordSystemLog = vi.hoisted(() => vi.fn());
@@ -234,7 +233,7 @@ beforeEach(() => {
   validateOrderAmountMatchesRazorpay
     .mockReset()
     .mockResolvedValue({ ok: true });
-  createPrimaryInvoice.mockReset().mockResolvedValue({ invoiceId: "", invoiceNumber: "TI/2026-27/00001", provider: "primary" });
+  flagPaymentWithoutBill.mockReset().mockResolvedValue(undefined);
   runPostPaymentTasks.mockReset().mockResolvedValue(undefined);
   recordSystemLog.mockReset().mockResolvedValue(undefined);
   isDomainSupported.mockReset().mockReturnValue(true);
@@ -687,46 +686,15 @@ describe("Legacy provision path — no pending order found", () => {
 });
 
 // ─── Invoice ───────────────────────────────────────────────────────
-describe("Invoice — best-effort + H1 mirror", () => {
-  it("cartItemsFromOrderDomains called with order.domains (NOT request cartItems)", async () => {
-    getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
-    const dbDomains = [{ domainName: "real.com", price: 500 }];
-    createOrderInSession.mockResolvedValueOnce({
-      _id: "OID-1",
-      orderId: "ORD-1",
-      domains: dbDomains,
-    });
-
-    await POST(makeReq(validBody));
-    expect(cartItemsFromOrderDomains).toHaveBeenCalledWith(dbDomains);
-  });
-
-  it("invoice failure SWALLOWED — main response still 200; failure recorded with its reason", async () => {
+describe("No bill from DMS (owner decision, 24 Sep 2026)", () => {
+  it("flags the paid guest order for billing in ResellerOS; the response is still 200", async () => {
     getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
     setupLegacyHappyPath();
-    createPrimaryInvoice.mockRejectedValueOnce(new Error("COMPANY_STATE is not configured"));
-
     const res = await POST(makeReq(validBody));
-    expect(res.status).toBe(200); // guest verify is NOT 207 — silent fail
-    expect(markInvoiceCreationFailed).toHaveBeenCalledWith(
-      "OID-1",
-      "COMPANY_STATE is not configured"
-    );
-    expect(recordSystemLog).toHaveBeenCalledWith(
-      expect.objectContaining({
-        source: "guest/verify",
-        service: "payments",
-        message: "[GuestCheckout] Invoice creation failed: COMPANY_STATE is not configured",
-      })
-    );
-  });
-
-  it("invoice success → markInvoiceCreationFailed NOT called", async () => {
-    getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
-    setupLegacyHappyPath();
-    await POST(makeReq(validBody));
-    expect(createPrimaryInvoice).toHaveBeenCalledTimes(1);
-    expect(markInvoiceCreationFailed).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(flagPaymentWithoutBill).toHaveBeenCalledTimes(1);
+    expect(flagPaymentWithoutBill.mock.calls[0][0]).toMatchObject({ _id: "OID-1" });
+    expect(flagPaymentWithoutBill.mock.calls[0][1]).toBe("guest/verify");
   });
 });
 

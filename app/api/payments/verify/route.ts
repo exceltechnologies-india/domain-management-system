@@ -3,13 +3,12 @@ import { serverLogger } from "@/lib/server-logger";
 import { AuthService } from "@/lib/auth";
 import {
   claimPendingOrderForProcessing,
-  markInvoiceCreationFailed,
   getOrderByRazorpayOrderId,
 } from "@/lib/services/orders";
 import { handleRenewalPayment } from "@/lib/services/payment/renewal";
 import { handleAlreadyProcessedPayment } from "@/lib/services/payment/idempotency";
 import { runPostPaymentTasks } from "@/lib/services/payment/post-tasks";
-import { createPrimaryInvoice } from "@/lib/services/billing/createPrimaryInvoice";
+import { CUSTOMER_BILL_NOTICE, flagPaymentWithoutBill } from "@/lib/billing/no-dms-bills";
 import {
   verifyRazorpayPayment,
   validateOrderAmountMatchesRazorpay,
@@ -18,10 +17,8 @@ import {
   validateNoRestrictedDomains,
   createCompletedOrder,
   finalizePendingOrder,
-  cartItemsFromOrderDomains,
 } from "@/lib/services/payment/order-creator";
 import { handleVerificationError } from "@/lib/services/payment/verification-error";
-import { recordSystemLog } from "@/lib/services/system-logs";
 import { withRequestLogContext } from "@/lib/request-context";
 import type { IUser } from "@/models/User";
 import type { CartItem } from "@/lib/types";
@@ -329,48 +326,10 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
       }));
     }
 
-    // 9) Invoice (synchronous so failures surface to the caller)
-    let invoiceCreationFailed = false;
-    let invoiceCreationError: string | null = null;
-    let finalInvoiceNumber = order.invoiceNumber;
-
-    // Use DB-trusted projection of the persisted order (not the request body)
-    // for invoice line items. Batch 5a [H1] closed the swap-domain hole for
-    // provisioning by deriving cartItems from order.domains inside
-    // finalizePendingOrder; this closes the parallel gap for the invoice
-    // path so the GST record matches what was actually sold.
-    const invoiceCartItems = cartItemsFromOrderDomains(order.domains);
-
-    try {
-      const { invoiceNumber: issuedNumber } = await createPrimaryInvoice({
-        order,
-        orderId,
-        razorpay_payment_id,
-        paymentDetails,
-        user,
-        cartItems: invoiceCartItems,
-      });
-      if (issuedNumber) finalInvoiceNumber = issuedNumber;
-    } catch (invoiceError: unknown) {
-      invoiceCreationFailed = true;
-      invoiceCreationError = invoiceError instanceof Error ? invoiceError.message : "Unknown invoice error";
-      const stack = invoiceError instanceof Error ? invoiceError.stack : undefined;
-      serverLogger.error(
-        `❌ [PAYMENT-VERIFY] Invoice creation failed: ${invoiceCreationError}`
-      );
-      // Durable record so we don't depend on Cloud Logging capturing stderr.
-      await recordSystemLog({
-        level: "error",
-        message: `[PAYMENT-VERIFY] Invoice creation failed: ${invoiceCreationError}`,
-        source: "payments/verify",
-        service: "payments",
-        stack,
-        metadata: { orderId, userId: String(user._id), razorpayPaymentId: razorpay_payment_id },
-      }).catch(() => {});
-      try {
-        await markInvoiceCreationFailed(String(order._id), invoiceCreationError);
-      } catch (_) {}
-    }
+    // 9) No bill from DMS (owner decision, 24 Sep 2026). DMS issues no bills;
+    // a payment taken here is flagged for an operator to bill in ResellerOS —
+    // see lib/billing/no-dms-bills.ts.
+    await flagPaymentWithoutBill(order, "payments/verify");
 
     // 10) Non-critical post-payment tasks (admin email, domain booking emails)
     await runPostPaymentTasks({
@@ -411,12 +370,10 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
             ? "Payment verified. Hosting provisioning encountered issues"
             : "Payment verified. Domain registration encountered issues",
         orderId,
-        invoiceNumber: finalInvoiceNumber,
-        invoiceStatus: invoiceCreationFailed ? "failed" : "created",
-        ...(invoiceCreationFailed && {
-          invoiceCreationError:
-            "Invoice generation failed. Your payment was received and services are active. Please contact support to obtain your invoice.",
-        }),
+        // A legacy number on an old order is still reported; DMS mints none.
+        invoiceNumber: order.invoiceNumber ?? null,
+        invoiceStatus: "not_issued_by_dms",
+        billNotice: CUSTOMER_BILL_NOTICE,
         registrationResults,
         successfulDomains: finalSuccessfulDomains,
         pendingDomains: pendingDomains.map((d) => d.domainName),
@@ -432,7 +389,7 @@ export const POST = withRequestLogContext(async (request: NextRequest) => {
             ? "pending"
             : "partial",
       },
-      { status: invoiceCreationFailed ? 207 : 200 }
+      { status: 200 }
     );
   } catch (error) {
     return handleVerificationError({

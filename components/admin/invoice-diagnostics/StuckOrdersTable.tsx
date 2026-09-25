@@ -1,30 +1,22 @@
 'use client';
 
-import { RefreshCw } from 'lucide-react';
 import { formatIndianDateTime } from '@/lib/dateUtils';
-import type { OrderSlim, BulkProgress } from './types';
+import type { OrderSlim } from './types';
 
 interface Props {
   stuckOrders: OrderSlim[];
-  pendingId: string | null;
-  bulkProgress: BulkProgress | null;
-  onResync: (orderId: string) => void;
-  onResyncAll: () => void;
 }
 
 /**
- * Renders the "paid orders without an invoice" section. Per-row action:
- * issue the invoice for that order. Top-right action: do the whole list
- * sequentially.
- * Includes a thin progress bar while a bulk re-sync is in flight.
+ * The "paid orders with no bill" section — READ-ONLY since 25 Sep 2026.
+ *
+ * DMS issues no bills (owner decision, 24 Sep 2026), so the Re-sync action
+ * that issued one here was removed with the engine (the owner chose removal:
+ * bill problems are handled in ResellerOS). A row here is a payment taken on
+ * DMS's own Razorpay account, which ResellerOS has no record of; the reason
+ * column says what to do.
  */
-export default function StuckOrdersTable({
-  stuckOrders,
-  pendingId,
-  bulkProgress,
-  onResync,
-  onResyncAll,
-}: Props) {
+export default function StuckOrdersTable({ stuckOrders }: Props) {
   if (stuckOrders.length === 0) return null;
 
   return (
@@ -32,41 +24,14 @@ export default function StuckOrdersTable({
       <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
         <div className="min-w-0">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-amber-700">
-            Paid orders without an invoice
+            Paid orders with no bill
           </h4>
           <p className="text-xs text-gray-500 mt-1 max-w-xl">
-            The customer&apos;s payment succeeded but no GST invoice was issued.
-            Re-sync to issue it now — if it fails again, the reason is shown
-            in the row and logged.
+            The customer&apos;s payment succeeded on DMS&apos;s Razorpay account, and DMS issues no bills.
+            ResellerOS has no record of these payments: raise each bill in ResellerOS by hand.
           </p>
         </div>
-        {stuckOrders.length > 1 && (
-          <button
-            onClick={onResyncAll}
-            disabled={!!bulkProgress || !!pendingId}
-            className="shrink-0 inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-wait px-3 py-1.5 rounded-lg transition-colors shadow-sm"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${bulkProgress ? 'animate-spin' : ''}`} />
-            {bulkProgress
-              ? `Re-syncing ${bulkProgress.done}/${bulkProgress.total}…`
-              : `Re-sync all (${stuckOrders.length})`}
-          </button>
-        )}
       </div>
-      {bulkProgress && (
-        <div className="mb-3">
-          <div className="h-1.5 w-full bg-amber-100 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-blue-600 transition-all duration-300"
-              style={{ width: `${(bulkProgress.done / bulkProgress.total) * 100}%` }}
-            />
-          </div>
-          <p className="text-[11px] text-gray-500 mt-1">
-            {bulkProgress.success} synced · {bulkProgress.failed} failed ·{' '}
-            {bulkProgress.total - bulkProgress.done} remaining
-          </p>
-        </div>
-      )}
       <div className="overflow-x-auto border border-amber-200 bg-amber-50/40 rounded-xl">
         <table className="w-full text-xs">
           <thead>
@@ -74,9 +39,8 @@ export default function StuckOrdersTable({
               <th className="py-2 px-3 font-medium">Order</th>
               <th className="py-2 px-3 font-medium">User</th>
               <th className="py-2 px-3 font-medium">Amount</th>
-              <th className="py-2 px-3 font-medium">Last error</th>
+              <th className="py-2 px-3 font-medium">Reason</th>
               <th className="py-2 px-3 font-medium">Created</th>
-              <th className="py-2 px-3 font-medium text-right">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-amber-100">
@@ -101,16 +65,6 @@ export default function StuckOrdersTable({
                 </td>
                 <td className="py-2 px-3 text-gray-700">
                   {o.createdAt ? formatIndianDateTime(o.createdAt) : '—'}
-                </td>
-                <td className="py-2 px-3 text-right">
-                  <button
-                    onClick={() => onResync(o.orderId)}
-                    disabled={pendingId === o.orderId || !!bulkProgress}
-                    className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 px-2 py-1 rounded-md transition-colors disabled:opacity-50 disabled:cursor-wait"
-                  >
-                    <RefreshCw className={`h-3 w-3 ${pendingId === o.orderId ? 'animate-spin' : ''}`} />
-                    Re-sync
-                  </button>
                 </td>
               </tr>
             ))}

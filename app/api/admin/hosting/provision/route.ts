@@ -4,11 +4,9 @@ import { DirectAdminService, DA_SERVER_IP } from "@/lib/directadmin";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
 import { EmailService } from "@/lib/email";
-import { createPrimaryInvoice } from "@/lib/services/billing/createPrimaryInvoice";
-import { cartItemsFromOrderDomains } from "@/lib/services/payment/order-creator";
-import type { RazorpayPaymentDetails } from "@/lib/types";
+import { flagPaymentWithoutBill } from "@/lib/billing/no-dms-bills";
 import { getUserById } from "@/lib/services/users";
-import { createOrder, markInvoiceCreationFailed } from "@/lib/services/orders";
+import { createOrder } from "@/lib/services/orders";
 import { createPendingHosting } from "@/lib/services/pending-hostings";
 import { createHosting } from "@/lib/services/hostings";
 import { calculateHostingDates } from "@/lib/hosting-dates";
@@ -171,29 +169,10 @@ export async function POST(request: NextRequest) {
         const newOrder = await createOrder(orderPayload);
         serverLogger.info(`Created Order record for admin-provisioned hosting: ${domain} (Price: ${totalPrice})`);
 
-        // 5c. Issue the invoice — same engine and chokepoint as a paid order.
-        // Until 24 Sep 2026 this called Zoho Books directly. A ₹0 provision is
-        // skipped by the engine's zero-amount policy. A failure never blocks
-        // the provision; it flags the order for admin integration-health.
-        try {
-            const result = await createPrimaryInvoice({
-                order: newOrder,
-                orderId: newOrder.orderId,
-                razorpay_payment_id: "",
-                paymentDetails: {
-                    id: "",
-                    amount: totalPrice,
-                    currency: "INR",
-                } as RazorpayPaymentDetails,
-                user,
-                cartItems: cartItemsFromOrderDomains(newOrder.domains || []),
-            });
-            serverLogger.info(`Invoice for admin provision ${domain}: ${result.provider} ${result.invoiceNumber ?? ""}`);
-        } catch (invoiceError: unknown) {
-            const message = invoiceError instanceof Error ? invoiceError.message : String(invoiceError);
-            serverLogger.warn(`Failed to issue invoice for admin provision ${domain}: ${message}`);
-            await markInvoiceCreationFailed(newOrder._id, message).catch(() => {});
-        }
+        // 5c. No bill from DMS (owner decision, 24 Sep 2026). An admin
+        // provision with a price is flagged for billing in ResellerOS; a ₹0
+        // provision needs none (lib/billing/no-dms-bills.ts).
+        await flagPaymentWithoutBill(newOrder, "admin/hosting/provision");
         // 5e. Create Hosting Record for visibility in Services Modal
         try {
             await createHosting({

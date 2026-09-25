@@ -8,9 +8,8 @@
  * What is pinned now:
  *   - `invoice_id` is the ORDER id and is set only once an invoice is issued;
  *     View → /dashboard/invoices/<id>/view, Download → /api/v1/orders/<id>/invoice
- *   - a paid row whose invoice attempt FAILED (`invoice_failed`) offers the
- *     "Generating · Retry" pill, which posts to /api/v1/user/invoices/sync
- *   - while any row is failed the list re-polls every 30s
+ *   - since 25 Sep 2026 (DMS issues no bills) there is no retry pill, no
+ *     sync call and no polling
  *   - there is no Pay Now button and nothing calls /api/v1/user/invoices/<id>/pay
  *     (that route was deleted)
  *
@@ -172,55 +171,24 @@ describe("<InvoicesPage> — an issued invoice", () => {
   });
 });
 
-describe("<InvoicesPage> — a paid order whose invoice attempt failed", () => {
-  it("shows the retry pill and no View/Download", () => {
+// DMS issues no bills since 25 Sep 2026: there is no retry pill, no sync
+// call and no polling. A paid order with no DMS invoice simply has no document.
+describe("<InvoicesPage> — no retry", () => {
+  it("a paid row with no DMS invoice shows no retry pill and no View/Download", () => {
     swrData.current = { invoices: [failedInvoice()] };
     render(<InvoicesPage />);
-
-    expect(screen.getByText(RETRY_PILL)).toBeInTheDocument();
+    expect(screen.queryByText(RETRY_PILL)).not.toBeInTheDocument();
     expect(screen.queryByTitle("Download PDF")).not.toBeInTheDocument();
     expect(screen.queryByTitle("View invoice")).not.toBeInTheDocument();
   });
 
-  it("pressing Retry posts to the sync route and refreshes the list", async () => {
-    apiPost.mockResolvedValue({ ok: true, data: { recovered: 1, failed: 0, total: 1 } });
-    swrData.current = { invoices: [failedInvoice()] };
-    render(<InvoicesPage />);
-
-    await userEvent.click(screen.getByText(RETRY_PILL));
-
-    await waitFor(() => expect(mutate).toHaveBeenCalled());
-    expect(apiPost).toHaveBeenCalledWith("/api/v1/user/invoices/sync", undefined);
-  });
-
-  it("an issued row and a failed row side by side each get their own actions", () => {
-    swrData.current = { invoices: [issuedInvoice(), failedInvoice()] };
-    render(<InvoicesPage />);
-
-    expect(screen.getAllByTitle("View invoice")).toHaveLength(1);
-    expect(screen.getAllByTitle("Download PDF")).toHaveLength(1);
-    expect(screen.getAllByText(RETRY_PILL)).toHaveLength(1);
-  });
-
-  it("re-polls every 30s while a row is failed", () => {
+  it("never polls and never posts to the deleted sync route", async () => {
     vi.useFakeTimers();
     swrData.current = { invoices: [failedInvoice()] };
     render(<InvoicesPage />);
-
-    expect(mutate).not.toHaveBeenCalled();
-    act(() => { vi.advanceTimersByTime(30000); });
-    expect(mutate).toHaveBeenCalledTimes(1);
-    act(() => { vi.advanceTimersByTime(30000); });
-    expect(mutate).toHaveBeenCalledTimes(2);
-  });
-
-  it("does not poll when every row is issued", () => {
-    vi.useFakeTimers();
-    swrData.current = { invoices: [issuedInvoice()] };
-    render(<InvoicesPage />);
-
     act(() => { vi.advanceTimersByTime(90000); });
     expect(mutate).not.toHaveBeenCalled();
+    expect(apiPost).not.toHaveBeenCalled();
   });
 });
 
@@ -248,7 +216,6 @@ describe("<InvoicesPage> — Pay Now is gone", () => {
       ...vi.mocked(fetch).mock.calls.map((c) => String(c[0])),
       ...apiPost.mock.calls.map((c) => String(c[0])),
     ];
-    expect(urls.length).toBeGreaterThan(0);
     expect(urls.some((u) => payPattern.test(u))).toBe(false);
   });
 
@@ -264,15 +231,11 @@ describe("<InvoicesPage> — Pay Now is gone", () => {
 });
 
 describe("<InvoicesPage> — info banner", () => {
-  it("explains automatic issue and the Retry path, without the accounting-system wording", () => {
+  it("says new bills come from the billing system and older DMS invoices stay listed", () => {
     swrData.current = { invoices: [issuedInvoice()] };
     render(<InvoicesPage />);
-
-    expect(
-      screen.getByText(
-        "A GST invoice is issued automatically when your payment completes. If one shows “Generating”, press Retry — or check back in a few minutes and it will appear here."
-      )
-    ).toBeInTheDocument();
+    expect(screen.getByText(/New bills are issued by our billing system and emailed to you/)).toBeInTheDocument();
+    expect(screen.queryByText(/press Retry/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/synchronized from our accounting system/i)).not.toBeInTheDocument();
   });
 });

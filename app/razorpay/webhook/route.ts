@@ -7,12 +7,11 @@ import { serverLogger } from "@/lib/server-logger";
 import {
   claimPendingOrderForProcessing,
   findOrderByRazorpayOrderIdOrInternalId,
-  markInvoiceCreationFailed,
   getOrderByRazorpayPaymentId,
   flagCreditNotePending,
 } from "@/lib/services/orders";
 import { finalizePendingOrder } from "@/lib/services/payment/order-creator";
-import { createPrimaryInvoice } from "@/lib/services/billing/createPrimaryInvoice";
+import { flagPaymentWithoutBill } from "@/lib/billing/no-dms-bills";
 import { RazorpayService } from "@/lib/razorpay";
 import { createTokensFlowTrialHosting } from "@/lib/services/payment/tokens-trial-provisioner";
 import { findUserHosting } from "@/lib/services/hostings";
@@ -203,93 +202,12 @@ async function handlePaymentCaptured(payload: PaymentCapturedPayload) {
         order_id: payment.order_id ?? claimed.razorpayOrderId,
     } as RazorpayPaymentDetails;
 
-    // Phase 4 (Primary Billing Integration Phase 1c-3): invoice creation via
-    // createPrimaryInvoice — our own GST engine, the only issuer. Done inline (not inside finalizePendingOrder)
-    // because /verify also creates its invoice before/alongside completing
-    // the order — keeping both call sites symmetrical avoids the webhook
-    // silently skipping invoicing on the unhappy path.
-    //
-    // Persisted IMMEDIATELY here (not stamped onto `claimed` in-memory for
-    // finalizePendingOrder's later save, as this block used to do) — safe
-    // because claimPendingOrderForProcessing above already gives this
-    // webhook invocation exclusive ownership of the order, and
-    // finalizePendingOrder's own `order.save()` only sends Mongoose's
-    // tracked MODIFIED paths (see its comment: "save() emits only the
-    // status transition... plus the Payment row"), so it can never clobber
-    // fields a separate targeted `updateOne` already wrote here.
-    //
-    // TRIAL / ZERO-AMOUNT GUARD: createPrimaryInvoice has its own internal
-    // copy of this guard, but checking it here too avoids even building the
-    // cartItems payload for an order that will be skipped anyway. Tokens
-    // trials already return earlier via handleMandateValidationCaptured;
-    // this is defence-in-depth for any future non-trial-but-zero-amount
-    // caller. See CLAUDE.md "Trial order invoice policy".
-    const _webhookAmt = claimed.amount;
-    const _skipInvoice =
-        !_webhookAmt || _webhookAmt <= 0 || claimed.orderType === "hosting_trial";
-    if (_skipInvoice) {
-        serverLogger.info(
-            `⏭️ [Webhook] Skipping zero-amount/trial invoice for ${claimed.orderId} ` +
-            `(amount=${_webhookAmt}, orderType=${claimed.orderType}) — Trial order invoice policy.`
-        );
-    } else {
-        try {
-            const items = claimed.domains.map((d: IOrder["domains"][number]) => ({
-                domainName: d.domainName,
-                price: d.price,
-                currency: d.currency,
-                itemType: d.itemType,
-                registrationPeriod: d.registrationPeriod,
-                hostingPlan: d.hostingPlan,
-            }));
-
-            const invoiceResult = await createPrimaryInvoice({
-                order: claimed,
-                orderId: claimed.orderId,
-                razorpay_payment_id: payment.id,
-                paymentDetails,
-                user,
-                cartItems: items,
-            });
-
-            // CRITICAL: sync the issued invoice back onto the in-memory doc.
-            // createPrimaryInvoice persists via a targeted `Order.updateOne`,
-            // but `claimed` was loaded BEFORE that write, so it still looks
-            // un-invoiced. finalizePendingOrder below flips status to
-            // 'completed' and calls order.save() — which fires the Order
-            // pre-save hook, and that hook mints a legacy `INV-<ts>-<hex>`
-            // number whenever `status === 'completed' && !this.invoiceNumber`.
-            // Without this sync the hook silently OVERWRITES the real
-            // TI/YYYY-YY/NNNNN tax-invoice number that was
-            // just written to the database — destroying the legally
-            // sequential number while leaving the GST breakdown in place.
-            // Caught by an end-to-end purchase test, 2026-09-02.
-            if (invoiceResult.provider === "primary") {
-                if (invoiceResult.invoiceNumber) claimed.invoiceNumber = invoiceResult.invoiceNumber;
-                claimed.invoiceProvider = "primary";
-            }
-        } catch (error) {
-            // Don't rethrow — let provisioning proceed. Throwing here would
-            // cause Razorpay to retry the webhook even though the payment
-            // is safely captured and the order is being provisioned. Flag the
-            // order instead: lib/invoice-retry picks it up and admin
-            // integration-health lists it until an invoice exists.
-            serverLogger.error("❌ Invoice creation failed", error);
-            // Guarded: a failure to write the flag must not escape this catch —
-            // that would skip finalizePendingOrder below (no provisioning) and
-            // make Razorpay retry a payment that is already captured.
-            await markInvoiceCreationFailed(
-                claimed._id,
-                error instanceof Error ? error.message : String(error)
-            ).catch((markErr: unknown) =>
-                serverLogger.error(
-                    `❌ [Webhook] ALSO failed to flag order ${claimed.orderId} as uninvoiced — ` +
-                    `it will NOT show in integration-health: ` +
-                    (markErr instanceof Error ? markErr.message : String(markErr))
-                )
-            );
-        }
-    }
+    // No bill from DMS (owner decision, 24 Sep 2026). This order was paid on
+    // DMS's own Razorpay account, so ResellerOS has no record of it: flag it
+    // for an operator to bill in ResellerOS (lib/billing/no-dms-bills.ts).
+    // Never throws, so provisioning below always runs and Razorpay is not
+    // made to retry a captured payment.
+    await flagPaymentWithoutBill(claimed, "razorpay/webhook payment.captured");
 
     // Phase 5: Provisioning + Payment row + status flip. finalizePendingOrder
     // runs the per-item provisioner fan-out, writes the Payment row, and

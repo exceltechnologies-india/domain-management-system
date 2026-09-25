@@ -1,7 +1,7 @@
 /**
  * Tests for `app/api/admin/hosting/provision/route.ts` (rescan-4
  * slice 7g7). Admin manual hosting-provision endpoint. Coordinates
- * DA createUser + DNS NS update + Order row + invoice (createPrimaryInvoice) +
+ * DA createUser + DNS NS update + Order row + no-bill flag (DMS issues no bills) +
  * Hosting row + email notification + PendingHosting save-on-failure.
  *
  * Pins:
@@ -82,9 +82,12 @@ vi.mock("@/lib/email", () => ({
   EmailService: { sendHostingProvisionedEmail },
 }));
 
-const createPrimaryInvoice = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/services/billing/createPrimaryInvoice", () => ({
-  createPrimaryInvoice,
+// DMS issues no bills (owner decision, 24 Sep 2026): the code under test
+// flags a paid order for billing in ResellerOS instead of invoicing it.
+const flagPaymentWithoutBill = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/billing/no-dms-bills", async (orig) => ({
+  ...(await orig<typeof import("@/lib/billing/no-dms-bills")>()),
+  flagPaymentWithoutBill,
 }));
 
 const cartItemsFromOrderDomains = vi.hoisted(() =>
@@ -185,11 +188,7 @@ beforeEach(() => {
   createPendingHosting.mockReset().mockResolvedValue(undefined);
   createHosting.mockReset().mockResolvedValue(undefined);
   sendHostingProvisionedEmail.mockReset().mockResolvedValue(undefined);
-  createPrimaryInvoice.mockReset().mockResolvedValue({
-    invoiceId: "",
-    invoiceNumber: "TI/2026-27/00001",
-    provider: "primary",
-  });
+  flagPaymentWithoutBill.mockReset().mockResolvedValue(undefined);
   markInvoiceCreationFailed.mockReset().mockResolvedValue(undefined);
   cartItemsFromOrderDomains.mockClear();
   HostingPlanFindOne.mockReset().mockResolvedValue(null);
@@ -460,57 +459,17 @@ describe("Price resolution: manualPrice > plan.price > 0", () => {
   });
 });
 
-// ─── Invoice via createPrimaryInvoice (best-effort) ────────────────
-describe("Invoice via createPrimaryInvoice (best-effort)", () => {
-  it("called once with the new order, the user, an admin (empty) payment id and the order's items", async () => {
-    const user = makeUser();
-    getUserById.mockResolvedValueOnce(user);
-    await POST(makeReq({ ...validBody, price: 999 }));
-
-    expect(createPrimaryInvoice).toHaveBeenCalledTimes(1);
-    const [ctx] = createPrimaryInvoice.mock.calls[0];
-    expect(ctx.orderId).toBe("ORD-ADMIN-1");
-    expect(ctx.order._id).toBe("OBJ-ORDER-1");
-    expect(ctx.razorpay_payment_id).toBe("");
-    expect(ctx.paymentDetails).toEqual({ id: "", amount: 999, currency: "INR" });
-    expect(ctx.user).toBe(user);
-    expect(ctx.cartItems).toEqual([{ domainName: "alice.example.com" }]);
-    expect(markInvoiceCreationFailed).not.toHaveBeenCalled();
-  });
-
-  it("invoice failure → RECORDED via markInvoiceCreationFailed(order._id, message); provisioning still 200", async () => {
+// ─── No bill from DMS (owner decision, 24 Sep 2026) ────────────────
+describe("No bill from DMS", () => {
+  it("an admin provision with a price is flagged for billing in ResellerOS", async () => {
     getUserById.mockResolvedValueOnce(makeUser());
-    createPrimaryInvoice.mockRejectedValueOnce(new Error("COMPANY_STATE is not configured"));
-
-    const res = await POST(makeReq(validBody));
+    const res = await POST(makeReq({ ...validBody, price: 999 }));
+    expect(flagPaymentWithoutBill).toHaveBeenCalledTimes(1);
+    expect(flagPaymentWithoutBill.mock.calls[0][1]).toBe("admin/hosting/provision");
     expect(res.status).toBe(200);
-    expect(markInvoiceCreationFailed).toHaveBeenCalledWith(
-      "OBJ-ORDER-1",
-      "COMPANY_STATE is not configured"
-    );
-    // The hosting record and the email still happen after an invoice failure.
-    expect(createHosting).toHaveBeenCalled();
-    expect(sendHostingProvisionedEmail).toHaveBeenCalled();
-  });
-
-  it("markInvoiceCreationFailed rejecting too is still swallowed → 200", async () => {
-    getUserById.mockResolvedValueOnce(makeUser());
-    createPrimaryInvoice.mockRejectedValueOnce(new Error("boom"));
-    markInvoiceCreationFailed.mockRejectedValueOnce(new Error("db down"));
-    const res = await POST(makeReq(validBody));
-    expect(res.status).toBe(200);
-  });
-
-  it("'skipped' (₹0 provision) is not recorded as a failure", async () => {
-    getUserById.mockResolvedValueOnce(makeUser());
-    createPrimaryInvoice.mockResolvedValueOnce({ invoiceId: "", invoiceNumber: null, provider: "skipped" });
-    const res = await POST(makeReq(validBody));
-    expect(res.status).toBe(200);
-    expect(markInvoiceCreationFailed).not.toHaveBeenCalled();
   });
 });
 
-// ─── createHosting + email (best-effort) ───────────────────────────
 describe("Hosting record + email (best-effort)", () => {
   it("createHosting called with full payload (userId, domainName, planId, name, serverPackage, daUsername, dates, orderId, paymentId)", async () => {
     getUserById.mockResolvedValueOnce(makeUser());

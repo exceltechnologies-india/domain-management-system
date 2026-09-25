@@ -6,9 +6,8 @@ import type { IOrder } from "@/models/Order";
 import {
   getOrderByOrderId,
   getOrderByRazorpayOrderId,
-  markInvoiceCreationFailed,
 } from "@/lib/services/orders";
-import { createPrimaryInvoice } from "@/lib/services/billing/createPrimaryInvoice";
+import { flagPaymentWithoutBill } from "@/lib/billing/no-dms-bills";
 import { listHostingsForUser } from "@/lib/services/hostings";
 import { getCurrentDate } from "@/lib/dateUtils";
 import { serverLogger } from "@/lib/server-logger";
@@ -53,57 +52,12 @@ export async function handleRenewalPayment(
     (await getOrderByRazorpayOrderId(razorpay_order_id)) ??
     (await getOrderByOrderId(razorpay_order_id));
 
-  // The invoice number recorded on the hosting as its renewal invoice.
-  let invoiceId: string | undefined;
 
-  // 1. Issue the renewal invoice through our own GST engine.
-  //
-  // `notes.type === "invoice_payment"` (still honoured by `isRenewal` above)
-  // used to mean "the customer paid an existing Zoho invoice"; that path died
-  // with Zoho Books on 24 Sep 2026, so such a payment is treated like any
-  // other renewal: invoice the renewal order if there is one.
+  // 1. No renewal bill from DMS (owner decision, 24 Sep 2026: renewals are
+  // ResellerOS's). A renewal paid here is flagged for an operator to bill in
+  // ResellerOS (lib/billing/no-dms-bills.ts). The renewal itself proceeds.
   if (renewalOrder) {
-    try {
-      serverLogger.info(
-        `📊 [PAYMENT-VERIFY] Creating invoice for renewal order: ${renewalOrder.orderId}`
-      );
-
-      const invoiceItems = renewalOrder.domains.map((d: IOrder['domains'][number]) => ({
-        itemType: d.itemType || "domain",
-        domainName: d.domainName,
-        price: d.price,
-        currency: d.currency || renewalOrder!.currency,
-        registrationPeriod: d.registrationPeriod || 1,
-        periodUnit:
-          d.periodUnit || (d.itemType === "hosting" ? "months" : "years"),
-        hostingPlan: d.hostingPlan,
-      }));
-
-      const result = await createPrimaryInvoice({
-        order: renewalOrder,
-        orderId: renewalOrder.orderId,
-        razorpay_payment_id,
-        paymentDetails,
-        user,
-        cartItems: invoiceItems,
-      });
-
-      if (result.invoiceId) {
-        invoiceId = result.invoiceId;
-        serverLogger.info(
-          `✅ [PAYMENT-VERIFY] Invoice ${invoiceId} issued for renewal ${renewalOrder.orderId}`
-        );
-      }
-    } catch (err: unknown) {
-      const errMessage = err instanceof Error ? err.message : String(err);
-      serverLogger.error(
-        `❌ [PAYMENT-VERIFY] Failed to create invoice for renewal:`,
-        errMessage
-      );
-      // The renewal itself proceeds (the customer paid); the missing invoice
-      // is flagged so lib/invoice-retry and integration-health can see it.
-      await markInvoiceCreationFailed(renewalOrder._id, errMessage).catch(() => {});
-    }
+    await flagPaymentWithoutBill(renewalOrder, "payment renewal");
   } else if (paymentDetails?.notes?.invoice_id) {
     serverLogger.warn(
       `[PAYMENT-VERIFY] Payment ${razorpay_payment_id} references legacy invoice ${paymentDetails.notes.invoice_id} ` +
@@ -175,7 +129,7 @@ export async function handleRenewalPayment(
             // renewalInvoiceId / renewalStatus are stored on Hosting but not
             // in IHosting's typed shape — they're written by this renewal flow
             // and inspected by ops dashboards.
-            (hosting as unknown as { renewalInvoiceId?: string; renewalStatus?: string }).renewalInvoiceId = invoiceId;
+            // renewalInvoiceId is no longer written: DMS issues no renewal bill.
             (hosting as unknown as { renewalInvoiceId?: string; renewalStatus?: string }).renewalStatus = "paid";
             hosting.last_reminder_sent = null;
             hosting.next_action_at = new Date(

@@ -3,7 +3,7 @@
  * THE payment-verification entry point. Orchestrates signature
  * verification → ownership check → amount-match → renewal/upgrade/
  * idempotency forks → restricted-domain reject → pending-order claim
- * → invoice (createPrimaryInvoice) → post-payment tasks. Pins:
+ * → no-bill flag (DMS issues no bills since 25 Sep 2026) → post-payment tasks. Pins:
  *  - **Auth gate**: AuthService.getUserFromRequest returns null → 401
  *    'Unauthorized' (FIRST check — no other side effects)
  *  - **Schema validation 'order_id OR subscription_id required'**
@@ -36,13 +36,9 @@
  *  - **finalizePendingOrder vs createCompletedOrder fork**: pending
  *    order → finalize (DB-trusted cart from order.domains); no
  *    pending → createCompleted (legacy path)
- *  - **cartItemsFromOrderDomains used for the invoice** — NOT
- *    request-body cartItems (the H1 fix for swap-domain line items)
- *  - **Invoice failure SWALLOWED** → invoiceCreationFailed:true, status
- *    207 multi-status, error message in body
- *  - **markInvoiceCreationFailed(orderId, message) called on invoice
- *    throw** (durable DB record — reason included — so the retry layer
- *    and integration-health pick it up)
+ *  - **No bill from DMS**: the paid order is flagged via
+ *    flagPaymentWithoutBill for billing in ResellerOS; the response says
+ *    invoiceStatus "not_issued_by_dms" and never 207
  *  - **handleVerificationError catch path**: passes outer-scope refs
  *    (razorpay_order_id + payment_id + existingOrderRef) so it
  *    updates the right pending Order instead of creating a duplicate
@@ -77,13 +73,12 @@ vi.mock("@/lib/services/payment/post-tasks", () => ({
   runPostPaymentTasks,
 }));
 
-// createPrimaryInvoice is the only invoice issuer since Zoho Books was
-// removed (24 Sep 2026). Mocked at the module boundary so the real
-// billing-engine module graph (models/Counter, mongodb connect) is not
-// loaded into a route unit test.
-const createPrimaryInvoice = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/services/billing/createPrimaryInvoice", () => ({
-  createPrimaryInvoice,
+// DMS issues no bills (owner decision, 24 Sep 2026). The route flags a paid
+// order for billing in ResellerOS instead; mocked at the module boundary.
+const flagPaymentWithoutBill = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/billing/no-dms-bills", async (orig) => ({
+  ...(await orig<typeof import("@/lib/billing/no-dms-bills")>()),
+  flagPaymentWithoutBill,
 }));
 
 const verifyRazorpayPayment = vi.hoisted(() => vi.fn());
@@ -167,7 +162,7 @@ beforeEach(() => {
   getOrderByRazorpayOrderId.mockReset();
   handleRenewalPayment.mockReset().mockResolvedValue(null);
   handleAlreadyProcessedPayment.mockReset().mockResolvedValue(null);
-  createPrimaryInvoice.mockReset().mockResolvedValue({ invoiceId: "", invoiceNumber: "INV-1", provider: "primary" });
+  flagPaymentWithoutBill.mockReset().mockResolvedValue(undefined);
   runPostPaymentTasks.mockReset().mockResolvedValue(undefined);
   verifyRazorpayPayment
     .mockReset()
@@ -343,7 +338,7 @@ describe("Already-completed early-exit — idempotency", () => {
     expect(body.message).toBe("Order already completed.");
     expect(body.orderId).toBe("ORD-1");
     expect(claimPendingOrderForProcessing).not.toHaveBeenCalled();
-    expect(createPrimaryInvoice).not.toHaveBeenCalled();
+    expect(flagPaymentWithoutBill).not.toHaveBeenCalled();
   });
 });
 
@@ -409,7 +404,7 @@ describe("Renewal flow short-circuit", () => {
 
     const res = await POST(makeReq(validBody));
     expect(res).toBe(renewalResp);
-    expect(createPrimaryInvoice).not.toHaveBeenCalled();
+    expect(flagPaymentWithoutBill).not.toHaveBeenCalled();
     expect(handleAlreadyProcessedPayment).not.toHaveBeenCalled();
   });
 });
@@ -573,134 +568,38 @@ describe("createCompletedOrder — legacy / no-pending fallback", () => {
   });
 });
 
-// ─── Invoice + cartItemsFromOrderDomains ───────────────────────────
-describe("Invoice — DB-trusted line items (H1 fix)", () => {
-  it("cartItemsFromOrderDomains called with order.domains (NOT request-body cartItems)", async () => {
+// ─── No bill from DMS (owner decision, 24 Sep 2026) ─────────────────
+// Replaces the invoice block: DMS mints no invoice, and a paid order is
+// FLAGGED for an operator to bill in ResellerOS rather than left silent.
+describe("No bill from DMS", () => {
+  it("flags the completed order for billing in ResellerOS", async () => {
     getUserFromRequest.mockResolvedValueOnce(validUser);
     getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
-    const dbDomains = [{ domainName: "real.com", price: 500 }];
-    createCompletedOrder.mockResolvedValueOnce({
-      order: {
-        _id: "OID-1",
-        orderId: "ORD-1",
-        domains: dbDomains,
-        invoiceNumber: "INV-1",
-      },
-      orderId: "ORD-1",
-      registrationResults: [],
-      finalSuccessfulDomains: ["real.com"],
-      pendingDomains: [],
-      failedDomains: [],
-      orderDomains: dbDomains,
-      orderStatus: "completed",
-    });
-    cartItemsFromOrderDomains.mockReturnValueOnce([
-      { domainName: "real.com", price: 500 },
-    ]);
-
+    setupCompletedOrderHappyPath();
     await POST(makeReq(validBody));
-    expect(cartItemsFromOrderDomains).toHaveBeenCalledWith(dbDomains);
+    expect(flagPaymentWithoutBill).toHaveBeenCalledTimes(1);
+    expect(flagPaymentWithoutBill.mock.calls[0][0]).toMatchObject({ _id: "OID-1" });
+    expect(flagPaymentWithoutBill.mock.calls[0][1]).toBe("payments/verify");
   });
 
-  it("invoice failure SWALLOWED → invoiceCreationFailed:true, status 207", async () => {
-    getUserFromRequest.mockResolvedValueOnce(validUser);
-    getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
-    setupCompletedOrderHappyPath();
-    createPrimaryInvoice.mockRejectedValueOnce(new Error("COMPANY_STATE is not configured"));
-    markInvoiceCreationFailed.mockResolvedValueOnce(undefined);
-
-    const res = await POST(makeReq(validBody));
-    expect(res.status).toBe(207);
-    const body = await res.json();
-    expect(body.invoiceStatus).toBe("failed");
-    expect(body.invoiceCreationError).toMatch(/contact support/i);
-  });
-
-  it("**markInvoiceCreationFailed(orderId, reason) called on invoice throw** (durable DB record)", async () => {
-    getUserFromRequest.mockResolvedValueOnce(validUser);
-    getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
-    setupCompletedOrderHappyPath();
-    createPrimaryInvoice.mockRejectedValueOnce(new Error("COMPANY_STATE is not configured"));
-    markInvoiceCreationFailed.mockResolvedValueOnce(undefined);
-
-    await POST(makeReq(validBody));
-    expect(markInvoiceCreationFailed).toHaveBeenCalledWith(
-      "OID-1",
-      "COMPANY_STATE is not configured"
-    );
-  });
-
-  it("invoice throw → recordSystemLog called with durable failure record naming the reason", async () => {
-    getUserFromRequest.mockResolvedValueOnce(validUser);
-    getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
-    setupCompletedOrderHappyPath();
-    createPrimaryInvoice.mockRejectedValueOnce(new Error("COMPANY_STATE is not configured"));
-    markInvoiceCreationFailed.mockResolvedValueOnce(undefined);
-
-    await POST(makeReq(validBody));
-    expect(recordSystemLog).toHaveBeenCalledWith(
-      expect.objectContaining({
-        level: "error",
-        source: "payments/verify",
-        service: "payments",
-        message: "[PAYMENT-VERIFY] Invoice creation failed: COMPANY_STATE is not configured",
-      })
-    );
-  });
-
-  it("markInvoiceCreationFailed rejecting does not change the 207 response", async () => {
-    getUserFromRequest.mockResolvedValueOnce(validUser);
-    getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
-    setupCompletedOrderHappyPath();
-    createPrimaryInvoice.mockRejectedValueOnce(new Error("boom"));
-    markInvoiceCreationFailed.mockRejectedValueOnce(new Error("db down"));
-    const res = await POST(makeReq(validBody));
-    expect(res.status).toBe(207);
-  });
-
-  it("engine returns no invoiceNumber (skipped) → falls back to local order.invoiceNumber", async () => {
-    getUserFromRequest.mockResolvedValueOnce(validUser);
-    getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
-    setupCompletedOrderHappyPath();
-    createPrimaryInvoice.mockResolvedValueOnce({ invoiceId: "", invoiceNumber: null, provider: "skipped" });
-
-    const res = await POST(makeReq(validBody));
-    const body = await res.json();
-    expect(body.invoiceNumber).toBe("INV-LOCAL-1"); // local fallback
-  });
-
-  it("invoice success: finalInvoiceNumber set from the engine's return", async () => {
-    getUserFromRequest.mockResolvedValueOnce(validUser);
-    getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
-    setupCompletedOrderHappyPath();
-    createPrimaryInvoice.mockResolvedValueOnce({ invoiceId: "", invoiceNumber: "TI/2026-27/00999", provider: "primary" });
-
-    const res = await POST(makeReq(validBody));
-    const body = await res.json();
-    expect(body.invoiceNumber).toBe("TI/2026-27/00999");
-    expect(body.invoiceStatus).toBe("created");
-    expect(res.status).toBe(200); // 200 — not 207
-  });
-});
-
-// ─── Status code: 207 vs 200 ───────────────────────────────────────
-describe("Status code", () => {
-  it("invoice success → 200", async () => {
+  it("answers 200 with invoiceStatus not_issued_by_dms and tells the customer where the bill comes from", async () => {
     getUserFromRequest.mockResolvedValueOnce(validUser);
     getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
     setupCompletedOrderHappyPath();
     const res = await POST(makeReq(validBody));
     expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.invoiceStatus).toBe("not_issued_by_dms");
+    expect(body.billNotice).toMatch(/emailed to you/);
+    expect(body).not.toHaveProperty("invoiceCreationError");
   });
 
-  it("invoice failure → 207 (multi-status — payment succeeded, invoice didn't)", async () => {
+  it("a legacy number already on an old order is still reported, never invented", async () => {
     getUserFromRequest.mockResolvedValueOnce(validUser);
     getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
     setupCompletedOrderHappyPath();
-    createPrimaryInvoice.mockRejectedValueOnce(new Error("COMPANY_STATE is not configured"));
-    markInvoiceCreationFailed.mockResolvedValueOnce(undefined);
-    const res = await POST(makeReq(validBody));
-    expect(res.status).toBe(207);
+    const body = await (await POST(makeReq(validBody))).json();
+    expect(body.invoiceNumber).toBe("INV-LOCAL-1");
   });
 });
 
@@ -824,12 +723,10 @@ describe("Response message — hosting vs domain composition", () => {
 
 // ─── Post-payment tasks ────────────────────────────────────────────
 describe("runPostPaymentTasks — non-critical tasks", () => {
-  it("called after the invoice step (even on invoice failure, post-tasks still run — email/notifications)", async () => {
+  it("called after the no-bill flag (post-tasks still run — email/notifications)", async () => {
     getUserFromRequest.mockResolvedValueOnce(validUser);
     getOrderByRazorpayOrderId.mockResolvedValueOnce(null);
     setupCompletedOrderHappyPath();
-    createPrimaryInvoice.mockRejectedValueOnce(new Error("COMPANY_STATE is not configured"));
-    markInvoiceCreationFailed.mockResolvedValueOnce(undefined);
 
     await POST(makeReq(validBody));
     expect(runPostPaymentTasks).toHaveBeenCalled();

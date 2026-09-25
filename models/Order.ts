@@ -509,8 +509,7 @@ OrderSchema.index({ invoiceFailedAt: 1 }, { sparse: true });
  * Pre-save Database Hook for Orders
  * 
  * Automatically generates a unique Purchase Order (PO) number for all new
- * orders. Furthermore, if an order successfully transitions to a 'completed'
- * state, it generates a unique Invoice Number for billing purposes.
+ * orders. It does NOT generate an invoice number (see below).
  */
 OrderSchema.pre("save", function (next) {
   // Random suffix uses crypto.randomBytes (~16M values) instead of
@@ -525,27 +524,12 @@ OrderSchema.pre("save", function (next) {
     this.purchaseOrderNumber = `PO-${timestamp}-${randomSuffix()}`;
   }
 
-  // Generate invoice number for completed orders that don't yet have one.
-  // Fires on both fresh creates and on the `pending → completed` transition
-  // used by the new pending-order lifecycle (orders persisted at
-  // /create-order, finalised by /verify or /razorpay/webhook).
-  //
-  // The `invoiceProvider !== "primary"` guard is defence-in-depth for the
-  // Primary Billing Integration: a primary-issued order already carries a
-  // legally sequential TI/YYYY-YY/NNNNN number written by
-  // recordPrimaryInvoiceForOrder. If a caller saves a doc that was loaded
-  // BEFORE that write, `this.invoiceNumber` looks empty here and this hook
-  // would overwrite the real tax-invoice number with a random legacy one.
-  // Call sites holding such a doc must sync the number back (see the
-  // webhook's payment.captured handler); this guard catches the rest.
-  if (
-    this.status === "completed" &&
-    !this.invoiceNumber &&
-    this.invoiceProvider !== "primary"
-  ) {
-    const timestamp = Date.now().toString().slice(-6);
-    this.invoiceNumber = `INV-${timestamp}-${randomSuffix()}`;
-  }
+  // No invoice number is minted here any more. This hook used to write a
+  // legacy `INV-<ts>-<hex>` number onto every order that reached `completed`.
+  // DMS issues no bills (owner decision, 24 Sep 2026): every bill is
+  // ResellerOS's. Removed in the same commit as the TI/... engine, so there is
+  // never a window with one issuer left. Orders that already carry a number
+  // keep it. Pinned by tests/unit/lib/billing/no-dms-bills-scan.test.ts.
   next();
 });
 

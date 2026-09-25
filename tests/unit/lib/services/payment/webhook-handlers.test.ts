@@ -28,11 +28,9 @@
  *  - **createRenewalOrder failure NON-CRITICAL** (service already
  *    renewed — audit gap only); attachOrderToRenewal NOT called when
  *    Order creation failed
- *  - **Invoice issue is fire-and-forget** via createHttpTask to the
- *    `/api/v1/workers/issue-invoice` worker (was sync-zoho-invoice until
- *    Zoho Books was removed, 24 Sep 2026) on GCP_INVOICE_QUEUE_NAME ||
- *    GCP_QUEUE_NAME — failure logged + flow continues (Cloud Tasks handles
- *    retries; service activation never depends on invoicing)
+ *  - **No bill from DMS** (owner decision, 24 Sep 2026): the renewal order
+ *    is flagged via flagPaymentWithoutBill; the issue-invoice worker it used
+ *    to queue is deleted
  *  - handleSubscriptionFailed: status:'expired' + billingType:'manual'
  *    + next_action_at:undefined; **da suspend called** (typed outcome
  *    logged inside wrapper, callsite continues regardless — DB is the
@@ -76,8 +74,10 @@ vi.mock("@/lib/email", () => ({
   EmailService: { sendAdminNotification },
 }));
 
-const createHttpTask = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/cloud-tasks", () => ({ createHttpTask }));
+// DMS issues no bills (owner decision, 24 Sep 2026): the handler used to
+// queue the issue-invoice worker; it now flags the renewal order instead.
+const flagPaymentWithoutBill = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/billing/no-dms-bills", () => ({ flagPaymentWithoutBill }));
 
 const daSuspendUser = vi.hoisted(() => vi.fn());
 const daUnsuspendUser = vi.hoisted(() => vi.fn());
@@ -174,7 +174,7 @@ beforeEach(() => {
   });
   createRenewalOrder.mockResolvedValue({ _id: "ORD_RNW_1" });
   attachOrderToRenewal.mockResolvedValue(undefined);
-  createHttpTask.mockResolvedValue(undefined);
+  flagPaymentWithoutBill.mockReset().mockResolvedValue(undefined);
   daUnsuspendUser.mockResolvedValue({ kind: "unsuspended" });
   daSuspendUser.mockResolvedValue({ kind: "suspended" });
   sendAdminNotification.mockResolvedValue(undefined);
@@ -353,7 +353,7 @@ describe("handleSubscriptionCharged — renewal logic (Payment Always Wins)", ()
   });
 });
 
-describe("handleSubscriptionCharged — Order audit-trail + invoice task fire-and-forget", () => {
+describe("handleSubscriptionCharged — Order audit-trail + no-bill flag", () => {
   it("createRenewalOrder called + attachOrderToRenewal links the Order to the RenewalPayment", async () => {
     await handleSubscriptionCharged(payload());
     expect(createRenewalOrder).toHaveBeenCalled();
@@ -364,47 +364,15 @@ describe("handleSubscriptionCharged — Order audit-trail + invoice task fire-an
     createRenewalOrder.mockRejectedValueOnce(new Error("save conflict"));
     await handleSubscriptionCharged(payload());
     expect(attachOrderToRenewal).not.toHaveBeenCalled();
-    // Flow continues anyway, but the invoice task ALSO won't fire (no newOrder).
-    expect(createHttpTask).not.toHaveBeenCalled();
+    // Flow continues anyway; there is no order to flag.
+    expect(flagPaymentWithoutBill).not.toHaveBeenCalled();
   });
 
-  it("invoice task: createHttpTask to /api/v1/workers/issue-invoice after Order created", async () => {
-    vi.stubEnv("NEXTAUTH_URL", "https://dms.example");
+  it("no bill from DMS: the renewal order is flagged for billing in ResellerOS", async () => {
     await handleSubscriptionCharged(payload());
-    vi.unstubAllEnvs();
-    expect(createHttpTask).toHaveBeenCalled();
-    const [queue, url, payloadArg] = createHttpTask.mock.calls[0];
-    expect(typeof queue).toBe("string");
-    expect(url).toBe("https://dms.example/api/v1/workers/issue-invoice");
-    expect(String(url)).not.toMatch(/zoho/i);
-    expect(payloadArg.orderId).toBe("ORD_RNW_1");
-    expect(payloadArg.serviceType).toBe("hosting");
-    expect(payloadArg.amount).toBe(500); // 50000 paise → 500 rupees
-  });
-
-  it("queue: GCP_INVOICE_QUEUE_NAME wins; falls back to GCP_QUEUE_NAME", async () => {
-    vi.stubEnv("GCP_INVOICE_QUEUE_NAME", "invoice-queue");
-    vi.stubEnv("GCP_QUEUE_NAME", "general-queue");
-    await handleSubscriptionCharged(payload());
-    expect(createHttpTask.mock.calls[0][0]).toBe("invoice-queue");
-
-    createHttpTask.mockClear();
-    vi.stubEnv("GCP_INVOICE_QUEUE_NAME", "");
-    await handleSubscriptionCharged(payload());
-    vi.unstubAllEnvs();
-    expect(createHttpTask.mock.calls[0][0]).toBe("general-queue");
-  });
-
-  it("createHttpTask failure SWALLOWED but LOGGED (service activation never depends on invoicing)", async () => {
-    serverLogger.error.mockClear();
-    createHttpTask.mockRejectedValueOnce(new Error("queue offline"));
-    await handleSubscriptionCharged(payload());
-    // The rejection is handled by a .catch on a floating promise; let it run.
-    await new Promise((r) => setTimeout(r, 0));
-    expect(createRenewalOrder).toHaveBeenCalled();
-    expect(serverLogger.error).toHaveBeenCalledWith(
-      "[Webhook] Failed to queue invoice task: queue offline"
-    );
+    expect(flagPaymentWithoutBill).toHaveBeenCalledTimes(1);
+    expect(flagPaymentWithoutBill.mock.calls[0][0]).toMatchObject({ _id: "ORD_RNW_1" });
+    expect(flagPaymentWithoutBill.mock.calls[0][1]).toBe("webhook subscription.charged");
   });
 });
 

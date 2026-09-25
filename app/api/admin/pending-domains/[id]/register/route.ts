@@ -3,17 +3,13 @@ import { AuthService } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import PendingDomain from "@/models/PendingDomain";
 import type { IOrder } from "@/models/Order";
-import { getOrderByOrderId, markInvoiceCreationFailed } from "@/lib/services/orders";
-import { getUserById } from "@/lib/services/users";
+import { getOrderByOrderId } from "@/lib/services/orders";
 import { ResellerClubWrapper } from "@/lib/resellerclub-wrapper";
 import { classifyRegisterDomainResponse } from "@/lib/integrations/resellerclub/classify";
 import type { RegisterDomainOutcome } from "@/lib/integrations/resellerclub/types";
 import { DomainVerificationService } from "@/lib/domain-verification";
 import { EmailService } from "@/lib/email";
 import { serverLogger } from "@/lib/server-logger";
-import { createPrimaryInvoice } from "@/lib/services/billing/createPrimaryInvoice";
-import { cartItemsFromOrderDomains } from "@/lib/services/payment/order-creator";
-import type { RazorpayPaymentDetails } from "@/lib/types";
 
 // Force dynamic rendering - required for API routes
 /**
@@ -139,43 +135,8 @@ export async function POST(
           }
         }
 
-        // --- INVOICE CATCH-UP ---
-        // The order is normally invoiced at payment time. This only issues one
-        // if that never happened (no `invoiceProvider`); the engine's claim
-        // refuses an order that already has an invoice, so it cannot duplicate.
-        try {
-          const syncOrder = await getOrderByOrderId(pendingDomain.orderId);
-          const syncUser = await getUserById(pendingDomain.userId);
-
-          if (syncUser && syncOrder && !syncOrder.invoiceProvider) {
-            const paymentId = syncOrder.razorpayPaymentId || syncOrder.paymentId || "";
-            try {
-              await createPrimaryInvoice(
-                {
-                  order: syncOrder,
-                  orderId: syncOrder.orderId,
-                  razorpay_payment_id: paymentId,
-                  paymentDetails: {
-                    id: paymentId,
-                    amount: syncOrder.amount,
-                    currency: syncOrder.currency || "INR",
-                  } as RazorpayPaymentDetails,
-                  user: syncUser,
-                  cartItems: cartItemsFromOrderDomains(syncOrder.domains || []),
-                },
-                { claimOptions: { staleClaimAfterMs: 5 * 60 * 1000 } }
-              );
-            } catch (issueErr) {
-              await markInvoiceCreationFailed(
-                syncOrder._id,
-                issueErr instanceof Error ? issueErr.message : String(issueErr)
-              ).catch(() => {});
-              throw issueErr;
-            }
-          }
-        } catch (e) {
-          serverLogger.error("Invoice catch-up failed in manual registration:", e);
-        }
+        // No invoice catch-up: DMS issues no bills (owner decision, 24 Sep 2026).
+        // A paid order was flagged for billing in ResellerOS when it was paid.
 
         return NextResponse.json({ success: true, message: "Domain registered successfully", result, pendingDomain });
       } else if (RETRYABLE_OUTCOMES.has(classifyRegisterDomainResponse(result).kind)) {

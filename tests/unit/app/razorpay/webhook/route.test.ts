@@ -82,14 +82,12 @@ vi.mock("@/lib/services/payment/order-creator", () => ({
   finalizePendingOrder,
 }));
 
-// createPrimaryInvoice is the chokepoint the webhook now delegates invoice
-// creation to (Primary Billing Integration Phase 1c-3) — its own claim/
-// skip decision logic is covered by
-// createPrimaryInvoice.test.ts; this suite only pins that the webhook calls
-// it correctly and reacts correctly to success/failure.
-const createPrimaryInvoice = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/services/billing/createPrimaryInvoice", () => ({
-  createPrimaryInvoice,
+// DMS issues no bills (owner decision, 24 Sep 2026): the code under test
+// flags a paid order for billing in ResellerOS instead of invoicing it.
+const flagPaymentWithoutBill = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/billing/no-dms-bills", async (orig) => ({
+  ...(await orig<typeof import("@/lib/billing/no-dms-bills")>()),
+  flagPaymentWithoutBill,
 }));
 
 const refundPayment = vi.hoisted(() => vi.fn());
@@ -241,12 +239,7 @@ beforeEach(() => {
   serverLogger.warn.mockReset();
   serverLogger.error.mockReset();
   finalizePendingOrder.mockReset();
-  // Default: the engine issues. Tests that exercise failure/skip override it.
-  createPrimaryInvoice.mockReset().mockResolvedValue({
-    invoiceId: "",
-    invoiceNumber: "TI/2026-27/00001",
-    provider: "primary",
-  });
+  flagPaymentWithoutBill.mockReset().mockResolvedValue(undefined);
 });
 
 // ═══════════════════════════════════════════════════════════════════
@@ -399,7 +392,7 @@ describe("payment.captured — renewal/upgrade orders defer to /verify", () => {
     expect(order.save).toHaveBeenCalledTimes(1);
     expect(claimPendingOrderForProcessing).not.toHaveBeenCalled();
     expect(finalizePendingOrder).not.toHaveBeenCalled();
-    expect(createPrimaryInvoice).not.toHaveBeenCalled();
+    expect(flagPaymentWithoutBill).not.toHaveBeenCalled();
   });
 
   it("orderType='hosting_upgrade' → same defer + stamp behavior", async () => {
@@ -438,7 +431,7 @@ describe("payment.captured — non-pending status is idempotent no-op", () => {
     expect(order.save).toHaveBeenCalledTimes(1);
     expect(claimPendingOrderForProcessing).not.toHaveBeenCalled();
     expect(finalizePendingOrder).not.toHaveBeenCalled();
-    expect(createPrimaryInvoice).not.toHaveBeenCalled();
+    expect(flagPaymentWithoutBill).not.toHaveBeenCalled();
   });
 
   it("status='completed' + razorpayPaymentId already set → NO save (full idempotency)", async () => {
@@ -499,7 +492,7 @@ describe("payment.captured — atomic claim semantics", () => {
     const res = await POST(makeReq({ body: paymentCapturedPayload() }));
     expect(res.status).toBe(200);
     expect(getUserById).not.toHaveBeenCalled();
-    expect(createPrimaryInvoice).not.toHaveBeenCalled();
+    expect(flagPaymentWithoutBill).not.toHaveBeenCalled();
     expect(finalizePendingOrder).not.toHaveBeenCalled();
   });
 });
@@ -522,11 +515,12 @@ describe("payment.captured — user-not-found is fatal (Razorpay retries)", () =
 });
 
 // ═══════════════════════════════════════════════════════════════════
-// payment.captured — invoice creation via createPrimaryInvoice
-// (Primary Billing Integration Phase 1c-3)
+// payment.captured — no bill from DMS (owner decision, 24 Sep 2026)
+// Replaced the createPrimaryInvoice block: DMS mints no invoice; the paid
+// order is flagged for billing in ResellerOS and provisioning always runs.
 // ═══════════════════════════════════════════════════════════════════
-describe("payment.captured — invoice creation via createPrimaryInvoice", () => {
-  function setupReadyForInvoice(claimedOver: Partial<FakeOrder> = {}) {
+describe("payment.captured — no bill from DMS", () => {
+  function setupReady(claimedOver: Partial<FakeOrder> = {}) {
     const order = makeOrder({ status: "pending" });
     const claimed = { ...makeOrder({ status: "processing" }), ...claimedOver };
     findOrderByRazorpayOrderIdOrInternalId.mockResolvedValueOnce(order);
@@ -540,101 +534,18 @@ describe("payment.captured — invoice creation via createPrimaryInvoice", () =>
     return claimed;
   }
 
-  it("calls createPrimaryInvoice with order/orderId/razorpay_payment_id/paymentDetails/user/cartItems", async () => {
-    const claimed = setupReadyForInvoice();
-    createPrimaryInvoice.mockResolvedValueOnce({ invoiceId: "TI-1", invoiceNumber: "TI/2026-27/00001", provider: "primary" });
+  it("flags the claimed order for billing in ResellerOS, then provisions", async () => {
+    const claimed = setupReady();
     await POST(makeReq({ body: paymentCapturedPayload({ paymentId: "pay_Z", amount: 118000 }) }));
-    expect(createPrimaryInvoice).toHaveBeenCalledTimes(1);
-    const ctx = createPrimaryInvoice.mock.calls[0][0];
-    expect(ctx.order).toBe(claimed);
-    expect(ctx.orderId).toBe("ORD-1");
-    expect(ctx.razorpay_payment_id).toBe("pay_Z");
-    expect(ctx.paymentDetails).toEqual(
-      expect.objectContaining({ id: "pay_Z", amount: 118000, status: "captured" })
-    );
-    expect(ctx.user).toEqual(expect.objectContaining({ email: "u@x.com" }));
-    expect(ctx.cartItems).toEqual(
-      expect.arrayContaining([expect.objectContaining({ domainName: "alice.com", price: 1000 })])
-    );
-  });
-
-  it("zero-amount order → createPrimaryInvoice NOT called; provisioning still runs", async () => {
-    setupReadyForInvoice({ amount: 0 });
-    const res = await POST(makeReq({ body: paymentCapturedPayload() }));
-    expect(res.status).toBe(200);
-    expect(createPrimaryInvoice).not.toHaveBeenCalled();
-    expect(finalizePendingOrder).toHaveBeenCalled();
-  });
-
-  it("orderType='hosting_trial' → createPrimaryInvoice NOT called", async () => {
-    setupReadyForInvoice({ orderType: "hosting_trial" });
-    await POST(makeReq({ body: paymentCapturedPayload() }));
-    expect(createPrimaryInvoice).not.toHaveBeenCalled();
-  });
-
-  it("createPrimaryInvoice throws → SWALLOWED; markInvoiceCreationFailed(claimed._id, message) called; provisioning STILL runs", async () => {
-    setupReadyForInvoice({ _id: "OID-INV" });
-    createPrimaryInvoice.mockRejectedValueOnce(new Error("COMPANY_STATE is not configured"));
-    const res = await POST(makeReq({ body: paymentCapturedPayload() }));
-    expect(res.status).toBe(200);
-    expect(markInvoiceCreationFailed).toHaveBeenCalledTimes(1);
-    expect(markInvoiceCreationFailed).toHaveBeenCalledWith(
-      "OID-INV",
-      "COMPANY_STATE is not configured"
-    );
-    expect(finalizePendingOrder).toHaveBeenCalled();
-  });
-
-  it("createPrimaryInvoice success → NO markInvoiceCreationFailed call; provisioning runs", async () => {
-    setupReadyForInvoice();
-    createPrimaryInvoice.mockResolvedValueOnce({
-      invoiceId: "TI-1",
-      invoiceNumber: "TI/2026-27/00001",
-      provider: "primary",
-    });
-    const res = await POST(makeReq({ body: paymentCapturedPayload() }));
-    expect(res.status).toBe(200);
+    expect(flagPaymentWithoutBill).toHaveBeenCalledWith(claimed, "razorpay/webhook payment.captured");
+    expect(finalizePendingOrder).toHaveBeenCalledTimes(1);
     expect(markInvoiceCreationFailed).not.toHaveBeenCalled();
-    expect(finalizePendingOrder).toHaveBeenCalled();
   });
 
-  // ── REGRESSION (2026-09-02): the primary tax-invoice number was being
-  // silently overwritten by the Order pre-save hook's legacy random number.
-  // createPrimaryInvoice persists via a targeted updateOne, but `claimed` was
-  // loaded BEFORE that write, so when finalizePendingOrder flipped status to
-  // 'completed' and called order.save(), the hook saw `!this.invoiceNumber`
-  // and minted `INV-<ts>-<hex>` over the real TI/... number. Caught by an
-  // end-to-end purchase test. The handler must sync the issued invoice back
-  // onto the in-memory doc BEFORE finalizePendingOrder runs.
-  it("REGRESSION: stamps the primary invoice number onto the in-memory order before finalize (hook can't clobber it)", async () => {
-    const claimed = setupReadyForInvoice({ invoiceNumber: undefined });
-    createPrimaryInvoice.mockResolvedValueOnce({
-      invoiceId: "TI/2026-27/00007",
-      invoiceNumber: "TI/2026-27/00007",
-      provider: "primary",
-    });
-
-    await POST(makeReq({ body: paymentCapturedPayload() }));
-
-    expect(claimed.invoiceNumber).toBe("TI/2026-27/00007");
-    expect((claimed as { invoiceProvider?: string }).invoiceProvider).toBe("primary");
-    // ...and it was stamped BEFORE provisioning/finalisation ran
-    expect(finalizePendingOrder).toHaveBeenCalled();
-    const orderPassedToFinalize = finalizePendingOrder.mock.calls[0][0].order;
-    expect(orderPassedToFinalize.invoiceNumber).toBe("TI/2026-27/00007");
-  });
-
-  it("REGRESSION: a skipped invoice (zero-amount/claim contention) leaves the in-memory order untouched", async () => {
-    const claimed = setupReadyForInvoice({ invoiceNumber: undefined });
-    createPrimaryInvoice.mockResolvedValueOnce({
-      invoiceId: "",
-      invoiceNumber: null,
-      provider: "skipped",
-    });
-
-    await POST(makeReq({ body: paymentCapturedPayload() }));
-
-    expect(claimed.invoiceNumber).toBeUndefined();
+  it("never stamps an invoice number onto the in-memory order", async () => {
+    const claimed = setupReady();
+    await POST(makeReq({ body: paymentCapturedPayload({ paymentId: "pay_Z", amount: 118000 }) }));
+    expect((claimed as { invoiceNumber?: string }).invoiceNumber).toBeUndefined();
     expect((claimed as { invoiceProvider?: string }).invoiceProvider).toBeUndefined();
   });
 });

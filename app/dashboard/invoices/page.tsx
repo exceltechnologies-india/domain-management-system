@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   FileText, Download, AlertCircle, Eye, CheckCircle2,
@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 import useSWR from 'swr';
 import { fetcher } from '@/lib/fetcher';
-import { apiClient } from '@/lib/api-client';
 import { useUser } from '@/hooks/useUser';
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
 import UserLayout from '@/components/user/UserLayout';
@@ -29,8 +28,6 @@ interface Invoice {
   currency_code: string;
   invoice_url?: string;
   created_time?: string;
-  /** Paid, but the invoice attempt failed — offer the retry pill. */
-  invoice_failed?: boolean;
   order_id?: string;
 }
 
@@ -38,7 +35,6 @@ export default function InvoicesPage() {
   const { user, isLoading: isAuthLoading } = useUser();
   const router = useRouter();
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
-  const [isSyncing, setIsSyncing] = useState(false);
 
   const {
     data: invoicesData,
@@ -52,38 +48,6 @@ export default function InvoicesPage() {
   );
 
   const invoices = invoicesData?.invoices ?? [];
-
-  // While any paid invoice is still being generated in the background, poll
-  // every 30s so the user sees it appear without having to refresh manually.
-  const hasPendingInvoice = invoices.some((inv) => inv.invoice_failed);
-  useEffect(() => {
-    if (!hasPendingInvoice) return;
-    const id = setInterval(() => { void mutate(); }, 30000);
-    return () => clearInterval(id);
-  }, [hasPendingInvoice, mutate]);
-
-  const handleSyncNow = async () => {
-    setIsSyncing(true);
-    const result = await apiClient.post<{ recovered?: number; failed?: number; total?: number; results?: Array<{ error?: string }> }>('/api/v1/user/invoices/sync', undefined);
-    if (!result.ok) {
-      showErrorToast(result.error.message || 'Sync failed');
-      setIsSyncing(false);
-      return;
-    }
-    const data = result.data;
-    if ((data.recovered ?? 0) > 0) {
-      showSuccessToast(`Invoice${(data.recovered ?? 0) > 1 ? 's' : ''} ready — refreshing.`);
-    } else if ((data.failed ?? 0) > 0) {
-      const firstError = data.results?.find((r) => r.error)?.error;
-      showErrorToast(firstError || 'Could not generate invoice — please contact support.');
-    } else if (data.total === 0) {
-      showSuccessToast('Nothing to sync.');
-    } else {
-      showSuccessToast('Sync requested — refreshing.');
-    }
-    await mutate();
-    setIsSyncing(false);
-  };
 
   const handleDownload = async (orderId: string, invoiceNumber: string) => {
     try {
@@ -311,34 +275,6 @@ export default function InvoicesPage() {
                                 )}
                               </button>
                             )}
-                            {/* Only a paid order whose invoice attempt FAILED
-                                offers the retry pill. An issued invoice has a
-                                document — "we're finalising your invoice"
-                                there would be false. */}
-                            {!hasDocument && invoice.invoice_failed && (
-                              <button
-                                type="button"
-                                onClick={handleSyncNow}
-                                disabled={isSyncing}
-                                className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 hover:border-amber-300 px-2.5 py-1 rounded-full transition-colors disabled:opacity-60 disabled:cursor-wait"
-                                title="Click to retry. Your payment is complete — we're finalising your invoice."
-                              >
-                                {isSyncing ? (
-                                  <>
-                                    <div className="animate-spin h-3 w-3 border-2 border-amber-600 border-t-transparent rounded-full" />
-                                    Syncing…
-                                  </>
-                                ) : (
-                                  <>
-                                    <span className="relative flex h-1.5 w-1.5">
-                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500"></span>
-                                    </span>
-                                    Generating · Retry
-                                  </>
-                                )}
-                              </button>
-                            )}
                           </div>
                         </td>
                       </tr>
@@ -354,7 +290,7 @@ export default function InvoicesPage() {
         <div className="flex items-start gap-3 p-4 bg-indigo-soft border border-indigo/25 rounded-2xl">
           <AlertCircle className="h-4 w-4 text-amber-ink mt-0.5 shrink-0" />
           <p className="text-sm text-indigo-ink">
-            A GST invoice is issued automatically when your payment completes. If one shows “Generating”, press Retry — or check back in a few minutes and it will appear here.
+            New bills are issued by our billing system and emailed to you. Invoices this panel issued before 25 September 2026 stay listed here to view and download.
           </p>
         </div>
       </div>

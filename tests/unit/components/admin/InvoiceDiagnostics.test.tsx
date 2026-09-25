@@ -11,11 +11,8 @@
  *  - With-issues fetch → auto-expands.
  *  - Clear invoice number: confirm cancelled → no POST.
  *  - Clear invoice number: confirmed → POST + success toast + refetch.
- *  - Re-sync single → POST + success toast.
- *  - Re-sync all: empty list → no-op (no confirm).
- *  - Re-sync all: confirm cancelled → no POST loop.
- *  - Re-sync all: all succeed → bulk-success toast; partial → mixed-error
- *    copy.
+ *  - The paid-without-bill list is read-only: no Re-sync (removed with
+ *    DMS's invoice engine, 25 Sep 2026).
  */
 import { render, screen, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -97,28 +94,14 @@ vi.mock("@/components/admin/invoice-diagnostics/ConflictsTable", () => ({
   default: conflictsMock,
 }));
 
+// Read-only since 25 Sep 2026 (DMS issues no bills): no Re-sync callbacks.
 const stuckMock = vi.hoisted(() =>
-  vi.fn(
-    ({
-      stuckOrders,
-      onResync,
-      onResyncAll,
-    }: {
-      stuckOrders: Array<{ orderId: string }>;
-      onResync: (id: string) => void;
-      onResyncAll: () => void;
-    }) => (
-      <div data-testid="stuck">
-        <span data-testid="stuck-len">{stuckOrders.length}</span>
-        <button onClick={onResyncAll}>resync-all</button>
-        {stuckOrders.map((o) => (
-          <button key={o.orderId} onClick={() => onResync(o.orderId)}>
-            resync-{o.orderId}
-          </button>
-        ))}
-      </div>
-    )
-  )
+  vi.fn(({ stuckOrders, ...rest }: { stuckOrders: Array<{ orderId: string }> } & Record<string, unknown>) => (
+    <div data-testid="stuck">
+      <span data-testid="stuck-len">{stuckOrders.length}</span>
+      <span data-testid="stuck-extra-props">{Object.keys(rest).join(",")}</span>
+    </div>
+  ))
 );
 vi.mock("@/components/admin/invoice-diagnostics/StuckOrdersTable", () => ({
   default: stuckMock,
@@ -211,14 +194,14 @@ describe("<InvoiceDiagnostics>", () => {
     expect(apiGetMock).toHaveBeenCalledTimes(2);
   });
 
-  it("the all-clear line and both confirm dialogs speak of our own invoices — Zoho Books is gone", async () => {
+  it("the all-clear line speaks of bills, and the clear-number confirm is unchanged — Zoho Books is gone", async () => {
     apiGetMock.mockResolvedValue(ok(EMPTY));
     const user = userEvent.setup();
     const { unmount } = render(<InvoiceDiagnostics />);
     await waitFor(() => expect(screen.getByTestId("header")).toBeInTheDocument());
     await user.click(screen.getByText("toggle"));
     expect(
-      screen.getByText("All invoice numbers are unique and every paid order has an invoice.")
+      screen.getByText("All invoice numbers are unique and no paid order is waiting for a bill.")
     ).toBeInTheDocument();
     expect(screen.queryByText(/zoho/i)).not.toBeInTheDocument();
     unmount();
@@ -228,77 +211,17 @@ describe("<InvoiceDiagnostics>", () => {
     render(<InvoiceDiagnostics />);
     await waitFor(() => expect(screen.getByText("clear-ord_1")).toBeInTheDocument());
     await user.click(screen.getByText("clear-ord_1"));
-    await user.click(screen.getByText("resync-all"));
-    expect(confirmDialogMock).toHaveBeenCalledTimes(2);
-    const [clearCall, resyncCall] = confirmDialogMock.mock.calls.map(
-      (c) => c[0] as { title: string; message: string }
-    );
+    expect(confirmDialogMock).toHaveBeenCalledTimes(1);
+    const clearCall = confirmDialogMock.mock.calls[0][0] as { title: string; message: string };
     expect(clearCall.message).toContain("No issued invoice is changed.");
-    expect(resyncCall.message).toContain("Each one will be issued one at a time.");
-    for (const call of [clearCall, resyncCall]) {
-      expect(`${call.title} ${call.message}`).not.toMatch(/zoho/i);
-    }
+    expect(`${clearCall.title} ${clearCall.message}`).not.toMatch(/zoho/i);
   });
 
-  it("re-sync single → POST + success toast", async () => {
+  it("the paid-without-bill list is handed its rows and no re-sync action", async () => {
     apiGetMock.mockResolvedValue(ok(TWO_STUCK));
-    apiPostMock.mockResolvedValueOnce(ok({ message: "Re-synced." }));
-    const user = userEvent.setup();
     render(<InvoiceDiagnostics />);
-    await waitFor(() => expect(screen.getByText("resync-ord_a")).toBeInTheDocument());
-    await user.click(screen.getByText("resync-ord_a"));
-    await waitFor(() => expect(successToastMock).toHaveBeenCalledWith("Re-synced."));
-    expect(apiPostMock).toHaveBeenCalledWith(
-      "/api/v1/admin/orders/ord_a/re-sync-invoice",
-      undefined
-    );
-  });
-
-  it("re-sync all: empty stuckOrders → no confirm, no POST", async () => {
-    apiGetMock.mockResolvedValue(ok(EMPTY));
-    const user = userEvent.setup();
-    render(<InvoiceDiagnostics />);
-    await waitFor(() => expect(screen.getByTestId("header")).toBeInTheDocument());
-    // The body isn't rendered when collapsed; force-open via the toggle button.
-    await user.click(screen.getByText("toggle"));
-    await user.click(screen.getByText("resync-all"));
-    expect(confirmDialogMock).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByTestId("stuck-len")).toHaveTextContent("2"));
+    expect(screen.getByTestId("stuck-extra-props")).toHaveTextContent("");
     expect(apiPostMock).not.toHaveBeenCalled();
-  });
-
-  it("re-sync all: confirmed + all succeed → bulk-success toast with the count", async () => {
-    apiGetMock.mockResolvedValue(ok(TWO_STUCK));
-    confirmDialogMock.mockResolvedValueOnce(true);
-    apiPostMock
-      .mockResolvedValueOnce(ok({ success: true }))
-      .mockResolvedValueOnce(ok({ success: true }));
-    const user = userEvent.setup();
-    render(<InvoiceDiagnostics />);
-    await waitFor(() => expect(screen.getByText("resync-all")).toBeInTheDocument());
-    await act(async () => {
-      await user.click(screen.getByText("resync-all"));
-    });
-    await waitFor(() =>
-      expect(successToastMock).toHaveBeenCalledWith(expect.stringMatching(/Re-synced all 2/i))
-    );
-  });
-
-  it("re-sync all: partial → mixed-error toast", async () => {
-    apiGetMock.mockResolvedValue(ok(TWO_STUCK));
-    confirmDialogMock.mockResolvedValueOnce(true);
-    apiPostMock
-      .mockResolvedValueOnce(ok({ success: true }))
-      .mockResolvedValueOnce(fail("upstream 429"));
-    const user = userEvent.setup();
-    render(<InvoiceDiagnostics />);
-    await waitFor(() => expect(screen.getByText("resync-all")).toBeInTheDocument());
-    await act(async () => {
-      await user.click(screen.getByText("resync-all"));
-    });
-    await waitFor(() =>
-      expect(errorToastMock).toHaveBeenCalledWith(
-        expect.stringMatching(/1 succeeded, 1 failed/i)
-      )
-    );
   });
 });

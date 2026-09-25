@@ -1,5 +1,6 @@
 /**
- * END-TO-END PURCHASE → BILL JOURNEY (Primary Billing Integration).
+ * END-TO-END PURCHASE JOURNEY — and, since 25 Sep 2026, proof that DMS issues NO bill
+ * (see the note above the describe block; the history below is kept for why the suite exists).
  *
  * Drives the complete customer journey through the REAL route handlers:
  *
@@ -127,10 +128,9 @@ const { POST: registerHandler } = await import("@/app/api/auth/register/route");
 const { POST: createOrderHandler } = await import("@/app/api/payments/create-order/route");
 const { POST: webhookHandler } = await import("@/app/razorpay/webhook/route");
 const { GET: userInvoicesHandler } = await import("@/app/api/user/invoices/route");
-const { GET: orderInvoicePdfHandler } = await import("@/app/api/orders/[id]/invoice/route");
 const { AuthService } = await import("@/lib/auth");
 const { listFailedInvoiceOrders } = await import("@/lib/services/orders");
-const { syncUserInvoicesNow } = await import("@/lib/invoice-retry");
+const { NO_DMS_BILL_REASON } = await import("@/lib/billing/no-dms-bills");
 const { default: Order } = await import("@/models/Order");
 const { default: User } = await import("@/models/User");
 const { default: Hosting } = await import("@/models/Hosting");
@@ -333,8 +333,16 @@ async function completePurchase(opts: {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-describe("E2E: register → buy hosting → pay → provision → bill", () => {
-  it("completes the order, provisions hosting, records the payment, and issues a primary tax invoice", async () => {
+// Since 25 Sep 2026 DMS issues NO bills (owner decision, 24 Sep 2026): every
+// bill is ResellerOS's. This suite used to prove a purchase ends holding a
+// TI/... tax invoice; it now proves the opposite end to end — the order still
+// completes and provisions, NO number of any series is minted (neither TI/...
+// nor the old INV-... pre-save hook), and the payment is FLAGGED for an
+// operator to bill in ResellerOS, because DMS took it on its own keys and
+// ResellerOS has no record of it. The GST-math, sequential-number and retry
+// cases were deleted with the engine they tested.
+describe("E2E: register → buy hosting → pay → provision → NO bill from DMS", () => {
+  it("completes the order, provisions hosting and records the payment — and issues no bill, flagging it", async () => {
     const { pendingId } = await completePurchase({
       email: "delhi-cust@example.com",
       state: "Delhi",
@@ -343,7 +351,6 @@ describe("E2E: register → buy hosting → pay → provision → bill", () => {
     });
 
     const final = await orderById(pendingId);
-    // The whole chain actually ran — not just the billing slice.
     expect(final?.status).toBe("completed");
     const hosting = await Hosting.findOne({ domainName: "realbiz-e2e.com" });
     expect(hosting).toBeTruthy();
@@ -352,44 +359,18 @@ describe("E2E: register → buy hosting → pay → provision → bill", () => {
     expect(payment).toBeTruthy();
     expect(payment!.amount).toBe(999);
 
-    // The bill itself.
-    expect(final?.invoiceProvider).toBe("primary");
-    expect(final?.invoiceNumber).toMatch(/^TI\/\d{4}-\d{2}\/\d{5}$/);
-    expect(final?.invoiceFailedAt).toBeUndefined();
+    // No bill of any series.
+    expect(final?.invoiceProvider).toBeUndefined();
+    expect(final?.invoiceNumber).toBeUndefined();
+    expect(await Counter.findOne({ key: /tax-invoice/ })).toBeNull();
+    // …and the gap is on record, saying what to do.
+    expect(final?.invoiceFailedAt).toBeInstanceOf(Date);
+    expect(final?.invoiceFailureReason).toBe(NO_DMS_BILL_REASON);
+    const flagged = await listFailedInvoiceOrders(String(final?.userId));
+    expect(flagged.map((o) => o.orderId)).toEqual([final?.orderId]);
   });
 
-  it("bills CGST+SGST for an intra-state customer (company and customer both in Delhi)", async () => {
-    const { pendingId } = await completePurchase({
-      email: "delhi-cust@example.com",
-      state: "Delhi",
-      rzpOrderId: "order_B",
-      paymentId: "pay_B",
-    });
-
-    const final = await orderById(pendingId);
-    expect(final?.taxableValue).toBeCloseTo(846.61, 1); // 999 / 1.18
-    expect(final?.cgst).toBeCloseTo(76.19, 1);
-    expect(final?.sgst).toBeCloseTo(76.2, 1);
-    expect(final?.igst).toBe(0);
-    expect(final?.placeOfSupply).toBe("Delhi");
-  });
-
-  it("bills IGST only for an inter-state customer (Delhi company → Karnataka customer)", async () => {
-    const { pendingId } = await completePurchase({
-      email: "ka-cust@example.com",
-      state: "Karnataka",
-      rzpOrderId: "order_C",
-      paymentId: "pay_C",
-    });
-
-    const final = await orderById(pendingId);
-    expect(final?.igst).toBeCloseTo(152.39, 1);
-    expect(final?.cgst).toBe(0);
-    expect(final?.sgst).toBe(0);
-    expect(final?.placeOfSupply).toBe("Karnataka");
-  });
-
-  it("bills the full cart total for a domain + hosting bundle and provisions both", async () => {
+  it("a domain + hosting bundle provisions both, with no bill", async () => {
     const { pendingId } = await completePurchase({
       email: "bundle-cust@example.com",
       state: "Delhi",
@@ -401,50 +382,27 @@ describe("E2E: register → buy hosting → pay → provision → bill", () => {
 
     const final = await orderById(pendingId);
     expect(final?.orderType).toBe("bundle");
-    expect(final?.amount).toBe(1799); // 800 domain + 999 hosting
+    expect(final?.amount).toBe(1799);
     expect(final?.status).toBe("completed");
-    expect(final?.invoiceProvider).toBe("primary");
-    expect(final?.taxableValue).toBeCloseTo(1524.58, 1); // 1799 / 1.18
+    expect(final?.invoiceNumber).toBeUndefined();
+    expect(final?.invoiceFailureReason).toBe(NO_DMS_BILL_REASON);
     expect(rcRegisterDomain).toHaveBeenCalled();
   });
 
-  it("does not mint a second invoice number when Razorpay re-delivers the webhook", async () => {
+  it("a re-delivered webhook still mints nothing", async () => {
     const { pendingId, internalOrderId } = await completePurchase({
       email: "dupe-cust@example.com",
       state: "Delhi",
       rzpOrderId: "order_E",
       paymentId: "pay_E",
     });
-    const afterFirst = await orderById(pendingId);
-
-    // Razorpay retries the same event.
     await razorpayConfirmsPayment("order_E", internalOrderId, "pay_E");
-    const afterSecond = await orderById(pendingId);
-
-    expect(afterSecond?.invoiceNumber).toBe(afterFirst?.invoiceNumber);
-    const counter = await Counter.findOne({ key: /tax-invoice/ });
-    expect(counter?.seq).toBe(1); // no number burned on the duplicate
+    const after = await orderById(pendingId);
+    expect(after?.invoiceNumber).toBeUndefined();
+    expect(await Counter.findOne({ key: /tax-invoice/ })).toBeNull();
   });
 
-  it("issues sequential invoice numbers across separate purchases", async () => {
-    await seedStarterPlan();
-    const { token } = await registerCustomer("seq-cust@example.com", "Delhi");
-
-    const numbers: string[] = [];
-    for (const n of [1, 2, 3]) {
-      await buyHosting(token, { rzpOrderId: `order_F${n}` });
-      const pending = await Order.findOne({ razorpayOrderId: `order_F${n}` });
-      await razorpayConfirmsPayment(`order_F${n}`, pending!.orderId, `pay_F${n}`);
-      const final = await orderById(pending!._id);
-      numbers.push(final!.invoiceNumber!);
-    }
-
-    expect(numbers[0]).toMatch(/00001$/);
-    expect(numbers[1]).toMatch(/00002$/);
-    expect(numbers[2]).toMatch(/00003$/);
-  });
-
-  it("lets the customer see the issued bill in their invoice list and download the PDF", async () => {
+  it("the customer's invoice list shows the paid order with no DMS document to open", async () => {
     const { token, pendingId } = await completePurchase({
       email: "view-cust@example.com",
       state: "Delhi",
@@ -453,7 +411,6 @@ describe("E2E: register → buy hosting → pay → provision → bill", () => {
     });
     const final = await orderById(pendingId);
 
-    // (a) what /dashboard/invoices renders
     const listRes = await userInvoicesHandler(
       new NextRequest("https://example.com/api/user/invoices", {
         method: "GET",
@@ -462,112 +419,8 @@ describe("E2E: register → buy hosting → pay → provision → bill", () => {
     );
     expect(listRes.status).toBe(200);
     const listBody = await listRes.json();
-    expect(listBody.invoices).toHaveLength(1);
-
-    const row = listBody.invoices[0];
-    expect(row.invoice_number).toBe(final?.invoiceNumber);
-    expect(row.status).toBe("paid");
-    expect(row.balance).toBe(0);
-    // An issued bill links its PDF by orderId…
-    expect(row.invoice_id).toBe(final?.orderId);
-    // …and (REGRESSION) must never advertise itself as still generating.
-    expect(row.invoice_failed).toBe(false);
-
-    // (b) the bill document itself
-    const pdfRes = await orderInvoicePdfHandler(
-      new NextRequest(`https://example.com/api/orders/${pendingId}/invoice`, {
-        method: "GET",
-        headers: { Authorization: `Bearer ${token}` },
-      }),
-      { params: Promise.resolve({ id: String(pendingId) }) }
-    );
-    expect(pdfRes.status).toBe(200);
-    expect(pdfRes.headers.get("content-disposition")).toContain("Tax-Invoice");
-    const pdf = Buffer.from(await pdfRes.arrayBuffer());
-    expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
-    expect(pdf.length).toBeGreaterThan(1000);
-  });
-
-  it("REGRESSION: never lists a primary-invoiced order for retry (would double-bill)", async () => {
-    const { user } = await completePurchase({
-      email: "stuck-cust@example.com",
-      state: "Delhi",
-      rzpOrderId: "order_H",
-      paymentId: "pay_H",
-    });
-
-    // The retry runs on every /dashboard/invoices load. If an invoiced order
-    // matched here, the customer would receive a SECOND tax invoice for the
-    // same payment.
-    const failed = await listFailedInvoiceOrders(String(user._id));
-    expect(failed).toHaveLength(0);
-  });
-
-  it("a misconfigured engine leaves the order paid + provisioned but FLAGGED, and a retry after the fix issues exactly one invoice", async () => {
-    await seedStarterPlan();
-    const { token, user } = await registerCustomer("fallback-cust@example.com", "Delhi");
-    await buyHosting(token, { rzpOrderId: "order_I" });
-    const pending = await Order.findOne({ razorpayOrderId: "order_I" });
-
-    // Break the engine the way a real misconfiguration would. There is no
-    // fallback engine any more: the invoice must fail LOUDLY, not be issued
-    // by something else.
-    const savedState = process.env.COMPANY_STATE;
-    delete process.env.COMPANY_STATE;
-    let listBody: { invoices: Array<{ invoice_failed: boolean; invoice_id: string }> };
-    try {
-      await razorpayConfirmsPayment("order_I", pending!.orderId, "pay_I");
-
-      // Still broken: the invoices page's self-heal retries, fails again, and
-      // the customer's list says so rather than pretending.
-      const listRes = await userInvoicesHandler(
-        new NextRequest("https://example.com/api/user/invoices", {
-          method: "GET",
-          headers: { Authorization: `Bearer ${token}` },
-        })
-      );
-      listBody = await listRes.json();
-    } finally {
-      process.env.COMPANY_STATE = savedState;
-    }
-    expect(listBody.invoices[0].invoice_failed).toBe(true);
-    expect(listBody.invoices[0].invoice_id).toBe("");
-
-    const failed = await orderById(pending!._id);
-    // The customer paid and got their service…
-    expect(failed?.status).toBe("completed");
-    expect(await Hosting.findOne({ domainName: "realbiz-e2e.com" })).toBeTruthy();
-    // …but no tax invoice exists, and the failure is on record with its reason.
-    expect(failed?.invoiceProvider).toBeUndefined();
-    expect(failed?.invoiceFailedAt).toBeInstanceOf(Date);
-    expect(failed?.invoiceFailureReason).toMatch(/COMPANY_STATE is not configured/);
-    // No TI/... number was burned on either failed attempt.
-    expect(await Counter.findOne({ key: /tax-invoice/ })).toBeNull();
-
-    // Config fixed → "Sync now" issues exactly one invoice and clears the flag.
-    const results = await syncUserInvoicesNow(String(user._id));
-    expect(results).toHaveLength(1);
-    expect(results[0].ok).toBe(true);
-
-    const healed = await orderById(pending!._id);
-    expect(healed?.invoiceProvider).toBe("primary");
-    expect(healed?.invoiceNumber).toMatch(/^TI\/\d{4}-\d{2}\/00001$/);
-    expect(healed?.invoiceFailedAt).toBeUndefined();
-    expect(healed?.invoiceFailureReason).toBeUndefined();
-
-    // A second sync finds nothing to do — no second number.
-    expect(await syncUserInvoicesNow(String(user._id))).toEqual([]);
-    expect((await Counter.findOne({ key: /tax-invoice/ }))?.seq).toBe(1);
-
-    // And the list now shows an issued bill.
-    const after = await userInvoicesHandler(
-      new NextRequest("https://example.com/api/user/invoices", {
-        method: "GET",
-        headers: { Authorization: `Bearer ${token}` },
-      })
-    );
-    const row = (await after.json()).invoices[0];
-    expect(row.invoice_failed).toBe(false);
-    expect(row.invoice_number).toBe(healed?.invoiceNumber);
+    const row = listBody.invoices.find((r: { order_id: string }) => r.order_id === final?.orderId);
+    expect(row.invoice_id).toBe("");
+    expect(row).not.toHaveProperty("invoice_failed");
   });
 });

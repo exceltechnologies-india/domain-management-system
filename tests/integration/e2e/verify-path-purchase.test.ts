@@ -122,6 +122,7 @@ const { POST: registerHandler } = await import("@/app/api/auth/register/route");
 const { POST: createOrderHandler } = await import("@/app/api/payments/create-order/route");
 const { POST: verifyHandler } = await import("@/app/api/payments/verify/route");
 const { GET: userInvoicesHandler } = await import("@/app/api/user/invoices/route");
+const { NO_DMS_BILL_REASON } = await import("@/lib/billing/no-dms-bills");
 const { AuthService } = await import("@/lib/auth");
 const { default: Order } = await import("@/models/Order");
 const { default: User } = await import("@/models/User");
@@ -290,7 +291,7 @@ async function reloadOrder(): Promise<IOrder | null> {
 
 // ── The journey ─────────────────────────────────────────────────────────────
 describe("purchase via /api/payments/verify (the browser's path)", () => {
-  it("**a single verify call completes the order AND issues the tax invoice**", async () => {
+  it("**a single verify call completes the order, issues NO DMS bill, and flags it for ResellerOS**", async () => {
     await seedStandardPlan();
     const { token } = await registerCustomer("verify-e2e@example.test", "Maharashtra");
     await buyHostingWithLinkedDomain(token);
@@ -301,10 +302,12 @@ describe("purchase via /api/payments/verify (the browser's path)", () => {
     const order = await reloadOrder();
     expect(order).toBeTruthy();
 
-    // The customer paid. These are the two things they are owed.
+    // The customer paid and is served. DMS issues no bill (owner decision,
+    // 24 Sep 2026): the payment is flagged for an operator to bill in ResellerOS.
     expect(order!.status).toBe("completed");
-    expect(order!.invoiceNumber).toMatch(/^TI\/\d{4}-\d{2}\/\d{5}$/);
-    expect(order!.invoiceProvider).toBe("primary");
+    expect(order!.invoiceNumber).toBeUndefined();
+    expect(order!.invoiceProvider).toBeUndefined();
+    expect(order!.invoiceFailureReason).toBe(NO_DMS_BILL_REASON);
   });
 
   it("records the real payment id on the order (not the 'pending' placeholder)", async () => {
@@ -317,22 +320,6 @@ describe("purchase via /api/payments/verify (the browser's path)", () => {
     expect(order!.razorpayPaymentId).toBe(PAYMENT_ID);
   });
 
-  it("computes GST inter-state (Delhi seller -> Maharashtra customer = IGST only)", async () => {
-    await seedStandardPlan();
-    const { token } = await registerCustomer("verify-e2e3@example.test", "Maharashtra");
-    await buyHostingWithLinkedDomain(token);
-    await browserConfirmsPayment(token);
-
-    const order = await reloadOrder();
-    expect(order!.gstRate).toBe(18);
-    expect(order!.cgst).toBe(0);
-    expect(order!.sgst).toBe(0);
-    expect(order!.igst).toBeGreaterThan(0);
-    // Taxable + tax must reconcile to exactly what was charged.
-    const total = Number(order!.taxableValue) + Number(order!.igst);
-    expect(Math.round(total * 100) / 100).toBe(PRICE);
-  });
-
   it("creates the Hosting record for the linked domain", async () => {
     await seedStandardPlan();
     const { token } = await registerCustomer("verify-e2e4@example.test", "Maharashtra");
@@ -343,7 +330,7 @@ describe("purchase via /api/payments/verify (the browser's path)", () => {
     expect(hosting).toBeTruthy();
   });
 
-  it("the customer can see the invoice in their invoice list", async () => {
+  it("the paid order is listed with no DMS document to open", async () => {
     await seedStandardPlan();
     const { token } = await registerCustomer("verify-e2e5@example.test", "Maharashtra");
     await buyHostingWithLinkedDomain(token);
@@ -358,7 +345,7 @@ describe("purchase via /api/payments/verify (the browser's path)", () => {
     const body = await res.json();
     expect(Array.isArray(body.invoices)).toBe(true);
     expect(body.invoices.length).toBeGreaterThan(0);
-    expect(body.invoices[0].invoice_number).toMatch(/^TI\//);
+    expect(body.invoices[0].invoice_id).toBe("");
   });
 
   // ── The stranding regression ──────────────────────────────────────────────
@@ -369,7 +356,7 @@ describe("purchase via /api/payments/verify (the browser's path)", () => {
   // double-invoke must therefore never be able to end the journey with the
   // customer charged and no invoice.
   describe("REGRESSION: a repeated verify call must not strand the order", () => {
-    it("**calling verify twice still leaves a completed order with a tax invoice**", async () => {
+    it("**calling verify twice still leaves a completed order, with no bill minted**", async () => {
       await seedStandardPlan();
       const { token } = await registerCustomer("verify-e2e6@example.test", "Maharashtra");
       await buyHostingWithLinkedDomain(token);
@@ -381,10 +368,10 @@ describe("purchase via /api/payments/verify (the browser's path)", () => {
 
       const order = await reloadOrder();
       expect(order!.status).toBe("completed");
-      expect(order!.invoiceNumber).toMatch(/^TI\//);
+      expect(order!.invoiceNumber).toBeUndefined();
     });
 
-    it("**two CONCURRENT verify calls issue exactly one invoice number**", async () => {
+    it("**two CONCURRENT verify calls mint no invoice number**", async () => {
       await seedStandardPlan();
       const { token } = await registerCustomer("verify-e2e7@example.test", "Maharashtra");
       await buyHostingWithLinkedDomain(token);
@@ -399,13 +386,12 @@ describe("purchase via /api/payments/verify (the browser's path)", () => {
 
       const order = await reloadOrder();
       expect(order!.status).toBe("completed");
-      expect(order!.invoiceNumber).toMatch(/^TI\//);
 
-      // One payment must never consume two numbers in the legal series.
+      // DMS issues no bills, so no order carries a number of any series.
       const numbered = await Order.countDocuments({
         invoiceNumber: { $exists: true, $ne: null },
       });
-      expect(numbered).toBe(1);
+      expect(numbered).toBe(0);
     });
 
     // ── Regression: the mandate flow's missing client signature ────────────
@@ -423,7 +409,7 @@ describe("purchase via /api/payments/verify (the browser's path)", () => {
     // no invoice, and the dashboard showed nothing.
     //
     // Everything the paying customer is owed must survive an absent signature.
-    it("**completes the order and invoices it when the client sends NO signature**", async () => {
+    it("**completes the order when the client sends NO signature**", async () => {
       await seedStandardPlan();
       const { token } = await registerCustomer("verify-e2e8@example.test", "Maharashtra");
       await buyHostingWithLinkedDomain(token);
@@ -433,8 +419,7 @@ describe("purchase via /api/payments/verify (the browser's path)", () => {
 
       const order = await reloadOrder();
       expect(order!.status).toBe("completed");
-      expect(order!.invoiceNumber).toMatch(/^TI\/\d{4}-\d{2}\/\d{5}$/);
-      expect(order!.invoiceProvider).toBe("primary");
+      expect(order!.invoiceNumber).toBeUndefined();
       // The order must NOT be left stranded for support.
       expect(order!.paymentVerification?.paymentStatus).not.toBe(
         "captured_pending_support"

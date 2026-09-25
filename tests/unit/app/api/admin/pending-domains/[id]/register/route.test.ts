@@ -4,8 +4,8 @@
  *
  * Admin "manually register this pending domain" — fires the ResellerClub
  * call, updates the linked Order, sends order-confirmation email if
- * all domains complete, and issues the invoice via createPrimaryInvoice
- * if payment-time invoicing never happened (catch-up).
+ * all domains complete. It issues NO invoice: DMS issues no bills since
+ * 25 Sep 2026, and the catch-up that used to run here is gone.
  *
  * Threat model:
  *  - **Double-register from concurrent admin clicks**: a refactor
@@ -15,9 +15,6 @@
  *  - **Already-completed re-register**: a refactor that didn't gate
  *    on status='pending' would let admin re-fire on a row that
  *    already completed (or failed/processing). Pinned 400.
- *  - **Duplicate invoice**: idempotency — skip the catch-up when the
- *    order already has ANY invoiceProvider ('primary', or a historical
- *    'zoho'). createPrimaryInvoice is not even called. Pinned.
  *
  * Other pins:
  *  - admin gate → 401
@@ -37,10 +34,7 @@
  *      ALL domains registered → sendOrderConfirmationEmail with
  *        subtotal = amount/1.18
  *      ALL domains NOT registered → email NOT sent
- *      Invoice catch-up: createPrimaryInvoice ONLY when invoiceProvider
- *        is absent; 5-minute stale-claim window; a failure is recorded
- *        via markInvoiceCreationFailed and swallowed (never blocks the
- *        registration response)
+ *      No invoice catch-up and no failure flag
  *      Returns 200 success
  *  - RC status='error' (not throw):
  *      pendingDomain status='failed' + reason=`Registration failed: ${msg}`
@@ -85,11 +79,6 @@ vi.mock("@/lib/domain-verification", () => ({
 const sendOrderConfirmationEmail = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/email", () => ({
   EmailService: { sendOrderConfirmationEmail },
-}));
-
-const createPrimaryInvoice = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/services/billing/createPrimaryInvoice", () => ({
-  createPrimaryInvoice,
 }));
 
 const cartItemsFromOrderDomains = vi.hoisted(() =>
@@ -202,11 +191,6 @@ beforeEach(() => {
   getUserById.mockReset();
   registerDomain.mockReset();
   sendOrderConfirmationEmail.mockReset().mockResolvedValue(undefined);
-  createPrimaryInvoice.mockReset().mockResolvedValue({
-    invoiceId: "",
-    invoiceNumber: "TI/2026-27/00001",
-    provider: "primary",
-  });
   cartItemsFromOrderDomains.mockClear();
 });
 
@@ -374,78 +358,22 @@ describe("Success branch", () => {
   });
 });
 
-describe("Invoice catch-up — idempotent on invoiceProvider", () => {
+// DMS issues no bills (owner decision, 24 Sep 2026): the invoice catch-up that
+// used to run here was removed with the engine. A paid order was already
+// flagged for billing in ResellerOS when it was paid, so registering its
+// domain by hand neither bills it nor writes a second flag.
+describe("No invoice catch-up", () => {
   beforeEach(() => {
-    registerDomain.mockResolvedValue({
-      status: "success",
-      data: { orderid: "RC-789" },
-    });
+    registerDomain.mockResolvedValue({ status: "success", data: { orderid: "RC-789" } });
   });
 
-  const customer = { email: "alice@example.com", firstName: "Alice", lastName: "Smith" };
-
-  it.each(["primary", "zoho"] as const)(
-    "**order already invoiced (invoiceProvider '%s') → createPrimaryInvoice NOT called** (no second invoice)",
-    async (provider) => {
-      findById.mockResolvedValueOnce(makePendingDomain());
-      const orderWithInvoice = {
-        ...makeOrder([{ domainName: "example.com", status: "pending" }]),
-        invoiceProvider: provider,
-      };
-      getOrderByOrderId.mockResolvedValueOnce(orderWithInvoice);
-      getOrderByOrderId.mockResolvedValueOnce(orderWithInvoice);
-      getUserById.mockResolvedValueOnce(customer);
-      const res = await POST(makeReq(), params);
-      expect(res.status).toBe(200);
-      expect(createPrimaryInvoice).not.toHaveBeenCalled();
-      expect(markInvoiceCreationFailed).not.toHaveBeenCalled();
-    }
-  );
-
-  it("no invoiceProvider → createPrimaryInvoice called with the order context and a 5-min stale-claim window", async () => {
+  it("an uninvoiced order: 200, and no failure flag is written", async () => {
     findById.mockResolvedValueOnce(makePendingDomain());
     const order = makeOrder([{ domainName: "example.com", status: "pending" }]);
-    getOrderByOrderId.mockResolvedValueOnce(order);
-    getOrderByOrderId.mockResolvedValueOnce(order);
-    getUserById.mockResolvedValueOnce(customer);
-    await POST(makeReq(), params);
-    expect(getUserById).toHaveBeenCalledWith("U1");
-    expect(createPrimaryInvoice).toHaveBeenCalledTimes(1);
-    const [ctx, opts] = createPrimaryInvoice.mock.calls[0];
-    expect(ctx.order).toBe(order);
-    expect(ctx.orderId).toBe("ORD-1");
-    expect(ctx.razorpay_payment_id).toBe("rzp_x");
-    expect(ctx.paymentDetails).toEqual({ id: "rzp_x", amount: 1180, currency: "INR" });
-    expect(ctx.user).toBe(customer);
-    expect(ctx.cartItems).toEqual([{ domainName: "example.com" }]);
-    expect(opts).toEqual({ claimOptions: { staleClaimAfterMs: 5 * 60 * 1000 } });
-  });
-
-  it("no user found → no invoice attempted (nothing to bill to)", async () => {
-    findById.mockResolvedValueOnce(makePendingDomain());
-    const order = makeOrder([{ domainName: "example.com", status: "pending" }]);
-    getOrderByOrderId.mockResolvedValueOnce(order);
-    getOrderByOrderId.mockResolvedValueOnce(order);
-    getUserById.mockResolvedValueOnce(null);
-    await POST(makeReq(), params);
-    expect(createPrimaryInvoice).not.toHaveBeenCalled();
-  });
-
-  it("createPrimaryInvoice throw → failure RECORDED via markInvoiceCreationFailed, and SWALLOWED (still 200)", async () => {
-    findById.mockResolvedValueOnce(makePendingDomain());
-    const order = makeOrder([{ domainName: "example.com", status: "pending" }]);
-    getOrderByOrderId.mockResolvedValueOnce(order);
-    getOrderByOrderId.mockResolvedValueOnce(order);
-    getUserById.mockResolvedValueOnce(customer);
-    createPrimaryInvoice.mockRejectedValueOnce(new Error("COMPANY_STATE is not configured"));
+    getOrderByOrderId.mockResolvedValue(order);
     const res = await POST(makeReq(), params);
     expect(res.status).toBe(200);
-    expect(markInvoiceCreationFailed).toHaveBeenCalledWith(
-      "OBJ-O1",
-      "COMPANY_STATE is not configured"
-    );
-    const body = await res.json();
-    expect(body.success).toBe(true);
+    expect(markInvoiceCreationFailed).not.toHaveBeenCalled();
   });
 });
 

@@ -14,7 +14,7 @@ import {
 } from "@/lib/services/renewal-payments";
 import { serverLogger } from "@/lib/server-logger";
 import { EmailService } from "@/lib/email";
-import { createHttpTask } from "@/lib/cloud-tasks";
+import { flagPaymentWithoutBill } from "@/lib/billing/no-dms-bills";
 import {
   suspendUser as daSuspendUser,
   unsuspendUser as daUnsuspendUser,
@@ -275,31 +275,12 @@ export async function handleSubscriptionCharged(payload: RazorpayWebhookPayload)
     serverLogger.error(`[Webhook] Failed to create Order record: ${asErr(orderErr).message}`);
   }
 
-  // ── Step 9: Async invoice issue ──────────────────────────────────────────
-  /**
-   * Fire and forget — an invoicing failure NEVER affects service activation.
-   * Cloud Tasks handles retries; the worker flags the order invoiceFailedAt
-   * if the engine fails, so it stays visible either way.
-   */
+  // ── Step 9: no bill from DMS ─────────────────────────────────────────────
+  // DMS issues no bills (owner decision, 24 Sep 2026). This used to queue the
+  // issue-invoice worker (deleted). A renewal collected here on DMS's own
+  // Razorpay subscription is flagged for an operator to bill in ResellerOS.
   if (newOrder) {
-    const invoiceQueueName = process.env.GCP_INVOICE_QUEUE_NAME || process.env.GCP_QUEUE_NAME || "service-expiry-queue";
-    const invoiceWorkerUrl = `${process.env.NEXTAUTH_URL}/api/v1/workers/issue-invoice`;
-
-    createHttpTask(invoiceQueueName, invoiceWorkerUrl, {
-      orderId: newOrder._id.toString(),
-      userId: user._id.toString(),
-      serviceType: "hosting",
-      domainName,
-      hostingPlanId: hostingPlan?.planId,
-      amount: payment.amount / 100,
-      currency: payment.currency,
-      razorpayPaymentId: payment.id,
-      durationMonths: renewalDurationMonths,
-    }).catch((err) =>
-      serverLogger.error(
-        `[Webhook] Failed to queue invoice task: ${err.message}`
-      )
-    );
+    await flagPaymentWithoutBill(newOrder, "webhook subscription.charged");
   }
 }
 

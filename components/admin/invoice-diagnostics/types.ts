@@ -34,9 +34,3 @@ export interface DiagnosticsResponse {
   };
 }
 
-export interface BulkProgress {
-  total: number;
-  done: number;
-  success: number;
-  failed: number;
-}

@@ -31,8 +31,7 @@ export default function ConflictsTable({
       <p className="text-xs text-gray-500 mb-3">
         Two or more orders share the same invoice number. The unique
         index trips during reconciliation. Clear the value on the
-        duplicate that doesn&apos;t truly own this invoice — then
-        re-sync the rightful owner.
+        duplicate that doesn&apos;t truly own this invoice.
       </p>
       <div className="space-y-3">
         {conflicts.map((c) => (
