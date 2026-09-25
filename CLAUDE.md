@@ -80,7 +80,7 @@ Owner: *"Remove the frontend pages of DMS completely since we are using the fron
 
 - **Every one of those URLs is now a 307 to ResellerOS**, for every visitor including admins (there is no DMS copy left to show an admin). The map is `RESELLEROS_OWNED_PAGES` in `lib/reseller-os.ts`; the redirect runs in `middleware.ts` before any session lookup.
 - **`NEXT_PUBLIC_RESELLEROS_URL` is now REQUIRED.** Without it those URLs 404 — including the Razorpay policy pages. `scripts/deploy-cloud-run.sh` refuses to build without it (pinned by `tests/unit/scripts/deploy-requires-reselleros-url.test.ts`). Production is deliberately untouched until the owner supplies the production ResellerOS address.
-- **In-panel buying** is two dialogs in the customer panel, opened by `?buy=hosting` / `?buy=domain` (`lib/purchase/buy-dialog.ts`, `components/purchase/`, mounted in `UserLayout`). They feed DMS's existing cart and checkout unchanged: the hosting lines are the old `/hosting` page's logic moved verbatim into `lib/purchase/hosting-cart-item.ts`, and the domain dialog is the same `DomainSearch` component.
+- **In-panel buying** is two dialogs in the customer panel, opened by `?buy=hosting` / `?buy=domain` (`lib/purchase/buy-dialog.ts`, `components/purchase/`, mounted in `UserLayout`). Since 25 Sep 2026 (decision 30) a paid choice opens `PanelCheckout`, which orders through ResellerOS — see "Further owner decisions" below. Only the ₹0 trial line (`lib/purchase/hosting-cart-item.ts`) still goes into DMS's cart. The domain dialog is the same `DomainSearch` component with `onSelectDomain`.
 - **Kept on purpose:** `/cart`, `/checkout`, `/login`, `/register`, `/sso`, `/payment-success`, the panel, and **`/hosting/error`** — the control-panel SSO failure page, not marketing. Exact-path matching keeps it apart from `/hosting`.
 - **`/data-deletion` now redirects to ResellerOS `/privacy`**, which has no data-deletion section. Owner's choice; if Facebook login is switched on, Meta will want a data-deletion URL.
 - **The dead page controls are REMOVED (decision 15, done 25 Sep 2026).** Admin → Page management's publish/draft switches for the deleted pages and its homepage-design switch are gone, with everything that existed only for them: `config/managed-pages.ts`, `lib/services/page-visibility.ts`, `app/api/admin/pages`, and `homeVariant` in `lib/services/appearance.ts` and `api/admin/appearance`. The screen is now **Admin → Appearance** (same URL, `/admin/page-management`) and keeps the controls that style pages DMS still serves: footer template, frontend colour theme, GSTIN + social links in the footer. Pinned by `tests/unit/app/admin/page-management-dead-controls.test.ts`. The Mongo `page_visibility` / `home_variant` settings rows, if present, are now read by nothing; they were left in place (no migration for dead data).
@@ -106,10 +106,18 @@ in the ResellerOS repo, `Todos.md` §0A ("Decisions 12–18"). None of these is 
 says so — each waits for the owner's go-ahead.
 
 - **Money goes to ResellerOS's Razorpay account**, including purchases made inside this panel.
-  DMS's checkout still uses DMS's own keys today; moving it is pending.
+  The panel dialogs do so since 25 Sep 2026 (above). `/cart` + `/checkout` (`api/payments/create-order`)
+  still take a PAID cart on DMS's own keys if one reaches them; nothing in the panel now feeds
+  them a paid line except the cart page's own upsell/cross-sell widgets. Open — see TASKS/Todos.
 - **A bill shown in this panel is ResellerOS's own PDF.** DMS renders no bill of its own.
-- **If ResellerOS is down during an in-panel purchase: take the payment, bill later.** Queue the
-  bill request, retry, show "bill being prepared", alert the owner if it gets stuck.
+- ~~If ResellerOS is down during an in-panel purchase: take the payment, bill later.~~
+  **SUPERSEDED by decision 30 (25 Sep 2026): ResellerOS creates every Razorpay order.** The
+  `?buy=hosting` / `?buy=domain` dialogs call `/api/user/panel-order`, which asks ResellerOS's
+  `POST /api/dms/panel-order` (`lib/reselleros/panel-order.ts`) and opens Razorpay with the key
+  and order id it returns. If ResellerOS cannot be reached the purchase is REFUSED. DMS records
+  nothing on success: ResellerOS's webhook records the payment and provisions through the engine.
+  No queue or retry was ever built for decision 16, so there was nothing to remove. The ₹0 trial
+  still goes through DMS's cart (ResellerOS's panel-order refuses trials).
 - **The three admin invoice actions are to be REMOVED** — re-sync invoice
   (`app/api/admin/orders/[id]/re-sync-invoice`), invoice retry (`lib/invoice-retry.ts` and its
   pill), the issue-invoice worker (`app/api/workers/issue-invoice`). The owner chose removal over

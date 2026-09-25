@@ -1,5 +1,5 @@
 /**
- * The cart items a hosting purchase produces.
+ * The cart item a hosting TRIAL produces, and the ResellerOS charge per plan.
  *
  * Lifted from `app/hosting/HostingPageClient.tsx` when that page was removed
  * (owner decision, 24 Sep 2026), then re-priced the same day: the owner ruled
@@ -28,52 +28,10 @@ export function chargeFor(plan: Pick<HostingPlanConfig, "id">, cycle: BillingCyc
   return charge;
 }
 
-/**
- * A paid hosting line.
- *
- * If the cart already holds a domain that no hosting line is linked to, the
- * new line is linked to it — create-order refuses a hosting line with no
- * provisionable domain, so an unlinked line would only fail later.
- */
-export function buildHostingCartItem(
-  plan: HostingPlanConfig,
-  cycle: BillingCycle,
-  cartItems: readonly CartItem[],
-  now: number = Date.now()
-): CartItem & { linkedDomain?: string } {
-  const existingDomain = cartItems.find((item) => !item.itemType || item.itemType === "domain");
-  const isDomainAlreadyLinked =
-    !!existingDomain &&
-    cartItems.some(
-      (item) => item.itemType === "hosting" && item.linkedDomain === existingDomain.domainName
-    );
-
-  const isMonthly = cycle === "monthly";
-  const charge = chargeFor(plan, cycle);
-  const period = charge.months;
-
-  const item: CartItem & { linkedDomain?: string } = {
-    domainName: `hosting-${plan.id}-${now}`,
-    price: cartLinePrice(charge),
-    currency: plan.currency,
-    registrationPeriod: period,
-    periodUnit: "months",
-    itemType: "hosting",
-    billingCycle: cycle,
-    hostingPlan: {
-      id: plan.id,
-      name: `${plan.name} Hosting`,
-      period,
-      features: [...plan.features, ...(isMonthly ? [] : ["30-Day Money-Back Guarantee"])],
-      serverPackage: plan.serverPackage,
-    },
-  };
-
-  if (existingDomain && !isDomainAlreadyLinked) {
-    item.linkedDomain = existingDomain.domainName;
-  }
-  return item;
-}
+// A PAID hosting line used to be built here too (buildHostingCartItem). It was
+// deleted on 25 Sep 2026 with its last caller: owner decision 30 moved paid
+// in-panel purchases off DMS's cart to ResellerOS (components/purchase/
+// PanelCheckout.tsx). Only the ₹0 trial line still goes into DMS's cart.
 
 /**
  * A free-trial line: ₹0 today, then the plan's ResellerOS price for the chosen

@@ -21,7 +21,7 @@ import { describe, it, expect } from "vitest";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { buyHref, parseBuyKind } from "@/lib/purchase/buy-dialog";
-import { buildHostingCartItem, buildTrialCartItem, chargeFor } from "@/lib/purchase/hosting-cart-item";
+import { buildTrialCartItem, chargeFor } from "@/lib/purchase/hosting-cart-item";
 import { cartLinePrice } from "@/lib/pricing/hosting-price";
 import { HOSTING_PLANS } from "@/config/hosting-plans";
 import type { CartItem } from "@/lib/types";
@@ -58,48 +58,6 @@ describe("hosting prices match ResellerOS's (owner decision 7, 24 Sep 2026)", ()
 
   // What is CHARGED from those figures (ResellerOS's rate + 18% GST) is
   // pinned in tests/unit/lib/pricing/hosting-price.test.ts.
-});
-
-describe("buildHostingCartItem — the old page's shape, at ResellerOS's price incl. GST", () => {
-  it("yearly: 12 months totalling ₹708, with the money-back line", () => {
-    const item = buildHostingCartItem(starter, "yearly", [], 1000);
-    expect(item).toEqual({
-      domainName: "hosting-starter-1000",
-      price: 59, // ₹708 ÷ 12
-      currency: "INR",
-      registrationPeriod: 12,
-      periodUnit: "months",
-      itemType: "hosting",
-      billingCycle: "yearly",
-      hostingPlan: {
-        id: "starter",
-        name: "Starter Hosting",
-        period: 12,
-        features: [...starter.features, "30-Day Money-Back Guarantee"],
-        serverPackage: "Starter",
-      },
-    });
-  });
-
-  it("monthly: 1 month at ₹118 (₹100 + GST), no money-back line", () => {
-    const item = buildHostingCartItem(starter, "monthly", [], 1000);
-    expect(item.price).toBe(118);
-    expect(item.registrationPeriod).toBe(1);
-    expect(item.hostingPlan?.features).toEqual(starter.features);
-  });
-
-  it("links to a domain already in the cart", () => {
-    const cart: CartItem[] = [{ domainName: "example.in", price: 700, currency: "INR", registrationPeriod: 1, itemType: "domain" }];
-    expect(buildHostingCartItem(starter, "yearly", cart).linkedDomain).toBe("example.in");
-  });
-
-  it("does not double-link a domain another hosting line already has", () => {
-    const cart: CartItem[] = [
-      { domainName: "example.in", price: 700, currency: "INR", registrationPeriod: 1, itemType: "domain" },
-      { domainName: "hosting-plus-1", price: 187.2, currency: "INR", registrationPeriod: 12, itemType: "hosting", linkedDomain: "example.in" },
-    ];
-    expect(buildHostingCartItem(starter, "yearly", cart).linkedDomain).toBeUndefined();
-  });
 });
 
 describe("buildTrialCartItem", () => {

@@ -41,6 +41,29 @@ Eight days of focused safety-check additions are complete. Every production-faci
 
 ## In Flight
 
+### 🆕 Billing moves to ResellerOS — round 2 (owner decisions 29-30, 25 Sep 2026)
+
+Decision 29: the customer's bill is ResellerOS's paid-order (quote) PDF at once, and the GST
+invoice once staff issue it. Decision 30: ResellerOS creates every Razorpay order, including
+in-panel ones; if ResellerOS is down the purchase is refused (replaces decision 16). Full record:
+ResellerOS repo `Todos.md` "Decisions 29-30".
+
+- [x] **Step 1 — in-panel purchases go through ResellerOS.** `?buy=hosting` / `?buy=domain` open
+  `components/purchase/PanelCheckout.tsx` → `POST /api/user/panel-order` → ResellerOS
+  `POST /api/dms/panel-order` (`lib/reselleros/panel-order.ts`, `panel-order-request.ts`), then
+  Razorpay with ResellerOS's key. Nothing recorded in DMS. Env `RESELLEROS_SERVER_URL`,
+  `DMS_PANEL_API_KEY`. The ₹0 trial still uses DMS's cart. `buildHostingCartItem` deleted with
+  its last caller (4 tests with it).
+- [ ] **Step 2 — stop DMS issuing bills** (`createPrimaryInvoice`, the `models/Order.ts` INV hook,
+  re-sync-invoice, `lib/invoice-retry.ts` + pill, `api/workers/issue-invoice`).
+- [ ] **Step 3 — the Invoices page shows ResellerOS bills** (`/api/v1` read API).
+- [ ] **Step 4 — renewals go to ResellerOS** (renew buttons, expiry worker, trial end).
+- [ ] **Open, not in the brief:** `/cart` → `/checkout` → `api/payments/create-order` still takes a
+  PAID cart on DMS's own Razorpay keys if a paid line reaches it (the cart page's
+  `HostingUpsell` / `DomainCrossSell`, or a persisted cart). Decision 30 says ResellerOS creates
+  every order; gating it needs an owner go-ahead (≈100 tests cover that path).
+
+
 ### 🆕 Sub-reseller feature — Model A (Phase 1 code-complete 2026-08-10; Phases 2–5 pending)
 
 **What it is:** let our customers act as white-label resellers — onboard + sell domains/hosting to their

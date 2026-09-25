@@ -5,18 +5,24 @@
  *
  * Replaces the `/hosting` marketing page for customers who are already signed
  * in (owner decision, 24 Sep 2026): the plan cards and the trial button, and
- * nothing else. The cart lines come from `lib/purchase/hosting-cart-item.ts`,
- * which is the old page's logic moved verbatim, so checkout sees no change.
+ * nothing else.
+ *
+ * A PAID plan no longer goes into DMS's cart (owner decision 30, 25 Sep 2026:
+ * ResellerOS creates every Razorpay order). "Buy" opens PanelCheckout, which
+ * asks ResellerOS for the order and opens Razorpay with ResellerOS's key; DMS
+ * creates no order and issues no bill. The ₹0 free TRIAL still goes through
+ * DMS's cart: ResellerOS's panel-order refuses trials, because DMS starts its
+ * in-panel trial itself, and a trial takes no payment.
  */
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Check } from 'lucide-react';
 import Modal from '@/components/Modal';
+import PanelCheckout, { type PanelPurchaseChoice } from '@/components/purchase/PanelCheckout';
 import { useCartStore } from '@/store/cartStore';
 import { HOSTING_PLANS, type HostingPlanConfig } from '@/config/hosting-plans';
 import {
-  buildHostingCartItem,
   buildTrialCartItem,
   chargeFor,
   type BillingCycle,
@@ -31,19 +37,39 @@ interface BuyHostingModalProps {
   onClose: () => void;
 }
 
+/** The plans ResellerOS's panel-order prices, or null for anything else. */
+function sellablePlanId(id: string): 'starter' | 'standard' | 'plus' | null {
+  return id === 'starter' || id === 'standard' || id === 'plus' ? id : null;
+}
+
 // Whole rupees: ResellerOS's hosting prices are whole-rupee figures.
 const inr = (n: number) => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 
 export default function BuyHostingModal({ isOpen, onClose }: BuyHostingModalProps) {
   const router = useRouter();
-  const { addItem, items: cartItems } = useCartStore();
+  const { addItem } = useCartStore();
   const [cycle, setCycle] = useState<BillingCycle>('yearly');
   const [checkingTrial, setCheckingTrial] = useState(false);
+  const [checkout, setCheckout] = useState<PanelPurchaseChoice | null>(null);
+
+  const close = () => {
+    setCheckout(null);
+    onClose();
+  };
 
   const choose = (plan: HostingPlanConfig) => {
-    addItem(buildHostingCartItem(plan, cycle, cartItems));
-    toast.success(`${plan.name} hosting added to cart`);
-    router.push('/cart');
+    const planId = sellablePlanId(plan.id);
+    if (!planId) {
+      // ResellerOS sells these three; anything else has no price to charge.
+      toast.error(`${plan.name} can't be bought online. Nothing was charged. Please contact support.`);
+      return;
+    }
+    setCheckout({
+      kind: 'hosting',
+      planId,
+      cycle,
+      label: `${plan.name} hosting, ${cycle === 'yearly' ? '1 year' : '1 month'}`,
+    });
   };
 
   const startTrial = async (plan: HostingPlanConfig) => {
@@ -71,8 +97,16 @@ export default function BuyHostingModal({ isOpen, onClose }: BuyHostingModalProp
     }
   };
 
+  if (checkout) {
+    return (
+      <Modal isOpen={isOpen} onClose={close} title="Buy hosting" size="lg">
+        <PanelCheckout choice={checkout} onBack={() => setCheckout(null)} onClose={close} />
+      </Modal>
+    );
+  }
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Buy hosting" size="xl">
+    <Modal isOpen={isOpen} onClose={close} title="Buy hosting" size="xl">
       <div className="flex justify-center mb-5">
         <div role="group" aria-label="Billing cycle" className="inline-flex rounded-lg border border-hairline bg-paper-2 p-1">
           {(['yearly', 'monthly'] as const).map((c) => (
@@ -129,7 +163,7 @@ export default function BuyHostingModal({ isOpen, onClose }: BuyHostingModalProp
                 onClick={() => choose(plan)}
                 className="w-full px-4 py-2 text-sm font-semibold text-paper bg-amber rounded-lg hover:brightness-90 transition-colors"
               >
-                Add to cart
+                Buy {plan.name}
               </button>
               {/* Starter only, on monthly AND yearly (owner, 24 Sep 2026). The
                   server re-checks both: lib/pricing/trial-plan.ts. */}

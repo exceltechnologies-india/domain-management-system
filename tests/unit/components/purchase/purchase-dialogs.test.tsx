@@ -3,12 +3,13 @@
  *
  *  - `?buy=` opens exactly the named dialog, and closing strips only the
  *    dialog's own parameters.
- *  - The hosting dialog puts the same cart line the deleted /hosting page did
- *    into the cart, then goes to /cart.
+ *  - A PAID plan or domain no longer goes into DMS's cart (owner decision 30,
+ *    25 Sep 2026): it opens PanelCheckout with the choice, which orders it
+ *    through ResellerOS. Only the ₹0 trial still uses the cart.
  *  - The trial is refused client-side when the eligibility check says no, and
  *    an unreachable check is reported rather than read as "eligible".
  */
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const pushMock = vi.hoisted(() => vi.fn());
@@ -36,11 +37,16 @@ vi.mock("@/hooks/useModalScroll", () => ({ useModalScroll: () => {} }));
 
 // The domain dialog is DomainSearch in a frame; DomainSearch has its own suite.
 const domainSearchMock = vi.hoisted(() =>
-  vi.fn((props: { initialSearchTerm?: string; autoSearch?: boolean }) => (
+  vi.fn((props: { initialSearchTerm?: string; autoSearch?: boolean; onSelectDomain?: (d: string) => void }) => (
     <div data-testid="domain-search" data-term={props.initialSearchTerm} data-auto={String(props.autoSearch)} />
   ))
 );
 vi.mock("@/components/DomainSearch", () => ({ default: domainSearchMock }));
+
+// PanelCheckout has its own suite; here we only need to see WHAT it was handed.
+vi.mock("@/components/purchase/PanelCheckout", () => ({
+  default: (props: { choice: unknown }) => <pre data-testid="panel-checkout">{JSON.stringify(props.choice)}</pre>,
+}));
 
 import PurchaseDialogs from "@/components/purchase/PurchaseDialogs";
 
@@ -86,26 +92,25 @@ describe("which dialog opens", () => {
 });
 
 describe("the hosting dialog", () => {
-  it("adds a Starter year at ResellerOS's price (₹708 incl. GST), then goes to the cart", () => {
+  it("shows ResellerOS's Starter year (₹708 incl. GST) and Buy opens the ResellerOS checkout, not the cart", () => {
     open("buy=hosting");
-    fireEvent.click(screen.getAllByRole("button", { name: "Add to cart" })[0]);
-    const item = addItemMock.mock.calls[0][0];
-    expect(item.itemType).toBe("hosting");
-    expect(item.hostingPlan.id).toBe("starter");
-    expect(item.price * item.registrationPeriod).toBe(708);
-    expect(item.registrationPeriod).toBe(12);
     expect(screen.getAllByText(/₹708 a year including 18% GST/).length).toBeGreaterThan(0);
-    expect(pushMock).toHaveBeenCalledWith("/cart");
+    fireEvent.click(screen.getByRole("button", { name: "Buy Starter" }));
+    expect(addItemMock).not.toHaveBeenCalled();
+    expect(pushMock).not.toHaveBeenCalled();
+    const choice = JSON.parse(screen.getByTestId("panel-checkout").textContent ?? "{}");
+    expect(choice).toMatchObject({ kind: "hosting", planId: "starter", cycle: "yearly" });
   });
 
-  it("monthly shows ResellerOS's ₹100 + GST and adds ₹118", () => {
+  it("monthly shows ResellerOS's ₹100 + GST and hands the monthly cycle to checkout", () => {
     open("buy=hosting");
     fireEvent.click(screen.getByRole("button", { name: "Monthly" }));
     expect(screen.getByText("₹100")).toBeInTheDocument();
     expect(screen.getByText(/₹118 a month including 18% GST/)).toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole("button", { name: "Add to cart" })[0]);
-    expect(addItemMock.mock.calls[0][0].registrationPeriod).toBe(1);
-    expect(addItemMock.mock.calls[0][0].price).toBe(118);
+    fireEvent.click(screen.getByRole("button", { name: "Buy Starter" }));
+    expect(addItemMock).not.toHaveBeenCalled();
+    const choice = JSON.parse(screen.getByTestId("panel-checkout").textContent ?? "{}");
+    expect(choice).toMatchObject({ kind: "hosting", planId: "starter", cycle: "monthly" });
   });
 
   // Owner, 24 Sep 2026: the trial is on Starter only, on monthly AND yearly.
@@ -149,6 +154,18 @@ describe("the hosting dialog", () => {
     open("buy=hosting");
     fireEvent.click(screen.getByRole("button", { name: /free trial/i }));
     await waitFor(() => expect(toastMock.error).toHaveBeenCalled());
+    expect(addItemMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("the domain dialog", () => {
+  it("choosing a name opens the ResellerOS checkout for that exact name, not the cart", () => {
+    open("buy=domain");
+    const props = domainSearchMock.mock.calls.at(-1)?.[0] as { onSelectDomain?: (d: string) => void };
+    expect(typeof props.onSelectDomain).toBe("function");
+    act(() => props.onSelectDomain?.("example.in"));
+    const choice = JSON.parse(screen.getByTestId("panel-checkout").textContent ?? "{}");
+    expect(choice).toMatchObject({ kind: "domain", domain: "example.in" });
     expect(addItemMock).not.toHaveBeenCalled();
   });
 });

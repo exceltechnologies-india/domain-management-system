@@ -37,6 +37,12 @@ export interface DomainSearchProps {
   subtitle?: string;
   showHeroText?: boolean;
   compact?: boolean;
+  /**
+   * When given, choosing an available name calls this INSTEAD of adding it to
+   * DMS's cart. The panel's Buy-a-domain dialog passes it: that purchase is
+   * ordered through ResellerOS (owner decision 30), not DMS's cart.
+   */
+  onSelectDomain?: (domainName: string) => void;
 }
 
 export default function DomainSearch({
@@ -49,6 +55,7 @@ export default function DomainSearch({
   subtitle,
   showHeroText = true,
   compact = false,
+  onSelectDomain,
 }: DomainSearchProps) {
   const [showRequirementsModal, setShowRequirementsModal] = React.useState(false);
   const [selectedDomainForRequirements, setSelectedDomainForRequirements] = React.useState('');
@@ -76,7 +83,9 @@ export default function DomainSearch({
   } = useDomainSearch({ redirectOnSearch, autoSearch, initialSearchTerm });
 
   const handleAddToCart = (result: SearchResult) => {
-    if (result.available && result.price) {
+    // The panel's ResellerOS checkout prices the name itself, so a missing
+    // search price does not block it; DMS's cart still needs one.
+    if (result.available && (result.price || onSelectDomain)) {
       if (requiresAdditionalDetails(result.domainName)) {
         setSelectedDomainForRequirements(result.domainName);
         setShowRequirementsModal(true);
@@ -88,6 +97,15 @@ export default function DomainSearch({
         return;
       }
 
+      if (onSelectDomain) {
+        onSelectDomain(result.domainName);
+        return;
+      }
+
+      if (!result.price) {
+        showErrorToast('Cannot add to cart - missing required data');
+        return;
+      }
       const cartItem = {
         domainName: result.domainName,
         price: result.price,

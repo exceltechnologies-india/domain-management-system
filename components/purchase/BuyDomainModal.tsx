@@ -4,13 +4,20 @@
  * Register a domain from inside the customer panel.
  *
  * Replaces `/domains/search` and `/domains/bulk-search` for signed-in
- * customers (owner decision, 24 Sep 2026). It is the same `DomainSearch`
- * component those pages rendered — availability, live price, the
- * requirements modal for restricted TLDs and add-to-cart all come with it —
- * so domain pricing and the cart line are unchanged.
+ * customers (owner decision, 24 Sep 2026). The search is the same
+ * `DomainSearch` component those pages rendered — availability and the
+ * requirements modal for restricted TLDs come with it.
+ *
+ * Choosing a name no longer adds it to DMS's cart (owner decision 30,
+ * 25 Sep 2026: ResellerOS creates every Razorpay order). It opens
+ * PanelCheckout, which asks ResellerOS for the order. ResellerOS charges the
+ * LIVE ResellerClub price, re-checked at that moment — so the figure the
+ * search shows is a guide, and the payment window shows the real one.
  */
+import { useState } from 'react';
 import Modal from '@/components/Modal';
 import DomainSearch from '@/components/DomainSearch';
+import PanelCheckout, { type PanelPurchaseChoice } from '@/components/purchase/PanelCheckout';
 
 interface BuyDomainModalProps {
   isOpen: boolean;
@@ -20,8 +27,23 @@ interface BuyDomainModalProps {
 }
 
 export default function BuyDomainModal({ isOpen, onClose, initialQuery = '' }: BuyDomainModalProps) {
+  const [checkout, setCheckout] = useState<PanelPurchaseChoice | null>(null);
+
+  const close = () => {
+    setCheckout(null);
+    onClose();
+  };
+
+  if (checkout) {
+    return (
+      <Modal isOpen={isOpen} onClose={close} title="Register a domain" size="lg">
+        <PanelCheckout choice={checkout} onBack={() => setCheckout(null)} onClose={close} />
+      </Modal>
+    );
+  }
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Register a domain" size="xl">
+    <Modal isOpen={isOpen} onClose={close} title="Register a domain" size="xl">
       <DomainSearch
         initialSearchTerm={initialQuery}
         autoSearch={!!initialQuery}
@@ -29,6 +51,9 @@ export default function BuyDomainModal({ isOpen, onClose, initialQuery = '' }: B
         showHeroText={false}
         compact
         className="w-full"
+        onSelectDomain={(domainName) =>
+          setCheckout({ kind: 'domain', domain: domainName, label: `${domainName}, registered for 1 year` })
+        }
       />
     </Modal>
   );
