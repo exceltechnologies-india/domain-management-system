@@ -14,6 +14,6 @@ describe("only Starter has a free trial (owner, 24 Sep 2026)", () => {
 
   it("both server gates check it — the dialog hiding the button is not the rule", () => {
     expect(src("app/api/user/hosting/trial-eligibility/route.ts")).toMatch(/isTrialPlan\(body\.planId\)/);
-    expect(src("app/api/payments/create-order/route.ts")).toMatch(/isTrialPlan\(item\.hostingPlan\?\.id\)/);
+    expect(src("app/api/user/hosting/start-trial/route.ts")).toMatch(/isTrialPlan\(item\.hostingPlan\?\.id\)/);
   });
 });

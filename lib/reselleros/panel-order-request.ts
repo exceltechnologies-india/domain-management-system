@@ -14,6 +14,24 @@
 import { z } from "zod";
 import { isProvisionableDomain } from "@/lib/validation/hosting-domain";
 import type { PanelOrderLine, PanelOrderRequest } from "./panel-order";
+import { mapCartToPanelOrder } from "./cart-lines";
+
+/** A DMS cart line as the browser holds it. Only its meaning is read; prices are ignored. */
+const cartLineSchema = z
+  .object({
+    domainName: z.string().trim().min(1).max(253),
+    itemType: z.string().max(20).optional(),
+    registrationPeriod: z.number().int().positive().max(120).optional(),
+    periodUnit: z.string().max(20).optional(),
+    billingCycle: z.string().max(20).optional(),
+    linkedDomain: z.string().max(253).optional(),
+    isTrial: z.boolean().optional(),
+    tldAttributes: z.record(z.string(), z.string()).optional(),
+    hostingPlan: z
+      .object({ id: z.string().max(40).optional(), planId: z.string().max(40).optional(), name: z.string().max(120).optional() })
+      .optional(),
+  })
+  .strip();
 
 const addressSchema = z.object({
   line1: z.string().trim().min(1).max(200),
@@ -38,6 +56,11 @@ export const panelPurchaseSchema = z.object({
       /** The full name to register, e.g. example.in. */
       domain: z.string().trim().min(3).max(253),
     }),
+    z.object({
+      /** The DMS /cart (owner, 25 Sep 2026: "Route through ResellerOS"). */
+      kind: z.literal("cart"),
+      items: z.array(cartLineSchema).min(1).max(50),
+    }),
   ]),
   companyName: z.string().trim().min(2).max(200),
   gstin: z.string().trim().max(20).optional(),
@@ -57,7 +80,7 @@ export interface PanelBuyer {
 
 export type BuildResult =
   | { ok: true; request: PanelOrderRequest }
-  | { ok: false; message: string; field: "name" | "phone" | "email" | "domain" | "address" | "account" };
+  | { ok: false; message: string; field: "name" | "phone" | "email" | "domain" | "address" | "account" | "cart" };
 
 const SETTINGS = "Settings (Dashboard → Settings)";
 
@@ -79,31 +102,40 @@ export function buildPanelOrderRequest(buyer: PanelBuyer, body: PanelPurchase): 
     return { ok: false, field: "phone", message: `Your account has no mobile number, and the order needs one. Nothing was charged. Add it in ${SETTINGS}, then try again.` };
   }
 
-  const domain = body.purchase.domain.toLowerCase();
-  if (!isProvisionableDomain(domain)) {
-    return {
-      ok: false,
-      field: "domain",
-      message: `"${body.purchase.domain}" isn't a domain name we can use. Nothing was charged. Enter the full name, for example yourbusiness.in.`,
-    };
-  }
-
   const lines: PanelOrderLine[] = [];
   let hostingDomain: string | undefined;
-  if (body.purchase.kind === "hosting") {
-    lines.push({ sku: `hosting:${body.purchase.planId}`, qty: 1, cycle: body.purchase.cycle });
-    hostingDomain = domain;
+  let needsAddress = false;
+  if (body.purchase.kind === "cart") {
+    const mapped = mapCartToPanelOrder(body.purchase.items);
+    if (!mapped.ok) return { ok: false, field: "cart", message: mapped.message };
+    lines.push(...mapped.lines);
+    hostingDomain = mapped.hostingDomain ?? undefined;
+    needsAddress = mapped.needsAddress;
   } else {
-    const tld = domain.slice(domain.indexOf(".") + 1);
-    // One year, quantity 1: ResellerOS's contract for a domain line.
-    lines.push({ sku: `domain:${tld}`, qty: 1, domain });
-    if (!body.address) {
+    const domain = body.purchase.domain.toLowerCase();
+    if (!isProvisionableDomain(domain)) {
       return {
         ok: false,
-        field: "address",
-        message: "A domain is registered in your name, so the registry needs your postal address. Nothing was charged. Fill in the address below and try again.",
+        field: "domain",
+        message: `"${body.purchase.domain}" isn't a domain name we can use. Nothing was charged. Enter the full name, for example yourbusiness.in.`,
       };
     }
+    if (body.purchase.kind === "hosting") {
+      lines.push({ sku: `hosting:${body.purchase.planId}`, qty: 1, cycle: body.purchase.cycle });
+      hostingDomain = domain;
+    } else {
+      const tld = domain.slice(domain.indexOf(".") + 1);
+      // One year, quantity 1: ResellerOS's contract for a domain line.
+      lines.push({ sku: `domain:${tld}`, qty: 1, domain });
+      needsAddress = true;
+    }
+  }
+  if (needsAddress && !body.address) {
+    return {
+      ok: false,
+      field: "address",
+      message: "A domain is registered in your name, so the registry needs your postal address. Nothing was charged. Fill in the address below and try again.",
+    };
   }
 
   const gstin = body.gstin?.trim().toUpperCase();

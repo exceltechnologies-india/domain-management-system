@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react';
 import { trackInitiateCheckout } from '@/lib/journey';
 import { useLogout } from '@/lib/logout';
 import { safeSessionStorage } from '@/lib/storage';
-import { ArrowLeft, CreditCard, Shield, ShieldCheck, ShoppingCart, Globe, Info, Check, Smartphone } from 'lucide-react';
+import { ArrowLeft, CreditCard, Globe, Info, Check, Smartphone } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useCartStore } from '@/store/cartStore';
 import ClientOnly from '@/components/ClientOnly';
@@ -18,9 +18,8 @@ import { getMinRegistrationPeriod } from '@/lib/tld-min-periods';
 import { getDeviceFingerprint } from '@/lib/device-fingerprint';
 import { hostingCharge } from '@/lib/pricing/hosting-price';
 import type { CartItem } from '@/lib/types';
-import { razorpayThemeColor } from '@/lib/theme-color';
 import { logger } from '@/lib/logger';
-import { useRazorpayCheckout } from '@/components/RazorpayCheckoutFrame';
+import PanelCheckout from '@/components/purchase/PanelCheckout';
 
 const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@anutech.in';
 
@@ -39,12 +38,10 @@ export default function CheckoutPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const handleLogout = useLogout();
   const [isPaymentInProgress, setIsPaymentInProgress] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
   const [paymentCompleted, setPaymentCompleted] = useState(false);
   const router = useRouter();
   const { data: session, status } = useSession();
   const { items: cartItems, getTotalPrice, getSubtotalPrice, getItemCount, clearCart, syncWithServer, isLoading, hasDomainItems, hasHostingItems } = useCartStore();
-  const razorpay = useRazorpayCheckout();
   const hasTrial = cartItems.some((i: CartItem) => i.isTrial === true);
   const trialItem = cartItems.find((i: CartItem) => i.isTrial === true);
   // What the trial converts to: ResellerOS's price incl. GST for the trial's
@@ -148,237 +145,44 @@ export default function CheckoutPage() {
     }
   }, [cartItems.length, isLoading, user, router, isPaymentInProgress, paymentCompleted]);
 
-  const handlePayment = async () => {
-    if (cartItems.length === 0) {
-      toast.error('Cart is empty');
-      return;
-    }
-
-    // Validate registration periods for all domains
-    const invalidDomains = cartItems.filter(item => {
-      const minPeriod = getMinRegistrationPeriod(item.domainName);
-      return item.registrationPeriod < minPeriod;
-    });
-
-    if (invalidDomains.length > 0) {
-      const domainNames = invalidDomains.map(d => d.domainName).join(', ');
-      toast.error(`Invalid registration period for ${domainNames}. Please check the minimum requirements.`);
-      return;
-    }
-
+  // The ₹0 free trial is the one thing this page starts itself
+  // (api/user/hosting/start-trial). Every PAID cart is ordered through
+  // ResellerOS by <PanelCheckout> below (owner, 25 Sep 2026: "Route through
+  // ResellerOS") — DMS creates no Razorpay order and records no payment.
+  const handleStartTrial = async () => {
+    if (!hasTrial) return;
     setIsProcessing(true);
     setIsPaymentInProgress(true);
     try {
-      // Device fingerprint — used server-side for trial-abuse defenses.
-      // Best-effort; absence is non-fatal for non-trial orders.
       const deviceFingerprint = await getDeviceFingerprint().catch(() => '');
-
-      // Create payment order
-      const response = await fetch('/api/v1/payments/create-order', {
+      const response = await fetch('/api/v1/user/hosting/start-trial', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          cartItems: cartItems,
-          deviceFingerprint,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cartItems, deviceFingerprint }),
         credentials: 'include',
       });
-
-      const data = await response.json();
-
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        toast.error(data.error || 'Failed to create payment order. Please try again.');
+        toast.error(typeof data.error === 'string' ? data.error : "We couldn't start your trial. Nothing was charged. Please try again.");
         setIsProcessing(false);
         setIsPaymentInProgress(false);
         return;
       }
-
-      const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
-      if (!keyId) {
-        throw new Error('Payment configuration missing: Razorpay key is not set');
-      }
-
-      const { razorpayOrderId, razorpaySubscriptionId, razorpayCustomerId, mandateMode, manualMode } = data as {
-        razorpayOrderId?: string;
-        razorpaySubscriptionId?: string;
-        razorpayCustomerId?: string;
-        mandateMode?: 'subscription' | 'tokens' | 'manual' | null;
-        manualMode?: boolean;
-      };
-
-      // Manual-mode branch: NO Razorpay interaction. Hosting was already
-      // provisioned server-side by create-order. Just redirect to the
-      // dashboard with a success toast — same as the post-verify happy
-      // path for the other flows. No verify-payment call needed since
-      // there's no payment to verify.
-      if (manualMode || mandateMode === 'manual') {
-        safeSessionStorage.setItem('paymentResult', JSON.stringify({
-          status: 'success',
-          amount: 0,
-          mandateMode: 'manual',
-          timestamp: Date.now(),
-        }));
-        setPaymentCompleted(true);
-        clearCart();
-        setIsPaymentInProgress(false);
-        router.push('/payment-success');
-        return;
-      }
-
-      // Function to verify and finalize
-      const verifyPayment = async (orderId: string, paymentId: string, signature: string, subscriptionId?: string) => {
-        setIsVerifying(true);
-        try {
-          const verifyResponse = await fetch('/api/v1/payments/verify', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              razorpay_order_id: orderId,
-              razorpay_payment_id: paymentId,
-              razorpay_signature: signature,
-              razorpay_subscription_id: subscriptionId,
-              cartItems: cartItems,
-            }),
-            credentials: 'include',
-          });
-
-          const verifyData = await verifyResponse.json();
-
-          if (verifyResponse.ok) {
-            safeSessionStorage.setItem('paymentResult', JSON.stringify({
-              ...verifyData,
-              status: 'success',
-              amount: getTotalPrice(),
-              timestamp: Date.now()
-            }));
-            setPaymentCompleted(true);
-            clearCart();
-            setIsPaymentInProgress(false);
-            router.push('/payment-success');
-          } else {
-            toast.error(verifyData.error || 'Payment verification failed');
-            setIsVerifying(false);
-            setIsProcessing(false);
-            // Release the payment-in-progress lock so the CTA is usable again
-            // (retry / navigate away). Without this the button stays stuck on
-            // "Payment in Progress..." forever after a verify failure — even
-            // though the charge may have already succeeded server-side.
-            setIsPaymentInProgress(false);
-          }
-        } catch (error) {
-          logger.error("Verification failed:", error);
-          toast.error("An error occurred during verification.");
-          setIsVerifying(false);
-          setIsProcessing(false);
-          setIsPaymentInProgress(false);
-        }
-      };
-
-      const prefill = {
-        name: (user ? `${user.firstName} ${user.lastName}` : '').trim(),
-        email: (user?.email || '').trim(),
-      };
-
-      // Linear flow: order first (if any), then subscription (if any), then verify once.
-      interface RazorpayPaymentResult {
-        razorpay_order_id?: string;
-        razorpay_payment_id: string;
-        razorpay_signature?: string;
-        razorpay_subscription_id?: string;
-      }
-      let orderPaymentData: RazorpayPaymentResult | null = null;
-
-      try {
-        // Tokens-flow branch: when create-order responded with mandateMode='tokens',
-        // it returned the CIT auth order_id + customer_id. Razorpay Checkout
-        // opens in recurring-authorization mode (NOT one-shot mode) — the
-        // customer sees a small validation amount + autopay mandate UI.
-        // We request ₹2 (validationAmountInPaise: 200); cards honor that, but
-        // the UPI Autopay rail enforces its own higher minimum (≈₹5) for the
-        // registration debit, so the amount SHOWN varies by method. That's why
-        // the copy below stays amount-agnostic. The webhook refunds the ACTUAL
-        // captured amount (payment.amount, not a hardcoded ₹2), so the customer
-        // is fully refunded whatever the rail charged. Provisioning happens
-        // asynchronously after payment.captured; the frontend just round-trips
-        // through /verify to confirm the payment landed.
-        if (mandateMode === 'tokens' && razorpayOrderId && razorpayCustomerId) {
-          const tokensResult = await razorpay.open({
-            key: keyId,
-            name: 'AnuTech Digital',
-            description: 'Hosting trial — mandate setup (small verification charge, refunded immediately)',
-            order_id: razorpayOrderId,
-            customer_id: razorpayCustomerId,
-            recurring: '1',
-            prefill,
-            theme: { color: razorpayThemeColor() },
-          });
-
-          await verifyPayment(
-            tokensResult.razorpay_order_id || razorpayOrderId,
-            tokensResult.razorpay_payment_id,
-            tokensResult.razorpay_signature || ''
-          );
-          return; // Tokens flow is the only branch; skip the existing order/subscription path
-        }
-
-        if (razorpayOrderId) {
-          orderPaymentData = await razorpay.open({
-            key: keyId,
-            name: 'AnuTech Digital',
-            description: `Payment for ${cartItems.length} items`,
-            order_id: razorpayOrderId,
-            prefill,
-            theme: { color: razorpayThemeColor() },
-          });
-
-          if (razorpaySubscriptionId) {
-            toast.success('Domain payment authorized! Setting up subscription...');
-          }
-        }
-
-        if (razorpaySubscriptionId) {
-          const subResponse = await razorpay.open({
-            key: keyId,
-            name: 'AnuTech Digital',
-            description: 'Hosting Subscription',
-            subscription_id: razorpaySubscriptionId,
-            prefill,
-            theme: { color: razorpayThemeColor() },
-          });
-
-          await verifyPayment(
-            orderPaymentData?.razorpay_order_id || '',
-            orderPaymentData?.razorpay_payment_id || subResponse.razorpay_payment_id,
-            orderPaymentData?.razorpay_signature || subResponse.razorpay_signature,
-            subResponse.razorpay_subscription_id
-          );
-        } else if (orderPaymentData) {
-          await verifyPayment(
-            orderPaymentData.razorpay_order_id || '',
-            orderPaymentData.razorpay_payment_id,
-            orderPaymentData.razorpay_signature || ''
-          );
-        } else {
-          throw new Error("No payment target created");
-        }
-      } catch (err: unknown) {
-        // Iframe rejected: user dismissed, or upstream error
-        if ((err as { kind?: string })?.kind === 'dismissed') {
-          setIsProcessing(false);
-          setIsPaymentInProgress(false);
-          return;
-        }
-        throw err;
-      }
+      safeSessionStorage.setItem('paymentResult', JSON.stringify({
+        status: 'success',
+        amount: 0,
+        mandateMode: 'manual',
+        timestamp: Date.now(),
+      }));
+      setPaymentCompleted(true);
+      clearCart();
+      setIsPaymentInProgress(false);
+      router.push('/payment-success');
     } catch (error: unknown) {
+      logger.error('Trial start failed:', error);
+      toast.error("We couldn't reach our server, so the trial wasn't started. Nothing was charged. Please try again.");
       setIsProcessing(false);
       setIsPaymentInProgress(false);
-      const message = error instanceof Error ? error.message : 'Payment initialization failed.';
-      toast.error(message);
     }
   };
 
@@ -386,61 +190,8 @@ export default function CheckoutPage() {
     return <CheckoutPageSkeleton />;
   }
 
-  // Render the processing overlay if verification is in progress
-  if (isVerifying) {
-    // Build a cart-aware processing step label
-    const hasDomains = hasDomainItems();
-    const hasHosting = hasHostingItems();
-    const processingLabel =
-      hasDomains && hasHosting
-        ? 'Setting up hosting & registering domains...'
-        : hasHosting
-        ? 'Setting up your hosting account...'
-        : 'Registering your domain(s)...';
-
-    return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/95 backdrop-blur-md">
-        <div className="max-w-md w-full px-6 text-center">
-          <div className="relative mb-10">
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="h-32 w-32 rounded-full border-4 border-primary-50 border-t-primary-600 animate-spin"></div>
-            </div>
-            <div className="relative flex items-center justify-center h-32 w-32 mx-auto">
-              <ShieldCheck className="h-14 w-14 text-primary-600" />
-            </div>
-          </div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-3 font-outfit">Finalizing Your Order</h2>
-          <p className="text-lg text-gray-600 mb-8 leading-relaxed">
-            {hasDomains && hasHosting
-              ? 'We are securing your domains and setting up your hosting.'
-              : hasHosting
-              ? 'We are setting up your hosting account.'
-              : 'We are registering your domain(s).'}
-            {' '}
-            <span className="block mt-2 font-semibold text-primary-600 px-4 py-2 bg-primary-50 rounded-full inline-block">Please do not refresh or close this page.</span>
-          </p>
-          <div className="space-y-4 text-left bg-white shadow-xl shadow-primary-900/5 p-6 rounded-2xl border border-primary-50">
-            <div className="flex items-center text-sm font-medium text-gray-700">
-              <div className="h-2 w-2 rounded-full bg-green-500 shadow-sm shadow-green-200 mr-3"></div>
-              Payment Authorized
-            </div>
-            <div className="flex items-center text-sm font-medium text-gray-700">
-              <div className="h-2 w-2 rounded-full bg-primary-500 animate-pulse shadow-sm shadow-primary-200 mr-3"></div>
-              {processingLabel}
-            </div>
-            <div className="flex items-center text-sm font-medium text-gray-400">
-              <div className="h-2 w-2 rounded-full bg-gray-200 mr-3"></div>
-              Generating invoices & confirmation
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <>
-    <razorpay.Frame />
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <Navigation user={user} onLogout={user ? handleLogout : undefined} />
 
@@ -674,13 +425,13 @@ export default function CheckoutPage() {
                       </>
                     )}
                      <div className={`${!hasTrial ? 'border-t border-primary-200/50 pt-3 ' : ''}flex justify-between items-baseline`}>
-                      <span className="text-base font-bold text-gray-900">{hasTrial ? 'Due Today' : 'Total Amount'}</span>
+                      <span className="text-base font-bold text-gray-900">{hasTrial ? 'Due Today' : 'Estimated total'}</span>
                       <div className="text-right">
                         <span className={`text-3xl font-black font-mono tracking-tight ${hasTrial ? 'text-green-600' : 'text-primary-600'}`}>
                           ₹{getTotalPrice().toFixed(2)}
                         </span>
                         <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider mt-1">
-                          {hasTrial ? 'Free trial period' : 'Including 18% GST'}
+                          {hasTrial ? 'Free trial period' : 'Incl. 18% GST — the payment window shows the exact amount'}
                         </p>
                       </div>
                     </div>
@@ -710,31 +461,38 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                {/* Payment Button */}
-                <button
-                  onClick={handlePayment}
-                  disabled={isProcessing || isPaymentInProgress || cartItems.length === 0}
-                  className="w-full bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 mb-4 flex items-center justify-center space-x-2"
-                >
-                  {isProcessing || isPaymentInProgress ? (
-                    <>
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                      <span>{isPaymentInProgress ? 'Payment in Progress...' : 'Processing...'}</span>
-                    </>
-                  ) : hasTrial ? (
-                    <>
-                      <span>🎁</span>
-                      <span>Start Free Trial — ₹0 Today</span>
-                    </>
-                  ) : (
-                    <>
-                      <CreditCard className="h-5 w-5" />
-                      <span>
-                        Pay ₹{getTotalPrice().toFixed(2)}
-                      </span>
-                    </>
-                  )}
-                </button>
+                {/* Pay: a trial starts here; a paid cart is ordered through ResellerOS. */}
+                {hasTrial ? (
+                  <button
+                    onClick={handleStartTrial}
+                    disabled={isProcessing || isPaymentInProgress || cartItems.length === 0}
+                    className="w-full bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 mb-4 flex items-center justify-center space-x-2"
+                  >
+                    {isProcessing || isPaymentInProgress ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        <span>Starting your trial…</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>🎁</span>
+                        <span>Start Free Trial — ₹0 Today</span>
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <div className="mb-4">
+                    <PanelCheckout
+                      choice={{ kind: 'cart', items: cartItems, label: `${cartItems.length} item${cartItems.length === 1 ? '' : 's'} in your cart` }}
+                      onBack={() => router.push('/cart')}
+                      onClose={() => router.push('/dashboard')}
+                      onPaid={() => {
+                        setPaymentCompleted(true);
+                        clearCart();
+                      }}
+                    />
+                  </div>
+                )}
 
                 {/* Payment Progress Indicator */}
                 {isPaymentInProgress && (

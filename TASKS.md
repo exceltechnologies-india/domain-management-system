@@ -48,7 +48,12 @@ Eight days of focused safety-check additions are complete. Every production-faci
   `api/payments/cancel-subscription`, the guest option in `CartOrderSummary`, the middleware bypasses and the
   `guestCheckout` rate limiter. There was no Settings UI for autopay (nothing called either route).
   `/razorpay-checkout` + `RazorpayCheckoutFrame` KEPT: `PanelCheckout` opens ResellerOS's order with it.
-- [ ] **Step 1 — DMS /cart pays through ResellerOS** ("Route through ResellerOS").
+- [x] **Step 1 — DMS /cart pays through ResellerOS** ("Route through ResellerOS"). `/checkout` renders
+  `PanelCheckout` with `{ kind: "cart" }`; `lib/reselleros/cart-lines.ts` maps each line to a ResellerOS sku and
+  refuses (by name) anything it can't. The ₹0 trial moved to `api/user/hosting/start-trial` (create-order's trial
+  gates, unchanged; no Razorpay). **Deleted:** `api/payments/create-order`, `api/payments/verify`, and the modules
+  only they used (`lib/services/payment/{renewal,idempotency,upgrade,verification-error,price-verifier,post-tasks}`,
+  `lib/pricing/{reprice-hosting,hosting-billing-mode}`), plus the create-order/verify integration e2e suites.
 - [x] **Step 2 — hosting upgrade is a request billed by ResellerOS.** `HostingUpgradeModal` → "Request
   upgrade"; `api/user/hosting/upgrade` now sends `lib/reselleros/upgrade-request.ts` →
   ResellerOS `POST /api/dms/upgrade-request` with the server's proration as `estimateRupees`, creates no
@@ -82,10 +87,8 @@ ResellerOS repo `Todos.md` "Decisions 29-30".
   (pending ResellerOS quote → its Pay link; none → explain + support). Deleted `HostingRenewalModal`,
   `DomainRenewalModal`, `api/user/hosting/renew`, `renew-info`. The expiry worker (also trial end) raises
   no renewal Order and sends no DMS amount; suspension unchanged.
-- [ ] **Open, not in the brief:** `/cart` → `/checkout` → `api/payments/create-order` still takes a
-  PAID cart on DMS's own Razorpay keys if a paid line reaches it (the cart page's
-  `HostingUpsell` / `DomainCrossSell`, or a persisted cart). Decision 30 says ResellerOS creates
-  every order; gating it needs an owner go-ahead (≈100 tests cover that path).
+- [x] ✅ RESOLVED on 2026-09-25 (round 3, step 1): **Open, not in the brief:** `/cart` → `/checkout` → `api/payments/create-order` still took a
+  PAID cart on DMS's own Razorpay keys. The cart now pays through ResellerOS; create-order is deleted.
 
 
 ### 🆕 Sub-reseller feature — Model A (Phase 1 code-complete 2026-08-10; Phases 2–5 pending)

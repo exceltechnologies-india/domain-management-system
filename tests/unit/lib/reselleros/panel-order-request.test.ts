@@ -91,3 +91,52 @@ describe("buildPanelOrderRequest", () => {
     ).toBe(false);
   });
 });
+
+describe("buildPanelOrderRequest — the DMS cart (owner, 25 Sep 2026)", () => {
+  it("maps the cart, takes identity from the buyer, and requires the address for a domain line", () => {
+    const body = panelPurchaseSchema.parse({
+      purchase: {
+        kind: "cart",
+        items: [
+          { domainName: "rao.in", itemType: "domain", registrationPeriod: 1, price: 1 },
+          { domainName: "hosting-starter-1", itemType: "hosting", registrationPeriod: 12, billingCycle: "yearly", linkedDomain: "rao.in", hostingPlan: { id: "starter", name: "Starter" }, price: 99999 },
+        ],
+      },
+      companyName: "Rao Traders",
+      address: ADDRESS,
+    });
+    const r = buildPanelOrderRequest(BUYER, body);
+    expect(r).toMatchObject({
+      ok: true,
+      request: {
+        dmsUserId: BUYER.id,
+        email: "asha@example.test",
+        domain: "rao.in",
+        lines: [
+          { sku: "domain:in", qty: 1, domain: "rao.in" },
+          { sku: "hosting:starter", qty: 1, cycle: "yearly" },
+        ],
+      },
+    });
+    // Prices from the browser never travel.
+    expect(JSON.stringify(r)).not.toMatch(/99999|"price"/);
+  });
+
+  it("a domain in the cart with no address is refused", () => {
+    const r = buildPanelOrderRequest(BUYER, {
+      purchase: { kind: "cart", items: [{ domainName: "rao.in", itemType: "domain", registrationPeriod: 1 }] },
+      companyName: "Rao Traders",
+    });
+    expect(r).toMatchObject({ ok: false, field: "address" });
+  });
+
+  it("an unmappable line is refused with the mapper's message", () => {
+    const r = buildPanelOrderRequest(BUYER, {
+      purchase: { kind: "cart", items: [{ domainName: "rao.in", itemType: "domain", registrationPeriod: 2 }] },
+      companyName: "Rao Traders",
+      address: ADDRESS,
+    });
+    expect(r).toMatchObject({ ok: false, field: "cart" });
+    expect(!r.ok && r.message).toMatch(/rao\.in is set to 2 years/);
+  });
+});

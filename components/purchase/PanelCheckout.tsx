@@ -21,10 +21,14 @@ import { CheckCircle, AlertTriangle } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useRazorpayCheckout } from '@/components/RazorpayCheckoutFrame';
 import { razorpayThemeColor } from '@/lib/theme-color';
+import { mapCartToPanelOrder, type CartLineLike } from '@/lib/reselleros/cart-lines';
 
 export type PanelPurchaseChoice =
   | { kind: 'hosting'; planId: 'starter' | 'standard' | 'plus'; cycle: 'monthly' | 'yearly'; label: string }
-  | { kind: 'domain'; domain: string; label: string };
+  | { kind: 'domain'; domain: string; label: string }
+  /** The DMS /cart (owner, 25 Sep 2026: "Route through ResellerOS"). The
+   * server maps each line to a ResellerOS sku and refuses one it can't. */
+  | { kind: 'cart'; items: CartLineLike[]; label: string };
 
 interface Prefill {
   name: string;
@@ -56,11 +60,13 @@ interface PanelCheckoutProps {
   choice: PanelPurchaseChoice;
   onBack: () => void;
   onClose: () => void;
+  /** Called once Razorpay reports the payment (e.g. to empty the cart). */
+  onPaid?: () => void;
 }
 
 const inputCls = 'w-full rounded-lg border border-hairline bg-paper px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-amber';
 
-export default function PanelCheckout({ choice, onBack, onClose }: PanelCheckoutProps) {
+export default function PanelCheckout({ choice, onBack, onClose, onPaid }: PanelCheckoutProps) {
   const razorpay = useRazorpayCheckout();
   const [prefill, setPrefill] = useState<Prefill | null>(null);
   const [prefillError, setPrefillError] = useState<string | null>(null);
@@ -75,7 +81,10 @@ export default function PanelCheckout({ choice, onBack, onClose }: PanelCheckout
   const [state, setState] = useState('');
   const [zipcode, setZipcode] = useState('');
 
-  const needsAddress = choice.kind === 'domain';
+  // For a cart, the same mapper the server uses decides; if it refuses, the
+  // server will too, and its message is shown before anything is sent.
+  const cartMapping = choice.kind === 'cart' ? mapCartToPanelOrder(choice.items) : null;
+  const needsAddress = choice.kind === 'domain' || (cartMapping?.ok === true && cartMapping.needsAddress);
 
   useEffect(() => {
     let cancelled = false;
@@ -108,7 +117,9 @@ export default function PanelCheckout({ choice, onBack, onClose }: PanelCheckout
     const purchase =
       choice.kind === 'hosting'
         ? { kind: 'hosting' as const, planId: choice.planId, cycle: choice.cycle, domain: hostingDomain.trim() }
-        : { kind: 'domain' as const, domain: choice.domain };
+        : choice.kind === 'cart'
+          ? { kind: 'cart' as const, items: choice.items }
+          : { kind: 'domain' as const, domain: choice.domain };
     const res = await apiClient.post<OrderResponse>('/api/v1/user/panel-order', {
       purchase,
       companyName: companyName.trim(),
@@ -139,6 +150,7 @@ export default function PanelCheckout({ choice, onBack, onClose }: PanelCheckout
         theme: { color: razorpayThemeColor() },
       });
       setPhase({ step: 'paid', quoteId: order.quoteId });
+      onPaid?.();
     } catch {
       setPhase({ step: 'dismissed', quoteId: order.quoteId });
     }
@@ -150,7 +162,7 @@ export default function PanelCheckout({ choice, onBack, onClose }: PanelCheckout
         <CheckCircle className="h-10 w-10 text-emerald-600 mx-auto mb-3" />
         <h3 className="font-serif text-xl text-ink mb-2">Payment received</h3>
         <p className="text-sm text-ink-2 max-w-md mx-auto">
-          Your {choice.kind === 'hosting' ? 'hosting' : 'domain'} is being set up — this usually takes a few minutes, and
+          Your {choice.kind === 'hosting' ? 'hosting' : choice.kind === 'domain' ? 'domain' : 'order'} is being set up — this usually takes a few minutes, and
           it will appear in your panel when it's ready. Your bill{phase.quoteId ? ` (${phase.quoteId})` : ''} is emailed to
           you and will be on the Invoices page.
         </p>
@@ -188,7 +200,9 @@ export default function PanelCheckout({ choice, onBack, onClose }: PanelCheckout
   }
 
   const working = phase.step === 'working';
+  const cartRefusal = cartMapping && !cartMapping.ok ? cartMapping.message : null;
   const missingRequired =
+    !!cartRefusal ||
     companyName.trim().length < 2 ||
     (choice.kind === 'hosting' && hostingDomain.trim().length < 3) ||
     (needsAddress && (!line1.trim() || !city.trim() || !state.trim() || zipcode.trim().length < 3));
@@ -205,6 +219,19 @@ export default function PanelCheckout({ choice, onBack, onClose }: PanelCheckout
         You're buying <span className="font-semibold text-ink">{choice.label}</span>. The exact price, including GST, is shown
         in the payment window before you pay.
       </p>
+
+      {cartMapping?.ok === true && (
+        <ul className="text-sm text-ink-2 list-disc pl-5">
+          {cartMapping.summary.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      )}
+      {cartRefusal && (
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+          {cartRefusal}
+        </div>
+      )}
 
       {prefillError && <p className="text-xs text-ink-3">{prefillError}</p>}
       {prefill && !prefill.phoneOnFile && (

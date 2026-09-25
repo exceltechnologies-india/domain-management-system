@@ -431,6 +431,25 @@ Owner: *"Renewals subscription will be handled by ResellerOS. Period."*
   figure); `cron/renewal-payment-dunning` still chases DMS renewal orders raised before this date;
   `api/domains/renew` is unreached from the UI.
 
+## The DMS /cart pays through ResellerOS; create-order and verify are DELETED (owner, 25 Sep 2026)
+
+Owner: "Route through ResellerOS". The cart stays (HostingUpsell, DomainCrossSell, saved carts, several items).
+`/checkout` hands a PAID cart to `components/purchase/PanelCheckout.tsx` (`{ kind: "cart" }`) → `/api/user/panel-order`
+→ ResellerOS `/api/dms/panel-order`. `lib/reselleros/cart-lines.ts` maps each line: hosting → `hosting:<plan>` +
+cycle (one hosting line per cart, linked to a real domain); domain → `domain:<tld>`, qty 1, the exact name (a
+multi-year line or a TLD needing registry details is refused); anything else is refused BY NAME. The same mapper
+runs in the browser (to show the refusal first) and on the server (the authority). Razorpay opens with
+ResellerOS's key; on success the page shows "Payment received" and empties the cart; nothing is recorded in DMS.
+
+The ₹0 trial is the only purchase DMS still starts itself: `api/user/hosting/start-trial` (create-order's trial
+gates moved verbatim; manual no-mandate path only; no Razorpay). `api/payments/create-order` and
+`api/payments/verify` are deleted with every module only they used. The Tokens-CIT and Razorpay-Subscriptions
+trial branches went with create-order (reachable only with `DMS_HOSTING_SUBSCRIPTIONS_ENABLED=1`, now gone). The
+payment.captured webhook stays for orders created before this date.
+
+**Sections above that describe `create-order`, `verify`, `repriceHostingItems` or `dmsCreatesHostingSubscriptions`
+are history** — those files no longer exist.
+
 ## A hosting upgrade is a REQUEST billed by ResellerOS (owner, 25 Sep 2026)
 
 `HostingUpgradeModal` sends "Request upgrade" → `POST /api/user/hosting/upgrade` →

@@ -18,8 +18,6 @@ import {
   perMonthRate,
   upgradeCharge,
 } from "@/lib/pricing/hosting-price";
-import { repriceHostingItems } from "@/lib/pricing/reprice-hosting";
-import { dmsCreatesHostingSubscriptions } from "@/lib/pricing/hosting-billing-mode";
 import type { CartItem } from "@/lib/types";
 
 describe("hostingCharge — ResellerOS's figures, exactly", () => {
@@ -82,69 +80,4 @@ describe("upgradeCharge", () => {
   });
 });
 
-describe("repriceHostingItems", () => {
-  const line = (price: number, months: number, id = "starter"): CartItem => ({
-    domainName: "hosting-x",
-    price,
-    currency: "INR",
-    registrationPeriod: months,
-    itemType: "hosting",
-    hostingPlan: { id, name: id, period: months, features: [] },
-  });
 
-  it("accepts the right figure and normalises the line", () => {
-    const items = [line(59, 12)];
-    expect(repriceHostingItems(items)).toEqual({ ok: true });
-    expect(items[0].price * (items[0].registrationPeriod ?? 0)).toBe(708);
-  });
-
-  it("refuses the OLD DMS figure with the new one, saying nothing was charged", () => {
-    const r = repriceHostingItems([line(49.99, 12)]);
-    expect(r.ok).toBe(false);
-    if (r.ok) return;
-    expect(r.status).toBe(409);
-    expect(r.body.code).toBe("PRICE_CHANGED");
-    expect(r.body.serverTotal).toBe(708);
-    expect(r.body.error).toMatch(/Nothing was charged/);
-    expect(r.body.error).toMatch(/add it again/);
-  });
-
-  it("refuses an unpriced plan with where to go instead", () => {
-    const r = repriceHostingItems([line(1, 12, "25GB-wp")]);
-    expect(r.ok).toBe(false);
-    if (r.ok) return;
-    expect(r.body.code).toBe("HOSTING_PLAN_UNPRICED");
-    expect(r.body.error).toMatch(/Buy hosting/);
-  });
-
-  it("forces a trial's today-charge to ₹0 whatever the browser sent", () => {
-    const items = [{ ...line(500, 15), isTrial: true }];
-    expect(repriceHostingItems(items).ok).toBe(true);
-    expect(items[0].price).toBe(0);
-  });
-
-  it("leaves domain lines to the domain price verifier", () => {
-    const items: CartItem[] = [{ domainName: "a.in", price: 1, currency: "INR", registrationPeriod: 1 }];
-    expect(repriceHostingItems(items)).toEqual({ ok: true });
-    expect(items[0].price).toBe(1);
-  });
-});
-
-describe("DMS hosting subscriptions are OFF unless exactly '1'", () => {
-  const ORIGINAL = process.env.DMS_HOSTING_SUBSCRIPTIONS_ENABLED;
-  afterEach(() => {
-    if (ORIGINAL === undefined) delete process.env.DMS_HOSTING_SUBSCRIPTIONS_ENABLED;
-    else process.env.DMS_HOSTING_SUBSCRIPTIONS_ENABLED = ORIGINAL;
-  });
-
-  it("fails closed", () => {
-    delete process.env.DMS_HOSTING_SUBSCRIPTIONS_ENABLED;
-    expect(dmsCreatesHostingSubscriptions()).toBe(false);
-    for (const v of ["", "0", "true", "yes", " 1"]) {
-      process.env.DMS_HOSTING_SUBSCRIPTIONS_ENABLED = v;
-      expect(dmsCreatesHostingSubscriptions(), JSON.stringify(v)).toBe(false);
-    }
-    process.env.DMS_HOSTING_SUBSCRIPTIONS_ENABLED = "1";
-    expect(dmsCreatesHostingSubscriptions()).toBe(true);
-  });
-});

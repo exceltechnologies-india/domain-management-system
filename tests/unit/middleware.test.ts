@@ -235,7 +235,7 @@ describe("CSRF gate — EVERY authenticated mutating /api/*", () => {
 
   it("authenticated /api/payments/* POST: CSRF check fires", async () => {
     getToken.mockResolvedValueOnce({ role: "user" });
-    const req = makeReq("https://example.com/api/payments/create-order", {
+    const req = makeReq("https://example.com/api/user/hosting/start-trial", {
       method: "POST",
     });
     await middleware(req);
