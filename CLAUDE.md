@@ -450,6 +450,16 @@ payment.captured webhook stays for orders created before this date.
 **Sections above that describe `create-order`, `verify`, `repriceHostingItems` or `dmsCreatesHostingSubscriptions`
 are history** — those files no longer exist.
 
+## GUARD — DMS takes no payment on its own Razorpay keys (25 Sep 2026)
+
+`tests/unit/lib/no-dms-razorpay-payments.test.ts` fails if the Razorpay SDK is imported, or `orders.create` /
+`subscriptions.create` / `payments.capture` / `payments.createRecurringPayment` is called, outside:
+`lib/razorpay-client.ts` (the shared client), `scripts/razorpay-regenerate-plans-live.js` (creates PLANS), and
+in `lib/razorpay.ts` only `createRecurringTokenOrder` and `chargeViaToken` — the gated Tokens flow the owner
+asked to keep. `chargeViaToken`'s only caller is `recurring-charge-service.ts`, behind
+`DMS_TOKEN_RECURRING_ENABLED` (the test asserts the gate). `createRecurringTokenOrder` has no caller left.
+`RazorpayService.createOrder` and `createSubscription` are deleted. Do not widen the allow-list without the owner.
+
 ## A hosting upgrade is a REQUEST billed by ResellerOS (owner, 25 Sep 2026)
 
 `HostingUpgradeModal` sends "Request upgrade" → `POST /api/user/hosting/upgrade` →

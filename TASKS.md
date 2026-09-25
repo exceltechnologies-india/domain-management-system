@@ -58,7 +58,12 @@ Eight days of focused safety-check additions are complete. Every production-faci
   upgrade"; `api/user/hosting/upgrade` now sends `lib/reselleros/upgrade-request.ts` →
   ResellerOS `POST /api/dms/upgrade-request` with the server's proration as `estimateRupees`, creates no
   Razorpay order and no Order. `upgrade-info` unchanged (it only computes the estimate).
-- [ ] **Step 4 — guard: no Razorpay order/subscription/capture outside an allow-list.**
+- [x] **Step 4 — guard.** `tests/unit/lib/no-dms-razorpay-payments.test.ts` (comments stripped, red-checked 3 ways)
+  fails on any SDK import or `orders.create` / `subscriptions.create` / `payments.capture` /
+  `payments.createRecurringPayment` outside the allow-list: `lib/razorpay-client.ts` (shared client),
+  `scripts/razorpay-regenerate-plans-live.js` (plans only), and in `lib/razorpay.ts` only the gated Tokens
+  methods `createRecurringTokenOrder` + `chargeViaToken` (sole caller: `recurring-charge-service.ts`, gate asserted).
+  `RazorpayService.createOrder` / `createSubscription` deleted (no callers).
 
 ### 🆕 Billing moves to ResellerOS — round 2 (owner decisions 29-30, 25 Sep 2026)
 

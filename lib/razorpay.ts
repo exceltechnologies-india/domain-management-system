@@ -48,111 +48,10 @@ export interface PaymentVerification {
  */
 
 export class RazorpayService {
-  /**
-   * Initializes a Razorpay intent/order for a specific transaction amount.
-   * 
-   * This guarantees the transaction amount is strictly converted to paise
-   * and enforces Razorpay min/max limits before network dispatch.
-   * 
-   * @param {number} amount - The cart amount in fiat currency (e.g., INR)
-   * @param {string} currency - The ISO currency code
-   * @param {string} receipt - Unique local identifier representing the receipt
-   * @param {Record<string, string>} notes - Arbitrary metadata appended to the order
-   * @returns {Promise<PaymentOrder>} Razorpay fulfillment order details
-   */
-  static async createOrder(
-    amount: number,
-    currency: string = "INR",
-    receipt: string,
-    notes?: Record<string, string>
-  ): Promise<PaymentOrder> {
-    try {
-      // Validate amount
-      if (!amount || amount <= 0 || isNaN(amount)) {
-        throw new Error(
-          `Invalid amount: ${amount}. Amount must be a positive number.`
-        );
-      }
-
-      // Ensure amount is an integer (Razorpay requirement)
-      const amountInPaise = Math.round(amount * 100);
-
-      // Validate amount is within Razorpay limits
-      if (amountInPaise < 100) {
-        throw new Error(`Amount too small: ₹${amount}. Minimum amount is ₹1.`);
-      }
-
-      if (amountInPaise > 100000000) {
-        // ₹10,00,000
-        throw new Error(
-          `Amount too large: ₹${amount}. Maximum amount is ₹10,00,000.`
-        );
-      }
-
-      serverLogger.info(
-        `💰 [RAZORPAY] Creating order: ₹${amount} (${amountInPaise} paise)`
-      );
-
-      const options: {
-        amount: number;
-        currency: string;
-        receipt: string;
-        payment_capture: 1;
-        notes?: Record<string, string>;
-      } = {
-        amount: amountInPaise,
-        currency,
-        receipt,
-        payment_capture: 1,
-      };
-
-      if (notes) {
-        options.notes = notes;
-      }
-
-      const order = await razorpayClient.orders.create(options);
-      return order;
-    } catch (error: unknown) {
-      serverLogger.error("❌ [RAZORPAY] Order creation error:", error);
-      const err = asRzpErr(error);
-
-      // Handle specific Razorpay errors
-      if (err.error) {
-        const razorpayError = err.error;
-        if (razorpayError.code === "BAD_REQUEST_ERROR") {
-          if (razorpayError.description?.includes("amount")) {
-            throw new Error(
-              `Invalid amount format: ₹${amount}. Amount must be a valid number.`
-            );
-          }
-          throw new Error(
-            `Bad request: ${
-              razorpayError.description || "Invalid payment request"
-            }`
-          );
-        } else if (razorpayError.code === "GATEWAY_ERROR") {
-          throw new Error(
-            `Payment gateway error: ${
-              razorpayError.description || "Gateway temporarily unavailable"
-            }`
-          );
-        }
-      }
-
-      // Handle network/timeout errors
-      if (err.code === "ECONNREFUSED" || err.code === "ETIMEDOUT") {
-        throw new Error(
-          "Network error: Unable to connect to payment gateway. Please try again."
-        );
-      }
-
-      // Generic error fallback
-      throw new Error(
-        `Failed to create payment order: ${err.message || "Unknown error"}`
-      );
-    }
-  }
-
+  // createOrder and createSubscription were DELETED on 25 Sep 2026: DMS takes
+  // no payment on its own Razorpay account (owner decision 30 and round 3 —
+  // every order is ResellerOS's). tests/unit/lib/no-dms-razorpay-payments.test.ts
+  // fails if a payment-taking call comes back outside its allow-list.
   /**
    * Cryptographically verifies the webhook or frontend payload signature.
    * 
@@ -217,54 +116,6 @@ export class RazorpayService {
     } catch (error) {
       serverLogger.error("Razorpay order fetch error:", error);
       throw new Error("Failed to fetch order details");
-    }
-  }
-
-  /**
-   * Create a subscription
-   */
-  static async createSubscription(
-    planId: string,
-    userId: string,
-    domainName: string,
-    customerNotify: boolean = true,
-    totalCount: number = 100, // 100 cycles max for yearly
-    trialDays?: number
-  ): Promise<RazorpaySubscription> {
-    try {
-      const options: {
-        plan_id: string;
-        customer_notify: 0 | 1;
-        total_count: number;
-        quantity: number;
-        addons: never[];
-        notes: Record<string, string>;
-        start_at?: number;
-      } = {
-        plan_id: planId,
-        customer_notify: customerNotify ? 1 : 0,
-        total_count: totalCount,
-        quantity: 1,
-        addons: [],
-        notes: {
-          source: "domain_dashboard",
-          user_id: userId,
-          domain_name: domainName,
-        },
-      };
-
-      if (trialDays && trialDays > 0) {
-        const startAt = Math.floor(Date.now() / 1000) + (trialDays * 24 * 60 * 60);
-        options.start_at = startAt;
-      }
-
-      return await razorpayClient.subscriptions.create(options);
-    } catch (error: unknown) {
-      serverLogger.error("❌ [RAZORPAY] Subscription creation error:", error);
-      const err = asRzpErr(error);
-      throw new Error(
-        `Failed to create subscription: ${err.error?.description || err.message}`
-      );
     }
   }
 
