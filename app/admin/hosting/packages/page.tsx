@@ -39,10 +39,6 @@ interface HostingOnePackage {
   directAdminPackage: string;
   isActive: boolean;
   details?: Record<string, unknown>;
-  razorpayPlans?: {
-    monthly?: string;
-    yearly?: string;
-  };
 }
 
 export default function AdminPackagesPage() {
@@ -201,8 +197,6 @@ export default function AdminPackagesPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase">Package Name</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase">Current Price</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase">Renewal Price</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase">Monthly Plan</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-ink-3 uppercase">Yearly Plan</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-ink-3 uppercase">Actions</th>
                   </tr>
                 </thead>
@@ -220,20 +214,6 @@ export default function AdminPackagesPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap font-semibold">₹{pkg.price}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-amber-ink font-semibold">₹{pkg.renewalPrice || pkg.price}</td>
-                      <td className="px-6 py-4 whitespace-nowrap font-mono text-xs">
-                        {pkg.razorpayPlans?.monthly ? (
-                          <span className="bg-green-50 text-green-700 px-1.5 py-0.5 rounded border border-green-200">{pkg.razorpayPlans.monthly}</span>
-                        ) : (
-                          <span className="text-ink-4 italic">None</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap font-mono text-xs">
-                        {pkg.razorpayPlans?.yearly ? (
-                          <span className="bg-indigo-soft text-indigo-ink px-1.5 py-0.5 rounded border border-indigo/25">{pkg.razorpayPlans.yearly}</span>
-                        ) : (
-                          <span className="text-ink-4 italic">None</span>
-                        )}
-                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right space-x-2">
                         <button
                           onClick={() => setSelectedPkg(pkg)}
