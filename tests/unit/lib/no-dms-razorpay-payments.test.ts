@@ -17,14 +17,6 @@
  * ── The allow-list, with the reason for each entry ──────────────────────
  *  lib/razorpay-client.ts            imports the SDK: the one shared client.
  *                                    Makes no payment call itself.
- *  scripts/razorpay-regenerate-plans-live.js
- *                                    imports the SDK to create subscription
- *                                    PLANS (`plans.create`) — a one-off
- *                                    operator script (live key + --apply),
- *                                    not a payment and not reachable from the
- *                                    app. The ONLY place `plans.create` may
- *                                    appear. Its body is still scanned for
- *                                    payment calls.
  *  lib/razorpay.ts — ONLY inside `chargeViaToken`
  *                                    the Razorpay Tokens recurring charger for
  *                                    EXISTING tokens, which the owner asked to
@@ -40,10 +32,13 @@
  *
  * Plan creation is refused too (26 Sep 2026, owner: "Stop creating plans"):
  * the admin package edit made a monthly + yearly Razorpay plan on every
- * renewal-price change. That and `RazorpayService.createPlan` were deleted;
- * `plans.create(` may appear only in the operator script above.
+ * renewal-price change. That and `RazorpayService.createPlan` were deleted.
  * Red-checked: restoring a `plans.create(` call in lib/razorpay.ts, and a
  * `RazorpayService.createPlan(` call in the admin route, each turned it red.
+ * Since 26 Sep 2026 (round 6) there is NO exception: the operator script
+ * scripts/razorpay-regenerate-plans-live.js was deleted, so `plans.create(`
+ * is refused everywhere. Re-red-checked by a `plans.create(` in a scripts/
+ * file.
  *
  * Comments are stripped before scanning (AGENTS.md L46). Re-red-checked on
  * 26 Sep 2026 after the allow-list shrank to chargeViaToken (a restored
@@ -88,10 +83,9 @@ const sources = files.map((f) => ({ file: rel(f), code: strip(readFileSync(f, "u
 
 const SDK_IMPORT = /from\s+["']razorpay["']|require\(\s*["']razorpay["']\s*\)|import\(\s*["']razorpay["']\s*\)/;
 const SDK_PAYMENT_CALL = /\b(orders\.create|subscriptions\.create|payments\.capture|payments\.createRecurringPayment)\s*\(/g;
-const SDK_IMPORT_ALLOWED = new Set(["lib/razorpay-client.ts", "scripts/razorpay-regenerate-plans-live.js"]);
+const SDK_IMPORT_ALLOWED = new Set(["lib/razorpay-client.ts"]);
 const TOKENS_METHODS = new Set(["chargeViaToken"]);
 const PLAN_CREATE_CALL = /\bplans\.create\s*\(/g;
-const PLAN_CREATE_ALLOWED = new Set(["scripts/razorpay-regenerate-plans-live.js"]);
 
 /** The name of the `static async X(` method enclosing `index` in lib/razorpay.ts. */
 function enclosingMethod(code: string, index: number): string | null {
@@ -106,7 +100,7 @@ describe("DMS takes no payment on its own Razorpay keys — source scan", () => 
     expect(sources.some((s) => s.file === "lib/razorpay.ts")).toBe(true);
   });
 
-  it("the Razorpay SDK is imported only by the shared client and the plans script", () => {
+  it("the Razorpay SDK is imported only by the shared client", () => {
     const hits = sources.filter((s) => SDK_IMPORT.test(s.code) && !SDK_IMPORT_ALLOWED.has(s.file)).map((s) => s.file);
     expect(hits).toEqual([]);
   });
@@ -127,9 +121,8 @@ describe("DMS takes no payment on its own Razorpay keys — source scan", () => 
     expect(offenders).toEqual([]);
   });
 
-  it("no Razorpay plan is created outside the operator plans script", () => {
+  it("no Razorpay plan is created anywhere, with no exception", () => {
     const offenders = sources
-      .filter((s) => !PLAN_CREATE_ALLOWED.has(s.file))
       .flatMap((s) => [...s.code.matchAll(PLAN_CREATE_CALL)].map(() => s.file));
     expect(offenders).toEqual([]);
   });

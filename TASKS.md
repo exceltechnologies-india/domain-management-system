@@ -51,6 +51,14 @@ Eight days of focused safety-check additions are complete. Every production-faci
   `api/admin/hosting/packages` saves the edit only; `RazorpayService.createPlan` deleted; the guard refuses
   `plans.create(` outside `scripts/razorpay-regenerate-plans-live.js` (red-checked). `razorpayPlans` data untouched.
 
+### 🆕 Round 6 — "Go ahead and remove the unused ones" (26 Sep 2026)
+
+- [x] **Step 1** — `COMPANY_STATE` removed (CompanyProfile.state, deploy-script requirement, env examples,
+  seed-secrets). The integration-health hint for old "COMPANY_STATE is not configured" failures now says historical.
+- [x] **Step 2** — the admin packages page no longer shows Razorpay plan ids. Stored data untouched.
+- [x] **Step 3** — `scripts/razorpay-regenerate-plans-live.js` deleted (and its go-live checklist line); the guard
+  refuses `plans.create(` everywhere and allows the SDK import only in `lib/razorpay-client.ts`.
+
 ### 🆕 Round 4 — owner answers, 26 Sep 2026
 
 - [x] **Step 4 — dead DMS code deleted** ("Delete dead DMS code"): `app/api/domains/renew`,

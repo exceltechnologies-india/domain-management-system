@@ -62,8 +62,8 @@ the cheapest place to confirm the fix landed.
    `bash scripts/deploy-cloud-run.sh`.
 2. [ ] **Verify the live key is active:** admin → Integration Health should show
    `razorpayMode: live`; the checkout overlay shows no "Test Mode" ribbon.
-3. [ ] **Regenerate live plans** if not already: `node scripts/razorpay-regenerate-plans-live.js`
-   (refuses unless `RAZORPAY_KEY_ID` starts with `rzp_live_`; dry-run first).
+3. ~~Regenerate live plans~~ — removed 26 Sep 2026: DMS creates no Razorpay plans and takes no payments;
+   the script was deleted.
 
 **Gate:** app is serving on `rzp_live_*` and health is green.
 
