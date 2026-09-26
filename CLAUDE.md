@@ -457,7 +457,15 @@ cycle / trials-switch / trial-abuse gates, then calls ResellerOS `POST /api/dms/
 `findPriorTrial` / the engine trials endpoint all STAY), emails a confirm link, and the DMS engine's
 `hosting.provision` trial mode creates the account once the customer confirms. The panel says "Check your email
 to confirm; your trial account is created once you confirm." DMS creates no trial Order or Hosting any more;
-`lib/services/payment/manual-trial-provisioner.ts` is deleted. The Convert button then finds ResellerOS's quote. `api/payments/create-order` and
+`lib/services/payment/manual-trial-provisioner.ts` is deleted. The Convert button then finds ResellerOS's quote.
+**The trial PRE-check asks ResellerOS too (26 Sep 2026, owner: "Ask ResellerOS instead").**
+`api/user/hosting/trial-eligibility` keeps the trials switch, trial-abuse and Starter/plan-exists layers, but the
+one-trial-per-customer answer now comes from ResellerOS `POST /api/dms/trial-eligibility`
+(`lib/reselleros/trial-eligibility.ts`) — the same function its `startHostingTrial` runs, so the button and the
+start cannot disagree. Identity is the SESSION's email/phone; a domain is sent only when it is a real name.
+Anything but a clear 200 (503, 400/401, timeout, unreachable, no key) → `eligible:false`, code `CANNOT_CHECK`,
+"can't check right now" — never eligible, never DMS's own answer. One 300 ms retry only on connection-refused.
+`userHasPriorTrialOrder` is deleted; the razorpayPlans.yearly requirement on the pre-check went with it. `api/payments/create-order` and
 `api/payments/verify` are deleted with every module only they used. The Tokens-CIT and Razorpay-Subscriptions
 trial branches went with create-order (reachable only with `DMS_HOSTING_SUBSCRIPTIONS_ENABLED=1`, now gone). The
 payment.captured webhook stays for orders created before this date.

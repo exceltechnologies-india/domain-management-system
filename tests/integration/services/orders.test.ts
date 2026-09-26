@@ -42,7 +42,6 @@ import {
   recordPrimaryInvoiceForOrder,
   markInvoiceCreationFailed,
   releasePrimaryInvoiceClaim,
-  userHasPriorTrialOrder,
 } from "@/lib/services/orders";
 
 const validUserId = () => new mongoose.Types.ObjectId();
@@ -280,68 +279,6 @@ describe("findOrderByRazorpayPaymentField + getOrderByRazorpayOrderId", () => {
     ).toBe("ord_upg_1");
     // Wrong orderType → no match.
     expect(await getOrderByRazorpayOrderId("rzp_upg", { orderType: "renewal" })).toBeNull();
-  });
-});
-
-describe("userHasPriorTrialOrder", () => {
-  it("returns true when any prior trial order exists for the user", async () => {
-    const userId = validUserId();
-    await createOrder(
-      buildOrderPayload({
-        orderId: "ord_trial_1",
-        userId,
-        orderType: "hosting_trial",
-      })
-    );
-    expect(await userHasPriorTrialOrder(userId)).toBe(true);
-  });
-
-  it("returns false when only non-trial orders exist", async () => {
-    const userId = validUserId();
-    await createOrder(buildOrderPayload({ orderId: "ord_nontrial_1", userId }));
-    expect(await userHasPriorTrialOrder(userId)).toBe(false);
-  });
-
-  it("returns false for an ABANDONED tokens trial (status 'pending' + placeholder razorpayPaymentId 'pending') — customer never completed the ₹2 mandate, so they aren't locked out", async () => {
-    const userId = validUserId();
-    await createOrder(
-      buildOrderPayload({
-        orderId: "ord_trial_abandoned",
-        userId,
-        orderType: "hosting_trial",
-        status: "pending",
-        razorpayPaymentId: "pending",
-      })
-    );
-    expect(await userHasPriorTrialOrder(userId)).toBe(false);
-  });
-
-  it("returns true for an ACTIVE manual trial (status 'pending' but razorpayPaymentId 'manual') — a real, provisioned trial still counts", async () => {
-    const userId = validUserId();
-    await createOrder(
-      buildOrderPayload({
-        orderId: "ord_trial_manual",
-        userId,
-        orderType: "hosting_trial",
-        status: "pending",
-        razorpayPaymentId: "manual",
-      })
-    );
-    expect(await userHasPriorTrialOrder(userId)).toBe(true);
-  });
-
-  it("returns true for a COMPLETED tokens trial (status 'completed' + real pay_id) — mandate was set up, trial consumed", async () => {
-    const userId = validUserId();
-    await createOrder(
-      buildOrderPayload({
-        orderId: "ord_trial_completed",
-        userId,
-        orderType: "hosting_trial",
-        status: "completed",
-        razorpayPaymentId: "pay_realtokenid",
-      })
-    );
-    expect(await userHasPriorTrialOrder(userId)).toBe(true);
   });
 });
 

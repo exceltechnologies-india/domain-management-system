@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { userHasPriorTrialOrder } from "@/lib/services/orders";
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import { getSettingValue } from "@/lib/services/settings";
 import { AuthService } from "@/lib/auth";
@@ -12,12 +11,15 @@ import {
 } from "@/lib/trial-abuse";
 import { validatedBody, z } from "@/lib/api-validation";
 import { isTrialPlan, TRIAL_PLAN_REFUSAL } from "@/lib/pricing/trial-plan";
-import { alreadyTrialledMessage, findPriorTrial } from "@/lib/trials/trial-history";
+import { isProvisionableDomain } from "@/lib/validation/hosting-domain";
+import { checkTrialEligibility, CANNOT_CHECK_TRIAL_MESSAGE } from "@/lib/reselleros/trial-eligibility";
 
 export const dynamic = "force-dynamic";
 
 const eligibilitySchema = z.object({
   planId: z.string().optional(),
+  /** Optional: the domain the trial is for, sent to ResellerOS only when it is a real name. */
+  domain: z.string().max(253).optional(),
   deviceFingerprint: z.string().optional(),
   recaptchaToken: z.string().nullable().optional(),
 });
@@ -30,6 +32,17 @@ type EligibilityBody = z.infer<typeof eligibilitySchema>;
  * GET keeps the original ?planId=<id> contract for any older clients still
  * cached on user devices. POST is the canonical form — accepts the abuse
  * signals (deviceFingerprint) in the body so they're not in the URL or referer.
+ *
+ * WHO DECIDES (owner, 26 Sep 2026: "Ask ResellerOS instead"): whether this
+ * customer has had a trial is answered by ResellerOS
+ * (lib/reselleros/trial-eligibility.ts), which runs the same check its
+ * startHostingTrial uses — the same place the trial is actually started — so
+ * the pre-check and the checkout cannot disagree. DMS no longer consults its
+ * own trial history here. When ResellerOS cannot answer (unreachable, timeout,
+ * its history unreadable, key missing) the answer is "we can't check right
+ * now", never eligible and never DMS's own verdict. What stays in DMS is what
+ * ResellerOS cannot see: the trials switch, the trial-abuse checks (IP /
+ * device / reCAPTCHA) and the Starter-only rule.
  */
 async function runEligibility(
   request: NextRequest,
@@ -45,22 +58,20 @@ async function runEligibility(
     return secureJsonResponse({ eligible: false, reason: "Trials are currently unavailable" });
   }
 
-  // 2. One trial per user lifetime
-  const userId = String(user._id);
-  const priorTrial = await userHasPriorTrialOrder(userId);
-  if (priorTrial) {
-    return secureJsonResponse({ eligible: false, reason: "You have already used your free trial" });
+  // 2. One trial per customer, across BOTH apps — ResellerOS's answer.
+  // Identity comes only from the session.
+  const domain = (body.domain ?? "").trim().toLowerCase();
+  const verdict = await checkTrialEligibility({
+    email: user.email,
+    ...(user.phone ? { phone: user.phone } : {}),
+    ...(isProvisionableDomain(domain) ? { domain } : {}),
+  });
+  if (verdict.kind === "not_eligible") {
+    return secureJsonResponse({ eligible: false, reason: verdict.reason });
   }
-
-  // 2b. …in EITHER app (owner, 24 Sep 2026): a trial started on the ResellerOS site,
-  // or one on another DMS account with the same email or phone, counts too. An
-  // unreadable history refuses rather than reads as "no earlier trial".
-  try {
-    const cross = await findPriorTrial({ email: user.email, phone: user.phone });
-    if (cross.found) return secureJsonResponse({ eligible: false, reason: alreadyTrialledMessage(cross) });
-  } catch (err) {
-    serverLogger.error("[TrialEligibility] trial history unreadable", err);
-    return secureJsonResponse({ eligible: false, reason: "We couldn't check whether you've had a trial before, so we can't start one right now. Please try again in a minute." });
+  if (verdict.kind === "cannot_check") {
+    serverLogger.error(`[TrialEligibility] ResellerOS could not answer for ${user.email}: ${verdict.detail}`);
+    return secureJsonResponse({ eligible: false, reason: CANNOT_CHECK_TRIAL_MESSAGE, code: "CANNOT_CHECK" });
   }
 
   // 3. Abuse defenses — disposable email, reCAPTCHA, IP & device throttles.
@@ -84,25 +95,15 @@ async function runEligibility(
     });
   }
 
-  // 4. Confirm requested plan exists. The Razorpay-yearly-plan check
-  //    only applies under the Subscriptions flow — Tokens flow uses CIT
-  //    auth (no pre-configured plan needed) and Manual flow bypasses
-  //    Razorpay entirely. Pre-2026-06-29 this check ran regardless of
-  //    flow, which blocked trial signup on the day the operator flipped
-  //    HOSTING_MANDATE_FLOW=manual — every customer hitting "Start Free
-  //    Trial" on the live Starter plan got "This plan is not available
-  //    for a free trial" because the gate didn't know about the
-  //    non-Subscriptions flows.
+  // 4. Starter only (lib/pricing/trial-plan.ts), and the plan must exist.
+  // (The old "Razorpay yearly plan configured" check went with DMS's
+  // subscriptions: a trial now starts in ResellerOS and needs no DMS plan.)
   if (body.planId) {
     if (!isTrialPlan(body.planId)) {
       return secureJsonResponse({ eligible: false, reason: TRIAL_PLAN_REFUSAL });
     }
     const plan = await getPlanByPlanId(body.planId);
     if (!plan) {
-      return secureJsonResponse({ eligible: false, reason: "This plan is not available for a free trial" });
-    }
-    const mandateMode = process.env.HOSTING_MANDATE_FLOW ?? "subscriptions";
-    if (mandateMode === "subscriptions" && !plan.razorpayPlans?.yearly) {
       return secureJsonResponse({ eligible: false, reason: "This plan is not available for a free trial" });
     }
   }

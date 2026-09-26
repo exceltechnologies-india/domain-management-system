@@ -19,7 +19,6 @@
  *    listFailedInvoiceOrders — live in orders-invoice-failure.test.ts)
  *  - listAllOrdersForAdminDomains excludes 'pending' (checkout intents
  *    not in admin-domain view)
- *  - userHasPriorTrialOrder uses Order.exists (cheap existence)
  *  - findPriorHostingOrderForUser $or: userEmail OR userId (migration-
  *    window safety where order may pre-date user-account creation)
  *  - listRecentCompletedOrdersForUser: default 14 days + sort ASC (so
@@ -74,7 +73,6 @@ import {
   createOrderInSession,
   createRenewalOrder,
   listAllOrdersForAdminDomains,
-  userHasPriorTrialOrder,
   findPriorHostingOrderForUser,
   listRecentCompletedOrdersForUser,
   listUserInvoiceOrders,
@@ -321,26 +319,6 @@ describe("listAllOrdersForAdminDomains", () => {
       "firstName lastName email phone companyName"
     );
     expect(sort).toHaveBeenCalledWith({ createdAt: -1 });
-  });
-});
-
-describe("userHasPriorTrialOrder", () => {
-  it("uses Order.exists (cheap) + filter userId + orderType:'hosting_trial', excluding abandoned mandates", async () => {
-    Order.exists.mockResolvedValueOnce({ _id: "X" });
-    expect(await userHasPriorTrialOrder("USER_ID")).toBe(true);
-    // The $nor clause excludes the abandoned-at-mandate shape
-    // ({status:'pending', razorpayPaymentId:'pending'}) so a closed Razorpay
-    // overlay never locks a user out of a trial they never began.
-    expect(Order.exists).toHaveBeenCalledWith({
-      userId: "USER_ID",
-      orderType: "hosting_trial",
-      $nor: [{ status: "pending", razorpayPaymentId: "pending" }],
-    });
-  });
-
-  it("no exists → returns false (boolean coerced)", async () => {
-    Order.exists.mockResolvedValueOnce(null);
-    expect(await userHasPriorTrialOrder("USER_ID")).toBe(false);
   });
 });
 

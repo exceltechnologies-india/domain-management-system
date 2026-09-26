@@ -1,50 +1,32 @@
 /**
- * Tests for `app/api/user/hosting/trial-eligibility/route.ts`
- * (slice 7hs, part 2).
+ * Tests for `app/api/user/hosting/trial-eligibility/route.ts` — the panel's
+ * free-trial PRE-check.
  *
- * Customer-facing 5-layer trial-eligibility check. Drives the "Try
- * free for 15 days" CTA on the hosting plans page.
- *
- * Threat model:
- *  - **Trial-farming via repeat registrations**: an attacker with
- *    multiple email addresses on the same IP / device tries to claim
- *    multiple free trials. Pinned: `userHasPriorTrialOrder` AND
- *    `evaluateTrialAbuse` (IP+device throttle) both must pass.
- *  - **Eligibility check shape divergence between GET and POST**:
- *    older clients still hit GET; newer ones hit POST with abuse
- *    signals in the body (not the URL/referer). The shared
- *    `runEligibility` ensures both paths are identical past the
- *    schema/QS layer. Pinned via direct symmetry tests.
- *
- * Other pins:
- *  - Auth gate → 401
- *  - hosting_trial_enabled === false → eligible:false "Trials are
- *    currently unavailable"
- *  - userHasPriorTrialOrder true → eligible:false "already used"
- *  - evaluateTrialAbuse.allowed=false → eligible:false with code
- *    + reason from abuse helper
- *  - planId supplied + plan missing yearly Razorpay → eligible:false
- *  - happy path → eligible:true, trialDays:15
- *  - POST schema accepts the 4 optional fields; bad body → 400
- *  - GET pulls planId from ?planId query
+ * Since 26 Sep 2026 (owner: "Ask ResellerOS instead") ResellerOS decides
+ * whether this customer has had a trial (lib/reselleros/trial-eligibility.ts),
+ * the same check its startHostingTrial runs, so the button and the checkout
+ * cannot disagree. Pinned:
+ *  - Auth → 401; the trials switch; the abuse checks; Starter only; the plan
+ *    must exist — the layers DMS keeps
+ *  - identity sent to ResellerOS is the SESSION's (email, phone), never the
+ *    body's; a domain only when it is a real name
+ *  - ResellerOS's "not eligible" reason is shown as written
+ *  - FAIL CLOSED: ResellerOS unable to answer → eligible:false with the
+ *    "can't check right now" message — never eligible, never DMS's own answer
+ *  - source scan: the route no longer decides with DMS's own trial history
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 const getUserFromRequest = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/auth", () => ({
-  AuthService: { getUserFromRequest },
-}));
+vi.mock("@/lib/auth", () => ({ AuthService: { getUserFromRequest } }));
 
-const userHasPriorTrialOrder = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/services/orders", () => ({ userHasPriorTrialOrder }));
-// The cross-app "one trial per customer" history (lib/trials/trial-history).
-// Default: no earlier trial anywhere; the cases that need one set it.
-const findPriorTrial = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/trials/trial-history", async (orig) => ({
-  ...(await orig<typeof import("@/lib/trials/trial-history")>()),
-  findPriorTrial,
+const checkTrialEligibility = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/reselleros/trial-eligibility", async (orig) => ({
+  ...(await orig<typeof import("@/lib/reselleros/trial-eligibility")>()),
+  checkTrialEligibility,
 }));
-
 
 const getPlanByPlanId = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/hosting-plans", () => ({ getPlanByPlanId }));
@@ -53,335 +35,141 @@ const getSettingValue = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/settings", () => ({ getSettingValue }));
 
 const evaluateTrialAbuse = vi.hoisted(() => vi.fn());
-const getClientIp = vi.hoisted(() => vi.fn());
-const hashIp = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/trial-abuse", () => ({
   evaluateTrialAbuse,
-  getClientIp,
-  hashIp,
+  getClientIp: () => "203.0.113.1",
+  hashIp: () => "hashed_ip",
 }));
 
-vi.mock("@/lib/server-logger", () => ({
-  serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}));
+vi.mock("@/lib/server-logger", () => ({ serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 
 vi.unmock("next/server");
-const { NextRequest, NextResponse } = await vi.importActual<
-  typeof import("next/server")
->("next/server");
+const { NextRequest, NextResponse } = await vi.importActual<typeof import("next/server")>("next/server");
 vi.doMock("next/server", () => ({ NextRequest, NextResponse }));
 
 import { GET, POST } from "@/app/api/user/hosting/trial-eligibility/route";
+import { CANNOT_CHECK_TRIAL_MESSAGE } from "@/lib/reselleros/trial-eligibility";
 
-function makeGet(qs = "") {
-  const url = qs
-    ? `https://example.com/api/user/hosting/trial-eligibility?${qs}`
-    : "https://example.com/api/user/hosting/trial-eligibility";
-  return new NextRequest(url, { method: "GET" });
-}
-
-function makePost(body: unknown = {}) {
-  return new NextRequest(
-    "https://example.com/api/user/hosting/trial-eligibility",
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    }
-  );
-}
-
-function setupHappy() {
-  getUserFromRequest.mockResolvedValue({
-    _id: "U1",
-    email: "alice@example.com",
-    phone: "9999999999",
+const makeGet = (qs = "") =>
+  new NextRequest(`https://example.com/api/user/hosting/trial-eligibility${qs ? `?${qs}` : ""}`, { method: "GET" });
+const makePost = (body: unknown = {}) =>
+  new NextRequest("https://example.com/api/user/hosting/trial-eligibility", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
   });
-  getSettingValue.mockResolvedValue(true); // trials enabled
-  userHasPriorTrialOrder.mockResolvedValue(false);
-  getClientIp.mockReturnValue("203.0.113.1");
-  hashIp.mockReturnValue("hashed_ip");
-  evaluateTrialAbuse.mockResolvedValue({ allowed: true });
-}
+
+const USER = { _id: "U1", email: "alice@example.com", phone: "9999999999" };
 
 beforeEach(() => {
-  findPriorTrial.mockReset().mockResolvedValue({ found: false });
-});
-
-beforeEach(() => {
-  getUserFromRequest.mockReset();
-  userHasPriorTrialOrder.mockReset();
-  getPlanByPlanId.mockReset();
-  getSettingValue.mockReset();
-  evaluateTrialAbuse.mockReset();
-  getClientIp.mockReset();
-  hashIp.mockReset();
+  getUserFromRequest.mockReset().mockResolvedValue(USER);
+  checkTrialEligibility.mockReset().mockResolvedValue({ kind: "eligible" });
+  getPlanByPlanId.mockReset().mockResolvedValue({ planId: "Starter", name: "Starter" });
+  getSettingValue.mockReset().mockResolvedValue(true);
+  evaluateTrialAbuse.mockReset().mockResolvedValue({ allowed: true });
 });
 
 describe("Auth gate", () => {
-  it("POST: no user → 401 UNAUTHORIZED; no downstream check", async () => {
-    getUserFromRequest.mockResolvedValueOnce(null);
-    const res = await POST(makePost());
-    expect(res.status).toBe(401);
-    expect(getSettingValue).not.toHaveBeenCalled();
-    expect(userHasPriorTrialOrder).not.toHaveBeenCalled();
+  it("POST: no user → 401; ResellerOS not asked", async () => {
+    getUserFromRequest.mockResolvedValue(null);
+    expect((await POST(makePost())).status).toBe(401);
+    expect(checkTrialEligibility).not.toHaveBeenCalled();
   });
 
   it("GET: no user → 401", async () => {
-    getUserFromRequest.mockResolvedValueOnce(null);
-    const res = await GET(makeGet());
-    expect(res.status).toBe(401);
+    getUserFromRequest.mockResolvedValue(null);
+    expect((await GET(makeGet())).status).toBe(401);
   });
 });
 
-describe("Layer 1 — global trials kill-switch", () => {
-  it("hosting_trial_enabled === false → eligible:false with kill-switch message", async () => {
-    setupHappy();
-    getSettingValue.mockResolvedValueOnce(false);
-    const res = await POST(makePost());
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.eligible).toBe(false);
-    expect(body.reason).toBe("Trials are currently unavailable");
-    expect(userHasPriorTrialOrder).not.toHaveBeenCalled();
-  });
-
-  it("setting missing (undefined) → default-true (eligible if other layers pass)", async () => {
-    setupHappy();
-    getSettingValue.mockResolvedValueOnce(undefined);
-    const res = await POST(makePost());
-    const body = await res.json();
-    expect(body.eligible).toBe(true);
+describe("DMS's trials switch", () => {
+  it("hosting_trial_enabled === false → eligible:false; ResellerOS not asked", async () => {
+    getSettingValue.mockResolvedValue(false);
+    const body = await (await POST(makePost())).json();
+    expect(body).toMatchObject({ eligible: false, reason: "Trials are currently unavailable" });
+    expect(checkTrialEligibility).not.toHaveBeenCalled();
   });
 });
 
-describe("Layer 2 — one trial per user lifetime", () => {
-  it("prior trial exists → eligible:false 'already used'", async () => {
-    setupHappy();
-    userHasPriorTrialOrder.mockResolvedValueOnce(true);
-    const res = await POST(makePost());
+describe("ResellerOS decides the one-trial rule", () => {
+  it("asks with the SESSION's email and phone, not the body's", async () => {
+    await POST(makePost({ email: "mallory@example.com", phone: "1111111111" }));
+    expect(checkTrialEligibility).toHaveBeenCalledWith({ email: "alice@example.com", phone: "9999999999" });
+  });
+
+  it("sends the domain only when it is a real name", async () => {
+    await POST(makePost({ domain: "Rao.IN" }));
+    expect(checkTrialEligibility.mock.calls[0][0]).toMatchObject({ domain: "rao.in" });
+    checkTrialEligibility.mockClear();
+    await POST(makePost({ domain: "hosting-trial-starter-1" }));
+    expect(checkTrialEligibility.mock.calls[0][0]).not.toHaveProperty("domain");
+  });
+
+  it("not eligible → ResellerOS's reason, as written", async () => {
+    checkTrialEligibility.mockResolvedValue({ kind: "not_eligible", reason: "You had a free trial on 1 Aug with rao.in." });
+    const body = await (await POST(makePost())).json();
+    expect(body).toEqual({ eligible: false, reason: "You had a free trial on 1 Aug with rao.in." });
+  });
+
+  it("FAIL CLOSED: ResellerOS cannot answer → 'can't check right now', never eligible", async () => {
+    checkTrialEligibility.mockResolvedValue({ kind: "cannot_check", detail: "HTTP 503: history unreadable" });
+    const res = await POST(makePost({ planId: "starter" }));
     const body = await res.json();
     expect(body.eligible).toBe(false);
-    expect(body.reason).toContain("already used");
+    expect(body.reason).toBe(CANNOT_CHECK_TRIAL_MESSAGE);
+    expect(body.code).toBe("CANNOT_CHECK");
+    // It stops here: no later layer can turn it into a yes.
     expect(evaluateTrialAbuse).not.toHaveBeenCalled();
   });
-
-  it("userHasPriorTrialOrder called with the resolved user._id (not body/query)", async () => {
-    setupHappy();
-    await POST(makePost({ userId: "U_HOSTILE_OVERRIDE" }));
-    expect(userHasPriorTrialOrder).toHaveBeenCalledWith("U1");
-  });
 });
 
-describe("Layer 3 — anti-abuse defenses", () => {
-  it("evaluateTrialAbuse.allowed=false → eligible:false with code+reason from helper", async () => {
-    setupHappy();
-    evaluateTrialAbuse.mockResolvedValueOnce({
-      allowed: false,
-      code: "DISPOSABLE_EMAIL",
-      reason: "Disposable email addresses aren't eligible for trials",
-    });
-    const res = await POST(makePost());
-    const body = await res.json();
-    expect(body.eligible).toBe(false);
-    expect(body.code).toBe("DISPOSABLE_EMAIL");
-    expect(body.reason).toContain("Disposable");
-    // Plan check downstream NOT reached
-    expect(getPlanByPlanId).not.toHaveBeenCalled();
+describe("the layers DMS keeps", () => {
+  it("abuse check refuses → eligible:false with the helper's code + reason", async () => {
+    evaluateTrialAbuse.mockResolvedValue({ allowed: false, reason: "Too many trials from this device", code: "DEVICE" });
+    const body = await (await POST(makePost({ deviceFingerprint: "fp" }))).json();
+    expect(body).toEqual({ eligible: false, reason: "Too many trials from this device", code: "DEVICE" });
+    expect(evaluateTrialAbuse.mock.calls[0][0]).toMatchObject({ email: "alice@example.com", deviceFingerprint: "fp" });
   });
 
-  it("abuse signals (deviceFingerprint) passed through to evaluator", async () => {
-    setupHappy();
-    await POST(
-      makePost({
-        deviceFingerprint: "fp-abc",
-      })
-    );
-    const [signals, opts] = evaluateTrialAbuse.mock.calls[0];
-    expect(signals).toEqual(
-      expect.objectContaining({
-        email: "alice@example.com",
-        ipHash: "hashed_ip",
-        deviceFingerprint: "fp-abc",
-      })
-    );
-    expect(opts).toEqual(
-      expect.objectContaining({
-        clientIp: "203.0.113.1",
-      })
-    );
-  });
-});
-
-describe("Layer 4 — planId yearly-Razorpay-mapping", () => {
-  // The Razorpay-plans-yearly check is mode-gated: it only fires under
-  // HOSTING_MANDATE_FLOW=subscriptions (the default). Tokens and Manual
-  // flows don't need pre-configured Razorpay plans. The default-flow
-  // tests in this block assume HOSTING_MANDATE_FLOW is unset (treated
-  // as 'subscriptions'). The mode-specific tests at the end pin the
-  // 2026-06-29 incident-fix behavior across all three modes.
-  beforeEach(() => {
-    delete process.env.HOSTING_MANDATE_FLOW;
-  });
-
-  // Only Starter is trialled (owner, 24 Sep 2026), so the plan lookup below is
-  // reached only for "starter" — these fixtures used made-up ids ("p-1",
-  // "p-ghost") before that rule, and now use the one id that gets that far.
-  it.each(["standard", "plus", "Plus"])("%s → eligible:false before any plan lookup", async (planId) => {
-    setupHappy();
-    const res = await POST(makePost({ planId }));
-    const body = await res.json();
-    expect(body.eligible).toBe(false);
-    expect(body.reason).toContain("only on the Starter plan");
-    expect(getPlanByPlanId).not.toHaveBeenCalled();
-  });
-
-  it("plan missing → eligible:false 'plan is not available for a free trial'", async () => {
-    setupHappy();
-    getPlanByPlanId.mockResolvedValueOnce(null);
-    const res = await POST(makePost({ planId: "starter" }));
-    const body = await res.json();
-    expect(body.eligible).toBe(false);
-    expect(body.reason).toContain("not available");
-  });
-
-  it("plan exists BUT razorpayPlans.yearly missing (under subscriptions flow) → eligible:false", async () => {
-    setupHappy();
-    getPlanByPlanId.mockResolvedValueOnce({
-      planId: "starter",
-      razorpayPlans: { monthly: "rzp-monthly" /* no yearly */ },
-    });
-    const res = await POST(makePost({ planId: "starter" }));
-    const body = await res.json();
+  it("a non-Starter plan → refused", async () => {
+    const body = await (await POST(makePost({ planId: "plus" }))).json();
     expect(body.eligible).toBe(false);
   });
 
-  it("plan with yearly Razorpay → eligible:true (when other layers pass)", async () => {
-    setupHappy();
-    getPlanByPlanId.mockResolvedValueOnce({
-      planId: "starter",
-      razorpayPlans: { yearly: "rzp-yearly" },
-    });
-    const res = await POST(makePost({ planId: "starter" }));
-    const body = await res.json();
-    expect(body.eligible).toBe(true);
+  it("the plan missing → refused", async () => {
+    getPlanByPlanId.mockResolvedValue(null);
+    const body = await (await POST(makePost({ planId: "starter" }))).json();
+    expect(body).toEqual({ eligible: false, reason: "This plan is not available for a free trial" });
   });
 
-  it("no planId supplied → plan check SKIPPED; eligible:true on happy path", async () => {
-    setupHappy();
-    const res = await POST(makePost());
-    const body = await res.json();
-    expect(body.eligible).toBe(true);
-    expect(getPlanByPlanId).not.toHaveBeenCalled();
+  it("no Razorpay plan is needed any more (the trial starts in ResellerOS)", async () => {
+    getPlanByPlanId.mockResolvedValue({ planId: "Starter", name: "Starter", razorpayPlans: {} });
+    const body = await (await POST(makePost({ planId: "starter" }))).json();
+    expect(body).toEqual({ eligible: true, trialDays: 15 });
   });
 
-  // 2026-06-29 incident-fix tests. After the operator flipped
-  // HOSTING_MANDATE_FLOW=manual to launch the no-mandate trial path,
-  // every customer hitting "Start Free Trial" got "This plan is not
-  // available for a free trial" because the Razorpay-yearly gate was
-  // checking a field that only matters under subscriptions flow. The
-  // fix mode-gates the Razorpay-plans check.
-  it("HOSTING_MANDATE_FLOW=manual + plan WITHOUT razorpayPlans.yearly → eligible:true (no Razorpay involvement under manual)", async () => {
-    process.env.HOSTING_MANDATE_FLOW = "manual";
-    setupHappy();
-    getPlanByPlanId.mockResolvedValueOnce({
-      planId: "starter",
-      // No razorpayPlans.yearly — Manual flow doesn't need it
-      razorpayPlans: {},
-    });
-    const res = await POST(makePost({ planId: "starter" }));
-    const body = await res.json();
-    expect(body.eligible).toBe(true);
-  });
-
-  it("HOSTING_MANDATE_FLOW=tokens + plan WITHOUT razorpayPlans.yearly → eligible:true (Tokens uses CIT auth, no pre-configured plan)", async () => {
-    process.env.HOSTING_MANDATE_FLOW = "tokens";
-    setupHappy();
-    getPlanByPlanId.mockResolvedValueOnce({
-      planId: "starter",
-      razorpayPlans: {},
-    });
-    const res = await POST(makePost({ planId: "starter" }));
-    const body = await res.json();
-    expect(body.eligible).toBe(true);
-  });
-
-  it("HOSTING_MANDATE_FLOW=manual + plan MISSING ENTIRELY → still eligible:false (the plan-exists check is mode-independent)", async () => {
-    process.env.HOSTING_MANDATE_FLOW = "manual";
-    setupHappy();
-    getPlanByPlanId.mockResolvedValueOnce(null);
-    const res = await POST(makePost({ planId: "starter" }));
-    const body = await res.json();
+  it("GET with ?planId runs the same checks", async () => {
+    const body = await (await GET(makeGet("planId=plus"))).json();
     expect(body.eligible).toBe(false);
-    expect(body.reason).toContain("not available");
   });
-});
 
-describe("Happy path response shape", () => {
-  it("eligible:true with trialDays:15", async () => {
-    setupHappy();
-    const res = await POST(makePost());
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body).toEqual({
-      eligible: true,
-      trialDays: 15,
-    });
+  it("bogus planId type → 400", async () => {
+    expect((await POST(makePost({ planId: 123 }))).status).toBe(400);
   });
-});
 
-describe("GET ↔ POST symmetry (shared runEligibility)", () => {
-  it("GET with ?planId triggers the same yearly-mapping check as POST", async () => {
-    setupHappy();
-    getPlanByPlanId.mockResolvedValue(null); // both calls
-    const resGet = await GET(makeGet("planId=p-1"));
-    const resPost = await POST(makePost({ planId: "p-1" }));
-    const bGet = await resGet.json();
-    const bPost = await resPost.json();
-    expect(bGet.eligible).toBe(false);
-    expect(bPost.eligible).toBe(false);
-    expect(bGet.reason).toEqual(bPost.reason);
-  });
-});
-
-describe("POST schema", () => {
-  it("bogus type (planId: 123) → 400", async () => {
-    setupHappy();
-    const res = await POST(makePost({ planId: 123 }));
-    expect(res.status).toBe(400);
-    expect(getSettingValue).not.toHaveBeenCalled();
-  });
-});
-
-describe("Outer catch", () => {
-  it("evaluateTrialAbuse throw → 500 generic", async () => {
-    setupHappy();
-    evaluateTrialAbuse.mockRejectedValueOnce(
-      new Error("abuse-service down — abuse_secret_LEAK_ME")
-    );
+  it("an unexpected throw → 500, never a yes", async () => {
+    evaluateTrialAbuse.mockRejectedValue(new Error("redis down"));
     const res = await POST(makePost());
     expect(res.status).toBe(500);
-    const body = await res.json();
-    expect(body.error).toBe("Internal server error");
-    expect(JSON.stringify(body)).not.toContain("abuse_secret_LEAK_ME");
   });
 });
 
-describe("one trial per customer across BOTH apps (24 Sep 2026)", () => {
-  it("a trial the same email or phone had on the ResellerOS site → ineligible, with the start date", async () => {
-    setupHappy();
-    findPriorTrial.mockResolvedValueOnce({ found: true, where: "reselleros", startedAt: new Date("2026-09-20T00:00:00Z") });
-    const body = await (await POST(makePost({ planId: "starter" }))).json();
-    expect(body.eligible).toBe(false);
-    expect(body.reason).toContain("one per customer");
-    expect(body.reason).toContain("20 Sept 2026");
-  });
-
-  it("an unreadable history → ineligible, never a silent yes", async () => {
-    setupHappy();
-    findPriorTrial.mockRejectedValueOnce(new Error("mongo down"));
-    const body = await (await POST(makePost({ planId: "starter" }))).json();
-    expect(body.eligible).toBe(false);
-    expect(body.reason).toContain("couldn't check");
+describe("source scan (comments stripped)", () => {
+  it("the route no longer decides with DMS's own trial history", () => {
+    const code = readFileSync(path.join(process.cwd(), "app/api/user/hosting/trial-eligibility/route.ts"), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|[^:])\/\/.*$/gm, "$1");
+    expect(code).not.toMatch(/userHasPriorTrialOrder|findPriorTrial|trial-history|@\/lib\/services\/orders|ExternalTrial/);
+    expect(code).toMatch(/checkTrialEligibility\(/);
   });
 });

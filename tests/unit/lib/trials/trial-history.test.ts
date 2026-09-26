@@ -53,7 +53,7 @@ describe("findPriorTrial — a trial in EITHER app counts", () => {
     expect(user.find.mock.calls[0][0]).toEqual({ $or: [{ email: "a@b.in" }, { phone: { $regex: "9876543210$" } }] });
   });
 
-  it("an abandoned-at-mandate checkout does not count, as in userHasPriorTrialOrder", async () => {
+  it("an abandoned-at-mandate checkout does not count, as the deleted userHasPriorTrialOrder", async () => {
     user.find.mockReturnValue(q([{ _id: "U1" }]));
     await findPriorTrial({ email: "a@b.in" });
     expect(order.findOne.mock.calls[0][0]).toMatchObject({ $nor: [{ status: "pending", razorpayPaymentId: "pending" }] });

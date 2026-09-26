@@ -41,6 +41,13 @@ Eight days of focused safety-check additions are complete. Every production-faci
 
 ## In Flight
 
+### 🆕 Round 5 — owner answers, 26 Sep 2026
+
+- [x] **Step 1 — the trial pre-check asks ResellerOS** ("Ask ResellerOS instead").
+  `api/user/hosting/trial-eligibility` → `lib/reselleros/trial-eligibility.ts` → ResellerOS
+  `POST /api/dms/trial-eligibility` (acfc4512). Fails closed ("can't check right now") on anything but a clear 200.
+  `userHasPriorTrialOrder` deleted. `ExternalTrial` / `findPriorTrial` / engine trials endpoint kept.
+
 ### 🆕 Round 4 — owner answers, 26 Sep 2026
 
 - [x] **Step 4 — dead DMS code deleted** ("Delete dead DMS code"): `app/api/domains/renew`,

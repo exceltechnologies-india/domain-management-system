@@ -1141,35 +1141,10 @@ export async function listAllOrdersForAdminDomains(): Promise<IOrder[]> {
     .lean<IOrder[]>();
 }
 
-/**
- * Eligibility check: has this user ever placed a trial-hosting order?
- * Returns true if any order with `orderType: "hosting_trial"` exists for
- * `userId`. Used by the one-trial-per-user gate in /api/payments/create-order
- * and /api/user/hosting/trial-eligibility.
- */
-export async function userHasPriorTrialOrder(userId: unknown): Promise<boolean> {
-  await connectDB();
-  // Count a trial as "used" only once it has actually been set up — NOT while
-  // it is still an abandoned checkout. The tokens flow persists a hosting_trial
-  // Order at checkout-OPEN with status 'pending' + a placeholder
-  // razorpayPaymentId 'pending', BEFORE the customer completes the ₹2 mandate
-  // authorization. If they close the Razorpay overlay without finishing, that
-  // stray pending row must NOT lock them out of ever starting a trial
-  // ("You have already used your free trial" on a trial they never began).
-  //
-  // A genuinely-consumed trial is always distinguishable from an abandoned one:
-  //   - tokens completed → webhook sets status 'completed' + a real pay_id
-  //   - manual trial      → provisioned immediately with razorpayPaymentId 'manual'
-  // Only the abandoned-at-mandate case is {status:'pending', paymentId:'pending'},
-  // so excluding exactly that shape leaves active manual trials and completed
-  // tokens trials still correctly counted (one trial per lifetime holds).
-  const exists = await Order.exists({
-    userId,
-    orderType: "hosting_trial",
-    $nor: [{ status: "pending", razorpayPaymentId: "pending" }],
-  });
-  return !!exists;
-}
+// userHasPriorTrialOrder was deleted on 26 Sep 2026 (owner: "Ask ResellerOS
+// instead"): the panel's trial pre-check now asks ResellerOS, and
+// lib/trials/trial-history.ts carries the same abandoned-checkout rule for
+// the shared record that ResellerOS reads.
 
 /**
  * Eligibility check: has this user (by id OR by email — covers the migration

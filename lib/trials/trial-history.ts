@@ -86,7 +86,7 @@ export async function findPriorTrial(k: TrialKeys, ignore: IgnoreOwnTrial = {}):
   }
 
   // …or any DMS account with this email or phone that has had one. Same test
-  // userHasPriorTrialOrder uses (an abandoned-at-mandate checkout does not count),
+  // the (deleted, 26 Sep 2026) userHasPriorTrialOrder used (an abandoned-at-mandate checkout does not count),
   // plus trial hostings, which a manual-flow trial always has.
   const userOr: Record<string, unknown>[] = [];
   if (email) userOr.push({ email });
