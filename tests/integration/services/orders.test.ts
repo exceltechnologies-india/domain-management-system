@@ -1101,18 +1101,34 @@ describe("listInvoiceOrdersAdmin", () => {
         invoiceNumber: "INV-000123",
       })
     );
-    // status "completed" makes the pre-save hook mint a legacy invoiceNumber,
-    // so this order HAS a number — only the missing invoiceProvider excludes it.
+    // An order that HAS an invoice number but no invoiceProvider (e.g. an old
+    // INV-... number): only the missing invoiceProvider may exclude it. The
+    // number is set explicitly — the pre-save hook that used to mint INV-...
+    // numbers was deleted on 25 Sep 2026 (DMS issues no bills, 2598cc4f).
     const legacy = await createOrder(
-      buildOrderPayload({ orderId: "ord_admin_uninvoiced", status: "completed" })
+      buildOrderPayload({
+        orderId: "ord_admin_uninvoiced",
+        status: "completed",
+        invoiceNumber: "INV-LEGACY-1",
+      })
     );
-    expect((await Order.findById(legacy._id))?.invoiceNumber).toBeTruthy();
+    expect((await Order.findById(legacy._id))?.invoiceNumber).toBe("INV-LEGACY-1");
 
     const { orders } = await listInvoiceOrdersAdmin(1, 20);
     const byId = new Map(orders.map((o) => [o.orderId, o]));
     expect(byId.get("ord_admin_primary")?.invoiceProvider).toBe("primary");
     expect(byId.get("ord_admin_zoho")?.invoiceProvider).toBe("zoho");
     expect(byId.has("ord_admin_uninvoiced")).toBe(false);
+  });
+
+  it("a completed order gets NO invoice number on save (the INV pre-save hook is gone) and is not listed", async () => {
+    const plain = await createOrder(
+      buildOrderPayload({ orderId: "ord_admin_no_number", status: "completed" })
+    );
+    expect((await Order.findById(plain._id))?.invoiceNumber).toBeUndefined();
+
+    const { orders } = await listInvoiceOrdersAdmin(1, 20);
+    expect(orders.map((o) => o.orderId)).not.toContain("ord_admin_no_number");
   });
 
   it("spans all users — this is the ADMIN view, not a per-customer list", async () => {
