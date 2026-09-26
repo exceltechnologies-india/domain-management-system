@@ -57,7 +57,9 @@ Eight days of focused safety-check additions are complete. Every production-faci
   takes a `renewal` link from `lib/reselleros/renewal-reminder-link.ts` (pay / choose / preparing / unknown);
   the worker no longer reads `service.price`; `sendRenewalInvoiceEmail` deleted. Guard:
   `tests/unit/lib/email/reminder-no-dms-price.test.ts` (red-checked twice).
-- [ ] **Step 3 — the in-panel trial starts in ResellerOS.**
+- [x] **Step 3 — the in-panel trial starts in ResellerOS** ("Move it to ResellerOS"). `api/user/hosting/start-trial`
+  → `lib/reselleros/start-trial.ts` → ResellerOS `POST /api/dms/start-trial` (f514758b). DMS creates no trial
+  Order/Hosting; `manual-trial-provisioner.ts` deleted. Shared trial record kept.
 
 ### 🆕 Round 3 — no payment on DMS's own Razorpay keys (owner answers, 25 Sep 2026)
 

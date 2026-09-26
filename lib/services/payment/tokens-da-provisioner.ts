@@ -286,7 +286,7 @@ export async function provisionTokensFlowHosting(
         // the email template can render trial-specific copy (header
         // gradient, banner, day-15 explainer, CTA text) instead of the
         // generic "provisioned" language. Both fields already live on
-        // the Hosting record from createManualFlowTrialHosting +
+        // the Hosting record from createManualFlowTrialHosting (deleted 26 Sep 2026; trials now start in ResellerOS) +
         // createTokensFlowTrialHosting, so no schema change needed.
         isTrial: hosting.isTrial === true,
         trialEndsAt: hosting.expiryDate,

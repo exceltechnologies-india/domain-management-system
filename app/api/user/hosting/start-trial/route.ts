@@ -1,41 +1,39 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { serverLogger } from "@/lib/server-logger";
-import { createOrder, userHasPriorTrialOrder } from "@/lib/services/orders";
-import { createManualFlowTrialHosting } from "@/lib/services/payment/manual-trial-provisioner";
-import { getPlanByPlanId } from "@/lib/services/hosting-plans";
+import { secureJsonResponse } from "@/lib/api-response-wrapper";
 import { getSettingValue } from "@/lib/services/settings";
 import type { CartItem } from "@/lib/types";
 import { evaluateTrialAbuse, getClientIp, hashIp, recordTrialClaim } from "@/lib/trial-abuse";
 import { validatedBody, z } from "@/lib/api-validation";
-import {
-  isProvisionableDomain,
-  hostingItemDomain,
-  HOSTING_DOMAIN_REQUIRED_MESSAGE,
-} from "@/lib/validation/hosting-domain";
+import { isProvisionableDomain, hostingItemDomain } from "@/lib/validation/hosting-domain";
 import { isTrialPlan, TRIAL_PLAN_REFUSAL } from "@/lib/pricing/trial-plan";
-import { alreadyTrialledMessage, findPriorTrial } from "@/lib/trials/trial-history";
+import {
+  startTrialInResellerOs,
+  startTrialRefusalMessage,
+  TRIAL_STARTED_MESSAGE,
+} from "@/lib/reselleros/start-trial";
 
 /**
- * POST /api/user/hosting/start-trial — start the ₹0 in-panel hosting trial.
+ * POST /api/user/hosting/start-trial — the panel's free hosting trial,
+ * STARTED IN RESELLEROS.
  *
- * Split out of `api/payments/create-order` on 25 Sep 2026, when that route was
- * DELETED: owner decision 30 gives every paid order to ResellerOS, and the
- * cart's paid lines now go to ResellerOS's panel-order. What was left of
- * create-order that DMS legitimately does itself was this: the free trial,
- * which takes no payment (ResellerOS's panel-order refuses trials).
+ * Owner, 26 Sep 2026: "Move it to ResellerOS". Until then this route created
+ * the trial in DMS itself (a ₹0 Order + a "manual" no-card trial Hosting, then
+ * inline DirectAdmin provisioning). Now it creates nothing in DMS: it sends the
+ * request to ResellerOS `POST /api/dms/start-trial` (lib/reselleros/start-trial.ts),
+ * which runs the site's own trial code — Starter only, one trial per customer
+ * across BOTH apps (checked against DMS's shared trial record, which stays),
+ * a confirm-your-email link — and the account is created by the DMS engine's
+ * `hosting.provision` trial mode once the customer confirms.
  *
- * The trial gates are create-order's, carried over unchanged: the trial is
- * the only item in the cart; it is Starter (lib/pricing/trial-plan.ts); it
- * carries its cycle; trials are enabled; one trial per user, and per customer
- * across BOTH apps (email, phone, domain — unreadable history refuses);
- * the trial-abuse checks; then the claim is recorded.
- *
- * It is the no-mandate ("manual") trial path only. The Razorpay Tokens CIT
- * mandate and Razorpay Subscriptions branches that create-order also had —
- * both reachable only with DMS_HOSTING_SUBSCRIPTIONS_ENABLED=1, i.e. never by
- * default — are gone: each created a Razorpay order or subscription on DMS's
- * own account ("Remove both", 25 Sep 2026). No Razorpay call exists here.
+ * What stays checked here, because ResellerOS cannot see it: the lone-trial
+ * cart shape, Starter and its cycle, DMS's trials switch, and the trial-abuse
+ * checks (IP / device / reCAPTCHA), whose claim is recorded only after
+ * ResellerOS accepts. Identity (account id, name, email, phone) comes only
+ * from the session. Never retried: a timeout may have started the trial.
+ * ResellerOS refusing our key is a 503, never a 401 (api-client reads 401 as
+ * "signed out").
  */
 
 const cartItemSchema = z
@@ -50,12 +48,7 @@ const cartItemSchema = z
     periodUnit: z.enum(["months", "years", "minutes", "days"]).optional(),
     isTrial: z.boolean().optional(),
     hostingPlan: z
-      .object({
-        id: z.string().optional(),
-        planId: z.string().optional(),
-        name: z.string().optional(),
-        serverPackage: z.string().optional(),
-      })
+      .object({ id: z.string().optional(), planId: z.string().optional(), name: z.string().optional() })
       .passthrough()
       .optional(),
   })
@@ -67,64 +60,46 @@ const startTrialSchema = z.object({
   recaptchaToken: z.string().nullable().optional(),
 });
 
-/** §7: what happened, why, and what to do next. */
-const TRIAL_NEEDS_OWN_CHECKOUT = {
-  error:
-    "We couldn't start the free trial with other items in the same cart. Nothing was charged. " +
-    "Remove the other items, start the trial on its own, then buy them separately.",
-  code: "TRIAL_NEEDS_OWN_CHECKOUT",
-} as const;
+const refuse = (error: string, status = 400, code?: string) => secureJsonResponse({ error, ...(code ? { code } : {}) }, status);
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
     const user = await AuthService.getUserFromRequest(request);
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user) return refuse("You're signed out, so the trial wasn't started. Sign in and try again.", 401, "UNAUTHORIZED");
 
     const validation = await validatedBody(request, startTrialSchema);
     if (!validation.ok) return validation.response;
     const { cartItems: rawItems, deviceFingerprint, recaptchaToken } = validation.data;
     const cartItems = rawItems as CartItem[];
 
-    // Only a lone trial line. A paid line belongs to ResellerOS's checkout.
     const item = cartItems[0];
     if (cartItems.length !== 1 || item.itemType !== "hosting" || item.isTrial !== true) {
-      return NextResponse.json(TRIAL_NEEDS_OWN_CHECKOUT, { status: 400 });
+      return refuse(
+        "We couldn't start the free trial with other items in the same cart. Nothing was charged. " +
+          "Remove the other items, start the trial on its own, then buy them separately.",
+        400,
+        "TRIAL_NEEDS_OWN_CHECKOUT"
+      );
     }
-    if (!isProvisionableDomain(hostingItemDomain(item))) {
-      return NextResponse.json({ error: HOSTING_DOMAIN_REQUIRED_MESSAGE, code: "HOSTING_DOMAIN_REQUIRED" }, { status: 400 });
-    }
-    if (!isTrialPlan(item.hostingPlan?.id)) {
-      return NextResponse.json({ error: TRIAL_PLAN_REFUSAL }, { status: 400 });
-    }
+    if (!isTrialPlan(item.hostingPlan?.id)) return refuse(TRIAL_PLAN_REFUSAL);
     if (item.billingCycle !== "yearly" && item.billingCycle !== "monthly") {
-      return NextResponse.json(
-        { error: "This trial is missing its billing cycle. Remove it from your cart and start the trial again from Buy hosting." },
-        { status: 400 }
-      );
-    }
-    const trialCycle: "monthly" | "yearly" = item.billingCycle;
-    const domainName = item.linkedDomain || item.domainName;
-
-    const trialFlag = await getSettingValue<boolean>("hosting_trial_enabled");
-    if (trialFlag === false) {
-      return NextResponse.json({ error: "Free trials are currently unavailable" }, { status: 400 });
-    }
-    if (await userHasPriorTrialOrder(user.id)) {
-      return NextResponse.json({ error: "You have already used your free trial" }, { status: 400 });
-    }
-    try {
-      const cross = await findPriorTrial({ email: user.email, phone: user.phone, domain: item.linkedDomain });
-      if (cross.found) return NextResponse.json({ error: alreadyTrialledMessage(cross) }, { status: 400 });
-    } catch (err) {
-      serverLogger.error("[START-TRIAL] trial history unreadable", err);
-      return NextResponse.json(
-        { error: "We couldn't check whether you've had a trial before, so the trial wasn't started. Nothing was charged. Please try again in a minute." },
-        { status: 503 }
-      );
+      return refuse("This trial is missing its billing cycle. Remove it from your cart and start the trial again from Buy hosting.");
     }
 
+    const fullName = `${user.firstName ?? ""} ${user.lastName ?? ""}`.replace(/\s+/g, " ").trim();
+    if (fullName.length < 2) {
+      return refuse("Your account has no name on it, and the trial needs one. Nothing was started. Add your name in Settings (Dashboard → Settings), then try again.");
+    }
+    const phone = (user.phone ?? "").replace(/[\s-]/g, "");
+    if (phone.length < 10 || phone.length > 20) {
+      return refuse("Your account has no mobile number, and the trial needs one. Nothing was started. Add it in Settings (Dashboard → Settings), then try again.");
+    }
+
+    if ((await getSettingValue<boolean>("hosting_trial_enabled")) === false) {
+      return refuse("Free trials are currently unavailable. Nothing was started.");
+    }
     const clientIp = getClientIp(request);
     const abuseCheck = await evaluateTrialAbuse(
       { email: user.email, ipHash: hashIp(clientIp), deviceFingerprint },
@@ -132,88 +107,61 @@ export async function POST(request: NextRequest) {
     );
     if (!abuseCheck.allowed) {
       serverLogger.warn(`[START-TRIAL] Trial blocked for user=${user.email} reason=${abuseCheck.code}`);
-      return NextResponse.json({ error: abuseCheck.reason, code: abuseCheck.code }, { status: 400 });
+      return refuse(abuseCheck.reason ?? "We couldn't start a free trial from this device or network right now. Nothing was started. Please contact support.", 400, abuseCheck.code);
     }
-    await recordTrialClaim({
-      userId: String(user.id),
-      userEmail: user.email,
-      ipHash: hashIp(clientIp),
-      deviceFingerprint,
-      planId: item.hostingPlan?.id,
+
+    // A domain is optional at ResellerOS ("leave blank if you don't have one
+    // yet"); send it only when it is a real, provisionable name.
+    const domain = hostingItemDomain(item);
+    const outcome = await startTrialInResellerOs({
+      dmsUserId: String(user._id),
+      fullName,
+      ...(user.companyName ? { companyName: user.companyName } : {}),
+      email: user.email,
+      phone,
+      ...(isProvisionableDomain(domain) ? { domain } : {}),
+      cycle: item.billingCycle,
     });
 
-    const planKey = item.hostingPlan?.id;
-    const plan = planKey ? await getPlanByPlanId(planKey) : null;
-    if (!plan) {
-      return NextResponse.json(
-        { error: "We couldn't find the Starter plan to start your trial on. Nothing was charged. Please contact support." },
-        { status: 500 }
-      );
-    }
-    const serverPackage = (plan as { directAdminPackage?: string }).directAdminPackage;
-
-    // The audit-trail Order: ₹0, pending, hosting_trial. No invoice (DMS
-    // issues none) and no Razorpay order.
-    const internalOrderId = `ord_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-    await createOrder({
-      orderId: internalOrderId,
-      userId: user.id,
-      userName: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
-      userEmail: user.email,
-      paymentId: `pay_manual_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-      razorpayOrderId: `manual_${Date.now()}`,
-      razorpayPaymentId: "manual",
-      razorpaySignature: "manual",
-      amount: 0,
-      currency: "INR",
-      status: "pending",
-      orderType: "hosting_trial",
-      mandateMode: "manual",
-      domains: [
-        {
-          domainName,
-          price: 0,
-          currency: "INR",
-          registrationPeriod: 15,
-          periodUnit: "days",
-          itemType: "hosting",
-          isTrial: true,
-          hostingPlan: { planId: plan.planId, name: plan.name, serverPackage },
-        },
-      ],
-    } as Record<string, unknown>);
-
-    const provisioned = await createManualFlowTrialHosting({
-      userId: user.id,
-      domainName,
-      planId: plan.planId,
-      planName: plan.name,
-      serverPackage,
-      orderId: internalOrderId,
-      billingCycle: trialCycle,
-    });
-    serverLogger.info(`[START-TRIAL] trial started: order=${internalOrderId} domain=${domainName} plan=${plan.name}`);
-
-    // Inline DirectAdmin provisioning, best-effort: the cron retries on
-    // failure, and a provisioning error never fails the signup.
-    try {
-      const Hosting = (await import("@/models/Hosting")).default;
-      const { provisionTokensFlowHosting } = await import("@/lib/services/payment/tokens-da-provisioner");
-      const hostingDoc = await Hosting.findById(provisioned.hostingId);
-      if (hostingDoc) {
-        const r = await provisionTokensFlowHosting(hostingDoc);
-        serverLogger.info(`[START-TRIAL] inline DA provisioning outcome=${r.outcome}`);
-      }
-    } catch (provErr) {
-      serverLogger.warn("[START-TRIAL] inline provisioning threw — the cron will retry:", provErr);
+    if (outcome.kind === "ok") {
+      await recordTrialClaim({
+        userId: String(user._id),
+        userEmail: user.email,
+        ipHash: hashIp(clientIp),
+        deviceFingerprint,
+        planId: item.hostingPlan?.id,
+      }).catch((err: unknown) => serverLogger.warn("[START-TRIAL] could not record the trial-abuse claim:", err));
+      serverLogger.info(`[START-TRIAL] ResellerOS started the trial for ${user.email} (lead ${outcome.leadId ?? "?"})`);
+      return secureJsonResponse({
+        success: true,
+        leadId: outcome.leadId,
+        trialEnds: outcome.trialEnds,
+        message: TRIAL_STARTED_MESSAGE,
+      });
     }
 
-    return NextResponse.json({ success: true, manualMode: true, mandateMode: "manual", amount: 0, isTrial: true });
+    const message = startTrialRefusalMessage(outcome);
+    switch (outcome.kind) {
+      case "already_trialled":
+        return refuse(message, 409, "ALREADY_TRIALLED");
+      case "refused":
+        serverLogger.warn(`[START-TRIAL] ResellerOS refused: ${outcome.message}`);
+        return refuse(message, 400, "TRIAL_REFUSED");
+      case "failed":
+        serverLogger.error(`[START-TRIAL] ResellerOS failed: ${outcome.message}`);
+        return refuse(message, 503, "TRIAL_FAILED");
+      case "not_configured":
+        serverLogger.error(`[START-TRIAL] not configured — set ${outcome.missing.join(" and ")} on DMS.`);
+        return refuse(message, 503, "TRIAL_NOT_CONFIGURED");
+      case "config":
+        serverLogger.error(`[START-TRIAL] ResellerOS refused DMS's panel key or is not configured (HTTP ${outcome.status}: ${outcome.detail}).`);
+        return refuse(message, 503, "TRIAL_UNAVAILABLE");
+      case "unreachable":
+        serverLogger.error(`[START-TRIAL] no usable answer (${outcome.detail}); mayHaveStarted=${outcome.mayHaveStarted}. Not retried.`);
+        return secureJsonResponse({ error: message, code: "RESELLEROS_UNREACHABLE", mayHaveStarted: outcome.mayHaveStarted }, 503);
+    }
   } catch (error) {
     serverLogger.error("[START-TRIAL] error:", error);
-    return NextResponse.json(
-      { error: "We couldn't start your trial. Nothing was charged. Please try again, or contact support." },
-      { status: 500 }
-    );
+    return refuse("We couldn't start your trial. Nothing was charged. Please try again, or contact support.", 500);
   }
 }

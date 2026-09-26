@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { trackInitiateCheckout } from '@/lib/journey';
 import { useLogout } from '@/lib/logout';
-import { safeSessionStorage } from '@/lib/storage';
 import { ArrowLeft, CreditCard, Globe, Info, Check, Smartphone } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useCartStore } from '@/store/cartStore';
@@ -39,6 +38,7 @@ export default function CheckoutPage() {
   const handleLogout = useLogout();
   const [isPaymentInProgress, setIsPaymentInProgress] = useState(false);
   const [paymentCompleted, setPaymentCompleted] = useState(false);
+  const [trialStartedMessage, setTrialStartedMessage] = useState<string | null>(null);
   const router = useRouter();
   const { data: session, status } = useSession();
   const { items: cartItems, getTotalPrice, getSubtotalPrice, getItemCount, clearCart, syncWithServer, isLoading, hasDomainItems, hasHostingItems } = useCartStore();
@@ -168,16 +168,14 @@ export default function CheckoutPage() {
         setIsPaymentInProgress(false);
         return;
       }
-      safeSessionStorage.setItem('paymentResult', JSON.stringify({
-        status: 'success',
-        amount: 0,
-        mandateMode: 'manual',
-        timestamp: Date.now(),
-      }));
+      // The trial is started in ResellerOS (owner, 26 Sep 2026): nothing is
+      // set up yet — the customer confirms by email, then the account is made.
+      setTrialStartedMessage(
+        typeof data.message === 'string' ? data.message : 'Check your email to confirm; your trial account is created once you confirm.'
+      );
       setPaymentCompleted(true);
       clearCart();
       setIsPaymentInProgress(false);
-      router.push('/payment-success');
     } catch (error: unknown) {
       logger.error('Trial start failed:', error);
       toast.error("We couldn't reach our server, so the trial wasn't started. Nothing was charged. Please try again.");
@@ -185,6 +183,27 @@ export default function CheckoutPage() {
       setIsPaymentInProgress(false);
     }
   };
+
+  if (trialStartedMessage) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        <Navigation user={user ?? undefined} onLogout={user ? handleLogout : undefined} />
+        <div className="flex-1 max-w-xl mx-auto w-full px-4 py-24 text-center">
+          <Check className="h-12 w-12 text-green-600 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Your free trial is almost ready</h1>
+          <p className="text-gray-700 mb-8">{trialStartedMessage}</p>
+          <button
+            type="button"
+            onClick={() => router.push('/dashboard/hosting')}
+            className="px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg"
+          >
+            Go to your hosting
+          </button>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   if (!user || isLoading || cartItems.length === 0) {
     return <CheckoutPageSkeleton />;

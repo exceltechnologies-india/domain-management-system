@@ -40,7 +40,7 @@
  *     Hosting row — so it does not block itself on a first run or on a retry.
  *   - The row says what it is: `isTrial`, 15 days, `billingType: "manual"`,
  *     `autoRenew: false`, the first reminder 2 days before expiry (the same
- *     shape lib/services/payment/manual-trial-provisioner.ts writes), and
+ *     shape the (since deleted, 26 Sep 2026) manual-trial-provisioner wrote), and
  *     `orderId`/`paymentId` = `rsos-trial:<sourceRef>`. No money moved, so no
  *     Order is written — as for a paid provision, which writes none either.
  * Username choice, read-before-write adoption, the DMS account and its
@@ -56,7 +56,7 @@ import { ensureDmsUser, parseCustomer, type EngineCustomer } from "./engine-cust
 import { isTrialPlan, TRIAL_PLAN_ID } from "@/lib/pricing/trial-plan";
 import { alreadyTrialledMessage, findPriorTrial, type PriorTrial } from "@/lib/trials/trial-history";
 
-/** Same as the manual-flow trial (lib/services/payment/manual-trial-provisioner.ts). */
+/** Same as the former DMS manual-flow trial (deleted 26 Sep 2026: the panel trial now starts in ResellerOS). */
 export const TRIAL_DAYS = 15;
 export const TRIAL_FIRST_REMINDER_LEAD_DAYS = 2;
 

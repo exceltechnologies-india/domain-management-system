@@ -449,8 +449,15 @@ multi-year line or a TLD needing registry details is refused); anything else is 
 runs in the browser (to show the refusal first) and on the server (the authority). Razorpay opens with
 ResellerOS's key; on success the page shows "Payment received" and empties the cart; nothing is recorded in DMS.
 
-The ₹0 trial is the only purchase DMS still starts itself: `api/user/hosting/start-trial` (create-order's trial
-gates moved verbatim; manual no-mandate path only; no Razorpay). `api/payments/create-order` and
+~~The ₹0 trial is the only purchase DMS still starts itself~~ **Since 26 Sep 2026 the panel trial starts IN
+RESELLEROS** (owner: "Move it to ResellerOS"): `api/user/hosting/start-trial` keeps the lone-trial / Starter /
+cycle / trials-switch / trial-abuse gates, then calls ResellerOS `POST /api/dms/start-trial`
+(`lib/reselleros/start-trial.ts`, same `DMS_PANEL_API_KEY`, never retried). ResellerOS runs the site's trial code
+(one trial per customer across both apps, checked against DMS's shared record — `ExternalTrial` /
+`findPriorTrial` / the engine trials endpoint all STAY), emails a confirm link, and the DMS engine's
+`hosting.provision` trial mode creates the account once the customer confirms. The panel says "Check your email
+to confirm; your trial account is created once you confirm." DMS creates no trial Order or Hosting any more;
+`lib/services/payment/manual-trial-provisioner.ts` is deleted. The Convert button then finds ResellerOS's quote. `api/payments/create-order` and
 `api/payments/verify` are deleted with every module only they used. The Tokens-CIT and Razorpay-Subscriptions
 trial branches went with create-order (reachable only with `DMS_HOSTING_SUBSCRIPTIONS_ENABLED=1`, now gone). The
 payment.captured webhook stays for orders created before this date.
