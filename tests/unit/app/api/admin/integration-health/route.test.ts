@@ -62,7 +62,8 @@ vi.mock("@/models/Hosting", () => ({
   __esModule: true,
 }));
 
-// Source 5b: orders owing a manually-raised GST credit note. Mocked at the
+// Source 5b: orders still carrying an old creditNotePending flag (nothing sets
+// it since 26 Sep 2026). Mocked at the
 // service boundary so this file controls the branch directly — the real
 // helper's query behaviour is covered by the orders integration suite.
 const listCreditNotePendingOrders = vi.hoisted(() => vi.fn());
@@ -481,9 +482,12 @@ describe("/api/admin/integration-health — pending GST credit notes", () => {
     const invoicing = body.providers.find((p: { id: string }) => p.id === "invoicing");
     const hint = invoicing.patterns[0].hint as string;
     expect(hint).toMatch(/^Historical:/);
-    expect(hint).toMatch(/ResellerOS/);
-    expect(hint).toMatch(/raise a credit note/i);
-    expect(hint).toMatch(/30 November/i);
+    // Owner, 26 Sep 2026: only test orders, so no credit note is needed.
+    expect(hint).toMatch(/no credit note is needed/i);
+    expect(hint).toMatch(/test invoice/i);
+    expect(hint).toMatch(/clear `creditNotePending`/i);
+    expect(hint).not.toMatch(/raise a credit note/i);
+    expect(hint).not.toMatch(/30 November/i);
     // The generic invoice-failure signature would have told the operator to
     // press "Re-sync" — which is exactly the wrong action here.
     expect(hint).not.toMatch(/Re-sync/i);
@@ -491,13 +495,14 @@ describe("/api/admin/integration-health — pending GST credit notes", () => {
     expect(hint).not.toMatch(/zoho/i);
   });
 
-  it("the credit-note entry text no longer tells the operator to use Zoho Books", async () => {
+  it("the entry text says no credit note is needed (and never sends the operator to Zoho)", async () => {
     listCreditNotePendingOrders.mockResolvedValueOnce([owed({ invoiceProvider: "zoho", invoiceNumber: "INV-000555" })]);
     const body = await (await GET(makeReq())).json();
     const invoicing = body.providers.find((p: { id: string }) => p.id === "invoicing");
     const text = JSON.stringify(invoicing);
     expect(text).toContain("INV-000555");
-    expect(text).toContain("raised manually in ResellerOS");
+    expect(text).toContain("No credit note is needed; clear creditNotePending on the order.");
+    expect(text).not.toMatch(/credit note OWED|raise a credit note|30 November/i);
     expect(text).not.toMatch(/zoho/i);
   });
 
@@ -509,7 +514,7 @@ describe("/api/admin/integration-health — pending GST credit notes", () => {
     expect(text).toContain("ORD-CN-1");
     expect(text).toContain("TI/2026-27/00001");
     expect(text).toContain("rfnd_1");
-    // Rupees, matching what goes on the credit note — not the paise figure.
+    // Rupees, matching the Razorpay refund — not the paise figure.
     expect(text).toContain("1180");
   });
 

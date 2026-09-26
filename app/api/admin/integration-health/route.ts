@@ -127,9 +127,9 @@ const PROVIDERS: ProviderClassifier[] = [
       // returns the first match.
       {
         needle: /\[CREDIT-NOTE\]|credit note OWED/i,
-        // Old wording told the operator DMS's engine would one day issue the
-        // credit note. It never will: DMS issues no invoices (25 Sep 2026).
-        hint: "Historical: a refund was processed against a tax invoice that DMS's old GST engine issued, and that engine could not issue credit notes. DMS issues no invoices any more, so no new sale can lead here — only a refund against an invoice DMS issued before 25 Sep 2026 can. The customer is still owed a GST credit note: raise a credit note for the refunded amount in ResellerOS (Invoices), referencing the invoice number shown, then clear `creditNotePending` on the Order. This entry is NOT time-windowed and will keep appearing until cleared — GST credit notes must be issued by 30 November following the end of the financial year, so an old one is more urgent, not less.",
+        // Recognises rows flagged before 26 Sep 2026. Nothing flags new ones:
+        // owner, "those are only 'test orders' so no need for credit note".
+        hint: "Historical: this order was flagged for a credit note when it was refunded, before 26 Sep 2026. Every invoice DMS issued was a test invoice (owner, 24 Sep 2026), so no credit note is needed. Clear `creditNotePending` on the order to remove this entry.",
       },
       {
         needle: /COMPANY_STATE/i,
@@ -707,22 +707,13 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 5b. Orders owing a MANUALLY-raised GST credit note.
+    // 5b. Orders still carrying an old `creditNotePending` flag.
     //
-    // DMS's old GST engine issued tax invoices but had no credit-note
-    // counterpart (operator decision 2026-09-03). DMS issues no invoices since
-    // 25 Sep 2026, so only a refund against one of those old invoices lands
-    // here; the credit note is raised in ResellerOS.
-    // The refund webhook stamps `creditNotePending` on any order refunded
-    // against an issued invoice; until an operator raises the credit note by
-    // hand, the customer is owed a tax document we have not issued.
-    //
-    // DELIBERATELY NOT time-windowed, unlike every other check here. `since`
-    // bounds the log-derived checks because old errors stop being actionable;
-    // an unfulfilled statutory obligation does not. GST credit notes must be
-    // issued by 30 November following the end of the financial year, so an
-    // old one is MORE urgent, not less — ageing it out of this report is
-    // exactly the failure mode this check exists to prevent.
+    // The refund webhook used to set it on any refunded invoiced order. Since
+    // 26 Sep 2026 nothing sets it (owner: "those are only 'test orders' so no
+    // need for credit note" — every DMS invoice was a test invoice). Rows
+    // flagged before that are listed here, not time-windowed, until an admin
+    // clears the flag.
     try {
       const pendingCreditNotes = await listCreditNotePendingOrders({ limit: 50 });
       for (const o of pendingCreditNotes) {
@@ -733,10 +724,10 @@ export async function GET(request: NextRequest) {
         );
         record({
           errorText:
-            `[CREDIT-NOTE] GST credit note OWED for order ${o.orderId} — ₹${refundRupees} refunded ` +
-            `(refund ${o.creditNotePendingRefundId || "unknown"}) against tax invoice ` +
-            `${o.invoiceNumber || "(number missing)"}, outstanding ${daysOwed} day(s). ` +
-            `DMS issues no invoices or credit notes; it must be raised manually in ResellerOS.`,
+            `[CREDIT-NOTE] Old credit-note flag on order ${o.orderId} — ₹${refundRupees} refunded ` +
+            `(refund ${o.creditNotePendingRefundId || "unknown"}) against test invoice ` +
+            `${o.invoiceNumber || "(number missing)"}, flagged ${daysOwed} day(s) ago. ` +
+            `No credit note is needed; clear creditNotePending on the order.`,
           orderId: o.orderId as string,
           userEmail: o.userEmail as string | undefined,
           amount: o.amount as number,

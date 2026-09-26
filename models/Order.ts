@@ -137,17 +137,12 @@ export interface IOrder extends Document {
   primaryInvoiceClaimedAt?: Date;
   // ── Manual credit-note obligation (Primary Billing Integration) ───────────
   //
-  // Our GST engine mints tax invoices but has NO credit-note counterpart yet
-  // (operator decision 2026-09-03: deferred until real refund volume exists,
-  // rather than shipping an unexercised reverse-numbering series). A refund
-  // against a primary-issued invoice therefore still owes the customer a GST
-  // credit note, which an operator has to raise by hand.
-  //
-  // These fields exist so that obligation is visible IN THE DATA rather than
-  // only in prod-silenced logs — same reasoning as `mandateRefundStatus`.
-  // `app/api/admin/integration-health` surfaces any order carrying
-  // `creditNotePending: true` with the manual ACTION to take. Cleared by an
-  // operator (or by the credit-note engine, if/when it's built).
+  // HISTORY ONLY since 26 Sep 2026. The refund webhook used to set these when
+  // an invoiced order was refunded. Owner: "those are only 'test orders' so
+  // no need for credit note" — every invoice DMS issued was a test invoice
+  // (owner, 24 Sep 2026) — so nothing sets them now. Kept for rows flagged
+  // before; `app/api/admin/integration-health` lists those until an admin
+  // clears `creditNotePending`.
   creditNotePending?: boolean;
   creditNotePendingRefundId?: string;
   // Refund amount in PAISE, as Razorpay reports it — deliberately not

@@ -8,7 +8,6 @@ import {
   claimPendingOrderForProcessing,
   findOrderByRazorpayOrderIdOrInternalId,
   getOrderByRazorpayPaymentId,
-  flagCreditNotePending,
 } from "@/lib/services/orders";
 import { finalizePendingOrder } from "@/lib/services/payment/order-creator";
 import { flagPaymentWithoutBill } from "@/lib/billing/no-dms-bills";
@@ -397,46 +396,18 @@ async function handleRefundProcessed(payload: RefundProcessedPayload) {
     return;
   }
 
-  // ── An invoice exists: a credit note is OWED, but we can't issue it ──────
+  // ── An invoice exists: NO credit note (owner, 26 Sep 2026) ──────────────
   //
-  // Our GST engine mints tax invoices and has no credit-note counterpart yet
-  // (operator decision 2026-09-03 — deferred until real refund volume exists
-  // rather than shipping an unexercised reverse-numbering series). The refund
-  // has already happened at Razorpay; the customer is legally owed a GST
-  // credit note referencing the original invoice, raised by hand.
-  //
-  // This covers historical Zoho-issued invoices too (`invoiceProvider:
-  // "zoho"`). Zoho Books used to raise their credit notes automatically; since
-  // Zoho was removed on 24 Sep 2026 they are owed by hand like any other.
-  //
-  // This MUST be distinguishable from the benign skip below: a real compliance
-  // obligation must never read like a ₹2 trial reversal that never needed a
-  // credit note at all. Hence a loud, distinct log AND a persisted
-  // flag — Cloud Logging rolls over, the Order row doesn't, and
-  // `app/api/admin/integration-health` reports on it until an operator clears
-  // it.
+  // Owner: "those are only 'test orders' so no need for credit note". Every
+  // invoice DMS ever issued — our old GST engine's or a historical Zoho one —
+  // was a test invoice (owner, 24 Sep 2026), and DMS issues none now. So the
+  // refund is logged exactly as before, and `creditNotePending` is NOT set.
   if (order.invoiceProvider) {
-    serverLogger.error(
-      `🧾 [Webhook] CREDIT NOTE OWED — refund ${refundId} (₹${refundAmountPaise / 100}) processed against tax invoice ` +
-      `${order.invoiceNumber || "(number missing)"} on order ${order.orderId}. Our GST engine cannot issue credit notes yet. ` +
-      `ACTION: raise a credit note manually against invoice ${order.invoiceNumber || "(number missing)"} for ₹${refundAmountPaise / 100}. ` +
-      `Flagged on the Order as creditNotePending and listed in admin integration-health until cleared.`
+    serverLogger.info(
+      `[Webhook] refund.processed: refund ${refundId} (₹${refundAmountPaise / 100}) against test invoice ` +
+      `${order.invoiceNumber || "(number missing)"} on order ${order.orderId}. No credit note needed — ` +
+      `every invoice DMS issued was a test invoice (owner, 24 Sep 2026).`
     );
-    try {
-      await flagCreditNotePending(String(order._id), {
-        refundId,
-        refundAmountPaise,
-      });
-    } catch (flagErr: unknown) {
-      // Never throw out of the refund webhook — the refund itself already
-      // succeeded and Razorpay must not retry for a bookkeeping failure. But
-      // a failure HERE means the obligation is now log-only, so say so.
-      const msg = flagErr instanceof Error ? flagErr.message : String(flagErr);
-      serverLogger.error(
-        `❌ [Webhook] Could NOT persist the credit-note obligation for order ${order.orderId} (refund ${refundId}): ${msg}. ` +
-        `It will NOT appear in integration-health — action it from this log line.`
-      );
-    }
     return;
   }
 

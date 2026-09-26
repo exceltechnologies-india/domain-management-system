@@ -284,19 +284,16 @@ What that means in code:
 
 **Deploy order.** Run `npm run migrate` (applies 009) with the deploy of this code. If the migration runs late, nothing double-invoices: the engine's claim (`claimOrderForPrimaryInvoice`) also refuses any order still carrying a raw `zohoInvoiceId`, and the retry paths only touch orders with `invoiceFailedAt` — both pinned by tests. The two historical orders would just show as uninvoiced in admin diagnostics until it runs.
 
-## Primary-invoice refunds — credit notes are MANUAL (operator decision 2026-09-03)
+## Refunds of DMS-invoiced orders — NO credit note (owner, 26 Sep 2026)
 
-Our primary GST engine mints tax invoices (`TI/YYYY-YY/NNNNN`) but has **no credit-note counterpart**. Building a reverse-numbering series was deliberately deferred: no primary invoice exists in production yet, there is no in-app refund at all (`handleRefundPayment` in the admin payment page is an empty stub — every real refund is issued by hand from the Razorpay dashboard), and the only automated refund is the ₹2 mandate-validation reversal on a trial order, which never gets an invoice in the first place.
-
-**Consequence:** a refund against a primary-issued invoice leaves a real GST obligation that a human must discharge.
-
-**The flow:** `refund.processed` in `app/razorpay/webhook/route.ts` branches on ANY `invoiceProvider` (primary, or a historical Zoho invoice — whose credit notes Zoho used to raise automatically) BEFORE the benign no-invoice skip, logs at ERROR with the order id / `TI/...` number / refund id / rupee amount / ACTION line, and stamps `creditNotePending` (+ refund id, amount in paise, timestamp) on the Order. `app/api/admin/integration-health` lists every flagged order on the **Invoicing** card.
-
-**Operator action when a `[CREDIT-NOTE]` entry appears:** raise a credit note by hand against the named invoice for the named amount, then clear `creditNotePending` on the Order. (Owner, 24 Sep 2026: no credit-note engine for now — the only refunded-invoice candidates were test orders.)
-
-**Do NOT time-window that health check.** Every other source there is bounded by `since` because stale errors stop being actionable; this one is the opposite — GST credit notes must be issued by **30 November following the end of the financial year**, so an outstanding one gets *more* urgent with age. Ageing it out is the exact failure the check exists to prevent.
-
-Building the engine properly (its own Counter, reverse-numbered series, PDF, wiring into the refund handler) stays open as item 3 of the post-Phase-2 audit in `TASKS.md` — do it when real refund volume justifies it, not before.
+Owner: "those are only 'test orders' so no need for credit note". Every invoice DMS ever issued was a test
+invoice (owner, 24 Sep 2026), and DMS issues none now. So `refund.processed` in `app/razorpay/webhook/route.ts`
+logs the refund (refund id, rupees, invoice number, order) at INFO and does **not** set `creditNotePending`.
+`flagCreditNotePending` is deleted; a source scan in `tests/unit/app/razorpay/webhook/route.test.ts` fails if
+anything in `app/` or `lib/` sets the flag again. The schema fields stay for rows flagged before; integration-health
+lists those on the Invoicing card with a "Historical: … no credit note is needed, clear `creditNotePending`" hint.
+(Previously: the webhook flagged the order, logged CREDIT NOTE OWED, and the operator raised a credit note by hand
+by 30 November. That no longer applies.)
 
 ## ⚠️ Migration 008 is written and NOT applied to production (2026-09-21)
 

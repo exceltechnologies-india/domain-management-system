@@ -7,10 +7,9 @@
  * lives at a separate URL Razorpay was historically pointed at, and
  * handles two events:
  *  - `payment.captured` — the customer has paid; provision the order.
- *  - `refund.processed` — a refund was issued; if the order carries ANY
- *    tax invoice (primary engine, or a historical Zoho one) flag the GST
- *    credit note it is owed (`creditNotePending`) — Zoho Books, which used
- *    to raise them automatically, was removed on 24 Sep 2026.
+ *  - `refund.processed` — a refund was issued; it is logged. Since 26 Sep
+ *    2026 an invoiced order is NOT flagged `creditNotePending` (owner:
+ *    "those are only 'test orders' so no need for credit note").
  *
  * Threat model:
  *  - **Forged webhook → unauthorized provisioning**: every request
@@ -40,10 +39,6 @@
  *    finalizePendingOrder throws, the row stays in `processing` and
  *    the webhook rethrows so Razorpay retries (we get another shot).
  *    Pinned.
- *  - **Refund accounting failure ≠ Razorpay retry**: a failed
- *    credit-note flag write is swallowed (loud log); Razorpay
- *    doesn't need to retry refund webhooks for accounting issues.
- *    Pinned per-branch.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import crypto from "crypto";
@@ -68,13 +63,11 @@ const claimPendingOrderForProcessing = vi.hoisted(() => vi.fn());
 const findOrderByRazorpayOrderIdOrInternalId = vi.hoisted(() => vi.fn());
 const getOrderByRazorpayPaymentId = vi.hoisted(() => vi.fn());
 const markInvoiceCreationFailed = vi.hoisted(() => vi.fn());
-const flagCreditNotePending = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/orders", () => ({
   claimPendingOrderForProcessing,
   findOrderByRazorpayOrderIdOrInternalId,
   getOrderByRazorpayPaymentId,
   markInvoiceCreationFailed,
-  flagCreditNotePending,
 }));
 
 const finalizePendingOrder = vi.hoisted(() => vi.fn());
@@ -234,7 +227,6 @@ beforeEach(() => {
   findOrderByRazorpayOrderIdOrInternalId.mockReset();
   getOrderByRazorpayPaymentId.mockReset();
   markInvoiceCreationFailed.mockReset().mockResolvedValue(undefined);
-  flagCreditNotePending.mockReset().mockResolvedValue(undefined);
   serverLogger.info.mockReset();
   serverLogger.warn.mockReset();
   serverLogger.error.mockReset();
@@ -626,28 +618,25 @@ describe("payment.captured — finalizePendingOrder integration", () => {
 // ═══════════════════════════════════════════════════════════════════
 // refund.processed — skip branches
 // ═══════════════════════════════════════════════════════════════════
-describe("refund.processed — skip paths (NO credit-note flag)", () => {
+describe("refund.processed — skip paths", () => {
   it("missing refund entity → skip with warn; NO order lookup", async () => {
     const res = await POST(
       makeReq({ body: refundProcessedPayload({ missingEntity: true }) })
     );
     expect(res.status).toBe(200);
     expect(getOrderByRazorpayPaymentId).not.toHaveBeenCalled();
-    expect(flagCreditNotePending).not.toHaveBeenCalled();
   });
 
-  it("order not found by paymentId → skip; NO credit-note flag", async () => {
+  it("order not found by paymentId → skip", async () => {
     getOrderByRazorpayPaymentId.mockResolvedValueOnce(null);
     const res = await POST(makeReq({ body: refundProcessedPayload() }));
     expect(res.status).toBe(200);
-    expect(flagCreditNotePending).not.toHaveBeenCalled();
   });
 
   it("order has NO invoiceProvider → nothing owed (can't credit what wasn't invoiced); logs the benign skip", async () => {
     getOrderByRazorpayPaymentId.mockResolvedValueOnce(makeOrder({ invoiceProvider: undefined }));
     const res = await POST(makeReq({ body: refundProcessedPayload() }));
     expect(res.status).toBe(200);
-    expect(flagCreditNotePending).not.toHaveBeenCalled();
     const warned = serverLogger.warn.mock.calls.map((c) => String(c[0])).join("\n");
     expect(warned).toContain("has no invoice — nothing to credit");
     const errored = serverLogger.error.mock.calls.map((c) => String(c[0])).join("\n");
@@ -873,18 +862,12 @@ describe("Tokens-flow mandate validation (mandateMode='tokens')", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════
-// refund.processed — primary invoice: credit note OWED but not issuable
+// refund.processed — invoiced order: logged, NO credit-note flag
 // ═══════════════════════════════════════════════════════════════════
 //
-// Our GST engine issues tax invoices but has no credit-note counterpart
-// (deferred by operator decision 2026-09-03). A refund against an issued
-// invoice therefore leaves a real GST obligation that an operator must
-// discharge by hand. Since Zoho Books was removed (24 Sep 2026) that
-// includes historical Zoho-issued invoices, whose credit notes Zoho used to
-// raise automatically.
-//
-// A compliance obligation must never read like the benign no-invoice skip.
-describe("refund.processed — invoiced order (manual credit note owed)", () => {
+// Owner, 26 Sep 2026: "those are only 'test orders' so no need for credit
+// note". Every invoice DMS issued was a test invoice (owner, 24 Sep 2026).
+describe("refund.processed — invoiced order (no credit note)", () => {
   function primaryOrder(over: Partial<FakeOrder> = {}) {
     return makeOrder({
       invoiceProvider: "primary",
@@ -894,7 +877,10 @@ describe("refund.processed — invoiced order (manual credit note owed)", () => 
     } as Partial<FakeOrder>);
   }
 
-  it("**flags the obligation on the Order** so it survives log rotation", async () => {
+  const infoLog = () => serverLogger.info.mock.calls.map((c) => String(c[0])).join("\n");
+  const errorLog = () => serverLogger.error.mock.calls.map((c) => String(c[0])).join("\n");
+
+  it("records the refund (refund id, rupees, invoice, order) and says no credit note is needed", async () => {
     getOrderByRazorpayPaymentId.mockResolvedValueOnce(primaryOrder());
     const res = await POST(
       makeReq({
@@ -902,29 +888,25 @@ describe("refund.processed — invoiced order (manual credit note owed)", () => 
       })
     );
     expect(res.status).toBe(200);
-    expect(flagCreditNotePending).toHaveBeenCalledWith("OID-1", {
-      refundId: "rfnd_P",
-      refundAmountPaise: 118000,
-    });
-  });
-
-  it("**logs at ERROR with the invoice number and the manual ACTION** — distinct from the benign no-invoice skip", async () => {
-    getOrderByRazorpayPaymentId.mockResolvedValueOnce(primaryOrder());
-    await POST(
-      makeReq({
-        body: refundProcessedPayload({ refundId: "rfnd_P", amount: 118000 }),
-      })
-    );
-    const logged = serverLogger.error.mock.calls.map((c) => String(c[0])).join("\n");
-    expect(logged).toContain("CREDIT NOTE OWED");
+    const logged = infoLog();
+    expect(logged).toContain("rfnd_P");
+    expect(logged).toContain("1180");
     expect(logged).toContain("TI/2026-27/00001");
     expect(logged).toContain("ORD-1");
-    expect(logged).toContain("ACTION");
-    // The rupee amount, not the paise figure, so it matches what an operator
-    // writes on the credit note.
-    expect(logged).toContain("1180");
-    // Zoho is gone; the ACTION must not send the operator to it.
-    expect(logged).not.toMatch(/zoho/i);
+    expect(logged).toContain("No credit note needed");
+    expect(errorLog()).not.toMatch(/CREDIT NOTE OWED|credit note OWED/i);
+  });
+
+  it("a historical ZOHO-invoiced order is treated the same — logged, not flagged", async () => {
+    getOrderByRazorpayPaymentId.mockResolvedValueOnce(
+      makeOrder({ invoiceProvider: "zoho", invoiceNumber: "INV-000123", _id: "OID-ZOHO" })
+    );
+    const res = await POST(
+      makeReq({ body: refundProcessedPayload({ refundId: "rfnd_Z", amount: 59000 }) })
+    );
+    expect(res.status).toBe(200);
+    expect(infoLog()).toContain("INV-000123");
+    expect(errorLog()).not.toMatch(/CREDIT NOTE OWED/i);
   });
 
   it("doesn't crash when the invoice number is somehow missing", async () => {
@@ -933,47 +915,36 @@ describe("refund.processed — invoiced order (manual credit note owed)", () => 
     );
     const res = await POST(makeReq({ body: refundProcessedPayload() }));
     expect(res.status).toBe(200);
-    expect(flagCreditNotePending).toHaveBeenCalled();
+    expect(infoLog()).toContain("(number missing)");
   });
 
-  it("**a failed flag write is swallowed but logged loudly** — the refund already succeeded, so Razorpay must not retry, but the obligation is now log-only and must say so", async () => {
-    getOrderByRazorpayPaymentId.mockResolvedValueOnce(primaryOrder());
-    flagCreditNotePending.mockRejectedValueOnce(new Error("Mongo down"));
-    const res = await POST(makeReq({ body: refundProcessedPayload() }));
-    expect(res.status).toBe(200);
-    const logged = serverLogger.error.mock.calls.map((c) => String(c[0])).join("\n");
-    expect(logged).toContain("Could NOT persist the credit-note obligation");
-    expect(logged).toContain("will NOT appear in integration-health");
-  });
-
-  it("**a historical ZOHO-invoiced order now FLAGS creditNotePending** — Zoho used to raise it automatically; nothing does any more", async () => {
-    getOrderByRazorpayPaymentId.mockResolvedValueOnce(
-      makeOrder({
-        invoiceProvider: "zoho",
-        invoiceNumber: "INV-000123",
-        _id: "OID-ZOHO",
-      })
-    );
-    const res = await POST(
-      makeReq({ body: refundProcessedPayload({ refundId: "rfnd_Z", amount: 59000 }) })
-    );
-    expect(res.status).toBe(200);
-    expect(flagCreditNotePending).toHaveBeenCalledWith("OID-ZOHO", {
-      refundId: "rfnd_Z",
-      refundAmountPaise: 59000,
-    });
-    const logged = serverLogger.error.mock.calls.map((c) => String(c[0])).join("\n");
-    expect(logged).toContain("CREDIT NOTE OWED");
-    expect(logged).toContain("INV-000123");
-    expect(logged).toContain("590");
-  });
-
-  it("a trial / uninvoiced order is unaffected — nothing owed, nothing flagged", async () => {
-    getOrderByRazorpayPaymentId.mockResolvedValueOnce(
-      makeOrder({ invoiceProvider: undefined })
-    );
-    await POST(makeReq({ body: refundProcessedPayload() }));
-    expect(flagCreditNotePending).not.toHaveBeenCalled();
+  it("nothing in app/ or lib/ sets creditNotePending any more (comments stripped first)", async () => {
+    const { readFileSync, readdirSync, statSync } = await import("node:fs");
+    const { join, relative } = await import("node:path");
+    const root = process.cwd();
+    const files: string[] = [];
+    const walk = (d: string) => {
+      for (const n of readdirSync(d)) {
+        if (n === "node_modules" || n.startsWith(".")) continue;
+        const f = join(d, n);
+        if (statSync(f).isDirectory()) walk(f);
+        else if (/\.(ts|tsx)$/.test(n)) files.push(f);
+      }
+    };
+    walk(join(root, "app"));
+    walk(join(root, "lib"));
+    expect(files.length).toBeGreaterThan(300);
+    const SETTER = /\$set\s*:\s*\{[^}]*creditNotePending|creditNotePending\s*=\s*true|flagCreditNotePending/;
+    const hits = files
+      .filter((f) =>
+        SETTER.test(
+          readFileSync(f, "utf8")
+            .replace(/\/\*[\s\S]*?\*\//g, "")
+            .replace(/(^|[^:])\/\/.*$/gm, "$1")
+        )
+      )
+      .map((f) => relative(root, f));
+    expect(hits).toEqual([]);
   });
 
   it("the route source no longer references a Zoho client (comments stripped first)", async () => {

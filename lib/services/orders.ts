@@ -598,61 +598,19 @@ export async function recordPrimaryInvoiceForOrder(
   );
 }
 
-// ─── Manual credit-note obligation (Primary Billing Integration) ─────────────
+// ─── Credit-note flag: historical rows only ─────────────────────────────────
 //
-// The primary GST engine issues tax invoices but has no credit-note
-// counterpart yet (operator decision 2026-09-03 — deferred until real refund
-// volume exists rather than shipping an unexercised reverse-numbering series).
-// A refund against a primary-issued invoice still legally owes the customer a
-// GST credit note, raised by hand.
-//
-// Recording it on the Order is the whole point: a log line alone is invisible
-// once Cloud Logging rolls over, and the refund webhook deliberately swallows
-// its own errors. Persisting makes the obligation queryable, which is what
-// `app/api/admin/integration-health` reports on.
+// `flagCreditNotePending` (which stamped `creditNotePending` when an invoiced
+// order was refunded) was deleted on 26 Sep 2026. Owner: "those are only
+// 'test orders' so no need for credit note" — every invoice DMS ever issued
+// was a test invoice (owner, 24 Sep 2026), and DMS issues none now. Nothing
+// sets the flag any more; the schema field stays for rows flagged before, and
+// the reader below lets integration-health list them until an admin clears
+// them.
 
 /**
- * Flags an order as owing a manually-raised GST credit note after a refund.
- *
- * Idempotent per refund: re-running for the SAME `refundId` (Razorpay can
- * redeliver `refund.processed`) leaves the original `creditNotePendingAt`
- * timestamp alone, so the integration-health "how long has this been
- * outstanding" reading doesn't reset on every redelivery. A DIFFERENT refund
- * id overwrites — a second partial refund on the same order is a fresh
- * obligation, and the newer one is the one an operator still has to action.
- */
-export async function flagCreditNotePending(
-  orderId: string | mongoose.Types.ObjectId,
-  input: { refundId: string; refundAmountPaise: number }
-): Promise<void> {
-  await connectDB();
-  const existing = await Order.findById(orderId)
-    .select("creditNotePending creditNotePendingRefundId")
-    .lean<Pick<IOrder, "creditNotePending" | "creditNotePendingRefundId"> | null>();
-
-  if (
-    existing?.creditNotePending &&
-    existing.creditNotePendingRefundId === input.refundId
-  ) {
-    return;
-  }
-
-  await Order.updateOne(
-    { _id: orderId },
-    {
-      $set: {
-        creditNotePending: true,
-        creditNotePendingRefundId: input.refundId,
-        creditNotePendingAmountPaise: input.refundAmountPaise,
-        creditNotePendingAt: new Date(),
-      },
-    }
-  );
-}
-
-/**
- * Orders still owing a manually-raised credit note. Feeds the admin
- * integration-health report. Oldest first — the longest-outstanding
+ * Orders flagged `creditNotePending` BEFORE 26 Sep 2026 (nothing sets it now).
+ * Feeds the admin integration-health report so an admin can clear them. Oldest first — the longest-outstanding
  * obligation is the one that matters most (GST credit notes must be issued by
  * 30 November following the end of the financial year).
  */

@@ -51,6 +51,16 @@ Eight days of focused safety-check additions are complete. Every production-faci
   `api/admin/hosting/packages` saves the edit only; `RazorpayService.createPlan` deleted; the guard refuses
   `plans.create(` outside `scripts/razorpay-regenerate-plans-live.js` (red-checked). `razorpayPlans` data untouched.
 
+### 🆕 Round 8 — no credit notes (owner, 26 Sep 2026: "those are only 'test orders' so no need for credit note")
+
+- [x] The refund webhook no longer sets `creditNotePending` on an invoiced order; it logs the refund at INFO.
+  `flagCreditNotePending` deleted. Integration-health's credit-note hint and entry text say "Historical: … no credit
+  note is needed, clear `creditNotePending`". Schema fields kept; nothing migrated.
+
+### 🆕 Round 7 — integration-health invoicing hints say historical (26 Sep 2026, owner: "Reword both")
+
+- [x] Credit-note and generic invoice-failure hints start "Historical:" and point to ResellerOS; no Re-sync.
+
 ### 🆕 Round 6 — "Go ahead and remove the unused ones" (26 Sep 2026)
 
 - [x] **Step 1** — `COMPANY_STATE` removed (CompanyProfile.state, deploy-script requirement, env examples,
@@ -758,7 +768,7 @@ Operator wants the app rebranded to the official **Anutech Digital** logo + favi
   - **Admin integration-health reports it** on the **Zoho Books** card (that's where the manual action happens) with a dedicated hint spelling out the fix. This check is **deliberately NOT time-windowed**, unlike every other source there: `since` bounds log-derived checks because old errors stop being actionable, but an unfulfilled statutory obligation does the opposite — GST credit notes must be issued by **30 November following the end of the financial year**, so an old one is *more* urgent. Ageing it out is precisely the failure this check prevents. Entry shows days outstanding and clears when an operator clears the flag.
   - If the flag write itself fails, that is logged loudly too, saying the obligation is now log-only and will **not** appear in integration-health.
 
-  **⚠️ STANDING OPERATOR OBLIGATION while this is deferred:** when integration-health shows a `[CREDIT-NOTE]` entry, raise a credit note in Zoho Books against the named `TI/...` invoice for the named amount, then clear `creditNotePending` on the Order. This is a GST compliance requirement being met by a human acting on an alert — if that becomes uncomfortable, the engine is roughly Phase 1b in size and item 3 stays open in the audit list for exactly that reason.
+  **~~STANDING OPERATOR OBLIGATION~~ — withdrawn 26 Sep 2026** (owner: "those are only 'test orders' so no need for credit note"; nothing flags `creditNotePending` now). Historical text: when integration-health shows a `[CREDIT-NOTE]` entry, raise a credit note in Zoho Books against the named `TI/...` invoice for the named amount, then clear `creditNotePending` on the Order. This is a GST compliance requirement being met by a human acting on an alert — if that becomes uncomfortable, the engine is roughly Phase 1b in size and item 3 stays open in the audit list for exactly that reason.
 
   **How it was verified:** 8 new webhook tests + 7 new integration-health tests + 9 new integration tests on the real helpers against in-memory MongoDB (idempotency per refund id, overwrite on a new refund id, oldest-first ordering, soft-delete exclusion, clearing removes it). **Confirmed they bite**: neutralising the `invoiceProvider === 'primary'` branch turns **5 of the 8** webhook tests red; making the `[CREDIT-NOTE]` signature unmatchable so the generic Zoho signature claims it turns the hint test red — that one matters, because the generic hint tells the operator to click "Re-sync", which is exactly the wrong action. Full sweep: unit **6315/6315** (+15), integration **217/1-skip** (+9), `tsc` clean, `eslint` clean, build **75/75**.
 
