@@ -22,21 +22,23 @@
  *                                    PLANS (`plans.create`) — an operator
  *                                    script, not a payment. Its body is still
  *                                    scanned for payment calls.
- *  lib/razorpay.ts — ONLY inside `createRecurringTokenOrder` and
- *  `chargeViaToken`                  the Razorpay Tokens recurring flow, which
- *                                    the owner asked to leave in place
- *                                    ("disable for now"). Gated OFF by
- *                                    DMS_TOKEN_RECURRING_ENABLED (asserted
- *                                    below). No app code calls
- *                                    createRecurringTokenOrder any more — the
- *                                    signup mandate went with create-order —
- *                                    so it can create nothing new.
+ *  lib/razorpay.ts — ONLY inside `chargeViaToken`
+ *                                    the Razorpay Tokens recurring charger for
+ *                                    EXISTING tokens, which the owner asked to
+ *                                    leave in place ("disable for now"). Gated
+ *                                    OFF by DMS_TOKEN_RECURRING_ENABLED
+ *                                    (asserted below). Nothing can create a new
+ *                                    token: createCustomer and
+ *                                    createRecurringTokenOrder were deleted on
+ *                                    26 Sep 2026 (asserted below).
  *  lib/services/payment/recurring-charge-service.ts
  *                                    the only caller of chargeViaToken, behind
  *                                    that gate.
  *
- * Comments are stripped before scanning (AGENTS.md L46). Red-checked when
- * written: re-adding `RazorpayService.createOrder(` to a route, an
+ * Comments are stripped before scanning (AGENTS.md L46). Re-red-checked on
+ * 26 Sep 2026 after the allow-list shrank to chargeViaToken (a restored
+ * `createRecurringTokenOrder` calling `orders.create(` turned it red). First
+ * red-checked when written: re-adding `RazorpayService.createOrder(` to a route, an
  * `orders.create(` outside the two Tokens methods, and a `from "razorpay"`
  * import in a route each turned this red.
  */
@@ -77,7 +79,7 @@ const sources = files.map((f) => ({ file: rel(f), code: strip(readFileSync(f, "u
 const SDK_IMPORT = /from\s+["']razorpay["']|require\(\s*["']razorpay["']\s*\)|import\(\s*["']razorpay["']\s*\)/;
 const SDK_PAYMENT_CALL = /\b(orders\.create|subscriptions\.create|payments\.capture|payments\.createRecurringPayment)\s*\(/g;
 const SDK_IMPORT_ALLOWED = new Set(["lib/razorpay-client.ts", "scripts/razorpay-regenerate-plans-live.js"]);
-const TOKENS_METHODS = new Set(["createRecurringTokenOrder", "chargeViaToken"]);
+const TOKENS_METHODS = new Set(["chargeViaToken"]);
 
 /** The name of the `static async X(` method enclosing `index` in lib/razorpay.ts. */
 function enclosingMethod(code: string, index: number): string | null {
@@ -97,7 +99,7 @@ describe("DMS takes no payment on its own Razorpay keys — source scan", () => 
     expect(hits).toEqual([]);
   });
 
-  it("no SDK payment call outside the two gated Tokens methods of lib/razorpay.ts", () => {
+  it("no SDK payment call outside the gated chargeViaToken in lib/razorpay.ts", () => {
     const offenders: string[] = [];
     for (const s of sources) {
       for (const m of s.code.matchAll(SDK_PAYMENT_CALL)) {
@@ -113,18 +115,19 @@ describe("DMS takes no payment on its own Razorpay keys — source scan", () => 
     expect(offenders).toEqual([]);
   });
 
-  it("the generic order/subscription methods stay deleted", () => {
+  it("the order, subscription and new-mandate methods stay deleted", () => {
+    const DELETED = /\bRazorpayService\.(createOrder|createSubscription|createCustomer|createRecurringTokenOrder)\b|static\s+async\s+(createOrder|createSubscription|createCustomer|createRecurringTokenOrder)\s*\(/;
     const hits = sources
-      .filter((s) => /\bRazorpayService\.(createOrder|createSubscription)\b|static\s+async\s+(createOrder|createSubscription)\s*\(/.test(s.code))
+      .filter((s) => DELETED.test(s.code))
       .map((s) => s.file);
     expect(hits).toEqual([]);
   });
 
-  it("the Tokens methods have no caller except the gated charger", () => {
+  it("chargeViaToken has no caller except the gated charger", () => {
     const hits = sources
       .filter((s) => s.file !== "lib/razorpay.ts")
       .flatMap((s) =>
-        [...s.code.matchAll(/\bRazorpayService\.(createRecurringTokenOrder|createCustomer|chargeViaToken)\b/g)].map(
+        [...s.code.matchAll(/\bRazorpayService\.(chargeViaToken)\b/g)].map(
           (m) => `${s.file}: ${m[1]}`
         )
       )
@@ -144,6 +147,7 @@ describe("DMS takes no payment on its own Razorpay keys — source scan", () => 
       "app/api/payments/guest/create-order/route.ts",
       "app/api/payments/guest/verify/route.ts",
       "app/api/payments/create-subscription/route.ts",
+      "app/api/domains/renew/route.ts",
     ];
     expect(sources.filter((s) => gone.includes(s.file)).map((s) => s.file)).toEqual([]);
   });

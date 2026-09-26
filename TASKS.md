@@ -41,6 +41,17 @@ Eight days of focused safety-check additions are complete. Every production-faci
 
 ## In Flight
 
+### 🆕 Round 4 — owner answers, 26 Sep 2026
+
+- [x] **Step 4 — dead DMS code deleted** ("Delete dead DMS code"): `app/api/domains/renew`,
+  `lib/services/payment/verification.ts`, `createCompletedOrder` / `cartItemsFromOrderDomains` /
+  `validateNoRestrictedDomains` in `order-creator.ts`, `RazorpayService.createCustomer` /
+  `createRecurringTokenOrder` and `tests/integration/razorpay-tokens-live.test.ts`. Guard allow-list narrowed to
+  `chargeViaToken`.
+- [ ] **Step 2 — `cron/renewal-payment-dunning` switched off.**
+- [ ] **Step 1 — renewal reminders point to the ResellerOS quote; no DMS price.**
+- [ ] **Step 3 — the in-panel trial starts in ResellerOS.**
+
 ### 🆕 Round 3 — no payment on DMS's own Razorpay keys (owner answers, 25 Sep 2026)
 
 - [x] **Step 3 — guest checkout and autopay removed** (owner: "Remove both"). Deleted `/checkout/guest`,

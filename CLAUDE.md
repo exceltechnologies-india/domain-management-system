@@ -455,10 +455,17 @@ are history** — those files no longer exist.
 `tests/unit/lib/no-dms-razorpay-payments.test.ts` fails if the Razorpay SDK is imported, or `orders.create` /
 `subscriptions.create` / `payments.capture` / `payments.createRecurringPayment` is called, outside:
 `lib/razorpay-client.ts` (the shared client), `scripts/razorpay-regenerate-plans-live.js` (creates PLANS), and
-in `lib/razorpay.ts` only `createRecurringTokenOrder` and `chargeViaToken` — the gated Tokens flow the owner
-asked to keep. `chargeViaToken`'s only caller is `recurring-charge-service.ts`, behind
-`DMS_TOKEN_RECURRING_ENABLED` (the test asserts the gate). `createRecurringTokenOrder` has no caller left.
-`RazorpayService.createOrder` and `createSubscription` are deleted. Do not widen the allow-list without the owner.
+in `lib/razorpay.ts` only `chargeViaToken` — the gated charger for EXISTING Tokens the owner asked to keep.
+Its only caller is `recurring-charge-service.ts`, behind `DMS_TOKEN_RECURRING_ENABLED` (the test asserts the
+gate). `RazorpayService.createOrder`, `createSubscription` and — since 26 Sep 2026 — `createCustomer` and
+`createRecurringTokenOrder` (the new-mandate methods, with their live harness) are deleted, so no new token can
+be created. Do not widen the allow-list without the owner.
+
+**Dead code removed 26 Sep 2026** (owner: "Delete dead DMS code"): `app/api/domains/renew` (unreached since the
+Renew button points at ResellerOS), `lib/services/payment/verification.ts` (its last importer),
+`createCompletedOrder`, `cartItemsFromOrderDomains` and `validateNoRestrictedDomains` in
+`lib/services/payment/order-creator.ts` (last caller was `/api/payments/verify`). `finalizePendingOrder` stays:
+the payment.captured webhook uses it for orders made before 25 Sep.
 
 ## A hosting upgrade is a REQUEST billed by ResellerOS (owner, 25 Sep 2026)
 
