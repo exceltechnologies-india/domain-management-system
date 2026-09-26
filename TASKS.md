@@ -47,6 +47,9 @@ Eight days of focused safety-check additions are complete. Every production-faci
   `api/user/hosting/trial-eligibility` → `lib/reselleros/trial-eligibility.ts` → ResellerOS
   `POST /api/dms/trial-eligibility` (acfc4512). Fails closed ("can't check right now") on anything but a clear 200.
   `userHasPriorTrialOrder` deleted. `ExternalTrial` / `findPriorTrial` / engine trials endpoint kept.
+- [x] **Step 2 — admin package edits create no Razorpay plans** ("Stop creating plans"). The PATCH in
+  `api/admin/hosting/packages` saves the edit only; `RazorpayService.createPlan` deleted; the guard refuses
+  `plans.create(` outside `scripts/razorpay-regenerate-plans-live.js` (red-checked). `razorpayPlans` data untouched.
 
 ### 🆕 Round 4 — owner answers, 26 Sep 2026
 

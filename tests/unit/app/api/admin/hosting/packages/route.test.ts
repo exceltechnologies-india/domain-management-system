@@ -38,14 +38,8 @@
  *    price/renewalPrice non-negative
  *  - findById null → 404 NOT_FOUND
  *  - Each field updated ONLY when defined (anti-overwrite-with-undefined)
- *  - **renewalPrice changed OR razorpayPlans missing** → rotate
- *    Razorpay plans (createPlan called twice: monthly + yearly)
- *  - Monthly plan: createPlan(`${plan.name} - Monthly`, ...,
- *    plan.renewalPrice, 'monthly')
- *  - **Yearly plan: createPlan with plan.renewalPrice × 12** (matches
- *    current pricing logic — no yearly discount applied)
- *  - razorpayPlans = {monthly: monthlyPlan.id, yearly: yearlyPlan.id}
- *  - Razorpay failure SWALLOWED — plan still saved locally
+ *  - NO Razorpay plan is created (owner, 26 Sep 2026: "Stop creating plans");
+ *    existing razorpayPlans ids are left untouched
  *  - plan.save() ALWAYS called
  *  - 500 'UPDATE_FAILED' on outer catch
  */
@@ -640,145 +634,35 @@ describe("PATCH — field updates (anti-overwrite-with-undefined)", () => {
   });
 });
 
-// ─── PATCH — Razorpay plan rotation ───────────────────────────────
-describe("PATCH — Razorpay rotation", () => {
-  it("renewalPrice CHANGED → createPlan called twice (monthly + yearly)", async () => {
+// ─── PATCH — no Razorpay plans (26 Sep 2026, owner: "Stop creating plans") ──
+describe("PATCH — creates no Razorpay plan", () => {
+  it("renewalPrice CHANGED → price saved, no plan created, existing plan ids untouched", async () => {
     const plan = makePlan({
       name: "Pro",
       renewalPrice: 1000,
       razorpayPlans: { monthly: "M1", yearly: "Y1" },
     });
     HostingPlanFindById.mockResolvedValueOnce(plan);
-    razorpayCreatePlan
-      .mockResolvedValueOnce({ id: "plan_M_NEW" })
-      .mockResolvedValueOnce({ id: "plan_Y_NEW" });
 
-    await PATCH(
-      makeReq("PATCH", {
-        id: "507f1f77bcf86cd799439011",
-        renewalPrice: 2000,
-      })
-    );
-
-    expect(razorpayCreatePlan).toHaveBeenCalledTimes(2);
-    // Monthly: (name+' - Monthly', desc, newRenewalPrice, 'monthly')
-    expect(razorpayCreatePlan).toHaveBeenNthCalledWith(
-      1,
-      "Pro - Monthly",
-      "Renewal for Pro",
-      2000,
-      "monthly"
-    );
-    // Yearly: (name+' - Yearly', desc, newRenewalPrice * 12, 'yearly')
-    expect(razorpayCreatePlan).toHaveBeenNthCalledWith(
-      2,
-      "Pro - Yearly",
-      "Annual Renewal for Pro",
-      24000, // 2000 × 12
-      "yearly"
-    );
-  });
-
-  it("razorpayPlans IDs rotated to new ones in plan.razorpayPlans", async () => {
-    const plan = makePlan({
-      renewalPrice: 1000,
-      razorpayPlans: { monthly: "M_old", yearly: "Y_old" },
-    });
-    HostingPlanFindById.mockResolvedValueOnce(plan);
-    razorpayCreatePlan
-      .mockResolvedValueOnce({ id: "M_new" })
-      .mockResolvedValueOnce({ id: "Y_new" });
-
-    await PATCH(
-      makeReq("PATCH", {
-        id: "507f1f77bcf86cd799439011",
-        renewalPrice: 2000,
-      })
-    );
-
-    expect(plan.razorpayPlans.monthly).toBe("M_new");
-    expect(plan.razorpayPlans.yearly).toBe("Y_new");
-  });
-
-  it("renewalPrice UNCHANGED + razorpayPlans present → NO rotation", async () => {
-    const plan = makePlan({
-      renewalPrice: 1500,
-      razorpayPlans: { monthly: "M", yearly: "Y" },
-    });
-    HostingPlanFindById.mockResolvedValueOnce(plan);
-
-    await PATCH(
-      makeReq("PATCH", {
-        id: "507f1f77bcf86cd799439011",
-        renewalPrice: 1500, // same as existing
-      })
-    );
-
-    expect(razorpayCreatePlan).not.toHaveBeenCalled();
-  });
-
-  it("renewalPrice UNCHANGED but razorpayPlans MISSING → rotation fires", async () => {
-    const plan = makePlan({
-      renewalPrice: 1500,
-      razorpayPlans: undefined,
-    });
-    HostingPlanFindById.mockResolvedValueOnce(plan);
-    razorpayCreatePlan
-      .mockResolvedValueOnce({ id: "M_first" })
-      .mockResolvedValueOnce({ id: "Y_first" });
-
-    // No renewalPrice in body — but plan has no razorpayPlans yet
-    await PATCH(
-      makeReq("PATCH", {
-        id: "507f1f77bcf86cd799439011",
-        name: "Different Name",
-      })
-    );
-
-    expect(razorpayCreatePlan).toHaveBeenCalledTimes(2);
-  });
-
-  it("renewalPrice UNCHANGED + only monthly missing → rotation fires", async () => {
-    const plan = makePlan({
-      renewalPrice: 1500,
-      razorpayPlans: { yearly: "Y_only" } as any, // monthly missing
-    });
-    HostingPlanFindById.mockResolvedValueOnce(plan);
-    razorpayCreatePlan
-      .mockResolvedValueOnce({ id: "M_new" })
-      .mockResolvedValueOnce({ id: "Y_new" });
-
-    await PATCH(
-      makeReq("PATCH", {
-        id: "507f1f77bcf86cd799439011",
-        name: "Rename",
-      })
-    );
-
-    expect(razorpayCreatePlan).toHaveBeenCalledTimes(2);
-  });
-
-  it("**Razorpay failure SWALLOWED** — plan still saved locally", async () => {
-    const plan = makePlan({
-      renewalPrice: 1000,
-      razorpayPlans: { monthly: "M_OLD", yearly: "Y_OLD" },
-    });
-    HostingPlanFindById.mockResolvedValueOnce(plan);
-    razorpayCreatePlan.mockRejectedValueOnce(new Error("Razorpay down"));
-
-    const res = await PATCH(
-      makeReq("PATCH", {
-        id: "507f1f77bcf86cd799439011",
-        renewalPrice: 2000,
-        name: "Updated Name",
-      })
-    );
+    const res = await PATCH(makeReq("PATCH", { id: "507f1f77bcf86cd799439011", renewalPrice: 2000 }));
 
     expect(res.status).toBe(200);
-    expect(plan.renewalPrice).toBe(2000); // local update applied
-    expect(plan.name).toBe("Updated Name");
-    expect(plan.razorpayPlans.monthly).toBe("M_OLD"); // unchanged
+    expect(plan.renewalPrice).toBe(2000);
     expect(plan.save).toHaveBeenCalled();
+    expect(razorpayCreatePlan).not.toHaveBeenCalled();
+    expect(plan.razorpayPlans).toEqual({ monthly: "M1", yearly: "Y1" });
+  });
+
+  it("razorpayPlans MISSING → still no plan created; the edit saves", async () => {
+    const plan = makePlan({ renewalPrice: 1500, razorpayPlans: undefined });
+    HostingPlanFindById.mockResolvedValueOnce(plan);
+
+    const res = await PATCH(makeReq("PATCH", { id: "507f1f77bcf86cd799439011", name: "Renamed" }));
+
+    expect(res.status).toBe(200);
+    expect(plan.name).toBe("Renamed");
+    expect(plan.save).toHaveBeenCalled();
+    expect(razorpayCreatePlan).not.toHaveBeenCalled();
   });
 });
 

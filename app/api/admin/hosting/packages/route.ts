@@ -262,7 +262,7 @@ export async function POST(request: NextRequest) {
 /**
  * PATCH /api/admin/hosting/packages
  * Updates an existing hosting package's metadata (price, description, etc.)
- * and synchronizes with Razorpay plans if renewal price changes.
+ * (No Razorpay plan is created or rotated — see the note in the handler.)
  */
 export async function PATCH(request: NextRequest) {
   try {
@@ -281,9 +281,6 @@ export async function PATCH(request: NextRequest) {
       return secureErrorResponse("Hosting plan not found.", 404, "NOT_FOUND");
     }
 
-    // Check if renewal price changed
-    const renewalPriceChanged = renewalPrice !== undefined && renewalPrice !== plan.renewalPrice;
-
     // Update fields
     if (name !== undefined) plan.name = name;
     if (description !== undefined) plan.description = description;
@@ -292,43 +289,10 @@ export async function PATCH(request: NextRequest) {
     if (features !== undefined) plan.features = features;
     if (isActive !== undefined) plan.isActive = isActive;
 
-    // If renewal price changed or plans don't exist, create/rotate Razorpay plans
-    if (renewalPriceChanged || !plan.razorpayPlans?.monthly || !plan.razorpayPlans?.yearly) {
-      try {
-        const { RazorpayService } = await import("@/lib/razorpay");
-        
-        serverLogger.info(`[ADMIN-PRICE-UPDATE] Renewal price changed to ${plan.renewalPrice}. Creating new Razorpay plans for ${plan.name}`);
-
-        // Create Monthly Plan
-        const monthlyPlan = await RazorpayService.createPlan(
-          `${plan.name} - Monthly`,
-          `Renewal for ${plan.name}`,
-          plan.renewalPrice,
-          'monthly'
-        );
-
-        // Create Yearly Plan (Renewal price * 12)
-        // Note: We might want to offer a discount for yearly, but for now we'll match current price logic
-        const yearlyPlan = await RazorpayService.createPlan(
-          `${plan.name} - Yearly`,
-          `Annual Renewal for ${plan.name}`,
-          plan.renewalPrice * 12,
-          'yearly'
-        );
-
-        plan.razorpayPlans = {
-          monthly: monthlyPlan.id,
-          yearly: yearlyPlan.id
-        };
-        
-        serverLogger.info(`[ADMIN-PRICE-UPDATE] Razorpay plans rotated: M=${monthlyPlan.id}, Y=${yearlyPlan.id}`);
-      } catch (rzpErr: unknown) {
-        const rzpMessage = rzpErr instanceof Error ? rzpErr.message : String(rzpErr);
-        serverLogger.error(`[ADMIN-PRICE-UPDATE] Failed to sync with Razorpay: ${rzpMessage}`);
-        // We still save the price update locally even if Razorpay fails, 
-        // but it's a warning state.
-      }
-    }
+    // No Razorpay plans are created here any more (26 Sep 2026, owner: "Stop
+    // creating plans"). DMS takes no payment on its own keys, so a plan it
+    // made would be a price nobody charges. Existing `razorpayPlans` ids on
+    // the row are left exactly as they are.
 
     await plan.save();
 

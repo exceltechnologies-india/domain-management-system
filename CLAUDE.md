@@ -482,7 +482,10 @@ in `lib/razorpay.ts` only `chargeViaToken` — the gated charger for EXISTING To
 Its only caller is `recurring-charge-service.ts`, behind `DMS_TOKEN_RECURRING_ENABLED` (the test asserts the
 gate). `RazorpayService.createOrder`, `createSubscription` and — since 26 Sep 2026 — `createCustomer` and
 `createRecurringTokenOrder` (the new-mandate methods, with their live harness) are deleted, so no new token can
-be created. Do not widen the allow-list without the owner.
+be created. **No Razorpay PLAN is created either** (26 Sep 2026, owner: "Stop creating plans"): the admin
+package edit (`api/admin/hosting/packages` PATCH) no longer makes a monthly + yearly plan on a renewal-price
+change, and `RazorpayService.createPlan` is deleted. `plans.create(` may appear only in the operator script.
+Existing `hostingplans.razorpayPlans` ids are left as they are. Do not widen the allow-list without the owner.
 
 **Dead code removed 26 Sep 2026** (owner: "Delete dead DMS code"): `app/api/domains/renew` (unreached since the
 Renew button points at ResellerOS), `lib/services/payment/verification.ts` (its last importer),

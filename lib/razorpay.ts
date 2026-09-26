@@ -7,7 +7,6 @@ import type {
   RazorpayOrderDetails,
   RazorpaySubscription,
   RazorpayRefund,
-  RazorpayPlan,
 } from "@/lib/types";
 
 interface RazorpaySdkError {
@@ -119,40 +118,9 @@ export class RazorpayService {
     }
   }
 
-  /**
-   * Create a plan for subscriptions
-   */
-  static async createPlan(
-    name: string,
-    description: string,
-    amount: number,
-    period: 'monthly' | 'yearly',
-    currency: string = 'INR'
-  ): Promise<RazorpayPlan> {
-    try {
-      const amountInPaise = Math.round(amount * 100);
-
-      const plan = await razorpayClient.plans.create({
-        period: period === 'monthly' ? 'monthly' : 'yearly',
-        interval: 1,
-        item: {
-          name,
-          amount: amountInPaise,
-          currency,
-          description: description || `Subscription for ${name}`
-        }
-      });
-
-      serverLogger.info(`✅ [RAZORPAY] Plan created: ${plan.id} for ${amount} ${period}`);
-      return plan;
-    } catch (error: unknown) {
-      serverLogger.error("❌ [RAZORPAY] Plan creation error:", error);
-      const err = asRzpErr(error);
-      throw new Error(
-        `Failed to create Razorpay plan: ${err.error?.description || err.message}`
-      );
-    }
-  }
+  // createPlan deleted 26 Sep 2026 (owner: "Stop creating plans"). Its one
+  // caller, the admin package edit, no longer makes Razorpay plans; the
+  // no-dms-razorpay-payments guard refuses `plans.create` coming back.
 
   /**
    * Cancel a subscription
