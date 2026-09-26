@@ -470,7 +470,7 @@ describe("/api/admin/integration-health — pending GST credit notes", () => {
     const body = await res.json();
     const invoicing = body.providers.find((p: { id: string }) => p.id === "invoicing");
     expect(invoicing).toBeDefined();
-    expect(invoicing.label).toBe("Invoicing (GST engine)");
+    expect(invoicing.label).toBe("Invoicing (historical — DMS issues no invoices)");
     expect(invoicing.totalErrors).toBe(1);
     expect(body.providers.find((p: { id: string }) => p.id === "zoho")).toBeUndefined();
   });
@@ -480,6 +480,8 @@ describe("/api/admin/integration-health — pending GST credit notes", () => {
     const body = await (await GET(makeReq())).json();
     const invoicing = body.providers.find((p: { id: string }) => p.id === "invoicing");
     const hint = invoicing.patterns[0].hint as string;
+    expect(hint).toMatch(/^Historical:/);
+    expect(hint).toMatch(/ResellerOS/);
     expect(hint).toMatch(/raise a credit note/i);
     expect(hint).toMatch(/30 November/i);
     // The generic invoice-failure signature would have told the operator to
@@ -495,7 +497,7 @@ describe("/api/admin/integration-health — pending GST credit notes", () => {
     const invoicing = body.providers.find((p: { id: string }) => p.id === "invoicing");
     const text = JSON.stringify(invoicing);
     expect(text).toContain("INV-000555");
-    expect(text).toContain("raised manually");
+    expect(text).toContain("raised manually in ResellerOS");
     expect(text).not.toMatch(/zoho/i);
   });
 
@@ -598,7 +600,7 @@ describe("/api/admin/integration-health — paid orders whose invoice failed", (
     expect(chain.limit).toHaveBeenCalledWith(50);
   });
 
-  it("a failed invoice lands on the Invoicing card with its recorded reason and the Re-sync hint", async () => {
+  it("a failed invoice lands on the Invoicing card with its recorded reason and the historical hint", async () => {
     OrderFind.mockReset()
       .mockReturnValueOnce(chainable([]))
       .mockReturnValueOnce(chainable([failed()]))
@@ -609,7 +611,10 @@ describe("/api/admin/integration-health — paid orders whose invoice failed", (
     expect(invoicing.totalErrors).toBe(1);
     const text = JSON.stringify(invoicing);
     expect(text).toContain("Customer billing state could not be resolved");
-    expect(invoicing.patterns[0].hint).toMatch(/Re-sync/);
+    expect(invoicing.patterns[0].hint).toMatch(/^Historical:/);
+    expect(invoicing.patterns[0].hint).toMatch(/ResellerOS/);
+    // Re-sync and the automatic retry were deleted; never point at them.
+    expect(invoicing.patterns[0].hint).not.toMatch(/Re-sync|retries/i);
     expect(invoicing.patterns[0].affectedOrders[0]).toEqual(
       expect.objectContaining({ orderId: "ORD-F1", userEmail: "bob@example.com" })
     );
@@ -627,6 +632,7 @@ describe("/api/admin/integration-health — paid orders whose invoice failed", (
     expect(invoicing.patterns[0].hint).toMatch(/^Historical:/);
     expect(invoicing.patterns[0].hint).toMatch(/ResellerOS/);
     expect(invoicing.patterns[0].hint).not.toMatch(/COMPANY_STATE/);
+    expect(invoicing.patterns[0].hint).not.toMatch(/Re-sync/i);
   });
 
   it("no recorded reason → says so rather than inventing one", async () => {

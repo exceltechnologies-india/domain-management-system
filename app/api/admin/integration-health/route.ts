@@ -12,7 +12,8 @@
  *      dms-00195-wsk); this endpoint is where the operator actually sees it.
  *
  *   2. `Order.invoiceFailedAt` set with no `invoiceProvider` — paid orders
- *      whose GST invoice failed to issue. The Invoice Diagnostics panel
+ *      whose GST invoice failed to issue (historical: DMS issues no invoices
+ *      since 25 Sep 2026, so these are old rows). The Invoice Diagnostics panel
  *      also surfaces these; mirrored here so a single page covers every
  *      failure (DA + RC + invoicing + Razorpay) in one view.
  *
@@ -120,13 +121,15 @@ const PROVIDERS: ProviderClassifier[] = [
   },
   {
     id: "invoicing",
-    label: "Invoicing (GST engine)",
+    label: "Invoicing (historical — DMS issues no invoices)",
     signatures: [
       // MUST stay ahead of the generic invoice signature below — classify()
       // returns the first match.
       {
         needle: /\[CREDIT-NOTE\]|credit note OWED/i,
-        hint: "A refund was processed against an issued tax invoice. Our GST engine has no credit-note counterpart yet (deferred by operator decision 2026-09-03), so nothing was issued automatically and the customer is owed a GST credit note we have not raised. ACTION: raise a credit note by hand for the refunded amount, referencing the invoice number shown, then clear `creditNotePending` on the Order. This entry is NOT time-windowed and will keep appearing until cleared — GST credit notes must be issued by 30 November following the end of the financial year, so an old one is more urgent, not less.",
+        // Old wording told the operator DMS's engine would one day issue the
+        // credit note. It never will: DMS issues no invoices (25 Sep 2026).
+        hint: "Historical: a refund was processed against a tax invoice that DMS's old GST engine issued, and that engine could not issue credit notes. DMS issues no invoices any more, so no new sale can lead here — only a refund against an invoice DMS issued before 25 Sep 2026 can. The customer is still owed a GST credit note: raise a credit note for the refunded amount in ResellerOS (Invoices), referencing the invoice number shown, then clear `creditNotePending` on the Order. This entry is NOT time-windowed and will keep appearing until cleared — GST credit notes must be issued by 30 November following the end of the financial year, so an old one is more urgent, not less.",
       },
       {
         needle: /COMPANY_STATE/i,
@@ -137,7 +140,10 @@ const PROVIDERS: ProviderClassifier[] = [
       },
       {
         needle: /\[InvoiceRetry\]|\[InvoiceWorker\]|\[PrimaryInvoice\]|invoice creation failed|could not be issued/i,
-        hint: "The GST engine failed to issue an invoice for a paid order. The reason is in the row. Fix it, then press Re-sync on the order in Admin → Invoices — the customer's invoices page also retries on its own every 5 minutes.",
+        // Recognises the text old orders carry. The Re-sync button and the
+        // automatic retry were deleted with the engine, so the hint must not
+        // point at either.
+        hint: "Historical: DMS's old GST engine could not issue an invoice for this paid order (the reason is in the row). DMS issues no invoices any more and this cannot recur. If the customer still needs a bill for this payment, raise it in ResellerOS (Invoices).",
       },
     ],
   },
@@ -703,9 +709,10 @@ export async function GET(request: NextRequest) {
 
     // 5b. Orders owing a MANUALLY-raised GST credit note.
     //
-    // Our GST engine issues tax invoices but has no credit-note counterpart
-    // (operator decision 2026-09-03 — deferred until real refund volume
-    // exists rather than shipping an unexercised reverse-numbering series).
+    // DMS's old GST engine issued tax invoices but had no credit-note
+    // counterpart (operator decision 2026-09-03). DMS issues no invoices since
+    // 25 Sep 2026, so only a refund against one of those old invoices lands
+    // here; the credit note is raised in ResellerOS.
     // The refund webhook stamps `creditNotePending` on any order refunded
     // against an issued invoice; until an operator raises the credit note by
     // hand, the customer is owed a tax document we have not issued.
@@ -729,7 +736,7 @@ export async function GET(request: NextRequest) {
             `[CREDIT-NOTE] GST credit note OWED for order ${o.orderId} — ₹${refundRupees} refunded ` +
             `(refund ${o.creditNotePendingRefundId || "unknown"}) against tax invoice ` +
             `${o.invoiceNumber || "(number missing)"}, outstanding ${daysOwed} day(s). ` +
-            `Our GST engine cannot issue credit notes; it must be raised manually.`,
+            `DMS issues no invoices or credit notes; it must be raised manually in ResellerOS.`,
           orderId: o.orderId as string,
           userEmail: o.userEmail as string | undefined,
           amount: o.amount as number,
