@@ -140,7 +140,6 @@ All configuration is supplied via environment variables — see [`.env.example`]
 | `bash scripts/run-local.sh` | Run locally with reCAPTCHA disabled and emails pointed at localhost (`--prod` for a standalone build) |
 | `docker compose up -d --build` | Local stack: DMS on **4310** + MongoDB + Redis, upstreams pointed at `.invalid` hosts (see [ResellerOS integration](#reselleros-integration)) |
 | `bash scripts/setup-cloud-scheduler-tokens.sh` | Provision the Tokens-flow Cloud Scheduler jobs (idempotent) |
-| `bash scripts/setup-cloud-scheduler-billing.sh` | Provision the billing Cloud Scheduler jobs — renewal-payment dunning (idempotent; see [docs/renewal-payment-dunning.md](docs/renewal-payment-dunning.md)) |
 
 ## Testing
 
@@ -209,7 +208,6 @@ so the schedule and headers stay version-controlled:
 
 ```bash
 bash scripts/setup-cloud-scheduler-tokens.sh    # Tokens flow: provisioning, recurring charge, mandate-refund retry
-bash scripts/setup-cloud-scheduler-billing.sh   # Billing: renewal-payment dunning
 ```
 
 Deploy **before** running these — the billing script preflights its endpoint and refuses to

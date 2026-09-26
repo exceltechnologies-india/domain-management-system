@@ -10,16 +10,9 @@ export const AUTOMATION_CONFIG = {
     ? JSON.parse(process.env.REMINDER_DAYS)
     : [30, 15, 7, 1],
 
-  /**
-   * Hours after a renewal Order is created (status='pending', never
-   * completed) before a payment-reminder email fires. Ascending order —
-   * the LAST value is the final reminder; after it's sent, the order stops
-   * being chased (see app/api/cron/renewal-payment-dunning/route.ts).
-   * Default: 24h, 3 days, 7 days.
-   */
-  RENEWAL_DUNNING_HOURS: process.env.RENEWAL_DUNNING_HOURS
-    ? JSON.parse(process.env.RENEWAL_DUNNING_HOURS)
-    : [24, 72, 168],
+  // RENEWAL_DUNNING_HOURS was removed on 26 Sep 2026 with
+  // cron/renewal-payment-dunning (owner: "Switch it off") — old DMS renewal
+  // orders can no longer be paid in DMS, so there is nothing to chase.
 
   /**
    * Default grace period in days if not set in DB settings.

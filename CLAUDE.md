@@ -428,7 +428,10 @@ Owner: *"Renewals subscription will be handled by ResellerOS. Period."*
   suspension email + WhatsApp. Paying the ResellerOS renewal runs `hosting.renew` / `domain.renew` here,
   which move the expiry and unsuspend.
 - **Left alone, found:** `process-service-expiry` reminder emails still quote `service.price` (a DMS
-  figure); `cron/renewal-payment-dunning` still chases DMS renewal orders raised before this date;
+  figure); ~~`cron/renewal-payment-dunning` still chases DMS renewal orders raised before this date~~
+  (DELETED 26 Sep 2026, owner: "Switch it off" — with its email, `RENEWAL_DUNNING_HOURS`, its deploy-script
+  sticky var and `scripts/setup-cloud-scheduler-billing.sh`; the Order `dunning*` fields and index stay for
+  old rows);
   `api/domains/renew` is unreached from the UI.
 
 ## The DMS /cart pays through ResellerOS; create-order and verify are DELETED (owner, 25 Sep 2026)

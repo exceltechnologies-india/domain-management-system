@@ -155,6 +155,8 @@ export interface IOrder extends Document {
   // refund record they're looking at.
   creditNotePendingAmountPaise?: number;
   creditNotePendingAt?: Date;
+  // HISTORY ONLY since 26 Sep 2026: the dunning cron that wrote these fields
+  // was deleted (owner: "Switch it off"). Kept so old rows still read.
   // Renewal-payment dunning (Primary Billing Integration Phase 2) — tracks
   // which escalation stage (hours since createdAt, from
   // AUTOMATION_CONFIG.RENEWAL_DUNNING_HOURS) was last emailed for a renewal
@@ -491,6 +493,8 @@ OrderSchema.index({ "domains.domainName": 1 });
 OrderSchema.index({ userId: 1, orderType: 1, createdAt: -1 }); // order history
 OrderSchema.index({ userId: 1, status: 1 });                    // status filtering
 
+// Index kept for existing data; its only reader, the renewal-payment-dunning
+// cron, was deleted on 26 Sep 2026 (dropping it would need a migration).
 // Renewal-payment dunning cron scan (app/api/cron/renewal-payment-dunning) —
 // finds pending renewal orders not yet fully chased. Without this the query
 // COLLSCANs the whole Order collection on every run.

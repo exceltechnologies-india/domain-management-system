@@ -193,9 +193,10 @@ describe("the expectation list matches what is actually scheduled", () => {
     expect(EXPECTED_CRONS.find((e) => e.name === "check-unprovisioned")?.maxGapHours).toBe(3);
   });
 
-  it("the two crons with NO Scheduler job are deliberately absent", () => {
+  it("the cron with NO Scheduler job is deliberately absent (and the deleted dunning cron stays out)", () => {
     /**
-     * `renewal-payment-dunning` and `da-health` have no job at all (confirmed
+     * `da-health` has no job at all; `renewal-payment-dunning` was deleted on
+     * 26 Sep 2026. Neither has a job (confirmed
      * against GCP 2026-09-23). Listing them would produce a permanent daily
      * "stale" that nobody can fix from here — a standing red teaches people to
      * skim the whole section, which costs more than the missing line.

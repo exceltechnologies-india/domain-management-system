@@ -87,8 +87,9 @@ describe("the heartbeat sits AFTER the auth gate", () => {
 describe("a cron route that is NOT expected is not silently ignored", () => {
   it("names the routes with no Scheduler job, so the gap stays visible", () => {
     /**
-     * `renewal-payment-dunning` and `da-health` are real routes with no Cloud
-     * Scheduler job (confirmed against GCP 2026-09-23). They are deliberately
+     * `da-health` is a real route with no Cloud Scheduler job (confirmed
+     * against GCP 2026-09-23). (`renewal-payment-dunning` was here too until it
+     * was deleted on 26 Sep 2026.) They are deliberately
      * absent from EXPECTED_CRONS — watching for a cron nothing invokes would
      * produce a permanent daily red, and a standing red gets the whole section
      * skimmed.
@@ -99,6 +100,6 @@ describe("a cron route that is NOT expected is not silently ignored", () => {
     const unwatched = routes.filter(
       (r) => !EXPECTED_CRONS.some((e) => e.name === r)
     );
-    expect(unwatched.sort()).toEqual(["da-health", "renewal-payment-dunning"]);
+    expect(unwatched.sort()).toEqual(["da-health"]);
   });
 });

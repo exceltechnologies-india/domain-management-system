@@ -48,7 +48,11 @@ Eight days of focused safety-check additions are complete. Every production-faci
   `validateNoRestrictedDomains` in `order-creator.ts`, `RazorpayService.createCustomer` /
   `createRecurringTokenOrder` and `tests/integration/razorpay-tokens-live.test.ts`. Guard allow-list narrowed to
   `chargeViaToken`.
-- [ ] **Step 2 — `cron/renewal-payment-dunning` switched off.**
+- [x] **Step 2 — `cron/renewal-payment-dunning` switched off** ("Switch it off"). Deleted the route,
+  `sendRenewalPaymentPendingEmail`, `RENEWAL_DUNNING_HOURS` (config + deploy-script sticky var),
+  `scripts/setup-cloud-scheduler-billing.sh` (its only job) and `docs/renewal-payment-dunning.md`. Old orders and
+  their `dunning*` fields untouched. **Operator note:** if a Cloud Scheduler job `renewal-payment-dunning` was
+  ever created, it now calls a 404 — pause/delete it (the job lives outside this repo).
 - [ ] **Step 1 — renewal reminders point to the ResellerOS quote; no DMS price.**
 - [ ] **Step 3 — the in-panel trial starts in ResellerOS.**
 

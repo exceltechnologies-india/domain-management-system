@@ -170,8 +170,9 @@ export function assessCrons(input: {
  * the period fires every day just before the run, which is the shape that gets
  * an alarm muted.
  *
- * `renewal-payment-dunning` and `da-health` are deliberately absent: they have
- * NO Scheduler job at all (confirmed 2026-09-23), so listing them here would
+ * `da-health` is deliberately absent: it has NO Scheduler job at all
+ * (confirmed 2026-09-23; `renewal-payment-dunning`, also absent, was deleted
+ * on 26 Sep 2026), so listing them here would
  * report a permanent, unfixable "stale" every day — a standing red that trains
  * people to skim past the whole section. That they are unscheduled is recorded
  * in Todos.md, which is where a decision belongs, not in a daily alarm.
