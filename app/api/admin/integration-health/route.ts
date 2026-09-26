@@ -165,7 +165,11 @@ const PROVIDERS: ProviderClassifier[] = [
       // first match, and this errorText names a payment id.
       {
         needle: /\[STRANDED-ORDER\]/i,
-        hint: "A payment was captured and the order was claimed for provisioning, then the handler stopped before finishing — so the customer is charged with NO hosting and NO tax invoice, and because nothing threw there is no error log to correlate. This was caused in production by Cloud Run's default CPU allocation freezing the ~55s provisioning chain the moment the browser navigated away (fixed 2026-09-08 by --no-cpu-throttling in scripts/deploy-cloud-run.sh), but ANY mid-flight death — deploy, crash, OOM — reproduces it. ACTION: confirm the payment in the Razorpay dashboard, then finish the order by provisioning it and issuing the invoice, and check the customer's dashboard afterwards. Note that no automated path recovers this yet: the webhook only claims orders still in 'pending', and no cron queries Orders in 'processing'. This entry is NOT time-windowed and will keep appearing until the order leaves 'processing'.",
+        // "Finish" means PROVISION: finalizePendingOrder runs the per-item
+        // provisioners, writes the Payment row and flips the order to
+        // completed. It issues no bill — DMS issues none (owner, 24 Sep 2026);
+        // the webhook already flagged the order for a ResellerOS bill.
+        hint: "A payment was captured and the order was claimed for provisioning, then the handler stopped before finishing — so the customer is charged with NO hosting, and because nothing threw there is no error log to correlate. This was caused in production by Cloud Run's default CPU allocation freezing the ~55s provisioning chain the moment the browser navigated away (fixed 2026-09-08 by --no-cpu-throttling in scripts/deploy-cloud-run.sh), but ANY mid-flight death — deploy, crash, OOM — reproduces it. ACTION: confirm the payment in the Razorpay dashboard, then finish the order by provisioning its items, and check the customer's dashboard afterwards. DMS issues no bills: if the customer needs one for this payment, raise it in ResellerOS (Invoices). Note that no automated path recovers this yet: the webhook only claims orders still in 'pending', and no cron queries Orders in 'processing'. This entry is NOT time-windowed and will keep appearing until the order leaves 'processing'.",
       },
       {
         needle: /\[RECURRING-CHARGE\] ABANDONED|recurring charge abandoned/i,
@@ -744,7 +748,7 @@ export async function GET(request: NextRequest) {
 
     // Orders that were claimed for provisioning and never finished. The
     // customer's card was charged and the claim was written, then the handler
-    // stopped: no Hosting row, no tax invoice, and — because nothing THREW —
+    // stopped: no Hosting row, and — because nothing THREW —
     // no error log either. A real Rs.1500 purchase was lost this way on
     // 2026-09-07 and was only noticed because the customer said their
     // dashboard was empty.
@@ -770,9 +774,10 @@ export async function GET(request: NextRequest) {
             `[STRANDED-ORDER] Paid order ${o.orderId} has sat at status "processing" for ` +
             `${mins} minute(s) with items still unprovisioned — payment ` +
             `${o.razorpayPaymentId || "(none recorded)"}, ₹${o.amount}. The customer has been ` +
-            `charged and has NO hosting and NO tax invoice. ACTION: verify the payment in ` +
-            `Razorpay, then finish the order (provision + issue the invoice) and confirm the ` +
-            `customer's dashboard shows it. This entry is NOT time-windowed and will keep ` +
+            `charged and has NO hosting. ACTION: verify the payment in Razorpay, then finish ` +
+            `the order by provisioning its items and confirm the customer's dashboard shows it. ` +
+            `Any bill for this payment is raised in ResellerOS (Invoices), not DMS. ` +
+            `This entry is NOT time-windowed and will keep ` +
             `appearing until the order leaves "processing".`,
           orderId: o.orderId as string,
           userEmail: o.userEmail as string | undefined,

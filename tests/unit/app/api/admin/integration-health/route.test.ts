@@ -67,7 +67,8 @@ vi.mock("@/models/Hosting", () => ({
 // service boundary so this file controls the branch directly — the real
 // helper's query behaviour is covered by the orders integration suite.
 const listCreditNotePendingOrders = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/services/orders", () => ({ listCreditNotePendingOrders }));
+const listStrandedProcessingOrders = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/services/orders", () => ({ listCreditNotePendingOrders, listStrandedProcessingOrders }));
 
 vi.mock("@/lib/server-logger", () => ({
   serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -105,6 +106,7 @@ beforeEach(() => {
   RCAFind.mockReset().mockReturnValue(chainable([]));
   HostingFind.mockReset().mockReturnValue(chainable([]));
   listCreditNotePendingOrders.mockReset().mockResolvedValue([]);
+  listStrandedProcessingOrders.mockReset().mockResolvedValue([]);
 });
 
 describe("/api/admin/integration-health — RecurringChargeAttempt source", () => {
@@ -648,5 +650,60 @@ describe("/api/admin/integration-health — paid orders whose invoice failed", (
     const body = await (await GET(makeReq())).json();
     const invoicing = body.providers.find((p: { id: string }) => p.id === "invoicing");
     expect(JSON.stringify(invoicing)).toContain("no reason recorded");
+  });
+});
+
+// ─── Stranded orders: "finish" means provision; bills are ResellerOS's ────────
+describe("/api/admin/integration-health — stranded processing orders", () => {
+  const stranded = () => ({
+    orderId: "ORD-ST-1",
+    userEmail: "sam@example.com",
+    amount: 1500,
+    razorpayPaymentId: "pay_ST",
+    updatedAt: new Date(Date.now() - 60 * 60 * 1000),
+  });
+
+  it("lands on the Razorpay card; hint and entry say provision it, and any bill is raised in ResellerOS", async () => {
+    listStrandedProcessingOrders.mockResolvedValueOnce([stranded()]);
+    const body = await (await GET(makeReq())).json();
+    const razorpay = body.providers.find((p: { id: string }) => p.id === "razorpay");
+    expect(razorpay).toBeDefined();
+    const pattern = razorpay.patterns[0];
+    const text = JSON.stringify(razorpay);
+    expect(text).toContain("ORD-ST-1");
+    expect(pattern.hint).toMatch(/provisioning its items/);
+    expect(pattern.hint).toMatch(/ResellerOS \(Invoices\)/);
+    expect(text).toMatch(/raised in ResellerOS \(Invoices\), not DMS/);
+    expect(text).not.toMatch(/issu(e|ing) the invoice|provision \+ issue|NO tax invoice/i);
+  });
+});
+
+describe("no admin-facing text tells anyone to issue an invoice from DMS (comments stripped)", () => {
+  it("scans app/admin, app/api/admin and components/admin", async () => {
+    const { readFileSync, readdirSync, statSync } = await import("node:fs");
+    const { join, relative } = await import("node:path");
+    const root = process.cwd();
+    const files: string[] = [];
+    const walk = (d: string) => {
+      for (const n of readdirSync(d)) {
+        const f = join(d, n);
+        if (statSync(f).isDirectory()) walk(f);
+        else if (/\.(ts|tsx)$/.test(n)) files.push(f);
+      }
+    };
+    ["app/admin", "app/api/admin", "components/admin"].forEach((d) => walk(join(root, d)));
+    expect(files.length).toBeGreaterThan(50);
+    // An instruction, not a description: "could not issue an invoice" is history.
+    const INSTRUCTION = /(?<!could not |cannot |can't )\b(issue|issuing|re-issue) (the |an )?(tax |GST )?invoice\b|press Re-sync|provision \+ issue/i;
+    const hits = files
+      .filter((f) =>
+        INSTRUCTION.test(
+          readFileSync(f, "utf8")
+            .replace(/\/\*[\s\S]*?\*\//g, "")
+            .replace(/(^|[^:])\/\/.*$/gm, "$1")
+        )
+      )
+      .map((f) => relative(root, f));
+    expect(hits).toEqual([]);
   });
 });

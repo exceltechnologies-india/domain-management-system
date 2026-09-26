@@ -79,7 +79,7 @@ export default function ConflictsTable({
                       <td className="py-2 pr-3 text-gray-700">₹{(o.amount || 0).toLocaleString()}</td>
                       <td className="py-2 pr-3 font-mono text-gray-700">
                         {o.invoiceProvider === 'primary' ? (
-                          <span>GST engine</span>
+                          <span>DMS (historical)</span>
                         ) : o.invoiceProvider === 'zoho' ? (
                           <span>Zoho (historical)</span>
                         ) : (

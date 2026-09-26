@@ -32,8 +32,9 @@ import { apiClient } from '@/lib/api-client';
 interface Invoice {
   invoice_id: string;
   invoice_number: string;
-  // 'primary' = our GST engine; 'zoho' = a historical Zoho Books invoice from
-  // before Zoho was removed (24 Sep 2026). Both PDFs are rendered by DMS
+  // 'primary' = a historical invoice from DMS's old GST engine (DMS issues no
+  // invoices since 25 Sep 2026; bills are ResellerOS's); 'zoho' = a historical
+  // Zoho Books invoice from before Zoho was removed (24 Sep 2026). Both PDFs are rendered by DMS
   // from the order via the orderId-keyed route.
   provider?: 'primary' | 'zoho';
   order_id?: string;

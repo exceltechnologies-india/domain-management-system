@@ -51,6 +51,11 @@ Eight days of focused safety-check additions are complete. Every production-faci
   `api/admin/hosting/packages` saves the edit only; `RazorpayService.createPlan` deleted; the guard refuses
   `plans.create(` outside `scripts/razorpay-regenerate-plans-live.js` (red-checked). `razorpayPlans` data untouched.
 
+### 🆕 Round 9 — last "DMS issues invoices" wording (26 Sep 2026)
+
+- [x] Stranded-order hint/entry: finishing means provisioning; any bill is raised in ResellerOS (Invoices).
+  ConflictsTable shows 'primary' as "DMS (historical)". A scan fails if admin text tells anyone to issue an invoice.
+
 ### 🆕 Round 8 — no credit notes (owner, 26 Sep 2026: "those are only 'test orders' so no need for credit note")
 
 - [x] The refund webhook no longer sets `creditNotePending` on an invoiced order; it logs the refund at INFO.

@@ -86,11 +86,12 @@ describe("<ConflictsTable>", () => {
     );
     expect(screen.getAllByRole("columnheader", { name: "Issued by" })).toHaveLength(2);
     const row = (orderId: string) => screen.getByText(orderId).closest("tr");
-    expect(row("ord-aaa")?.textContent).toContain("GST engine");
+    expect(row("ord-aaa")?.textContent).toContain("DMS (historical)");
+    expect(row("ord-aaa")?.textContent).not.toContain("GST engine");
     expect(row("ord-bbb")?.textContent).toContain("Zoho (historical)");
     const unissuedRow = row("ord-ccc");
     expect(unissuedRow?.textContent).toContain("—");
-    expect(unissuedRow?.textContent).not.toContain("GST engine");
+    expect(unissuedRow?.textContent).not.toContain("DMS (historical)");
     expect(unissuedRow?.textContent).not.toContain("Zoho");
   });
 
