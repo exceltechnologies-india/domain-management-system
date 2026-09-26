@@ -1,4 +1,5 @@
 import { sendEmail, SUPPORT_EMAIL } from "./transporter";
+import type { RenewalReminderLink } from "@/lib/reselleros/renewal-reminder-link";
 import { sendNotificationEmail } from "./notifications";
 import { formatIndianDate } from "../dateUtils";
 
@@ -93,100 +94,9 @@ export async function sendDomainRegistrationFailureEmail(
   return sendEmail({ to: userEmail, subject, html });
 }
 
-export async function sendRenewalInvoiceEmail(
-  userEmail: string,
-  userName: string,
-  invoiceDetails: {
-    domainName: string;
-    invoiceAmount: number;
-    invoiceNumber?: string;
-    dueDate: Date;
-    renewalOrderId?: string;
-    renewalPeriod?: number;
-    periodUnit?: string;
-  }
-): Promise<boolean> {
-  const subject = `Hosting Renewal Reminder - ${invoiceDetails.domainName}`;
-  const payLink = process.env.NEXTAUTH_URL
-    ? `${process.env.NEXTAUTH_URL}/dashboard/invoices`
-    : "#";
-  const periodDisplay =
-    invoiceDetails.renewalPeriod && invoiceDetails.periodUnit
-      ? `${invoiceDetails.renewalPeriod} ${invoiceDetails.periodUnit}${invoiceDetails.renewalPeriod > 1 ? "s" : ""}`
-      : "1 Month";
-
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
-      <div style="background: linear-gradient(135deg, #F59E0B, #D97706); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
-        <h1 style="margin: 0; font-size: 24px; font-weight: bold;">Service Suspended – Renewal Required</h1>
-        <p style="margin: 10px 0 0 0; opacity: 0.9;">Action Required: Pay to Reactivate</p>
-      </div>
-
-      <div style="padding: 30px; background-color: #ffffff;">
-        <p style="font-size: 16px; color: #374151; margin-bottom: 20px;">Hello ${userName},</p>
-
-        <div style="background-color: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 20px; margin: 20px 0;">
-          <h3 style="color: #92400E; margin: 0 0 10px 0; font-size: 18px;">⚠️ Service Suspended</h3>
-          <p style="color: #92400E; margin: 0; font-size: 14px;">
-            Your hosting service for <strong>${invoiceDetails.domainName}</strong> has expired and has been temporarily suspended.
-          </p>
-        </div>
-
-        <p style="font-size: 16px; color: #374151; margin-bottom: 20px;">
-          To reactivate your service instantly, please pay the renewal invoice below.
-        </p>
-
-        <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
-          <h3 style="color: #1f2937; margin: 0 0 15px 0; font-size: 16px;">Renewal Details</h3>
-          <table style="width: 100%; border-collapse: collapse;">
-            <tr>
-              <td style="padding: 8px 0; color: #6b7280; width: 140px;">Domain:</td>
-              <td style="padding: 8px 0; font-weight: 600; color: #1f2937;">${invoiceDetails.domainName}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0; color: #6b7280;">Renewal Period:</td>
-              <td style="padding: 8px 0; font-weight: 600; color: #1f2937;">${periodDisplay}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0; color: #6b7280;">Amount Due:</td>
-              <td style="padding: 8px 0; font-weight: 600; color: #1f2937;">₹${invoiceDetails.invoiceAmount.toFixed(2)}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0; color: #6b7280;">Due Date:</td>
-              <td style="padding: 8px 0; font-weight: 600; color: #1f2937;">${formatIndianDate(invoiceDetails.dueDate)}</td>
-            </tr>
-            ${
-              invoiceDetails.invoiceNumber
-                ? `
-            <tr>
-              <td style="padding: 8px 0; color: #6b7280;">Invoice Number:</td>
-              <td style="padding: 8px 0; font-weight: 600; color: #1f2937;">${invoiceDetails.invoiceNumber}</td>
-            </tr>
-            `
-                : ""
-            }
-          </table>
-        </div>
-
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${payLink}" style="display: inline-block; background: linear-gradient(135deg, #1A73E8, #1557B0); color: #ffffff; padding: 16px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(26, 115, 232, 0.3);">Pay Now & Reactivate</a>
-        </div>
-
-        <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">
-          If you have any questions, please contact our support team at <a href="mailto:${SUPPORT_EMAIL}" style="color: #1A73E8;">${SUPPORT_EMAIL}</a>.
-        </p>
-      </div>
-
-      <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
-        <p style="margin: 0; font-size: 14px; color: #6b7280;">
-          Best regards,<br>
-          <strong>Anutech Digital Private Limited Team</strong>
-        </p>
-      </div>
-    </div>
-  `;
-  return sendEmail({ to: userEmail, subject, html });
-}
+// sendRenewalInvoiceEmail was deleted on 26 Sep 2026: it emailed a DMS-raised
+// renewal amount, and nothing has called it since the expiry worker stopped
+// raising DMS renewal orders (renewals are ResellerOS's).
 
 export async function sendDomainBookingStatusEmail(
   userEmail: string,
@@ -291,14 +201,26 @@ export async function sendDomainBookingStatusEmail(
   return sendEmail({ to: userEmail, subject, html });
 }
 
+/** For an href built from a URL another system returned. */
+function escapeAttr(v: string): string {
+  return v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/**
+ * The expiry reminder. Since 26 Sep 2026 (owner: "Point to the ResellerOS
+ * quote") it carries NO price: renewals are billed by ResellerOS, and the only
+ * pay link is the customer's pending ResellerOS renewal quote. `renewal` says
+ * which of four things to tell them (lib/reselleros/renewal-reminder-link.ts).
+ * A source scan (tests/unit/lib/email/reminder-no-dms-price.test.ts) fails if a
+ * price field comes back.
+ */
 export async function sendServiceReminderEmail(
   userEmail: string,
   details: {
     serviceName: string;
     serviceType: string;
     daysRemaining: number;
-    amount: number;
-    currency: string;
+    renewal: RenewalReminderLink;
     userName?: string;
   }
 ): Promise<boolean> {
@@ -319,15 +241,27 @@ export async function sendServiceReminderEmail(
     ? `Expires in ${details.daysRemaining} days — Action Required`
     : `Expires in ${details.daysRemaining} days — Renewal Reminder`;
 
-  const dashboardPath = details.serviceType === "hosting" ? "/dashboard/hosting" : "/dashboard/domains";
-  const renewUrl = `${process.env.NEXTAUTH_URL || ""}${dashboardPath}`;
   const greeting = details.userName ? `Hello ${details.userName},` : "Hello,";
-  const amountDisplay = details.amount > 0
-    ? `<tr>
-        <td style="padding: 8px 0; color: #6b7280; width: 140px;">Renewal Amount:</td>
-        <td style="padding: 8px 0; font-weight: 600; color: #1f2937;">₹${details.amount.toLocaleString()} ${details.currency}</td>
-      </tr>`
-    : "";
+  const button = (href: string, label: string) =>
+    `<div style="text-align: center; margin: 30px 0;">
+          <a href="${escapeAttr(href)}" style="display: inline-block; background: ${headerBg}; color: #ffffff; padding: 16px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.15);">${label}</a>
+        </div>`;
+  const note = (text: string) => `<p style="font-size: 15px; color: #374151; margin: 20px 0;">${text}</p>`;
+  const renewalBlock =
+    details.renewal.kind === "pay"
+      ? note("Your renewal bill is ready. Pay it to keep your service running — the total is shown on the bill.") +
+        button(details.renewal.paymentUrl, "View and pay your renewal bill")
+      : details.renewal.kind === "choose"
+        ? note(
+            `You have ${details.renewal.count} bills waiting for payment. Open your Invoices page and pay the renewal bill for ${details.serviceName}.`
+          ) + button(details.renewal.invoicesUrl, "Open your bills")
+        : details.renewal.kind === "preparing"
+          ? note(
+              "Your renewal bill is being prepared. It will be emailed to you by our billing system, with a link to pay it."
+            )
+          : note(
+              "Your renewal bill comes from our billing system and is emailed to you. If you haven't received it, reply to this email or contact our support team."
+            );
 
   const subject = isUrgent
     ? `🚨 URGENT: Your ${details.serviceType} ${details.serviceName} expires TODAY`
@@ -347,7 +281,7 @@ export async function sendServiceReminderEmail(
           <h3 style="color: ${badgeText}; margin: 0 0 10px 0; font-size: 18px;">${urgencyIcon} ${urgencyLabel}</h3>
           <p style="color: ${badgeText}; margin: 0; font-size: 14px;">
             Your <strong>${details.serviceType}</strong> <strong>${details.serviceName}</strong> will expire in <strong>${details.daysRemaining} day${details.daysRemaining !== 1 ? "s" : ""}</strong>.
-            Renew now to avoid service interruption.
+            Renew before then to avoid service interruption.
           </p>
         </div>
 
@@ -366,13 +300,10 @@ export async function sendServiceReminderEmail(
               <td style="padding: 8px 0; color: #6b7280;">Days Remaining:</td>
               <td style="padding: 8px 0; font-weight: 600; color: ${isUrgent ? "#DC2626" : "#1f2937"};">${details.daysRemaining} day${details.daysRemaining !== 1 ? "s" : ""}</td>
             </tr>
-            ${amountDisplay}
           </table>
         </div>
 
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${renewUrl}" style="display: inline-block; background: ${headerBg}; color: #ffffff; padding: 16px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.15);">Renew Now</a>
-        </div>
+        ${renewalBlock}
 
         <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">
           If you have any questions, please contact our support team at <a href="mailto:${SUPPORT_EMAIL}" style="color: #1A73E8;">${SUPPORT_EMAIL}</a>.

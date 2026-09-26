@@ -49,7 +49,6 @@ describe("EmailService class shim", () => {
     "sendDomainPurchaseEmail",
     "sendDomainRegistrationEmail",
     "sendDomainRegistrationFailureEmail",
-    "sendRenewalInvoiceEmail",
     "sendDomainBookingStatusEmail",
     "sendServiceReminderEmail",
     "sendServiceExpiryTodayEmail",

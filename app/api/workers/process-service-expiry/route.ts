@@ -8,6 +8,7 @@ import { authorizeCronRequest } from "@/lib/cron-auth";
 import { getHostingById } from "@/lib/services/hostings";
 import Domain from "@/models/Domain";
 import { EmailService } from "@/lib/email";
+import { resolveRenewalReminderLink } from "@/lib/reselleros/renewal-reminder-link";
 import { WhatsAppService } from "@/lib/whatsapp";
 import { suspendUser as daSuspendUser } from "@/lib/integrations/directadmin";
 import { TimeService } from "@/lib/time-service";
@@ -40,8 +41,6 @@ interface ServiceLike {
   next_action_at?: Date | null;
   processing_until?: Date | null;
   last_reminder_sent?: Date | null;
-  price?: number;
-  currency?: string;
   userId?:
     | string
     | {
@@ -236,12 +235,16 @@ export async function POST(request: NextRequest) {
 
       if (daysLeft <= daysThreshold && daysLeft > nextThreshold && service.last_reminder_sent !== daysThreshold) {
         if (userEmail) {
+          // No DMS price, ever (owner, 26 Sep 2026: "Point to the ResellerOS
+          // quote"). The only pay link is the customer's pending ResellerOS
+          // renewal quote; if ResellerOS can't be read the reminder still goes,
+          // saying where the bill will come from.
+          const renewal = await resolveRenewalReminderLink(userEmail);
           await EmailService.sendServiceReminderEmail(userEmail, {
             serviceName: service.domainName,
             serviceType,
             daysRemaining: daysLeft,
-            amount: service.price || 0,
-            currency: service.currency || "INR",
+            renewal,
             userName,
           }).catch((err) =>
             serverLogger.error(`[Worker] ${daysThreshold}-day reminder email failed: ${err.message}`)

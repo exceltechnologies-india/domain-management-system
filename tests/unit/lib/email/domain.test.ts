@@ -5,7 +5,6 @@
  *  - sendDomainPurchaseEmail: 'Domain Purchase Confirmation'
  *  - sendDomainRegistrationEmail: 'Domain Registration Successful'
  *  - sendDomainRegistrationFailureEmail: 'Domain Registration Issue'
- *  - sendRenewalInvoiceEmail: 'Hosting Renewal Reminder - {domain}'
  *  - sendDomainBookingStatusEmail: 'Domain Booking Status Notification'
  *  - **sendServiceReminderEmail subject ternary on daysRemaining**:
  *    daysRemaining<=1 → 🚨 URGENT prefix; else → 'Renewal Reminder: ...'
@@ -49,7 +48,6 @@ import {
   sendDomainPurchaseEmail,
   sendDomainRegistrationEmail,
   sendDomainRegistrationFailureEmail,
-  sendRenewalInvoiceEmail,
   sendDomainBookingStatusEmail,
   sendServiceReminderEmail,
   sendServiceExpiryTodayEmail,
@@ -119,32 +117,13 @@ describe("simple-subject templates", () => {
   });
 });
 
-describe("sendRenewalInvoiceEmail", () => {
-  it("subject embeds the domain name", async () => {
-    await sendRenewalInvoiceEmail(
-      "user@x.test",
-      "Alice",
-      {
-        domainName: "myhost.com",
-        invoiceNumber: "INV-1",
-        dueDate: new Date("2027-01-01"),
-        invoiceAmount: 500,
-      }
-    );
-    expect(sendEmailMock.mock.calls[0][0].subject).toBe(
-      "Hosting Renewal Reminder - myhost.com"
-    );
-  });
-});
-
 describe("sendServiceReminderEmail — urgency-tiered subject", () => {
   it("daysRemaining=0 → 🚨 URGENT 'expires TODAY' subject", async () => {
     await sendServiceReminderEmail("user@x.test", {
       serviceName: "x.com",
       serviceType: "hosting",
       daysRemaining: 0,
-      amount: 500,
-      currency: "INR",
+      renewal: { kind: "preparing" },
     });
     expect(sendEmailMock.mock.calls[0][0].subject).toMatch(
       /🚨.*URGENT.*hosting.*x\.com.*TODAY/
@@ -156,8 +135,7 @@ describe("sendServiceReminderEmail — urgency-tiered subject", () => {
       serviceName: "x.com",
       serviceType: "domain",
       daysRemaining: 1,
-      amount: 500,
-      currency: "INR",
+      renewal: { kind: "preparing" },
     });
     expect(sendEmailMock.mock.calls[0][0].subject).toMatch(/🚨.*URGENT/);
   });
@@ -167,8 +145,7 @@ describe("sendServiceReminderEmail — urgency-tiered subject", () => {
       serviceName: "x.com",
       serviceType: "domain",
       daysRemaining: 7,
-      amount: 500,
-      currency: "INR",
+      renewal: { kind: "preparing" },
     });
     expect(sendEmailMock.mock.calls[0][0].subject).toBe(
       "Renewal Reminder: x.com expires in 7 days"
@@ -180,12 +157,42 @@ describe("sendServiceReminderEmail — urgency-tiered subject", () => {
       serviceName: "x.com",
       serviceType: "domain",
       daysRemaining: 2,
-      amount: 0,
-      currency: "INR",
+      renewal: { kind: "preparing" },
     });
     expect(sendEmailMock.mock.calls[0][0].subject).toBe(
       "Renewal Reminder: x.com expires in 2 days"
     );
+  });
+});
+
+describe("sendServiceReminderEmail — the renewal block (owner, 26 Sep 2026: no DMS price)", () => {
+  const base = { serviceName: "x.com", serviceType: "hosting", daysRemaining: 7 } as const;
+  const html = () => String(sendEmailMock.mock.calls[0][0].html);
+
+  it("pay → a button to ResellerOS's payment_url, and no rupee figure anywhere", async () => {
+    await sendServiceReminderEmail("u@x.test", { ...base, renewal: { kind: "pay", paymentUrl: "https://ros.test/quote/Q-1/accept?t=a&b" } });
+    expect(html()).toContain('href="https://ros.test/quote/Q-1/accept?t=a&amp;b"');
+    expect(html()).toMatch(/View and pay your renewal bill/);
+    expect(html()).not.toMatch(/₹|Renewal Amount/);
+  });
+
+  it("choose → says how many bills, links the Invoices page", async () => {
+    await sendServiceReminderEmail("u@x.test", { ...base, renewal: { kind: "choose", count: 2, invoicesUrl: "https://dms.test/dashboard/invoices" } });
+    expect(html()).toMatch(/You have 2 bills waiting/);
+    expect(html()).toContain('href="https://dms.test/dashboard/invoices"');
+  });
+
+  it("preparing → the bill is being prepared and will be emailed; no pay button", async () => {
+    await sendServiceReminderEmail("u@x.test", { ...base, renewal: { kind: "preparing" } });
+    expect(html()).toMatch(/renewal bill is being prepared/);
+    expect(html()).not.toMatch(/<a href="[^"]*"[^>]*>(View and pay|Open your bills|Renew Now)/);
+  });
+
+  it("unknown → still sent, says where the bill comes from, no link and no price", async () => {
+    await sendServiceReminderEmail("u@x.test", { ...base, renewal: { kind: "unknown" } });
+    expect(sendEmailMock).toHaveBeenCalledTimes(1);
+    expect(html()).toMatch(/comes from our billing system and is emailed to you/);
+    expect(html()).not.toMatch(/₹|View and pay/);
   });
 });
 

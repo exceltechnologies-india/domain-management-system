@@ -53,7 +53,10 @@ Eight days of focused safety-check additions are complete. Every production-faci
   `scripts/setup-cloud-scheduler-billing.sh` (its only job) and `docs/renewal-payment-dunning.md`. Old orders and
   their `dunning*` fields untouched. **Operator note:** if a Cloud Scheduler job `renewal-payment-dunning` was
   ever created, it now calls a 404 — pause/delete it (the job lives outside this repo).
-- [ ] **Step 1 — renewal reminders point to the ResellerOS quote; no DMS price.**
+- [x] **Step 1 — renewal reminders point to the ResellerOS quote; no DMS price.** `sendServiceReminderEmail`
+  takes a `renewal` link from `lib/reselleros/renewal-reminder-link.ts` (pay / choose / preparing / unknown);
+  the worker no longer reads `service.price`; `sendRenewalInvoiceEmail` deleted. Guard:
+  `tests/unit/lib/email/reminder-no-dms-price.test.ts` (red-checked twice).
 - [ ] **Step 3 — the in-panel trial starts in ResellerOS.**
 
 ### 🆕 Round 3 — no payment on DMS's own Razorpay keys (owner answers, 25 Sep 2026)

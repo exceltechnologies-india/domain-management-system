@@ -22,7 +22,6 @@ import {
   sendDomainPurchaseEmail,
   sendDomainRegistrationEmail,
   sendDomainRegistrationFailureEmail,
-  sendRenewalInvoiceEmail,
   sendDomainBookingStatusEmail,
   sendServiceReminderEmail,
   sendServiceExpiryTodayEmail,
@@ -55,7 +54,6 @@ export class EmailService {
   static sendDomainPurchaseEmail = sendDomainPurchaseEmail;
   static sendDomainRegistrationEmail = sendDomainRegistrationEmail;
   static sendDomainRegistrationFailureEmail = sendDomainRegistrationFailureEmail;
-  static sendRenewalInvoiceEmail = sendRenewalInvoiceEmail;
   static sendDomainBookingStatusEmail = sendDomainBookingStatusEmail;
   static sendServiceReminderEmail = sendServiceReminderEmail;
   static sendServiceExpiryTodayEmail = sendServiceExpiryTodayEmail;

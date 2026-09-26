@@ -69,6 +69,11 @@ vi.mock("@/lib/email", () => ({
   EmailService: { sendServiceSuspensionEmail, sendServiceReminderEmail },
 }));
 
+// The reminder's pay link comes from ResellerOS (owner, 26 Sep 2026: "Point to
+// the ResellerOS quote") — never a DMS price.
+const resolveRenewalReminderLink = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/reselleros/renewal-reminder-link", () => ({ resolveRenewalReminderLink }));
+
 const sendServiceSuspended = vi.hoisted(() => vi.fn());
 const sendServiceReminder = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/whatsapp", () => ({
@@ -206,6 +211,7 @@ beforeEach(() => {
   daSuspendUser.mockReset();
   sendServiceSuspensionEmail.mockReset().mockResolvedValue(undefined);
   sendServiceReminderEmail.mockReset().mockResolvedValue(undefined);
+  resolveRenewalReminderLink.mockReset().mockResolvedValue({ kind: "pay", paymentUrl: "https://ros.test/quote/Q-1/accept" });
   sendServiceSuspended.mockReset().mockResolvedValue(undefined);
   sendServiceReminder.mockReset().mockResolvedValue(undefined);
   timeNow.mockReset();
@@ -516,6 +522,31 @@ describe("REMINDER flow — descending thresholds [30, 15, 7, 1]", () => {
     expect(svc.next_action_at).toBeInstanceOf(Date);
     expect(svc.next_action_at!.getTime()).toBe(expiry.getTime() - 15 * 24 * 60 * 60 * 1000);
     expect(daSuspendUser).not.toHaveBeenCalled();
+  });
+
+  it("the reminder carries the ResellerOS link for the customer's email — and no DMS amount", async () => {
+    const svc = makeHosting({ price: 999, currency: "INR" });
+    getHostingById.mockResolvedValueOnce(svc);
+    timeNow.mockReturnValueOnce(new Date());
+    daysUntil.mockReturnValueOnce(30);
+    await POST(makeReq());
+    expect(resolveRenewalReminderLink).toHaveBeenCalledWith("alice@example.com");
+    const [, details] = sendServiceReminderEmail.mock.calls[0];
+    expect(details.renewal).toEqual({ kind: "pay", paymentUrl: "https://ros.test/quote/Q-1/accept" });
+    expect(details).not.toHaveProperty("amount");
+    expect(details).not.toHaveProperty("currency");
+  });
+
+  it("ResellerOS unreadable → the reminder is STILL sent, with renewal 'unknown'", async () => {
+    resolveRenewalReminderLink.mockResolvedValueOnce({ kind: "unknown" });
+    const svc = makeHosting();
+    getHostingById.mockResolvedValueOnce(svc);
+    timeNow.mockReturnValueOnce(new Date());
+    daysUntil.mockReturnValueOnce(30);
+    const res = await POST(makeReq());
+    expect(res.status).toBe(200);
+    expect(sendServiceReminderEmail.mock.calls[0][1].renewal).toEqual({ kind: "unknown" });
+    expect(svc.last_reminder_sent).toBe(30);
   });
 
   it("daysLeft=7 → 7-day reminder + next_action_at = expiryDate - 1 day", async () => {

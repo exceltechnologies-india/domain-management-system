@@ -427,8 +427,13 @@ Owner: *"Renewals subscription will be handled by ResellerOS. Period."*
   suspends exactly as before, but raises no renewal Order and sends no DMS amount; it sends the
   suspension email + WhatsApp. Paying the ResellerOS renewal runs `hosting.renew` / `domain.renew` here,
   which move the expiry and unsuspend.
-- **Left alone, found:** `process-service-expiry` reminder emails still quote `service.price` (a DMS
-  figure); ~~`cron/renewal-payment-dunning` still chases DMS renewal orders raised before this date~~
+- **Renewal reminders carry no DMS price (26 Sep 2026, owner: "Point to the ResellerOS quote").**
+  `process-service-expiry` still sends the expiry reminder, but `sendServiceReminderEmail` takes a `renewal`
+  link (`lib/reselleros/renewal-reminder-link.ts`, built on `lib/reselleros/bills.ts` with the same fail-closed
+  email match): one pending ResellerOS quote → its `payment_url`; several → the Invoices page; none → "being
+  prepared, emailed by our billing system"; ResellerOS unreadable → still sent, no price and no link. The dead
+  `sendRenewalInvoiceEmail` (a DMS `invoiceAmount`) is deleted. Scan: `tests/unit/lib/email/reminder-no-dms-price.test.ts`.
+- **Left alone, found:** ~~`process-service-expiry` reminder emails still quote `service.price`~~ (fixed above); ~~`cron/renewal-payment-dunning` still chases DMS renewal orders raised before this date~~
   (DELETED 26 Sep 2026, owner: "Switch it off" — with its email, `RENEWAL_DUNNING_HOURS`, its deploy-script
   sticky var and `scripts/setup-cloud-scheduler-billing.sh`; the Order `dunning*` fields and index stay for
   old rows);
