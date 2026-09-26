@@ -610,9 +610,9 @@ export async function recordPrimaryInvoiceForOrder(
 
 /**
  * Orders flagged `creditNotePending` BEFORE 26 Sep 2026 (nothing sets it now).
- * Feeds the admin integration-health report so an admin can clear them. Oldest first — the longest-outstanding
- * obligation is the one that matters most (GST credit notes must be issued by
- * 30 November following the end of the financial year).
+ * Feeds the admin integration-health report so an admin can clear them. Oldest first. No credit note is owed
+ * for any of them: every invoice DMS issued was a test invoice (owner, 24 Sep 2026, and 26 Sep: "those are
+ * only 'test orders' so no need for credit note").
  */
 export async function listCreditNotePendingOrders(opts?: {
   limit?: number;
