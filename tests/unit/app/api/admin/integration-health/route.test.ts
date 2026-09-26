@@ -615,7 +615,7 @@ describe("/api/admin/integration-health — paid orders whose invoice failed", (
     );
   });
 
-  it("a COMPANY_STATE failure gets the COMPANY_STATE hint, not the generic one", async () => {
+  it("an old COMPANY_STATE failure gets the historical hint, never 'set COMPANY_STATE'", async () => {
     OrderFind.mockReset()
       .mockReturnValueOnce(chainable([]))
       .mockReturnValueOnce(
@@ -624,7 +624,9 @@ describe("/api/admin/integration-health — paid orders whose invoice failed", (
       .mockReturnValue(chainable([]));
     const body = await (await GET(makeReq())).json();
     const invoicing = body.providers.find((p: { id: string }) => p.id === "invoicing");
-    expect(invoicing.patterns[0].hint).toMatch(/Set COMPANY_STATE/);
+    expect(invoicing.patterns[0].hint).toMatch(/^Historical:/);
+    expect(invoicing.patterns[0].hint).toMatch(/ResellerOS/);
+    expect(invoicing.patterns[0].hint).not.toMatch(/COMPANY_STATE/);
   });
 
   it("no recorded reason → says so rather than inventing one", async () => {

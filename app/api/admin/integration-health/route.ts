@@ -21,7 +21,7 @@
  * — e.g. license-cap rejection across 4 orders — shows as one row with a
  * count, not 4 separate rows. Each pattern carries an `actionableHint`
  * mapped from the matched signature: license cap → "Upgrade DA license or
- * delete unused accounts"; missing company state → "Set COMPANY_STATE";
+ * delete unused accounts"; an old missing-company-state failure → "historical";
  * etc. Adding a new hint is one entry in the map below.
  */
 
@@ -130,7 +130,10 @@ const PROVIDERS: ProviderClassifier[] = [
       },
       {
         needle: /COMPANY_STATE/i,
-        hint: "The server has no COMPANY_STATE, so the GST engine cannot choose CGST+SGST vs IGST and refuses every invoice. Set COMPANY_STATE (the state our GSTIN is registered in — Delhi) on the Cloud Run service, then press Re-sync on each affected order in Admin → Invoices.",
+        // Recognises the text old orders carry. The engine that wrote it is
+        // deleted (DMS issues no invoices since 25 Sep 2026) and the env var
+        // is gone, so the hint must not tell anyone to set it.
+        hint: "Historical: DMS's old GST engine could not issue this invoice because the company state was not configured. DMS issues no invoices any more and this cannot recur. If the customer still needs a bill for this payment, raise it in ResellerOS (Invoices), which issues every bill now.",
       },
       {
         needle: /\[InvoiceRetry\]|\[InvoiceWorker\]|\[PrimaryInvoice\]|invoice creation failed|could not be issued/i,

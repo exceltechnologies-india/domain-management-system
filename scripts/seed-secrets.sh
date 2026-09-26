@@ -151,7 +151,6 @@ ENV_VARS=(
   SMTP_PORT
   SMTP_SECURE
   SUPPORT_EMAIL
-  COMPANY_STATE
 )
 
 # ── Provision secrets ─────────────────────────────────────────────────────────

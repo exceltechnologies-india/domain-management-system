@@ -171,8 +171,7 @@ that follow from it: `CLAUDE.md` → "Zoho Books removed". The section below thi
 the Zoho-fallback era and is kept as history — where it says "Zoho as fallback" or
 `ZOHO_INVOICE_FALLBACK_ENABLED`, that is no longer true.
 
-- [ ] **Operator: before/with the next deploy** — set `COMPANY_STATE=Delhi` on the Cloud Run
-      service (the deploy script now refuses without it), then `npm run migrate` to apply
+- [ ] **Operator: before/with the next deploy** — `npm run migrate` to apply
       `009_retire_zoho_invoice_fields` (stamps the 2 historical Zoho-invoiced orders
       `invoiceProvider: 'zoho'`, drops `zohoInvoiceId`).
 - Decided alongside it: no credit-note engine for now (the only invoiced orders were test

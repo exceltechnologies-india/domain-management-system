@@ -17,7 +17,6 @@ vi.mock("@/lib/billing/companyProfile", () => ({
   getCompanyProfile: () => ({
     name: "Test Co Pvt Ltd",
     gstin: "07TESTGSTIN1Z1",
-    state: "Delhi",
     address: "",
     supportEmail: "",
     sacCode: "998319",
