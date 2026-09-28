@@ -112,7 +112,7 @@ Asked whether ₹49.99/month includes GST (DMS's reading) or not (ResellerOS's),
 - **A cart holding the old price is refused**, `409 PRICE_CHANGED` with the new figure and "nothing was charged", not silently re-priced.
 - **DMS opens no Razorpay Subscriptions for hosting** (`dmsCreatesHostingSubscriptions()`, off unless `DMS_HOSTING_SUBSCRIPTIONS_ENABLED=1`). Its Razorpay plans are `renewalPrice` and `renewalPrice × 12` — yearly = 12 × monthly — which cannot express ResellerOS's year at 6 × its monthly-billing rate, and a subscription is a DMS-collected renewal (decision 4 gave renewals to ResellerOS). Paid hosting is one payment for its period; a trial always takes the no-mandate flow and converts through `/renew`. A trial in a cart with other items is refused BEFORE the trial claim is recorded. Do not re-enable subscriptions without new Razorpay plans at ResellerOS prices.
 - **Fixed on the way — both were customer-visible:** the expiry worker raised yearly renewals at the per-MONTH figure (₹49.99 for a year) and emailed that amount to the customer, and fell back to Starter's price for any plan it did not recognise. A plan with no ResellerOS price now gets no renewal order and no email with an invented amount — it is suspended as before and logged with an ACTION line.
-- **Known gap:** `config/hosting-plans.ts` is still a copy of ResellerOS's `LANDING_PLANS` (pinned equal by `tests/unit/lib/purchase/purchase.test.ts`). Reading the prices from ResellerOS over the engine API would remove the copy.
+- **DMS keeps no hosting prices (owner, 28 Sep 2026: "Read prices live from ResellerOS"; `46092c10`).** `config/hosting-plans.ts` has no `price`; every price is ResellerOS's `GET /api/public/hosting-prices`, read by `lib/reselleros/hosting-prices.ts` (servers, 60 s cache, failures never cached) and `hooks/useHostingPrices.ts` (browser, via DMS's `/api/public/hosting-prices`). `lib/pricing/hosting-price.ts` takes that table as an argument. **No fallback:** without the table nothing is priced — the Buy dialog says so and disables Buy/trial, the upgrade routes answer 503. `tests/unit/lib/purchase/purchase.test.ts` fails if a price returns to the config. The provisioner's price → package guess (`PRICE_TO_PACKAGE`) went with it.
 
 ## Further owner decisions, 24 Sep 2026 — what they mean for DMS
 
@@ -415,10 +415,14 @@ panel's ResellerOS-created order uses them.
 Owner: *"Renewals subscription will be handled by ResellerOS. Period."*
 
 - **Renew buttons** (hosting page, domains page, the trial countdown's convert button) open
-  `RenewViaResellerOs`: the customer's PENDING ResellerOS quote(s) with ResellerOS's Pay link, or "no
-  renewal bill yet — ResellerOS emails one before expiry; contact support". It takes no payment. Quotes
-  carry no domain in ResellerOS's API, so every pending quote is offered rather than a guessed one
-  (`lib/reselleros/renewal-choice.ts`).
+  `RenewViaResellerOs`: the customer's PENDING ResellerOS renewal bill(s), or "no renewal bill yet —
+  ResellerOS emails one before expiry; contact support". **Since 28 Sep 2026 it pays in the panel**
+  (owner: an existing customer renews inside the DMS portal): Pay → `/api/user/renewal-order` →
+  ResellerOS `POST /api/dms/renewal-order` (panel key, the session's email matched exactly, renewal
+  quotes only) → Razorpay in the panel's own frame. The price and the bill stay ResellerOS's, and its
+  webhook renews through the engine. **Only the bill that renews THIS service is offered:** ResellerOS's
+  `/api/v1` quotes carry `renews` (vendor + domain) and `lib/reselleros/renewal-choice.ts` matches on it;
+  a quote whose `renews` is not sent (older ResellerOS) is still offered, never hidden.
 - **Deleted:** `HostingRenewalModal`, `DomainRenewalModal`, `api/user/hosting/renew`, `renew-info`.
 - **The expiry worker** (`api/workers/process-hosting-expiry`, which also handles a trial's end) still
   suspends exactly as before, but raises no renewal Order and sends no DMS amount; it sends the
