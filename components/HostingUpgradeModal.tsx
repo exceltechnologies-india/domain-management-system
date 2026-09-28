@@ -109,7 +109,7 @@ export default function HostingUpgradeModal({
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+      <div className="fixed inset-0 bg-ink/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
         <div className="bg-paper rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200">
           {/* Header */}
           <div className="p-6 border-b border-hairline flex items-center justify-between bg-paper-2/50">
@@ -141,7 +141,7 @@ export default function HostingUpgradeModal({
 
             {step === 'requested' && selectedPlan && (
               <div className="text-center py-8">
-                <CheckCircle className="h-12 w-12 text-emerald-600 mx-auto mb-4" />
+                <CheckCircle className="h-12 w-12 text-emerald-ink mx-auto mb-4" />
                 <h3 className="text-lg font-bold text-ink mb-2">
                   {alreadyRequested ? 'You have already asked for this upgrade' : 'Upgrade requested'}
                 </h3>
@@ -149,7 +149,7 @@ export default function HostingUpgradeModal({
                   Our team will email you a quote for the move to {selectedPlan.name}. Your plan changes once that
                   quote is paid — until then nothing changes and nothing is charged.
                 </p>
-                <button onClick={onClose} className="mt-6 px-5 py-2 bg-primary-600 text-white font-semibold rounded-xl hover:bg-primary-700 text-sm">
+                <button onClick={onClose} className="mt-6 px-5 py-2 bg-primary-600 text-paper font-semibold rounded-xl hover:bg-primary-700 text-sm">
                   Close
                 </button>
               </div>
@@ -196,7 +196,7 @@ export default function HostingUpgradeModal({
                       setErrorMessage('');
                       void loadUpgradeInfo();
                     }}
-                    className="px-4 py-2 bg-primary-600 text-white font-semibold rounded-xl hover:bg-primary-700 transition-all text-sm"
+                    className="px-4 py-2 bg-primary-600 text-paper font-semibold rounded-xl hover:bg-primary-700 transition-all text-sm"
                   >
                     Retry
                   </button>

@@ -73,15 +73,15 @@ export class ErrorBoundary extends Component<
     return (
       <div
         role="alert"
-        className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+        className="rounded border border-rose/30 bg-rose-soft px-4 py-3 text-sm text-rose-ink"
       >
         <p className="font-medium">Something went wrong in this section.</p>
-        <p className="text-xs text-red-700/80">
+        <p className="text-xs text-rose-ink/80">
           The rest of the page is still working.{" "}
           <button
             type="button"
             onClick={this.reset}
-            className="underline underline-offset-2 hover:text-red-900"
+            className="underline underline-offset-2 hover:text-rose-ink"
           >
             Try again
           </button>

@@ -33,12 +33,12 @@ export default function MessageAttachments({ attachments, align = 'left' }: Prop
           target="_blank"
           rel="noopener noreferrer"
           download={a.filename}
-          className="group relative block w-32 h-24 rounded-xl overflow-hidden border border-gray-200 hover:border-amber/40 bg-gray-50 shadow-sm transition-colors"
+          className="group relative block w-32 h-24 rounded-xl overflow-hidden border border-hairline hover:border-amber/40 bg-paper-2 shadow-sm transition-colors"
           title={`${a.filename} · ${Math.round(a.size / 1024)} KB · click to open`}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={a.dataUrl} alt={a.filename} className="w-full h-full object-cover" />
-          <div className="absolute bottom-0 left-0 right-0 px-2 py-1 bg-gradient-to-t from-black/60 to-transparent text-white text-[10px] truncate opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="absolute bottom-0 left-0 right-0 px-2 py-1 bg-gradient-to-t from-black/60 to-transparent text-paper text-[10px] truncate opacity-0 group-hover:opacity-100 transition-opacity">
             <span className="inline-flex items-center gap-1">
               <ImageIcon className="h-2.5 w-2.5" />
               {a.filename}

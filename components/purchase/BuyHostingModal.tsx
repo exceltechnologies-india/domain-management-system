@@ -132,7 +132,7 @@ export default function BuyHostingModal({ isOpen, onClose }: BuyHostingModalProp
       </div>
 
       {prices.state === 'unavailable' && (
-        <p role="alert" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+        <p role="alert" className="mb-4 rounded-lg border border-amber/30 bg-amber-soft p-3 text-sm text-amber-ink">
           {prices.message}
         </p>
       )}
@@ -172,7 +172,7 @@ export default function BuyHostingModal({ isOpen, onClose }: BuyHostingModalProp
               <ul className="space-y-1 mb-4 flex-1">
                 {plan.features.slice(0, 5).map((f) => (
                   <li key={f} className="flex items-start gap-1.5 text-xs text-ink-2">
-                    <Check className="h-3.5 w-3.5 text-emerald-600 mt-0.5 flex-shrink-0" />
+                    <Check className="h-3.5 w-3.5 text-emerald-ink mt-0.5 flex-shrink-0" />
                     {f}
                   </li>
                 ))}

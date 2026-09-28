@@ -9,9 +9,9 @@ import { Sk } from './_primitives';
 
 export function CheckoutPageSkeleton() {
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-paper-2 flex flex-col">
       {/* Nav */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+      <div className="bg-paper border-b border-hairline px-6 py-4 flex items-center justify-between">
         <Sk className="h-8 w-32 rounded-lg" />
         <div className="flex items-center gap-4">
           <Sk className="h-4 w-16 rounded" />
@@ -20,7 +20,7 @@ export function CheckoutPageSkeleton() {
       </div>
 
       {/* Page header */}
-      <div className="bg-white shadow-sm">
+      <div className="bg-paper shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 pt-24 flex items-center gap-3">
           <Sk className="h-5 w-5 rounded" />
           <Sk className="h-7 w-28 rounded-lg" />
@@ -31,13 +31,13 @@ export function CheckoutPageSkeleton() {
         <div className="grid lg:grid-cols-6 xl:grid-cols-7 gap-8">
           {/* Order summary panel */}
           <div className="lg:col-span-4 xl:col-span-5">
-            <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-5">
+            <div className="bg-paper rounded-lg border border-hairline p-6 space-y-5">
               <div className="flex items-center justify-between mb-2">
                 <Sk className="h-5 w-36 rounded" />
                 <Sk className="h-4 w-32 rounded" />
               </div>
               {Array.from({ length: 2 }).map((_, i) => (
-                <div key={i} className="flex items-start gap-4 p-4 border border-gray-100 rounded-lg">
+                <div key={i} className="flex items-start gap-4 p-4 border border-hairline rounded-lg">
                   <Sk className="h-10 w-10 rounded-lg shrink-0" />
                   <div className="flex-1 space-y-2">
                     <Sk className="h-4 w-40 rounded" />
@@ -51,7 +51,7 @@ export function CheckoutPageSkeleton() {
 
           {/* Payment panel */}
           <div className="lg:col-span-2 xl:col-span-2 space-y-5">
-            <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+            <div className="bg-paper rounded-lg border border-hairline p-6 space-y-4">
               <Sk className="h-5 w-32 rounded" />
               <div className="space-y-3">
                 <Sk className="h-10 w-full rounded-lg" />
@@ -59,14 +59,14 @@ export function CheckoutPageSkeleton() {
                 <Sk className="h-10 w-full rounded-lg" />
               </div>
             </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+            <div className="bg-paper rounded-lg border border-hairline p-6 space-y-4">
               {Array.from({ length: 3 }).map((_, i) => (
                 <div key={i} className="flex justify-between">
                   <Sk className="h-4 w-28 rounded" />
                   <Sk className="h-4 w-16 rounded" />
                 </div>
               ))}
-              <div className="border-t border-gray-100 pt-4 flex justify-between">
+              <div className="border-t border-hairline pt-4 flex justify-between">
                 <Sk className="h-5 w-16 rounded" />
                 <Sk className="h-5 w-20 rounded" />
               </div>
@@ -83,9 +83,9 @@ export function CheckoutPageSkeleton() {
 
 export function PaymentSuccessPageSkeleton() {
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-paper-2 flex flex-col">
       {/* Nav */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+      <div className="bg-paper border-b border-hairline px-6 py-4 flex items-center justify-between">
         <Sk className="h-8 w-32 rounded-lg" />
         <div className="flex items-center gap-4">
           <Sk className="h-4 w-16 rounded" />
@@ -95,7 +95,7 @@ export function PaymentSuccessPageSkeleton() {
 
       <div className="flex-1 max-w-2xl mx-auto w-full px-4 py-12 space-y-4">
         {/* Hero card */}
-        <div className="bg-white rounded-xl border border-gray-100 p-8 text-center space-y-3">
+        <div className="bg-paper rounded-xl border border-hairline p-8 text-center space-y-3">
           <Sk className="h-16 w-16 rounded-full mx-auto" />
           <Sk className="h-4 w-32 rounded-full mx-auto" />
           <Sk className="h-12 w-40 rounded-lg mx-auto" />
@@ -103,10 +103,10 @@ export function PaymentSuccessPageSkeleton() {
         </div>
 
         {/* Domain/item list card */}
-        <div className="bg-white rounded-xl border border-gray-100 p-6 space-y-4">
+        <div className="bg-paper rounded-xl border border-hairline p-6 space-y-4">
           <Sk className="h-5 w-40 rounded" />
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-3 py-3 border-b border-gray-50 last:border-0">
+            <div key={i} className="flex items-center gap-3 py-3 border-b border-hairline last:border-0">
               <Sk className="h-8 w-8 rounded-lg shrink-0" />
               <div className="flex-1 space-y-1.5">
                 <Sk className="h-4 w-48 rounded" />
@@ -131,9 +131,9 @@ export function PaymentSuccessPageSkeleton() {
 
 export function CartPageSkeleton() {
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-paper-2 flex flex-col">
       {/* Nav bar */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+      <div className="bg-paper border-b border-hairline px-6 py-4 flex items-center justify-between">
         <Sk className="h-8 w-32 rounded-lg" />
         <div className="flex items-center gap-4">
           <Sk className="h-4 w-16 rounded" />
@@ -153,7 +153,7 @@ export function CartPageSkeleton() {
           {/* Cart items */}
           <div className="lg:col-span-2 space-y-4">
             {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-5">
+              <div key={i} className="bg-paper rounded-xl border border-hairline p-5 flex items-center gap-5">
                 <Sk className="h-12 w-12 rounded-xl shrink-0" />
                 <div className="flex-1 space-y-2">
                   <Sk className="h-4 w-48 rounded" />
@@ -165,7 +165,7 @@ export function CartPageSkeleton() {
           </div>
 
           {/* Order summary */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4 h-fit">
+          <div className="bg-paper rounded-xl border border-hairline p-6 space-y-4 h-fit">
             <Sk className="h-5 w-32 rounded" />
             {Array.from({ length: 3 }).map((_, i) => (
               <div key={i} className="flex justify-between">
@@ -173,7 +173,7 @@ export function CartPageSkeleton() {
                 <Sk className="h-4 w-16 rounded" />
               </div>
             ))}
-            <div className="border-t border-gray-100 pt-4 flex justify-between">
+            <div className="border-t border-hairline pt-4 flex justify-between">
               <Sk className="h-5 w-16 rounded" />
               <Sk className="h-5 w-20 rounded" />
             </div>

@@ -126,7 +126,7 @@ export default function Navigation({
 
   if (variant === 'dashboard' || variant === 'admin') {
     return (
-      <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md shadow-lg border-b border-gray-200">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-paper/95 backdrop-blur-md shadow-lg border-b border-hairline">
         <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Fixed bar height (was py-4 + h-10/11 logo = 72/76px) so a larger
               logo doesn't grow the navbar or break the page's pt offset. */}
@@ -138,8 +138,8 @@ export default function Navigation({
                 {isMounted && (user ?? currentUser) && (
                   <>
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${(user ?? currentUser)?.role === 'admin'
-                      ? 'bg-red-100 text-red-800'
-                      : 'bg-blue-100 text-blue-800'
+                      ? 'bg-rose-soft text-rose-ink'
+                      : 'bg-indigo-soft text-indigo-ink'
                       }`}>
                       {(user ?? currentUser)?.role?.toUpperCase()}
                     </span>
@@ -150,13 +150,13 @@ export default function Navigation({
               {/* Cart Icon - always visible */}
               <Link
                 href="/cart"
-                className="relative p-2 text-gray-600 hover:text-primary-600 transition-colors duration-200"
+                className="relative p-2 text-ink-2 hover:text-primary-600 transition-colors duration-200"
                 aria-label="Shopping Cart"
                 title="Shopping Cart"
               >
                 <ShoppingCart className="h-6 w-6" />
                 {isMounted && cartCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-primary-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+                  <span className="absolute -top-1 -right-1 bg-primary-600 text-paper text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
                     {cartCount}
                   </span>
                 )}
@@ -165,7 +165,7 @@ export default function Navigation({
               {onLogout && (
                 <button
                   onClick={onLogout}
-                  className="btn btn-secondary hover:bg-gray-100 transition-colors duration-200"
+                  className="btn btn-secondary hover:bg-hairline/50 transition-colors duration-200"
                 >
                   Logout
                 </button>
@@ -178,7 +178,7 @@ export default function Navigation({
   }
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md shadow-lg border-b border-[var(--google-border-light)]">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-paper/95 backdrop-blur-md shadow-lg border-b border-[var(--google-border-light)]">
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Fixed bar height (was py-3/4 + h-10/11 logo = 64/76px) so a larger
             logo doesn't grow the navbar or break the page's pt offset. */}
@@ -266,7 +266,7 @@ export default function Navigation({
             >
               <ShoppingCart className="h-6 w-6" />
               {isMounted && cartCount > 0 && (
-                <span className="absolute -top-1 -right-1 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium" style={{ backgroundColor: 'var(--google-blue)' }}>
+                <span className="absolute -top-1 -right-1 text-paper text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium" style={{ backgroundColor: 'var(--google-blue)' }}>
                   {cartCount}
                 </span>
               )}
@@ -286,17 +286,17 @@ export default function Navigation({
             ) : (
               <Link
                 href={loginHref}
-                className="inline-flex items-center gap-2 px-5 py-2 rounded-xl font-semibold text-violet-700 bg-white border border-violet-200 hover:bg-violet-50 hover:border-violet-300 shadow-sm transition-all duration-200"
+                className="inline-flex items-center gap-2 px-5 py-2 rounded-xl font-semibold text-indigo-ink bg-paper border border-indigo/30 hover:bg-indigo/15 hover:border-indigo/30 shadow-sm transition-all duration-200"
                 style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}
               >
-                <User className="h-4 w-4 text-violet-600" />
+                <User className="h-4 w-4 text-indigo-ink" />
                 Login
               </Link>
             )}
 
             <Link
               href={hostingHref}
-              className="hidden sm:inline-flex items-center px-4 py-2 rounded-lg font-semibold text-white shadow-sm hover:shadow-md transition-all bg-gradient-to-r from-[#7C3AED] to-[#6D28D9] hover:from-[#6D28D9] hover:to-[#5B21B6]"
+              className="hidden sm:inline-flex items-center px-4 py-2 rounded-lg font-semibold text-paper shadow-sm hover:shadow-md transition-all bg-gradient-to-r from-[#7C3AED] to-[#6D28D9] hover:from-[#6D28D9] hover:to-[#5B21B6]"
               style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}
             >
               Start Free Trial
@@ -391,7 +391,7 @@ export default function Navigation({
                   <span>Cart</span>
                 </div>
                 {isMounted && cartCount > 0 && (
-                  <span className="text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium" style={{ backgroundColor: 'var(--google-blue)' }}>
+                  <span className="text-paper text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium" style={{ backgroundColor: 'var(--google-blue)' }}>
                     {cartCount}
                   </span>
                 )}
@@ -415,7 +415,7 @@ export default function Navigation({
                 <Link
                   href={loginHref}
                   onClick={closeMobileMenu}
-                  className="px-4 py-2 rounded-lg font-medium text-white transition-all duration-200 shadow-sm hover:shadow-md text-center"
+                  className="px-4 py-2 rounded-lg font-medium text-paper transition-all duration-200 shadow-sm hover:shadow-md text-center"
                   style={{
                     backgroundColor: 'var(--google-blue)',
                     borderColor: 'var(--google-blue)',

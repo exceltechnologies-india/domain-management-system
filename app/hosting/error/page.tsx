@@ -59,7 +59,7 @@ function ErrorContent() {
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: "spring", duration: 0.6 }}
-        className={`bg-gradient-to-br ${config.color} p-6 rounded-3xl text-white shadow-2xl mb-8`}
+        className={`bg-gradient-to-br ${config.color} p-6 rounded-3xl text-paper shadow-2xl mb-8`}
       >
         {config.icon}
       </motion.div>
@@ -68,7 +68,7 @@ function ErrorContent() {
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.2 }}
-        className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4 bg-gradient-to-r from-gray-900 via-gray-700 to-gray-900 bg-clip-text text-transparent"
+        className="text-4xl md:text-5xl font-extrabold text-ink mb-4 bg-gradient-to-r from-gray-900 via-gray-700 to-gray-900 bg-clip-text text-transparent"
       >
         {config.title}
       </motion.h1>
@@ -77,7 +77,7 @@ function ErrorContent() {
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.3 }}
-        className="text-lg text-gray-600 max-w-lg mb-12 leading-relaxed"
+        className="text-lg text-ink-2 max-w-lg mb-12 leading-relaxed"
       >
         {message}
       </motion.p>
@@ -90,14 +90,14 @@ function ErrorContent() {
       >
         <button
           onClick={() => router.push('/dashboard')}
-          className="flex items-center justify-center gap-2 bg-[var(--google-blue)] text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl hover:translate-y-[-2px] transition-all"
+          className="flex items-center justify-center gap-2 bg-[var(--google-blue)] text-paper px-8 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl hover:translate-y-[-2px] transition-all"
         >
           <ArrowLeft className="h-5 w-5" />
           Back to Dashboard
         </button>
         <Link
           href={publicPageHref('/contact')}
-          className="flex items-center justify-center gap-2 bg-white border-2 border-gray-200 text-gray-700 px-8 py-3 rounded-xl font-bold hover:bg-gray-50 hover:border-gray-300 transition-all"
+          className="flex items-center justify-center gap-2 bg-paper border-2 border-hairline text-ink-2 px-8 py-3 rounded-xl font-bold hover:bg-paper-2 hover:border-hairline transition-all"
         >
           <Headphones className="h-5 w-5" />
           Support
@@ -108,9 +108,9 @@ function ErrorContent() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 1 }}
-        className="mt-16 text-sm text-gray-400 font-medium"
+        className="mt-16 text-sm text-ink-4 font-medium"
       >
-        Error Code: <span className="font-mono text-gray-500">{code}</span>
+        Error Code: <span className="font-mono text-ink-3">{code}</span>
       </motion.div>
     </div>
   );

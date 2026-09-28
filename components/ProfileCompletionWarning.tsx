@@ -113,17 +113,17 @@ export default function ProfileCompletionWarning({ className = "", returnUrl }: 
   ].filter(Boolean).join(' and ');
 
   return (
-    <div className={`bg-amber-50 border border-amber-200 rounded-xl p-3 sm:p-4 mb-6 shadow-sm ${className}`}>
+    <div className={`bg-amber-soft border border-amber/30 rounded-xl p-3 sm:p-4 mb-6 shadow-sm ${className}`}>
       <div className="flex items-start gap-3">
-        <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+        <AlertTriangle className="h-5 w-5 text-amber flex-shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 className="text-sm font-semibold text-amber-900">
+              <h3 className="text-sm font-semibold text-amber-ink">
                 Complete your profile to checkout
               </h3>
               {missingList && (
-                <p className="mt-0.5 text-sm text-amber-800">
+                <p className="mt-0.5 text-sm text-amber-ink">
                   Your <strong>{missingList}</strong> {missingList.includes('and') ? 'are' : 'is'} missing — required for domain registration.
                 </p>
               )}
@@ -131,13 +131,13 @@ export default function ProfileCompletionWarning({ className = "", returnUrl }: 
             <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
               <button
                 onClick={handleCompleteProfile}
-                className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg text-sm font-semibold transition-all shadow-sm hover:shadow active:scale-95 whitespace-nowrap"
+                className="bg-amber hover:bg-amber/90 text-paper px-3 py-1.5 rounded-lg text-sm font-semibold transition-all shadow-sm hover:shadow active:scale-95 whitespace-nowrap"
               >
                 Complete now →
               </button>
               <button
                 onClick={handleDismiss}
-                className="text-amber-400 hover:text-amber-600 p-1.5 hover:bg-amber-100 rounded-full transition-colors"
+                className="text-amber hover:text-amber-ink p-1.5 hover:bg-amber/15 rounded-full transition-colors"
                 title="Dismiss"
               >
                 <X className="h-4 w-4" />

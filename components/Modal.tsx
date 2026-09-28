@@ -49,7 +49,7 @@ export default function Modal({
             {/* Background overlay */}
             <motion.div
               /* Stable hook for the overlay-click tests. They used to select it
-                 by `.bg-gray-500.bg-opacity-75` — styling classes — so the
+                 by `.bg-ink-4.bg-opacity-75` — styling classes — so the
                  restyle made querySelector return null. One test then failed
                  honestly and the OTHER ("closeOnOverlayClick=false suppresses
                  the callback") started passing for the wrong reason: clicking

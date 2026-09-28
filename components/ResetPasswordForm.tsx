@@ -85,26 +85,26 @@ export default function ResetPasswordForm({ token, className = '', isSetup = fal
 
   if (isSuccess) {
     return (
-      <div className={`min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 ${className}`}>
+      <div className={`min-h-screen flex items-center justify-center bg-paper-2 py-12 px-4 sm:px-6 lg:px-8 ${className}`}>
         <div className="max-w-md w-full space-y-8">
           <div className="text-center">
             <div className="flex justify-center mb-6">
               <Logo size="lg" />
             </div>
-            <h2 className="text-3xl font-bold text-gray-900">
+            <h2 className="text-3xl font-bold text-ink">
               {isSetup ? 'Account Activated' : 'Password Reset Complete'}
             </h2>
           </div>
 
           <Card>
             <div className="text-center">
-              <div className="bg-green-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="h-8 w-8 text-green-600" />
+              <div className="bg-emerald-soft rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="h-8 w-8 text-emerald-ink" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              <h3 className="text-lg font-semibold text-ink mb-2">
                 Success!
               </h3>
-              <p className="text-gray-600 mb-6">
+              <p className="text-ink-2 mb-6">
                 {isSetup
                   ? <>Your password is set and your account is ready. You&apos;ll be redirected to the login page shortly.</>
                   : <>Your password has been successfully reset. You will be redirected to the login page shortly.</>}
@@ -123,16 +123,16 @@ export default function ResetPasswordForm({ token, className = '', isSetup = fal
   }
 
   return (
-    <div className={`min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 ${className}`}>
+    <div className={`min-h-screen flex items-center justify-center bg-paper-2 py-12 px-4 sm:px-6 lg:px-8 ${className}`}>
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <div className="flex justify-center mb-6">
             <Logo size="lg" />
           </div>
-          <h2 className="text-3xl font-bold text-gray-900">
+          <h2 className="text-3xl font-bold text-ink">
             {isSetup ? 'Set Your Password' : 'Set New Password'}
           </h2>
-          <p className="mt-2 text-sm text-gray-600">
+          <p className="mt-2 text-sm text-ink-2">
             {isSetup
               ? <>Choose a password to activate your account and access your dashboard.</>
               : <>Please enter your new password below.</>}
@@ -158,11 +158,11 @@ export default function ResetPasswordForm({ token, className = '', isSetup = fal
                 onChange={handleChange}
                 required
                 fullWidth
-                icon={<Lock className="h-4 w-4 text-gray-400" />}
+                icon={<Lock className="h-4 w-4 text-ink-4" />}
                 rightIcon={
                   <button
                     type="button"
-                    className="text-gray-500 hover:text-gray-700 focus:outline-none"
+                    className="text-ink-3 hover:text-ink-2 focus:outline-none"
                     onClick={() => setShowPassword(!showPassword)}
                   >
                     {showPassword ? (
@@ -186,11 +186,11 @@ export default function ResetPasswordForm({ token, className = '', isSetup = fal
                 onChange={handleChange}
                 required
                 fullWidth
-                icon={<Lock className="h-4 w-4 text-gray-400" />}
+                icon={<Lock className="h-4 w-4 text-ink-4" />}
                 rightIcon={
                   <button
                     type="button"
-                    className="text-gray-500 hover:text-gray-700 focus:outline-none"
+                    className="text-ink-3 hover:text-ink-2 focus:outline-none"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   >
                     {showConfirmPassword ? (

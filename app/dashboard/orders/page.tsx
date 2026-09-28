@@ -212,7 +212,7 @@ export default function UserOrders() {
           {isLoadingOrders ? (
             <OrdersPageSkeleton />
           ) : (
-            <div className="bg-white rounded-lg shadow-sm border border-hairline overflow-hidden">
+            <div className="bg-paper rounded-lg shadow-sm border border-hairline overflow-hidden">
               {filteredOrders.length === 0 ? (
                 <div className="text-center py-12">
                   <FileText className="h-12 w-12 text-ink-4 mx-auto mb-4" />
@@ -226,7 +226,7 @@ export default function UserOrders() {
                   {!searchTerm && filterStatus === 'all' && (
                     <button
                       onClick={() => router.push(buyHref('domain'))}
-                      className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-amber rounded-lg hover:brightness-90 transition-colors"
+                      className="inline-flex items-center px-4 py-2 text-sm font-medium text-paper bg-amber rounded-lg hover:brightness-90 transition-colors"
                     >
                       <ExternalLink className="h-4 w-4 mr-2" />
                       Search Domains
@@ -258,7 +258,7 @@ export default function UserOrders() {
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-hairline">
+                    <tbody className="bg-paper divide-y divide-hairline">
                       {filteredOrders.map((order, index) => (
                         <motion.tr
                           key={order._id}
@@ -333,8 +333,8 @@ export default function UserOrders() {
 
           {/* Order Details Modal */}
           {selectedOrder && selectedOrder.orderId && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="fixed inset-0 bg-ink bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-paper rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
                 <div className="p-6">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-ink">

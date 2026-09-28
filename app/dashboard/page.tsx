@@ -457,11 +457,11 @@ export default function UserDashboard() {
               >
                 {/* Need a new domain CTA */}
                 <div className="relative overflow-hidden bg-gradient-to-br from-amber via-amber to-amber-ink rounded-2xl p-6 text-paper shadow-md">
-                  <div className="absolute -top-6 -right-6 w-24 h-24 bg-white/10 rounded-full blur-xl" />
-                  <div className="absolute -bottom-8 -left-4 w-20 h-20 bg-white/5 rounded-full blur-xl" />
+                  <div className="absolute -top-6 -right-6 w-24 h-24 bg-paper/10 rounded-full blur-xl" />
+                  <div className="absolute -bottom-8 -left-4 w-20 h-20 bg-paper/5 rounded-full blur-xl" />
                   <div className="relative">
-                    <div className="inline-flex p-2 bg-white/20 backdrop-blur-sm rounded-xl mb-3">
-                      <Sparkles className="h-4 w-4 text-white" />
+                    <div className="inline-flex p-2 bg-paper/20 backdrop-blur-sm rounded-xl mb-3">
+                      <Sparkles className="h-4 w-4 text-paper" />
                     </div>
                     <h3 className="font-bold text-lg mb-1">Need a new domain?</h3>
                     <p className="text-paper/85 text-sm mb-4">Search and register your perfect domain name.</p>

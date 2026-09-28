@@ -133,14 +133,14 @@ export default function InvoicesPage() {
 
         {/* ── Earlier invoices issued by this panel (read-only history) ── */}
         {(isLoadingInvoices || invoices.length > 0) && (
-        <div className="bg-white border border-hairline rounded-2xl shadow-sm overflow-hidden">
+        <div className="bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden">
           {!isLoadingInvoices && invoices.length > 0 && (
             <div className="px-6 py-4 border-b border-hairline bg-paper-2/60 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <FileText className="h-4 w-4 text-ink-3" />
                 <h3 className="text-sm font-semibold text-ink">Earlier invoices issued by this panel</h3>
               </div>
-              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-3 bg-white border border-hairline px-2.5 py-1 rounded-full">
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-3 bg-paper border border-hairline px-2.5 py-1 rounded-full">
                 {invoices.length} invoice{invoices.length !== 1 ? 's' : ''}
               </span>
             </div>

@@ -189,7 +189,7 @@ export default function ViewInvoicePage({ params }: { params: Promise<{ id: stri
             <button
               onClick={handleDownload}
               disabled={isDownloading}
-              className="flex items-center justify-center gap-2 bg-amber hover:brightness-90 text-white px-4 py-2.5 rounded-lg font-medium transition-all shadow-sm hover:shadow-md active:scale-95 disabled:opacity-50 flex-1 sm:flex-initial text-sm"
+              className="flex items-center justify-center gap-2 bg-amber hover:brightness-90 text-paper px-4 py-2.5 rounded-lg font-medium transition-all shadow-sm hover:shadow-md active:scale-95 disabled:opacity-50 flex-1 sm:flex-initial text-sm"
             >
               {isDownloading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -202,7 +202,7 @@ export default function ViewInvoicePage({ params }: { params: Promise<{ id: stri
         </div>
 
         {/* Viewer */}
-        <div className="flex-1 bg-white rounded-xl shadow-sm border border-hairline overflow-hidden relative min-h-[60vh] sm:min-h-0">
+        <div className="flex-1 bg-paper rounded-xl shadow-sm border border-hairline overflow-hidden relative min-h-[60vh] sm:min-h-0">
 
           {isLoadingPdf && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-paper-2/60">
@@ -220,7 +220,7 @@ export default function ViewInvoicePage({ params }: { params: Promise<{ id: stri
               <div className="flex gap-3">
                 <button
                   onClick={handleRetry}
-                  className="flex items-center gap-2 px-4 py-2 bg-amber text-white text-sm font-medium rounded-lg hover:brightness-90 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-amber text-paper text-sm font-medium rounded-lg hover:brightness-90 transition-colors"
                 >
                   <RefreshCw className="h-4 w-4" />
                   Retry

@@ -11,9 +11,9 @@ export function AdminUsersPageSkeleton() {
   return (
     <div className="space-y-6">
       <PageHeader wide />
-      <div className="bg-white rounded-lg shadow">
+      <div className="bg-paper rounded-lg shadow">
         {/* Tab nav */}
-        <div className="border-b border-gray-200 px-6 flex gap-8">
+        <div className="border-b border-hairline px-6 flex gap-8">
           {['Active Users', 'Deactivated', 'Service Users'].map((tab, i) => (
             <div key={i} className="py-4">
               <Sk className={`h-4 rounded ${i === 0 ? 'w-24' : i === 1 ? 'w-28' : 'w-28'}`} />
@@ -26,7 +26,7 @@ export function AdminUsersPageSkeleton() {
             <Sk className="h-9 flex-1 max-w-xs rounded-lg" />
           </div>
           {/* Header */}
-          <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-gray-50 rounded-t border border-gray-200">
+          <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-paper-2 rounded-t border border-hairline">
             {[3, 3, 2, 2, 2].map((span, i) => (
               <div key={i} className={`col-span-${span}`}>
                 <Sk className="h-3.5 w-20 rounded" />
@@ -34,7 +34,7 @@ export function AdminUsersPageSkeleton() {
             ))}
           </div>
           {Array.from({ length: 8 }).map((_, r) => (
-            <div key={r} className="grid grid-cols-12 gap-4 px-4 py-4 border-b border-gray-100 items-center">
+            <div key={r} className="grid grid-cols-12 gap-4 px-4 py-4 border-b border-hairline items-center">
               <div className="col-span-3 flex items-center gap-3">
                 <Sk className="h-9 w-9 rounded-full shrink-0" />
                 <div className="space-y-1.5">
@@ -66,7 +66,7 @@ export function AdminPaymentsPageSkeleton() {
       {/* Summary stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {(['blue', 'green', 'orange', 'purple'] as const).map((c) => (
-          <div key={c} className="bg-white rounded-xl border border-gray-200 p-4 space-y-2">
+          <div key={c} className="bg-paper rounded-xl border border-hairline p-4 space-y-2">
             <Sk className="h-3.5 w-24 rounded" />
             <Sk className="h-7 w-20 rounded" />
           </div>
@@ -150,7 +150,7 @@ export function AdminDashboardSkeleton() {
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {(['blue', 'green', 'orange', 'purple'] as const).map((c) => (
-          <div key={c} className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+          <div key={c} className="bg-paper rounded-xl border border-hairline p-5 space-y-3">
             <div className="flex items-center justify-between">
               <Sk className="h-4 w-24 rounded" />
               <Sk className="h-8 w-8 rounded-lg" />
@@ -163,8 +163,8 @@ export function AdminDashboardSkeleton() {
       {/* Two-col panels */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {[5, 5].map((rows, i) => (
-          <div key={i} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="p-5 border-b border-gray-100">
+          <div key={i} className="bg-paper rounded-xl border border-hairline overflow-hidden">
+            <div className="p-5 border-b border-hairline">
               <Sk className="h-5 w-36 rounded" />
             </div>
             <div className="divide-y divide-hairline">

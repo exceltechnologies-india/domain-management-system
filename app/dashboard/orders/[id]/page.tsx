@@ -123,7 +123,7 @@ function DomainCard({ domain }: { domain: OrderDomain }) {
   const progress = latestStep?.progress ?? (domain.status === 'registered' ? 100 : 0);
 
   return (
-    <div className="bg-white rounded-xl border border-hairline overflow-hidden">
+    <div className="bg-paper rounded-xl border border-hairline overflow-hidden">
       {/* Header */}
       <div className="px-5 py-4 flex items-center justify-between gap-4 border-b border-hairline">
         <div className="flex items-center gap-3 min-w-0">
@@ -267,7 +267,7 @@ export default function OrderStatusPage() {
             </p>
             <Link
               href="/dashboard/orders"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-amber hover:brightness-90 text-white text-sm font-semibold rounded-lg transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-amber hover:brightness-90 text-paper text-sm font-semibold rounded-lg transition-colors"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to Orders
@@ -335,7 +335,7 @@ export default function OrderStatusPage() {
           )}
 
           {/* Summary card */}
-          <div className="bg-white rounded-xl border border-hairline">
+          <div className="bg-paper rounded-xl border border-hairline">
             <div className="p-5 border-b border-hairline">
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div>

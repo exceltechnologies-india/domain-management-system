@@ -188,16 +188,16 @@ export default function CheckoutPage() {
 
   if (trialStartedMessage) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col">
+      <div className="min-h-screen bg-paper-2 flex flex-col">
         <Navigation user={user ?? undefined} onLogout={user ? handleLogout : undefined} />
         <div className="flex-1 max-w-xl mx-auto w-full px-4 py-24 text-center">
-          <Check className="h-12 w-12 text-green-600 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Your free trial is almost ready</h1>
-          <p className="text-gray-700 mb-8">{trialStartedMessage}</p>
+          <Check className="h-12 w-12 text-emerald-ink mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-ink mb-2">Your free trial is almost ready</h1>
+          <p className="text-ink-2 mb-8">{trialStartedMessage}</p>
           <button
             type="button"
             onClick={() => router.push('/dashboard/hosting')}
-            className="px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg"
+            className="px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-paper font-semibold rounded-lg"
           >
             Go to your hosting
           </button>
@@ -213,25 +213,25 @@ export default function CheckoutPage() {
 
   return (
     <>
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-paper-2 flex flex-col">
       <Navigation user={user} onLogout={user ? handleLogout : undefined} />
 
       {/* Header */}
-      <header className="bg-white shadow-sm">
+      <header className="bg-paper shadow-sm">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10">
           <div className="flex items-center py-4 pt-20 sm:pt-24">
             <button
               onClick={() => router.back()}
               disabled={isPaymentInProgress}
               className={`flex items-center mr-4 ${isPaymentInProgress
-                ? 'text-gray-400 cursor-not-allowed'
-                : 'text-gray-600 hover:text-gray-900'
+                ? 'text-ink-4 cursor-not-allowed'
+                : 'text-ink-2 hover:text-ink'
                 }`}
             >
               <ArrowLeft className="h-5 w-5 mr-1" />
               Back to Cart
             </button>
-            <h1 className="text-2xl font-bold text-gray-900">Checkout</h1>
+            <h1 className="text-2xl font-bold text-ink">Checkout</h1>
           </div>
         </div>
       </header>
@@ -240,18 +240,18 @@ export default function CheckoutPage() {
         <div className="grid lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 gap-8 min-h-[50vh]">
           {/* Order Summary */}
           <div className="lg:col-span-4 xl:col-span-5 2xl:col-span-5">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="bg-paper rounded-lg shadow-sm border border-hairline">
               <div className="p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-lg font-semibold text-gray-900">Order Summary</h2>
-                  <div className="flex items-center space-x-2 text-sm text-gray-600">
-                    <Check className="h-4 w-4 text-green-600" />
+                  <h2 className="text-lg font-semibold text-ink">Order Summary</h2>
+                  <div className="flex items-center space-x-2 text-sm text-ink-2">
+                    <Check className="h-4 w-4 text-emerald-ink" />
                     <span>Ready for payment</span>
                   </div>
                 </div>
                 <div className="space-y-4">
                   {cartItems.map((item, index) => (
-                    <div key={index} className="group relative p-4 sm:p-6 border border-gray-200 rounded-lg hover:border-primary-300 hover:shadow-md transition-all duration-200">
+                    <div key={index} className="group relative p-4 sm:p-6 border border-hairline rounded-lg hover:border-primary-300 hover:shadow-md transition-all duration-200">
                       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 sm:gap-6">
                         <div className="flex-1">
                           <div className="flex items-center space-x-3 mb-2">
@@ -259,7 +259,7 @@ export default function CheckoutPage() {
                               <Globe className="h-5 w-5 text-primary-600" />
                             </div>
                             <div>
-                              <h3 className="text-lg font-medium text-gray-900">
+                              <h3 className="text-lg font-medium text-ink">
                                 {item.itemType === 'hosting' && item.hostingPlan
                                   ? item.hostingPlan.name
                                   : item.domainName}
@@ -269,11 +269,11 @@ export default function CheckoutPage() {
                                   for {item.linkedDomain || item.domainName}
                                 </p>
                               ) : (
-                                <p className="text-sm font-medium text-gray-500 mt-1">
+                                <p className="text-sm font-medium text-ink-3 mt-1">
                                   Domain Registration
                                 </p>
                               )}
-                              <p className="text-sm text-gray-600">
+                              <p className="text-sm text-ink-2">
                                         {item.isTrial
                                   ? `15-Day Free Trial → ${item.billingCycle === 'monthly' ? 'Monthly' : 'Yearly'} plan`
                                   : item.itemType === 'hosting' && item.periodUnit === 'days'
@@ -283,7 +283,7 @@ export default function CheckoutPage() {
                                   : `${item.registrationPeriod || 1} ${item.itemType === 'hosting' ? (item.periodUnit === 'days' ? 'day(s)' : 'month(s)') : 'year(s)'} ${item.itemType === 'hosting' ? 'subscription' : 'registration'}`
                                 }
                                 {getMinRegistrationPeriod(item.domainName) > 1 && (
-                                  <span className="ml-2 text-xs text-amber-600">
+                                  <span className="ml-2 text-xs text-amber-ink">
                                     (Min: {getMinRegistrationPeriod(item.domainName)} year{getMinRegistrationPeriod(item.domainName) > 1 ? 's' : ''})
                                   </span>
                                 )}
@@ -293,35 +293,35 @@ export default function CheckoutPage() {
 
                           {/* Domain Features */}
                           <div className="flex flex-wrap gap-2 mt-3">
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-emerald-soft text-emerald-ink">
                               <Check className="h-3 w-3 mr-1" />
                               Available
                             </span>
                           </div>
                         </div>
 
-                        <div className="flex flex-row sm:flex-col justify-between items-end sm:text-right border-t sm:border-t-0 border-gray-100 pt-3 sm:pt-0">
-                          <div className="sm:hidden text-xs font-bold text-gray-400 uppercase tracking-wider">Price</div>
+                        <div className="flex flex-row sm:flex-col justify-between items-end sm:text-right border-t sm:border-t-0 border-hairline pt-3 sm:pt-0">
+                          <div className="sm:hidden text-xs font-bold text-ink-4 uppercase tracking-wider">Price</div>
                           <div>
                             {item.isTrial ? (
                               <>
-                                <p className="text-xl font-bold text-green-600">₹0.00</p>
-                                <p className="text-xs text-gray-500">Free for 15 days</p>
+                                <p className="text-xl font-bold text-emerald-ink">₹0.00</p>
+                                <p className="text-xs text-ink-3">Free for 15 days</p>
                                 {/* Post-trial charge for the trial's cycle —
                                     `trialAfterPrice`, ResellerOS's price incl.
                                     GST (see its definition above). */}
-                                <p className="text-xs text-purple-600 font-medium mt-0.5">
+                                <p className="text-xs text-indigo-ink font-medium mt-0.5">
                                   then {trialAfterPrice === null ? trialAfterLabel : `${trialAfterLabel}/${trialCycle === 'monthly' ? 'mo' : 'yr'}`}
                                 </p>
                               </>
                             ) : (
                               <>
-                                <p className="text-xl font-bold text-gray-900">
+                                <p className="text-xl font-bold text-ink">
                                   ₹{item.itemType === 'hosting' && item.periodUnit === 'days'
                                     ? (1).toFixed(2)
                                     : (item.price * (item.registrationPeriod || 1)).toFixed(2)}
                                 </p>
-                                <p className="text-sm text-gray-600">
+                                <p className="text-sm text-ink-2">
                                   ₹{item.itemType === 'hosting' && item.periodUnit === 'days' ? (item.registrationPeriod === 8 ? '1.00' : item.price) : item.price} per {item.itemType === 'hosting' && item.periodUnit === 'days' ? 'day' : (item.itemType === 'hosting' ? 'month' : 'year')}
                                 </p>
                               </>
@@ -346,19 +346,19 @@ export default function CheckoutPage() {
                       // Hosting Features
                       <>
                         <div className="flex items-center text-primary-800">
-                          <Check className="h-4 w-4 mr-2 text-green-600" />
+                          <Check className="h-4 w-4 mr-2 text-emerald-ink" />
                           Hosting Control Panel
                         </div>
                         <div className="flex items-center text-primary-800">
-                          <Check className="h-4 w-4 mr-2 text-green-600" />
+                          <Check className="h-4 w-4 mr-2 text-emerald-ink" />
                           Free SSL Certificates
                         </div>
                         <div className="flex items-center text-primary-800">
-                          <Check className="h-4 w-4 mr-2 text-green-600" />
+                          <Check className="h-4 w-4 mr-2 text-emerald-ink" />
                           24/7 support
                         </div>
                         <div className="flex items-center text-primary-800">
-                          <Check className="h-4 w-4 mr-2 text-green-600" />
+                          <Check className="h-4 w-4 mr-2 text-emerald-ink" />
                           99.9% Uptime Guarantee
                         </div>
                       </>
@@ -366,19 +366,19 @@ export default function CheckoutPage() {
                       // Domain Features
                       <>
                         <div className="flex items-center text-primary-800">
-                          <Check className="h-4 w-4 mr-2 text-green-600" />
+                          <Check className="h-4 w-4 mr-2 text-emerald-ink" />
                           Domain Registration
                         </div>
                         <div className="flex items-center text-primary-800">
-                          <Check className="h-4 w-4 mr-2 text-green-600" />
+                          <Check className="h-4 w-4 mr-2 text-emerald-ink" />
                           DNS Management
                         </div>
                         <div className="flex items-center text-primary-800">
-                          <Check className="h-4 w-4 mr-2 text-green-600" />
+                          <Check className="h-4 w-4 mr-2 text-emerald-ink" />
                           Domain Lock
                         </div>
                         <div className="flex items-center text-primary-800">
-                          <Check className="h-4 w-4 mr-2 text-green-600" />
+                          <Check className="h-4 w-4 mr-2 text-emerald-ink" />
                           24/7 Support
                         </div>
                       </>
@@ -398,18 +398,18 @@ export default function CheckoutPage() {
 
           {/* Payment Section */}
           <div className="lg:col-span-2 xl:col-span-2 2xl:col-span-3">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 sticky top-24">
+            <div className="bg-paper rounded-lg shadow-sm border border-hairline sticky top-24">
               <div className="p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-6">Secure Payment</h2>
+                <h2 className="text-lg font-semibold text-ink mb-6">Secure Payment</h2>
 
                 {/* Trial pricing banner */}
                 {hasTrial && (
-                  <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-4">
+                  <div className="bg-indigo-soft border border-indigo/30 rounded-xl p-4 mb-4">
                     <div className="flex items-start gap-3">
                       <span className="text-2xl">🎁</span>
                       <div>
-                        <p className="font-semibold text-purple-900 text-sm">Free 15-Day Trial</p>
-                        <p className="text-xs text-purple-700 mt-0.5">
+                        <p className="font-semibold text-indigo-ink text-sm">Free 15-Day Trial</p>
+                        <p className="text-xs text-indigo-ink mt-0.5">
                           {/* Was "your card will be saved for automatic yearly billing" — untrue
                               since trials moved to the no-card path (create-order: the only trial
                               path while DMS opens no subscriptions). */}
@@ -417,12 +417,12 @@ export default function CheckoutPage() {
                         </p>
                         <div className="mt-2 space-y-0.5">
                           <div className="flex justify-between text-xs">
-                            <span className="text-purple-700 font-medium">Today (day 1–15)</span>
-                            <span className="font-bold text-green-700">₹0</span>
+                            <span className="text-indigo-ink font-medium">Today (day 1–15)</span>
+                            <span className="font-bold text-emerald-ink">₹0</span>
                           </div>
                           <div className="flex justify-between text-xs">
-                            <span className="text-purple-700 font-medium">After trial (day 15+)</span>
-                            <span className="font-bold text-purple-900">{trialAfterPrice === null ? trialAfterLabel : `${trialAfterLabel}/${trialPer}`}</span>
+                            <span className="text-indigo-ink font-medium">After trial (day 15+)</span>
+                            <span className="font-bold text-indigo-ink">{trialAfterPrice === null ? trialAfterLabel : `${trialAfterLabel}/${trialPer}`}</span>
                           </div>
                         </div>
                       </div>
@@ -431,27 +431,27 @@ export default function CheckoutPage() {
                 )}
 
                 {/* Payment Amount Breakdown */}
-                <div className="bg-gradient-to-br from-primary-50/50 to-indigo-50/50 rounded-xl p-5 mb-6 border border-primary-100/50">
+                <div className="bg-gradient-to-br from-primary-50/50 to-indigo-soft/50 rounded-xl p-5 mb-6 border border-primary-100/50">
                   <div className="space-y-3">
                     {!hasTrial && (
                       <>
                         <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Subtotal ({getItemCount()} items)</span>
-                          <span className="text-gray-900 font-medium font-mono">₹{(getTotalPrice() / 1.18).toFixed(2)}</span>
+                          <span className="text-ink-2">Subtotal ({getItemCount()} items)</span>
+                          <span className="text-ink font-medium font-mono">₹{(getTotalPrice() / 1.18).toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">GST (18%)</span>
-                          <span className="text-gray-900 font-medium font-mono">₹{(getTotalPrice() - (getTotalPrice() / 1.18)).toFixed(2)}</span>
+                          <span className="text-ink-2">GST (18%)</span>
+                          <span className="text-ink font-medium font-mono">₹{(getTotalPrice() - (getTotalPrice() / 1.18)).toFixed(2)}</span>
                         </div>
                       </>
                     )}
                      <div className={`${!hasTrial ? 'border-t border-primary-200/50 pt-3 ' : ''}flex justify-between items-baseline`}>
-                      <span className="text-base font-bold text-gray-900">{hasTrial ? 'Due Today' : 'Estimated total'}</span>
+                      <span className="text-base font-bold text-ink">{hasTrial ? 'Due Today' : 'Estimated total'}</span>
                       <div className="text-right">
-                        <span className={`text-3xl font-black font-mono tracking-tight ${hasTrial ? 'text-green-600' : 'text-primary-600'}`}>
+                        <span className={`text-3xl font-black font-mono tracking-tight ${hasTrial ? 'text-emerald-ink' : 'text-primary-600'}`}>
                           ₹{getTotalPrice().toFixed(2)}
                         </span>
-                        <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider mt-1">
+                        <p className="text-[10px] text-ink-3 font-medium uppercase tracking-wider mt-1">
                           {hasTrial ? 'Free trial period' : 'Incl. 18% GST — the payment window shows the exact amount'}
                         </p>
                       </div>
@@ -461,8 +461,8 @@ export default function CheckoutPage() {
 
                 {/* Payment Methods */}
                 <div className="mb-6">
-                  <h3 className="font-semibold text-gray-900 mb-3">Accepted Payment Methods</h3>
-                  <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                  <h3 className="font-semibold text-ink mb-3">Accepted Payment Methods</h3>
+                  <div className="grid grid-cols-2 gap-2 text-xs text-ink-2">
                     <div className="flex items-center">
                       <CreditCard className="h-3 w-3 mr-1" />
                       Credit Cards
@@ -487,11 +487,11 @@ export default function CheckoutPage() {
                   <button
                     onClick={handleStartTrial}
                     disabled={isProcessing || isPaymentInProgress || cartItems.length === 0}
-                    className="w-full bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 mb-4 flex items-center justify-center space-x-2"
+                    className="w-full bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-paper font-semibold py-3 px-4 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 mb-4 flex items-center justify-center space-x-2"
                   >
                     {isProcessing || isPaymentInProgress ? (
                       <>
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-paper"></div>
                         <span>Starting your trial…</span>
                       </>
                     ) : (
@@ -517,12 +517,12 @@ export default function CheckoutPage() {
 
                 {/* Payment Progress Indicator */}
                 {isPaymentInProgress && (
-                  <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="mb-4 p-4 bg-amber-soft border border-amber/30 rounded-lg">
                     <div className="flex items-center">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600 mr-3 flex-shrink-0"></div>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber mr-3 flex-shrink-0"></div>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-yellow-800">Payment in Progress</p>
-                        <p className="text-xs text-yellow-700">
+                        <p className="text-sm font-medium text-amber-ink">Payment in Progress</p>
+                        <p className="text-xs text-amber-ink">
                           Please do not close this page or navigate away.
                         </p>
                       </div>
@@ -531,8 +531,8 @@ export default function CheckoutPage() {
                 )}
 
                 {/* Support Info */}
-                <div className="pt-6 border-t border-gray-200">
-                  <p className="text-xs text-gray-600 text-center">
+                <div className="pt-6 border-t border-hairline">
+                  <p className="text-xs text-ink-2 text-center">
                     Need help? Contact our support team at{' '}
                     <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary-600 hover:underline">
                       {SUPPORT_EMAIL}

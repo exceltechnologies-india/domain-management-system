@@ -117,7 +117,7 @@ export default function DomainSetup({ hostingItem, onUpdateDomain, onAddDomainTo
             <div /* Decorative gradient left as-is: the token set has no gradient pair,
    and `purple` is off-palette entirely. Flattening it to bg-indigo-soft
    would be a design decision, not a token substitution. */
-            className="p-3 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl border border-indigo-soft/50 shadow-sm flex-shrink-0">
+            className="p-3 bg-gradient-to-br from-indigo-soft to-indigo-soft rounded-2xl border border-indigo-soft/50 shadow-sm flex-shrink-0">
               <Globe className="h-6 w-6 text-indigo-ink" />
             </div>
             <div>
@@ -132,7 +132,7 @@ export default function DomainSetup({ hostingItem, onUpdateDomain, onAddDomainTo
             <button
               onClick={() => setActiveTab('link')}
               className={`flex items-center gap-2 py-2.5 px-5 text-sm font-semibold rounded-[10px] transition-all duration-300 ${activeTab === 'link'
-                ? 'bg-paper text-ink shadow-[0_2px_4px_rgba(0,0,0,0.04)] ring-1 ring-black/5 transform scale-[1.02]'
+                ? 'bg-paper text-ink shadow-[0_2px_4px_rgba(0,0,0,0.04)] ring-1 ring-ink/5 transform scale-[1.02]'
                 : 'text-ink-3 hover:text-ink hover:bg-hairline/50'
                 }`}
             >
@@ -142,7 +142,7 @@ export default function DomainSetup({ hostingItem, onUpdateDomain, onAddDomainTo
             <button
               onClick={() => setActiveTab('buy')}
               className={`flex items-center gap-2 py-2.5 px-5 text-sm font-semibold rounded-[10px] transition-all duration-300 ${activeTab === 'buy'
-                ? 'bg-paper text-ink shadow-[0_2px_4px_rgba(0,0,0,0.04)] ring-1 ring-black/5 transform scale-[1.02]'
+                ? 'bg-paper text-ink shadow-[0_2px_4px_rgba(0,0,0,0.04)] ring-1 ring-ink/5 transform scale-[1.02]'
                 : 'text-ink-3 hover:text-ink hover:bg-hairline/50'
                 }`}
             >
@@ -186,7 +186,7 @@ export default function DomainSetup({ hostingItem, onUpdateDomain, onAddDomainTo
                 <button
                   onClick={handleLinkDomain}
                   disabled={isLinking}
-                  className="flex-shrink-0 inline-flex items-center justify-center px-8 py-3.5 border border-transparent text-sm font-bold rounded-xl text-white bg-ink hover:bg-black focus:outline-none focus:ring-4 focus:ring-hairline disabled:opacity-70 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+                  className="flex-shrink-0 inline-flex items-center justify-center px-8 py-3.5 border border-transparent text-sm font-bold rounded-xl text-paper bg-ink hover:bg-ink focus:outline-none focus:ring-4 focus:ring-hairline disabled:opacity-70 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
                 >
                   {isLinking ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -199,13 +199,13 @@ export default function DomainSetup({ hostingItem, onUpdateDomain, onAddDomainTo
                 </button>
               </div>
 
-              <div className="mt-6 flex gap-4 p-5 bg-amber-50/60 rounded-xl border border-amber-100/50 text-amber-900">
-                <div className="p-2 bg-amber-100 rounded-full h-fit flex-shrink-0">
-                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <div className="mt-6 flex gap-4 p-5 bg-amber-soft/60 rounded-xl border border-amber/20 text-amber-ink">
+                <div className="p-2 bg-amber-soft rounded-full h-fit flex-shrink-0">
+                  <AlertTriangle className="h-4 w-4 text-amber-ink" />
                 </div>
                 <div className="text-sm">
-                  <p className="font-bold text-amber-800">Important Next Step</p>
-                  <p className="mt-1 text-amber-700/80 leading-relaxed">
+                  <p className="font-bold text-amber-ink">Important Next Step</p>
+                  <p className="mt-1 text-amber-ink/80 leading-relaxed">
                     After completing your purchase, you&apos;ll need to point your domain&apos;s nameservers to our hosting for your website to go live. We&apos;ll send you the instructions via email.
                   </p>
                 </div>
@@ -236,7 +236,7 @@ export default function DomainSetup({ hostingItem, onUpdateDomain, onAddDomainTo
                     <button
                       type="submit"
                       disabled={!searchQuery.trim() || isSearching}
-                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-semibold rounded-lg text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-4 focus:ring-indigo-soft disabled:opacity-50 transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5"
+                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-semibold rounded-lg text-paper bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-4 focus:ring-indigo-soft disabled:opacity-50 transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5"
                     >
                       {isSearching ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -249,33 +249,33 @@ export default function DomainSetup({ hostingItem, onUpdateDomain, onAddDomainTo
               </form>
 
               {searchResult && (
-                <div className={`p-5 rounded-2xl border transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 ${searchResult.available ? 'bg-emerald-50/50 border-emerald-100' : 'bg-rose-50/50 border-rose-100'}`}>
+                <div className={`p-5 rounded-2xl border transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 ${searchResult.available ? 'bg-emerald-soft/50 border-emerald/30' : 'bg-rose-soft/50 border-rose/30'}`}>
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
                       {searchResult.available ? (
-                        <div className="bg-emerald-100 p-2.5 rounded-full flex-shrink-0 shadow-sm">
-                          <Check className="h-5 w-5 text-emerald-600" />
+                        <div className="bg-emerald-soft p-2.5 rounded-full flex-shrink-0 shadow-sm">
+                          <Check className="h-5 w-5 text-emerald-ink" />
                         </div>
                       ) : (
-                        <div className="bg-rose-100 p-2.5 rounded-full flex-shrink-0 shadow-sm">
-                          <X className="h-5 w-5 text-rose-600" />
+                        <div className="bg-rose-soft p-2.5 rounded-full flex-shrink-0 shadow-sm">
+                          <X className="h-5 w-5 text-rose-ink" />
                         </div>
                       )}
                       <div>
-                        <p className={`text-lg font-bold tracking-tight ${searchResult.available ? 'text-emerald-900' : 'text-rose-900'}`}>{searchResult.domainName}</p>
+                        <p className={`text-lg font-bold tracking-tight ${searchResult.available ? 'text-emerald-ink' : 'text-rose-ink'}`}>{searchResult.domainName}</p>
                         {searchResult.available ? (
                           <div className="flex items-center gap-2 mt-0.5">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-soft text-emerald-ink">
                               Available
                             </span>
-                            <span className="text-sm text-emerald-700 font-medium">for <span className="text-emerald-900 font-bold">₹{searchResult.price}</span>/year</span>
+                            <span className="text-sm text-emerald-ink font-medium">for <span className="text-emerald-ink font-bold">₹{searchResult.price}</span>/year</span>
                           </div>
                         ) : (
                           <div className="flex items-center gap-2 mt-0.5">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-rose-100 text-rose-800">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-rose-soft text-rose-ink">
                               Unavailable
                             </span>
-                            <span className="text-sm text-rose-600">{searchResult.error || 'Domain is already taken'}</span>
+                            <span className="text-sm text-rose-ink">{searchResult.error || 'Domain is already taken'}</span>
                           </div>
                         )}
                       </div>
@@ -284,7 +284,7 @@ export default function DomainSetup({ hostingItem, onUpdateDomain, onAddDomainTo
                     {searchResult.available && (
                       <button
                         onClick={handleBuyAndLink}
-                        className="flex-shrink-0 flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 active:translate-y-0 focus:ring-4 focus:ring-emerald-100"
+                        className="flex-shrink-0 flex items-center gap-2 px-6 py-3 bg-emerald hover:bg-emerald/90 text-paper text-sm font-bold rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 active:translate-y-0 focus:ring-4 focus:ring-emerald"
                       >
                         Add & Link
                         <ChevronRight className="h-4 w-4" />

@@ -9,7 +9,7 @@
  * outside the /admin subtree". It was not: all 19 importers were admin pages,
  * every one of them under the shell that app/admin/layout.tsx mounts, so the
  * guard always fired and the chrome was unreachable. Worse, that chrome was
- * `bg-blue-900` from before the ResellerOS restyle, so the day it HAD rendered
+ * `bg-primary-700` from before the ResellerOS restyle, so the day it HAD rendered
  * it would have been wrong.
  */
 
@@ -27,7 +27,7 @@ export function AdminTableRowsSkeleton({ rows = 6, cols = 5 }: { rows?: number; 
   return (
     <div className="divide-y divide-hairline">
       {/* header row (matches table header strip) */}
-      <div className="px-5 py-3 bg-gray-50/60 flex gap-6">
+      <div className="px-5 py-3 bg-paper-2/60 flex gap-6">
         {Array.from({ length: cols }).map((_, i) => (
           <Sk key={i} className={`h-3 rounded ${widths[i % widths.length]}`} />
         ))}

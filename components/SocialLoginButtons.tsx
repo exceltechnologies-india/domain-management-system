@@ -24,17 +24,17 @@ const PROVIDER_CONFIG: Record<SocialProvider, { label: string; icon: React.React
   google: {
     label: 'Google',
     icon: <FcGoogle className="h-5 w-5 flex-shrink-0" />,
-    colorClass: 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50',
+    colorClass: 'border-hairline bg-paper text-ink-2 hover:bg-paper-2',
   },
   facebook: {
     label: 'Facebook',
     icon: <FaFacebook className="h-5 w-5 flex-shrink-0 text-[#1877F2]" />,
-    colorClass: 'border-[#1877F2]/30 bg-white text-gray-700 hover:bg-blue-50',
+    colorClass: 'border-[#1877F2]/30 bg-paper text-ink-2 hover:bg-indigo/15',
   },
   github: {
     label: 'GitHub',
-    icon: <FaGithub className="h-5 w-5 flex-shrink-0 text-gray-800" />,
-    colorClass: 'border-gray-400 bg-white text-gray-700 hover:bg-gray-100',
+    icon: <FaGithub className="h-5 w-5 flex-shrink-0 text-ink" />,
+    colorClass: 'border-hairline-strong bg-paper text-ink-2 hover:bg-hairline/50',
   },
 };
 
@@ -120,10 +120,10 @@ export default function SocialLoginButtons({
     <div className={`space-y-3 ${className}`}>
       <div className="relative">
         <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-gray-300" />
+          <div className="w-full border-t border-hairline" />
         </div>
         <div className="relative flex justify-center text-sm">
-          <span className="px-2 bg-white text-gray-500">Or continue with</span>
+          <span className="px-2 bg-paper text-ink-3">Or continue with</span>
         </div>
       </div>
 
@@ -141,7 +141,7 @@ export default function SocialLoginButtons({
               aria-label={`Sign in with ${label}`}
             >
               {loading ? (
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-500 flex-shrink-0" />
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-hairline-strong flex-shrink-0" />
               ) : (
                 icon
               )}

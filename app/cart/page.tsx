@@ -208,7 +208,7 @@ export default function CartPage() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-paper-2 flex flex-col">
       <Navigation user={user} onLogout={user ? handleLogout : undefined} />
 
       <div className="flex-1 w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-8 pt-24">
@@ -220,22 +220,22 @@ export default function CartPage() {
           <div className="mb-6">
             <Link
               href={homeUrl()}
-              className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors mb-3"
+              className="inline-flex items-center gap-1.5 text-sm text-ink-3 hover:text-ink transition-colors mb-3"
             >
               <ArrowLeft className="h-4 w-4" /> Continue shopping
             </Link>
-            <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+            <div className="bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden">
               <div className="px-5 sm:px-6 py-4 sm:py-5 flex items-start gap-4">
                 <div className="p-2.5 bg-primary-50 rounded-xl shrink-0">
                   <ShoppingCart className="h-5 w-5 text-primary-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Shopping Cart</h1>
-                  <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                  <h1 className="text-xl sm:text-2xl font-bold text-ink">Shopping Cart</h1>
+                  <p className="text-xs sm:text-sm text-ink-3 mt-1">
                     {getItemCount()} item{getItemCount() !== 1 ? 's' : ''} ready for checkout
                   </p>
                 </div>
-                <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-full shrink-0">
+                <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-medium text-ink-2 bg-paper-2 border border-hairline px-2.5 py-1 rounded-full shrink-0">
                   {getItemCount()} item{getItemCount() !== 1 ? 's' : ''}
                 </span>
               </div>
@@ -245,7 +245,7 @@ export default function CartPage() {
           <div className="flex flex-col items-center text-center mb-6 sm:mb-8">
             <Link
               href={homeUrl()}
-              className="p-2 text-gray-600 hover:text-primary-600 transition-colors duration-200 bg-white shadow-sm rounded-full mb-3"
+              className="p-2 text-ink-2 hover:text-primary-600 transition-colors duration-200 bg-paper shadow-sm rounded-full mb-3"
               title="Return to Home"
             >
               <ArrowLeft className="h-5 w-5 sm:h-6 sm:w-6" />
@@ -262,13 +262,13 @@ export default function CartPage() {
           <div className="flex flex-col lg:grid lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 gap-6 lg:gap-8 min-h-[50vh]">
             {/* Cart items list */}
             <div className="order-1 lg:col-start-1 lg:row-start-1 lg:col-span-4 xl:col-span-5 2xl:col-span-5">
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="px-5 py-3 border-b border-gray-100 bg-gray-50/60 flex items-center justify-between gap-3">
+              <div className="bg-paper rounded-2xl shadow-sm border border-hairline overflow-hidden">
+                <div className="px-5 py-3 border-b border-hairline bg-paper-2/60 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <ShoppingCart className="h-4 w-4 text-gray-500" />
-                    <h2 className="text-sm font-semibold text-gray-900">Cart Items</h2>
+                    <ShoppingCart className="h-4 w-4 text-ink-3" />
+                    <h2 className="text-sm font-semibold text-ink">Cart Items</h2>
                   </div>
-                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 bg-white border border-gray-200 px-2.5 py-1 rounded-full">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-3 bg-paper border border-hairline px-2.5 py-1 rounded-full">
                     {cartItems.length} item{cartItems.length !== 1 ? 's' : ''}
                   </span>
                 </div>
@@ -304,35 +304,35 @@ export default function CartPage() {
                 {!hasHostingItems() && !hasDomainItems() && <DomainCrossSell />}
 
                 {/* Features */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                  <div className="px-5 py-3 border-b border-gray-100 bg-gray-50/60 flex items-center gap-2">
-                    <Award className="h-4 w-4 text-gray-500" />
-                    <h3 className="text-sm font-semibold text-gray-900">Features</h3>
+                <div className="bg-paper rounded-2xl shadow-sm border border-hairline overflow-hidden">
+                  <div className="px-5 py-3 border-b border-hairline bg-paper-2/60 flex items-center gap-2">
+                    <Award className="h-4 w-4 text-ink-3" />
+                    <h3 className="text-sm font-semibold text-ink">Features</h3>
                   </div>
                   <div className="p-4 sm:p-6">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                      <div className="flex items-center gap-3 p-3 sm:p-4 border border-gray-200 rounded-xl hover:border-primary-300 hover:shadow-sm transition-all">
+                      <div className="flex items-center gap-3 p-3 sm:p-4 border border-hairline rounded-xl hover:border-primary-300 hover:shadow-sm transition-all">
                         <div className="bg-primary-50 p-2 rounded-lg flex-shrink-0">
                           <Globe className="h-4 w-4 sm:h-5 sm:w-5 text-primary-600" />
                         </div>
                         <div className="min-w-0">
-                          <h4 className="text-sm sm:text-base font-medium text-gray-900 truncate">
+                          <h4 className="text-sm sm:text-base font-medium text-ink truncate">
                             Simple Dashboard
                           </h4>
-                          <p className="text-xs sm:text-sm text-gray-600">
+                          <p className="text-xs sm:text-sm text-ink-2">
                             Easy domain management interface
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 p-3 sm:p-4 border border-gray-200 rounded-xl hover:border-primary-300 hover:shadow-sm transition-all">
-                        <div className="bg-purple-50 p-2 rounded-lg flex-shrink-0">
-                          <Award className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600" />
+                      <div className="flex items-center gap-3 p-3 sm:p-4 border border-hairline rounded-xl hover:border-primary-300 hover:shadow-sm transition-all">
+                        <div className="bg-indigo-soft p-2 rounded-lg flex-shrink-0">
+                          <Award className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-ink" />
                         </div>
                         <div className="min-w-0">
-                          <h4 className="text-sm sm:text-base font-medium text-gray-900 truncate">
+                          <h4 className="text-sm sm:text-base font-medium text-ink truncate">
                             Hosting Control Panel
                           </h4>
-                          <p className="text-xs sm:text-sm text-gray-600">
+                          <p className="text-xs sm:text-sm text-ink-2">
                             Powerful control panel for your hosting
                           </p>
                         </div>

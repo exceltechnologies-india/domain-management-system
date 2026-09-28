@@ -19,23 +19,23 @@ export default function SelectPlanStep({ upgradeInfo, onSelectPlan, onCancel }: 
   return (
     <div className="space-y-5">
       {/* Current plan */}
-      <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+      <div className="bg-paper-2 rounded-xl p-4 border border-hairline">
+        <p className="text-xs font-semibold text-ink-3 uppercase tracking-wider mb-1">
           Current Plan
         </p>
         <div className="flex items-center justify-between">
-          <p className="text-base font-bold text-gray-900">{upgradeInfo.currentPlan.name}</p>
-          <p className="text-sm text-gray-600">
+          <p className="text-base font-bold text-ink">{upgradeInfo.currentPlan.name}</p>
+          <p className="text-sm text-ink-2">
             {formatIndianCurrency(upgradeInfo.currentPlan.price)}
-            <span className="text-xs text-gray-400">/mo</span>
+            <span className="text-xs text-ink-4">/mo</span>
           </p>
         </div>
-        <p className="text-xs text-gray-500 mt-1">{upgradeInfo.remainingDays} days remaining</p>
+        <p className="text-xs text-ink-3 mt-1">{upgradeInfo.remainingDays} days remaining</p>
       </div>
 
       {/* Subscription warning */}
       {upgradeInfo.hasSubscription && (
-        <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
+        <div className="flex items-start gap-2 bg-amber-soft border border-amber/30 rounded-xl p-3 text-xs text-amber-ink">
           <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
           <p>
             Your current subscription will be cancelled. Future renewals must be done manually at
@@ -46,26 +46,26 @@ export default function SelectPlanStep({ upgradeInfo, onSelectPlan, onCancel }: 
 
       {/* Eligible plans */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">Choose an upgrade plan</h3>
+        <h3 className="text-sm font-semibold text-ink-2 mb-3">Choose an upgrade plan</h3>
         <div className="space-y-3">
           {upgradeInfo.eligiblePlans.map((plan) => (
             <button
               key={plan.planId}
               onClick={() => onSelectPlan(plan)}
-              className="w-full text-left p-4 rounded-xl border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50/30 transition-all group"
+              className="w-full text-left p-4 rounded-xl border-2 border-hairline hover:border-indigo hover:bg-indigo-soft/30 transition-all group"
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-bold text-gray-900 group-hover:text-blue-700">{plan.name}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="font-bold text-ink group-hover:text-indigo-ink">{plan.name}</p>
+                  <p className="text-xs text-ink-3 mt-0.5">
                     {formatIndianCurrency(plan.price)}/mo after upgrade
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-lg font-black text-blue-600">
+                  <p className="text-lg font-black text-indigo-ink">
                     {formatIndianCurrency(plan.chargeAmount)}
                   </p>
-                  <p className="text-xs text-gray-400">prorated for {plan.remainingDays}d</p>
+                  <p className="text-xs text-ink-4">prorated for {plan.remainingDays}d</p>
                 </div>
               </div>
               {plan.features.length > 0 && (
@@ -73,7 +73,7 @@ export default function SelectPlanStep({ upgradeInfo, onSelectPlan, onCancel }: 
                   {plan.features.slice(0, 3).map((f, i) => (
                     <span
                       key={i}
-                      className="text-[10px] bg-gray-100 group-hover:bg-blue-100 text-gray-600 group-hover:text-blue-700 px-2 py-0.5 rounded-full"
+                      className="text-[10px] bg-paper-2 group-hover:bg-indigo/15 text-ink-2 group-hover:text-indigo-ink px-2 py-0.5 rounded-full"
                     >
                       {f}
                     </span>
@@ -87,7 +87,7 @@ export default function SelectPlanStep({ upgradeInfo, onSelectPlan, onCancel }: 
 
       <button
         onClick={onCancel}
-        className="w-full px-4 py-2.5 text-gray-600 font-semibold bg-gray-100 hover:bg-gray-200 rounded-xl transition-all text-sm"
+        className="w-full px-4 py-2.5 text-ink-2 font-semibold bg-paper-2 hover:bg-hairline/50 rounded-xl transition-all text-sm"
       >
         Cancel
       </button>

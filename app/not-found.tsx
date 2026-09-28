@@ -9,7 +9,7 @@ import { homeUrl } from '@/lib/reseller-os';
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-paper-2">
       <Navigation />
 
       <div className="flex items-center justify-center min-h-[80vh] px-4 pt-24">
@@ -20,10 +20,10 @@ export default function NotFound() {
               <FileX className="h-16 w-16 text-primary-600" />
             </div>
             <h1 className="text-9xl font-bold text-primary-600 mb-4">404</h1>
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+            <h2 className="text-4xl font-bold text-ink mb-4">
               Page Not Found
             </h2>
-            <p className="text-xl text-gray-600 mb-8">
+            <p className="text-xl text-ink-2 mb-8">
               Sorry, we couldn't find the page you're looking for.
               The page might have been moved, deleted, or doesn't exist.
             </p>

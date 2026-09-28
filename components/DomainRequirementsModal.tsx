@@ -80,25 +80,25 @@ export default function DomainRequirementsModal({
         {/* Domain Badge */}
         <div className="flex items-center gap-2">
           <span className="text-lg font-semibold text-ink">{domain}{tld}</span>
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-soft text-amber-ink">
             {tld}
           </span>
         </div>
 
         {/* Introduction */}
-        <div className="bg-indigo-soft border border-blue-200 rounded-lg p-4">
+        <div className="bg-indigo-soft border border-indigo/30 rounded-lg p-4">
           <p className="text-indigo-ink text-sm">
             This domain requires additional business verification and cannot be registered through our standard process.
           </p>
         </div>
 
         {/* Important Notice */}
-        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+        <div className="bg-amber-soft border border-amber/30 rounded-lg p-4">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 text-orange-500 flex-shrink-0 mt-0.5" />
+            <AlertTriangle className="h-5 w-5 text-amber flex-shrink-0 mt-0.5" />
             <div>
-              <h4 className="font-medium text-orange-900 mb-1">Important Notice</h4>
-              <p className="text-orange-800 text-sm">
+              <h4 className="font-medium text-amber-ink mb-1">Important Notice</h4>
+              <p className="text-amber-ink text-sm">
                 {tld} domains require business registration and additional verification. Please contact support for assistance.
               </p>
             </div>
@@ -118,7 +118,7 @@ export default function DomainRequirementsModal({
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.1 }}
                 >
-                  <X className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+                  <X className="h-4 w-4 text-rose flex-shrink-0 mt-0.5" />
                   <span className="text-sm text-ink-2">{req.text}</span>
                 </motion.div>
               ))}
@@ -171,9 +171,9 @@ export default function DomainRequirementsModal({
                   <div className="flex items-center gap-3">
                     <span className="font-medium text-ink">{alt.domain}</span>
                     {alt.available ? (
-                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      <CheckCircle className="h-4 w-4 text-emerald" />
                     ) : (
-                      <X className="h-4 w-4 text-red-500" />
+                      <X className="h-4 w-4 text-rose" />
                     )}
                   </div>
                   <div className="flex items-center gap-2">
@@ -204,7 +204,7 @@ export default function DomainRequirementsModal({
               const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@anutech.in';
               window.open(`mailto:${supportEmail}?subject=Domain Registration Support`, '_blank');
             }}
-            className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-md text-sm font-medium hover:bg-primary-700 transition-colors"
+            className="flex-1 px-4 py-2 bg-primary-600 text-paper rounded-md text-sm font-medium hover:bg-primary-700 transition-colors"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >

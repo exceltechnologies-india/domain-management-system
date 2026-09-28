@@ -27,15 +27,15 @@ export function LoadingSpinner({
         transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
         className={sizeClasses[size]}
       >
-        <Loader2 className="h-full w-full text-blue-600" />
+        <Loader2 className="h-full w-full text-indigo-ink" />
       </motion.div>
-      <p className="text-gray-600 text-sm font-medium">{message}</p>
+      <p className="text-ink-2 text-sm font-medium">{message}</p>
     </div>
   );
 
   if (fullScreen) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-paper-2 flex items-center justify-center">
         {content}
       </div>
     );
@@ -62,7 +62,7 @@ export function PageLoading({ page = 'content' }: PageLoadingProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+    <div className="min-h-screen bg-paper-2 flex items-center justify-center">
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -74,12 +74,12 @@ export function PageLoading({ page = 'content' }: PageLoadingProps) {
           transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
           className="h-16 w-16 mx-auto mb-4"
         >
-          <Loader2 className="h-full w-full text-blue-600" />
+          <Loader2 className="h-full w-full text-indigo-ink" />
         </motion.div>
-        <h3 className="text-lg font-medium text-gray-900 mb-2">
+        <h3 className="text-lg font-medium text-ink mb-2">
           {pageMessages[page as keyof typeof pageMessages] || pageMessages.content}
         </h3>
-        <p className="text-gray-500 text-sm">
+        <p className="text-ink-3 text-sm">
           Please wait while we fetch your data
         </p>
       </motion.div>
@@ -100,10 +100,10 @@ export function DataLoading({ type = 'table', count = 3 }: DataLoadingProps) {
           <div className="space-y-3">
             {Array.from({ length: count }).map((_, i) => (
               <div key={i} className="flex space-x-4">
-                <div className="h-4 bg-gray-200 rounded w-1/4 animate-pulse"></div>
-                <div className="h-4 bg-gray-200 rounded w-1/3 animate-pulse"></div>
-                <div className="h-4 bg-gray-200 rounded w-1/4 animate-pulse"></div>
-                <div className="h-4 bg-gray-200 rounded w-1/6 animate-pulse"></div>
+                <div className="h-4 bg-hairline rounded w-1/4 animate-pulse"></div>
+                <div className="h-4 bg-hairline rounded w-1/3 animate-pulse"></div>
+                <div className="h-4 bg-hairline rounded w-1/4 animate-pulse"></div>
+                <div className="h-4 bg-hairline rounded w-1/6 animate-pulse"></div>
               </div>
             ))}
           </div>
@@ -113,11 +113,11 @@ export function DataLoading({ type = 'table', count = 3 }: DataLoadingProps) {
         return (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: count }).map((_, i) => (
-              <div key={i} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div key={i} className="bg-paper rounded-lg shadow-sm border border-hairline p-6">
                 <div className="animate-pulse">
-                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-3"></div>
-                  <div className="h-3 bg-gray-200 rounded w-1/2 mb-2"></div>
-                  <div className="h-3 bg-gray-200 rounded w-2/3"></div>
+                  <div className="h-4 bg-hairline rounded w-3/4 mb-3"></div>
+                  <div className="h-3 bg-hairline rounded w-1/2 mb-2"></div>
+                  <div className="h-3 bg-hairline rounded w-2/3"></div>
                 </div>
               </div>
             ))}
@@ -128,10 +128,10 @@ export function DataLoading({ type = 'table', count = 3 }: DataLoadingProps) {
         return (
           <div className="space-y-3">
             {Array.from({ length: count }).map((_, i) => (
-              <div key={i} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+              <div key={i} className="bg-paper rounded-lg shadow-sm border border-hairline p-4">
                 <div className="animate-pulse">
-                  <div className="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
-                  <div className="h-3 bg-gray-200 rounded w-3/4"></div>
+                  <div className="h-4 bg-hairline rounded w-1/2 mb-2"></div>
+                  <div className="h-3 bg-hairline rounded w-3/4"></div>
                 </div>
               </div>
             ))}

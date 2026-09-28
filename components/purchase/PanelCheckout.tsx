@@ -162,7 +162,7 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
   if (phase.step === 'paid') {
     return (
       <div className="text-center py-6">
-        <CheckCircle className="h-10 w-10 text-emerald-600 mx-auto mb-3" />
+        <CheckCircle className="h-10 w-10 text-emerald-ink mx-auto mb-3" />
         <h3 className="font-serif text-xl text-ink mb-2">Payment received</h3>
         <p className="text-sm text-ink-2 max-w-md mx-auto">
           Your {choice.kind === 'hosting' ? 'hosting' : choice.kind === 'domain' ? 'domain' : 'order'} is being set up — this usually takes a few minutes, and
@@ -231,14 +231,14 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
         </ul>
       )}
       {cartRefusal && (
-        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+        <div role="alert" className="rounded-lg border border-rose/30 bg-rose-soft px-3 py-2 text-sm text-rose-ink">
           {cartRefusal}
         </div>
       )}
 
       {prefillError && <p className="text-xs text-ink-3">{prefillError}</p>}
       {prefill && !prefill.phoneOnFile && (
-        <p className="text-xs text-red-700">
+        <p className="text-xs text-rose-ink">
           Your account has no mobile number, and the order needs one.{' '}
           <Link href="/dashboard/settings" className="underline">Add it in Settings</Link>, then come back.
         </p>
@@ -304,7 +304,7 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
       )}
 
       {error && (
-        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+        <div role="alert" className="rounded-lg border border-rose/30 bg-rose-soft px-3 py-2 text-sm text-rose-ink">
           {error}
         </div>
       )}

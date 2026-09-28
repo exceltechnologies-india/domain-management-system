@@ -101,12 +101,12 @@ export default function TrialCountdownBanner({
   const { line1, line2 } = formatRemaining(msUntil);
 
   const containerClass = isCritical
-    ? 'bg-red-50 border-red-300 text-red-900'
-    : 'bg-amber-50 border-amber-300 text-amber-900';
-  const iconClass = isCritical ? 'text-red-600' : 'text-amber-600';
+    ? 'bg-rose-soft border-rose/30 text-rose-ink'
+    : 'bg-amber-soft border-amber/30 text-amber-ink';
+  const iconClass = isCritical ? 'text-rose-ink' : 'text-amber-ink';
   const buttonClass = isCritical
-    ? 'bg-red-600 hover:bg-red-700 text-white'
-    : 'bg-amber-600 hover:bg-amber-700 text-white';
+    ? 'bg-rose hover:bg-rose/90 text-paper'
+    : 'bg-amber hover:bg-amber/90 text-paper';
 
   return (
     <div

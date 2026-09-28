@@ -163,28 +163,28 @@ export default function ActivatePage() {
   const getStatusIcon = () => {
     switch (activationStatus) {
       case 'success':
-        return <CheckCircle className="h-16 w-16 text-green-500" />;
+        return <CheckCircle className="h-16 w-16 text-emerald" />;
       case 'error':
       case 'invalid':
-        return <XCircle className="h-16 w-16 text-red-500" />;
+        return <XCircle className="h-16 w-16 text-rose" />;
       case 'expired':
-        return <XCircle className="h-16 w-16 text-orange-500" />;
+        return <XCircle className="h-16 w-16 text-amber" />;
       default:
-        return <Loader2 className="h-16 w-16 text-blue-500 animate-spin" />;
+        return <Loader2 className="h-16 w-16 text-indigo animate-spin" />;
     }
   };
 
   const getStatusColor = () => {
     switch (activationStatus) {
       case 'success':
-        return 'text-green-600';
+        return 'text-emerald-ink';
       case 'error':
       case 'invalid':
-        return 'text-red-600';
+        return 'text-rose-ink';
       case 'expired':
-        return 'text-orange-600';
+        return 'text-amber-ink';
       default:
-        return 'text-blue-600';
+        return 'text-indigo-ink';
     }
   };
 
@@ -204,13 +204,13 @@ export default function ActivatePage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-paper-2 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <div className="flex justify-center mb-6">
             <Logo size="lg" />
           </div>
-          <h2 className="text-3xl font-bold text-gray-900">
+          <h2 className="text-3xl font-bold text-ink">
             Account Activation
           </h2>
         </div>
@@ -225,13 +225,13 @@ export default function ActivatePage() {
               {getStatusTitle()}
             </h3>
 
-            <p className="text-gray-600 mb-6">
+            <p className="text-ink-2 mb-6">
               {message}
             </p>
 
             {activationStatus === 'success' && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-                <p className="text-green-800 text-sm">
+              <div className="bg-emerald-soft border border-emerald/30 rounded-lg p-4 mb-6">
+                <p className="text-emerald-ink text-sm">
                   You will be redirected to the login page in a few seconds...
                 </p>
               </div>
@@ -239,8 +239,8 @@ export default function ActivatePage() {
 
             {activationStatus === 'expired' && (
               <div className="space-y-4">
-                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                  <p className="text-orange-800 text-sm">
+                <div className="bg-amber-soft border border-amber/30 rounded-lg p-4">
+                  <p className="text-amber-ink text-sm">
                     Your activation link has expired. Please request a new one to activate your account.
                   </p>
                 </div>
@@ -262,8 +262,8 @@ export default function ActivatePage() {
 
             {activationStatus === 'invalid' && (
               <div className="space-y-4">
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <p className="text-red-800 text-sm">
+                <div className="bg-rose-soft border border-rose/30 rounded-lg p-4">
+                  <p className="text-rose-ink text-sm">
                     The activation link is invalid or has already been used. Please check your email for the correct link.
                   </p>
                 </div>
@@ -288,8 +288,8 @@ export default function ActivatePage() {
 
             {activationStatus === 'error' && (
               <div className="space-y-4">
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <p className="text-red-800 text-sm">
+                <div className="bg-rose-soft border border-rose/30 rounded-lg p-4">
+                  <p className="text-rose-ink text-sm">
                     An error occurred during activation. Please try again or contact support.
                   </p>
                 </div>
@@ -315,8 +315,8 @@ export default function ActivatePage() {
 
             {isLoading && (
               <div className="space-y-4">
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <p className="text-blue-800 text-sm">
+                <div className="bg-indigo-soft border border-indigo/30 rounded-lg p-4">
+                  <p className="text-indigo-ink text-sm">
                     Please wait while we activate your account...
                   </p>
                 </div>

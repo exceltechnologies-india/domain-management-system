@@ -61,7 +61,7 @@ export default function ResellerOsBills() {
   });
 
   return (
-    <div className="bg-white border border-hairline rounded-2xl shadow-sm overflow-hidden">
+    <div className="bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden">
       <div className="px-6 py-4 border-b border-hairline bg-paper-2/60 flex items-center gap-2.5">
         <FileText className="h-4 w-4 text-ink-3" />
         <h3 className="text-sm font-semibold text-ink">Your bills</h3>
@@ -88,9 +88,9 @@ export default function ResellerOsBills() {
 
 function Notice({ text }: { text: string }) {
   return (
-    <div role="alert" className="m-5 flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-      <AlertCircle className="h-4 w-4 text-amber-700 mt-0.5 shrink-0" />
-      <p className="text-sm text-amber-800">{text}</p>
+    <div role="alert" className="m-5 flex items-start gap-3 p-4 bg-amber-soft border border-amber/30 rounded-xl">
+      <AlertCircle className="h-4 w-4 text-amber-ink mt-0.5 shrink-0" />
+      <p className="text-sm text-amber-ink">{text}</p>
     </div>
   );
 }
@@ -109,7 +109,7 @@ function BillsTables({ quotes, invoices }: { quotes: Quote[]; invoices: Invoice[
   return (
     <div className="divide-y divide-hairline">
       {due.length > 0 && (
-        <p className="px-6 py-3 text-sm text-amber-800 bg-amber-50">
+        <p className="px-6 py-3 text-sm text-amber-ink bg-amber-soft">
           {due.length === 1 ? 'One bill is' : `${due.length} bills are`} waiting for payment. Pay below to keep your services running.
         </p>
       )}

@@ -152,10 +152,10 @@ export default function MultiStageRegisterForm({ className = '' }: RegisterFormP
 
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200" />
+              <div className="w-full border-t border-hairline" />
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-3 bg-white text-gray-500">or continue with email</span>
+              <span className="px-3 bg-paper text-ink-3">or continue with email</span>
             </div>
           </div>
 
@@ -169,7 +169,7 @@ export default function MultiStageRegisterForm({ className = '' }: RegisterFormP
                 onChange={handleChange}
                 required
                 fullWidth
-                icon={<User className="h-4 w-4 text-gray-400" />}
+                icon={<User className="h-4 w-4 text-ink-4" />}
                 error={errors.firstName}
               />
               <Input
@@ -180,7 +180,7 @@ export default function MultiStageRegisterForm({ className = '' }: RegisterFormP
                 onChange={handleChange}
                 required
                 fullWidth
-                icon={<User className="h-4 w-4 text-gray-400" />}
+                icon={<User className="h-4 w-4 text-ink-4" />}
                 error={errors.lastName}
               />
             </div>
@@ -194,7 +194,7 @@ export default function MultiStageRegisterForm({ className = '' }: RegisterFormP
               onChange={handleChange}
               required
               fullWidth
-              icon={<Mail className="h-4 w-4 text-gray-400" />}
+              icon={<Mail className="h-4 w-4 text-ink-4" />}
               error={errors.email}
             />
 
@@ -213,7 +213,7 @@ export default function MultiStageRegisterForm({ className = '' }: RegisterFormP
               }}
               required
               fullWidth
-              icon={<MessageCircle className="h-4 w-4 text-gray-400" />}
+              icon={<MessageCircle className="h-4 w-4 text-ink-4" />}
               helperText="We'll send renewal reminders here. Also used as your contact number for domains."
               error={errors.whatsappNumber}
             />
@@ -227,12 +227,12 @@ export default function MultiStageRegisterForm({ className = '' }: RegisterFormP
               onChange={handleChange}
               required
               fullWidth
-              icon={<Lock className="h-4 w-4 text-gray-400" />}
+              icon={<Lock className="h-4 w-4 text-ink-4" />}
               rightIcon={
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-ink-4 hover:text-ink-2"
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -250,12 +250,12 @@ export default function MultiStageRegisterForm({ className = '' }: RegisterFormP
               onChange={handleChange}
               required
               fullWidth
-              icon={<Lock className="h-4 w-4 text-gray-400" />}
+              icon={<Lock className="h-4 w-4 text-ink-4" />}
               rightIcon={
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword((v) => !v)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-ink-4 hover:text-ink-2"
                 >
                   {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -274,7 +274,7 @@ export default function MultiStageRegisterForm({ className = '' }: RegisterFormP
             </Button>
           </form>
 
-          <p className="mt-4 text-center text-xs text-gray-500">
+          <p className="mt-4 text-center text-xs text-ink-3">
             You&apos;ll be prompted to add your billing address before checkout — required for domain registration.
           </p>
       </>

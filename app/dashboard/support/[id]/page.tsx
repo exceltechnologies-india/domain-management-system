@@ -304,7 +304,7 @@ export default function SupportTicketDetailPage() {
                       <div className={`rounded-2xl px-4 py-3 text-sm whitespace-pre-wrap leading-relaxed shadow-sm ${
                         isAdmin
                           ? 'bg-paper border border-hairline text-ink rounded-tl-none'
-                          : 'bg-amber text-white rounded-tr-none'
+                          : 'bg-amber text-paper rounded-tr-none'
                       }`}>
                         {msg.content}
                       </div>
@@ -349,7 +349,7 @@ export default function SupportTicketDetailPage() {
                 <button
                   type="submit"
                   disabled={sending || !reply.trim()}
-                  className="flex items-center gap-2 px-5 py-2 bg-amber hover:brightness-90 disabled:bg-amber/40 text-white text-sm font-semibold rounded-xl transition-colors"
+                  className="flex items-center gap-2 px-5 py-2 bg-amber hover:brightness-90 disabled:bg-amber/40 text-paper text-sm font-semibold rounded-xl transition-colors"
                 >
                   {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   {sending ? 'Sending…' : 'Send Reply'}

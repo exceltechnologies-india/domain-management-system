@@ -81,7 +81,7 @@ const PAYMENTS: { label: string; color: string }[] = [
 export default function FooterModern({ className = '' }: FooterProps) {
   const { showGstin, social } = useSiteVisibility();
   return (
-    <footer className={`bg-[#0f172a] text-white ${className}`}>
+    <footer className={`bg-[#0f172a] text-paper ${className}`}>
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         <div className="grid grid-cols-2 lg:grid-cols-12 gap-x-6 gap-y-8 mb-8 text-center lg:text-left">
           {/* Brand */}
@@ -89,8 +89,8 @@ export default function FooterModern({ className = '' }: FooterProps) {
             <div className="flex items-center justify-center lg:justify-start mb-2.5">
               <Logo size="lg" showText={false} variant="dark" />
             </div>
-            <p className="text-[11px] font-semibold tracking-wide text-gray-400 mb-1.5">Empowering Businesses Online</p>
-            <p className="text-xs text-gray-400 leading-relaxed max-w-xs mx-auto lg:mx-0 mb-4">
+            <p className="text-[11px] font-semibold tracking-wide text-ink-4 mb-1.5">Empowering Businesses Online</p>
+            <p className="text-xs text-ink-4 leading-relaxed max-w-xs mx-auto lg:mx-0 mb-4">
               Reliable, fast &amp; secure web hosting to help businesses grow online.
             </p>
             <div className="flex gap-2 justify-center lg:justify-start">
@@ -101,7 +101,7 @@ export default function FooterModern({ className = '' }: FooterProps) {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={label}
-                  className="h-8 w-8 flex items-center justify-center rounded-lg bg-white/5 text-gray-400 hover:bg-violet-600 hover:text-white transition-colors"
+                  className="h-8 w-8 flex items-center justify-center rounded-lg bg-paper/5 text-ink-4 hover:bg-indigo hover:text-paper transition-colors"
                 >
                   <Icon className="h-3.5 w-3.5" />
                 </a>
@@ -112,11 +112,11 @@ export default function FooterModern({ className = '' }: FooterProps) {
           {/* Link columns */}
           {COLUMNS.map((col) => (
             <div key={col.title} className="lg:col-span-2">
-              <h3 className="text-sm font-bold text-white mb-3.5">{col.title}</h3>
+              <h3 className="text-sm font-bold text-paper mb-3.5">{col.title}</h3>
               <ul className="space-y-2.5">
                 {col.links.map((l) => (
                   <li key={l.label}>
-                    <Link href={l.href} className="text-sm text-gray-400 hover:text-white transition-colors">
+                    <Link href={l.href} className="text-sm text-ink-4 hover:text-paper transition-colors">
                       {l.label}
                     </Link>
                   </li>
@@ -127,31 +127,31 @@ export default function FooterModern({ className = '' }: FooterProps) {
 
           {/* We Accept */}
           <div className="col-span-2 lg:col-span-2">
-            <h3 className="text-sm font-bold text-white mb-3.5">We Accept</h3>
+            <h3 className="text-sm font-bold text-paper mb-3.5">We Accept</h3>
             <div className="flex flex-wrap gap-2 justify-center lg:justify-start">
               {PAYMENTS.map((p) => (
                 <span
                   key={p.label}
-                  className={`bg-white rounded px-2 py-1 text-[11px] font-extrabold ${p.color}`}
+                  className={`bg-paper rounded px-2 py-1 text-[11px] font-extrabold ${p.color}`}
                 >
                   {p.label}
                 </span>
               ))}
             </div>
-            {showGstin && <p className="text-xs text-gray-500 mt-3">GSTIN: 07ABDCA0298H1ZP</p>}
+            {showGstin && <p className="text-xs text-ink-3 mt-3">GSTIN: 07ABDCA0298H1ZP</p>}
           </div>
         </div>
 
         {/* Bottom bar */}
-        <div className="border-t border-white/10 pt-6">
+        <div className="border-t border-paper/10 pt-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-3 text-center md:text-left">
-            <p className="text-gray-500 text-sm">
+            <p className="text-ink-3 text-sm">
               © {new Date().getFullYear()} Anutech Digital Private Limited. All rights reserved.
             </p>
             <div className="flex flex-wrap gap-4 md:gap-6 justify-center md:justify-end">
-              <Link href={publicPageHref('/privacy')} className="text-gray-500 hover:text-white text-sm transition-colors">Privacy Policy</Link>
-              <Link href={publicPageHref('/terms-and-conditions')} className="text-gray-500 hover:text-white text-sm transition-colors">Terms and Conditions</Link>
-              <Link href={publicPageHref('/cancellation-refund')} className="text-gray-500 hover:text-white text-sm transition-colors">Cancellation &amp; Refund</Link>
+              <Link href={publicPageHref('/privacy')} className="text-ink-3 hover:text-paper text-sm transition-colors">Privacy Policy</Link>
+              <Link href={publicPageHref('/terms-and-conditions')} className="text-ink-3 hover:text-paper text-sm transition-colors">Terms and Conditions</Link>
+              <Link href={publicPageHref('/cancellation-refund')} className="text-ink-3 hover:text-paper text-sm transition-colors">Cancellation &amp; Refund</Link>
             </div>
           </div>
         </div>

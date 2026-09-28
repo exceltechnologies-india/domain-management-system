@@ -69,22 +69,22 @@ export function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
 
 const TONE_STYLES: Record<ConfirmTone, { btn: string; ring: string; iconBg: string; iconColor: string }> = {
   primary: {
-    btn: 'bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500',
-    ring: 'focus:ring-blue-500',
-    iconBg: 'bg-blue-50',
-    iconColor: 'text-blue-600',
+    btn: 'bg-primary-600 hover:bg-primary-700 text-paper focus:ring-primary-500',
+    ring: 'focus:ring-primary-500',
+    iconBg: 'bg-indigo-soft',
+    iconColor: 'text-indigo-ink',
   },
   danger: {
-    btn: 'bg-red-600 hover:bg-red-700 text-white focus:ring-red-500',
-    ring: 'focus:ring-red-500',
-    iconBg: 'bg-red-50',
-    iconColor: 'text-red-600',
+    btn: 'bg-rose hover:bg-rose/90 text-paper focus:ring-rose',
+    ring: 'focus:ring-rose',
+    iconBg: 'bg-rose-soft',
+    iconColor: 'text-rose-ink',
   },
   warning: {
-    btn: 'bg-amber-600 hover:bg-amber-700 text-white focus:ring-amber-500',
-    ring: 'focus:ring-amber-500',
-    iconBg: 'bg-amber-50',
-    iconColor: 'text-amber-600',
+    btn: 'bg-amber hover:bg-amber/90 text-paper focus:ring-amber',
+    ring: 'focus:ring-amber',
+    iconBg: 'bg-amber-soft',
+    iconColor: 'text-amber-ink',
   },
 };
 
@@ -143,20 +143,20 @@ export function ConfirmDialogHost() {
     >
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-ink/50 backdrop-blur-sm"
         onClick={() => handleClose(false)}
       />
 
       {/* Card */}
       <div
-        className={`relative bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-md overflow-hidden transition-transform duration-150 ${
+        className={`relative bg-paper rounded-2xl shadow-2xl border border-hairline w-full max-w-md overflow-hidden transition-transform duration-150 ${
           isClosing ? 'scale-95' : 'scale-100'
         }`}
       >
         <button
           type="button"
           onClick={() => handleClose(false)}
-          className="absolute top-3 right-3 p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+          className="absolute top-3 right-3 p-1.5 text-ink-4 hover:text-ink-2 hover:bg-hairline/50 rounded-lg transition-colors"
           aria-label="Close"
         >
           <X className="h-4 w-4" />
@@ -169,22 +169,22 @@ export function ConfirmDialogHost() {
             </div>
             <div className="flex-1 min-w-0 pt-0.5">
               {request.title && (
-                <h3 className="text-base font-semibold text-gray-900 mb-1.5">
+                <h3 className="text-base font-semibold text-ink mb-1.5">
                   {request.title}
                 </h3>
               )}
-              <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">
+              <p className="text-sm text-ink-2 leading-relaxed whitespace-pre-line">
                 {request.message}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="px-5 sm:px-6 py-3.5 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-2">
+        <div className="px-5 sm:px-6 py-3.5 bg-paper-2 border-t border-hairline flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={() => handleClose(false)}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400"
+            className="px-4 py-2 text-sm font-medium text-ink-2 bg-paper border border-hairline rounded-lg hover:bg-paper-2 hover:border-hairline transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-hairline-strong"
           >
             {request.cancelText || 'Cancel'}
           </button>

@@ -68,14 +68,14 @@ describe("CustomToast", () => {
     const { container } = render(renderFn(fakeToast()));
     expect(screen.getByText("Done")).toBeInTheDocument();
     expect(screen.getByText("Saved")).toBeInTheDocument();
-    expect(container.querySelector(".border-green-500")).not.toBeNull();
+    expect(container.querySelector(".border-emerald")).not.toBeNull();
   });
 
   it("error render uses the red border + the red 'x' close-icon variant", () => {
     showErrorToast("Boom");
     const renderFn = customMock.mock.calls[0][0] as (t: Toast) => React.ReactElement;
     const { container } = render(renderFn(fakeToast()));
-    expect(container.querySelector(".border-red-500")).not.toBeNull();
+    expect(container.querySelector(".border-rose")).not.toBeNull();
   });
 
   it("loading render uses the blue border + an animate-spin spinner instead of an svg", () => {
@@ -87,7 +87,7 @@ describe("CustomToast", () => {
     ];
     expect(opts.duration).toBe(Infinity);
     const { container } = render(renderFn(fakeToast()));
-    expect(container.querySelector(".border-blue-500")).not.toBeNull();
+    expect(container.querySelector(".border-indigo")).not.toBeNull();
     expect(container.querySelector(".animate-spin")).not.toBeNull();
   });
 

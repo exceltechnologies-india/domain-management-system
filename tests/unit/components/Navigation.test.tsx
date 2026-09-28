@@ -214,7 +214,7 @@ describe("<Navigation> dashboard + admin variants", () => {
         user={{ firstName: "U", lastName: "S", role: "user" }}
       />
     );
-    expect(screen.getByText("USER").className).toMatch(/bg-blue-100/);
+    expect(screen.getByText("USER").className).toMatch(/bg-indigo-soft/);
     unmount();
     render(
       <Navigation
@@ -222,7 +222,7 @@ describe("<Navigation> dashboard + admin variants", () => {
         user={{ firstName: "U", lastName: "S", role: "admin" }}
       />
     );
-    expect(screen.getByText("ADMIN").className).toMatch(/bg-red-100/);
+    expect(screen.getByText("ADMIN").className).toMatch(/bg-rose-soft/);
   });
 
   it("variant='dashboard' shopping-cart link has the cart aria-label and current count", () => {

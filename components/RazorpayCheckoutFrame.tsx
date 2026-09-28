@@ -124,7 +124,7 @@ export function useRazorpayCheckout(): UseRazorpayCheckout {
     if (!active) return null;
     return (
       <div
-        className="fixed inset-0 z-[1000] bg-black/50 flex items-center justify-center"
+        className="fixed inset-0 z-[1000] bg-ink/50 flex items-center justify-center"
         aria-hidden={!active}
       >
         <iframe

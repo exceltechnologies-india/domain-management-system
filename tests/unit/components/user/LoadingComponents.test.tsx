@@ -81,14 +81,14 @@ describe("<DataLoading>", () => {
     const { container } = render(<DataLoading type="card" count={2} />);
     // The grid wrapper carries `grid gap-4 md:grid-cols-2 lg:grid-cols-3`
     expect(container.querySelector(".grid")).not.toBeNull();
-    // Each card is a bg-white rounded-lg shadow-sm
-    const cards = container.querySelectorAll(".bg-white.rounded-lg");
+    // Each card is a bg-paper rounded-lg shadow-sm
+    const cards = container.querySelectorAll(".bg-paper.rounded-lg");
     expect(cards.length).toBe(2);
   });
 
   it("renders a list under type='list' with the requested count of rows", () => {
     const { container } = render(<DataLoading type="list" count={4} />);
-    const rows = container.querySelectorAll(".bg-white.rounded-lg");
+    const rows = container.querySelectorAll(".bg-paper.rounded-lg");
     expect(rows.length).toBe(4);
   });
 

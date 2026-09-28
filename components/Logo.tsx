@@ -66,7 +66,7 @@ export default function Logo({
         priority
       />
       {showText && (
-        <span className={`ml-2 font-bold ${variant === 'dark' ? 'text-white' : 'text-gray-900'} ${textSizeClasses[size]}`}>
+        <span className={`ml-2 font-bold ${variant === 'dark' ? 'text-paper' : 'text-ink'} ${textSizeClasses[size]}`}>
           Anutech Digital Private Limited
         </span>
       )}

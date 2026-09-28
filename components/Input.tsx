@@ -36,8 +36,8 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
 }, ref) => {
   const [isFocused, setIsFocused] = useState(false);
 
-  const baseClasses = 'block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-50 disabled:text-gray-500 text-gray-900 transition-all duration-200';
-  const errorClasses = error ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : '';
+  const baseClasses = 'block w-full px-3 py-2 border border-hairline rounded-md shadow-sm placeholder-ink-4 focus:outline-none focus:ring-primary-500 focus:border-primary-500 disabled:bg-paper-2 disabled:text-ink-3 text-ink transition-all duration-200';
+  const errorClasses = error ? 'border-rose/30 focus:ring-rose focus:border-rose' : '';
   const iconClasses = icon ? 'pl-10' : '';
   const rightIconClasses = rightIcon ? 'pr-10' : '';
   const widthClasses = fullWidth ? 'w-full' : '';
@@ -65,14 +65,14 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
   return (
     <div className={fullWidth ? 'w-full' : ''}>
       {label && (
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-ink-2 mb-1">
           {label}
         </label>
       )}
       <div className="relative">
         {icon && (
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <span className={`transition-colors duration-200 ${isFocused ? 'text-primary-500 scale-110' : 'text-gray-400'}`}>
+            <span className={`transition-colors duration-200 ${isFocused ? 'text-primary-500 scale-110' : 'text-ink-4'}`}>
               {icon}
             </span>
           </div>
@@ -100,7 +100,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
       <AnimatePresence>
         {error && (
           <motion.p
-            className="mt-1 text-sm text-red-600"
+            className="mt-1 text-sm text-rose-ink"
             initial={{ opacity: 0, y: -5, height: 0 }}
             animate={{ opacity: 1, y: 0, height: 'auto' }}
             exit={{ opacity: 0, y: -5, height: 0 }}
@@ -111,7 +111,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
         )}
         {helperText && !error && (
           <motion.p
-            className="mt-1 text-sm text-gray-500"
+            className="mt-1 text-sm text-ink-3"
             initial={{ opacity: 0, y: -5, height: 0 }}
             animate={{ opacity: 1, y: 0, height: 'auto' }}
             exit={{ opacity: 0, y: -5, height: 0 }}

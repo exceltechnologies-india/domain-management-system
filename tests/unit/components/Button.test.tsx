@@ -29,8 +29,8 @@ describe("<Button> (custom)", () => {
   it("variant='outline' uses the white-with-border surface", () => {
     render(<Button variant="outline">cancel</Button>);
     const btn = screen.getByRole("button");
-    expect(btn.className).toMatch(/border-gray-300/);
-    expect(btn.className).toMatch(/bg-white/);
+    expect(btn.className).toMatch(/border-hairline/);
+    expect(btn.className).toMatch(/bg-paper/);
   });
 
   it("size='sm' uses the smaller padding scale", () => {

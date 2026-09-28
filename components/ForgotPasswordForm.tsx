@@ -79,16 +79,16 @@ export default function ForgotPasswordForm({ className = '', isSetup = false, pr
 
   if (isSubmitted) {
     return (
-      <div className={`min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 ${className}`}>
+      <div className={`min-h-screen flex items-center justify-center bg-paper-2 py-12 px-4 sm:px-6 lg:px-8 ${className}`}>
         <div className="max-w-md w-full space-y-8">
           <div className="text-center">
             <div className="flex justify-center mb-6">
               <Logo size="lg" />
             </div>
-            <h2 className="text-3xl font-bold text-gray-900">
+            <h2 className="text-3xl font-bold text-ink">
               Check your email
             </h2>
-            <p className="mt-2 text-sm text-gray-600">
+            <p className="mt-2 text-sm text-ink-2">
               {isSetup
                 ? <>We&apos;ve sent a setup link to {email}</>
                 : <>We&apos;ve sent a password reset link to {email}</>}
@@ -97,13 +97,13 @@ export default function ForgotPasswordForm({ className = '', isSetup = false, pr
 
           <Card>
             <div className="text-center">
-              <div className="bg-green-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                <Mail className="h-8 w-8 text-green-600" />
+              <div className="bg-emerald-soft rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                <Mail className="h-8 w-8 text-emerald-ink" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              <h3 className="text-lg font-semibold text-ink mb-2">
                 Email Sent Successfully!
               </h3>
-              <p className="text-gray-600 mb-6">
+              <p className="text-ink-2 mb-6">
                 {isSetup
                   ? <>Please check your email and click the link to set up your account password. The link will expire in 1 hour.</>
                   : <>Please check your email and click the link to reset your password. The link will expire in 1 hour.</>}
@@ -123,7 +123,7 @@ export default function ForgotPasswordForm({ className = '', isSetup = false, pr
                     : 'Send Another Email'}
                 </Button>
                 {remainingSeconds > 0 && (
-                  <p className="text-xs text-gray-500 text-center -mt-1">
+                  <p className="text-xs text-ink-3 text-center -mt-1">
                     Please wait before requesting another email.
                   </p>
                 )}
@@ -144,16 +144,16 @@ export default function ForgotPasswordForm({ className = '', isSetup = false, pr
   }
 
   return (
-    <div className={`min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 ${className}`}>
+    <div className={`min-h-screen flex items-center justify-center bg-paper-2 py-12 px-4 sm:px-6 lg:px-8 ${className}`}>
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <div className="flex justify-center mb-6">
             <Logo size="lg" />
           </div>
-          <h2 className="text-3xl font-bold text-gray-900">
+          <h2 className="text-3xl font-bold text-ink">
             {isSetup ? 'Set up your password' : 'Forgot your password?'}
           </h2>
-          <p className="mt-2 text-sm text-gray-600">
+          <p className="mt-2 text-sm text-ink-2">
             {isSetup
               ? <>Confirm your email and we&apos;ll send you a link to choose a password and activate your account.</>
               : <>Enter your email address and we&apos;ll send you a link to reset your password.</>}
@@ -170,13 +170,13 @@ export default function ForgotPasswordForm({ className = '', isSetup = false, pr
             }}
           >
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="bg-rose-soft border border-rose/30 rounded-lg p-4">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
-                    <Mail className="h-5 w-5 text-red-400" />
+                    <Mail className="h-5 w-5 text-rose" />
                   </div>
                   <div className="ml-3">
-                    <p className="text-sm text-red-800">{error}</p>
+                    <p className="text-sm text-rose-ink">{error}</p>
                   </div>
                 </div>
               </div>
@@ -192,7 +192,7 @@ export default function ForgotPasswordForm({ className = '', isSetup = false, pr
               required
               fullWidth
               autoComplete="email"
-              icon={<Mail className="h-4 w-4 text-gray-400" />}
+              icon={<Mail className="h-4 w-4 text-ink-4" />}
               helperText={isSetup ? "We'll send a password setup link to this email" : "We'll send a password reset link to this email"}
             />
 

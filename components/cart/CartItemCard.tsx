@@ -52,22 +52,22 @@ export default function CartItemCard({ item, onRemove, onPeriodChange }: CartIte
   const isHostingItem = item.itemType === 'hosting';
 
   return (
-    <div className="p-4 sm:p-5 bg-white border border-gray-200 rounded-xl hover:border-primary-200 hover:shadow-sm transition-all duration-200">
+    <div className="p-4 sm:p-5 bg-paper border border-hairline rounded-xl hover:border-primary-200 hover:shadow-sm transition-all duration-200">
       {/* Single responsive layout: stacked on mobile, side-by-side on lg */}
       <div className="flex flex-col lg:flex-row lg:items-start gap-4">
 
         {/* Left: icon + info + tags */}
         <div className="flex items-start gap-3 flex-1 min-w-0">
-          <div className={`p-2 rounded-lg flex-shrink-0 ${isHostingItem ? 'bg-purple-50' : 'bg-primary-50'}`}>
+          <div className={`p-2 rounded-lg flex-shrink-0 ${isHostingItem ? 'bg-indigo-soft' : 'bg-primary-50'}`}>
             {isHostingItem
-              ? <Server className="h-4 w-4 lg:h-5 lg:w-5 text-purple-600" />
+              ? <Server className="h-4 w-4 lg:h-5 lg:w-5 text-indigo-ink" />
               : <Globe className="h-4 w-4 lg:h-5 lg:w-5 text-primary-600" />}
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="text-base lg:text-lg font-medium text-gray-900 truncate">
+            <h3 className="text-base lg:text-lg font-medium text-ink truncate">
               {displayName}
             </h3>
-            <p className="text-xs lg:text-sm text-gray-600">{periodLabel}</p>
+            <p className="text-xs lg:text-sm text-ink-2">{periodLabel}</p>
             {item.itemType === 'hosting' &&
               (item.linkedDomain || !item.domainName.startsWith('hosting-')) && (
                 <p className="text-xs lg:text-sm font-medium text-primary-600 mt-1">
@@ -80,7 +80,7 @@ export default function CartItemCard({ item, onRemove, onPeriodChange }: CartIte
                 Available
               </span>
               {isHostingPlaceholder && (
-                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 animate-pulse">
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-rose-soft text-rose-ink animate-pulse">
                   <AlertTriangle className="h-3 w-3 mr-1" />
                   Domain Required
                 </span>
@@ -96,15 +96,15 @@ export default function CartItemCard({ item, onRemove, onPeriodChange }: CartIte
             {/* The period control is conditional (static div for trial/locked,
                 select otherwise) — use a span so the label isn't tied to a
                 sometimes-absent control. */}
-            <span className="text-xs sm:text-sm font-medium text-gray-700">
+            <span className="text-xs sm:text-sm font-medium text-ink-2">
               Registration Period:
             </span>
             {item.isTrial ? (
-              <div className="px-4 py-2 border border-gray-200 rounded-md text-sm bg-amber-50 text-amber-800 font-medium sm:min-w-[100px] text-center">
+              <div className="px-4 py-2 border border-hairline rounded-md text-sm bg-amber-soft text-amber-ink font-medium sm:min-w-[100px] text-center">
                 {item.registrationPeriod} Days
               </div>
             ) : isBillingCycleLocked ? (
-              <div className="px-4 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 text-gray-700 font-medium sm:min-w-[100px] text-center">
+              <div className="px-4 py-2 border border-hairline rounded-md text-sm bg-paper-2 text-ink-2 font-medium sm:min-w-[100px] text-center">
                 {item.billingCycle === 'yearly' ? '1 Year' : '1 Month'}
               </div>
             ) : (
@@ -118,7 +118,7 @@ export default function CartItemCard({ item, onRemove, onPeriodChange }: CartIte
                     'months'
                   )
                 }
-                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white"
+                className="px-3 py-2 border border-hairline rounded-md text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-paper"
               >
                 {periodOptions.map((n) => (
                   <option key={n} value={n}>
@@ -129,7 +129,7 @@ export default function CartItemCard({ item, onRemove, onPeriodChange }: CartIte
               </select>
             )}
             {minPeriod > 1 && item.itemType !== 'hosting' && (
-              <p className="text-xs text-amber-600">
+              <p className="text-xs text-amber-ink">
                 .{tldLabel} requires min {minPeriod} year registration
               </p>
             )}
@@ -137,10 +137,10 @@ export default function CartItemCard({ item, onRemove, onPeriodChange }: CartIte
 
           {/* Price */}
           <div className="text-right">
-            <p className="text-xl font-bold text-gray-900">
+            <p className="text-xl font-bold text-ink">
               {item.isTrial ? '₹0.00' : `₹${(item.price * item.registrationPeriod).toFixed(2)}`}
             </p>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-ink-2">
               {item.isTrial ? (
                 <>Free for {item.registrationPeriod} days</>
               ) : item.itemType === 'hosting' ? (
@@ -167,10 +167,10 @@ export default function CartItemCard({ item, onRemove, onPeriodChange }: CartIte
               });
               return (
                 <div className="mt-1.5 flex flex-col items-end gap-0.5">
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-soft text-emerald-ink border border-emerald/30">
                     Price locked for {item.registrationPeriod} years
                   </span>
-                  <p className="text-[11px] text-emerald-700">
+                  <p className="text-[11px] text-emerald-ink">
                     No renewal needed until {expiryLabel}
                   </p>
                 </div>
@@ -186,13 +186,13 @@ export default function CartItemCard({ item, onRemove, onPeriodChange }: CartIte
               const percent = Math.round((saved / monthlyEquivalentYearly) * 100);
               return (
                 <div className="mt-1.5 flex flex-col items-end gap-0.5">
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-green-50 text-green-700 border border-green-200">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-soft text-emerald-ink border border-emerald/30">
                     Save {percent}%
                   </span>
-                  <p className="text-[11px] text-green-700">
+                  <p className="text-[11px] text-emerald-ink">
                     ₹{saved.toFixed(0)} off vs monthly billing
                   </p>
-                  <p className="text-[10px] text-gray-400 line-through">
+                  <p className="text-[10px] text-ink-4 line-through">
                     ₹{monthlyEquivalentYearly.toFixed(0)} if paid monthly
                   </p>
                 </div>
@@ -203,7 +203,7 @@ export default function CartItemCard({ item, onRemove, onPeriodChange }: CartIte
           {/* Remove */}
           <button
             onClick={() => onRemove(item.domainName, item.itemType)}
-            className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+            className="p-2 text-rose-ink hover:text-rose-ink hover:bg-rose/15 rounded-lg transition-colors flex-shrink-0"
             title="Remove item"
           >
             <Trash2 className="h-4 w-4" />

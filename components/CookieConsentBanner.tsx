@@ -41,19 +41,19 @@ export default function CookieConsentBanner() {
       role="dialog"
       aria-live="polite"
       aria-label="Cookie consent"
-      className="fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white shadow-xl"
+      className="fixed bottom-0 left-0 right-0 z-50 border-t border-hairline bg-paper shadow-xl"
     >
       <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
-            <Cookie className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" aria-hidden="true" />
+            <Cookie className="mt-0.5 h-5 w-5 shrink-0 text-indigo-ink" aria-hidden="true" />
             <div>
-              <p className="text-sm font-medium text-gray-900">We use essential cookies</p>
-              <p className="mt-0.5 text-sm text-gray-600">
+              <p className="text-sm font-medium text-ink">We use essential cookies</p>
+              <p className="mt-0.5 text-sm text-ink-2">
                 This site uses strictly necessary cookies for authentication and security (session
                 tokens, CSRF protection, reCAPTCHA). These are required for the service to function
                 and cannot be disabled.{' '}
-                <Link href={publicPageHref('/privacy')} className="font-medium text-blue-600 underline hover:text-blue-700">
+                <Link href={publicPageHref('/privacy')} className="font-medium text-indigo-ink underline hover:text-indigo-ink">
                   Privacy Policy
                 </Link>
               </p>
@@ -62,14 +62,14 @@ export default function CookieConsentBanner() {
           <div className="flex shrink-0 items-center gap-3 sm:ml-4">
             <button
               onClick={accept}
-              className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              className="rounded-lg bg-primary-600 px-5 py-2 text-sm font-medium text-paper hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
             >
               Accept &amp; Continue
             </button>
             <button
               onClick={accept}
               aria-label="Dismiss cookie notice"
-              className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-300"
+              className="rounded-lg p-1.5 text-ink-4 hover:bg-hairline/50 hover:text-ink-2 focus:outline-none focus:ring-2 focus:ring-hairline-strong"
             >
               <X className="h-4 w-4" />
             </button>

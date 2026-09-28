@@ -49,20 +49,20 @@ function SsoHandoff() {
   }, [params]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-sm rounded-lg border border-gray-200 bg-white p-8 text-center shadow-sm">
+    <div className="flex min-h-screen items-center justify-center bg-paper-2 px-4">
+      <div className="w-full max-w-sm rounded-lg border border-hairline bg-paper p-8 text-center shadow-sm">
         {failed ? (
           <>
-            <h1 className="text-lg font-semibold text-gray-900">
+            <h1 className="text-lg font-semibold text-ink">
               This sign-in link is not valid
             </h1>
-            <p className="mt-2 text-sm text-gray-600">
+            <p className="mt-2 text-sm text-ink-2">
               Hand-off links last about a minute and work only once. Go back to
               ResellerOS and click through again.
             </p>
             <a
               href="/login"
-              className="mt-5 inline-block text-sm font-medium text-blue-600 underline underline-offset-4"
+              className="mt-5 inline-block text-sm font-medium text-indigo-ink underline underline-offset-4"
             >
               Or sign in here instead
             </a>
@@ -70,14 +70,14 @@ function SsoHandoff() {
         ) : (
           <>
             <div
-              className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-t-blue-600"
+              className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-hairline border-t-indigo"
               role="status"
               aria-label="Signing you in"
             />
-            <h1 className="mt-4 text-lg font-semibold text-gray-900">
+            <h1 className="mt-4 text-lg font-semibold text-ink">
               Signing you in…
             </h1>
-            <p className="mt-1 text-sm text-gray-600">Bringing you over from ResellerOS.</p>
+            <p className="mt-1 text-sm text-ink-2">Bringing you over from ResellerOS.</p>
           </>
         )}
       </div>

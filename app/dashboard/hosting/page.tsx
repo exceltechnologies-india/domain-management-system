@@ -188,7 +188,7 @@ export default function HostingPage() {
       key={hostingStats.username}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white rounded-2xl shadow-sm border border-hairline overflow-hidden"
+      className="bg-paper rounded-2xl shadow-sm border border-hairline overflow-hidden"
     >
       {/* Trial countdown banner — surfaces when within 3 days of trial
           expiry so the customer sees a prominent nudge, not just the
@@ -266,7 +266,7 @@ export default function HostingPage() {
               className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg transition-all shadow-sm hover:shadow text-sm font-medium ${
                 hostingStats.status === 'expired'
                   ? 'bg-hairline text-ink-3 cursor-not-allowed'
-                  : 'bg-ink text-white hover:bg-ink-2'
+                  : 'bg-ink text-paper hover:bg-ink-2'
               }`}
             >
               <Settings className="h-4 w-4" />
@@ -279,7 +279,7 @@ export default function HostingPage() {
                   setSelectedDomainName(hostingStats.domain);
                   setIsRenewalModalOpen(true);
                 }}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald text-white rounded-lg hover:bg-emerald/90 transition-all shadow-sm hover:shadow text-sm font-medium"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald text-paper rounded-lg hover:bg-emerald/90 transition-all shadow-sm hover:shadow text-sm font-medium"
               >
                 <RefreshCw className="h-4 w-4" />
                 {hostingStats.status === 'expired' ? 'Pay Now to Restore' : 'Renew'}
@@ -377,13 +377,13 @@ export default function HostingPage() {
           <div className="grid grid-cols-2 gap-4 text-xs">
             <div>
               <p className="text-ink-3 mb-1">Nameserver 1</p>
-              <p className="font-mono text-ink-2 bg-white p-1.5 rounded border border-hairline truncate" title={hostingStats.nameservers[0]}>
+              <p className="font-mono text-ink-2 bg-paper p-1.5 rounded border border-hairline truncate" title={hostingStats.nameservers[0]}>
                 {hostingStats.nameservers[0] || 'N/A'}
               </p>
             </div>
             <div>
               <p className="text-ink-3 mb-1">Nameserver 2</p>
-              <p className="font-mono text-ink-2 bg-white p-1.5 rounded border border-hairline truncate" title={hostingStats.nameservers[1]}>
+              <p className="font-mono text-ink-2 bg-paper p-1.5 rounded border border-hairline truncate" title={hostingStats.nameservers[1]}>
                 {hostingStats.nameservers[1] || 'N/A'}
               </p>
             </div>
@@ -484,7 +484,7 @@ export default function HostingPage() {
         {isLoadingStats ? (
           <HostingPageSkeleton />
         ) : error ? (
-          <div className={`bg-white border rounded-2xl shadow-sm p-5 flex items-start gap-3 ${error.includes('unreachable') ? 'border-amber/30' : 'border-rose/30'}`}>
+          <div className={`bg-paper border rounded-2xl shadow-sm p-5 flex items-start gap-3 ${error.includes('unreachable') ? 'border-amber/30' : 'border-rose/30'}`}>
             <div className={`p-2 rounded-xl shrink-0 ${error.includes('unreachable') ? 'bg-amber-soft' : 'bg-rose-soft'}`}>
               {error.includes('unreachable')
                 ? <Shield className="h-4 w-4 text-amber-ink" />
@@ -506,7 +506,7 @@ export default function HostingPage() {
             </div>
           </div>
         ) : !hostingStatsList || hostingStatsList.length === 0 ? (
-          <div className="bg-white border border-hairline rounded-2xl shadow-sm py-16 px-6 text-center">
+          <div className="bg-paper border border-hairline rounded-2xl shadow-sm py-16 px-6 text-center">
             <div className="w-14 h-14 bg-indigo-soft rounded-2xl flex items-center justify-center mx-auto mb-4">
               <Server className="h-7 w-7 text-amber-ink" />
             </div>
@@ -514,7 +514,7 @@ export default function HostingPage() {
             <p className="text-sm text-ink-3 mb-5 max-w-sm mx-auto">You don't have any active hosting packages yet — pick a plan to get started.</p>
             <button
               onClick={() => router.push(buyHref('hosting'))}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber text-white text-sm font-semibold rounded-xl hover:brightness-90 transition-colors shadow-sm"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber text-paper text-sm font-semibold rounded-xl hover:brightness-90 transition-colors shadow-sm"
             >
               <Plus className="h-4 w-4" />
               Buy Hosting

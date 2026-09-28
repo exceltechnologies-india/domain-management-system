@@ -26,8 +26,8 @@ const RefreshButton: React.FC<RefreshButtonProps> = ({
       title={title}
       className={cn(
         "flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium transition-all duration-200 border rounded-lg whitespace-nowrap",
-        "bg-white border-gray-300 text-gray-700 hover:bg-blue-50 hover:border-blue-500 hover:text-blue-700",
-        "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-300 disabled:hover:text-gray-700",
+        "bg-paper border-hairline text-ink-2 hover:bg-indigo/15 hover:border-indigo hover:text-indigo-ink",
+        "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-paper disabled:hover:border-hairline disabled:hover:text-ink-2",
         className
       )}
     >

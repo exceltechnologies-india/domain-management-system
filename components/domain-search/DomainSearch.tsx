@@ -164,7 +164,7 @@ export default function DomainSearch({
             <h1
               className={`font-black mb-2 sm:mb-3 tracking-tighter transition-colors duration-300 ${
                 compact ? 'text-xl sm:text-2xl md:text-3xl' : 'text-2xl sm:text-3xl md:text-4xl'
-              } ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}
+              } ${theme === 'dark' ? 'text-paper' : 'text-ink'}`}
               style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}
             >
               {title || (
@@ -177,7 +177,7 @@ export default function DomainSearch({
             <p
               className={`max-w-2xl mx-auto font-medium leading-relaxed transition-colors duration-300 ${
                 compact ? 'text-xs sm:text-sm mb-2 sm:mb-3' : 'text-sm sm:text-base mb-3 sm:mb-4'
-              } ${theme === 'dark' ? 'text-primary-100/80' : 'text-gray-600'}`}
+              } ${theme === 'dark' ? 'text-primary-100/80' : 'text-ink-2'}`}
             >
               {subtitle ||
                 'Secure your online identity with enterprise-grade domain registration and management tools.'}
@@ -223,7 +223,7 @@ export default function DomainSearch({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-sm"
             onClick={() => setWatchSignInDomain(null)}
           >
             <motion.div
@@ -232,47 +232,47 @@ export default function DomainSearch({
               exit={{ opacity: 0, scale: 0.95, y: 12 }}
               transition={{ type: 'spring', stiffness: 320, damping: 28 }}
               onClick={e => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-sm p-6 relative"
+              className="bg-paper rounded-2xl shadow-2xl border border-hairline w-full max-w-sm p-6 relative"
             >
               <button
                 onClick={() => setWatchSignInDomain(null)}
-                className="absolute top-4 right-4 p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                className="absolute top-4 right-4 p-1 rounded-lg text-ink-4 hover:text-ink-2 hover:bg-hairline/50 transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>
 
-              <div className="flex items-center justify-center w-12 h-12 bg-amber-100 rounded-xl mb-4 mx-auto">
-                <Bell className="h-6 w-6 text-amber-600" />
+              <div className="flex items-center justify-center w-12 h-12 bg-amber-soft rounded-xl mb-4 mx-auto">
+                <Bell className="h-6 w-6 text-amber-ink" />
               </div>
 
-              <h2 className="text-lg font-bold text-gray-900 text-center mb-1">
+              <h2 className="text-lg font-bold text-ink text-center mb-1">
                 Get notified when it's free
               </h2>
-              <p className="text-sm text-gray-500 text-center mb-1">
-                <span className="font-semibold text-gray-700">{watchSignInDomain}</span> is currently taken.
+              <p className="text-sm text-ink-3 text-center mb-1">
+                <span className="font-semibold text-ink-2">{watchSignInDomain}</span> is currently taken.
               </p>
-              <p className="text-sm text-gray-500 text-center mb-6">
+              <p className="text-sm text-ink-3 text-center mb-6">
                 Sign in and we'll email you the moment it becomes available for registration.
               </p>
 
               <div className="space-y-2.5">
                 <a
                   href={`/login?returnUrl=${encodeURIComponent(buyHref('domain', watchSignInDomain.split('.')[0]))}`}
-                  className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-xl transition-colors"
+                  className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-paper text-sm font-semibold rounded-xl transition-colors"
                 >
                   <LogIn className="h-4 w-4" />
                   Sign In
                 </a>
                 <a
                   href={`/register?returnUrl=${encodeURIComponent(buyHref('domain', watchSignInDomain.split('.')[0]))}`}
-                  className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-xl transition-colors"
+                  className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-paper-2 hover:bg-hairline/50 text-ink-2 text-sm font-semibold rounded-xl transition-colors"
                 >
                   <UserPlus className="h-4 w-4" />
                   Create Account
                 </a>
               </div>
 
-              <p className="text-xs text-gray-400 text-center mt-4">
+              <p className="text-xs text-ink-4 text-center mt-4">
                 Free to sign up · No spam · Unsubscribe any time
               </p>
             </motion.div>

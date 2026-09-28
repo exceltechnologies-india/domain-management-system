@@ -83,9 +83,9 @@ describe("<Logo>", () => {
     expect(img.src).toMatch(/black-logo\.png/);
     expect(img.className).toMatch(/brightness-0/);
     expect(img.className).toMatch(/invert/);
-    // The label gets the text-white class
+    // The label gets the text-paper class
     const label = screen.getByText(/anutech digital private limited/i);
-    expect(label.className).toMatch(/text-white/);
+    expect(label.className).toMatch(/text-paper/);
   });
 
   it("variant='light' (default) uses the black-logo asset and applies dark text", () => {
@@ -93,7 +93,7 @@ describe("<Logo>", () => {
     const img = screen.getByAltText(/anutech digital/i) as HTMLImageElement;
     expect(img.src).toMatch(/black-logo\.png/);
     const label = screen.getByText(/anutech digital private limited/i);
-    expect(label.className).toMatch(/text-gray-900/);
+    expect(label.className).toMatch(/text-ink/);
   });
 
   it("maps size='lg' to the h-12 md:h-14 class set on the img", () => {

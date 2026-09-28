@@ -262,7 +262,7 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
                   type="button"
                   disabled={!user}
                   className={`relative z-50 pointer-events-auto flex items-center px-2.5 py-1.5 text-sm font-medium rounded-md border transition-colors ${user
-                    ? 'text-rose-700 border-rose-200 bg-paper hover:bg-rose-50 hover:text-rose-800 cursor-pointer'
+                    ? 'text-rose-ink border-rose/30 bg-paper hover:bg-rose/15 hover:text-rose-ink cursor-pointer'
                     : 'text-ink-4 border-hairline cursor-not-allowed'
                     }`}
                   data-testid={user ? "logout-button-active" : "logout-button-disabled"}

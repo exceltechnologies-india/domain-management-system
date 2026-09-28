@@ -532,7 +532,7 @@ export default function DNSManagementPage() {
               </p>
               <button
                 onClick={() => router.push('/dashboard/hosting')}
-                className="w-full inline-flex justify-center items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-amber hover:brightness-90 transition-colors"
+                className="w-full inline-flex justify-center items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-paper bg-amber hover:brightness-90 transition-colors"
               >
                 <Server className="h-5 w-5 mr-2" />
                 Go to Hosting Panel
@@ -630,7 +630,7 @@ export default function DNSManagementPage() {
                 </p>
                 <button
                   onClick={() => router.push('/dashboard/hosting')}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-xl text-white bg-amber hover:brightness-90 transition-colors shadow-sm"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-xl text-paper bg-amber hover:brightness-90 transition-colors shadow-sm"
                 >
                   <Server className="h-4 w-4" />
                   Go to Hosting Panel
@@ -822,11 +822,11 @@ export default function DNSManagementPage() {
                   <button
                     onClick={handleSetCustomNameservers}
                     disabled={isUpdatingNameservers || !selectedDomain}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber text-white text-sm font-semibold rounded-xl hover:brightness-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber text-paper text-sm font-semibold rounded-xl hover:brightness-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
                   >
                     {isUpdatingNameservers ? (
                       <>
-                        <div className="animate-spin h-4 w-4 border-2 border-white/40 border-t-white rounded-full" />
+                        <div className="animate-spin h-4 w-4 border-2 border-paper/40 border-t-paper rounded-full" />
                         Saving…
                       </>
                     ) : (
@@ -869,7 +869,7 @@ export default function DNSManagementPage() {
                           className={`inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl transition-colors shadow-sm w-full sm:w-auto ${
                             disabled
                               ? 'bg-hairline text-ink-4 cursor-not-allowed'
-                              : 'bg-amber text-white hover:brightness-90'
+                              : 'bg-amber text-paper hover:brightness-90'
                           }`}
                         >
                           <Plus className="h-4 w-4" />
@@ -951,12 +951,12 @@ export default function DNSManagementPage() {
                               className={`inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-xl transition-colors shadow-sm shrink-0 ${
                                 isActivating
                                   ? 'bg-hairline-strong text-ink-3 cursor-not-allowed'
-                                  : 'bg-amber text-white hover:brightness-90'
+                                  : 'bg-amber text-paper hover:brightness-90'
                               }`}
                             >
                               {isActivating ? (
                                 <>
-                                  <div className="animate-spin h-4 w-4 border-2 border-white/40 border-t-white rounded-full" />
+                                  <div className="animate-spin h-4 w-4 border-2 border-paper/40 border-t-paper rounded-full" />
                                   Activating…
                                 </>
                               ) : (
@@ -1024,7 +1024,7 @@ export default function DNSManagementPage() {
                       <div className="px-5 py-3 bg-gradient-to-r from-indigo-soft to-indigo-soft border-b border-indigo/25 flex items-center justify-between">
                         <div className="flex items-center gap-2.5">
                           <div className="p-1.5 bg-amber rounded-lg">
-                            <Plus className="h-3.5 w-3.5 text-white" />
+                            <Plus className="h-3.5 w-3.5 text-paper" />
                           </div>
                           <h4 className="text-sm font-semibold text-ink">Add New DNS Record</h4>
                         </div>
@@ -1138,7 +1138,7 @@ export default function DNSManagementPage() {
                           </button>
                           <button
                             onClick={handleAddRecord}
-                            className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-amber rounded-xl hover:brightness-90 transition-colors shadow-sm"
+                            className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-paper bg-amber rounded-xl hover:brightness-90 transition-colors shadow-sm"
                           >
                             <Save className="h-4 w-4" />
                             Add Record

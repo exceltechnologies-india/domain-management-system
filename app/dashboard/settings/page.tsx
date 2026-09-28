@@ -107,10 +107,10 @@ function SaveRow({ isDirty, isSaving, onClick, label = 'Save Changes' }: {
       <button
         onClick={onClick}
         disabled={isSaving}
-        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-amber rounded-xl hover:brightness-90 disabled:bg-hairline-strong disabled:cursor-not-allowed transition-colors shadow-sm"
+        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-paper bg-amber rounded-xl hover:brightness-90 disabled:bg-hairline-strong disabled:cursor-not-allowed transition-colors shadow-sm"
       >
         {isSaving ? (
-          <><div className="h-4 w-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />Saving…</>
+          <><div className="h-4 w-4 border-2 border-paper/40 border-t-paper rounded-full animate-spin" />Saving…</>
         ) : (
           <><Save className="h-4 w-4" />{label}</>
         )}
@@ -541,7 +541,7 @@ export default function UserSettings() {
               {/* User card */}
               <div className="flex items-center gap-3 px-3 py-4 mb-3">
                 <div className="h-11 w-11 rounded-full bg-ink flex items-center justify-center shadow-sm shrink-0">
-                  <span className="text-sm font-bold text-white">{initials || 'U'}</span>
+                  <span className="text-sm font-bold text-paper">{initials || 'U'}</span>
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-ink truncate">{user.firstName} {user.lastName}</p>
@@ -944,9 +944,9 @@ export default function UserSettings() {
                               <button
                                 onClick={handleTotpStartSetup}
                                 disabled={totpIsLoading}
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-amber text-white text-sm font-semibold rounded-xl hover:brightness-90 disabled:opacity-50 transition-colors shadow-sm"
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-amber text-paper text-sm font-semibold rounded-xl hover:brightness-90 disabled:opacity-50 transition-colors shadow-sm"
                               >
-                                {totpIsLoading ? <div className="h-4 w-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <QrCode className="h-4 w-4" />}
+                                {totpIsLoading ? <div className="h-4 w-4 border-2 border-paper/40 border-t-paper rounded-full animate-spin" /> : <QrCode className="h-4 w-4" />}
                                 Set up 2FA
                               </button>
                             )}
@@ -958,7 +958,7 @@ export default function UserSettings() {
                       {totpStep === 'scan' && (
                         <div className="space-y-5">
                           <div className="flex items-center gap-2">
-                            <span className="flex items-center justify-center h-5 w-5 rounded-full bg-amber text-white text-xs font-bold shrink-0">1</span>
+                            <span className="flex items-center justify-center h-5 w-5 rounded-full bg-amber text-paper text-xs font-bold shrink-0">1</span>
                             <p className="text-sm font-medium text-ink">Scan the QR code</p>
                           </div>
                           <p className="text-sm text-ink-3">Open your authenticator app (Google Authenticator, Authy, 1Password, etc.) and scan the code below.</p>
@@ -986,7 +986,7 @@ export default function UserSettings() {
                               <p className="text-xs text-ink-4 italic">Hidden — click the eye icon to reveal</p>
                             )}
                           </div>
-                          <button onClick={() => setTotpStep('verify')} className="w-full py-2.5 bg-amber text-white text-sm font-semibold rounded-xl hover:brightness-90 transition-colors">
+                          <button onClick={() => setTotpStep('verify')} className="w-full py-2.5 bg-amber text-paper text-sm font-semibold rounded-xl hover:brightness-90 transition-colors">
                             I've scanned the code →
                           </button>
                         </div>
@@ -996,7 +996,7 @@ export default function UserSettings() {
                       {totpStep === 'verify' && (
                         <div className="space-y-5">
                           <div className="flex items-center gap-2">
-                            <span className="flex items-center justify-center h-5 w-5 rounded-full bg-amber text-white text-xs font-bold shrink-0">2</span>
+                            <span className="flex items-center justify-center h-5 w-5 rounded-full bg-amber text-paper text-xs font-bold shrink-0">2</span>
                             <p className="text-sm font-medium text-ink">Enter the 6-digit code</p>
                           </div>
                           <p className="text-sm text-ink-3">Enter the code your authenticator app is showing right now.</p>
@@ -1015,9 +1015,9 @@ export default function UserSettings() {
                             <button
                               onClick={handleTotpConfirm}
                               disabled={totpIsLoading || totpVerifyCode.length !== 6}
-                              className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 bg-amber text-white text-sm font-semibold rounded-xl hover:brightness-90 disabled:opacity-50 transition-colors"
+                              className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 bg-amber text-paper text-sm font-semibold rounded-xl hover:brightness-90 disabled:opacity-50 transition-colors"
                             >
-                              {totpIsLoading && <div className="h-4 w-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />}
+                              {totpIsLoading && <div className="h-4 w-4 border-2 border-paper/40 border-t-paper rounded-full animate-spin" />}
                               Verify &amp; Enable
                             </button>
                           </div>
@@ -1050,7 +1050,7 @@ export default function UserSettings() {
                               </button>
                             </div>
                           </div>
-                          <button onClick={() => setTotpStep('status')} className="w-full py-2.5 bg-ink text-white text-sm font-semibold rounded-xl hover:bg-ink/90 transition-colors">
+                          <button onClick={() => setTotpStep('status')} className="w-full py-2.5 bg-ink text-paper text-sm font-semibold rounded-xl hover:bg-ink/90 transition-colors">
                             Done
                           </button>
                         </div>
@@ -1097,9 +1097,9 @@ export default function UserSettings() {
                             <button
                               onClick={handleTotpDisable}
                               disabled={totpIsLoading}
-                              className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 bg-rose text-white text-sm font-semibold rounded-xl hover:bg-rose/90 disabled:opacity-50 transition-colors"
+                              className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 bg-rose text-paper text-sm font-semibold rounded-xl hover:bg-rose/90 disabled:opacity-50 transition-colors"
                             >
-                              {totpIsLoading && <div className="h-4 w-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />}
+                              {totpIsLoading && <div className="h-4 w-4 border-2 border-paper/40 border-t-paper rounded-full animate-spin" />}
                               Disable 2FA
                             </button>
                           </div>

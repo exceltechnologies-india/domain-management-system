@@ -103,7 +103,7 @@ function NewTicketForm({ onCreated, onCancel }: { onCreated: () => void; onCance
       <div className="flex items-center justify-between px-6 py-4 bg-indigo-soft border-b border-indigo/25">
         <div className="flex items-center gap-2">
           <div className="p-1.5 bg-amber rounded-lg">
-            <Plus className="h-4 w-4 text-white" />
+            <Plus className="h-4 w-4 text-paper" />
           </div>
           <h2 className="font-semibold text-ink">New Support Ticket</h2>
         </div>
@@ -182,7 +182,7 @@ function NewTicketForm({ onCreated, onCancel }: { onCreated: () => void; onCance
           <button
             type="submit"
             disabled={saving || !subject.trim() || !message.trim()}
-            className="flex items-center gap-2 px-6 py-2.5 bg-amber hover:brightness-90 disabled:bg-amber/40 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
+            className="flex items-center gap-2 px-6 py-2.5 bg-amber hover:brightness-90 disabled:bg-amber/40 text-paper text-sm font-semibold rounded-xl transition-colors shadow-sm"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
             {saving ? 'Submitting…' : 'Submit Ticket'}
@@ -217,11 +217,11 @@ export default function SupportPage() {
         <div className="space-y-6 p-6">
 
           {/* Header */}
-          <div className="bg-ink rounded-2xl p-6 text-white shadow-lg">
+          <div className="bg-ink rounded-2xl p-6 text-paper shadow-lg">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 bg-paper/20 rounded-xl backdrop-blur-sm">
-                  <MessageCircle className="h-6 w-6 text-white" />
+                  <MessageCircle className="h-6 w-6 text-paper" />
                 </div>
                 <div>
                   <h1 className="text-xl font-bold">Support</h1>
@@ -245,7 +245,7 @@ export default function SupportPage() {
                   { label: 'Resolved', value: resolvedCount, color: 'bg-emerald/20' },
                 ].map(({ label, value, color }) => (
                   <div key={label} className={`${color} rounded-xl px-3 py-2.5 text-center backdrop-blur-sm`}>
-                    <p className="text-2xl font-bold text-white">{value}</p>
+                    <p className="text-2xl font-bold text-paper">{value}</p>
                     <p className="text-xs text-paper-2/80 mt-0.5">{label}</p>
                   </div>
                 ))}
@@ -273,7 +273,7 @@ export default function SupportPage() {
               <p className="text-sm text-ink-4 mt-1 mb-5">Submit a ticket and our team will get back to you</p>
               <button
                 onClick={() => setShowForm(true)}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber hover:brightness-90 text-white text-sm font-semibold rounded-xl transition-colors"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber hover:brightness-90 text-paper text-sm font-semibold rounded-xl transition-colors"
               >
                 <Plus className="h-4 w-4" /> Create First Ticket
               </button>

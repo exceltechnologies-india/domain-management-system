@@ -101,7 +101,7 @@ export default function DomainCrossSell() {
                 setDomainQuery(e.target.value);
                 setResult(null); // Clear result on typing
               }}
-              className="block w-full pl-10 pr-24 py-3 border border-hairline-strong rounded-lg leading-5 bg-paper placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm transition duration-150 ease-in-out"
+              className="block w-full pl-10 pr-24 py-3 border border-hairline-strong rounded-lg leading-5 bg-paper placeholder-ink-3 focus:outline-none focus:placeholder-ink-4 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm transition duration-150 ease-in-out"
               placeholder="Search domain (e.g. example.com)"
             />
             <div className="absolute inset-y-1 right-1">
@@ -109,7 +109,7 @@ export default function DomainCrossSell() {
                 type="button"
                 onClick={handleSearch}
                 disabled={!domainQuery.trim() || isSearching}
-                className="h-full px-4 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-md shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex items-center gap-2"
+                className="h-full px-4 text-sm font-medium text-paper bg-primary-600 hover:bg-primary-700 rounded-md shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex items-center gap-2"
               >
                 {isSearching ? (
                   <>
@@ -153,7 +153,7 @@ export default function DomainCrossSell() {
             {result.available && (
               <button
                 onClick={handleAddToCart}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald hover:bg-emerald-ink text-white text-sm font-medium rounded-md shadow-sm transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald hover:bg-emerald-ink text-paper text-sm font-medium rounded-md shadow-sm transition-colors"
               >
                 <ShoppingCart className="h-4 w-4" />
                 Add

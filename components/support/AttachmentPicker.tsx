@@ -116,12 +116,12 @@ export default function AttachmentPicker({
           type="button"
           disabled={disabled || reading || attachments.length >= MAX_FILES}
           onClick={() => inputRef.current?.click()}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-ink bg-indigo-soft hover:bg-indigo/15 border border-indigo/30 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Paperclip className="h-3.5 w-3.5" />
           {reading ? 'Loading…' : label}
         </button>
-        <span className="text-xs text-gray-400">
+        <span className="text-xs text-ink-4">
           PNG, JPG, WebP, GIF · max {Math.round(MAX_BYTES / 1024 / 1024)} MB · up to {MAX_FILES} images
         </span>
       </div>
@@ -129,7 +129,7 @@ export default function AttachmentPicker({
       {attachments.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
           {attachments.map((a, i) => (
-            <div key={i} className="group relative border border-gray-200 rounded-xl overflow-hidden bg-gray-50">
+            <div key={i} className="group relative border border-hairline rounded-xl overflow-hidden bg-paper-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={a.dataUrl}
@@ -140,12 +140,12 @@ export default function AttachmentPicker({
                 type="button"
                 disabled={disabled}
                 onClick={() => removeAt(i)}
-                className="absolute top-1 right-1 p-1 bg-white/90 hover:bg-white text-red-500 hover:text-red-700 rounded-md shadow-sm border border-gray-200 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-30"
+                className="absolute top-1 right-1 p-1 bg-paper/90 hover:bg-paper text-rose hover:text-rose-ink rounded-md shadow-sm border border-hairline opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-30"
                 title="Remove"
               >
                 <X className="h-3 w-3" />
               </button>
-              <div className="absolute bottom-0 left-0 right-0 px-2 py-1 bg-gradient-to-t from-black/60 to-transparent text-white text-[10px] truncate">
+              <div className="absolute bottom-0 left-0 right-0 px-2 py-1 bg-gradient-to-t from-black/60 to-transparent text-paper text-[10px] truncate">
                 <span className="inline-flex items-center gap-1">
                   <ImageIcon className="h-2.5 w-2.5" />
                   {a.filename}

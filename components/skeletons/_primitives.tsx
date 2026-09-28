@@ -25,21 +25,21 @@ export function PageHeader({ wide = false }: { wide?: boolean }) {
 export function TableSkeleton({ rows = 6, cols = 5 }: { rows?: number; cols?: number }) {
   const widths = ['w-32', 'w-40', 'w-28', 'w-20', 'w-24', 'w-16'];
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+    <div className="bg-paper rounded-xl border border-hairline overflow-hidden">
       {/* search / filter bar */}
-      <div className="p-4 border-b border-gray-100 flex gap-3">
+      <div className="p-4 border-b border-hairline flex gap-3">
         <Sk className="h-9 flex-1 max-w-xs rounded-lg" />
         <Sk className="h-9 w-28 rounded-lg" />
       </div>
       {/* header row */}
-      <div className="px-4 py-3 border-b border-gray-100 flex gap-6">
+      <div className="px-4 py-3 border-b border-hairline flex gap-6">
         {Array.from({ length: cols }).map((_, i) => (
           <Sk key={i} className={`h-3.5 rounded ${widths[i % widths.length]}`} />
         ))}
       </div>
       {/* data rows */}
       {Array.from({ length: rows }).map((_, r) => (
-        <div key={r} className="px-4 py-4 border-b border-gray-50 flex gap-6 items-center">
+        <div key={r} className="px-4 py-4 border-b border-hairline flex gap-6 items-center">
           {Array.from({ length: cols }).map((__, c) => (
             <Sk
               key={c}
@@ -56,9 +56,9 @@ export function TableSkeleton({ rows = 6, cols = 5 }: { rows?: number; cols?: nu
 
 export function FormSection({ fields = 4, title = true }: { fields?: number; title?: boolean }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
+    <div className="bg-paper rounded-xl border border-hairline p-6 space-y-5">
       {title && (
-        <div className="pb-4 border-b border-gray-100">
+        <div className="pb-4 border-b border-hairline">
           <Sk className="h-5 w-40 rounded" />
         </div>
       )}

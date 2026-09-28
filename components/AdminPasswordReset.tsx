@@ -41,15 +41,15 @@ export default function AdminPasswordReset() {
 
   return (
     <div className="max-w-md mx-auto">
-      <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Reset Admin Password</h3>
-        <p className="text-sm text-gray-600 mb-6">
+      <div className="bg-paper rounded-lg shadow-md border border-hairline p-6">
+        <h3 className="text-lg font-semibold text-ink mb-4">Reset Admin Password</h3>
+        <p className="text-sm text-ink-2 mb-6">
           Enter a new password for the admin account.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="admin-new-password" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="admin-new-password" className="block text-sm font-medium text-ink-2 mb-1">
               New Password
             </label>
             <input
@@ -57,14 +57,14 @@ export default function AdminPasswordReset() {
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-hairline rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               placeholder="Enter new password"
               required
             />
           </div>
 
           <div>
-            <label htmlFor="admin-confirm-password" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="admin-confirm-password" className="block text-sm font-medium text-ink-2 mb-1">
               Confirm Password
             </label>
             <input
@@ -72,7 +72,7 @@ export default function AdminPasswordReset() {
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-hairline rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               placeholder="Confirm new password"
               required
             />
@@ -81,7 +81,7 @@ export default function AdminPasswordReset() {
           <button
             type="submit"
             disabled={isLoading || !newPassword || !confirmPassword || newPassword !== confirmPassword}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-primary-600 text-paper py-2 px-4 rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? 'Updating...' : 'Update Password'}
           </button>

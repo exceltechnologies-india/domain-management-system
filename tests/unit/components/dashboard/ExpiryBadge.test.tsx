@@ -40,20 +40,20 @@ describe("<ExpiryBadge>", () => {
   it("green tier: > 60 days renders 'Expires DD MMM YYYY' with the green class set", () => {
     const { container } = render(<ExpiryBadge expiryDate={daysFromNow(90)} />);
     expect(screen.getByText(/expires/i)).toBeInTheDocument();
-    expect((container.firstChild as HTMLElement).className).toMatch(/text-green-700/);
+    expect((container.firstChild as HTMLElement).className).toMatch(/text-emerald-ink/);
   });
 
   it("yellow tier: 15–60 days renders 'Expires in N days' with the yellow class set", () => {
     const { container } = render(<ExpiryBadge expiryDate={daysFromNow(30)} />);
     expect(screen.getByText(/expires in \d+ days/i)).toBeInTheDocument();
-    expect((container.firstChild as HTMLElement).className).toMatch(/text-yellow-700/);
+    expect((container.firstChild as HTMLElement).className).toMatch(/text-amber-ink/);
   });
 
   it("red tier: ≤ 14 days renders 'Expires in N day(s) — Renew Now' with red + animate-pulse", () => {
     const { container } = render(<ExpiryBadge expiryDate={daysFromNow(3)} />);
     expect(screen.getByText(/expires in 3 days — renew now/i)).toBeInTheDocument();
     const el = container.firstChild as HTMLElement;
-    expect(el.className).toMatch(/text-red-700/);
+    expect(el.className).toMatch(/text-rose-ink/);
     expect(el.className).toMatch(/animate-pulse/);
   });
 
@@ -66,7 +66,7 @@ describe("<ExpiryBadge>", () => {
     const { container } = render(<ExpiryBadge expiryDate={daysFromNow(-1)} />);
     expect(screen.getByText(/^expired$/i)).toBeInTheDocument();
     const el = container.firstChild as HTMLElement;
-    expect(el.className).toMatch(/text-red-700/);
+    expect(el.className).toMatch(/text-rose-ink/);
     expect(el.className).not.toMatch(/animate-pulse/);
   });
 

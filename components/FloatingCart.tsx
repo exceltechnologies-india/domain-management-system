@@ -57,7 +57,7 @@ export default function FloatingCart() {
   return (
     <Link
       href="/cart"
-      className={`md:hidden fixed bottom-6 right-6 z-50 text-white rounded-full p-4 shadow-2xl hover:shadow-xl transition-all duration-300 transform hover:scale-110 active:scale-95 ${cartCount > 0 ? 'bg-green-600 hover:bg-green-700 animate-cart-flash' : 'bg-primary-600 hover:bg-primary-700'
+      className={`md:hidden fixed bottom-6 right-6 z-50 text-paper rounded-full p-4 shadow-2xl hover:shadow-xl transition-all duration-300 transform hover:scale-110 active:scale-95 ${cartCount > 0 ? 'bg-emerald hover:bg-emerald/90 animate-cart-flash' : 'bg-primary-600 hover:bg-primary-700'
         }`}
       style={{
         boxShadow: '0 10px 40px rgb(var(--primary-600) / 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)',
@@ -67,7 +67,7 @@ export default function FloatingCart() {
       <ShoppingCart className="h-6 w-6" />
       {cartCount > 0 && (
         <span
-          className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center border-2 border-white animate-pulse"
+          className="absolute -top-2 -right-2 bg-rose text-paper text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center border-2 border-paper animate-pulse"
           style={{
             fontFamily: 'Google Sans, system-ui, sans-serif',
             boxShadow: '0 2px 8px rgba(239, 68, 68, 0.4)',

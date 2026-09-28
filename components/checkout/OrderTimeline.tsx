@@ -55,22 +55,22 @@ export default function OrderTimeline({ hasDomains, hasHosting, userEmail }: Ord
   ];
 
   const statusColor: Record<TimelineStep['status'], string> = {
-    instant: 'bg-green-100 text-green-700',
+    instant: 'bg-emerald-soft text-emerald-ink',
     fast: 'bg-primary-100 text-primary-700',
-    slow: 'bg-amber-100 text-amber-700',
+    slow: 'bg-amber-soft text-amber-ink',
   };
 
   const dotColor: Record<TimelineStep['status'], string> = {
-    instant: 'bg-green-500',
+    instant: 'bg-emerald',
     fast: 'bg-primary-500',
-    slow: 'bg-amber-500',
+    slow: 'bg-amber',
   };
 
   return (
     <div className="mt-4 px-6 pb-6">
-      <div className="border border-gray-100 rounded-lg p-4">
-        <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <Clock className="h-4 w-4 text-gray-500" />
+      <div className="border border-hairline rounded-lg p-4">
+        <h3 className="text-sm font-semibold text-ink mb-4 flex items-center gap-2">
+          <Clock className="h-4 w-4 text-ink-3" />
           What happens after you pay
         </h3>
         <ol className="space-y-3">
@@ -80,18 +80,18 @@ export default function OrderTimeline({ hasDomains, hasHosting, userEmail }: Ord
               <div className="flex flex-col items-center pt-0.5 flex-shrink-0">
                 <div className={`w-2 h-2 rounded-full mt-1 ${dotColor[step.status]}`} />
                 {i < steps.length - 1 && (
-                  <div className="w-px flex-1 bg-gray-200 mt-1" style={{ minHeight: '20px' }} />
+                  <div className="w-px flex-1 bg-hairline mt-1" style={{ minHeight: '20px' }} />
                 )}
               </div>
               {/* Content */}
               <div className="pb-3 min-w-0">
                 <div className="flex flex-wrap items-center gap-2 mb-0.5">
-                  <span className="text-sm font-medium text-gray-900">{step.title}</span>
+                  <span className="text-sm font-medium text-ink">{step.title}</span>
                   <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${statusColor[step.status]}`}>
                     {step.timing}
                   </span>
                 </div>
-                <p className="text-xs text-gray-500 leading-relaxed">{step.detail}</p>
+                <p className="text-xs text-ink-3 leading-relaxed">{step.detail}</p>
               </div>
             </li>
           ))}

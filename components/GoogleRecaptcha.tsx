@@ -156,7 +156,7 @@ export default function GoogleRecaptcha({
     <div className={className}>
       <div ref={containerRef} id={containerId} className="flex justify-center" />
       {error && (
-        <p className="mt-2 text-xs text-red-600 text-center">{error}</p>
+        <p className="mt-2 text-xs text-rose-ink text-center">{error}</p>
       )}
     </div>
   );

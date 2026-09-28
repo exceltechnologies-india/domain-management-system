@@ -9,13 +9,13 @@ import { Sk, PageHeader, TableSkeleton, FormSection } from './_primitives';
 
 function StatCard({ color = 'blue' }: { color?: 'blue' | 'orange' | 'purple' | 'green' }) {
   const bg: Record<string, string> = {
-    blue: 'bg-blue-50',
-    orange: 'bg-orange-50',
-    purple: 'bg-purple-50',
-    green: 'bg-green-50',
+    blue: 'bg-indigo-soft',
+    orange: 'bg-amber-soft',
+    purple: 'bg-indigo-soft',
+    green: 'bg-emerald-soft',
   };
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6">
+    <div className="bg-paper rounded-xl border border-hairline p-6">
       <div className="flex items-center justify-between mb-4">
         <div className={`p-3 rounded-lg ${bg[color]}`}>
           <Sk className="h-6 w-6 rounded" />
@@ -32,9 +32,9 @@ function StatCard({ color = 'blue' }: { color?: 'blue' | 'orange' | 'purple' | '
 
 export function DashboardLayoutSkeleton({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-paper-2 flex">
       {/* Sidebar */}
-      <aside className="hidden lg:flex flex-col w-64 bg-white border-r border-gray-200 p-4 gap-3 shrink-0">
+      <aside className="hidden lg:flex flex-col w-64 bg-paper border-r border-hairline p-4 gap-3 shrink-0">
         {/* Logo */}
         <div className="flex items-center gap-3 px-2 py-3 mb-2">
           <Sk className="h-8 w-8 rounded-lg" />
@@ -48,7 +48,7 @@ export function DashboardLayoutSkeleton({ children }: { children: React.ReactNod
           </div>
         ))}
         {/* User block at bottom */}
-        <div className="mt-auto flex items-center gap-3 px-3 py-3 border-t border-gray-100">
+        <div className="mt-auto flex items-center gap-3 px-3 py-3 border-t border-hairline">
           <Sk className="h-8 w-8 rounded-full shrink-0" />
           <div className="space-y-1.5 flex-1">
             <Sk className="h-3.5 w-24 rounded" />
@@ -60,7 +60,7 @@ export function DashboardLayoutSkeleton({ children }: { children: React.ReactNod
       {/* Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar (mobile) */}
-        <div className="lg:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200">
+        <div className="lg:hidden flex items-center justify-between px-4 py-3 bg-paper border-b border-hairline">
           <Sk className="h-8 w-8 rounded" />
           <Sk className="h-6 w-28 rounded" />
           <Sk className="h-8 w-8 rounded" />
@@ -92,8 +92,8 @@ export function DashboardHomeSkeleton() {
       {/* Services list + side panel */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Services list — 2 cols */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+        <div className="lg:col-span-2 bg-paper rounded-xl border border-hairline overflow-hidden">
+          <div className="p-6 border-b border-hairline flex items-center justify-between">
             <div className="space-y-1.5">
               <Sk className="h-5 w-32 rounded" />
               <Sk className="h-3.5 w-48 rounded" />
@@ -101,7 +101,7 @@ export function DashboardHomeSkeleton() {
             <Sk className="h-4 w-16 rounded" />
           </div>
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
+            <div key={i} className="px-6 py-4 border-b border-hairline flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <Sk className="h-10 w-10 rounded-lg shrink-0" />
                 <div className="space-y-1.5">
@@ -118,8 +118,8 @@ export function DashboardHomeSkeleton() {
         </div>
 
         {/* Right panel */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="p-6 border-b border-gray-100">
+        <div className="bg-paper rounded-xl border border-hairline overflow-hidden">
+          <div className="p-6 border-b border-hairline">
             <Sk className="h-5 w-28 rounded" />
           </div>
           <div className="p-6 space-y-4">
@@ -187,7 +187,7 @@ export function HostingPageSkeleton() {
       {/* Hosting service cards */}
       <div className="space-y-4">
         {Array.from({ length: 2 }).map((_, i) => (
-          <div key={i} className="bg-white rounded-xl border border-gray-200 p-6">
+          <div key={i} className="bg-paper rounded-xl border border-hairline p-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-4">
                 <Sk className="h-12 w-12 rounded-xl shrink-0" />
@@ -204,7 +204,7 @@ export function HostingPageSkeleton() {
               </div>
             </div>
             {/* Progress / details strip */}
-            <div className="mt-5 pt-5 border-t border-gray-100 grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="mt-5 pt-5 border-t border-hairline grid grid-cols-2 sm:grid-cols-4 gap-4">
               {Array.from({ length: 4 }).map((__, j) => (
                 <div key={j} className="space-y-1.5">
                   <Sk className="h-3 w-20 rounded" />
@@ -253,7 +253,7 @@ export function ReferralsPageSkeleton() {
       </div>
 
       {/* Referral link card */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+      <div className="bg-paper rounded-xl border border-hairline p-6 space-y-4">
         <Sk className="h-5 w-32 rounded" />
         <Sk className="h-3.5 w-64 rounded" />
         <div className="flex gap-3">
@@ -263,7 +263,7 @@ export function ReferralsPageSkeleton() {
       </div>
 
       {/* How it works */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+      <div className="bg-paper rounded-xl border border-hairline p-6 space-y-4">
         <Sk className="h-5 w-36 rounded" />
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -290,7 +290,7 @@ export function SettingsPageSkeleton() {
         <Sk className="h-4 w-60 rounded" />
       </div>
       {/* Avatar + name section */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 flex items-center gap-5">
+      <div className="bg-paper rounded-xl border border-hairline p-6 flex items-center gap-5">
         <Sk className="h-20 w-20 rounded-full shrink-0" />
         <div className="space-y-2">
           <Sk className="h-5 w-40 rounded" />
@@ -316,7 +316,7 @@ export function DNSPageSkeleton() {
       <PageHeader wide />
 
       {/* Domain selector */}
-      <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <div className="bg-paper rounded-xl border border-hairline p-5">
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
           <div className="flex-1 space-y-1.5">
             <Sk className="h-3.5 w-28 rounded" />
@@ -327,13 +327,13 @@ export function DNSPageSkeleton() {
       </div>
 
       {/* DNS records table */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+      <div className="bg-paper rounded-xl border border-hairline overflow-hidden">
+        <div className="p-5 border-b border-hairline flex items-center justify-between">
           <Sk className="h-5 w-28 rounded" />
           <Sk className="h-9 w-28 rounded-lg" />
         </div>
         {/* Header */}
-        <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 grid grid-cols-12 gap-4">
+        <div className="px-5 py-3 bg-paper-2 border-b border-hairline grid grid-cols-12 gap-4">
           {['w-12', 'w-20', 'w-36', 'w-16', 'w-20'].map((w, i) => (
             <div key={i} className="col-span-2">
               <Sk className={`h-3.5 rounded ${w}`} />
@@ -342,7 +342,7 @@ export function DNSPageSkeleton() {
         </div>
         {/* Rows */}
         {Array.from({ length: 5 }).map((_, r) => (
-          <div key={r} className="px-5 py-4 border-b border-gray-50 grid grid-cols-12 gap-4 items-center">
+          <div key={r} className="px-5 py-4 border-b border-hairline grid grid-cols-12 gap-4 items-center">
             <div className="col-span-2"><Sk className="h-5 w-10 rounded-full" /></div>
             <div className="col-span-2"><Sk className="h-4 w-16 rounded" /></div>
             <div className="col-span-4"><Sk className="h-4 w-48 rounded" /></div>
@@ -369,7 +369,7 @@ export function TicketDetailPageSkeleton() {
       <Sk className="h-4 w-32 rounded" />
 
       {/* Header strip card */}
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+      <div className="bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden">
         <div className="px-5 sm:px-6 py-4 sm:py-5 flex items-start gap-4">
           <Sk className="h-10 w-10 rounded-xl shrink-0" />
           <div className="flex-1 min-w-0 space-y-2">
@@ -384,7 +384,7 @@ export function TicketDetailPageSkeleton() {
           <Sk className="h-9 w-28 rounded-xl shrink-0 hidden sm:block" />
         </div>
         {/* Vitals row */}
-        <div className="border-t border-gray-100 bg-gray-50/60 px-5 sm:px-6 py-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="border-t border-hairline bg-paper-2/60 px-5 sm:px-6 py-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="flex items-center gap-2">
               <Sk className="h-7 w-7 rounded-lg shrink-0" />
@@ -398,8 +398,8 @@ export function TicketDetailPageSkeleton() {
       </div>
 
       {/* Conversation card */}
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-100 bg-gray-50/60 flex items-center justify-between">
+      <div className="bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b border-hairline bg-paper-2/60 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Sk className="h-4 w-4 rounded" />
             <Sk className="h-4 w-28 rounded" />
@@ -435,9 +435,9 @@ export function TicketDetailPageSkeleton() {
       </div>
 
       {/* Reply box */}
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+      <div className="bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden">
         <Sk className="h-24 w-full rounded-none" />
-        <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
+        <div className="px-5 py-3 border-t border-hairline bg-paper-2 flex justify-between items-center">
           <Sk className="h-3.5 w-16 rounded" />
           <Sk className="h-9 w-28 rounded-xl" />
         </div>
@@ -457,7 +457,7 @@ export function DetailPageSkeleton() {
         <Sk className="h-4 w-40 rounded" />
       </div>
       {/* Main content card */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
+      <div className="bg-paper rounded-xl border border-hairline p-6 space-y-5">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="space-y-1.5">
@@ -468,12 +468,12 @@ export function DetailPageSkeleton() {
         </div>
       </div>
       {/* Secondary card */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="p-5 border-b border-gray-100">
+      <div className="bg-paper rounded-xl border border-hairline overflow-hidden">
+        <div className="p-5 border-b border-hairline">
           <Sk className="h-5 w-36 rounded" />
         </div>
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
+          <div key={i} className="px-5 py-4 border-b border-hairline flex items-center justify-between">
             <div className="space-y-1.5">
               <Sk className="h-4 w-40 rounded" />
               <Sk className="h-3 w-28 rounded" />

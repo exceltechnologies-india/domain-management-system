@@ -48,7 +48,7 @@ export const showAccountDeactivated = (supportEmail: string) => {
         Your account has been deactivated. Please contact our support team at{' '}
         <a 
           href={`mailto:${supportEmail}`}
-          className="underline hover:text-red-900 font-medium"
+          className="underline hover:text-rose-ink font-medium"
         >
           {supportEmail}
         </a>{' '}

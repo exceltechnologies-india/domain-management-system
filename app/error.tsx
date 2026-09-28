@@ -39,20 +39,20 @@ export default function Error({ error, reset }: ErrorProps) {
   }, [error]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-paper-2">
       <Navigation />
 
       <div className="flex items-center justify-center min-h-[80vh] px-4 pt-24">
         <div className="text-center max-w-2xl mx-auto">
           {/* Error Icon */}
           <div className="mb-8">
-            <div className="bg-red-100 rounded-full w-32 h-32 flex items-center justify-center mx-auto mb-6">
-              <AlertTriangle className="h-16 w-16 text-red-600" />
+            <div className="bg-rose-soft rounded-full w-32 h-32 flex items-center justify-center mx-auto mb-6">
+              <AlertTriangle className="h-16 w-16 text-rose-ink" />
             </div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">
+            <h1 className="text-4xl font-bold text-ink mb-4">
               Oops! Something went wrong
             </h1>
-            <p className="text-xl text-gray-600 mb-8">
+            <p className="text-xl text-ink-2 mb-8">
               We encountered an unexpected error. Don't worry, our team has been notified
               and we're working to fix it as soon as possible.
             </p>
@@ -60,13 +60,13 @@ export default function Error({ error, reset }: ErrorProps) {
 
           {/* Error Details (only in development) */}
           {process.env.NODE_ENV === 'development' && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-8 text-left">
-              <h3 className="font-semibold text-red-800 mb-2">Error Details:</h3>
-              <p className="text-sm text-red-700 font-mono break-all">
+            <div className="bg-rose-soft border border-rose/30 rounded-lg p-4 mb-8 text-left">
+              <h3 className="font-semibold text-rose-ink mb-2">Error Details:</h3>
+              <p className="text-sm text-rose-ink font-mono break-all">
                 {error.message}
               </p>
               {error.digest && (
-                <p className="text-xs text-red-600 mt-2">
+                <p className="text-xs text-rose-ink mt-2">
                   Error ID: {error.digest}
                 </p>
               )}

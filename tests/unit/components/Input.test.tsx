@@ -38,7 +38,7 @@ describe("<Input> (custom)", () => {
   it("error styling adds the red border on the input itself", () => {
     render(<Input error="bad" placeholder="ph" />);
     const input = screen.getByPlaceholderText("ph");
-    expect(input.className).toMatch(/border-red-300/);
+    expect(input.className).toMatch(/border-rose\/30/);
   });
 
   it("forwards ref to the underlying input element", () => {

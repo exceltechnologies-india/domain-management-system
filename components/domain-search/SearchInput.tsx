@@ -52,8 +52,8 @@ export default function SearchInput({
             isSearching ? 'opacity-50 pointer-events-none' : ''
           } ${
             theme === 'dark'
-              ? 'bg-white/95 shadow-[0_10px_30px_rgba(0,0,0,0.18)] focus-within:bg-white focus-within:shadow-[0_12px_40px_rgba(0,0,0,0.22)]'
-              : 'bg-white border border-gray-200 shadow-[0_10px_30px_rgba(0,0,0,0.06)] focus-within:border-amber/40 focus-within:shadow-[0_12px_40px_rgba(96,165,250,0.18)]'
+              ? 'bg-paper/95 shadow-[0_10px_30px_rgba(0,0,0,0.18)] focus-within:bg-paper focus-within:shadow-[0_12px_40px_rgba(0,0,0,0.22)]'
+              : 'bg-paper border border-hairline shadow-[0_10px_30px_rgba(0,0,0,0.06)] focus-within:border-amber/40 focus-within:shadow-[0_12px_40px_rgba(96,165,250,0.18)]'
           }`}
         >
           <input
@@ -61,7 +61,7 @@ export default function SearchInput({
             value={searchTerm}
             onChange={onChange}
             placeholder="Register a domain name to start"
-            className={`w-full px-4 sm:px-5 bg-transparent border-0 focus:ring-0 focus:outline-none font-medium text-gray-900 placeholder-gray-400 ${
+            className={`w-full px-4 sm:px-5 bg-transparent border-0 focus:ring-0 focus:outline-none font-medium text-ink placeholder-ink-4 ${
               compact ? 'py-3 sm:py-3.5 text-sm sm:text-base' : 'py-3.5 sm:py-4 text-sm sm:text-lg'
             }`}
             style={{ fontFamily: 'Roboto, system-ui, sans-serif' }}
@@ -75,7 +75,7 @@ export default function SearchInput({
           onClick={() => onSearch()}
           disabled={isSearching || !searchTerm.trim()}
           aria-label="Search domains"
-          className={`flex-shrink-0 bg-gradient-to-b from-[#7C3AED] to-[#6D28D9] hover:from-[#8B5CF6] hover:to-[#7C3AED] text-white font-bold rounded-xl sm:rounded-2xl ring-1 ring-white/30 transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 shadow-[0_8px_22px_rgba(109,40,217,0.5)] hover:shadow-[0_10px_30px_rgba(124,58,237,0.6)] disabled:opacity-60 disabled:saturate-50 active:scale-95 ${
+          className={`flex-shrink-0 bg-gradient-to-b from-[#7C3AED] to-[#6D28D9] hover:from-[#8B5CF6] hover:to-[#7C3AED] text-paper font-bold rounded-xl sm:rounded-2xl ring-1 ring-paper/30 transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 shadow-[0_8px_22px_rgba(109,40,217,0.5)] hover:shadow-[0_10px_30px_rgba(124,58,237,0.6)] disabled:opacity-60 disabled:saturate-50 active:scale-95 ${
             compact
               ? 'w-12 sm:w-auto sm:px-5 py-3 sm:py-3.5 text-sm'
               : 'w-14 sm:w-auto sm:px-6 py-3.5 sm:py-4 text-base'
@@ -116,20 +116,20 @@ export default function SearchInput({
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="mt-6 flex items-center justify-center gap-3 text-blue-600 font-semibold"
+            className="mt-6 flex items-center justify-center gap-3 text-indigo-ink font-semibold"
           >
             {/* The prompt sits OUTSIDE the white search card and directly on
                 the page's blue hero background in both hosted usages
                 (app/page.tsx + app/domains/search/page.tsx, both pass
                 theme="light"). The previous theme="light" colors
-                (text-blue-500 sparkle + text-gray-600 text) were meant for
+                (text-indigo sparkle + text-ink-2 text) were meant for
                 a white card backdrop and read as low-contrast on blue.
                 Switched to high-contrast yellow icon + near-white text so
                 the prompt is readable in both contexts. */}
             <Sparkles
-              className="h-5 w-5 animate-pulse text-yellow-300 transition-colors duration-300"
+              className="h-5 w-5 animate-pulse text-amber transition-colors duration-300"
             />
-            <span className="text-sm sm:text-base text-white/90 transition-colors duration-300">
+            <span className="text-sm sm:text-base text-paper/90 transition-colors duration-300">
               We'll check .com, .net, .in and more for "{baseDomain}"
             </span>
           </motion.div>

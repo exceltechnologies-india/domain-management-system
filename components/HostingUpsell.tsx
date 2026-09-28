@@ -98,28 +98,28 @@ export default function HostingUpsell() {
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
+    <div className="bg-paper rounded-lg border border-hairline p-4 sm:p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
-          <div className="bg-blue-50 p-2 rounded-lg">
-            <Server className="h-6 w-6 text-blue-600" />
+          <div className="bg-indigo-soft p-2 rounded-lg">
+            <Server className="h-6 w-6 text-indigo-ink" />
           </div>
           <div>
-            <h3 className="text-base sm:text-lg font-bold text-gray-900">Add {standardPlan.name}</h3>
-            <p className="text-xs sm:text-sm text-gray-600 mt-1">Get your website online with our most popular plan. Fast & secure.</p>
+            <h3 className="text-base sm:text-lg font-bold text-ink">Add {standardPlan.name}</h3>
+            <p className="text-xs sm:text-sm text-ink-2 mt-1">Get your website online with our most popular plan. Fast & secure.</p>
           </div>
         </div>
 
         {perMonth !== null && perMonthOnMonthly !== null ? (
-          <div className="flex items-center gap-3 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
-            <span className="text-2xl font-bold text-gray-900">₹{perMonth}<span className="text-xs font-normal text-gray-500">/mo + GST, billed yearly</span></span>
-            <span className="text-sm text-gray-500 line-through">₹{perMonthOnMonthly}</span>
-            <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+          <div className="flex items-center gap-3 bg-paper-2 px-3 py-1.5 rounded-lg border border-hairline">
+            <span className="text-2xl font-bold text-ink">₹{perMonth}<span className="text-xs font-normal text-ink-3">/mo + GST, billed yearly</span></span>
+            <span className="text-sm text-ink-3 line-through">₹{perMonthOnMonthly}</span>
+            <span className="text-xs font-medium text-emerald-ink bg-emerald-soft px-2 py-0.5 rounded-full">
               Save 50%
             </span>
           </div>
         ) : (
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-ink-3">
             {prices.state === 'unavailable' ? 'Price not available right now' : 'Loading price…'}
           </p>
         )}
@@ -128,8 +128,8 @@ export default function HostingUpsell() {
       <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between">
         <div className="grid sm:grid-cols-2 gap-x-8 gap-y-2 flex-1">
           {standardPlan.features.map((feature, idx) => (
-            <div key={idx} className="flex items-center gap-2 text-sm text-gray-700">
-              <CheckCircle className="h-4 w-4 text-blue-600 flex-shrink-0" />
+            <div key={idx} className="flex items-center gap-2 text-sm text-ink-2">
+              <CheckCircle className="h-4 w-4 text-indigo-ink flex-shrink-0" />
               <span>{feature}</span>
             </div>
           ))}
@@ -138,7 +138,7 @@ export default function HostingUpsell() {
         <button
           onClick={handleAddHosting}
           disabled={isAdding || !yearly}
-          className="w-full lg:w-auto bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-6 rounded-lg transition-colors duration-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          className="w-full lg:w-auto bg-primary-600 hover:bg-primary-700 text-paper font-medium py-2.5 px-6 rounded-lg transition-colors duration-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {isAdding ? 'Adding...' : 'Add Hosting'}
           {!isAdding && <ArrowRight className="h-4 w-4" />}

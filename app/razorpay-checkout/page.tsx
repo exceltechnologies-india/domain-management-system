@@ -142,9 +142,9 @@ export default function RazorpayCheckoutFramePage() {
   // status string for the brief loading + ready window.
   return (
     <div className="min-h-screen flex items-center justify-center bg-transparent">
-      <div className="text-sm text-gray-500">
+      <div className="text-sm text-ink-3">
         {error ? (
-          <span className="text-red-600">{error}</span>
+          <span className="text-rose-ink">{error}</span>
         ) : phase === 'loading' ? (
           'Loading payment options…'
         ) : phase === 'ready' ? (

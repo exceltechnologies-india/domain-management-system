@@ -99,7 +99,7 @@ export default function RenewViaResellerOs({ isOpen, onClose, serviceName, servi
   if (pay.step === 'paid') {
     body = (
       <div className="text-center py-4">
-        <CheckCircle className="h-10 w-10 text-emerald-600 mx-auto mb-3" />
+        <CheckCircle className="h-10 w-10 text-emerald-ink mx-auto mb-3" />
         <h3 className="font-serif text-xl text-ink mb-2">Payment received</h3>
         <p className="text-sm text-ink-2">
           Your {what} is being renewed — this usually takes a few minutes, and the new expiry date appears here when it is done.
@@ -184,9 +184,9 @@ export default function RenewViaResellerOs({ isOpen, onClose, serviceName, servi
 
 function Notice({ text }: { text: string }) {
   return (
-    <div role="alert" className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-      <AlertCircle className="h-4 w-4 text-amber-700 mt-0.5 shrink-0" />
-      <p className="text-sm text-amber-800">{text}</p>
+    <div role="alert" className="flex items-start gap-3 p-4 bg-amber-soft border border-amber/30 rounded-xl">
+      <AlertCircle className="h-4 w-4 text-amber-ink mt-0.5 shrink-0" />
+      <p className="text-sm text-amber-ink">{text}</p>
     </div>
   );
 }

@@ -26,9 +26,9 @@ function getLabel(days: number, expiry: Date): string {
 }
 
 const TIER_CLASSES: Record<Tier, string> = {
-  green: 'bg-green-50 text-green-700 border-green-200',
-  yellow: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-  red: 'bg-red-50 text-red-700 border-red-200',
+  green: 'bg-emerald-soft text-emerald-ink border-emerald/30',
+  yellow: 'bg-amber-soft text-amber-ink border-amber/30',
+  red: 'bg-rose-soft text-rose-ink border-rose/30',
 };
 
 export default function ExpiryBadge({ expiryDate, onRenew, className = '' }: ExpiryBadgeProps) {
