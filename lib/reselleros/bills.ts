@@ -61,25 +61,64 @@ export type BillsOutcome =
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
+/** The origin (`scheme://host[:port]`) of an http(s) address, or null when it is not one. */
+function originOf(v: string): string | null {
+  if (!/^https?:\/\//i.test(v)) return null;
+  try {
+    return new URL(v).origin;
+  } catch {
+    return null;
+  }
+}
+
 export function readBillsConfig(
   env: Record<string, string | undefined> = process.env,
-): { ok: true; baseUrl: string; apiKey: string } | { ok: false; missing: string[] } {
+):
+  | { ok: true; baseUrl: string; apiKey: string; serverOrigin: string; publicOrigin: string | null }
+  | { ok: false; missing: string[] } {
   const rawUrl = (env.RESELLEROS_SERVER_URL ?? "").trim();
   const apiKey = (env.RESELLEROS_BILLING_API_KEY ?? "").trim();
   const missing: string[] = [];
-  if (!/^https?:\/\//i.test(rawUrl)) missing.push("RESELLEROS_SERVER_URL");
+  const serverOrigin = originOf(rawUrl);
+  if (!serverOrigin) missing.push("RESELLEROS_SERVER_URL");
   if (!apiKey) missing.push("RESELLEROS_BILLING_API_KEY");
-  if (missing.length > 0) return { ok: false, missing };
-  return { ok: true, baseUrl: `${rawUrl.replace(/\/+$/, "")}/api/v1`, apiKey };
+  if (missing.length > 0 || !serverOrigin) return { ok: false, missing };
+  return {
+    ok: true,
+    baseUrl: `${rawUrl.replace(/\/+$/, "")}/api/v1`,
+    apiKey,
+    serverOrigin,
+    // Where a CUSTOMER's browser reaches ResellerOS (lib/reseller-os.ts). Not required:
+    // when it is unknown the links are left exactly as ResellerOS sent them.
+    publicOrigin: originOf((env.NEXT_PUBLIC_RESELLEROS_URL ?? "").trim()),
+  };
 }
 
 class Unavailable extends Error {}
 
-/** Only an http(s) link may become an href; anything else is dropped, never rendered. */
-function safeUrl(v: unknown): string | null {
-  if (typeof v !== "string") return null;
-  return /^https?:\/\//i.test(v) ? v : null;
+/**
+ * Makes a bill link one the customer's browser can open (28 Sep 2026).
+ *
+ * ResellerOS builds `pdf_url` / `payment_url` from the address THIS server called it on,
+ * `RESELLEROS_SERVER_URL`. That is the server-to-server address, and it need not be one a
+ * browser can reach: locally it is `http://host.docker.internal:4320`, and the end-to-end
+ * run on 26 Sep 2026 found the Invoices page's PDF link dead because of it, while the same
+ * PDF opened fine on the public address. So a link on the server address is moved to the
+ * public address (`NEXT_PUBLIC_RESELLEROS_URL`), keeping its path and token exactly.
+ *
+ * Only a link on the server origin is rewritten; any other http(s) link is kept as sent,
+ * and anything that is not http(s) is dropped, never rendered.
+ */
+function customerLink(v: unknown, serverOrigin: string, publicOrigin: string | null): string | null {
+  if (typeof v !== "string" || !originOf(v)) return null;
+  const u = new URL(v);
+  if (publicOrigin && u.origin === serverOrigin && publicOrigin !== serverOrigin) {
+    return `${publicOrigin}${u.pathname}${u.search}${u.hash}`;
+  }
+  return v;
 }
+
+type LinkFix = (v: unknown) => string | null;
 
 function str(v: unknown): string | null {
   return typeof v === "string" && v.trim() ? v : null;
@@ -90,7 +129,7 @@ function rupees(v: unknown, what: string): number {
   return v;
 }
 
-function parseQuotes(body: unknown): ResellerOsQuote[] {
+function parseQuotes(body: unknown, safeUrl: LinkFix): ResellerOsQuote[] {
   if (!Array.isArray(body)) throw new Unavailable("quotes response is not a list");
   return body.map((q: unknown, i) => {
     const r = (q ?? {}) as Record<string, unknown>;
@@ -109,7 +148,7 @@ function parseQuotes(body: unknown): ResellerOsQuote[] {
   });
 }
 
-function parseInvoices(body: unknown): ResellerOsInvoice[] {
+function parseInvoices(body: unknown, safeUrl: LinkFix): ResellerOsInvoice[] {
   if (!Array.isArray(body)) throw new Unavailable("invoices response is not a list");
   return body.map((v: unknown, i) => {
     const r = (v ?? {}) as Record<string, unknown>;
@@ -188,7 +227,8 @@ export async function fetchCustomerBills(email: string, options: FetchBillsOptio
     // answers a failed read of their quotes/invoices with 404.
     if (q.status !== 200) throw new Unavailable(`quotes answered HTTP ${q.status}`);
     if (inv.status !== 200) throw new Unavailable(`invoices answered HTTP ${inv.status}`);
-    return { kind: "ok", customerId, quotes: parseQuotes(q.body), invoices: parseInvoices(inv.body) };
+    const link: LinkFix = (v) => customerLink(v, cfg.serverOrigin, cfg.publicOrigin);
+    return { kind: "ok", customerId, quotes: parseQuotes(q.body, link), invoices: parseInvoices(inv.body, link) };
   } catch (err) {
     if (err instanceof Unavailable) return { kind: "unavailable", detail: err.message };
     throw err;

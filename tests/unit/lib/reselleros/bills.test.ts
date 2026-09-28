@@ -147,3 +147,45 @@ describe("billsUnavailableMessage", () => {
     expect(m).toMatch(/help@example\.test/);
   });
 });
+
+/* 28 Sep 2026: ResellerOS builds bill links from the address DMS's SERVER called it on.
+   Locally that is host.docker.internal, which a customer's browser cannot open — the
+   end-to-end run on 26 Sep found the Invoices page's PDF link dead. */
+describe("bill links point at ResellerOS's PUBLIC address", () => {
+  const INTERNAL = { RESELLEROS_SERVER_URL: "http://host.docker.internal:4320", RESELLEROS_BILLING_API_KEY: "rsk_live_abc" };
+  const routes = (pdf: string, pay: string) =>
+    router({
+      "/customers?email=": { status: 200, body: CUSTOMER },
+      "/customers/C-00007/quotes": { status: 200, body: [{ ...QUOTES[1], pdf_url: pdf, payment_url: pay }] },
+      "/customers/C-00007/invoices": { status: 200, body: [{ ...INVOICES[0], pdf_url: pdf }] },
+    });
+  const pdf = "http://host.docker.internal:4320/api/v1/documents/quote/Q-2/pdf?token=abc123";
+  const pay = "http://host.docker.internal:4320/quote/Q-2/accept?t=tok";
+
+  it("a link on the server address moves to the public address, path and token unchanged", async () => {
+    const out = await fetchCustomerBills("asha@example.test", {
+      env: { ...INTERNAL, NEXT_PUBLIC_RESELLEROS_URL: "http://localhost:4320/" },
+      fetchImpl: routes(pdf, pay),
+    });
+    if (out.kind !== "ok") throw new Error(`expected ok, got ${out.kind}`);
+    expect(out.quotes[0].pdfUrl).toBe("http://localhost:4320/api/v1/documents/quote/Q-2/pdf?token=abc123");
+    expect(out.quotes[0].paymentUrl).toBe("http://localhost:4320/quote/Q-2/accept?t=tok");
+    expect(out.invoices[0].pdfUrl).toBe("http://localhost:4320/api/v1/documents/quote/Q-2/pdf?token=abc123");
+  });
+
+  it("no public address configured → links are kept exactly as ResellerOS sent them", async () => {
+    const out = await fetchCustomerBills("asha@example.test", { env: INTERNAL, fetchImpl: routes(pdf, pay) });
+    if (out.kind !== "ok") throw new Error(`expected ok, got ${out.kind}`);
+    expect(out.quotes[0].pdfUrl).toBe(pdf);
+  });
+
+  it("a link on any other address is left alone; a non-http link is still dropped", async () => {
+    const out = await fetchCustomerBills("asha@example.test", {
+      env: { ...INTERNAL, NEXT_PUBLIC_RESELLEROS_URL: "https://reselleros.example.test" },
+      fetchImpl: routes("https://cdn.example.test/q2.pdf", "javascript:alert(1)"),
+    });
+    if (out.kind !== "ok") throw new Error(`expected ok, got ${out.kind}`);
+    expect(out.quotes[0].pdfUrl).toBe("https://cdn.example.test/q2.pdf");
+    expect(out.quotes[0].paymentUrl).toBeNull();
+  });
+});
