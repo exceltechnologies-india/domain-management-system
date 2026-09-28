@@ -598,9 +598,9 @@ export default function DNSManagementPage() {
                     {(() => {
                       const status = selectedDomain ? domains.find(d => d.id === selectedDomain)?.status : null;
                       const cfg = status === 'active' || status === 'registered'
-                        ? { dot: 'bg-green-500', cls: 'bg-green-50 text-green-700 border-green-200' }
+                        ? { dot: 'bg-emerald', cls: 'bg-emerald-soft text-emerald-ink border-emerald/30' }
                         : status
-                          ? { dot: 'bg-amber-500', cls: 'bg-amber-50 text-amber-700 border-amber-200' }
+                          ? { dot: 'bg-amber', cls: 'bg-amber-soft text-amber-ink border-amber/30' }
                           : { dot: 'bg-ink-4', cls: 'bg-paper-2/60 text-ink-3 border-hairline' };
                       return (
                         <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium ${cfg.cls}`}>
@@ -682,7 +682,7 @@ export default function DNSManagementPage() {
                             <span className="flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-md bg-paper border border-hairline text-xs font-semibold text-ink-3">
                               {index + 1}
                             </span>
-                            <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                            <CheckCircle2 className="h-4 w-4 text-emerald shrink-0" />
                             <span className="font-mono text-sm text-ink truncate">{ns}</span>
                           </div>
                           <button
@@ -697,31 +697,31 @@ export default function DNSManagementPage() {
                     </div>
                   ) : nameserverStatus === 'unset' ? (
                     <div className="text-center py-8">
-                      <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                        <Settings className="h-7 w-7 text-amber-500" />
+                      <div className="w-14 h-14 bg-amber-soft rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <Settings className="h-7 w-7 text-amber" />
                       </div>
                       <h4 className="text-sm font-semibold text-ink mb-1.5">No nameservers set yet</h4>
                       <p className="text-sm text-ink-3 mb-4 max-w-md mx-auto">
                         This domain doesn&apos;t have working nameservers configured, so there&apos;s no DNS delegation to show yet.
                         Point it at our managed nameservers to finish setup — then you can manage DNS records here.
                       </p>
-                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 max-w-md mx-auto text-left flex items-start gap-2.5">
-                        <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-                        <p className="text-xs text-amber-800">
+                      <div className="bg-amber-soft border border-amber/30 rounded-xl p-4 max-w-md mx-auto text-left flex items-start gap-2.5">
+                        <AlertCircle className="h-4 w-4 text-amber-ink mt-0.5 shrink-0" />
+                        <p className="text-xs text-amber-ink">
                           Use the <span className="font-semibold">Apply Defaults</span> button below to set Anutech&apos;s nameservers. Changes take minutes to a few hours to propagate.
                         </p>
                       </div>
                     </div>
                   ) : (
                     <div className="text-center py-8">
-                      <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                        <AlertCircle className="h-7 w-7 text-red-500" />
+                      <div className="w-14 h-14 bg-rose-soft rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <AlertCircle className="h-7 w-7 text-rose" />
                       </div>
                       <h4 className="text-sm font-semibold text-ink mb-1.5">Nameserver Information Unavailable</h4>
                       <p className="text-sm text-ink-3 mb-4">Unable to retrieve nameserver information for this domain right now.</p>
-                      <div className="bg-red-50 border border-red-200 rounded-xl p-4 max-w-md mx-auto text-left">
-                        <p className="text-xs font-semibold text-red-800 mb-1.5">Possible reasons</p>
-                        <ul className="text-xs text-red-700 space-y-1 list-disc list-inside">
+                      <div className="bg-rose-soft border border-rose/30 rounded-xl p-4 max-w-md mx-auto text-left">
+                        <p className="text-xs font-semibold text-rose-ink mb-1.5">Possible reasons</p>
+                        <ul className="text-xs text-rose-ink space-y-1 list-disc list-inside">
                           <li>WHOIS / RDAP servers are temporarily unavailable</li>
                           <li>Network connectivity issues</li>
                           <li>Domain is expired</li>
@@ -733,26 +733,26 @@ export default function DNSManagementPage() {
 
                 {/* Propagation banners */}
                 {nameserverPropagationStatus === 'awaiting' && (
-                  <div className="mx-6 mb-4 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 flex items-start gap-2.5">
+                  <div className="mx-6 mb-4 p-3.5 bg-amber-soft border border-amber/30 rounded-xl text-sm text-amber-ink flex items-start gap-2.5">
                     <Clock className="h-4 w-4 mt-0.5 shrink-0" />
                     Awaiting propagation. We'll auto-refresh nameservers — this can take minutes to hours.
                   </div>
                 )}
                 {nameserverPropagationStatus === 'verified' && (
-                  <div className="mx-6 mb-4 p-3.5 bg-green-50 border border-green-200 rounded-xl text-sm text-green-800 flex items-center gap-2.5">
+                  <div className="mx-6 mb-4 p-3.5 bg-emerald-soft border border-emerald/30 rounded-xl text-sm text-emerald-ink flex items-center gap-2.5">
                     <CheckCircle2 className="h-4 w-4 shrink-0" />
                     Nameservers propagated successfully.
                   </div>
                 )}
                 {nameserverPropagationStatus === 'error' && (
-                  <div className="mx-6 mb-4 p-3.5 bg-red-50 border border-red-200 rounded-xl text-sm text-red-800 flex items-start gap-2.5">
+                  <div className="mx-6 mb-4 p-3.5 bg-rose-soft border border-rose/30 rounded-xl text-sm text-rose-ink flex items-start gap-2.5">
                     <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
                     Propagation not confirmed yet. It may take longer — please check again later.
                   </div>
                 )}
 
                 {/* Use default action */}
-                <div className="px-6 py-4 border-t border-hairline bg-gradient-to-br from-blue-50/40 to-indigo-50/40">
+                <div className="px-6 py-4 border-t border-hairline bg-gradient-to-br from-indigo-soft/40 to-indigo-soft/40">
                   <div className="flex items-center justify-between gap-4 flex-wrap">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-paper rounded-lg border border-indigo/25 shadow-sm">
@@ -768,7 +768,7 @@ export default function DNSManagementPage() {
                       </div>
                     </div>
                     {nameserverMethod === 'default' && nameservers.length > 0 ? (
-                      <span className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-green-700 bg-green-50 border border-green-200 rounded-xl cursor-default">
+                      <span className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-emerald-ink bg-emerald-soft border border-emerald/30 rounded-xl cursor-default">
                         <CheckCircle2 className="h-3.5 w-3.5" />
                         Defaults active
                       </span>
@@ -890,20 +890,20 @@ export default function DNSManagementPage() {
                       </div>
                     )}
                     {dnsPropagationStatus === 'propagating' && (
-                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-xs font-medium text-amber-700">
-                        <div className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-soft border border-amber/30 text-xs font-medium text-amber-ink">
+                        <div className="h-2 w-2 rounded-full bg-amber animate-pulse" />
                         DNS zone propagating · auto-retry in 30s (Attempt {propagationRetryCount}/3)
                       </div>
                     )}
                     {dnsPropagationStatus === 'ready' && (
-                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-50 border border-green-200 text-xs font-medium text-green-700">
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-soft border border-emerald/30 text-xs font-medium text-emerald-ink">
                         <CheckCircle2 className="h-3 w-3" />
                         DNS zone is ready and accessible
                       </div>
                     )}
                     {dnsPropagationStatus === 'error' && (
                       <div className="flex flex-wrap items-center gap-2">
-                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-50 border border-red-200 text-xs font-medium text-red-700">
+                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-soft border border-rose/30 text-xs font-medium text-rose-ink">
                           <AlertCircle className="h-3 w-3" />
                           DNS zone not accessible
                         </div>
@@ -913,7 +913,7 @@ export default function DNSManagementPage() {
                             setDnsPropagationStatus('checking');
                             void loadDNSRecords(selectedDomain);
                           }}
-                          className="px-3 py-1 text-xs font-medium text-red-700 bg-paper border border-red-200 rounded-full hover:bg-red-50 transition-colors"
+                          className="px-3 py-1 text-xs font-medium text-rose-ink bg-paper border border-rose/30 rounded-full hover:bg-rose/15 transition-colors"
                         >
                           Retry
                         </button>
@@ -925,9 +925,9 @@ export default function DNSManagementPage() {
                       const domain = domains.find(d => d.id === selectedDomain);
                       if (!domain?.resellerClubOrderId && !domain?.resellerClubCustomerId) {
                         return (
-                          <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-                            <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                            <p className="text-sm text-amber-800">
+                          <div className="flex items-start gap-3 p-4 bg-amber-soft border border-amber/30 rounded-xl">
+                            <AlertCircle className="h-4 w-4 text-amber-ink shrink-0 mt-0.5" />
+                            <p className="text-sm text-amber-ink">
                               <strong>DNS Management Not Available.</strong> This domain wasn't registered through us — DNS management is only available for domains registered on our platform.
                             </p>
                           </div>
@@ -935,7 +935,7 @@ export default function DNSManagementPage() {
                       }
                       if (!domain?.dnsActivated) {
                         return (
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 bg-gradient-to-br from-blue-50 to-indigo-50 border border-indigo/25 rounded-xl">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 bg-gradient-to-br from-indigo-soft to-indigo-soft border border-indigo/25 rounded-xl">
                             <div className="flex items-start gap-3">
                               <div className="p-2 bg-paper rounded-lg border border-indigo/25 shadow-sm shrink-0">
                                 <Sparkles className="h-4 w-4 text-amber-ink" />
@@ -970,13 +970,13 @@ export default function DNSManagementPage() {
                         );
                       }
                       return (
-                        <div className="flex items-start gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
-                          <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
+                        <div className="flex items-start gap-3 p-4 bg-emerald-soft border border-emerald/30 rounded-xl">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-ink shrink-0 mt-0.5" />
                           <div className="flex-1">
-                            <p className="text-sm text-green-800">
+                            <p className="text-sm text-emerald-ink">
                               <strong>DNS Management Active.</strong> You can manage records below.
                               {domain.dnsActivatedAt && (
-                                <span className="block text-xs text-green-700 mt-0.5">
+                                <span className="block text-xs text-emerald-ink mt-0.5">
                                   Activated on {formatIndianDateTime(domain.dnsActivatedAt)}
                                 </span>
                               )}
@@ -1002,7 +1002,7 @@ export default function DNSManagementPage() {
 
                   {/* Custom NS info banner */}
                   {nameserverMethod === 'custom' && (
-                    <div className="mx-6 mb-6 bg-gradient-to-br from-blue-50/70 to-indigo-50/70 border border-indigo/25 rounded-2xl p-6 text-center">
+                    <div className="mx-6 mb-6 bg-gradient-to-br from-indigo-soft/70 to-indigo-soft/70 border border-indigo/25 rounded-2xl p-6 text-center">
                       <div className="inline-flex items-center justify-center w-12 h-12 bg-paper rounded-2xl border border-indigo/25 shadow-sm mb-3">
                         <ExternalLink className="h-5 w-5 text-amber-ink" />
                       </div>
@@ -1021,7 +1021,7 @@ export default function DNSManagementPage() {
                       exit={{ opacity: 0, height: 0 }}
                       className="mx-6 mb-6 border border-indigo/25 rounded-2xl overflow-hidden shadow-sm"
                     >
-                      <div className="px-5 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-indigo/25 flex items-center justify-between">
+                      <div className="px-5 py-3 bg-gradient-to-r from-indigo-soft to-indigo-soft border-b border-indigo/25 flex items-center justify-between">
                         <div className="flex items-center gap-2.5">
                           <div className="p-1.5 bg-amber rounded-lg">
                             <Plus className="h-3.5 w-3.5 text-white" />
@@ -1116,7 +1116,7 @@ export default function DNSManagementPage() {
                           {(newRecord.type === 'MX' || newRecord.type === 'SRV') && (
                             <div className="col-span-6 sm:col-span-1">
                               <label className="block text-xs font-semibold text-ink-2 uppercase tracking-wide mb-1.5">
-                                Priority <span className="text-red-500 normal-case">*</span>
+                                Priority <span className="text-rose normal-case">*</span>
                               </label>
                               <input
                                 type="number"
@@ -1173,7 +1173,7 @@ export default function DNSManagementPage() {
                                 const editKey = `${record.type}-${record.id}-${record.name}-${record.value}`;
                                 const isEditing = editingRecord === editKey;
                                 const typeColors: Record<string, string> = {
-                                  A:     'bg-indigo-soft text-amber-ink border-indigo/25',
+                                  A:     'bg-indigo-soft text-indigo-ink border-indigo/25',
                                   AAAA:  'bg-indigo-50 text-indigo-700 border-indigo-200',
                                   CNAME: 'bg-purple-50 text-purple-700 border-purple-200',
                                   MX:    'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -1286,7 +1286,7 @@ export default function DNSManagementPage() {
                                           <>
                                             <button
                                               onClick={handleSaveEdit}
-                                              className="p-1.5 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
+                                              className="p-1.5 text-emerald-ink hover:text-emerald-ink hover:bg-emerald/15 rounded-lg transition-colors"
                                               title="Save"
                                             >
                                               <Save className="h-4 w-4" />
@@ -1310,7 +1310,7 @@ export default function DNSManagementPage() {
                                             </button>
                                             <button
                                               onClick={() => record.id ? handleDeleteRecord(record.id) : toast.error('Missing provider record id')}
-                                              className="p-1.5 text-ink-4 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                              className="p-1.5 text-ink-4 hover:text-rose-ink hover:bg-rose/15 rounded-lg transition-colors"
                                               title="Delete"
                                             >
                                               <Trash2 className="h-4 w-4" />
@@ -1339,21 +1339,21 @@ export default function DNSManagementPage() {
                           <p className="text-sm text-ink-3 mb-5">Add a record above to get started.</p>
 
                           {dnsPropagationStatus === 'propagating' && (
-                            <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl max-w-md mx-auto text-left">
-                              <div className="animate-pulse h-4 w-4 mt-0.5 rounded-full bg-amber-500 shrink-0" />
+                            <div className="flex items-start gap-3 p-4 bg-amber-soft border border-amber/30 rounded-xl max-w-md mx-auto text-left">
+                              <div className="animate-pulse h-4 w-4 mt-0.5 rounded-full bg-amber shrink-0" />
                               <div>
-                                <p className="text-sm font-semibold text-amber-900">DNS Zone Propagating</p>
-                                <p className="text-xs text-amber-700 mt-0.5">Usually takes 10–30 minutes after activation. Auto-retrying… (Attempt {propagationRetryCount}/3)</p>
+                                <p className="text-sm font-semibold text-amber-ink">DNS Zone Propagating</p>
+                                <p className="text-xs text-amber-ink mt-0.5">Usually takes 10–30 minutes after activation. Auto-retrying… (Attempt {propagationRetryCount}/3)</p>
                               </div>
                             </div>
                           )}
 
                           {dnsPropagationStatus === 'error' && (
-                            <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl max-w-md mx-auto text-left">
-                              <AlertCircle className="h-4 w-4 mt-0.5 text-red-600 shrink-0" />
+                            <div className="flex items-start gap-3 p-4 bg-rose-soft border border-rose/30 rounded-xl max-w-md mx-auto text-left">
+                              <AlertCircle className="h-4 w-4 mt-0.5 text-rose-ink shrink-0" />
                               <div>
-                                <p className="text-sm font-semibold text-red-900">DNS Management Unavailable</p>
-                                <p className="text-xs text-red-700 mt-0.5">The DNS zone isn't accessible via API. Please contact support.</p>
+                                <p className="text-sm font-semibold text-rose-ink">DNS Management Unavailable</p>
+                                <p className="text-xs text-rose-ink mt-0.5">The DNS zone isn't accessible via API. Please contact support.</p>
                               </div>
                             </div>
                           )}

@@ -67,11 +67,11 @@ export default function UserOrders() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed':
-        return 'bg-green-100 text-green-800';
+        return 'bg-emerald-soft text-emerald-ink';
       case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-amber-soft text-amber-ink';
       case 'failed':
-        return 'bg-red-100 text-red-800';
+        return 'bg-rose-soft text-rose-ink';
       case 'cancelled':
         return 'bg-paper-2 text-ink';
       default:
@@ -306,7 +306,7 @@ export default function UserOrders() {
                               </button>
                               <Link
                                 href={`/dashboard/orders/${order.orderId}`}
-                                className="p-2 text-purple-600 hover:text-purple-900 hover:bg-purple-50 rounded-lg transition-colors"
+                                className="p-2 text-indigo-ink hover:text-indigo-ink hover:bg-indigo/15 rounded-lg transition-colors"
                                 title="Track Order Status"
                               >
                                 <ExternalLink className="h-5 w-5" />
@@ -314,7 +314,7 @@ export default function UserOrders() {
                               {order.invoiceNumber && (
                                 <button
                                   onClick={() => handleDownloadInvoice(order)}
-                                  className="p-2 text-green-600 hover:text-green-900 hover:bg-green-50 rounded-lg transition-colors"
+                                  className="p-2 text-emerald-ink hover:text-emerald-ink hover:bg-emerald/15 rounded-lg transition-colors"
                                   title="Download Invoice"
                                 >
                                   <Download className="h-5 w-5" />

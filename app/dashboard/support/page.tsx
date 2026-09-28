@@ -32,8 +32,8 @@ const CATEGORY_META: Record<Category, { label: string; icon: React.ElementType; 
 };
 
 const PRIORITY_BAR: Record<string, string> = {
-  high:   'bg-red-500',
-  medium: 'bg-amber-400',
+  high:   'bg-rose',
+  medium: 'bg-amber',
   low:    'bg-hairline-strong',
 };
 
@@ -53,8 +53,8 @@ interface Ticket {
 function StatusBadge({ status }: { status: string }) {
   const cfg: Record<string, { label: string; cls: string; icon: React.ElementType }> = {
     open:        { label: 'Open',        cls: 'bg-indigo-soft text-indigo-ink border-indigo/25',     icon: Clock },
-    in_progress: { label: 'In Progress', cls: 'bg-amber-50 text-amber-700 border-amber-200',  icon: AlertCircle },
-    resolved:    { label: 'Resolved',    cls: 'bg-green-50 text-green-700 border-green-200',  icon: CheckCircle2 },
+    in_progress: { label: 'In Progress', cls: 'bg-amber-soft text-amber-ink border-amber/30',  icon: AlertCircle },
+    resolved:    { label: 'Resolved',    cls: 'bg-emerald-soft text-emerald-ink border-emerald/30',  icon: CheckCircle2 },
     closed:      { label: 'Closed',      cls: 'bg-paper-2 text-ink-3 border-hairline',    icon: XCircle },
   };
   const c = cfg[status] ?? cfg.open;
@@ -241,8 +241,8 @@ export default function SupportPage() {
               <div className="mt-5 grid grid-cols-3 gap-3">
                 {[
                   { label: 'Active', value: openCount, color: 'bg-paper/20' },
-                  { label: 'Awaiting Reply', value: awaitingReply, color: 'bg-amber-400/30' },
-                  { label: 'Resolved', value: resolvedCount, color: 'bg-green-400/20' },
+                  { label: 'Awaiting Reply', value: awaitingReply, color: 'bg-amber/30' },
+                  { label: 'Resolved', value: resolvedCount, color: 'bg-emerald/20' },
                 ].map(({ label, value, color }) => (
                   <div key={label} className={`${color} rounded-xl px-3 py-2.5 text-center backdrop-blur-sm`}>
                     <p className="text-2xl font-bold text-white">{value}</p>
@@ -311,7 +311,7 @@ export default function SupportPage() {
                             <span className="text-xs font-mono text-ink-4">{ticket.ticketNumber}</span>
                             <StatusBadge status={ticket.status} />
                             {hasAdminReply && isActive && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-soft text-amber-ink border border-amber/30">
                                 Reply waiting
                               </span>
                             )}

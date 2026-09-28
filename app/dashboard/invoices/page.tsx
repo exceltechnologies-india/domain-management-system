@@ -83,16 +83,16 @@ export default function InvoicesPage() {
   const getStatusCfg = (status: string): { cls: string; icon: React.ElementType } => {
     switch (status.toLowerCase()) {
       case 'paid':
-        return { cls: 'bg-green-50 text-green-700 border-green-200', icon: CheckCircle2 };
+        return { cls: 'bg-emerald-soft text-emerald-ink border-emerald/30', icon: CheckCircle2 };
       case 'sent':
       case 'open':
         return { cls: 'bg-indigo-soft text-amber-ink border-indigo/25', icon: Clock };
       case 'overdue':
-        return { cls: 'bg-red-50 text-red-700 border-red-200', icon: AlertCircle };
+        return { cls: 'bg-rose-soft text-rose-ink border-rose/30', icon: AlertCircle };
       case 'void':
         return { cls: 'bg-paper-2 text-ink-3 border-hairline', icon: Inbox };
       case 'draft':
-        return { cls: 'bg-amber-50 text-amber-700 border-amber-200', icon: FileText };
+        return { cls: 'bg-amber-soft text-amber-ink border-amber/30', icon: FileText };
       default:
         return { cls: 'bg-paper-2 text-ink-2 border-hairline', icon: FileText };
     }
@@ -193,7 +193,7 @@ export default function InvoicesPage() {
                             {invoice.currency_code} {invoice.total.toLocaleString()}
                           </div>
                           {invoice.balance > 0 && (
-                            <div className="text-xs text-red-600 font-medium mt-0.5 font-mono">
+                            <div className="text-xs text-rose-ink font-medium mt-0.5 font-mono">
                               Balance: {invoice.currency_code} {invoice.balance.toLocaleString()}
                             </div>
                           )}

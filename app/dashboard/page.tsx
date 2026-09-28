@@ -280,7 +280,7 @@ export default function UserDashboard() {
                   <div className="flex items-center gap-2">
                     <p className="text-xs font-medium text-ink-3">Active Domains</p>
                     {stats?.pendingDomains && stats.pendingDomains > 0 && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wider">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-soft text-amber-ink border border-amber/30 uppercase tracking-wider">
                         {stats.pendingDomains} Pending
                       </span>
                     )}
@@ -303,10 +303,10 @@ export default function UserDashboard() {
                 className="bg-paper border border-hairline rounded-2xl shadow-sm p-5 hover:shadow-md transition-shadow"
               >
                 <div className="flex items-start justify-between mb-4">
-                  <div className="p-2 bg-orange-50 rounded-xl">
-                    <HardDrive className="h-5 w-5 text-orange-600" />
+                  <div className="p-2 bg-amber-soft rounded-xl">
+                    <HardDrive className="h-5 w-5 text-amber-ink" />
                   </div>
-                  <span className="text-xs font-semibold text-orange-700 bg-orange-50 border border-orange-200 px-2.5 py-0.5 rounded-full">
+                  <span className="text-xs font-semibold text-amber-ink bg-amber-soft border border-amber/30 px-2.5 py-0.5 rounded-full">
                     Hosting
                   </span>
                 </div>
@@ -315,7 +315,7 @@ export default function UserDashboard() {
                   <p className="text-xs font-medium text-ink-3">Active Hosting</p>
                   <button
                     onClick={() => router.push('/dashboard/hosting')}
-                    className="text-xs font-semibold text-orange-600 hover:text-orange-700 inline-flex items-center gap-1"
+                    className="text-xs font-semibold text-amber-ink hover:text-amber-ink inline-flex items-center gap-1"
                   >
                     View
                     <ArrowRight className="h-3 w-3" />
@@ -331,15 +331,15 @@ export default function UserDashboard() {
                 className="bg-paper border border-hairline rounded-2xl shadow-sm p-5 hover:shadow-md transition-shadow"
               >
                 <div className="flex items-start justify-between mb-4">
-                  <div className="p-2 bg-purple-50 rounded-xl">
-                    <Clock className="h-5 w-5 text-purple-600" />
+                  <div className="p-2 bg-indigo-soft rounded-xl">
+                    <Clock className="h-5 w-5 text-indigo-ink" />
                   </div>
                   {stats?.upcomingRenewals && stats.upcomingRenewals.length > 0 ? (
-                    <span className="text-xs font-semibold text-red-700 bg-red-50 border border-red-200 px-2.5 py-0.5 rounded-full">
+                    <span className="text-xs font-semibold text-rose-ink bg-rose-soft border border-rose/30 px-2.5 py-0.5 rounded-full">
                       Action needed
                     </span>
                   ) : (
-                    <span className="text-xs font-semibold text-purple-700 bg-purple-50 border border-purple-200 px-2.5 py-0.5 rounded-full">
+                    <span className="text-xs font-semibold text-indigo-ink bg-indigo-soft border border-indigo/30 px-2.5 py-0.5 rounded-full">
                       Renewals
                     </span>
                   )}
@@ -352,7 +352,7 @@ export default function UserDashboard() {
                     {stats.upcomingRenewals.slice(0, 2).map((renewal: UpcomingRenewal, idx: number) => (
                       <div key={idx} className="flex items-center gap-2 min-w-0">
                         {renewal.type === 'Hosting'
-                          ? <HardDrive className="h-3.5 w-3.5 text-orange-500 flex-shrink-0" />
+                          ? <HardDrive className="h-3.5 w-3.5 text-amber flex-shrink-0" />
                           : <Globe className="h-3.5 w-3.5 text-amber flex-shrink-0" />}
                         <p className="text-xs text-ink-2 truncate flex-1"><span className="font-medium">{renewal.domain}</span> · {renewal.expiryDate}</p>
                       </div>
@@ -397,16 +397,16 @@ export default function UserDashboard() {
                       const isHost = service.itemType === 'hosting';
                       const status = service.status;
                       const statusCfg = (status === 'active' || status === 'registered' || status === 'provisioned')
-                        ? 'bg-green-50 text-green-700 border-green-200'
+                        ? 'bg-emerald-soft text-emerald-ink border-emerald/30'
                         : (status === 'pending' || status === 'processing')
-                          ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          ? 'bg-amber-soft text-amber-ink border-amber/30'
                           : 'bg-paper-2 text-ink-3 border-hairline';
                       return (
                         <div key={index} className="px-6 py-3.5 hover:bg-paper-2/60 transition-colors flex items-center justify-between group">
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className={`flex-shrink-0 h-9 w-9 rounded-xl flex items-center justify-center ${isHost ? 'bg-orange-50' : 'bg-amber-soft'}`}>
+                            <div className={`flex-shrink-0 h-9 w-9 rounded-xl flex items-center justify-center ${isHost ? 'bg-amber-soft' : 'bg-amber-soft'}`}>
                               {isHost
-                                ? <HardDrive className="h-4 w-4 text-orange-600" />
+                                ? <HardDrive className="h-4 w-4 text-amber-ink" />
                                 : <Globe className="h-4 w-4 text-amber" />}
                             </div>
                             <div className="min-w-0">
@@ -482,9 +482,9 @@ export default function UserDashboard() {
                   </div>
                   <div className="p-2">
                     {[
-                      { href: '/dashboard/hosting',  icon: HardDrive,    label: 'Manage Hosting',  cls: 'bg-orange-50 text-orange-600' },
-                      { href: '/dashboard/invoices', icon: FileText,     label: 'Invoices',        cls: 'bg-indigo-50 text-indigo-600' },
-                      { href: '/dashboard/settings', icon: SettingsIcon, label: 'Account Settings',cls: 'bg-purple-50 text-purple-600' },
+                      { href: '/dashboard/hosting',  icon: HardDrive,    label: 'Manage Hosting',  cls: 'bg-amber-soft text-amber-ink' },
+                      { href: '/dashboard/invoices', icon: FileText,     label: 'Invoices',        cls: 'bg-indigo-soft text-indigo-ink' },
+                      { href: '/dashboard/settings', icon: SettingsIcon, label: 'Account Settings',cls: 'bg-indigo-soft text-indigo-ink' },
                     ].map(({ href, icon: Icon, label, cls }) => (
                       <button
                         key={href}

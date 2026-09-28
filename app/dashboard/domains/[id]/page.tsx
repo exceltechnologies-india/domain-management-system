@@ -164,7 +164,7 @@ export default function ManageDomain() {
                   </p>
                 </div>
               </div>
-              <span className={`shrink-0 px-3 py-1 rounded-full text-sm font-medium ${domain.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-paper-2 text-ink'
+              <span className={`shrink-0 px-3 py-1 rounded-full text-sm font-medium ${domain.status === 'active' ? 'bg-emerald-soft text-emerald-ink' : 'bg-paper-2 text-ink'
                 }`}>
                 {domain.status.toUpperCase()}
               </span>
@@ -248,7 +248,7 @@ export default function ManageDomain() {
                   <div className="bg-paper-2/60 rounded-lg p-4 border border-hairline">
                     <div className="flex items-start">
                       <div className="flex-shrink-0">
-                        <CheckCircle className="h-5 w-5 text-green-500" />
+                        <CheckCircle className="h-5 w-5 text-emerald" />
                       </div>
                       <div className="ml-3">
                         <h3 className="text-sm font-medium text-ink">Ready to use</h3>
@@ -343,7 +343,7 @@ export default function ManageDomain() {
 
             <div className="bg-paper-2/60 p-4">
               <div className="flex items-start">
-                <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5 mr-3 flex-shrink-0" />
+                <AlertTriangle className="h-5 w-5 text-amber-ink mt-0.5 mr-3 flex-shrink-0" />
                 <p className="text-sm text-ink-2">
                   Changing nameservers can take up to 24-48 hours to propagate globally. Your website and email may be inaccessible during this time.
                 </p>

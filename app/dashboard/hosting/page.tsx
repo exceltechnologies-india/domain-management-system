@@ -227,7 +227,7 @@ export default function HostingPage() {
               {hostingStats.expires_at && (
                 <div className="mt-2">
                   {hostingStats.isTrial ? (
-                    <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
+                    <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-indigo-soft text-indigo-ink border border-indigo/30">
                       <Clock className="h-3 w-3" />
                       Trial ends {formatDate(hostingStats.expires_at)}
                     </span>
@@ -245,9 +245,9 @@ export default function HostingPage() {
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
-            <div className={`px-3 py-1 rounded-full text-xs font-medium border flex items-center gap-1.5 ${hostingStats.status === 'active' ? 'bg-green-50 text-green-700 border-green-200' :
-              hostingStats.status === 'pending' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
-                'bg-red-50 text-red-700 border-red-200'
+            <div className={`px-3 py-1 rounded-full text-xs font-medium border flex items-center gap-1.5 ${hostingStats.status === 'active' ? 'bg-emerald-soft text-emerald-ink border-emerald/30' :
+              hostingStats.status === 'pending' ? 'bg-amber-soft text-amber-ink border-amber/30' :
+                'bg-rose-soft text-rose-ink border-rose/30'
               }`}>
               {hostingStats.status === 'active' ? <CheckCircle className="h-3 w-3" /> :
                 hostingStats.status === 'pending' ? <Clock className="h-3 w-3" /> :
@@ -255,7 +255,7 @@ export default function HostingPage() {
               {hostingStats.status.toUpperCase()}
             </div>
             {hostingStats.isTrial && (
-              <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-purple-100 text-purple-700 border border-purple-200">
+              <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-indigo-soft text-indigo-ink border border-indigo/30">
                 FREE TRIAL
               </span>
             )}
@@ -279,7 +279,7 @@ export default function HostingPage() {
                   setSelectedDomainName(hostingStats.domain);
                   setIsRenewalModalOpen(true);
                 }}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all shadow-sm hover:shadow text-sm font-medium"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald text-white rounded-lg hover:bg-emerald/90 transition-all shadow-sm hover:shadow text-sm font-medium"
               >
                 <RefreshCw className="h-4 w-4" />
                 {hostingStats.status === 'expired' ? 'Pay Now to Restore' : 'Renew'}
@@ -290,7 +290,7 @@ export default function HostingPage() {
               <button
                 onClick={() => handleCancelTrial(hostingStats.hostingId!)}
                 disabled={isCancellingTrial}
-                className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-all disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-rose-ink border border-rose/30 rounded-lg hover:bg-rose/15 transition-all disabled:opacity-50"
               >
                 {isCancellingTrial ? 'Cancelling...' : 'Cancel Trial'}
               </button>
@@ -366,11 +366,11 @@ export default function HostingPage() {
         <div className="bg-paper-2/60 rounded-xl p-4 border border-hairline col-span-1 md:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
-              <Shield className="h-4 w-4 text-purple-500" />
+              <Shield className="h-4 w-4 text-indigo" />
               Server Details
             </h3>
             {hostingStats.php && (
-              <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded border border-purple-200">PHP {hostingStats.php}</span>
+              <span className="text-xs bg-indigo-soft text-indigo-ink px-2 py-0.5 rounded border border-indigo/30">PHP {hostingStats.php}</span>
             )}
           </div>
 
@@ -399,9 +399,9 @@ export default function HostingPage() {
           welcome-email callout (26b0f51) so the expectation is set in
           both surfaces. */}
       {hostingStats.mandateMode === 'tokens' && hostingStats.status !== 'expired' && (
-        <div className="mx-4 my-3 md:mx-6 p-3 bg-amber-50 border border-amber-200 rounded-lg flex gap-2.5 items-start">
-          <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
-          <div className="text-xs text-amber-900">
+        <div className="mx-4 my-3 md:mx-6 p-3 bg-amber-soft border border-amber/30 rounded-lg flex gap-2.5 items-start">
+          <AlertTriangle className="h-4 w-4 text-amber-ink flex-shrink-0 mt-0.5" />
+          <div className="text-xs text-amber-ink">
             <span className="font-semibold">Keep your payment method valid.</span>{' '}
             We charge your saved card or UPI once when this hosting renews. If that single charge fails, your service is suspended and you'll need to re-subscribe with a new payment method to restore it.
             {hostingStats.expires_at && (() => {
@@ -420,7 +420,7 @@ export default function HostingPage() {
                 year: 'numeric',
               });
               return (
-                <div className="mt-1.5 pt-1.5 border-t border-amber-200/60">
+                <div className="mt-1.5 pt-1.5 border-t border-amber/20">
                   <span className="font-medium">Auto-renewal charge:</span> around {formatted}.
                 </div>
               );
@@ -484,21 +484,21 @@ export default function HostingPage() {
         {isLoadingStats ? (
           <HostingPageSkeleton />
         ) : error ? (
-          <div className={`bg-white border rounded-2xl shadow-sm p-5 flex items-start gap-3 ${error.includes('unreachable') ? 'border-amber-200' : 'border-red-200'}`}>
-            <div className={`p-2 rounded-xl shrink-0 ${error.includes('unreachable') ? 'bg-amber-50' : 'bg-red-50'}`}>
+          <div className={`bg-white border rounded-2xl shadow-sm p-5 flex items-start gap-3 ${error.includes('unreachable') ? 'border-amber/30' : 'border-rose/30'}`}>
+            <div className={`p-2 rounded-xl shrink-0 ${error.includes('unreachable') ? 'bg-amber-soft' : 'bg-rose-soft'}`}>
               {error.includes('unreachable')
-                ? <Shield className="h-4 w-4 text-amber-600" />
-                : <AlertTriangle className="h-4 w-4 text-red-600" />}
+                ? <Shield className="h-4 w-4 text-amber-ink" />
+                : <AlertTriangle className="h-4 w-4 text-rose-ink" />}
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className={`text-sm font-semibold ${error.includes('unreachable') ? 'text-amber-900' : 'text-red-900'}`}>
+              <h3 className={`text-sm font-semibold ${error.includes('unreachable') ? 'text-amber-ink' : 'text-rose-ink'}`}>
                 {error.includes('unreachable') ? 'Service Unavailable' : 'Error'}
               </h3>
-              <p className={`text-sm mt-0.5 ${error.includes('unreachable') ? 'text-amber-700' : 'text-red-700'}`}>{error}</p>
+              <p className={`text-sm mt-0.5 ${error.includes('unreachable') ? 'text-amber-ink' : 'text-rose-ink'}`}>{error}</p>
               <button
                 onClick={() => mutate()}
                 disabled={refreshing}
-                className={`mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border disabled:opacity-50 transition-colors ${error.includes('unreachable') ? 'text-amber-700 border-amber-200 bg-amber-50 hover:bg-amber-100' : 'text-red-700 border-red-200 bg-red-50 hover:bg-red-100'}`}
+                className={`mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border disabled:opacity-50 transition-colors ${error.includes('unreachable') ? 'text-amber-ink border-amber/30 bg-amber-soft hover:bg-amber/15' : 'text-rose-ink border-rose/30 bg-rose-soft hover:bg-rose/15'}`}
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
                 {refreshing ? 'Retrying…' : 'Try Again'}

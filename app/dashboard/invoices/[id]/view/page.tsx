@@ -213,8 +213,8 @@ export default function ViewInvoicePage({ params }: { params: Promise<{ id: stri
 
           {pdfError && !isLoadingPdf && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center bg-paper-2/60">
-              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center">
-                <FileText className="h-8 w-8 text-red-400" />
+              <div className="w-16 h-16 bg-rose-soft rounded-full flex items-center justify-center">
+                <FileText className="h-8 w-8 text-rose" />
               </div>
               <p className="text-ink-2 text-sm max-w-xs">{pdfError}</p>
               <div className="flex gap-3">

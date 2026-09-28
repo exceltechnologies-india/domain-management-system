@@ -71,13 +71,13 @@ function isOrderTerminal(order: Order): boolean {
 function domainStatusConfig(status: DomainStatus) {
   switch (status) {
     case 'registered':
-      return { label: 'Registered', color: 'text-green-700', bg: 'bg-green-100', icon: CheckCircle2 };
+      return { label: 'Registered', color: 'text-emerald-ink', bg: 'bg-emerald-soft', icon: CheckCircle2 };
     case 'pending':
-      return { label: 'Pending', color: 'text-amber-700', bg: 'bg-amber-100', icon: Clock };
+      return { label: 'Pending', color: 'text-amber-ink', bg: 'bg-amber-soft', icon: Clock };
     case 'processing':
       return { label: 'Processing', color: 'text-amber-ink', bg: 'bg-indigo-soft', icon: Loader2 };
     case 'failed':
-      return { label: 'Failed', color: 'text-red-700', bg: 'bg-red-100', icon: XCircle };
+      return { label: 'Failed', color: 'text-rose-ink', bg: 'bg-rose-soft', icon: XCircle };
     case 'cancelled':
       return { label: 'Cancelled', color: 'text-ink-2', bg: 'bg-paper-2', icon: XCircle };
   }
@@ -86,15 +86,15 @@ function domainStatusConfig(status: DomainStatus) {
 function orderStatusConfig(status: OrderStatus) {
   switch (status) {
     case 'completed':
-      return { label: 'Completed', color: 'text-green-700', bg: 'bg-green-100' };
+      return { label: 'Completed', color: 'text-emerald-ink', bg: 'bg-emerald-soft' };
     case 'paid':
       return { label: 'Paid', color: 'text-amber-ink', bg: 'bg-indigo-soft' };
     case 'processing':
       return { label: 'Processing', color: 'text-amber-ink', bg: 'bg-indigo-soft' };
     case 'pending':
-      return { label: 'Pending', color: 'text-amber-700', bg: 'bg-amber-100' };
+      return { label: 'Pending', color: 'text-amber-ink', bg: 'bg-amber-soft' };
     case 'failed':
-      return { label: 'Failed', color: 'text-red-700', bg: 'bg-red-100' };
+      return { label: 'Failed', color: 'text-rose-ink', bg: 'bg-rose-soft' };
     case 'refunded':
       return { label: 'Refunded', color: 'text-ink-2', bg: 'bg-paper-2' };
   }
@@ -159,7 +159,7 @@ function DomainCard({ domain }: { domain: OrderDomain }) {
           </div>
           <div className="h-1.5 bg-paper-2 rounded-full overflow-hidden">
             <motion.div
-              className={`h-full rounded-full ${domain.status === 'failed' ? 'bg-red-400' : 'bg-indigo'}`}
+              className={`h-full rounded-full ${domain.status === 'failed' ? 'bg-rose' : 'bg-indigo'}`}
               initial={{ width: 0 }}
               animate={{ width: `${progress}%` }}
               transition={{ duration: 0.6, ease: 'easeOut' }}
@@ -179,23 +179,23 @@ function DomainCard({ domain }: { domain: OrderDomain }) {
                 <div className="flex flex-col items-center flex-shrink-0 pt-0.5">
                   <div className={`h-4 w-4 rounded-full flex items-center justify-center ${
                     isFailed
-                      ? 'bg-red-100'
+                      ? 'bg-rose-soft'
                       : isLast && isProcessing
                       ? 'bg-indigo-soft'
-                      : 'bg-green-100'
+                      : 'bg-emerald-soft'
                   }`}>
                     {isFailed
-                      ? <XCircle className="h-3 w-3 text-red-600" />
+                      ? <XCircle className="h-3 w-3 text-rose-ink" />
                       : isLast && isProcessing
                       ? <Loader2 className="h-3 w-3 text-amber-ink animate-spin" />
-                      : <CheckCircle2 className="h-3 w-3 text-green-600" />}
+                      : <CheckCircle2 className="h-3 w-3 text-emerald-ink" />}
                   </div>
                   {i < steps.length - 1 && (
                     <div className="w-px h-4 bg-hairline mt-0.5" />
                   )}
                 </div>
                 <div className="pb-1 min-w-0">
-                  <p className={`text-xs font-medium ${isFailed ? 'text-red-700' : 'text-ink'}`}>
+                  <p className={`text-xs font-medium ${isFailed ? 'text-rose-ink' : 'text-ink'}`}>
                     {STEP_LABELS[step.step] ?? step.step}
                   </p>
                   {step.message && step.message !== STEP_LABELS[step.step] && (
@@ -382,8 +382,8 @@ export default function OrderStatusPage() {
 
           {/* All-success banner */}
           {allRegistered && terminal && (
-            <div className="flex items-center gap-3 px-5 py-4 bg-green-50 border border-green-200 rounded-xl text-green-800">
-              <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-green-600" />
+            <div className="flex items-center gap-3 px-5 py-4 bg-emerald-soft border border-emerald/30 rounded-xl text-emerald-ink">
+              <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-emerald-ink" />
               <p className="text-sm font-medium">
                 All services registered successfully. Your order is complete.
               </p>
@@ -392,15 +392,15 @@ export default function OrderStatusPage() {
 
           {/* Any-failure banner — scoped to the actually-failed items, with explicit reassurance for anything still pending */}
           {anyFailed && (
-            <div className="flex items-start gap-3 px-5 py-4 bg-red-50 border border-red-200 rounded-xl text-red-800">
-              <AlertCircle className="h-5 w-5 flex-shrink-0 text-red-600 mt-0.5" />
+            <div className="flex items-start gap-3 px-5 py-4 bg-rose-soft border border-rose/30 rounded-xl text-rose-ink">
+              <AlertCircle className="h-5 w-5 flex-shrink-0 text-rose-ink mt-0.5" />
               <div className="text-sm">
                 <p className="font-medium">
                   {failedItems.length === 1
                     ? `${listLabels(failedItems)} failed to register.`
                     : `${failedItems.length} services failed to register: ${listLabels(failedItems)}.`}
                 </p>
-                <p className="text-xs text-red-600 mt-0.5">
+                <p className="text-xs text-rose-ink mt-0.5">
                   Our team has been notified. Contact{' '}
                   <a href={`mailto:${process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@anutech.in'}`} className="underline">
                     support

@@ -55,8 +55,8 @@ interface Ticket {
 
 const STATUS_CFG: Record<string, { label: string; cls: string; icon: React.ElementType }> = {
   open:        { label: 'Open',        cls: 'bg-indigo-soft text-indigo-ink border-indigo/25',    icon: Clock },
-  in_progress: { label: 'In Progress', cls: 'bg-amber-50 text-amber-700 border-amber-200', icon: AlertCircle },
-  resolved:    { label: 'Resolved',    cls: 'bg-green-50 text-green-700 border-green-200', icon: CheckCircle2 },
+  in_progress: { label: 'In Progress', cls: 'bg-amber-soft text-amber-ink border-amber/30', icon: AlertCircle },
+  resolved:    { label: 'Resolved',    cls: 'bg-emerald-soft text-emerald-ink border-emerald/30', icon: CheckCircle2 },
   closed:      { label: 'Closed',      cls: 'bg-paper-2 text-ink-3 border-hairline',   icon: XCircle },
 };
 
@@ -69,8 +69,8 @@ const CATEGORY_META: Record<string, { label: string; icon: React.ElementType; co
 };
 
 const PRIORITY_CLS: Record<string, string> = {
-  high:   'bg-red-100 text-red-700 border-red-200',
-  medium: 'bg-amber-100 text-amber-700 border-amber-200',
+  high:   'bg-rose-soft text-rose-ink border-rose/30',
+  medium: 'bg-amber-soft text-amber-ink border-amber/30',
   low:    'bg-paper-2 text-ink-3 border-hairline',
 };
 
@@ -247,8 +247,8 @@ export default function SupportTicketDetailPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2 text-ink-2">
-                <div className={`p-1.5 rounded-lg ${ticket.resolvedAt ? 'bg-green-50' : 'bg-paper-2'}`}>
-                  <Activity className={`h-3.5 w-3.5 ${ticket.resolvedAt ? 'text-green-600' : 'text-ink-3'}`} />
+                <div className={`p-1.5 rounded-lg ${ticket.resolvedAt ? 'bg-emerald-soft' : 'bg-paper-2'}`}>
+                  <Activity className={`h-3.5 w-3.5 ${ticket.resolvedAt ? 'text-emerald-ink' : 'text-ink-3'}`} />
                 </div>
                 <div className="min-w-0">
                   <p className="text-[10px] uppercase tracking-wide text-ink-4 font-semibold">

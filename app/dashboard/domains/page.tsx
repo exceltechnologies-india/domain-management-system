@@ -63,12 +63,12 @@ export default function UserDomains() {
     switch (status) {
       case 'active':
       case 'registered':
-        return 'bg-green-50 text-green-700 border-green-200';
+        return 'bg-emerald-soft text-emerald-ink border-emerald/30';
       case 'expired':
       case 'failed':
-        return 'bg-red-50 text-red-700 border-red-200';
+        return 'bg-rose-soft text-rose-ink border-rose/30';
       case 'pending':
-        return 'bg-amber-50 text-amber-700 border-amber-200';
+        return 'bg-amber-soft text-amber-ink border-amber/30';
       case 'processing':
         return 'bg-indigo-soft text-indigo-ink border-indigo/25';
       case 'suspended':
@@ -282,7 +282,7 @@ export default function UserDomains() {
                                       setIsRenewalModalOpen(true);
                                     }}
                                     title="Renew domain"
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg transition-colors"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-ink bg-emerald-soft hover:bg-emerald/15 border border-emerald/30 rounded-lg transition-colors"
                                   >
                                     <RefreshCw className="h-3.5 w-3.5" />
                                     Renew
