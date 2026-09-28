@@ -30,6 +30,12 @@
  */
 import { supportEmail } from "./panel-order";
 
+/** A service a ResellerOS quote renews (its subscription's vendor and domain). */
+export interface QuoteRenews {
+  vendor: string;
+  domain: string | null;
+}
+
 export interface ResellerOsQuote {
   id: string;
   /** Whole rupees. */
@@ -38,6 +44,11 @@ export interface ResellerOsQuote {
   status: "pending" | "accepted" | "expired";
   pdfUrl: string | null;
   paymentUrl: string | null;
+  /**
+   * What the quote renews, from ResellerOS (28 Sep 2026): [] = renews nothing (a new order);
+   * null = ResellerOS did not say (an older ResellerOS), so it cannot be matched to a service.
+   */
+  renews: QuoteRenews[] | null;
 }
 
 export interface ResellerOsInvoice {
@@ -144,8 +155,21 @@ function parseQuotes(body: unknown, safeUrl: LinkFix): ResellerOsQuote[] {
       status,
       pdfUrl: safeUrl(r.pdf_url),
       paymentUrl: safeUrl(r.payment_url),
+      renews: parseRenews(r.renews),
     };
   });
+}
+
+/** `renews` as sent, or null when absent or unreadable — never guessed into []. */
+function parseRenews(v: unknown): QuoteRenews[] | null {
+  if (!Array.isArray(v)) return null;
+  const out: QuoteRenews[] = [];
+  for (const item of v) {
+    const r = (item ?? {}) as Record<string, unknown>;
+    if (typeof r.vendor !== "string") return null;
+    out.push({ vendor: r.vendor, domain: typeof r.domain === "string" && r.domain.trim() ? r.domain : null });
+  }
+  return out;
 }
 
 function parseInvoices(body: unknown, safeUrl: LinkFix): ResellerOsInvoice[] {

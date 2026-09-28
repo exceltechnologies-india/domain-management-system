@@ -124,7 +124,7 @@ export default function RenewViaResellerOs({ isOpen, onClose, serviceName, servi
       />
     );
   } else {
-    const choice = renewalChoice(data);
+    const choice = renewalChoice(data, { type: serviceType, name: serviceName });
     if (choice.kind === 'unavailable') {
       body = <Notice text={choice.message} />;
     } else if (choice.kind === 'none') {

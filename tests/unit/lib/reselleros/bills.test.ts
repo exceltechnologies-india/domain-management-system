@@ -73,9 +73,33 @@ describe("fetchCustomerBills", () => {
       ["Q-2", "pending", true],
     ]);
     expect(out.invoices[0]).toMatchObject({ number: "INV-1", amount: 708, pdfUrl: "https://ros.example.test/i1.pdf" });
+    // The fixture sends no `renews`: that is "not said" (null), never guessed into "renews nothing".
+    expect(out.quotes.map((q) => q.renews)).toEqual([null, null]);
     const calls = (f as unknown as ReturnType<typeof vi.fn>).mock.calls as [string, RequestInit][];
     expect(calls[0][0]).toBe("https://ros.example.test/api/v1/customers?email=asha%40example.test");
     expect((calls[0][1].headers as Record<string, string>).authorization).toBe("Bearer rsk_live_abc");
+  });
+
+  it("carries what each quote renews; a malformed `renews` is null, not []", async () => {
+    const quotes = [
+      { ...QUOTES[1], id: "Q-R", renews: [{ vendor: "hosting", domain: "acme.in" }] },
+      { ...QUOTES[1], id: "Q-N", renews: [] },
+      { ...QUOTES[1], id: "Q-X", renews: [{ domain: "acme.in" }] },
+    ];
+    const out = await fetchCustomerBills("asha@example.test", {
+      env: ENV,
+      fetchImpl: router({
+        "/customers?email=": { status: 200, body: CUSTOMER },
+        "/customers/C-00007/quotes": { status: 200, body: quotes },
+        "/customers/C-00007/invoices": { status: 200, body: [] },
+      }),
+    });
+    if (out.kind !== "ok") throw new Error(out.kind);
+    expect(out.quotes.map((q) => [q.id, q.renews])).toEqual([
+      ["Q-R", [{ vendor: "hosting", domain: "acme.in" }]],
+      ["Q-N", []],
+      ["Q-X", null],
+    ]);
   });
 
   it("a 404 on the quotes call is NOT 'no bills' — it is unavailable", async () => {

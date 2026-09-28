@@ -30,6 +30,30 @@ describe("renewalChoice", () => {
     expect(renewalChoice({ state: "no_bills" })).toEqual({ kind: "none" });
   });
 
+  describe("matched to the service being renewed (28 Sep 2026)", () => {
+    const hostingBill = { id: "Q-H", amount: 708, status: "pending", paymentUrl: "https://ros.test/qh", renews: [{ vendor: "hosting", domain: "Acme.in" }] };
+    const domainBill = { id: "Q-D", amount: 899, status: "pending", paymentUrl: "https://ros.test/qd", renews: [{ vendor: "domain", domain: "acme.in" }] };
+    const newOrder = { id: "Q-N", amount: 708, status: "pending", paymentUrl: "https://ros.test/qn", renews: [] };
+    const unknown = { id: "Q-U", amount: 500, status: "pending", paymentUrl: "https://ros.test/qu" };
+    const ids = (c: ReturnType<typeof renewalChoice>) => (c.kind === "pay" ? c.quotes.map((q) => q.id) : c.kind);
+
+    it("the domain's Renew offers only the domain's bill — not the hosting renewal, not a new order", () => {
+      expect(ids(renewalChoice({ state: "ok", quotes: [hostingBill, domainBill, newOrder] }, { type: "domain", name: "acme.in" }))).toEqual(["Q-D"]);
+    });
+    it("the hosting account's Renew offers only its bill (domain matched ignoring case)", () => {
+      expect(ids(renewalChoice({ state: "ok", quotes: [hostingBill, domainBill, newOrder] }, { type: "hosting", name: "acme.in" }))).toEqual(["Q-H"]);
+    });
+    it("a bill for another domain of the same kind is not offered; none left → none", () => {
+      expect(ids(renewalChoice({ state: "ok", quotes: [hostingBill] }, { type: "hosting", name: "other.in" }))).toBe("none");
+    });
+    it("a quote whose `renews` ResellerOS did not send is still offered, never hidden", () => {
+      expect(ids(renewalChoice({ state: "ok", quotes: [unknown, newOrder] }, { type: "domain", name: "acme.in" }))).toEqual(["Q-U"]);
+    });
+    it("without a service, behaves as before (every pending bill)", () => {
+      expect(ids(renewalChoice({ state: "ok", quotes: [hostingBill, domainBill, newOrder] }))).toEqual(["Q-H", "Q-D", "Q-N"]);
+    });
+  });
+
   it("unreadable → unavailable, carrying the message (never 'none')", () => {
     expect(renewalChoice({ state: "unavailable", message: "down" })).toEqual({ kind: "unavailable", message: "down" });
   });

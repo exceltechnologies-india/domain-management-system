@@ -8,11 +8,14 @@
  * customer to the PENDING ResellerOS quote — ResellerOS emails one before
  * expiry — and, when there is none, says so and how to get help.
  *
- * Matching: ResellerOS's quotes API carries no domain or product on a quote,
- * so a quote cannot be tied to one service with certainty. Every pending
- * quote with a Pay link is offered, labelled by its number and amount, and
- * the customer picks the one their renewal email names. Guessing one would be
- * a confident wrong answer about money (AGENTS.md §2).
+ * Matching (28 Sep 2026): ResellerOS now says what each quote renews (`renews`:
+ * the subscription's vendor + domain). A service's Renew offers only the quotes
+ * that renew THAT service — so the domain dialog no longer offers the hosting
+ * renewal, and an unpaid new order is never offered as a renewal. A quote whose
+ * `renews` is unknown (an older ResellerOS) is still offered, labelled by number
+ * and amount, for the customer to pick by their renewal email; guessing it away
+ * would hide a real bill (AGENTS.md §2). Since the same date the customer pays
+ * inside the panel, which is why offering the wrong bill matters.
  */
 
 export interface PendingQuote {
@@ -22,8 +25,16 @@ export interface PendingQuote {
   paymentUrl: string;
 }
 
+export interface RenewalService {
+  type: "hosting" | "domain";
+  /** The hosting account's domain, or the domain name. */
+  name: string;
+}
+
+type Renews = Array<{ vendor: string; domain: string | null }> | null | undefined;
+
 export type BillsForRenewal =
-  | { state: "ok"; quotes: Array<{ id: string; amount: number; status: string; paymentUrl: string | null }> }
+  | { state: "ok"; quotes: Array<{ id: string; amount: number; status: string; paymentUrl: string | null; renews?: Renews }> }
   | { state: "no_bills" }
   | { state: "unavailable"; message: string };
 
@@ -32,11 +43,20 @@ export type RenewalChoice =
   | { kind: "none" }
   | { kind: "unavailable"; message: string };
 
-export function renewalChoice(bills: BillsForRenewal): RenewalChoice {
+/** Does this quote renew this service? null when ResellerOS did not say. */
+function renewsService(renews: Renews, service: RenewalService): boolean | null {
+  if (!Array.isArray(renews)) return null;
+  const name = service.name.trim().toLowerCase();
+  return renews.some((r) => r.vendor === service.type && (r.domain ?? "").trim().toLowerCase() === name);
+}
+
+export function renewalChoice(bills: BillsForRenewal, service?: RenewalService): RenewalChoice {
   if (bills.state === "unavailable") return { kind: "unavailable", message: bills.message };
   if (bills.state === "no_bills") return { kind: "none" };
   const quotes: PendingQuote[] = bills.quotes
     .filter((q) => q.status === "pending" && typeof q.paymentUrl === "string" && q.paymentUrl.length > 0)
+    // Known to renew something else, or nothing: not this service's bill. Unknown: offered.
+    .filter((q) => !service || renewsService(q.renews, service) !== false)
     .map((q) => ({ id: q.id, amount: q.amount, paymentUrl: q.paymentUrl as string }));
   return quotes.length > 0 ? { kind: "pay", quotes } : { kind: "none" };
 }
