@@ -9,7 +9,7 @@
  * outside the /admin subtree". It was not: all 19 importers were admin pages,
  * every one of them under the shell that app/admin/layout.tsx mounts, so the
  * guard always fired and the chrome was unreachable. Worse, that chrome was
- * `bg-primary-700` from before the ResellerOS restyle, so the day it HAD rendered
+ * `bg-blue-900` from before the ResellerOS restyle, so the day it HAD rendered
  * it would have been wrong.
  */
 
