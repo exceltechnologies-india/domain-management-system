@@ -1,7 +1,10 @@
 export interface HostingPlanConfig {
   id: string;
   name: string; // Display Name
-  price: number;
+  // No `price` (removed 28 Sep 2026, owner: "Read prices live from ResellerOS"). The
+  // price is ResellerOS's table, read through lib/reselleros/hosting-prices.ts /
+  // hooks/useHostingPrices.ts; this file keeps what DMS itself owns — names,
+  // features and the DirectAdmin package each plan maps to.
   currency: string;
   period: string; // e.g. "/mo"
   features: string[]; // List of feature strings for frontend display
@@ -23,7 +26,6 @@ export const HOSTING_PLANS: Record<string, HostingPlanConfig> = {
     id: 'starter',
     name: 'Starter',
     description: 'Small business solution',
-    price: 49.99,
     currency: 'INR',
     period: '/mo',
     serverPackage: 'Starter', // Matches DA Screenshot
@@ -45,7 +47,6 @@ export const HOSTING_PLANS: Record<string, HostingPlanConfig> = {
     id: 'standard',
     name: 'Standard',
     description: 'Growing business sites',
-    price: 125.00,
     currency: 'INR',
     period: '/mo',
     isPopular: true,
@@ -68,7 +69,6 @@ export const HOSTING_PLANS: Record<string, HostingPlanConfig> = {
     id: 'plus',
     name: 'Plus',
     description: 'High scale sites',
-    price: 187.20,
     currency: 'INR',
     period: '/mo',
     serverPackage: 'Plus', // Matches DA

@@ -10,10 +10,13 @@
  *
  * Nothing trusts this client-side figure for the charge: create-order
  * re-prices every hosting line on the server from the same function.
+ *
+ * Since 28 Sep 2026 the price is ResellerOS's LIVE table (`HostingPriceTable`,
+ * hooks/useHostingPrices.ts) — the caller passes it; there is no built-in copy.
  */
 import type { CartItem } from "@/lib/types";
 import type { HostingPlanConfig } from "@/config/hosting-plans";
-import { cartLinePrice, hostingCharge, type HostingCharge } from "@/lib/pricing/hosting-price";
+import { cartLinePrice, hostingCharge, type HostingCharge, type HostingPriceTable } from "@/lib/pricing/hosting-price";
 
 export type BillingCycle = "monthly" | "yearly";
 
@@ -22,8 +25,8 @@ export type BillingCycle = "monthly" | "yearly";
  * does not sell: the dialog only offers the three that it does, so reaching
  * this with anything else is a bug to surface, not a price to guess.
  */
-export function chargeFor(plan: Pick<HostingPlanConfig, "id">, cycle: BillingCycle): HostingCharge {
-  const charge = hostingCharge(plan.id, cycle);
+export function chargeFor(plan: Pick<HostingPlanConfig, "id">, cycle: BillingCycle, table: HostingPriceTable): HostingCharge {
+  const charge = hostingCharge(table, plan.id, cycle);
   if (!charge) throw new Error(`No ResellerOS price for hosting plan "${plan.id}"`);
   return charge;
 }
@@ -45,7 +48,8 @@ export function chargeFor(plan: Pick<HostingPlanConfig, "id">, cycle: BillingCyc
  */
 export function buildTrialCartItem(
   plan: HostingPlanConfig,
-  cycle: "monthly" | "yearly" = "yearly",
+  cycle: "monthly" | "yearly",
+  table: HostingPriceTable,
   now: number = Date.now(),
 ): CartItem {
   return {
@@ -63,7 +67,7 @@ export function buildTrialCartItem(
       period: 15,
       features: [...plan.features, "15-Day Free Trial", ...(cycle === "yearly" ? ["30-Day Money-Back Guarantee"] : [])],
       serverPackage: plan.serverPackage,
-      price: cartLinePrice(chargeFor(plan, cycle)),
+      price: cartLinePrice(chargeFor(plan, cycle, table)),
     },
   };
 }

@@ -16,6 +16,7 @@ import OrderTimeline from '@/components/checkout/OrderTimeline';
 import { getMinRegistrationPeriod } from '@/lib/tld-min-periods';
 import { getDeviceFingerprint } from '@/lib/device-fingerprint';
 import { hostingCharge } from '@/lib/pricing/hosting-price';
+import { useHostingPrices } from '@/hooks/useHostingPrices';
 import type { CartItem } from '@/lib/types';
 import { logger } from '@/lib/logger';
 import PanelCheckout from '@/components/purchase/PanelCheckout';
@@ -45,20 +46,21 @@ export default function CheckoutPage() {
   const hasTrial = cartItems.some((i: CartItem) => i.isTrial === true);
   const trialItem = cartItems.find((i: CartItem) => i.isTrial === true);
   // What the trial converts to: ResellerOS's price incl. GST for the trial's
-  // cycle — yearly, or monthly since 24 Sep 2026 — from the same function
-  // create-order and the renewal route charge with. Computed from the plan id
-  // first, because a cart saved before that date carries the old DMS figure in
-  // hostingPlan.price. The stored per-month value is only a last resort for a
-  // plan ResellerOS does not price.
+  // cycle — yearly, or monthly since 24 Sep 2026 — read LIVE from ResellerOS
+  // (owner, 28 Sep 2026). Not the figure stored on the cart line: that is a
+  // copy made when the line was added, and it is exactly the copy that goes
+  // stale. With no live price the page says the price is not available rather
+  // than show one (AGENTS.md §2).
+  const hostingPrices = useHostingPrices();
   const trialCycle: 'monthly' | 'yearly' = trialItem?.billingCycle === 'monthly' ? 'monthly' : 'yearly';
   const trialPer = trialCycle === 'monthly' ? 'month' : 'year';
-  const trialAfterPrice = (() => {
-    if (!trialItem) return 0;
-    const charge = hostingCharge(trialItem.hostingPlan?.id, trialCycle);
-    if (charge) return charge.inclGst;
-    const stored = trialItem.hostingPlan?.price;
-    return typeof stored === 'number' && stored > 0 ? stored * (trialCycle === 'monthly' ? 1 : 12) : 0;
+  const trialAfterPrice: number | null = (() => {
+    if (!trialItem || hostingPrices.state !== 'ok') return null;
+    return hostingCharge(hostingPrices.table, trialItem.hostingPlan?.id, trialCycle)?.inclGst ?? null;
   })();
+  const trialAfterLabel = trialAfterPrice === null
+    ? (hostingPrices.state === 'loading' ? 'price loading…' : 'price not available right now')
+    : `₹${trialAfterPrice.toFixed(2)}`;
 
   // Fire InitiateCheckout (Pixel) + internal checkout_started once on mount.
   useEffect(() => {
@@ -309,7 +311,7 @@ export default function CheckoutPage() {
                                     `trialAfterPrice`, ResellerOS's price incl.
                                     GST (see its definition above). */}
                                 <p className="text-xs text-purple-600 font-medium mt-0.5">
-                                  then ₹{trialAfterPrice.toFixed(2)}/{trialCycle === 'monthly' ? 'mo' : 'yr'}
+                                  then {trialAfterPrice === null ? trialAfterLabel : `${trialAfterLabel}/${trialCycle === 'monthly' ? 'mo' : 'yr'}`}
                                 </p>
                               </>
                             ) : (
@@ -420,7 +422,7 @@ export default function CheckoutPage() {
                           </div>
                           <div className="flex justify-between text-xs">
                             <span className="text-purple-700 font-medium">After trial (day 15+)</span>
-                            <span className="font-bold text-purple-900">₹{trialAfterPrice.toFixed(2)}/{trialPer}</span>
+                            <span className="font-bold text-purple-900">{trialAfterPrice === null ? trialAfterLabel : `${trialAfterLabel}/${trialPer}`}</span>
                           </div>
                         </div>
                       </div>

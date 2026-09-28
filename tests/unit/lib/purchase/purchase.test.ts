@@ -18,6 +18,7 @@
  *    put a DMS marketing page (with DMS prices) in front of a customer again.
  */
 import { describe, it, expect } from "vitest";
+import { PRICE_TABLE } from "../../../fixtures/hosting-price-table";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { buyHref, parseBuyKind } from "@/lib/purchase/buy-dialog";
@@ -48,21 +49,18 @@ describe("buyHref / parseBuyKind", () => {
   });
 });
 
-describe("hosting prices match ResellerOS's (owner decision 7, 24 Sep 2026)", () => {
-  it("per-month rate on yearly billing is ResellerOS's LANDING_PLANS figure", () => {
-    // ResellerOS production/src/site/lib/data/hosting-landing.ts, 24 Sep 2026.
-    expect(HOSTING_PLANS.starter.price).toBe(49.99);
-    expect(HOSTING_PLANS.standard.price).toBe(125);
-    expect(HOSTING_PLANS.plus.price).toBe(187.2);
+describe("DMS keeps no hosting prices of its own (owner, 28 Sep 2026: read them live)", () => {
+  // Until 28 Sep 2026 this pinned HOSTING_PLANS.*.price to figures copied from ResellerOS on
+  // 24 Sep — a copy that would have gone stale silently. The price is now ResellerOS's table
+  // (lib/reselleros/hosting-prices.ts); this fails if a price creeps back into the config.
+  it("no plan in config/hosting-plans.ts carries a price", () => {
+    for (const plan of Object.values(HOSTING_PLANS)) expect(plan).not.toHaveProperty("price");
   });
-
-  // What is CHARGED from those figures (ResellerOS's rate + 18% GST) is
-  // pinned in tests/unit/lib/pricing/hosting-price.test.ts.
 });
 
 describe("buildTrialCartItem", () => {
   it("₹0 today for 15 days, carrying the post-trial rate (₹708 a year ÷ 12)", () => {
-    const item = buildTrialCartItem(starter, "yearly", 1000);
+    const item = buildTrialCartItem(starter, "yearly", PRICE_TABLE, 1000);
     expect(item.price).toBe(0);
     expect(item.registrationPeriod).toBe(15);
     expect(item.periodUnit).toBe("days");
@@ -73,12 +71,12 @@ describe("buildTrialCartItem", () => {
   });
 
   it("a MONTHLY trial carries the monthly rate and says monthly, so the renewal charges one month", () => {
-    const item = buildTrialCartItem(starter, "monthly", 1000);
+    const item = buildTrialCartItem(starter, "monthly", PRICE_TABLE, 1000);
     expect(item.price).toBe(0);
     expect(item.billingCycle).toBe("monthly");
-    const monthly = cartLinePrice(chargeFor(starter, "monthly"));
+    const monthly = cartLinePrice(chargeFor(starter, "monthly", PRICE_TABLE));
     expect(item.hostingPlan?.price).toBe(monthly);
-    expect(item.hostingPlan?.price).not.toBe(buildTrialCartItem(starter, "yearly", 1000).hostingPlan?.price);
+    expect(item.hostingPlan?.price).not.toBe(buildTrialCartItem(starter, "yearly", PRICE_TABLE, 1000).hostingPlan?.price);
     // The money-back guarantee is a yearly-plan promise; a monthly line must not carry it.
     expect(item.hostingPlan?.features).not.toContain("30-Day Money-Back Guarantee");
   });

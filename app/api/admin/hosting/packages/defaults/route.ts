@@ -6,6 +6,8 @@ import { serverLogger } from "@/lib/server-logger";
 import HostingPlan from "@/models/HostingPlan";
 import { connectToDatabase } from "@/lib/mongoose";
 import { HOSTING_PLANS } from "@/config/hosting-plans";
+import { fetchHostingPrices } from "@/lib/reselleros/hosting-prices";
+import { planPrice } from "@/lib/pricing/hosting-price";
 
 /**
  * POST /api/admin/hosting/packages/defaults
@@ -25,6 +27,19 @@ export async function POST(request: NextRequest) {
 
     const results = [];
     const errors = [];
+
+    // The reference price stored on each new package is ResellerOS's live figure (owner,
+    // 28 Sep 2026). DMS's own copy is gone, so without the table there is nothing honest to
+    // write: refuse, and say why, rather than seed ₹0 or an old figure.
+    const prices = await fetchHostingPrices();
+    if (!prices.ok) {
+      serverLogger.error(`[packages/defaults] hosting prices unavailable: ${prices.detail}`);
+      return secureErrorResponse(
+        "The default packages weren't created: ResellerOS's hosting prices couldn't be read, and each package records ResellerOS's price. Nothing was changed. Check that ResellerOS is reachable (RESELLEROS_SERVER_URL), then try again.",
+        503,
+        "PRICES_UNAVAILABLE"
+      );
+    }
 
     // 2. Iterate through defined default plans
     for (const planKey of Object.keys(HOSTING_PLANS)) {
@@ -78,7 +93,7 @@ export async function POST(request: NextRequest) {
           planId: pkgName,
           name: planConfig.name,
           description: planConfig.description,
-          price: planConfig.price,
+          price: planPrice(prices.table, planConfig.id)?.perMonthYearly ?? 0,
           currency: planConfig.currency || "INR",
           features: planConfig.features,
           directAdminPackage: pkgName,

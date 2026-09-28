@@ -14,6 +14,15 @@
  *  - ResellerOS refusing our key → 503, never 401
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+// ResellerOS's live hosting prices (owner, 28 Sep 2026), mocked: the fixture table by default.
+const hostingPrices = vi.hoisted(() => ({ out: null as unknown }));
+vi.mock("@/lib/reselleros/hosting-prices", async (orig) => {
+  const { PRICE_TABLE } = await import("../../../../../../fixtures/hosting-price-table");
+  return {
+    ...(await orig<typeof import("@/lib/reselleros/hosting-prices")>()),
+    fetchHostingPrices: async () => hostingPrices.out ?? { ok: true, table: PRICE_TABLE },
+  };
+});
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
@@ -138,6 +147,15 @@ describe("the request", () => {
     expect(sent.estimateRupees).toBe(100);
     expect(Number.isInteger(sent.estimateRupees)).toBe(true);
     expect(await res.json()).toMatchObject({ success: true, data: { leadId: "L-1", alreadyRequested: false, estimateRupees: 100 } });
+  });
+
+  it("ResellerOS's prices unreadable → 503, and no upgrade request is sent", async () => {
+    setupHappy();
+    hostingPrices.out = { ok: false, detail: "down" };
+    const res = await POST(makeReq(VALID));
+    expect(res.status).toBe(503);
+    expect(sendUpgradeRequest).not.toHaveBeenCalled();
+    hostingPrices.out = null;
   });
 
   it("a plan ResellerOS does not price → the request goes WITHOUT an estimate", async () => {

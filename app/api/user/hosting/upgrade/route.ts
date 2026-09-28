@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { findUserHosting } from "@/lib/services/hostings";
 import { getPlanByPlanId } from "@/lib/services/hosting-plans";
 import { upgradeCharge } from "@/lib/pricing/hosting-price";
+import { fetchHostingPrices, HOSTING_PRICES_UNAVAILABLE } from "@/lib/reselleros/hosting-prices";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { AuthService } from "@/lib/auth";
 import { rateLimiters, rateLimitResponse } from "@/lib/rate-limit";
@@ -75,7 +76,13 @@ export async function POST(request: NextRequest) {
       return secureErrorResponse("Target plan not found", 404, "TARGET_PLAN_NOT_FOUND");
     }
 
-    const upgrade = upgradeCharge(currentPlan.planId, targetPlan.planId, remainingDays);
+    // ResellerOS's live prices (owner, 28 Sep 2026). No table, no estimate — never a copied figure.
+    const prices = await fetchHostingPrices();
+    if (!prices.ok) {
+      serverLogger.error(`[UPGRADE] hosting prices unavailable: ${prices.detail}`);
+      return secureErrorResponse(HOSTING_PRICES_UNAVAILABLE, 503, "PRICES_UNAVAILABLE");
+    }
+    const upgrade = upgradeCharge(prices.table, currentPlan.planId, targetPlan.planId, remainingDays);
     if (!upgrade.ok && upgrade.reason === "not-higher") {
       return secureErrorResponse(
         "Target plan must have a higher price than the current plan",

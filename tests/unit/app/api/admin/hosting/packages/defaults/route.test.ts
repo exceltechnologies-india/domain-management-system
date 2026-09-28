@@ -31,6 +31,15 @@
  *  - Outer catch → 500 DEFAULT_PACKAGES_FAILED
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+// ResellerOS's live hosting prices (owner, 28 Sep 2026), mocked: the fixture table by default.
+const hostingPrices = vi.hoisted(() => ({ out: null as unknown }));
+vi.mock("@/lib/reselleros/hosting-prices", async (orig) => {
+  const { PRICE_TABLE } = await import("../../../../../../../fixtures/hosting-price-table");
+  return {
+    ...(await orig<typeof import("@/lib/reselleros/hosting-prices")>()),
+    fetchHostingPrices: async () => hostingPrices.out ?? { ok: true, table: PRICE_TABLE },
+  };
+});
 
 const isAdmin = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/auth", () => ({
@@ -121,6 +130,16 @@ describe("Admin gate", () => {
     expect(body.code).toBe("FORBIDDEN");
     expect(createPackage).not.toHaveBeenCalled();
     expect(findOne).not.toHaveBeenCalled();
+  });
+
+  it("ResellerOS's prices unreadable → 503, nothing created in DirectAdmin or the database", async () => {
+    hostingPrices.out = { ok: false, detail: "down" };
+    const res = await POST(makeReq());
+    expect(res.status).toBe(503);
+    expect((await res.json()).code).toBe("PRICES_UNAVAILABLE");
+    expect(createPackage).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+    hostingPrices.out = null;
   });
 });
 

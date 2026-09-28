@@ -10,10 +10,11 @@
  *    accounts); **'da_unreachable' → throws with `__daUnreachable:true`
  *    + status:503 attached** (signals handler to route to PendingHosting
  *    pending state for cron retry); 'hard_failure' → plain throw
- *  - resolveDaPackageName 4-step fallback chain: hostingPlan.serverPackage
- *    → name-based inference (starter/standard/plus) → price-based
- *    (PRICE_TO_PACKAGE from HOSTING_PLANS) → DA_DEFAULT_PACKAGE env →
- *    literal 'Starter'
+ *  - resolveDaPackageName fallback chain: hostingPlan.serverPackage
+ *    → name-based inference (starter/standard/plus) → DA_DEFAULT_PACKAGE env →
+ *    literal 'Starter'. The price-based step (PRICE_TO_PACKAGE) was removed on
+ *    28 Sep 2026: DMS keeps no prices, and a package guessed from a price is §2's
+ *    plausible-value-from-a-failure
  *  - **Trial items: ALWAYS 15-day expiry** regardless of caller's
  *    registrationPeriod/periodUnit (defence vs misconfigured trial
  *    item being treated as paid)
@@ -77,9 +78,9 @@ vi.mock("@/lib/hosting-dates", () => ({ calculateHostingDates }));
 
 vi.mock("@/config/hosting-plans", () => ({
   HOSTING_PLANS: {
-    starter: { price: 99, serverPackage: "Starter" },
-    standard: { price: 199, serverPackage: "Standard" },
-    plus: { price: 399, serverPackage: "Plus" },
+    starter: { serverPackage: "Starter" },
+    standard: { serverPackage: "Standard" },
+    plus: { serverPackage: "Plus" },
   },
 }));
 
@@ -267,19 +268,20 @@ describe("resolveDaPackageName fallback chain (via DA-call args)", () => {
     expect(daCreateUser.mock.calls[1][0].packageName).toBe("Standard");
   });
 
-  it("price-based fallback via PRICE_TO_PACKAGE lookup", async () => {
+  it("a line's PRICE no longer chooses a package (price inference removed 28 Sep 2026)", async () => {
+    vi.stubEnv("DA_DEFAULT_PACKAGE", "CustomPlan");
     daCreateUser.mockResolvedValueOnce({ kind: "created", username: "abc12345" });
     createHosting.mockResolvedValueOnce({});
     await provisionHostingItem(
       {
         ...ITEM,
-        price: 99,
+        price: 147.5, // Standard's per-month figure — once enough to pick "Standard"
         hostingPlan: undefined,
       } as never,
       CTX as never
     );
-    // price 99 → Starter (from mock HOSTING_PLANS)
-    expect(daCreateUser.mock.calls[0][0].packageName).toBe("Starter");
+    expect(daCreateUser.mock.calls[0][0].packageName).toBe("CustomPlan");
+    vi.unstubAllEnvs();
   });
 
   it("nothing resolves → env DA_DEFAULT_PACKAGE → literal 'Starter'", async () => {

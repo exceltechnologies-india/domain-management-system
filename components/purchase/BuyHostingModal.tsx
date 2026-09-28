@@ -30,6 +30,8 @@ import {
 import { isTrialPlan } from '@/lib/pricing/trial-plan';
 import { getDeviceFingerprint } from '@/lib/device-fingerprint';
 import { apiClient } from '@/lib/api-client';
+import { useHostingPrices } from '@/hooks/useHostingPrices';
+import type { HostingPriceTable } from '@/lib/pricing/hosting-price';
 import { trackStartTrial } from '@/lib/journey';
 
 interface BuyHostingModalProps {
@@ -51,6 +53,9 @@ export default function BuyHostingModal({ isOpen, onClose }: BuyHostingModalProp
   const [cycle, setCycle] = useState<BillingCycle>('yearly');
   const [checkingTrial, setCheckingTrial] = useState(false);
   const [checkout, setCheckout] = useState<PanelPurchaseChoice | null>(null);
+  // ResellerOS's live prices (owner, 28 Sep 2026). Nothing is priced or bought without them.
+  const prices = useHostingPrices();
+  const table: HostingPriceTable | null = prices.state === 'ok' ? prices.table : null;
 
   const close = () => {
     setCheckout(null);
@@ -73,6 +78,7 @@ export default function BuyHostingModal({ isOpen, onClose }: BuyHostingModalProp
   };
 
   const startTrial = async (plan: HostingPlanConfig) => {
+    if (!table) return;
     trackStartTrial();
     setCheckingTrial(true);
     try {
@@ -89,7 +95,7 @@ export default function BuyHostingModal({ isOpen, onClose }: BuyHostingModalProp
         toast.error(result.data.reason || 'You are not eligible for a free trial.');
         return;
       }
-      addItem(buildTrialCartItem(plan, cycle));
+      addItem(buildTrialCartItem(plan, cycle, table));
       toast.success(`${plan.name} free trial added — ₹0 today, then billed ${cycle === 'monthly' ? 'monthly' : 'yearly'} after 15 days.`);
       router.push('/cart');
     } finally {
@@ -125,9 +131,14 @@ export default function BuyHostingModal({ isOpen, onClose }: BuyHostingModalProp
         </div>
       </div>
 
+      {prices.state === 'unavailable' && (
+        <p role="alert" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          {prices.message}
+        </p>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {Object.values(HOSTING_PLANS).map((plan) => {
-          const charge = chargeFor(plan, cycle);
+          const charge = table && sellablePlanId(plan.id) ? chargeFor(plan, cycle, table) : null;
           const per = cycle === 'yearly' ? 'year' : 'month';
           return (
             <div
@@ -143,13 +154,21 @@ export default function BuyHostingModal({ isOpen, onClose }: BuyHostingModalProp
                 )}
               </div>
               <p className="text-xs text-ink-3 mb-3">{plan.description}</p>
-              <p className="text-2xl font-semibold text-ink">
-                {inr(charge.exGst)}
-                <span className="text-sm font-normal text-ink-3">/{per} + GST</span>
-              </p>
-              <p className="text-xs text-ink-3 mb-3">
-                {`${inr(charge.inclGst)} a ${per} including 18% GST (${inr(charge.gst)})`}
-              </p>
+              {charge ? (
+                <>
+                  <p className="text-2xl font-semibold text-ink">
+                    {inr(charge.exGst)}
+                    <span className="text-sm font-normal text-ink-3">/{per} + GST</span>
+                  </p>
+                  <p className="text-xs text-ink-3 mb-3">
+                    {`${inr(charge.inclGst)} a ${per} including 18% GST (${inr(charge.gst)})`}
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-ink-3 mb-3">
+                  {prices.state === 'loading' ? 'Loading price…' : 'Price not available right now'}
+                </p>
+              )}
               <ul className="space-y-1 mb-4 flex-1">
                 {plan.features.slice(0, 5).map((f) => (
                   <li key={f} className="flex items-start gap-1.5 text-xs text-ink-2">
@@ -161,7 +180,8 @@ export default function BuyHostingModal({ isOpen, onClose }: BuyHostingModalProp
               <button
                 type="button"
                 onClick={() => choose(plan)}
-                className="w-full px-4 py-2 text-sm font-semibold text-paper bg-amber rounded-lg hover:brightness-90 transition-colors"
+                disabled={!charge}
+                className="w-full disabled:opacity-50 px-4 py-2 text-sm font-semibold text-paper bg-amber rounded-lg hover:brightness-90 transition-colors"
               >
                 Buy {plan.name}
               </button>
@@ -170,7 +190,7 @@ export default function BuyHostingModal({ isOpen, onClose }: BuyHostingModalProp
               {isTrialPlan(plan.id) && (
                 <button
                   type="button"
-                  disabled={checkingTrial}
+                  disabled={checkingTrial || !charge}
                   onClick={() => void startTrial(plan)}
                   className="mt-2 w-full px-4 py-2 text-sm font-medium text-ink-2 border border-hairline rounded-lg hover:bg-paper-2 disabled:opacity-50 transition-colors"
                 >
@@ -182,10 +202,10 @@ export default function BuyHostingModal({ isOpen, onClose }: BuyHostingModalProp
         })}
       </div>
 
-      {/* Prices are ResellerOS's, GST added on top — owner decision,
-          24 Sep 2026 ("ResellerOS is correct price one"). Figures come from
-          lib/pricing/hosting-price.ts, the same function create-order uses
-          to charge, so the dialog and the charge cannot disagree. */}
+      {/* Prices are ResellerOS's, GST added on top — owner decisions 24 Sep 2026
+          ("ResellerOS is correct price one") and 28 Sep 2026 ("Read prices live
+          from ResellerOS"): the figures are ResellerOS's own table, read through
+          /api/public/hosting-prices, so the dialog and the charge cannot disagree. */}
       <p className="mt-4 text-xs text-ink-3 text-center">
         Yearly plans carry a 30-day money-back guarantee.
       </p>

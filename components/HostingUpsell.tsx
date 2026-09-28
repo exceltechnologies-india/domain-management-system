@@ -8,15 +8,15 @@ import toast from 'react-hot-toast';
 
 import { HOSTING_PLANS } from '@/config/hosting-plans';
 import { logger } from '@/lib/logger';
+import { useHostingPrices } from '@/hooks/useHostingPrices';
+import { cartLinePrice, hostingCharge, planPrice } from '@/lib/pricing/hosting-price';
 
-// Standard plan details for display
+// Standard plan details for display. The PRICE is not here: it is ResellerOS's,
+// read live (owner, 28 Sep 2026) — see the component body.
 const standardPlan = {
   id: HOSTING_PLANS.standard.id,
   name: HOSTING_PLANS.standard.name,
   subtitle: HOSTING_PLANS.standard.description,
-  price: HOSTING_PLANS.standard.price,
-  originalPrice: HOSTING_PLANS.standard.price * 2,
-  discount: '50%',
   period: 12, // 1 Year (12 Months)
   features: [
     ...HOSTING_PLANS.standard.features,
@@ -27,8 +27,17 @@ const standardPlan = {
 export default function HostingUpsell() {
   const { addItem, items } = useCartStore();
   const [isAdding, setIsAdding] = useState(false);
+  const prices = useHostingPrices();
+  const table = prices.state === 'ok' ? prices.table : null;
+  const plan = table ? planPrice(table, standardPlan.id) : null;
+  const yearly = table ? hostingCharge(table, standardPlan.id, 'yearly') : null;
+  // Headline: ₹/month on yearly billing (ex-GST); struck through: the same month
+  // on monthly billing — a real comparison, since monthly billing is charged 2×.
+  const perMonth = plan?.perMonthYearly ?? null;
+  const perMonthOnMonthly = plan?.monthly.exGst ?? null;
 
   const handleAddHosting = () => {
+    if (!yearly) return;
     setIsAdding(true);
 
     try {
@@ -54,7 +63,8 @@ export default function HostingUpsell() {
 
       const hostingItem: CartItem = {
         domainName: uniqueHostingId,
-        price: planData.price,
+        // The cart's convention for hosting: GST-inclusive per month, so price × 12 = the year's charge.
+        price: cartLinePrice(yearly),
         currency: 'INR',
         registrationPeriod: 12, // Default to Yearly for best value
         itemType: 'hosting',
@@ -63,7 +73,7 @@ export default function HostingUpsell() {
           id: planData.id,
           name: planData.name + ' Hosting',
           description: planData.description,
-          price: planData.price,
+          price: cartLinePrice(yearly),
           serverPackage: planData.serverPackage,
           features: [
           ...planData.features,
@@ -100,13 +110,19 @@ export default function HostingUpsell() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
-          <span className="text-2xl font-bold text-gray-900">₹{standardPlan.price}</span>
-          <span className="text-sm text-gray-500 line-through">₹{standardPlan.originalPrice}</span>
-          <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
-            Save 50%
-          </span>
-        </div>
+        {perMonth !== null && perMonthOnMonthly !== null ? (
+          <div className="flex items-center gap-3 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
+            <span className="text-2xl font-bold text-gray-900">₹{perMonth}<span className="text-xs font-normal text-gray-500">/mo + GST, billed yearly</span></span>
+            <span className="text-sm text-gray-500 line-through">₹{perMonthOnMonthly}</span>
+            <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+              Save 50%
+            </span>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500">
+            {prices.state === 'unavailable' ? 'Price not available right now' : 'Loading price…'}
+          </p>
+        )}
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between">
@@ -121,7 +137,7 @@ export default function HostingUpsell() {
 
         <button
           onClick={handleAddHosting}
-          disabled={isAdding}
+          disabled={isAdding || !yearly}
           className="w-full lg:w-auto bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-6 rounded-lg transition-colors duration-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {isAdding ? 'Adding...' : 'Add Hosting'}

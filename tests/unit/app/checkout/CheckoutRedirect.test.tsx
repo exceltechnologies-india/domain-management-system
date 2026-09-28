@@ -15,6 +15,11 @@
  */
 import { render, waitFor } from "@testing-library/react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
+// ResellerOS's live hosting prices (owner, 28 Sep 2026), mocked with the fixture table.
+vi.mock("@/hooks/useHostingPrices", async () => {
+  const { PRICE_TABLE } = await import("../../../fixtures/hosting-price-table");
+  return { useHostingPrices: () => ({ state: "ok", table: PRICE_TABLE }) };
+});
 import type { ReactNode } from "react";
 
 const { mockRouter, mockUseSession, mockUseCartStore, mockToast, mockFetch } = vi.hoisted(() => {

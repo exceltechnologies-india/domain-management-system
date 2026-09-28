@@ -6,6 +6,8 @@ import { serverLogger } from "@/lib/server-logger";
 import HostingPlan from "@/models/HostingPlan";
 import { connectToDatabase } from "@/lib/mongoose";
 import { HOSTING_PLANS } from "@/config/hosting-plans";
+import { fetchHostingPrices } from "@/lib/reselleros/hosting-prices";
+import { planPrice } from "@/lib/pricing/hosting-price";
 import { validatedBody, z } from "@/lib/api-validation";
 import { Schemas } from "@/lib/validation";
 
@@ -67,6 +69,14 @@ export async function GET(request: NextRequest) {
     let syncedPackages = [];
 
     if (isDaAvailable) {
+        // A package's reference price is ResellerOS's live figure (owner, 28 Sep 2026). This
+        // sync is about DirectAdmin's technical details, so an unreadable price table does not
+        // stop it: prices are then simply not written (a new package keeps 0, as a package
+        // ResellerOS does not sell always has). Mongo prices are never a price source (decision 7).
+        const prices = await fetchHostingPrices();
+        if (!prices.ok) serverLogger.warn(`[packages] hosting prices unavailable, syncing without them: ${prices.detail}`);
+        const livePrice = (planId: string | undefined) =>
+          prices.ok && planId ? planPrice(prices.table, planId)?.perMonthYearly ?? null : null;
         // We want to make sure all DA packages exist in our DB
         syncedPackages = await Promise.all(
           daPackages.map(async (pkgName) => {
@@ -99,7 +109,7 @@ export async function GET(request: NextRequest) {
                 planId: planConfig?.id || pkgName,
                 name: planConfig?.name || pkgName, 
                 directAdminPackage: pkgName,
-                price: planConfig?.price || 0,
+                price: livePrice(planConfig?.id) ?? 0,
                 quota: parsedQuota, 
                 bandwidth: parsedBandwidth,
                 isActive: true,
@@ -111,10 +121,11 @@ export async function GET(request: NextRequest) {
                 plan.bandwidth = parsedBandwidth;
                 plan.details = details;
                 
-                // If price is 0, try to recover from config
+                // If price is 0, fill it from ResellerOS's live table when it has one
                 if (plan.price === 0) {
                     const planConfig = Object.values(HOSTING_PLANS).find(cp => cp.serverPackage === pkgName);
-                    if (planConfig) plan.price = planConfig.price;
+                    const live = livePrice(planConfig?.id);
+                    if (live !== null) plan.price = live;
                 }
                 
                 await plan.save();

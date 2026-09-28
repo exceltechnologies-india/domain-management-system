@@ -6,7 +6,9 @@
  * registrationPeriod=12, billingCycle='yearly'), the auto-link to an existing
  * domain in cart (sets `linkedDomain`), no-link when the cart has no domain,
  * the "already in cart" dedupe (toast.error + skipped addItem), and the
- * success toast.
+ * success toast. Since 28 Sep 2026 the price is ResellerOS's live table
+ * (hooks/useHostingPrices.ts, mocked here with PRICE_TABLE); without it the
+ * card shows no figure and cannot add anything.
  */
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -28,12 +30,15 @@ const { mockUseCartStore, mockToast } = vi.hoisted(() => {
 
 vi.mock("@/store/cartStore", () => ({ useCartStore: mockUseCartStore }));
 vi.mock("react-hot-toast", () => ({ default: mockToast, toast: mockToast }));
+const prices = vi.hoisted(() => ({ current: { state: "loading" } as unknown }));
+vi.mock("@/hooks/useHostingPrices", () => ({ useHostingPrices: () => prices.current }));
 vi.mock("@/lib/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn(), log: vi.fn() },
 }));
 
 import HostingUpsell from "@/components/HostingUpsell";
 import { HOSTING_PLANS } from "@/config/hosting-plans";
+import { PRICE_TABLE } from "../../fixtures/hosting-price-table";
 
 function setCart(items: CartItem[]) {
   const addItem = vi.fn();
@@ -45,6 +50,7 @@ beforeEach(() => {
   mockToast.error.mockClear();
   mockToast.success.mockClear();
   mockUseCartStore.mockReset();
+  prices.current = { state: "ok", table: PRICE_TABLE };
 });
 
 describe("<HostingUpsell>", () => {
@@ -52,8 +58,9 @@ describe("<HostingUpsell>", () => {
     setCart([]);
     render(<HostingUpsell />);
     expect(screen.getByRole("heading", { name: /add standard/i })).toBeInTheDocument();
-    expect(screen.getByText(`₹${HOSTING_PLANS.standard.price}`)).toBeInTheDocument();
-    expect(screen.getByText(`₹${HOSTING_PLANS.standard.price * 2}`)).toBeInTheDocument();
+    // ResellerOS's figures: ₹125/mo on yearly billing, ₹250 on monthly billing.
+    expect(screen.getByText("₹125", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText("₹250")).toBeInTheDocument();
     expect(screen.getByText(/save 50%/i)).toBeInTheDocument();
     expect(screen.getByText(/30-day money-back guarantee/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /add hosting/i })).toBeInTheDocument();
@@ -71,7 +78,8 @@ describe("<HostingUpsell>", () => {
       registrationPeriod: 12,
       billingCycle: "yearly",
       currency: "INR",
-      price: HOSTING_PLANS.standard.price,
+      // The cart's hosting convention: GST-inclusive per month, so × 12 = ₹1,770, ResellerOS's charge.
+      price: 1770 / 12,
       hostingPlan: expect.objectContaining({ id: HOSTING_PLANS.standard.id }),
     });
     expect(item.domainName).toMatch(/^hosting-/);
@@ -95,7 +103,7 @@ describe("<HostingUpsell>", () => {
     const addItem = setCart([
       {
         domainName: "hosting-standard-existing",
-        price: HOSTING_PLANS.standard.price,
+        price: 1770 / 12,
         currency: "INR",
         registrationPeriod: 12,
         itemType: "hosting",
@@ -119,5 +127,18 @@ describe("<HostingUpsell>", () => {
     await user.click(screen.getByRole("button", { name: /add hosting/i }));
     const item = addItem.mock.calls[0][0] as CartItem;
     expect(item.linkedDomain).toBe("legacy.com");
+  });
+
+  it("without ResellerOS's prices it shows no figure and cannot add anything", async () => {
+    const user = userEvent.setup();
+    const addItem = setCart([]);
+    prices.current = { state: "unavailable", message: "down" };
+    render(<HostingUpsell />);
+    expect(screen.getByText(/price not available right now/i)).toBeInTheDocument();
+    expect(screen.queryByText(/save 50%/i)).not.toBeInTheDocument();
+    const btn = screen.getByRole("button", { name: /add hosting/i });
+    expect(btn).toBeDisabled();
+    await user.click(btn);
+    expect(addItem).not.toHaveBeenCalled();
   });
 });

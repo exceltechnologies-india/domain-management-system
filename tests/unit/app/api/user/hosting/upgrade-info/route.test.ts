@@ -32,6 +32,15 @@
  *  - Outer catch → 500 INTERNAL_ERROR 'Failed to get upgrade info'
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+// ResellerOS's live hosting prices (owner, 28 Sep 2026), mocked: the fixture table by default.
+const hostingPrices = vi.hoisted(() => ({ out: null as unknown }));
+vi.mock("@/lib/reselleros/hosting-prices", async (orig) => {
+  const { PRICE_TABLE } = await import("../../../../../../fixtures/hosting-price-table");
+  return {
+    ...(await orig<typeof import("@/lib/reselleros/hosting-prices")>()),
+    fetchHostingPrices: async () => hostingPrices.out ?? { ok: true, table: PRICE_TABLE },
+  };
+});
 
 const getUserFromRequest = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/auth", () => ({
@@ -191,6 +200,17 @@ describe("Upgrades-only filter (no downgrades exposed)", () => {
       "Plus",
       "Standard",
     ]);
+  });
+
+  it("ResellerOS's prices unreadable → 503 PRICES_UNAVAILABLE, never a quote from a copy", async () => {
+    hostingPrices.out = { ok: false, detail: "down" };
+    findUserHosting.mockResolvedValueOnce({ _id: "H1", status: "active", expiryDate: new Date(NOW + 30 * 86_400_000), planId: "Starter" });
+    getPlanByPlanId.mockResolvedValueOnce({ planId: "Starter", name: "Starter", price: 500 });
+    listActivePlans.mockResolvedValueOnce([{ planId: "Plus", name: "Pro", price: 1000, features: [] }]);
+    const res = await GET(makeReq("domainName=alice.com"));
+    expect(res.status).toBe(503);
+    expect((await res.json()).code).toBe("PRICES_UNAVAILABLE");
+    hostingPrices.out = null;
   });
 
   it("same-price plan (current plan itself) is NOT in eligiblePlans (strict > not >=)", async () => {

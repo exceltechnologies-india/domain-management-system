@@ -20,7 +20,6 @@ import { createHosting } from "@/lib/services/hostings";
 import { createPendingHosting } from "@/lib/services/pending-hostings";
 import { recordHostingProvisioned } from "@/lib/services/analytics-conversions";
 import { calculateHostingDates } from "@/lib/hosting-dates";
-import { HOSTING_PLANS } from "@/config/hosting-plans";
 import { AUTOMATION_CONFIG } from "@/config/automation";
 
 import type { IUser } from "@/models/User";
@@ -29,16 +28,10 @@ import type { OrderDomain, RegistrationResult } from "./provisioner";
 
 const FIRST_REMINDER_DAYS = Math.max(...AUTOMATION_CONFIG.REMINDER_DAYS);
 
-// Price → DirectAdmin package name lookup, derived from the canonical
-// HOSTING_PLANS config. Avoids duplicating prices as magic numbers between
-// here and config/hosting-plans.ts.
-const PRICE_TO_PACKAGE: Record<number, string> = Object.values(HOSTING_PLANS).reduce(
-  (acc, plan) => {
-    acc[plan.price] = plan.serverPackage;
-    return acc;
-  },
-  {} as Record<number, string>
-);
+// A price → package lookup used to sit here, inferring the DirectAdmin package from what
+// a line cost. Removed 28 Sep 2026: DMS keeps no hosting prices any more (they are read
+// live from ResellerOS), and a package guessed from a price is exactly the "plausible value
+// from a failure" AGENTS.md §2 forbids — one price change and a line lands on the wrong plan.
 
 /** Generate a short, unique-enough DA username from the domain prefix. */
 function generateDaUsername(domainPrefix: string): string {
@@ -283,8 +276,8 @@ export async function provisionHostingItem(
  * Determine the DA package name to use. Tries (in order):
  *   1. `item.hostingPlan.serverPackage` — explicit
  *   2. Name-based inference (starter/standard/plus)
- *   3. Price-based inference via PRICE_TO_PACKAGE
- *   4. Env-default DA_DEFAULT_PACKAGE → "Starter"
+ *   3. Env-default DA_DEFAULT_PACKAGE → "Starter"
+ * (Price-based inference was removed on 28 Sep 2026 — see PRICE_TO_PACKAGE's old place above.)
  */
 function resolveDaPackageName(item: CartItem): string {
   let packageName = item.hostingPlan?.serverPackage;
@@ -298,17 +291,6 @@ function resolveDaPackageName(item: CartItem): string {
     if (packageName) {
       serverLogger.info(
         `📦 [PAYMENT-VERIFY] Inferred package from name: ${planName} -> ${packageName}`
-      );
-    }
-  }
-
-  if (!packageName) {
-    const price = item.price;
-    packageName = PRICE_TO_PACKAGE[price];
-
-    if (packageName) {
-      serverLogger.info(
-        `📦 [PAYMENT-VERIFY] Inferred package from price: ₹${price} -> ${packageName}`
       );
     }
   }

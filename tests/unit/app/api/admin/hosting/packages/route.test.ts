@@ -44,6 +44,15 @@
  *  - 500 'UPDATE_FAILED' on outer catch
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+// ResellerOS's live hosting prices (owner, 28 Sep 2026), mocked: the fixture table by default.
+const hostingPrices = vi.hoisted(() => ({ out: null as unknown }));
+vi.mock("@/lib/reselleros/hosting-prices", async (orig) => {
+  const { PRICE_TABLE } = await import("../../../../../../fixtures/hosting-price-table");
+  return {
+    ...(await orig<typeof import("@/lib/reselleros/hosting-prices")>()),
+    fetchHostingPrices: async () => hostingPrices.out ?? { ok: true, table: PRICE_TABLE },
+  };
+});
 
 const isAdmin = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/auth", () => ({
@@ -185,7 +194,7 @@ describe("GET — admin gate", () => {
 
 // ─── GET — LIVE mode happy path ────────────────────────────────────
 describe("GET — LIVE mode (DA available)", () => {
-  it("new DA package not in DB → HostingPlan.create with config-matched id+name+price", async () => {
+  it("new DA package not in DB → HostingPlan.create with config id+name and ResellerOS's live price", async () => {
     daListPackages.mockResolvedValueOnce(["Starter"]);
     daGetPackageDetails.mockResolvedValueOnce({
       quota: "1024",
@@ -201,7 +210,7 @@ describe("GET — LIVE mode (DA available)", () => {
       expect.objectContaining({
         planId: "starter", // from config
         name: "Starter",   // from config
-        price: 1500,       // from config
+        price: 49.99,      // ResellerOS's live Starter figure (config keeps no price since 28 Sep 2026)
         directAdminPackage: "Starter",
         quota: 1024,
         bandwidth: 10240,
@@ -292,7 +301,7 @@ describe("GET — LIVE mode (DA available)", () => {
     expect(HostingPlanCreate).not.toHaveBeenCalled();
   });
 
-  it("**Price-recovery when DB plan.price === 0**: re-look-up config and set config.price", async () => {
+  it("**Price-recovery when DB plan.price === 0**: filled from ResellerOS's live table", async () => {
     daListPackages.mockResolvedValueOnce(["Starter"]);
     daGetPackageDetails.mockResolvedValueOnce({
       quota: "1024",
@@ -303,7 +312,20 @@ describe("GET — LIVE mode (DA available)", () => {
 
     await GET(makeReq("GET"));
 
-    expect(existing.price).toBe(1500); // recovered from config
+    expect(existing.price).toBe(49.99); // ResellerOS's live Starter figure
+  });
+
+  it("ResellerOS's prices unreadable → the DirectAdmin sync still runs, and writes no price", async () => {
+    hostingPrices.out = { ok: false, detail: "down" };
+    daListPackages.mockResolvedValueOnce(["Starter"]);
+    daGetPackageDetails.mockResolvedValueOnce({ quota: "1024", bandwidth: "10240" });
+    const existing = makePlan({ price: 0 });
+    HostingPlanFindOne.mockResolvedValueOnce(existing);
+    const res = await GET(makeReq("GET"));
+    expect(res.status).toBe(200);
+    expect(existing.save).toHaveBeenCalled();
+    expect(existing.price).toBe(0);
+    hostingPrices.out = null;
   });
 
   it("price=0 + no config match → stays 0 (no override)", async () => {
