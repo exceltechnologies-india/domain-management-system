@@ -160,7 +160,7 @@ export default function PaymentResultPage() {
               </Link>
               <Link
                 href={homeUrl()}
-                className="inline-flex items-center px-6 py-3 bg-ink-4 hover:bg-ink text-paper font-semibold rounded-lg transition-colors duration-200"
+                className="inline-flex items-center px-6 py-3 bg-ink-2 hover:bg-ink text-paper font-semibold rounded-lg transition-colors duration-200"
               >
                 <Home className="h-5 w-5 mr-2" />
                 Go to Homepage
