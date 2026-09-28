@@ -97,13 +97,16 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
         return;
       }
       setPrefill(res.data);
-      setCompanyName(res.data.companyName);
-      setGstin(res.data.gstin);
+      // These fill text inputs, which must always hold a string: a field missing from
+      // the answer leaves the input empty for the customer to type, never undefined
+      // (which crashed the next render on .trim()).
+      setCompanyName(res.data.companyName ?? '');
+      setGstin(res.data.gstin ?? '');
       if (res.data.address) {
-        setLine1(res.data.address.line1);
-        setCity(res.data.address.city);
-        setState(res.data.address.state);
-        setZipcode(res.data.address.zipcode);
+        setLine1(res.data.address.line1 ?? '');
+        setCity(res.data.address.city ?? '');
+        setState(res.data.address.state ?? '');
+        setZipcode(res.data.address.zipcode ?? '');
       }
     })();
     return () => {
