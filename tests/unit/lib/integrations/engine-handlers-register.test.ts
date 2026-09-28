@@ -99,8 +99,13 @@ describe("parseRegister", () => {
   it("names what is missing — ResellerClub needs a postal address", () => {
     expect(() => parseRegister(payload({ registrant: { ...registrant, address: { ...registrant.address, zipcode: "" } } }))).toThrow(/PIN/);
   });
-  it("refuses more than one year and an unknown payment mode", () => {
-    expect(() => parseRegister(payload({ years: 2 }))).toThrow(/one year/);
+  it("takes 1 to 10 whole years (multi-year allowed since 28 Sep 2026) and refuses anything else", () => {
+    expect(parseRegister(payload({ years: 2 })).years).toBe(2);
+    expect(parseRegister(payload({ years: 10 })).years).toBe(10);
+    expect(parseRegister(payload({ years: undefined })).years).toBe(1);
+    for (const years of [0, 11, 1.5, "two", -1]) expect(() => parseRegister(payload({ years }))).toThrow(/1 to 10/);
+  });
+  it("refuses an unknown payment mode", () => {
     expect(() => parseRegister(payload({ paymentMode: "maybe" }))).toThrow(/paymentMode/);
   });
 });
@@ -189,6 +194,30 @@ describe("registerDomainCommand — the one path that spends", () => {
     expect(users.createUser).toHaveBeenCalledWith(expect.objectContaining({ email: "asha@example.invalid", isActivated: true }));
     expect(domainModel.create).toHaveBeenCalledWith(expect.objectContaining({ userId: "U-NEW", domainName: "acme.in", orderId: "rsos:Q-TEST-1", price: 749 }));
     expect(result).toMatchObject({ ok: true, changed: true, costRupees: 550, recorded: true, dmsUserCreated: true });
+  });
+
+  it("a multi-year registration is costed for EVERY year and registers that term", async () => {
+    pricing.getTLDPricing.mockResolvedValue({
+      in: { reseller: { addnewdomain: { "1": "550.00", "3": "520.00" } }, customer: { addnewdomain: { "1": "749.00", "3": "700.00" } } },
+    });
+    const { result } = await registerDomainCommand(ctx("live", { years: 3, coverRupees: 2000 }));
+    expect(api.registerDomain).toHaveBeenCalledWith(expect.objectContaining({ domainName: "acme.in", years: 3 }));
+    expect(result).toMatchObject({ changed: true, costRupees: 1560 });
+    const row = domainModel.create.mock.calls[0][0] as { registrationPeriod: number; price: number; expiresAt: Date };
+    expect(row.registrationPeriod).toBe(3);
+    expect(row.price).toBe(2100);
+    expect(row.expiresAt.getUTCFullYear()).toBe(new Date().getUTCFullYear() + 3);
+  });
+
+  it("a multi-year registration the payment does not cover is held — the cost is per year × years", async () => {
+    pricing.getTLDPricing.mockResolvedValue({ in: { reseller: { addnewdomain: { "1": "550.00", "3": "520.00" } }, customer: { addnewdomain: {} } } });
+    await expect(registerDomainCommand(ctx("live", { years: 3, coverRupees: 1500 }))).rejects.toThrow(/1560/);
+    noWrites();
+  });
+
+  it("a term ResellerClub does not quote is held, never costed at the 1-year price", async () => {
+    await expect(registerDomainCommand(ctx("live", { years: 5, coverRupees: 99999 }))).rejects.toThrow();
+    noWrites();
   });
 
   it("reuses an existing DMS account", async () => {

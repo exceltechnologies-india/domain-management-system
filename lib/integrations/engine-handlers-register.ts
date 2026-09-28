@@ -63,19 +63,24 @@ type Deps = Awaited<ReturnType<typeof deps>>;
 interface Pricing { costRupees: number | null; customerRupees: number | null; stale: boolean }
 
 /**
- * ResellerClub's 1-year COST (what ANUTECH pays) and customer price for a TLD.
+ * ResellerClub's COST (what ANUTECH pays) and customer price for `years` of a TLD.
  * Read from the raw price blocks, not `resellerPrice`, because that field falls
  * back to a 2-year figure under a 1-year label; and a stale cache is refused —
  * a cost check against an old price is not a check.
+ *
+ * RC quotes each tenure as a PER-YEAR price, so the figure is that tenure's price ×
+ * years — the same reading as `domain.renew`'s readRenewalCost. If a tenure were ever
+ * quoted as a total this overstates the cost and HOLDS the registration; it can never
+ * understate it. A tenure RC does not quote is "unknown", never the 1-year figure.
  */
-async function readPricing(d: Deps, tld: string): Promise<Pricing> {
+async function readPricing(d: Deps, tld: string, years: number): Promise<Pricing> {
   const payload = await d.PricingService.getDomainPricing();
   if (payload.stale) return { costRupees: null, customerRupees: null, stale: true };
   const detail = (await d.PricingService.getTLDPricing([tld]))[tld];
   const one = (block: unknown): number | null => {
-    const v = (block as { addnewdomain?: Record<string, string> } | null)?.addnewdomain?.["1"];
+    const v = (block as { addnewdomain?: Record<string, string> } | null)?.addnewdomain?.[String(years)];
     const n = Number(v);
-    return Number.isFinite(n) && n > 0 ? n : null;
+    return Number.isFinite(n) && n > 0 ? Math.round(n * years * 100) / 100 : null;
   };
   return { costRupees: one(detail?.reseller), customerRupees: one(detail?.customer), stale: false };
 }
@@ -117,7 +122,7 @@ export const registerDomainCommand: CommandHandler = async (ctx): Promise<Handle
   }
 
   // ── 3. Cost and today's usage ─────────────────────────────────────────────
-  const pricing = await readPricing(d, tld);
+  const pricing = await readPricing(d, tld, req.years);
   const usage = await readDailyUsage("domain.register", ctx.commandId, pricing.costRupees ?? 0);
   const caps = capsFromEnv(process.env);
   const spend = decideSpend({ paymentMode: req.paymentMode, costRupees: pricing.costRupees, coverRupees: req.coverRupees, usage, caps, domain });
@@ -169,7 +174,7 @@ export const registerDomainCommand: CommandHandler = async (ctx): Promise<Handle
   const raw = await attemptProviderWrite(() =>
     d.ResellerClubAPI.registerDomain({
       domainName: domain,
-      years: 1,
+      years: req.years,
       customerId: rc.customerId as number,
       adminContactId: rc.contactId,
       techContactId: rc.contactId,
@@ -207,7 +212,10 @@ export const registerDomainCommand: CommandHandler = async (ctx): Promise<Handle
   // ── 7. Record it on the customer's DMS account — never throw past here ────
   let recorded = false;
   try {
-    const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+    // The term actually registered. The registrar's own expiry arrives on the next sync;
+    // until then this is the calendar date `years` from now, not 365 days × years.
+    const expiresAt = new Date();
+    expiresAt.setUTCFullYear(expiresAt.getUTCFullYear() + req.years);
     await d.connectDB();
     await d.Domain.create({
       userId: user._id,
@@ -215,7 +223,7 @@ export const registerDomainCommand: CommandHandler = async (ctx): Promise<Handle
       status: "pending",
       price: pricing.customerRupees ?? 0,
       currency: "INR",
-      registrationPeriod: 1,
+      registrationPeriod: req.years,
       orderId: `rsos:${req.sourceRef}`,
       resellerClubOrderId: orderId,
       dnsProvider: "resellerclub",

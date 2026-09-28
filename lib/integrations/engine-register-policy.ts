@@ -37,7 +37,8 @@ export interface Registrant {
 }
 
 export interface RegisterRequest {
-  years: 1;
+  /** 1 to 10 (ResellerClub's cap). Multi-year allowed since 28 Sep 2026 (owner); the cost check covers every year. */
+  years: number;
   registrant: Registrant;
   /**
    * Rupees the customer paid, before GST, that this registration may draw on —
@@ -56,8 +57,8 @@ const str = (v: unknown, max = 200): string => (typeof v === "string" ? v.trim()
 /** Validate the payload. Throws with a sentence naming the first thing wrong. */
 export function parseRegister(payload: Record<string, unknown>): RegisterRequest {
   const years = Number(payload.years ?? 1);
-  if (years !== 1) {
-    throw new Error(`"years" must be 1 — automatic registration is for one year only. Received ${JSON.stringify(payload.years)}.`);
+  if (!Number.isInteger(years) || years < 1 || years > 10) {
+    throw new Error(`"years" must be a whole number from 1 to 10 (ResellerClub's cap). Received ${JSON.stringify(payload.years)}.`);
   }
 
   const r = (payload.registrant ?? {}) as Record<string, unknown>;
@@ -108,7 +109,7 @@ export function parseRegister(payload: Record<string, unknown>): RegisterRequest
   const sourceRef = str(payload.sourceRef, 80);
   if (!sourceRef) throw new Error(`"sourceRef" (the paying side's order reference) is required.`);
 
-  return { years: 1, registrant, coverRupees, paymentMode, sourceRef };
+  return { years, registrant, coverRupees, paymentMode, sourceRef };
 }
 
 /** A domain this command may register: one label + a TLD, nothing else. */
