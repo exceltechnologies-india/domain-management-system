@@ -38,9 +38,9 @@ interface ListResponse {
 interface CurrentUser { firstName: string; lastName: string; email: string; role: string; }
 
 const STATUS_META: Record<ResellerRow["status"], { label: string; classes: string; icon: React.ElementType }> = {
-  pending: { label: "Pending", classes: "bg-amber-100 text-amber-800", icon: Clock },
-  approved: { label: "Approved", classes: "bg-green-100 text-green-800", icon: CheckCircle2 },
-  suspended: { label: "Suspended", classes: "bg-red-100 text-red-800", icon: Ban },
+  pending: { label: "Pending", classes: "bg-amber-soft text-amber-ink", icon: Clock },
+  approved: { label: "Approved", classes: "bg-emerald-soft text-emerald-ink", icon: CheckCircle2 },
+  suspended: { label: "Suspended", classes: "bg-rose-soft text-rose-ink", icon: Ban },
 };
 
 function formatDate(iso: string): string {
@@ -182,12 +182,12 @@ export default function AdminResellersPage() {
               <button
                 type="submit"
                 disabled={creating}
-                className="px-4 py-2 bg-amber text-white rounded-md hover:brightness-90 disabled:opacity-50"
+                className="px-4 py-2 bg-amber text-paper rounded-md hover:brightness-90 disabled:opacity-50"
               >
                 {creating ? "Creating…" : "Create reseller"}
               </button>
               {formMsg && (
-                <span className={`text-sm ${formMsg.kind === "ok" ? "text-green-700" : "text-red-600"}`}>
+                <span className={`text-sm ${formMsg.kind === "ok" ? "text-emerald-ink" : "text-rose-ink"}`}>
                   {formMsg.text}
                 </span>
               )}
@@ -197,7 +197,7 @@ export default function AdminResellersPage() {
 
         {/* List */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-800 text-sm rounded-lg p-3">{error}</div>
+          <div className="bg-rose-soft border border-rose/30 text-rose-ink text-sm rounded-lg p-3">{error}</div>
         )}
         <div className="bg-paper rounded-xl border border-hairline overflow-hidden">
           <div className="overflow-x-auto">
@@ -239,7 +239,7 @@ export default function AdminResellersPage() {
                           {r.status !== "approved" && (
                             <button
                               onClick={() => void handleAction(r._id, "approve")}
-                              className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                              className="px-3 py-1 text-xs bg-emerald text-paper rounded hover:bg-emerald/90"
                             >
                               Approve
                             </button>
@@ -247,7 +247,7 @@ export default function AdminResellersPage() {
                           {r.status !== "suspended" && (
                             <button
                               onClick={() => void handleAction(r._id, "suspend")}
-                              className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+                              className="px-3 py-1 text-xs bg-rose text-paper rounded hover:bg-rose/90"
                             >
                               Suspend
                             </button>

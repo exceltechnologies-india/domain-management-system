@@ -142,11 +142,11 @@ export default function AdminDomainsPage() {
     switch (status?.toLowerCase()) {
       case 'registered':
       case 'active':
-        return 'bg-green-50 text-green-700 border-green-200';
+        return 'bg-emerald-soft text-emerald-ink border-emerald/30';
       case 'expired':
-        return 'bg-red-50 text-red-700 border-red-200';
+        return 'bg-rose-soft text-rose-ink border-rose/30';
       case 'pending':
-        return 'bg-amber-50 text-amber-700 border-amber-200';
+        return 'bg-amber-soft text-amber-ink border-amber/30';
       default:
         return 'bg-paper-2 text-ink-2 border-hairline';
     }
@@ -329,11 +329,11 @@ export default function AdminDomainsPage() {
                           </div>
                         </td>
                         <td className="px-5 py-3.5 whitespace-nowrap hidden sm:table-cell">
-                          <div className={`text-sm font-medium ${isExpired ? 'text-red-600' : 'text-ink'}`}>
+                          <div className={`text-sm font-medium ${isExpired ? 'text-rose-ink' : 'text-ink'}`}>
                             {domain.expiresAt ? formatIndianDateTime(domain.expiresAt) : 'N/A'}
                           </div>
                           {isExpired && (
-                            <div className="inline-flex items-center gap-1 text-3xs font-bold text-red-600 mt-0.5">
+                            <div className="inline-flex items-center gap-1 text-3xs font-bold text-rose-ink mt-0.5">
                               <AlertTriangle className="h-3 w-3" />
                               EXPIRED
                             </div>

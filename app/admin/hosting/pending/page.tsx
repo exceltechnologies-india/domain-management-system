@@ -155,8 +155,8 @@ export default function AdminPendingHostingPage() {
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
-            <div className="p-2 bg-amber-50 rounded-xl">
-              <AlertTriangle className="h-5 w-5 text-amber-600" />
+            <div className="p-2 bg-amber-soft rounded-xl">
+              <AlertTriangle className="h-5 w-5 text-amber-ink" />
             </div>
             <div>
               <h1 className="text-2xl font-serif font-bold text-ink">Pending Hosting Provisions</h1>
@@ -183,8 +183,8 @@ export default function AdminPendingHostingPage() {
             <AdminTableRowsSkeleton rows={5} cols={5} />
           ) : pendingItems.length === 0 ? (
             <div className="py-16 px-6 text-center">
-              <div className="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <CheckCircle2 className="h-7 w-7 text-green-600" />
+              <div className="w-14 h-14 bg-emerald-soft rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <CheckCircle2 className="h-7 w-7 text-emerald-ink" />
               </div>
               <h3 className="text-sm font-semibold text-ink mb-1.5">All caught up</h3>
               <p className="text-sm text-ink-3 mb-5">No failed provisions pending.</p>
@@ -213,8 +213,8 @@ export default function AdminPendingHostingPage() {
                     <tr key={item._id} className="hover:bg-paper-2/60 transition-colors group">
                       <td className="px-5 py-3.5 whitespace-nowrap">
                         <div className="flex items-center gap-3">
-                          <div className="flex-shrink-0 h-9 w-9 bg-amber-50 rounded-xl flex items-center justify-center">
-                            <Server className="h-4 w-4 text-amber-600" />
+                          <div className="flex-shrink-0 h-9 w-9 bg-amber-soft rounded-xl flex items-center justify-center">
+                            <Server className="h-4 w-4 text-amber-ink" />
                           </div>
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-ink">{item.domain}</p>
@@ -232,9 +232,9 @@ export default function AdminPendingHostingPage() {
                         <p className="text-xs text-ink-4 font-mono mt-0.5">DA: {item.daUsername}</p>
                       </td>
                       <td className="px-5 py-3.5">
-                        <div className="flex items-start gap-2 max-w-md p-2 bg-red-50 border border-red-100 rounded-lg">
-                          <XCircle className="h-3.5 w-3.5 text-red-500 flex-shrink-0 mt-0.5" />
-                          <span className="text-xs text-red-700 font-mono break-words leading-relaxed">{item.error}</span>
+                        <div className="flex items-start gap-2 max-w-md p-2 bg-rose-soft border border-rose/30 rounded-lg">
+                          <XCircle className="h-3.5 w-3.5 text-rose flex-shrink-0 mt-0.5" />
+                          <span className="text-xs text-rose-ink font-mono break-words leading-relaxed">{item.error}</span>
                         </div>
                       </td>
                       <td className="px-5 py-3.5 whitespace-nowrap">
@@ -248,7 +248,7 @@ export default function AdminPendingHostingPage() {
                           <button
                             onClick={() => handleRetry(item._id)}
                             disabled={isRetrying === item._id || isDeleting === item._id}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-amber hover:brightness-90 rounded-lg disabled:opacity-50 transition-all shadow-sm"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-paper bg-amber hover:brightness-90 rounded-lg disabled:opacity-50 transition-all shadow-sm"
                           >
                             {isRetrying === item._id ? (
                               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -261,7 +261,7 @@ export default function AdminPendingHostingPage() {
                             onClick={() => setPendingDeleteItem(item)}
                             disabled={isRetrying === item._id || isDeleting === item._id}
                             title="Remove entry"
-                            className="inline-flex items-center justify-center w-7 h-7 text-red-500 hover:text-red-700 hover:bg-red-50 border border-hairline rounded-lg disabled:opacity-50 transition-colors"
+                            className="inline-flex items-center justify-center w-7 h-7 text-rose hover:text-rose-ink hover:bg-rose/15 border border-hairline rounded-lg disabled:opacity-50 transition-colors"
                           >
                             {isDeleting === item._id ? (
                               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -289,9 +289,9 @@ export default function AdminPendingHostingPage() {
       >
         {pendingDeleteItem && (
           <div className="p-6 space-y-4">
-            <div className="flex items-start gap-3 p-3.5 bg-amber-50 border border-amber-200 rounded-xl">
-              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-              <div className="text-sm text-amber-800">
+            <div className="flex items-start gap-3 p-3.5 bg-amber-soft border border-amber/30 rounded-xl">
+              <AlertTriangle className="h-4 w-4 text-amber-ink shrink-0 mt-0.5" />
+              <div className="text-sm text-amber-ink">
                 <p className="font-semibold mb-0.5">This won't delete the hosting account</p>
                 <p className="text-xs">Only the pending-provision record is removed. The customer's payment record stays intact, and you can manually create the hosting account later.</p>
               </div>
@@ -326,7 +326,7 @@ export default function AdminPendingHostingPage() {
               <button
                 onClick={confirmDelete}
                 disabled={!!isDeleting}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors disabled:opacity-50 shadow-sm"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-paper bg-rose hover:bg-rose/90 rounded-xl transition-colors disabled:opacity-50 shadow-sm"
               >
                 {isDeleting === pendingDeleteItem._id ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

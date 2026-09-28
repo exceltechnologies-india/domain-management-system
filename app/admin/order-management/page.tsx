@@ -438,7 +438,7 @@ export default function AdminOrders() {
           <span className="font-medium text-ink text-xs sm:text-sm">{value}</span>
           {row.orderType === 'hosting_trial' && (
             <span
-              className="px-1.5 py-0.5 text-[9px] sm:text-[10px] font-semibold rounded bg-amber-100 text-amber-800 border border-amber-200"
+              className="px-1.5 py-0.5 text-[9px] sm:text-[10px] font-semibold rounded bg-amber-soft text-amber-ink border border-amber/30"
               title={
                 row.mandateMode === 'manual'
                   ? 'Manual-flow trial signup — no charge today; first invoice fires at day 15+ conversion via the renewal flow'
@@ -482,7 +482,7 @@ export default function AdminOrders() {
         // TRIAL pill in the Order ID column for visual consistency.
         if (row.orderType === 'hosting_trial') {
           return (
-            <span className="text-xs sm:text-sm font-medium italic text-amber-700">
+            <span className="text-xs sm:text-sm font-medium italic text-amber-ink">
               Free trial
             </span>
           );
@@ -500,10 +500,10 @@ export default function AdminOrders() {
       sortable: true,
       render: (_value: unknown, row: Order) => (
         <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium rounded-full ${row.status === 'completed'
-          ? 'bg-green-100 text-green-800'
+          ? 'bg-emerald-soft text-emerald-ink'
           : row.status === 'pending'
-            ? 'bg-yellow-100 text-yellow-800'
-            : 'bg-red-100 text-red-800'
+            ? 'bg-amber-soft text-amber-ink'
+            : 'bg-rose-soft text-rose-ink'
           }`}>
           {row.status}
         </span>
@@ -595,10 +595,10 @@ export default function AdminOrders() {
             </button>
             <button
               onClick={() => setActiveTab('trial')}
-              className={`bg-paper border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${activeTab === 'trial' ? 'border-amber-300 ring-2 ring-amber-100' : 'border-hairline hover:border-hairline-strong hover:shadow-md'}`}
+              className={`bg-paper border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${activeTab === 'trial' ? 'border-amber/30 ring-2 ring-amber' : 'border-hairline hover:border-hairline-strong hover:shadow-md'}`}
             >
-              <div className="p-2 bg-amber-50 rounded-xl">
-                <Clock className="h-4 w-4 text-amber-600" />
+              <div className="p-2 bg-amber-soft rounded-xl">
+                <Clock className="h-4 w-4 text-amber-ink" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-ink-3">Free Trials</p>
@@ -658,10 +658,10 @@ export default function AdminOrders() {
                     onClick={handleExportCsv}
                     disabled={isExporting || isEmpty}
                     title={isEmpty ? 'Nothing to export in this tab' : "Export the current tab's orders as a CSV file"}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber text-white hover:brightness-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:brightness-90"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber text-paper hover:brightness-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:brightness-90"
                   >
                     {isExporting ? (
-                      <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" />
+                      <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-paper" />
                     ) : (
                       <Download className="h-3.5 w-3.5" />
                     )}
@@ -745,10 +745,10 @@ export default function AdminOrders() {
                     <label className="text-sm font-medium text-ink-3">Status</label>
                     <div className="mt-1">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${selectedOrder.status === 'completed'
-                        ? 'bg-green-100 text-green-800'
+                        ? 'bg-emerald-soft text-emerald-ink'
                         : selectedOrder.status === 'pending'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-red-100 text-red-800'
+                          ? 'bg-amber-soft text-amber-ink'
+                          : 'bg-rose-soft text-rose-ink'
                         }`}>
                         {selectedOrder.status === 'completed' && <CheckCircle className="w-3 h-3 mr-1" />}
                         {selectedOrder.status === 'pending' && <Clock className="w-3 h-3 mr-1" />}
@@ -770,12 +770,12 @@ export default function AdminOrders() {
                     the ₹0 amount + when the first real invoice fires. Non-trial
                     orders keep the Subtotal/GST/Total breakdown unchanged. */}
                 {selectedOrder.orderType === 'hosting_trial' ? (
-                  <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg space-y-2">
+                  <div className="bg-amber-soft border border-amber/30 p-4 rounded-lg space-y-2">
                     <div className="flex justify-between items-center">
-                      <span className="font-semibold text-amber-900">Free Trial Signup</span>
-                      <span className="text-lg font-bold italic text-amber-800">₹0.00</span>
+                      <span className="font-semibold text-amber-ink">Free Trial Signup</span>
+                      <span className="text-lg font-bold italic text-amber-ink">₹0.00</span>
                     </div>
-                    <p className="text-xs text-amber-800/80 leading-relaxed">
+                    <p className="text-xs text-amber-ink/80 leading-relaxed">
                       No charge today. The customer&apos;s first tax invoice fires when they convert
                       to a paid plan at day 15+ via the renewal flow — a separate Order will be created
                       at that point with the real yearly amount (₹599.88 for Starter).
@@ -804,9 +804,9 @@ export default function AdminOrders() {
                     tokenId so an operator triaging a failed MIT charge can pivot
                     directly to Razorpay's dashboard to inspect the mandate. */}
                 {selectedOrder.mandateMode && (
-                  <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg space-y-2">
+                  <div className="bg-amber-soft border border-amber/30 p-4 rounded-lg space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-amber-900">Recurring Payment</span>
+                      <span className="font-semibold text-amber-ink">Recurring Payment</span>
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
                         selectedOrder.mandateMode === 'tokens'
                           ? 'bg-purple-100 text-purple-800'
@@ -847,16 +847,16 @@ export default function AdminOrders() {
                         <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
                           <div className="flex items-center space-x-2">
                             <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
-                                domain.status === 'registered' ? 'bg-green-500' :
-                                domain.status === 'pending' ? 'bg-yellow-500' :
-                                'bg-red-500'
+                                domain.status === 'registered' ? 'bg-emerald' :
+                                domain.status === 'pending' ? 'bg-amber' :
+                                'bg-rose'
                               }`}></div>
                             <span className="font-medium text-ink break-all">
                               {domain.domainName}
                             </span>
                             {domain.status !== 'registered' && (
                               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium uppercase ${
-                                domain.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
+                                domain.status === 'pending' ? 'bg-amber-soft text-amber-ink' : 'bg-rose-soft text-rose-ink'
                               }`}>
                                 {domain.status}
                               </span>
@@ -890,11 +890,11 @@ export default function AdminOrders() {
                         are readable.
                       */}
                       {domain.status === 'failed' && domain.error && (
-                        <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                          <div className="text-[10px] font-semibold uppercase tracking-wide text-red-600 mb-1">
+                        <div className="mt-3 p-3 bg-rose-soft border border-rose/30 rounded-lg">
+                          <div className="text-[10px] font-semibold uppercase tracking-wide text-rose-ink mb-1">
                             Upstream provisioner error
                           </div>
-                          <div className="text-xs text-red-800 font-mono whitespace-pre-wrap break-words">
+                          <div className="text-xs text-rose-ink font-mono whitespace-pre-wrap break-words">
                             {domain.error}
                           </div>
                         </div>
@@ -916,12 +916,12 @@ export default function AdminOrders() {
                   <div className="border-t pt-6">
                     <h3 className="text-lg font-semibold text-ink mb-4">Summary</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="p-4 bg-emerald-soft border border-emerald/30 rounded-lg">
                         <div className="flex items-center space-x-2">
-                          <CheckCircle className="h-5 w-5 text-green-600" />
-                          <span className="font-medium text-green-800">Successfully Registered</span>
+                          <CheckCircle className="h-5 w-5 text-emerald-ink" />
+                          <span className="font-medium text-emerald-ink">Successfully Registered</span>
                         </div>
-                        <p className="text-sm text-green-700 mt-1">
+                        <p className="text-sm text-emerald-ink mt-1">
                           {reallySuccessfulDomains.join(', ')}
                         </p>
                       </div>
@@ -944,7 +944,7 @@ export default function AdminOrders() {
             <div className="space-y-4">
               <div className="flex items-start">
                 <div className="flex-shrink-0">
-                  <AlertTriangle className="h-6 w-6 text-red-600" />
+                  <AlertTriangle className="h-6 w-6 text-rose-ink" />
                 </div>
                 <div className="ml-3">
                   <p className="text-sm text-ink-3">
@@ -969,7 +969,7 @@ export default function AdminOrders() {
                     </div>
                     <div className="text-ink-2">
                       Amount: {orderToDelete.orderType === 'hosting_trial'
-                        ? <span className="italic text-amber-700">Free trial (₹0)</span>
+                        ? <span className="italic text-amber-ink">Free trial (₹0)</span>
                         : `₹${orderToDelete.amount.toFixed(2)} ${orderToDelete.currency}`}
                     </div>
                     <div className="text-ink-2">
@@ -990,11 +990,11 @@ export default function AdminOrders() {
                 <button
                   onClick={confirmDeleteOrder}
                   disabled={isDeleting}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center"
+                  className="px-4 py-2 bg-rose hover:bg-rose/90 text-paper rounded-lg transition-colors disabled:opacity-50 flex items-center"
                 >
                   {isDeleting ? (
                     <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-paper mr-2"></div>
                       {activeTab === 'archived' ? 'Deleting...' : 'Archiving...'}
                     </>
                   ) : (
@@ -1019,7 +1019,7 @@ export default function AdminOrders() {
             <div className="space-y-4">
               <div className="flex items-start">
                 <div className="flex-shrink-0">
-                  <RotateCcw className="h-6 w-6 text-green-600" />
+                  <RotateCcw className="h-6 w-6 text-emerald-ink" />
                 </div>
                 <div className="ml-3">
                   <p className="text-sm text-ink-3">
@@ -1039,7 +1039,7 @@ export default function AdminOrders() {
                     </div>
                     <div className="text-ink-2">
                       Amount: {orderToUnarchive.orderType === 'hosting_trial'
-                        ? <span className="italic text-amber-700">Free trial (₹0)</span>
+                        ? <span className="italic text-amber-ink">Free trial (₹0)</span>
                         : `₹${orderToUnarchive.amount.toFixed(2)} ${orderToUnarchive.currency}`}
                     </div>
                     <div className="text-ink-2">
@@ -1060,11 +1060,11 @@ export default function AdminOrders() {
                 <button
                   onClick={confirmUnarchiveOrder}
                   disabled={isUnarchiving}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center"
+                  className="px-4 py-2 bg-emerald hover:bg-emerald/90 text-paper rounded-lg transition-colors disabled:opacity-50 flex items-center"
                 >
                   {isUnarchiving ? (
                     <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-paper mr-2"></div>
                       Un-archiving...
                     </>
                   ) : (

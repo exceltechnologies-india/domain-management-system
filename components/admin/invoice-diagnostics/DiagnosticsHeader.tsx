@@ -35,25 +35,25 @@ export default function DiagnosticsHeader({
     <button
       type="button"
       onClick={onToggle}
-      className="w-full px-5 py-3 flex items-center justify-between gap-4 hover:bg-gray-50 transition-colors"
+      className="w-full px-5 py-3 flex items-center justify-between gap-4 hover:bg-paper-2 transition-colors"
     >
       <div className="flex items-center gap-3 min-w-0">
         <div
           className={`p-2 rounded-xl shrink-0 ${
-            hasIssues ? 'bg-amber-50' : 'bg-green-50'
+            hasIssues ? 'bg-amber-soft' : 'bg-emerald-soft'
           }`}
         >
           {hasIssues ? (
-            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <AlertTriangle className="h-4 w-4 text-amber-ink" />
           ) : (
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <CheckCircle2 className="h-4 w-4 text-emerald-ink" />
           )}
         </div>
         <div className="text-left min-w-0">
-          <p className="text-sm font-semibold text-gray-900">
+          <p className="text-sm font-semibold text-ink">
             Invoice Diagnostics
           </p>
-          <p className="text-xs text-gray-500 truncate">
+          <p className="text-xs text-ink-3 truncate">
             {hasIssues
               ? `${data?.summary.conflictGroups || 0} conflict${
                   (data?.summary.conflictGroups || 0) === 1 ? '' : 's'
@@ -70,15 +70,15 @@ export default function DiagnosticsHeader({
             e.stopPropagation();
             onRefresh();
           }}
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 border border-gray-200 px-2.5 py-1 rounded-full transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-2 bg-paper-2 hover:bg-hairline/50 border border-hairline px-2.5 py-1 rounded-full transition-colors cursor-pointer"
         >
           <RefreshCw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
           Refresh
         </span>
         {isOpen ? (
-          <ChevronUp className="h-4 w-4 text-gray-400" />
+          <ChevronUp className="h-4 w-4 text-ink-4" />
         ) : (
-          <ChevronDown className="h-4 w-4 text-gray-400" />
+          <ChevronDown className="h-4 w-4 text-ink-4" />
         )}
       </div>
     </button>

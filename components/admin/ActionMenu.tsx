@@ -112,7 +112,7 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
           transition={{ duration: 0.15, ease: 'easeOut' }}
           /* Flat panel on the opaque `paper` surface with a hairline border —
              the shape ResellerOS's DropdownMenuContent uses. The frosted
-             `bg-white/70 backdrop-blur-xl` it replaced put the table rows
+             `bg-paper/70 backdrop-blur-xl` it replaced put the table rows
              underneath showing through the menu, which on a dense admin grid
              makes a "Delete Permanently" row sit on top of somebody else's
              data. An action menu is a decision surface; it should be opaque. */

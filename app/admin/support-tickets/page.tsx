@@ -36,20 +36,20 @@ interface Ticket {
 
 const STATUS_CFG: Record<string, { label: string; cls: string; dot: string; icon: React.ElementType }> = {
   open:        { label: "Open",        cls: "bg-indigo-soft text-amber-ink border-indigo/25",    dot: "bg-indigo",   icon: Clock },
-  in_progress: { label: "In Progress", cls: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500",  icon: AlertCircle },
-  resolved:    { label: "Resolved",    cls: "bg-green-50 text-green-700 border-green-200", dot: "bg-green-500",  icon: CheckCircle2 },
-  closed:      { label: "Closed",      cls: "bg-paper-2 text-ink-3 border-hairline",   dot: "bg-gray-400",   icon: XCircle },
+  in_progress: { label: "In Progress", cls: "bg-amber-soft text-amber-ink border-amber/30", dot: "bg-amber",  icon: AlertCircle },
+  resolved:    { label: "Resolved",    cls: "bg-emerald-soft text-emerald-ink border-emerald/30", dot: "bg-emerald",  icon: CheckCircle2 },
+  closed:      { label: "Closed",      cls: "bg-paper-2 text-ink-3 border-hairline",   dot: "bg-ink-4",   icon: XCircle },
 };
 
 const PRIORITY_CFG: Record<string, { dot: string; label: string; cls: string }> = {
-  high:   { dot: "bg-red-500",   label: "High",   cls: "text-red-600 bg-red-50 border-red-200" },
-  medium: { dot: "bg-amber-400", label: "Medium", cls: "text-amber-600 bg-amber-50 border-amber-200" },
+  high:   { dot: "bg-rose",   label: "High",   cls: "text-rose-ink bg-rose-soft border-rose/30" },
+  medium: { dot: "bg-amber", label: "Medium", cls: "text-amber-ink bg-amber-soft border-amber/30" },
   low:    { dot: "bg-hairline",  label: "Low",    cls: "text-ink-3 bg-paper-2/60 border-hairline" },
 };
 
 const CATEGORY_META: Record<string, { icon: React.ElementType; color: string }> = {
   domain:    { icon: Tag,        color: "text-violet-600 bg-violet-50" },
-  hosting:   { icon: Server,     color: "text-amber-ink bg-indigo-soft" },
+  hosting:   { icon: Server,     color: "text-indigo-ink bg-indigo-soft" },
   billing:   { icon: CreditCard, color: "text-emerald-600 bg-emerald-50" },
   technical: { icon: Wrench,     color: "text-orange-600 bg-orange-50" },
   other:     { icon: HelpCircle, color: "text-ink-3 bg-paper-2" },
@@ -70,7 +70,7 @@ function Initials({ name }: { name: string }) {
   const initials = parts.length >= 2 ? parts[0][0] + parts[1][0] : parts[0].slice(0, 2);
   return (
     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber to-amber-ink flex items-center justify-center shrink-0">
-      <span className="text-xs font-bold text-white uppercase">{initials}</span>
+      <span className="text-xs font-bold text-paper uppercase">{initials}</span>
     </div>
   );
 }
@@ -163,14 +163,14 @@ export default function AdminSupportTicketsPage() {
         {(highCount > 0 || userReplied > 0) && (
           <div className="flex flex-col sm:flex-row gap-2">
             {highCount > 0 && (
-              <div className="flex items-center gap-2 px-4 py-2.5 bg-red-50 border border-red-200 rounded-xl text-sm text-red-800 font-medium">
-                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-rose-soft border border-rose/30 rounded-xl text-sm text-rose-ink font-medium">
+                <span className="w-2 h-2 rounded-full bg-rose animate-pulse" />
                 {highCount} high-priority ticket{highCount > 1 ? "s" : ""} need attention
               </div>
             )}
             {userReplied > 0 && (
-              <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 font-medium">
-                <span className="w-2 h-2 rounded-full bg-amber-500" />
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-soft border border-amber/30 rounded-xl text-sm text-amber-ink font-medium">
+                <span className="w-2 h-2 rounded-full bg-amber" />
                 {userReplied} ticket{userReplied > 1 ? "s" : ""} awaiting your reply
               </div>
             )}
@@ -257,7 +257,7 @@ export default function AdminSupportTicketsPage() {
                             <div className="flex items-center gap-1.5 mb-0.5">
                               <span className="font-mono text-xs text-ink-4">{ticket.ticketNumber}</span>
                               {awaitingReply && (
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" title="Awaiting your reply" />
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber inline-block" title="Awaiting your reply" />
                               )}
                             </div>
                             <p className="truncate text-sm font-medium text-ink">{ticket.subject}</p>

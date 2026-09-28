@@ -22,8 +22,8 @@ export default function AdminHostingError({
     <div className="min-h-[60vh] flex items-center justify-center p-6 bg-paper-2/60 rounded-xl border border-hairline m-4">
       <div className="text-center max-w-2xl mx-auto">
         <div className="mb-8">
-          <div className="bg-red-100 rounded-full w-24 h-24 flex items-center justify-center mx-auto mb-6 shadow-sm">
-            <AlertTriangle className="h-12 w-12 text-red-600" />
+          <div className="bg-rose-soft rounded-full w-24 h-24 flex items-center justify-center mx-auto mb-6 shadow-sm">
+            <AlertTriangle className="h-12 w-12 text-rose-ink" />
           </div>
           <h2 className="text-3xl font-bold text-ink mb-3">
             Hosting Dashboard Error
@@ -34,13 +34,13 @@ export default function AdminHostingError({
         </div>
 
         {/* Always show error details for Admin context */}
-        <div className="bg-white border border-red-200 rounded-lg p-6 mb-8 text-left shadow-sm">
-          <div className="flex items-center gap-2 mb-3 text-red-700 font-semibold">
+        <div className="bg-paper border border-rose/30 rounded-lg p-6 mb-8 text-left shadow-sm">
+          <div className="flex items-center gap-2 mb-3 text-rose-ink font-semibold">
             <Terminal className="h-5 w-5" />
             <span>Error Details (Admin View)</span>
           </div>
           <div className="bg-ink rounded-md p-4 overflow-x-auto">
-            <code className="text-sm text-red-400 font-mono">
+            <code className="text-sm text-rose font-mono">
               {error.message || "Unknown error occurred"}
             </code>
             {error.digest && (
@@ -66,7 +66,7 @@ export default function AdminHostingError({
             Try Again
           </Button>
           <Link href="/admin">
-            <Button variant="outline" className="flex items-center gap-2 bg-white">
+            <Button variant="outline" className="flex items-center gap-2 bg-paper">
               <Home className="h-4 w-4" />
               Return to Dashboard
             </Button>

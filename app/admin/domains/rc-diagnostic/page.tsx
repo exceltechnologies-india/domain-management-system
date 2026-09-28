@@ -96,7 +96,7 @@ export default function RcDiagnosticPage() {
     <AdminLayout user={user || { firstName: 'Admin', lastName: '', email: '', role: 'admin' }} onLogout={performLogout}>
       <div className="space-y-6">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-amber-50 rounded-xl"><ShieldAlert className="h-5 w-5 text-amber-600" /></div>
+          <div className="p-2 bg-amber-soft rounded-xl"><ShieldAlert className="h-5 w-5 text-amber-ink" /></div>
           <div>
             <h1 className="text-2xl font-serif font-bold text-ink">Registrar Diagnostic</h1>
             <p className="text-sm text-ink-3 mt-0.5">Check whether ResellerClub lets the active account manage a domain (diagnoses nameserver &quot;not allowed&quot; errors). Read-only.</p>
@@ -119,7 +119,7 @@ export default function RcDiagnosticPage() {
             <button
               onClick={() => void run()}
               disabled={loading || !domain.trim()}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-amber text-white hover:brightness-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-amber text-paper hover:brightness-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               {loading ? 'Checking…' : 'Diagnose'}
@@ -128,29 +128,29 @@ export default function RcDiagnosticPage() {
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center gap-2 text-sm">
+          <div className="bg-rose-soft border border-rose/30 text-rose-ink px-4 py-3 rounded-xl flex items-center gap-2 text-sm">
             <AlertTriangle className="h-4 w-4 shrink-0" /> {error}
           </div>
         )}
 
         {result && (
           <>
-            <div className={`rounded-2xl border shadow-sm p-4 flex items-start gap-3 ${result.managedByThisAccount ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
-              {result.managedByThisAccount ? <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" /> : <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />}
+            <div className={`rounded-2xl border shadow-sm p-4 flex items-start gap-3 ${result.managedByThisAccount ? 'bg-emerald-soft border-emerald/30' : 'bg-amber-soft border-amber/30'}`}>
+              {result.managedByThisAccount ? <CheckCircle2 className="h-5 w-5 text-emerald-ink mt-0.5 shrink-0" /> : <AlertTriangle className="h-5 w-5 text-amber-ink mt-0.5 shrink-0" />}
               <div className="flex-1">
-                <div className={`text-sm font-semibold ${result.managedByThisAccount ? 'text-green-900' : 'text-amber-900'}`}>Verdict</div>
+                <div className={`text-sm font-semibold ${result.managedByThisAccount ? 'text-emerald-ink' : 'text-amber-ink'}`}>Verdict</div>
                 <p className="text-sm text-ink-2 mt-0.5">{result.verdict}</p>
                 {!result.managedByThisAccount && (
                   <div className="mt-3">
                     {removed ? (
-                      <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-green-700">
+                      <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-ink">
                         <CheckCircle2 className="h-4 w-4" /> Removed from panel (reversible for 90 days).
                       </span>
                     ) : (
                       <button
                         onClick={() => void removeFromPanel()}
                         disabled={removing}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose text-paper hover:bg-rose/90 transition-colors disabled:opacity-50"
                       >
                         {removing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AlertTriangle className="h-3.5 w-3.5" />}
                         {removing ? 'Removing…' : 'Remove from panel'}
@@ -173,10 +173,10 @@ export default function RcDiagnosticPage() {
               </div>
               <div className="bg-paper border border-hairline rounded-2xl shadow-sm p-5">
                 <h3 className="text-sm font-semibold text-ink mb-2">ResellerClub responses</h3>
-                <Row label="Lookup by name" value={result.resellerclub.byName.ok ? <span className="text-green-700">found</span> : <span className="text-red-700">failed</span>} />
+                <Row label="Lookup by name" value={result.resellerclub.byName.ok ? <span className="text-emerald-ink">found</span> : <span className="text-rose-ink">failed</span>} />
                 <Row label="RC order-id (by name)" value={result.resellerclub.byName.orderId || '—'} mono />
                 {result.resellerclub.byName.rawMessage && <Row label="RC message (by name)" value={result.resellerclub.byName.rawMessage} />}
-                <Row label="Stored order-id owned?" value={!result.resellerclub.byStoredOrderId.tested ? '— (not tested)' : result.resellerclub.byStoredOrderId.ok ? <span className="text-green-700">yes</span> : <span className="text-red-700">no</span>} />
+                <Row label="Stored order-id owned?" value={!result.resellerclub.byStoredOrderId.tested ? '— (not tested)' : result.resellerclub.byStoredOrderId.ok ? <span className="text-emerald-ink">yes</span> : <span className="text-rose-ink">no</span>} />
                 {result.resellerclub.byStoredOrderId.rawMessage && <Row label="RC message (by order-id)" value={result.resellerclub.byStoredOrderId.rawMessage} />}
               </div>
             </div>

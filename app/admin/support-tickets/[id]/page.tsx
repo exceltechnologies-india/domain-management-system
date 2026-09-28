@@ -55,21 +55,21 @@ const STATUS_OPTIONS = ["open", "in_progress", "resolved", "closed"] as const;
 const PRIORITY_OPTIONS = ["low", "medium", "high"] as const;
 
 const STATUS_CFG: Record<string, { label: string; activeClass: string; inactiveClass: string; icon: React.ElementType }> = {
-  open:        { label: "Open",        icon: Clock,        activeClass: "bg-amber text-white border-amber",    inactiveClass: "border-hairline text-ink-2 hover:border-amber/40 hover:text-amber-ink" },
-  in_progress: { label: "In Progress", icon: AlertCircle,  activeClass: "bg-amber-500 text-white border-amber-500",  inactiveClass: "border-hairline text-ink-2 hover:border-amber-400 hover:text-amber-600" },
-  resolved:    { label: "Resolved",    icon: CheckCircle2, activeClass: "bg-green-600 text-white border-green-600",  inactiveClass: "border-hairline text-ink-2 hover:border-green-400 hover:text-green-600" },
-  closed:      { label: "Closed",      icon: XCircle,      activeClass: "bg-gray-700 text-white border-gray-700",    inactiveClass: "border-hairline text-ink-2 hover:border-gray-400" },
+  open:        { label: "Open",        icon: Clock,        activeClass: "bg-amber text-paper border-amber",    inactiveClass: "border-hairline text-ink-2 hover:border-amber/40 hover:text-amber-ink" },
+  in_progress: { label: "In Progress", icon: AlertCircle,  activeClass: "bg-amber text-paper border-amber",  inactiveClass: "border-hairline text-ink-2 hover:border-amber hover:text-amber-ink" },
+  resolved:    { label: "Resolved",    icon: CheckCircle2, activeClass: "bg-emerald text-paper border-emerald",  inactiveClass: "border-hairline text-ink-2 hover:border-emerald hover:text-emerald-ink" },
+  closed:      { label: "Closed",      icon: XCircle,      activeClass: "bg-ink text-paper border-hairline-strong",    inactiveClass: "border-hairline text-ink-2 hover:border-hairline-strong" },
 };
 
 const PRIORITY_CFG: Record<string, { label: string; activeClass: string; inactiveClass: string }> = {
-  low:    { label: "Low",    activeClass: "bg-gray-600 text-white border-gray-600",    inactiveClass: "border-hairline text-ink-3 hover:border-gray-400" },
-  medium: { label: "Medium", activeClass: "bg-amber-500 text-white border-amber-500",  inactiveClass: "border-hairline text-ink-2 hover:border-amber-400 hover:text-amber-600" },
-  high:   { label: "High",   activeClass: "bg-red-600 text-white border-red-600",      inactiveClass: "border-hairline text-ink-2 hover:border-red-400 hover:text-red-600" },
+  low:    { label: "Low",    activeClass: "bg-ink-2 text-paper border-hairline-strong",    inactiveClass: "border-hairline text-ink-3 hover:border-hairline-strong" },
+  medium: { label: "Medium", activeClass: "bg-amber text-paper border-amber",  inactiveClass: "border-hairline text-ink-2 hover:border-amber hover:text-amber-ink" },
+  high:   { label: "High",   activeClass: "bg-rose text-paper border-rose",      inactiveClass: "border-hairline text-ink-2 hover:border-rose hover:text-rose-ink" },
 };
 
 const CATEGORY_META: Record<string, { label: string; icon: React.ElementType; color: string }> = {
   domain:    { label: "Domain",    icon: Tag,        color: "text-violet-600 bg-violet-50" },
-  hosting:   { label: "Hosting",   icon: Server,     color: "text-amber-ink bg-indigo-soft" },
+  hosting:   { label: "Hosting",   icon: Server,     color: "text-indigo-ink bg-indigo-soft" },
   billing:   { label: "Billing",   icon: CreditCard, color: "text-emerald-600 bg-emerald-50" },
   technical: { label: "Technical", icon: Wrench,     color: "text-orange-600 bg-orange-50" },
   other:     { label: "Other",     icon: HelpCircle, color: "text-ink-3 bg-paper-2" },
@@ -90,7 +90,7 @@ function Initials({ name }: { name: string }) {
   const initials = parts.length >= 2 ? parts[0][0] + parts[1][0] : parts[0].slice(0, 2);
   return (
     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber to-amber-ink flex items-center justify-center shrink-0">
-      <span className="text-sm font-bold text-white uppercase">{initials}</span>
+      <span className="text-sm font-bold text-paper uppercase">{initials}</span>
     </div>
   );
 }
@@ -229,7 +229,7 @@ export default function AdminTicketDetailPage() {
                   {ticket.priority} priority
                 </span>
                 {awaitingReply && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 animate-pulse">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-soft text-amber-ink border border-amber/30 animate-pulse">
                     Awaiting your reply
                   </span>
                 )}
@@ -269,8 +269,8 @@ export default function AdminTicketDetailPage() {
               </div>
             </div>
             <div className="flex items-center gap-2 text-ink-2">
-              <div className={`p-1.5 rounded-lg ${ticket.resolvedAt ? "bg-green-50" : "bg-paper-2"}`}>
-                <Activity className={`h-3.5 w-3.5 ${ticket.resolvedAt ? "text-green-600" : "text-ink-3"}`} />
+              <div className={`p-1.5 rounded-lg ${ticket.resolvedAt ? "bg-emerald-soft" : "bg-paper-2"}`}>
+                <Activity className={`h-3.5 w-3.5 ${ticket.resolvedAt ? "text-emerald-ink" : "text-ink-3"}`} />
               </div>
               <div className="min-w-0">
                 <p className="text-3xs uppercase tracking-wide text-ink-4 font-semibold">
@@ -311,7 +311,7 @@ export default function AdminTicketDetailPage() {
                     <div className={`max-w-[78%] flex flex-col gap-1 ${isAdmin ? "items-end" : "items-start"}`}>
                       <div className={`rounded-2xl px-4 py-3 text-sm whitespace-pre-wrap leading-relaxed shadow-sm ${
                         isAdmin
-                          ? "bg-amber text-white rounded-tr-none"
+                          ? "bg-amber text-paper rounded-tr-none"
                           : "bg-paper border border-hairline text-ink rounded-tl-none"
                       }`}>
                         {msg.content}
@@ -361,7 +361,7 @@ export default function AdminTicketDetailPage() {
                   <button
                     type="submit"
                     disabled={sending || !reply.trim()}
-                    className="flex items-center gap-2 px-5 py-2 bg-amber hover:brightness-90 disabled:bg-amber/50 text-white text-sm font-semibold rounded-xl transition-colors"
+                    className="flex items-center gap-2 px-5 py-2 bg-amber hover:brightness-90 disabled:bg-amber/50 text-paper text-sm font-semibold rounded-xl transition-colors"
                   >
                     {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                     {sending ? "Sending…" : "Send Reply"}

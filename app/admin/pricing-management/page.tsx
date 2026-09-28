@@ -249,7 +249,7 @@ export default function AdminTLDPricing() {
       sortable: true,
       render: (value: number, row: TLDPricing) => (
         <div className="flex items-center">
-          <TrendingUp className="h-4 w-4 text-green-500 mr-1" />
+          <TrendingUp className="h-4 w-4 text-emerald mr-1" />
           <span className="font-semibold text-ink">
             {formatIndianCurrency(value)}
           </span>
@@ -281,7 +281,7 @@ export default function AdminTLDPricing() {
           : 0;
         return (
           <div className="flex items-center">
-            <span className={`font-semibold ${margin > 0 ? 'text-green-600' : margin < 0 ? 'text-red-600' : 'text-ink-2'
+            <span className={`font-semibold ${margin > 0 ? 'text-emerald-ink' : margin < 0 ? 'text-rose-ink' : 'text-ink-2'
               }`}>
               {margin > 0 ? '+' : ''}{margin.toFixed(1)}%
             </span>
@@ -296,7 +296,7 @@ export default function AdminTLDPricing() {
       className: 'hidden sm:table-cell',
       render: (value: string) => (
         <span className={`px-2 py-1 text-xs font-medium rounded-full ${value === 'Generic' ? 'bg-indigo-soft text-indigo-ink' :
-          value === 'Country Code' ? 'bg-green-100 text-green-800' :
+          value === 'Country Code' ? 'bg-emerald-soft text-emerald-ink' :
             value === 'New Generic' ? 'bg-purple-100 text-purple-800' :
               'bg-paper-2 text-ink'
           }`}>
@@ -344,7 +344,7 @@ export default function AdminTLDPricing() {
     <AdminLayout user={user} onLogout={handleLogout}>
       {/* Loading Overlay for Manual Refresh - CACHE PURGE ONLY */}
       {isPurgingCache && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-ink bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-paper rounded-lg p-8 max-w-md mx-4 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber mx-auto mb-4"></div>
@@ -374,7 +374,7 @@ export default function AdminTLDPricing() {
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-2xl font-serif font-bold text-ink">TLD Pricing</h1>
                 {isCached && !isDataLoading && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-soft text-emerald-ink border border-emerald/30">
                     <CheckCircle2 className="h-3 w-3" />
                     Cached
                   </span>
@@ -425,7 +425,7 @@ export default function AdminTLDPricing() {
                   type="checkbox"
                   checked={showOnlyWithMargin}
                   onChange={(e) => setShowOnlyWithMargin(e.target.checked)}
-                  className="h-3.5 w-3.5 text-green-600 focus:ring-green-500 border-hairline-strong rounded"
+                  className="h-3.5 w-3.5 text-emerald-ink focus:ring-emerald border-hairline-strong rounded"
                 />
                 <span className="text-xs font-medium text-ink-2">Only with margin</span>
               </label>

@@ -32,7 +32,7 @@ export function previewTrackingId(
 
 export function SCard({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`bg-white border border-hairline rounded-2xl shadow-sm overflow-hidden ${className}`}>
+    <div className={`bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden ${className}`}>
       {children}
     </div>
   );
@@ -51,19 +51,19 @@ export function SCardHead({ title, description, action }: { title: string; descr
 }
 
 export function Toggle({ checked, onChange, color = "blue" }: { checked: boolean; onChange: (v: boolean) => void; color?: "blue" | "red" | "purple" | "orange" | "green" }) {
-  const ring = { blue: "peer-focus:ring-amber/40 peer-checked:bg-amber", red: "peer-focus:ring-red-300 peer-checked:bg-red-600", purple: "peer-focus:ring-purple-300 peer-checked:bg-purple-600", orange: "peer-focus:ring-orange-300 peer-checked:bg-orange-500", green: "peer-focus:ring-green-300 peer-checked:bg-green-600" }[color];
+  const ring = { blue: "peer-focus:ring-amber/40 peer-checked:bg-amber", red: "peer-focus:ring-rose peer-checked:bg-rose", purple: "peer-focus:ring-indigo peer-checked:bg-indigo", orange: "peer-focus:ring-amber peer-checked:bg-amber", green: "peer-focus:ring-emerald peer-checked:bg-emerald" }[color];
   return (
     <label className="relative inline-flex items-center cursor-pointer shrink-0">
       <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} className="sr-only peer" />
-      <div className={`w-11 h-6 bg-hairline peer-focus:outline-none peer-focus:ring-4 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-hairline-strong after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${ring}`} />
+      <div className={`w-11 h-6 bg-hairline peer-focus:outline-none peer-focus:ring-4 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-paper after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-paper after:border-hairline-strong after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${ring}`} />
     </label>
   );
 }
 
 export function SaveBtn({ onClick, loading, label, color = "blue", disabled = false }: { onClick: () => void; loading: boolean; label: string; color?: "blue" | "red" | "purple" | "orange" | "green"; disabled?: boolean }) {
-  const cls = { blue: "bg-amber hover:brightness-90", red: "bg-red-600 hover:bg-red-700", purple: "bg-purple-600 hover:bg-purple-700", orange: "bg-orange-500 hover:bg-orange-600", green: "bg-green-600 hover:bg-green-700" }[color];
+  const cls = { blue: "bg-amber hover:brightness-90", red: "bg-rose hover:bg-rose/90", purple: "bg-indigo hover:bg-indigo/90", orange: "bg-amber hover:bg-amber", green: "bg-emerald hover:bg-emerald/90" }[color];
   return (
-    <button onClick={onClick} disabled={loading || disabled} className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${cls}`}>
+    <button onClick={onClick} disabled={loading || disabled} className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-paper rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${cls}`}>
       {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
       {loading ? "Saving…" : label}
     </button>
@@ -72,11 +72,11 @@ export function SaveBtn({ onClick, loading, label, color = "blue", disabled = fa
 
 export function StatusBanner({ active, activeMsg, inactiveMsg, color = "green" }: { active: boolean; activeMsg: string; inactiveMsg: string; color?: "green" | "red" | "purple" | "orange" | "yellow" }) {
   const cfg = {
-    green:  { bg: "bg-green-50 border-green-200",  icon: "text-green-600"  },
-    red:    { bg: "bg-red-50 border-red-200",       icon: "text-red-600"    },
-    purple: { bg: "bg-purple-50 border-purple-200", icon: "text-purple-600" },
-    orange: { bg: "bg-orange-50 border-orange-200", icon: "text-orange-500" },
-    yellow: { bg: "bg-yellow-50 border-yellow-200", icon: "text-yellow-600" },
+    green:  { bg: "bg-emerald-soft border-emerald/30",  icon: "text-emerald-ink"  },
+    red:    { bg: "bg-rose-soft border-rose/30",       icon: "text-rose-ink"    },
+    purple: { bg: "bg-indigo-soft border-indigo/30", icon: "text-indigo-ink" },
+    orange: { bg: "bg-amber-soft border-amber/30", icon: "text-amber" },
+    yellow: { bg: "bg-amber-soft border-amber/30", icon: "text-amber-ink" },
   }[color];
   const Icon = active ? CheckCircle : AlertCircle;
   return (
@@ -96,7 +96,7 @@ export function SettingsContentSkeleton() {
   return (
     <div className="space-y-5">
       {Array.from({ length: 2 }).map((_, i) => (
-        <div key={i} className="bg-white border border-hairline rounded-2xl shadow-sm overflow-hidden">
+        <div key={i} className="bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden">
           {/* Card header */}
           <div className="px-6 py-4 border-b border-hairline bg-paper-2/60 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">

@@ -105,7 +105,7 @@ export default function AdminAnalyticsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
             { label: 'Scored Customers', value: topCustomers.length, Icon: Users, box: 'bg-indigo-soft', ic: 'text-indigo-ink' },
-            { label: 'Top Lead Score', value: topCustomers[0]?.leadScore ?? 0, Icon: TrendingUp, box: 'bg-green-50', ic: 'text-green-600' },
+            { label: 'Top Lead Score', value: topCustomers[0]?.leadScore ?? 0, Icon: TrendingUp, box: 'bg-emerald-soft', ic: 'text-emerald-ink' },
             { label: 'Activities Logged', value: totalActivities, Icon: Activity, box: 'bg-violet-50', ic: 'text-violet-600' },
           ].map((s) => {
             const Icon = s.Icon;
@@ -170,7 +170,7 @@ export default function AdminAnalyticsPage() {
                     <p className="text-sm font-medium text-ink">{fmtActivity(r.activity)}</p>
                     <p className="text-xs text-ink-4">{fmtDate(r.createdAt)}</p>
                   </div>
-                  {r.score > 0 && <span className="text-xs font-bold text-green-600 shrink-0">+{r.score}</span>}
+                  {r.score > 0 && <span className="text-xs font-bold text-emerald-ink shrink-0">+{r.score}</span>}
                 </div>
               ))}
             </div>
@@ -187,7 +187,7 @@ export default function AdminAnalyticsPage() {
             <button
               onClick={saveWeights}
               disabled={savingWeights}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-amber text-white hover:brightness-90 disabled:opacity-60 active:scale-95"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-amber text-paper hover:brightness-90 disabled:opacity-60 active:scale-95"
             >
               {savingWeights ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               Save Weights

@@ -161,11 +161,11 @@ export default function AdminPayments() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
-        return <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-500" />;
+        return <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald" />;
       case 'failed':
-        return <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-red-500" />;
+        return <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-rose" />;
       case 'pending':
-        return <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-yellow-500" />;
+        return <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber" />;
       case 'refunded':
         return <RotateCcw className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-indigo" />;
       default:
@@ -226,9 +226,9 @@ export default function AdminPayments() {
       render: (value: string) => {
         const v = (value || '').toLowerCase();
         const cfg =
-          v === 'captured' || v === 'completed' ? { cls: 'bg-green-50 text-green-700 border-green-200', icon: CheckCircle2 } :
-          v === 'failed'   ? { cls: 'bg-red-50 text-red-700 border-red-200', icon: XCircle } :
-          v === 'pending'  ? { cls: 'bg-amber-50 text-amber-700 border-amber-200', icon: Clock } :
+          v === 'captured' || v === 'completed' ? { cls: 'bg-emerald-soft text-emerald-ink border-emerald/30', icon: CheckCircle2 } :
+          v === 'failed'   ? { cls: 'bg-rose-soft text-rose-ink border-rose/30', icon: XCircle } :
+          v === 'pending'  ? { cls: 'bg-amber-soft text-amber-ink border-amber/30', icon: Clock } :
           v === 'refunded' ? { cls: 'bg-indigo-soft text-indigo-ink border-indigo/25', icon: RotateCcw } :
                              { cls: 'bg-paper-2 text-ink-2 border-hairline', icon: AlertCircle };
         const Icon = cfg.icon;
@@ -329,18 +329,18 @@ export default function AdminPayments() {
 
         {/* ── Razorpay mode banner ── */}
         {razorpayMode === 'test' && (
-          <div className="flex items-start gap-3 rounded-xl border-2 border-amber-300 bg-amber-50 px-4 py-3">
-            <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="flex items-start gap-3 rounded-xl border-2 border-amber/30 bg-amber-soft px-4 py-3">
+            <AlertCircle className="h-5 w-5 text-amber-ink shrink-0 mt-0.5" />
             <div className="text-sm">
-              <p className="font-bold text-amber-900">Razorpay is in TEST mode — no real charges are being made.</p>
-              <p className="text-amber-800 mt-0.5">Payments use test cards only. Switch to live with <code className="px-1 rounded bg-amber-100">bash scripts/switch-razorpay-mode.sh live</code> before taking real customers.</p>
+              <p className="font-bold text-amber-ink">Razorpay is in TEST mode — no real charges are being made.</p>
+              <p className="text-amber-ink mt-0.5">Payments use test cards only. Switch to live with <code className="px-1 rounded bg-amber-soft">bash scripts/switch-razorpay-mode.sh live</code> before taking real customers.</p>
             </div>
           </div>
         )}
         {razorpayMode === 'live' && (
-          <div className="flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-2.5">
-            <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
-            <p className="text-sm text-green-800"><span className="font-semibold">LIVE mode</span> — real payments are being processed.</p>
+          <div className="flex items-center gap-2 rounded-xl border border-emerald/30 bg-emerald-soft px-4 py-2.5">
+            <CheckCircle2 className="h-4 w-4 text-emerald-ink shrink-0" />
+            <p className="text-sm text-emerald-ink"><span className="font-semibold">LIVE mode</span> — real payments are being processed.</p>
           </div>
         )}
 
@@ -384,17 +384,17 @@ export default function AdminPayments() {
                 </div>
               </div>
               <div className="bg-paper border border-hairline rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3">
-                <div className="p-2 bg-green-50 rounded-xl">
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <div className="p-2 bg-emerald-soft rounded-xl">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-ink" />
                 </div>
                 <div>
                   <p className="text-xs font-medium text-ink-3">Captured</p>
                   <p className="text-xl font-bold text-ink">{captured}</p>
                 </div>
               </div>
-              <div className={`bg-paper border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 ${failed > 0 ? 'border-red-200' : 'border-hairline'}`}>
-                <div className={`p-2 rounded-xl ${failed > 0 ? 'bg-red-50' : 'bg-paper-2/60'}`}>
-                  <XCircle className={`h-4 w-4 ${failed > 0 ? 'text-red-600' : 'text-ink-3'}`} />
+              <div className={`bg-paper border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 ${failed > 0 ? 'border-rose/30' : 'border-hairline'}`}>
+                <div className={`p-2 rounded-xl ${failed > 0 ? 'bg-rose-soft' : 'bg-paper-2/60'}`}>
+                  <XCircle className={`h-4 w-4 ${failed > 0 ? 'text-rose-ink' : 'text-ink-3'}`} />
                 </div>
                 <div>
                   <p className="text-xs font-medium text-ink-3">Failed</p>
@@ -402,8 +402,8 @@ export default function AdminPayments() {
                 </div>
               </div>
               <div className="bg-paper border border-hairline rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3">
-                <div className="p-2 bg-emerald-50 rounded-xl">
-                  <IndianRupee className="h-4 w-4 text-emerald-600" />
+                <div className="p-2 bg-emerald-soft rounded-xl">
+                  <IndianRupee className="h-4 w-4 text-emerald-ink" />
                 </div>
                 <div>
                   <p className="text-xs font-medium text-ink-3">Captured Total</p>
@@ -457,7 +457,7 @@ export default function AdminPayments() {
         {/* Payment Details Modal */}
         {isModalOpen && selectedPayment && (
           <div
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-ink bg-opacity-50 flex items-center justify-center z-50 p-4"
             onClick={() => setIsModalOpen(false)}
           >
             <div
@@ -486,11 +486,11 @@ export default function AdminPayments() {
                   <div>
                     <label className="text-sm font-medium text-ink-3">Status</label>
                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${selectedPayment.status === 'completed'
-                      ? 'bg-green-100 text-green-800'
+                      ? 'bg-emerald-soft text-emerald-ink'
                       : selectedPayment.status === 'failed'
-                        ? 'bg-red-100 text-red-800'
+                        ? 'bg-rose-soft text-rose-ink'
                         : selectedPayment.status === 'pending'
-                          ? 'bg-yellow-100 text-yellow-800'
+                          ? 'bg-amber-soft text-amber-ink'
                           : 'bg-paper-2 text-ink'
                       }`}>
                       {selectedPayment.status.charAt(0).toUpperCase() + selectedPayment.status.slice(1)}
@@ -590,7 +590,7 @@ export default function AdminPayments() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="text-sm font-medium text-ink-3">Refund Amount</label>
-                        <p className="text-lg font-semibold text-red-600">₹{selectedPayment.refundAmount.toFixed(2)}</p>
+                        <p className="text-lg font-semibold text-rose-ink">₹{selectedPayment.refundAmount.toFixed(2)}</p>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-ink-3">Refund Status</label>
@@ -604,15 +604,15 @@ export default function AdminPayments() {
                 {selectedPayment.errorCode && (
                   <div className="border-t pt-6">
                     <h3 className="text-lg font-semibold text-ink mb-4">Error Information</h3>
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="bg-rose-soft border border-rose/30 rounded-lg p-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label className="text-sm font-medium text-red-700">Error Code</label>
-                          <p className="text-lg font-mono text-red-800">{selectedPayment.errorCode}</p>
+                          <label className="text-sm font-medium text-rose-ink">Error Code</label>
+                          <p className="text-lg font-mono text-rose-ink">{selectedPayment.errorCode}</p>
                         </div>
                         <div>
-                          <label className="text-sm font-medium text-red-700">Error Description</label>
-                          <p className="text-lg text-red-800">{selectedPayment.errorDescription}</p>
+                          <label className="text-sm font-medium text-rose-ink">Error Description</label>
+                          <p className="text-lg text-rose-ink">{selectedPayment.errorDescription}</p>
                         </div>
                       </div>
                     </div>

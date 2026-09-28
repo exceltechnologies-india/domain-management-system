@@ -103,29 +103,29 @@ function formatTime(iso: string): string {
 
 function StatusDot({ status }: { status: "operational" | "down" | "warning" }) {
   if (status === "operational")
-    return <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />;
+    return <span className="w-2 h-2 rounded-full bg-emerald animate-pulse inline-block" />;
   if (status === "warning")
-    return <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse inline-block" />;
-  return <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />;
+    return <span className="w-2 h-2 rounded-full bg-amber animate-pulse inline-block" />;
+  return <span className="w-2 h-2 rounded-full bg-rose inline-block" />;
 }
 
 function StatusBadge({ status, label }: { status: "operational" | "down" | "warning"; label?: string }) {
   if (status === "operational")
     return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-soft text-emerald-ink border border-emerald/30">
         <StatusDot status="operational" />
         {label ?? "Operational"}
       </span>
     );
   if (status === "warning")
     return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-soft text-amber-ink border border-amber/30">
         <StatusDot status="warning" />
         {label ?? "Degraded"}
       </span>
     );
   return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200">
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-soft text-rose-ink border border-rose/30">
       <StatusDot status="down" />
       {label ?? "Down"}
     </span>
@@ -135,9 +135,9 @@ function StatusBadge({ status, label }: { status: "operational" | "down" | "warn
 function LatencyBadge({ ms }: { ms: number }) {
   if (ms === 0) return null;
   const color =
-    ms < 200 ? "text-emerald-600 bg-emerald-50 border-emerald-200"
-    : ms < 600 ? "text-amber-600 bg-amber-50 border-amber-200"
-    : "text-red-600 bg-red-50 border-red-200";
+    ms < 200 ? "text-emerald-ink bg-emerald-soft border-emerald/30"
+    : ms < 600 ? "text-amber-ink bg-amber-soft border-amber/30"
+    : "text-rose-ink bg-rose-soft border-rose/30";
   return (
     <span className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded border ${color}`}>
       {ms}ms
@@ -159,7 +159,7 @@ function MetricRow({ label, value, icon: Icon }: { label: string; value: string 
 
 function MemoryBar({ used, total }: { used: number; total: number }) {
   const pct = Math.min(100, Math.round((used / total) * 100));
-  const color = pct < 60 ? "bg-emerald-500" : pct < 80 ? "bg-amber-500" : "bg-red-500";
+  const color = pct < 60 ? "bg-emerald" : pct < 80 ? "bg-amber" : "bg-rose";
   return (
     <div className="mt-1">
       <div className="flex justify-between text-[10px] text-ink-4 mb-1">
@@ -201,9 +201,9 @@ interface ServiceCardProps {
 
 function ServiceCard({ name, description, icon: Icon, iconBg, status, statusLabel, latencyMs, details, tags }: ServiceCardProps) {
   const borderColor =
-    status === "operational" ? "border-l-emerald-400"
-    : status === "warning" ? "border-l-amber-400"
-    : "border-l-red-400";
+    status === "operational" ? "border-l-emerald"
+    : status === "warning" ? "border-l-amber"
+    : "border-l-rose";
 
   return (
     <div className={`bg-paper rounded-xl border border-hairline border-l-4 ${borderColor} shadow-sm overflow-hidden flex flex-col`}>
@@ -366,31 +366,31 @@ export default function AdminDashboard() {
         {data && (
           <div className={`rounded-xl border px-5 py-4 flex items-center justify-between ${
             overallStatus === "operational"
-              ? "bg-emerald-50 border-emerald-200"
+              ? "bg-emerald-soft border-emerald/30"
               : overallStatus === "warning"
-              ? "bg-amber-50 border-amber-200"
-              : "bg-red-50 border-red-200"
+              ? "bg-amber-soft border-amber/30"
+              : "bg-rose-soft border-rose/30"
           }`}>
             <div className="flex items-center gap-3">
               {overallStatus === "operational" ? (
-                <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" />
+                <CheckCircle2 className="w-6 h-6 text-emerald-ink shrink-0" />
               ) : overallStatus === "warning" ? (
-                <AlertTriangle className="w-6 h-6 text-amber-600 shrink-0" />
+                <AlertTriangle className="w-6 h-6 text-amber-ink shrink-0" />
               ) : (
-                <XCircle className="w-6 h-6 text-red-600 shrink-0" />
+                <XCircle className="w-6 h-6 text-rose-ink shrink-0" />
               )}
               <div>
                 <div className={`font-bold text-base ${
-                  overallStatus === "operational" ? "text-emerald-800"
-                  : overallStatus === "warning" ? "text-amber-800"
-                  : "text-red-800"
+                  overallStatus === "operational" ? "text-emerald-ink"
+                  : overallStatus === "warning" ? "text-amber-ink"
+                  : "text-rose-ink"
                 }`}>
                   {overallLabel}
                 </div>
                 <div className={`text-xs mt-0.5 ${
-                  overallStatus === "operational" ? "text-emerald-600"
-                  : overallStatus === "warning" ? "text-amber-600"
-                  : "text-red-600"
+                  overallStatus === "operational" ? "text-emerald-ink"
+                  : overallStatus === "warning" ? "text-amber-ink"
+                  : "text-rose-ink"
                 }`}>
                   {allServices.length} services monitored · Health check completed in {data.server.totalResponseMs}ms
                 </div>
@@ -416,7 +416,7 @@ export default function AdminDashboard() {
           <>
             {/* ── External Services ──────────────────────────────────────── */}
             <div>
-              <SectionHeader icon={Wifi} title="External Services" color="bg-purple-100 text-purple-600" />
+              <SectionHeader icon={Wifi} title="External Services" color="bg-indigo-soft text-indigo-ink" />
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
 
                 {/* ResellerClub */}
@@ -452,7 +452,7 @@ export default function AdminDashboard() {
                   name="DirectAdmin"
                   description="Hosting Control Panel"
                   icon={Server}
-                  iconBg="bg-indigo-100 text-indigo-600"
+                  iconBg="bg-indigo-soft text-indigo-ink"
                   status={data.externalApis.directAdmin.status}
                   latencyMs={data.externalApis.directAdmin.latencyMs}
                   details={[
@@ -470,14 +470,14 @@ export default function AdminDashboard() {
                   name="Razorpay"
                   description="Payment Gateway"
                   icon={CreditCard}
-                  iconBg="bg-sky-100 text-sky-600"
+                  iconBg="bg-indigo-soft text-indigo-ink"
                   status={data.externalApis.razorpay.status}
                   latencyMs={data.externalApis.razorpay.latencyMs}
                   tags={
                     <span className={`text-[9px] px-2 py-0.5 rounded border font-bold uppercase tracking-wider ${
                       data.externalApis.razorpay.mode === "live"
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                        : "bg-amber-50 text-amber-700 border-amber-200"
+                        ? "bg-emerald-soft text-emerald-ink border-emerald/30"
+                        : "bg-amber-soft text-amber-ink border-amber/30"
                     }`}>
                       {data.externalApis.razorpay.mode === "live" ? "🟢 Live Mode" : "🟡 Test Mode"}
                     </span>
@@ -502,7 +502,7 @@ export default function AdminDashboard() {
 
                 {/* Database */}
                 <div className={`bg-paper rounded-xl border border-hairline border-l-4 shadow-sm ${
-                  data.database.status === "operational" ? "border-l-emerald-400" : "border-l-red-400"
+                  data.database.status === "operational" ? "border-l-emerald" : "border-l-rose"
                 }`}>
                   <div className="p-4 border-b border-hairline flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -542,10 +542,10 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Application Server */}
-                <div className="bg-paper rounded-xl border border-hairline border-l-4 border-l-emerald-400 shadow-sm">
+                <div className="bg-paper rounded-xl border border-hairline border-l-4 border-l-emerald shadow-sm">
                   <div className="p-4 border-b border-hairline flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg">
+                      <div className="p-2 bg-emerald-soft text-emerald-ink rounded-lg">
                         <Cpu className="w-5 h-5" />
                       </div>
                       <div>
@@ -555,8 +555,8 @@ export default function AdminDashboard() {
                     </div>
                     <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
                       data.server.environment === "production"
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                        : "bg-amber-50 text-amber-700 border-amber-200"
+                        ? "bg-emerald-soft text-emerald-ink border-emerald/30"
+                        : "bg-amber-soft text-amber-ink border-amber/30"
                     }`}>
                       {data.server.environment === "production" ? "PRODUCTION" : "DEVELOPMENT"}
                     </span>
@@ -590,17 +590,17 @@ export default function AdminDashboard() {
 
             {/* ── Background Jobs ──────────────────────────────────────────── */}
             <div>
-              <SectionHeader icon={Activity} title="Background Jobs" color="bg-orange-100 text-orange-600" />
+              <SectionHeader icon={Activity} title="Background Jobs" color="bg-amber-soft text-amber-ink" />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
                 {/* Queue Backlog */}
                 <div className={`bg-paper rounded-xl border border-hairline border-l-4 shadow-sm ${
-                  data.queueBacklog.total === 0 ? "border-l-emerald-400" : "border-l-amber-400"
+                  data.queueBacklog.total === 0 ? "border-l-emerald" : "border-l-amber"
                 }`}>
                   <div className="p-4 border-b border-hairline flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className={`p-2 rounded-lg ${
-                        data.queueBacklog.total === 0 ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"
+                        data.queueBacklog.total === 0 ? "bg-emerald-soft text-emerald-ink" : "bg-amber-soft text-amber-ink"
                       }`}>
                         <Clock className="w-5 h-5" />
                       </div>
@@ -611,8 +611,8 @@ export default function AdminDashboard() {
                     </div>
                     <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
                       data.queueBacklog.total === 0
-                        ? "bg-emerald-100 text-emerald-700"
-                        : "bg-amber-100 text-amber-700"
+                        ? "bg-emerald-soft text-emerald-ink"
+                        : "bg-amber-soft text-amber-ink"
                     }`}>
                       {data.queueBacklog.total} Pending
                     </span>
@@ -620,9 +620,9 @@ export default function AdminDashboard() {
                   <div className="p-4 space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div className={`rounded-lg p-4 border text-center ${
-                        data.queueBacklog.domains > 0 ? "bg-amber-50/60 border-amber-100" : "bg-paper-2/60 border-hairline"
+                        data.queueBacklog.domains > 0 ? "bg-amber-soft/60 border-amber/30" : "bg-paper-2/60 border-hairline"
                       }`}>
-                        <div className={`text-3xl font-bold ${data.queueBacklog.domains > 0 ? "text-amber-700" : "text-ink-2"}`}>
+                        <div className={`text-3xl font-bold ${data.queueBacklog.domains > 0 ? "text-amber-ink" : "text-ink-2"}`}>
                           {data.queueBacklog.domains}
                         </div>
                         <div className="text-xs font-medium text-ink-3 mt-1 flex items-center justify-center gap-1">
@@ -630,9 +630,9 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                       <div className={`rounded-lg p-4 border text-center ${
-                        data.queueBacklog.hosting > 0 ? "bg-amber-50/60 border-amber-100" : "bg-paper-2/60 border-hairline"
+                        data.queueBacklog.hosting > 0 ? "bg-amber-soft/60 border-amber/30" : "bg-paper-2/60 border-hairline"
                       }`}>
-                        <div className={`text-3xl font-bold ${data.queueBacklog.hosting > 0 ? "text-amber-700" : "text-ink-2"}`}>
+                        <div className={`text-3xl font-bold ${data.queueBacklog.hosting > 0 ? "text-amber-ink" : "text-ink-2"}`}>
                           {data.queueBacklog.hosting}
                         </div>
                         <div className="text-xs font-medium text-ink-3 mt-1 flex items-center justify-center gap-1">
@@ -641,7 +641,7 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                     {data.queueBacklog.total === 0 && (
-                      <div className="flex items-center gap-2 text-xs text-emerald-600 bg-emerald-50 rounded-lg px-3 py-2 border border-emerald-100">
+                      <div className="flex items-center gap-2 text-xs text-emerald-ink bg-emerald-soft rounded-lg px-3 py-2 border border-emerald/30">
                         <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                         Queue is clear — all orders processed
                       </div>
@@ -651,12 +651,12 @@ export default function AdminDashboard() {
 
                 {/* Failed Jobs */}
                 <div className={`bg-paper rounded-xl border border-hairline border-l-4 shadow-sm ${
-                  data.failedJobs.total === 0 ? "border-l-emerald-400" : "border-l-red-400"
+                  data.failedJobs.total === 0 ? "border-l-emerald" : "border-l-rose"
                 }`}>
                   <div className="p-4 border-b border-hairline flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className={`p-2 rounded-lg ${
-                        data.failedJobs.total === 0 ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"
+                        data.failedJobs.total === 0 ? "bg-emerald-soft text-emerald-ink" : "bg-rose-soft text-rose-ink"
                       }`}>
                         <AlertCircle className="w-5 h-5" />
                       </div>
@@ -667,8 +667,8 @@ export default function AdminDashboard() {
                     </div>
                     <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
                       data.failedJobs.total === 0
-                        ? "bg-emerald-100 text-emerald-700"
-                        : "bg-red-100 text-red-700"
+                        ? "bg-emerald-soft text-emerald-ink"
+                        : "bg-rose-soft text-rose-ink"
                     }`}>
                       {data.failedJobs.total} Failed
                     </span>
@@ -676,9 +676,9 @@ export default function AdminDashboard() {
                   <div className="p-4 space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div className={`rounded-lg p-4 border text-center ${
-                        data.failedJobs.domains > 0 ? "bg-red-50/60 border-red-100" : "bg-paper-2/60 border-hairline"
+                        data.failedJobs.domains > 0 ? "bg-rose-soft/60 border-rose/30" : "bg-paper-2/60 border-hairline"
                       }`}>
-                        <div className={`text-3xl font-bold ${data.failedJobs.domains > 0 ? "text-red-700" : "text-ink-2"}`}>
+                        <div className={`text-3xl font-bold ${data.failedJobs.domains > 0 ? "text-rose-ink" : "text-ink-2"}`}>
                           {data.failedJobs.domains}
                         </div>
                         <div className="text-xs font-medium text-ink-3 mt-1 flex items-center justify-center gap-1">
@@ -686,9 +686,9 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                       <div className={`rounded-lg p-4 border text-center ${
-                        data.failedJobs.hosting > 0 ? "bg-red-50/60 border-red-100" : "bg-paper-2/60 border-hairline"
+                        data.failedJobs.hosting > 0 ? "bg-rose-soft/60 border-rose/30" : "bg-paper-2/60 border-hairline"
                       }`}>
-                        <div className={`text-3xl font-bold ${data.failedJobs.hosting > 0 ? "text-red-700" : "text-ink-2"}`}>
+                        <div className={`text-3xl font-bold ${data.failedJobs.hosting > 0 ? "text-rose-ink" : "text-ink-2"}`}>
                           {data.failedJobs.hosting}
                         </div>
                         <div className="text-xs font-medium text-ink-3 mt-1 flex items-center justify-center gap-1">
@@ -697,13 +697,13 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                     {data.failedJobs.total === 0 ? (
-                      <div className="flex items-center gap-2 text-xs text-emerald-600 bg-emerald-50 rounded-lg px-3 py-2 border border-emerald-100">
+                      <div className="flex items-center gap-2 text-xs text-emerald-ink bg-emerald-soft rounded-lg px-3 py-2 border border-emerald/30">
                         <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                         No failed jobs — everything looks good
                       </div>
                     ) : (
                       <div className="flex flex-col gap-2">
-                        <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2 border border-red-100">
+                        <div className="flex items-center gap-2 text-xs text-rose-ink bg-rose-soft rounded-lg px-3 py-2 border border-rose/30">
                           <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                           Failed jobs require manual review
                         </div>
@@ -711,7 +711,7 @@ export default function AdminDashboard() {
                           {data.failedJobs.domains > 0 && (
                             <a
                               href="/admin/pending-domains"
-                              className="flex-1 text-center text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg px-3 py-2 transition-colors"
+                              className="flex-1 text-center text-xs font-semibold text-rose-ink bg-rose-soft hover:bg-rose/15 border border-rose/30 rounded-lg px-3 py-2 transition-colors"
                             >
                               Review {data.failedJobs.domains} Domain{data.failedJobs.domains > 1 ? 's' : ''} →
                             </a>
@@ -719,7 +719,7 @@ export default function AdminDashboard() {
                           {data.failedJobs.hosting > 0 && (
                             <a
                               href="/admin/hosting"
-                              className="flex-1 text-center text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg px-3 py-2 transition-colors"
+                              className="flex-1 text-center text-xs font-semibold text-rose-ink bg-rose-soft hover:bg-rose/15 border border-rose/30 rounded-lg px-3 py-2 transition-colors"
                             >
                               Review {data.failedJobs.hosting} Hosting{data.failedJobs.hosting > 1 ? ' Orders' : ' Order'} →
                             </a>

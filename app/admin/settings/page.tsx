@@ -360,7 +360,7 @@ export default function AdminSettings() {
     setIsSavingTracking(false);
   };
 
-  const getStatusColor = () => { if (isLoading) return "bg-yellow-500"; if (!ipData?.success) return "bg-red-500"; if (ipData?.data?.allIPs && ipData.data.allIPs.length > 1) return "bg-orange-500"; return "bg-green-500"; };
+  const getStatusColor = () => { if (isLoading) return "bg-amber"; if (!ipData?.success) return "bg-rose"; if (ipData?.data?.allIPs && ipData.data.allIPs.length > 1) return "bg-amber"; return "bg-emerald"; };
   const getStatusLabel = () => { if (isLoading) return "Checking…"; if (!ipData?.success) return "Error"; if (ipData?.data?.allIPs && ipData.data.allIPs.length > 1) return "Multiple IPs"; return "Connected"; };
 
   if (isAuthLoading) return <AdminSettingsPageSkeleton />;
@@ -467,7 +467,7 @@ export default function AdminSettings() {
                     <button
                       onClick={purgeCache}
                       disabled={cacheLoading}
-                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-red-600 border border-red-200 rounded-xl hover:bg-red-50 disabled:opacity-50 transition-colors"
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-rose-ink border border-rose/30 rounded-xl hover:bg-rose/15 disabled:opacity-50 transition-colors"
                     >
                       {cacheLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                       Purge Cache
@@ -487,7 +487,7 @@ export default function AdminSettings() {
                       </div>
                       <div className="flex items-center gap-3 min-w-0">
                         <span className="text-sm font-semibold text-ink">Server Information</span>
-                        <Badge className={`${getStatusColor()} text-white text-xs flex-shrink-0`}>
+                        <Badge className={`${getStatusColor()} text-paper text-xs flex-shrink-0`}>
                           {isLoading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
                           {getStatusLabel()}
                         </Badge>
@@ -582,9 +582,9 @@ export default function AdminSettings() {
                       <p className="text-sm text-ink-3">IP whitelisting is off. Enable it to restrict admin API access to specific addresses.</p>
                     ) : (
                       <>
-                        <div className="flex items-start gap-3 p-3.5 bg-yellow-50 border border-yellow-200 rounded-xl">
-                          <AlertCircle className="h-4 w-4 text-yellow-600 shrink-0 mt-0.5" />
-                          <p className="text-sm text-yellow-800">Add your current IP before enabling — otherwise you may be locked out.</p>
+                        <div className="flex items-start gap-3 p-3.5 bg-amber-soft border border-amber/30 rounded-xl">
+                          <AlertCircle className="h-4 w-4 text-amber-ink shrink-0 mt-0.5" />
+                          <p className="text-sm text-amber-ink">Add your current IP before enabling — otherwise you may be locked out.</p>
                         </div>
 
                         {/* Current IP */}
@@ -598,7 +598,7 @@ export default function AdminSettings() {
                               <RefreshCw className={`h-3.5 w-3.5 ${isLoadingIP ? "animate-spin" : ""}`} /> Check
                             </button>
                             {currentIP && (
-                              <button onClick={() => addIPToWhitelist(currentIP)} className="px-3 py-1.5 text-xs font-medium text-white bg-amber rounded-lg hover:brightness-90 flex items-center gap-1.5">
+                              <button onClick={() => addIPToWhitelist(currentIP)} className="px-3 py-1.5 text-xs font-medium text-paper bg-amber rounded-lg hover:brightness-90 flex items-center gap-1.5">
                                 <Plus className="h-3.5 w-3.5" /> Add Mine
                               </button>
                             )}
@@ -615,10 +615,10 @@ export default function AdminSettings() {
                               {whitelistedIPs.map(ip => (
                                 <div key={ip} className="flex items-center justify-between px-4 py-2.5 bg-paper-2/60 border border-hairline rounded-xl">
                                   <div className="flex items-center gap-2">
-                                    <CheckCircle className="h-3.5 w-3.5 text-green-500" />
+                                    <CheckCircle className="h-3.5 w-3.5 text-emerald" />
                                     <span className="font-mono text-sm text-ink">{ip}</span>
                                   </div>
-                                  <button onClick={() => setWhitelistedIPs(whitelistedIPs.filter(i => i !== ip))} className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                                  <button onClick={() => setWhitelistedIPs(whitelistedIPs.filter(i => i !== ip))} className="p-1 text-rose hover:text-rose-ink hover:bg-rose/15 rounded-lg">
                                     <X className="h-3.5 w-3.5" />
                                   </button>
                                 </div>
@@ -630,7 +630,7 @@ export default function AdminSettings() {
                         {/* Add */}
                         <div className="flex gap-2">
                           <input type="text" value={newIP} onChange={e => setNewIP(e.target.value)} onKeyDown={e => e.key === "Enter" && addIPToWhitelist(newIP)} placeholder="1.2.3.4 or 192.168.1.0/24" className="flex-1 px-3 py-2.5 border border-hairline rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber" />
-                          <button onClick={() => addIPToWhitelist(newIP)} className="px-4 py-2.5 text-sm font-semibold text-white bg-amber rounded-xl hover:brightness-90 flex items-center gap-1.5">
+                          <button onClick={() => addIPToWhitelist(newIP)} className="px-4 py-2.5 text-sm font-semibold text-paper bg-amber rounded-xl hover:brightness-90 flex items-center gap-1.5">
                             <Plus className="h-4 w-4" /> Add
                           </button>
                         </div>
@@ -656,9 +656,9 @@ export default function AdminSettings() {
                       <p className="text-sm text-ink-3">CORS protection is off. All origins can make API requests from browsers.</p>
                     ) : (
                       <>
-                        <div className="flex items-start gap-3 p-3.5 bg-yellow-50 border border-yellow-200 rounded-xl">
-                          <AlertCircle className="h-4 w-4 text-yellow-600 shrink-0 mt-0.5" />
-                          <p className="text-sm text-yellow-800">Add your frontend domain before enabling — otherwise the frontend won't be able to make API requests.</p>
+                        <div className="flex items-start gap-3 p-3.5 bg-amber-soft border border-amber/30 rounded-xl">
+                          <AlertCircle className="h-4 w-4 text-amber-ink shrink-0 mt-0.5" />
+                          <p className="text-sm text-amber-ink">Add your frontend domain before enabling — otherwise the frontend won't be able to make API requests.</p>
                         </div>
 
                         {currentOrigin && (
@@ -667,7 +667,7 @@ export default function AdminSettings() {
                               <p className="text-xs font-semibold text-ink-3 uppercase tracking-wide mb-1">Current Origin</p>
                               <p className="font-mono text-sm text-ink">{currentOrigin}</p>
                             </div>
-                            <button onClick={() => addOriginToWhitelist(currentOrigin)} className="px-3 py-1.5 text-xs font-medium text-white bg-amber rounded-lg hover:brightness-90 flex items-center gap-1.5">
+                            <button onClick={() => addOriginToWhitelist(currentOrigin)} className="px-3 py-1.5 text-xs font-medium text-paper bg-amber rounded-lg hover:brightness-90 flex items-center gap-1.5">
                               <Plus className="h-3.5 w-3.5" /> Add Mine
                             </button>
                           </div>
@@ -682,10 +682,10 @@ export default function AdminSettings() {
                               {allowedOrigins.map(origin => (
                                 <div key={origin} className="flex items-center justify-between px-4 py-2.5 bg-paper-2/60 border border-hairline rounded-xl">
                                   <div className="flex items-center gap-2">
-                                    <CheckCircle className="h-3.5 w-3.5 text-green-500" />
+                                    <CheckCircle className="h-3.5 w-3.5 text-emerald" />
                                     <span className="font-mono text-sm text-ink">{origin}</span>
                                   </div>
-                                  <button onClick={() => setAllowedOrigins(allowedOrigins.filter(o => o !== origin))} className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                                  <button onClick={() => setAllowedOrigins(allowedOrigins.filter(o => o !== origin))} className="p-1 text-rose hover:text-rose-ink hover:bg-rose/15 rounded-lg">
                                     <X className="h-3.5 w-3.5" />
                                   </button>
                                 </div>
@@ -696,7 +696,7 @@ export default function AdminSettings() {
 
                         <div className="flex gap-2">
                           <input type="text" value={newOrigin} onChange={e => setNewOrigin(e.target.value)} onKeyDown={e => e.key === "Enter" && addOriginToWhitelist(newOrigin)} placeholder="https://yourdomain.com" className="flex-1 px-3 py-2.5 border border-hairline rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber" />
-                          <button onClick={() => addOriginToWhitelist(newOrigin)} className="px-4 py-2.5 text-sm font-semibold text-white bg-amber rounded-xl hover:brightness-90 flex items-center gap-1.5">
+                          <button onClick={() => addOriginToWhitelist(newOrigin)} className="px-4 py-2.5 text-sm font-semibold text-paper bg-amber rounded-xl hover:brightness-90 flex items-center gap-1.5">
                             <Plus className="h-4 w-4" /> Add
                           </button>
                         </div>
@@ -750,10 +750,10 @@ export default function AdminSettings() {
                   <div className="p-6 space-y-5">
                     {/* Status pill row */}
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold border ${waReady ? "bg-green-50 text-green-700 border-green-300" : "bg-paper-2 text-ink-3 border-hairline"}`}>
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold border ${waReady ? "bg-emerald-soft text-emerald-ink border-emerald/30" : "bg-paper-2 text-ink-3 border-hairline"}`}>
                         {isLoadingWa ? "Loading…" : waReady ? "READY — sends live" : waEnabled ? "ENABLED — not fully configured" : "DISABLED"}
                       </span>
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${waHasToken ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"}`}>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${waHasToken ? "bg-emerald-soft text-emerald-ink border-emerald/30" : "bg-rose-soft text-rose-ink border-rose/30"}`}>
                         {waHasToken ? "API token: set" : "API token: MISSING (developer sets in Secret Manager)"}
                       </span>
                     </div>
@@ -761,27 +761,27 @@ export default function AdminSettings() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                       <div>
                         <label className="block text-xs font-semibold text-ink-3 uppercase tracking-wide mb-1.5">Phone-number ID</label>
-                        <input type="text" value={waPhoneNumberId} onChange={e => setWaPhoneNumberId(e.target.value)} placeholder="From Meta WhatsApp Manager" className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        <input type="text" value={waPhoneNumberId} onChange={e => setWaPhoneNumberId(e.target.value)} placeholder="From Meta WhatsApp Manager" className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald" />
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-ink-3 uppercase tracking-wide mb-1.5">Business number <span className="font-normal text-ink-4">(display only)</span></label>
-                        <input type="text" value={waBusinessNumber} onChange={e => setWaBusinessNumber(e.target.value)} placeholder="+91 98765 43210" className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        <input type="text" value={waBusinessNumber} onChange={e => setWaBusinessNumber(e.target.value)} placeholder="+91 98765 43210" className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald" />
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-ink-3 uppercase tracking-wide mb-1.5">Reminder template</label>
-                        <input type="text" value={waTplReminder} onChange={e => setWaTplReminder(e.target.value)} placeholder="service_renewal_reminder" className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        <input type="text" value={waTplReminder} onChange={e => setWaTplReminder(e.target.value)} placeholder="service_renewal_reminder" className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald" />
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-ink-3 uppercase tracking-wide mb-1.5">Payment template</label>
-                        <input type="text" value={waTplPayment} onChange={e => setWaTplPayment(e.target.value)} placeholder="payment_confirmed" className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        <input type="text" value={waTplPayment} onChange={e => setWaTplPayment(e.target.value)} placeholder="payment_confirmed" className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald" />
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-ink-3 uppercase tracking-wide mb-1.5">Suspension template</label>
-                        <input type="text" value={waTplSuspended} onChange={e => setWaTplSuspended(e.target.value)} placeholder="service_suspended" className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        <input type="text" value={waTplSuspended} onChange={e => setWaTplSuspended(e.target.value)} placeholder="service_suspended" className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald" />
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-ink-3 uppercase tracking-wide mb-1.5">Welcome template</label>
-                        <input type="text" value={waTplWelcome} onChange={e => setWaTplWelcome(e.target.value)} placeholder="hosting_provisioned" className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-400" />
+                        <input type="text" value={waTplWelcome} onChange={e => setWaTplWelcome(e.target.value)} placeholder="hosting_provisioned" className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald" />
                       </div>
                     </div>
 
@@ -796,8 +796,8 @@ export default function AdminSettings() {
                     <div className="border-t border-hairline pt-5">
                       <label className="block text-xs font-semibold text-ink-3 uppercase tracking-wide mb-1.5">Send a test message <span className="font-normal text-ink-4">(bypasses the master toggle — validates token + template before going live)</span></label>
                       <div className="flex flex-wrap items-center gap-2">
-                        <input type="text" value={waTestNumber} onChange={e => setWaTestNumber(e.target.value)} placeholder="10-digit mobile or +91…" className="flex-1 min-w-0 sm:min-w-[200px] px-3 py-2.5 border border-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
-                        <button onClick={sendWhatsAppTest} disabled={isSendingWaTest} className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-green-600 rounded-xl hover:bg-green-700 disabled:opacity-50 transition-colors">
+                        <input type="text" value={waTestNumber} onChange={e => setWaTestNumber(e.target.value)} placeholder="10-digit mobile or +91…" className="flex-1 min-w-0 sm:min-w-[200px] px-3 py-2.5 border border-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald" />
+                        <button onClick={sendWhatsAppTest} disabled={isSendingWaTest} className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-paper bg-emerald rounded-xl hover:bg-emerald/90 disabled:opacity-50 transition-colors">
                           {isSendingWaTest ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                           {isSendingWaTest ? "Sending…" : "Send test"}
                         </button>
@@ -850,9 +850,9 @@ export default function AdminSettings() {
                           />
                           {hasInput && (
                             detected ? (
-                              <p className="mt-1 text-xs text-green-700 flex items-center gap-1.5"><CheckCircle className="h-3.5 w-3.5" /> Detected ID: <span className="font-mono font-semibold">{detected}</span></p>
+                              <p className="mt-1 text-xs text-emerald-ink flex items-center gap-1.5"><CheckCircle className="h-3.5 w-3.5" /> Detected ID: <span className="font-mono font-semibold">{detected}</span></p>
                             ) : (
-                              <p className="mt-1 text-xs text-red-600 flex items-center gap-1.5"><AlertCircle className="h-3.5 w-3.5" /> No valid ID found in this text</p>
+                              <p className="mt-1 text-xs text-rose-ink flex items-center gap-1.5"><AlertCircle className="h-3.5 w-3.5" /> No valid ID found in this text</p>
                             )
                           )}
                         </div>

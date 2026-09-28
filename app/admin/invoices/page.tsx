@@ -246,10 +246,10 @@ export default function AdminInvoicesPage() {
       render: (value: string) => {
         const v = (value || '').toLowerCase();
         const cfg =
-          v === 'paid'    ? { cls: 'bg-green-50 text-green-700 border-green-200',   icon: CheckCircle2 } :
-          v === 'overdue' ? { cls: 'bg-red-50 text-red-700 border-red-200',         icon: AlertCircle } :
+          v === 'paid'    ? { cls: 'bg-emerald-soft text-emerald-ink border-emerald/30',   icon: CheckCircle2 } :
+          v === 'overdue' ? { cls: 'bg-rose-soft text-rose-ink border-rose/30',         icon: AlertCircle } :
           v === 'sent' || v === 'open' ? { cls: 'bg-indigo-soft text-indigo-ink border-indigo/25', icon: Clock } :
-                            { cls: 'bg-amber-50 text-amber-700 border-amber-200',   icon: FileText };
+                            { cls: 'bg-amber-soft text-amber-ink border-amber/30',   icon: FileText };
         const Icon = cfg.icon;
         return (
           <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${cfg.cls}`}>
@@ -363,17 +363,17 @@ export default function AdminInvoicesPage() {
                 </div>
               </div>
               <div className="bg-paper border border-hairline rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3">
-                <div className="p-2 bg-green-50 rounded-xl">
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <div className="p-2 bg-emerald-soft rounded-xl">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-ink" />
                 </div>
                 <div>
                   <p className="text-xs font-medium text-ink-3">Paid</p>
                   <p className="text-xl font-bold text-ink">{paid}</p>
                 </div>
               </div>
-              <div className={`bg-paper border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 ${due > 0 ? 'border-amber-200' : 'border-hairline'}`}>
-                <div className={`p-2 rounded-xl ${due > 0 ? 'bg-amber-50' : 'bg-paper-2/60'}`}>
-                  <IndianRupee className={`h-4 w-4 ${due > 0 ? 'text-amber-600' : 'text-ink-3'}`} />
+              <div className={`bg-paper border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 ${due > 0 ? 'border-amber/30' : 'border-hairline'}`}>
+                <div className={`p-2 rounded-xl ${due > 0 ? 'bg-amber-soft' : 'bg-paper-2/60'}`}>
+                  <IndianRupee className={`h-4 w-4 ${due > 0 ? 'text-amber-ink' : 'text-ink-3'}`} />
                 </div>
                 <div>
                   <p className="text-xs font-medium text-ink-3">Total Billed</p>

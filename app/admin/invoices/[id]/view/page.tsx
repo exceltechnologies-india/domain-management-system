@@ -191,7 +191,7 @@ export default function AdminViewInvoicePage({ params }: { params: Promise<{ id:
             <button
               onClick={handleDownload}
               disabled={isDownloading}
-              className="flex items-center justify-center gap-2 bg-amber hover:brightness-90 text-white px-4 py-2.5 rounded-lg font-medium transition-all shadow-sm hover:shadow-md active:scale-95 disabled:opacity-50 flex-1 sm:flex-initial text-sm"
+              className="flex items-center justify-center gap-2 bg-amber hover:brightness-90 text-paper px-4 py-2.5 rounded-lg font-medium transition-all shadow-sm hover:shadow-md active:scale-95 disabled:opacity-50 flex-1 sm:flex-initial text-sm"
             >
               {isDownloading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -215,14 +215,14 @@ export default function AdminViewInvoicePage({ params }: { params: Promise<{ id:
 
           {pdfError && !isLoadingPdf && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center bg-paper-2/60">
-              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center">
-                <FileText className="h-8 w-8 text-red-400" />
+              <div className="w-16 h-16 bg-rose-soft rounded-full flex items-center justify-center">
+                <FileText className="h-8 w-8 text-rose" />
               </div>
               <p className="text-ink-2 text-sm max-w-xs">{pdfError}</p>
               <div className="flex gap-3">
                 <button
                   onClick={handleRetry}
-                  className="flex items-center gap-2 px-4 py-2 bg-amber text-white text-sm font-medium rounded-lg hover:brightness-90 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-amber text-paper text-sm font-medium rounded-lg hover:brightness-90 transition-colors"
                 >
                   <RefreshCw className="h-4 w-4" />
                   Retry

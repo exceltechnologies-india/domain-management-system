@@ -371,7 +371,7 @@ export default function PageManagementPage() {
                   type="button"
                   onClick={saveSocial}
                   disabled={savingSocial}
-                  className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-amber px-4 py-2 text-sm font-semibold text-white hover:brightness-90 disabled:opacity-50 transition-colors"
+                  className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-amber px-4 py-2 text-sm font-semibold text-paper hover:brightness-90 disabled:opacity-50 transition-colors"
                 >
                   {savingSocial && <Loader2 className="h-4 w-4 animate-spin" />}
                   Save
@@ -459,7 +459,7 @@ export default function PageManagementPage() {
                     type="button"
                     onClick={saveWhatsappNumber}
                     disabled={savingNumber || whatsappInput.replace(/[^0-9]/g, '') === whatsappNumber}
-                    className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-amber px-4 py-2 text-sm font-semibold text-white hover:brightness-90 disabled:opacity-50 transition-colors"
+                    className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-amber px-4 py-2 text-sm font-semibold text-paper hover:brightness-90 disabled:opacity-50 transition-colors"
                   >
                     {savingNumber && <Loader2 className="h-4 w-4 animate-spin" />}
                     Save

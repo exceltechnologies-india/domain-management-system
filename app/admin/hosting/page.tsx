@@ -794,13 +794,13 @@ export default function AdminHostingPage() {
 
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
-      case 'active':    return 'bg-green-50 text-green-700 border-green-200';
-      case 'pending':   return 'bg-amber-50 text-amber-700 border-amber-200';
+      case 'active':    return 'bg-emerald-soft text-emerald-ink border-emerald/30';
+      case 'pending':   return 'bg-amber-soft text-amber-ink border-amber/30';
       case 'suspended':
       case 'expired':
       case 'terminated':
       case 'failed':
-      default:          return 'bg-red-50 text-red-700 border-red-200';
+      default:          return 'bg-rose-soft text-rose-ink border-rose/30';
     }
   };
 
@@ -892,9 +892,9 @@ export default function AdminHostingPage() {
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-2xl font-serif font-bold text-ink">Hosting Management</h1>
                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
-                  daMode === 'Local' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                  daMode === 'Disconnected' ? 'bg-red-50 text-red-700 border-red-200' :
-                  'bg-green-50 text-green-700 border-green-200'
+                  daMode === 'Local' ? 'bg-amber-soft text-amber-ink border-amber/30' :
+                  daMode === 'Disconnected' ? 'bg-rose-soft text-rose-ink border-rose/30' :
+                  'bg-emerald-soft text-emerald-ink border-emerald/30'
                 }`}>
                   {daMode === 'Local' || daMode === 'Disconnected'
                     ? <AlertTriangle className="h-3 w-3" />
@@ -936,7 +936,7 @@ export default function AdminHostingPage() {
             </button>
             <button
               onClick={() => setShowProvisionModal(true)}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-amber rounded-xl hover:brightness-90 transition-all shadow-sm"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-paper bg-amber rounded-xl hover:brightness-90 transition-all shadow-sm"
             >
               <Plus className="h-4 w-4" />
               Create Hosting
@@ -946,16 +946,16 @@ export default function AdminHostingPage() {
 
         {/* ── DirectAdmin server-issue banner ── */}
         {isServerDown && (
-          <div className="bg-paper border border-red-200 rounded-2xl shadow-sm p-5 flex items-start gap-3">
-            <div className="p-2 bg-red-50 rounded-xl shrink-0">
-              <AlertTriangle className="h-4 w-4 text-red-600" />
+          <div className="bg-paper border border-rose/30 rounded-2xl shadow-sm p-5 flex items-start gap-3">
+            <div className="p-2 bg-rose-soft rounded-xl shrink-0">
+              <AlertTriangle className="h-4 w-4 text-rose-ink" />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-semibold text-red-900">DirectAdmin Server Issue Detected</h3>
-              <p className="text-sm text-red-700 mt-0.5">
+              <h3 className="text-sm font-semibold text-rose-ink">DirectAdmin Server Issue Detected</h3>
+              <p className="text-sm text-rose-ink mt-0.5">
                 <strong>Error:</strong> {daError || 'We cannot connect to the hosting control panel. Live data and actions are limited.'}
               </p>
-              <p className="text-xs text-red-500 mt-1.5">
+              <p className="text-xs text-rose mt-1.5">
                 Check the server status, license validity, and firewall settings (Port 2222).
               </p>
             </div>
@@ -982,10 +982,10 @@ export default function AdminHostingPage() {
                   : filteredData.length}
               </span>
               {/* Trial / paid mix — visible at-a-glance regardless of the current filter */}
-              <span className="inline-flex items-center text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full" title="Customers on a 15-day free trial">
+              <span className="inline-flex items-center text-[11px] font-medium text-amber-ink bg-amber-soft border border-amber/30 px-2 py-0.5 rounded-full" title="Customers on a 15-day free trial">
                 {trialCount} trial
               </span>
-              <span className="inline-flex items-center text-[11px] font-medium text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full" title="Customers past the trial window — actively paying or post-trial">
+              <span className="inline-flex items-center text-[11px] font-medium text-emerald-ink bg-emerald-soft border border-emerald/30 px-2 py-0.5 rounded-full" title="Customers past the trial window — actively paying or post-trial">
                 {paidCount} paid
               </span>
             </div>
@@ -1097,7 +1097,7 @@ export default function AdminHostingPage() {
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
-                          <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center font-bold ${item.isUnlinked ? 'bg-orange-100 text-orange-600' : 'bg-amber-soft text-amber-ink'}`}>
+                          <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center font-bold ${item.isUnlinked ? 'bg-amber-soft text-amber-ink' : 'bg-amber-soft text-amber-ink'}`}>
                             {item.isUnlinked ? <Link2Off className="h-5 w-5" /> : item.user.name.charAt(0)}
                           </div>
                           <div className="ml-4">
@@ -1114,7 +1114,7 @@ export default function AdminHostingPage() {
                                 <ExternalLink className="h-3 w-3" />
                               </a>
                               {item.isUnlinked && (
-                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-700 border border-orange-200">
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-soft text-amber-ink border border-amber/30">
                                   UNLINKED
                                 </span>
                               )}
@@ -1127,14 +1127,14 @@ export default function AdminHostingPage() {
                                   style. */}
                               {item.isTrial ? (
                                 <span
-                                  className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200"
+                                  className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-soft text-amber-ink border border-amber/30"
                                   title="On a 15-day free trial — has not yet completed a paid renewal"
                                 >
                                   TRIAL
                                 </span>
                               ) : (
                                 <span
-                                  className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-700 border border-green-200"
+                                  className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-soft text-emerald-ink border border-emerald/30"
                                   title="Past the trial window — actively paying or post-trial"
                                 >
                                   PAID
@@ -1143,7 +1143,7 @@ export default function AdminHostingPage() {
                             </div>
                             <div className="text-sm text-ink-3">{item.user.email}</div>
                             {item.status === 'error' ? (
-                              <div className="text-xs text-red-500 font-mono mt-1 max-w-[200px] truncate" title={item.error}>
+                              <div className="text-xs text-rose font-mono mt-1 max-w-[200px] truncate" title={item.error}>
                                 Err: {item.error}
                               </div>
                             ) : (
@@ -1163,7 +1163,7 @@ export default function AdminHostingPage() {
                         <div className="flex items-center gap-1 mt-1.5">
                           {item.razorpayTokenId ? (
                             <span
-                              className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded border border-purple-200 font-medium"
+                              className="text-[10px] bg-indigo-soft text-indigo-ink px-1.5 py-0.5 rounded border border-indigo/30 font-medium"
                               title="Tokens API — ₹2-charge-and-reverse mandate (Google/Netflix pattern). MIT charges are driven by the daily cron via /admin/recurring-charges."
                             >
                               TOKENS
@@ -1196,14 +1196,14 @@ export default function AdminHostingPage() {
                             Created: <span className="font-medium cursor-help" title={getRelativeTime(item.createdDate)}>{formatIndianDateTime(item.createdDate)}</span>
                           </div>
                           <div className="text-xs text-ink-2 flex items-center gap-1">
-                            <AlertTriangle className={`h-3 w-3 ${item.expiryDate && new Date(item.expiryDate) < new Date() ? 'text-red-500' : 'text-ink-4'}`} />
-                            Expires: <span className={`font-medium cursor-help ${item.expiryDate && new Date(item.expiryDate) < new Date() ? 'text-red-600' : ''}`} title={getRelativeTime(item.expiryDate)}>{formatIndianDateTime(item.expiryDate)}</span>
+                            <AlertTriangle className={`h-3 w-3 ${item.expiryDate && new Date(item.expiryDate) < new Date() ? 'text-rose' : 'text-ink-4'}`} />
+                            Expires: <span className={`font-medium cursor-help ${item.expiryDate && new Date(item.expiryDate) < new Date() ? 'text-rose-ink' : ''}`} title={getRelativeTime(item.expiryDate)}>{formatIndianDateTime(item.expiryDate)}</span>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${item.status === 'active' && item.expiryDate && new Date(item.expiryDate) < new Date()
-                          ? 'bg-red-50 text-red-700 border-red-200'
+                          ? 'bg-rose-soft text-rose-ink border-rose/30'
                           : getStatusColor(item.status)
                           }`}>
                           {item.status === 'active' && item.expiryDate && new Date(item.expiryDate) < new Date() ? (
@@ -1228,7 +1228,7 @@ export default function AdminHostingPage() {
                             </div>
                             <div className="w-full bg-hairline h-1.5 rounded-full overflow-hidden">
                               <div
-                                className={`h-full ${item.status === 'error' ? 'bg-red-400' : 'bg-amber'}`}
+                                className={`h-full ${item.status === 'error' ? 'bg-rose' : 'bg-amber'}`}
                                 style={{
                                   width: item.status === 'error'
                                     ? '100%'
@@ -1244,7 +1244,7 @@ export default function AdminHostingPage() {
                             </div>
                             <div className="w-full bg-hairline h-1.5 rounded-full overflow-hidden">
                               <div
-                                className={`h-full ${item.status === 'error' ? 'bg-red-400' : 'bg-green-600'}`}
+                                className={`h-full ${item.status === 'error' ? 'bg-rose' : 'bg-emerald'}`}
                                 style={{
                                   width: item.status === 'error'
                                     ? '100%'
@@ -1271,7 +1271,7 @@ export default function AdminHostingPage() {
                             <button
                               onClick={() => handleAction('unsuspend', item.daUsername)}
                               title="Unsuspend"
-                              className="inline-flex items-center justify-center w-7 h-7 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
+                              className="inline-flex items-center justify-center w-7 h-7 text-emerald-ink hover:text-emerald-ink hover:bg-emerald/15 rounded-lg transition-colors"
                             >
                               <CheckCircle className="h-4 w-4" />
                             </button>
@@ -1279,7 +1279,7 @@ export default function AdminHostingPage() {
                             <button
                               onClick={() => handleAction('suspend', item.daUsername)}
                               title="Suspend"
-                              className="inline-flex items-center justify-center w-7 h-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors"
+                              className="inline-flex items-center justify-center w-7 h-7 text-amber-ink hover:text-amber-ink hover:bg-amber/15 rounded-lg transition-colors"
                             >
                               <AlertTriangle className="h-4 w-4" />
                             </button>
@@ -1376,7 +1376,7 @@ export default function AdminHostingPage() {
 
         {/* Provision Modal */}
         {showProvisionModal && mounted && createPortal(
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-ink/50 backdrop-blur-sm p-4">
             <div className="bg-paper rounded-xl shadow-xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200">
               <div className="p-6 border-b border-hairline flex justify-between items-center">
                 <h3 className="text-lg font-bold text-ink">Provision Hosting Account</h3>
@@ -1531,7 +1531,7 @@ export default function AdminHostingPage() {
                     <button
                       type="submit"
                       disabled={isProvisioning || !selectedUserId || !availablePackages.length}
-                      className="flex-1 px-4 py-2 bg-amber text-white rounded-lg hover:brightness-90 font-medium disabled:opacity-50 flex justify-center items-center gap-2 transition-all shadow-sm shadow-amber/20"
+                      className="flex-1 px-4 py-2 bg-amber text-paper rounded-lg hover:brightness-90 font-medium disabled:opacity-50 flex justify-center items-center gap-2 transition-all shadow-sm shadow-amber/20"
                     >
                       {isProvisioning ? (
                         <>
@@ -1552,7 +1552,7 @@ export default function AdminHostingPage() {
 
         {/* Change Package Modal */}
         {showChangePackageModal && changePackageUser && mounted && createPortal(
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-ink/50 backdrop-blur-sm p-4">
             <div className="bg-paper rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
               <div className="p-6 border-b border-hairline flex justify-between items-center">
                 <h3 className="text-lg font-bold text-ink">Change Hosting Package</h3>
@@ -1608,7 +1608,7 @@ export default function AdminHostingPage() {
                     <button
                       type="submit"
                       disabled={isChangingPackage || !newPackage || newPackage === changePackageUser.currentPackage}
-                      className="flex-1 px-4 py-2 bg-amber text-white rounded-lg hover:brightness-90 font-medium disabled:opacity-50 flex justify-center items-center gap-2 transition-all shadow-sm shadow-amber/20"
+                      className="flex-1 px-4 py-2 bg-amber text-paper rounded-lg hover:brightness-90 font-medium disabled:opacity-50 flex justify-center items-center gap-2 transition-all shadow-sm shadow-amber/20"
                     >
                       {isChangingPackage ? (
                         <>
@@ -1629,7 +1629,7 @@ export default function AdminHostingPage() {
 
         {/* Hosting Details Modal */}
         {showDetailsModal && mounted && createPortal(
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-ink/60 backdrop-blur-sm p-4">
             <div className="bg-paper rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
               {/* Modal Header */}
               <div className="px-6 py-4 border-b border-hairline flex justify-between items-center bg-paper-2/60">
@@ -1650,7 +1650,7 @@ export default function AdminHostingPage() {
                     <p className="text-ink-3">Fetching live server data...</p>
                   </div>
                 ) : !selectedDetails ? (
-                  <div className="text-center py-20 text-red-500">
+                  <div className="text-center py-20 text-rose">
                     Failed to load data.
                   </div>
                 ) : (
@@ -1660,7 +1660,7 @@ export default function AdminHostingPage() {
                       <div className="bg-paper-2/60 p-4 rounded-lg border border-hairline">
                         <div className="text-xs font-bold text-ink-4 uppercase mb-1">Status</div>
                         <div className="flex items-center gap-2">
-                          <span className={`w-2 h-2 rounded-full ${selectedDetails.status === 'active' ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                          <span className={`w-2 h-2 rounded-full ${selectedDetails.status === 'active' ? 'bg-emerald' : 'bg-rose'}`}></span>
                           <span className="font-bold text-ink capitalize">{selectedDetails.status}</span>
                         </div>
                       </div>
@@ -1693,12 +1693,12 @@ export default function AdminHostingPage() {
                       const isTokens = !!row.razorpayTokenId;
                       const isSubs = !isTokens && !!row.subscriptionId;
                       return (
-                        <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg space-y-2">
+                        <div className="bg-amber-soft border border-amber/30 p-4 rounded-lg space-y-2">
                           <div className="flex items-center justify-between">
-                            <span className="font-semibold text-amber-900">Recurring Payment</span>
+                            <span className="font-semibold text-amber-ink">Recurring Payment</span>
                             <div className="flex gap-2">
                               {row.isTrial && (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-soft text-emerald-ink">
                                   15-day trial
                                 </span>
                               )}
@@ -1760,7 +1760,7 @@ export default function AdminHostingPage() {
                           <span className="text-ink font-bold">{selectedDetails.usage?.emails?.used ?? '0'} / {selectedDetails.usage?.emails?.limit ?? '0'}</span>
                         </div>
                         <div className="w-full bg-paper-2 h-2 rounded-full overflow-hidden">
-                          <div className="bg-green-500 h-full" style={{ width: `${selectedDetails.usage?.emails?.limit === 'Unlimited' ? 0 : Math.min(100, (parseFloat(selectedDetails.usage?.emails?.used ?? '0') / parseFloat(selectedDetails.usage?.emails?.limit || '1')) * 100)}%` }}></div>
+                          <div className="bg-emerald h-full" style={{ width: `${selectedDetails.usage?.emails?.limit === 'Unlimited' ? 0 : Math.min(100, (parseFloat(selectedDetails.usage?.emails?.used ?? '0') / parseFloat(selectedDetails.usage?.emails?.limit || '1')) * 100)}%` }}></div>
                         </div>
                       </div>
                       {/* FTP */}
@@ -1770,7 +1770,7 @@ export default function AdminHostingPage() {
                           <span className="text-ink font-bold">{selectedDetails.usage?.ftp?.used ?? '0'} / {selectedDetails.usage?.ftp?.limit ?? '0'}</span>
                         </div>
                         <div className="w-full bg-paper-2 h-2 rounded-full overflow-hidden">
-                          <div className="bg-yellow-500 h-full" style={{ width: `${Math.min(100, (parseFloat(selectedDetails.usage?.ftp?.used ?? '0') / parseFloat(selectedDetails.usage?.ftp?.limit || '1')) * 100)}%` }}></div>
+                          <div className="bg-amber h-full" style={{ width: `${Math.min(100, (parseFloat(selectedDetails.usage?.ftp?.used ?? '0') / parseFloat(selectedDetails.usage?.ftp?.limit || '1')) * 100)}%` }}></div>
                         </div>
                       </div>
                       {/* Subdomains */}
@@ -1780,7 +1780,7 @@ export default function AdminHostingPage() {
                           <span className="text-ink font-bold">{selectedDetails.usage?.subdomains?.used ?? '0'} / {selectedDetails.usage?.subdomains?.limit ?? '0'}</span>
                         </div>
                         <div className="w-full bg-paper-2 h-2 rounded-full overflow-hidden">
-                          <div className="bg-purple-500 h-full" style={{ width: `${Math.min(100, (parseFloat(selectedDetails.usage?.subdomains?.used ?? '0') / parseFloat(selectedDetails.usage?.subdomains?.limit || '1')) * 100)}%` }}></div>
+                          <div className="bg-indigo h-full" style={{ width: `${Math.min(100, (parseFloat(selectedDetails.usage?.subdomains?.used ?? '0') / parseFloat(selectedDetails.usage?.subdomains?.limit || '1')) * 100)}%` }}></div>
                         </div>
                       </div>
                     </div>
@@ -1816,7 +1816,7 @@ export default function AdminHostingPage() {
                               <div key={key} className="flex items-center justify-between text-sm">
                                 <span className="text-ink-3 capitalize">{key}</span>
                                 {value ? (
-                                  <span className="text-green-600 flex items-center gap-1 font-medium italic"><CheckCircle className="h-3 w-3" /> ON</span>
+                                  <span className="text-emerald-ink flex items-center gap-1 font-medium italic"><CheckCircle className="h-3 w-3" /> ON</span>
                                 ) : (
                                   <span className="text-ink-4 font-medium">OFF</span>
                                 )}
@@ -1839,7 +1839,7 @@ export default function AdminHostingPage() {
               <div className="px-6 py-4 border-t border-hairline bg-paper-2/60 flex justify-end">
                 <button
                   onClick={() => setShowDetailsModal(false)}
-                  className="px-6 py-2 bg-ink text-white rounded-lg hover:bg-ink-2 transition-colors font-medium shadow-sm"
+                  className="px-6 py-2 bg-ink text-paper rounded-lg hover:bg-ink-2 transition-colors font-medium shadow-sm"
                 >
                   Close Details
                 </button>
@@ -1851,16 +1851,16 @@ export default function AdminHostingPage() {
 
         {/* Delete Confirmation Modal */}
         {deleteModal.show && mounted && createPortal(
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="bg-paper rounded-xl shadow-2xl w-full max-w-sm overflow-hidden border border-red-100 animate-in zoom-in-95 duration-200">
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-ink/60 backdrop-blur-sm p-4">
+            <div className="bg-paper rounded-xl shadow-2xl w-full max-w-sm overflow-hidden border border-rose/30 animate-in zoom-in-95 duration-200">
               <div className="p-6 text-center">
-                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <AlertTriangle className="h-6 w-6 text-red-600" />
+                <div className="w-12 h-12 bg-rose-soft rounded-full flex items-center justify-center mx-auto mb-4">
+                  <AlertTriangle className="h-6 w-6 text-rose-ink" />
                 </div>
                 <h3 className="text-xl font-bold text-ink mb-2">Delete Account?</h3>
                 <p className="text-ink-2 mb-6">
                   Are you sure you want to delete the hosting for <strong>{deleteModal.domain}</strong>?
-                  This action is <span className="font-bold text-red-600">irreversible</span> and will delete all files, databases and emails.
+                  This action is <span className="font-bold text-rose-ink">irreversible</span> and will delete all files, databases and emails.
                 </p>
 
                 <div className="flex gap-3">
@@ -1874,7 +1874,7 @@ export default function AdminHostingPage() {
                   <button
                     onClick={() => performHostingAction('delete', deleteModal.username, deleteModal.hostingId)}
                     disabled={isDeleting}
-                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium disabled:opacity-50 flex justify-center items-center gap-2"
+                    className="flex-1 px-4 py-2 bg-rose text-paper rounded-lg hover:bg-rose/90 font-medium disabled:opacity-50 flex justify-center items-center gap-2"
                   >
                     {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                     Yes, Delete

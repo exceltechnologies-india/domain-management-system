@@ -64,11 +64,11 @@ interface ApiResponse {
 }
 
 const STATUS_META: Record<AttemptStatus, { label: string; classes: string; dot: string; icon: React.ElementType; iconBg: string; iconColor: string }> = {
-  pending: { label: "Pending", classes: "bg-amber-100 text-amber-800", dot: "bg-amber-500", icon: Clock, iconBg: "bg-amber-50", iconColor: "text-amber-600" },
+  pending: { label: "Pending", classes: "bg-amber-soft text-amber-ink", dot: "bg-amber", icon: Clock, iconBg: "bg-amber-soft", iconColor: "text-amber-ink" },
   in_progress: { label: "In progress", classes: "bg-indigo-soft text-indigo-ink", dot: "bg-indigo", icon: RotateCw, iconBg: "bg-indigo-soft", iconColor: "text-indigo-ink" },
-  succeeded: { label: "Succeeded", classes: "bg-green-100 text-green-800", dot: "bg-green-500", icon: CheckCircle2, iconBg: "bg-green-50", iconColor: "text-green-600" },
-  failed: { label: "Failed (retry scheduled)", classes: "bg-orange-100 text-orange-800", dot: "bg-orange-500", icon: AlertTriangle, iconBg: "bg-orange-50", iconColor: "text-orange-600" },
-  abandoned: { label: "Abandoned", classes: "bg-red-100 text-red-800", dot: "bg-red-500", icon: XCircle, iconBg: "bg-red-50", iconColor: "text-red-600" },
+  succeeded: { label: "Succeeded", classes: "bg-emerald-soft text-emerald-ink", dot: "bg-emerald", icon: CheckCircle2, iconBg: "bg-emerald-soft", iconColor: "text-emerald-ink" },
+  failed: { label: "Failed (retry scheduled)", classes: "bg-amber-soft text-amber-ink", dot: "bg-amber", icon: AlertTriangle, iconBg: "bg-amber-soft", iconColor: "text-amber-ink" },
+  abandoned: { label: "Abandoned", classes: "bg-rose-soft text-rose-ink", dot: "bg-rose", icon: XCircle, iconBg: "bg-rose-soft", iconColor: "text-rose-ink" },
 };
 
 const STATUS_ORDER: AttemptStatus[] = ["pending", "in_progress", "succeeded", "failed", "abandoned"];
@@ -138,8 +138,8 @@ export default function AdminRecurringChargesPage() {
         {/* ── Page header ── */}
         <div className="flex items-start sm:items-center justify-between flex-col sm:flex-row gap-3 sm:gap-0">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-purple-50 rounded-xl">
-              <RefreshCcw className="h-5 w-5 text-purple-600" />
+            <div className="p-2 bg-indigo-soft rounded-xl">
+              <RefreshCcw className="h-5 w-5 text-indigo-ink" />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -209,9 +209,9 @@ export default function AdminRecurringChargesPage() {
 
           <div className="p-4 sm:p-6">
             {error && !isAuthError && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4 flex items-center justify-between gap-3 text-sm">
+              <div className="bg-rose-soft border border-rose/30 text-rose-ink px-4 py-3 rounded-xl mb-4 flex items-center justify-between gap-3 text-sm">
                 <div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 shrink-0" /> {error}</div>
-                <button onClick={() => void fetchData()} className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-paper border border-red-300 text-red-700 hover:bg-red-100 shrink-0">Retry</button>
+                <button onClick={() => void fetchData()} className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-paper border border-rose/30 text-rose-ink hover:bg-rose/15 shrink-0">Retry</button>
               </div>
             )}
 
@@ -277,10 +277,10 @@ export default function AdminRecurringChargesPage() {
                           <td className="px-4 py-3 text-xs text-ink-2 whitespace-nowrap">
                             <div>Due: {formatDate(row.dueDate)}</div>
                             {row.nextAttemptAt && row.status === "failed" && (
-                              <div className="text-orange-700">Next retry: {formatDate(row.nextAttemptAt)}</div>
+                              <div className="text-amber-ink">Next retry: {formatDate(row.nextAttemptAt)}</div>
                             )}
                             {row.abandonedAt && (
-                              <div className="text-red-700">Abandoned: {formatDate(row.abandonedAt)}</div>
+                              <div className="text-rose-ink">Abandoned: {formatDate(row.abandonedAt)}</div>
                             )}
                           </td>
                           <td className="px-4 sm:px-6 py-3 text-xs text-ink-2 max-w-md truncate" title={row.lastError ?? ""}>
@@ -292,7 +292,7 @@ export default function AdminRecurringChargesPage() {
                   </tbody>
                 </table>
                 {data.hasMore && (
-                  <div className="mt-3 mx-4 sm:mx-6 bg-amber-50 border border-amber-200 px-4 py-2 rounded-xl text-xs text-amber-800 flex items-center gap-2">
+                  <div className="mt-3 mx-4 sm:mx-6 bg-amber-soft border border-amber/30 px-4 py-2 rounded-xl text-xs text-amber-ink flex items-center gap-2">
                     <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                     Showing the first {data.rows.length} rows. Narrow the window or status to see the rest.
                   </div>

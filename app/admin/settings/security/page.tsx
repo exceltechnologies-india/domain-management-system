@@ -128,7 +128,7 @@ export default function AdminSecurityPage() {
               <div
                 className={`rounded-full p-3 ${
                   totpEnabled
-                    ? "bg-green-100 text-green-600"
+                    ? "bg-emerald-soft text-emerald-ink"
                     : "bg-paper-2 text-ink-4"
                 }`}
               >
@@ -157,7 +157,7 @@ export default function AdminSecurityPage() {
               ) : totpEnabled ? (
                 <button
                   onClick={() => setStep("disable")}
-                  className="text-sm font-medium text-red-600 hover:text-red-700"
+                  className="text-sm font-medium text-rose-ink hover:text-rose-ink"
                 >
                   Disable 2FA
                 </button>
@@ -165,7 +165,7 @@ export default function AdminSecurityPage() {
                 <button
                   onClick={handleStartSetup}
                   disabled={isLoading}
-                  className="inline-flex items-center gap-2 rounded-lg bg-amber px-4 py-2 text-sm font-medium text-white hover:brightness-90 disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-lg bg-amber px-4 py-2 text-sm font-medium text-paper hover:brightness-90 disabled:opacity-50"
                 >
                   {isLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -229,7 +229,7 @@ export default function AdminSecurityPage() {
 
             <button
               onClick={() => setStep("verify")}
-              className="w-full rounded-lg bg-amber px-4 py-2 text-sm font-medium text-white hover:brightness-90"
+              className="w-full rounded-lg bg-amber px-4 py-2 text-sm font-medium text-paper hover:brightness-90"
             >
               I've scanned the code →
             </button>
@@ -267,7 +267,7 @@ export default function AdminSecurityPage() {
               <button
                 onClick={handleConfirm}
                 disabled={isLoading || verifyCode.length !== 6}
-                className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-amber px-4 py-2 text-sm font-medium text-white hover:brightness-90 disabled:opacity-50"
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-amber px-4 py-2 text-sm font-medium text-paper hover:brightness-90 disabled:opacity-50"
               >
                 {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                 Verify & enable
@@ -280,7 +280,7 @@ export default function AdminSecurityPage() {
         {step === "backup" && (
           <div className="rounded-xl border border-hairline bg-paper shadow-sm p-6 space-y-5">
             <div className="flex items-center gap-3">
-              <CheckCircle className="h-6 w-6 text-green-500 shrink-0" />
+              <CheckCircle className="h-6 w-6 text-emerald shrink-0" />
               <div>
                 <h2 className="font-semibold text-ink">
                   2FA enabled successfully
@@ -291,8 +291,8 @@ export default function AdminSecurityPage() {
               </div>
             </div>
 
-            <div className="rounded-lg bg-amber-50 border border-amber-200 p-4">
-              <p className="text-xs font-medium text-amber-800 mb-3">
+            <div className="rounded-lg bg-amber-soft border border-amber/30 p-4">
+              <p className="text-xs font-medium text-amber-ink mb-3">
                 Each backup code can only be used once. Store them securely.
               </p>
               <div className="grid grid-cols-2 gap-2">
@@ -307,7 +307,7 @@ export default function AdminSecurityPage() {
               </div>
               <button
                 onClick={() => copyToClipboard(backupCodes.join("\n"))}
-                className="mt-3 inline-flex items-center gap-1.5 text-xs text-amber-700 hover:text-amber-900"
+                className="mt-3 inline-flex items-center gap-1.5 text-xs text-amber-ink hover:text-amber-ink"
               >
                 <Copy className="h-3.5 w-3.5" /> Copy all codes
               </button>
@@ -315,7 +315,7 @@ export default function AdminSecurityPage() {
 
             <button
               onClick={() => setStep("status")}
-              className="w-full rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-ink-2"
+              className="w-full rounded-lg bg-ink px-4 py-2 text-sm font-medium text-paper hover:bg-ink-2"
             >
               Done
             </button>
@@ -385,7 +385,7 @@ export default function AdminSecurityPage() {
               <button
                 onClick={handleDisable}
                 disabled={isLoading}
-                className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-rose px-4 py-2 text-sm font-medium text-paper hover:bg-rose/90 disabled:opacity-50"
               >
                 {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                 Disable 2FA

@@ -153,8 +153,8 @@ export default function IntegrationHealthPage() {
         {/* ── Page header ── */}
         <div className="flex items-start sm:items-center justify-between flex-col sm:flex-row gap-3 sm:gap-0">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-amber-50 rounded-xl">
-              <ShieldAlert className="h-5 w-5 text-amber-600" />
+            <div className="p-2 bg-amber-soft rounded-xl">
+              <ShieldAlert className="h-5 w-5 text-amber-ink" />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-ink">Integration Health</h1>
@@ -169,14 +169,14 @@ export default function IntegrationHealthPage() {
         {/* ── Summary stat cards ── */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-paper border border-hairline rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3">
-            <div className="p-2 bg-green-50 rounded-xl"><CheckCircle2 className="h-4 w-4 text-green-600" /></div>
+            <div className="p-2 bg-emerald-soft rounded-xl"><CheckCircle2 className="h-4 w-4 text-emerald-ink" /></div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-ink-3">Healthy providers</p>
               <p className="text-xl font-bold text-ink">{data ? healthyCount : '—'}</p>
             </div>
           </div>
-          <div className={`bg-paper border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 ${failingCount > 0 ? 'border-amber-300 ring-2 ring-amber-100' : 'border-hairline'}`}>
-            <div className="p-2 bg-amber-50 rounded-xl"><AlertTriangle className="h-4 w-4 text-amber-600" /></div>
+          <div className={`bg-paper border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 ${failingCount > 0 ? 'border-amber/30 ring-2 ring-amber' : 'border-hairline'}`}>
+            <div className="p-2 bg-amber-soft rounded-xl"><AlertTriangle className="h-4 w-4 text-amber-ink" /></div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-ink-3">With failures</p>
               <p className="text-xl font-bold text-ink">{data ? failingCount : '—'}</p>
@@ -193,13 +193,13 @@ export default function IntegrationHealthPage() {
 
         {/* ── Live reachability banner (active probe — separate from the recorded-failure feed) ── */}
         {liveDown.length > 0 && (
-          <div className="rounded-2xl border-2 border-red-300 bg-red-50 shadow-sm p-4 flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
+          <div className="rounded-2xl border-2 border-rose/30 bg-rose-soft shadow-sm p-4 flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-rose-ink mt-0.5 shrink-0" />
             <div>
-              <div className="text-sm font-bold text-red-900">
+              <div className="text-sm font-bold text-rose-ink">
                 Live reachability: {liveDown.join(', ')} {liveDown.length === 1 ? 'is' : 'are'} currently UNREACHABLE (probed just now).
               </div>
-              <div className="text-xs text-red-800/90 mt-1">
+              <div className="text-xs text-rose-ink/90 mt-1">
                 The feed below reports <strong>recorded operation failures</strong> — a provider with no live traffic can show &quot;all clear&quot; here yet be down. This live probe (same as Dashboard → System Health) is the source of truth for reachability.
               </div>
             </div>
@@ -208,16 +208,16 @@ export default function IntegrationHealthPage() {
 
         {/* ── Overall status banner + window filter ── */}
         {data && (
-          <div className={`rounded-2xl border shadow-sm ${totalAcrossProviders > 0 ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
+          <div className={`rounded-2xl border shadow-sm ${totalAcrossProviders > 0 ? 'bg-amber-soft border-amber/30' : 'bg-emerald-soft border-emerald/30'}`}>
             <div className="p-4 flex items-start justify-between gap-4 flex-wrap">
               <div className="flex items-start gap-3">
                 {totalAcrossProviders > 0 ? (
-                  <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+                  <AlertTriangle className="h-5 w-5 text-amber-ink mt-0.5 shrink-0" />
                 ) : (
-                  <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
+                  <CheckCircle2 className="h-5 w-5 text-emerald-ink mt-0.5 shrink-0" />
                 )}
                 <div>
-                  <div className={`text-sm font-semibold ${totalAcrossProviders > 0 ? 'text-amber-900' : 'text-green-900'}`}>
+                  <div className={`text-sm font-semibold ${totalAcrossProviders > 0 ? 'text-amber-ink' : 'text-emerald-ink'}`}>
                     {totalAcrossProviders > 0
                       ? `${totalAcrossProviders} upstream failure${totalAcrossProviders === 1 ? '' : 's'} in the last ${data.windowDays} day${data.windowDays === 1 ? '' : 's'}`
                       : `No recorded operation failures in the last ${data.windowDays} day${data.windowDays === 1 ? '' : 's'}`}
@@ -263,7 +263,7 @@ export default function IntegrationHealthPage() {
           return (
             <div
               key={p.id}
-              className={`bg-paper border rounded-2xl shadow-sm overflow-hidden transition-shadow hover:shadow-md ${hasErrors ? 'border-amber-200' : 'border-hairline'}`}
+              className={`bg-paper border rounded-2xl shadow-sm overflow-hidden transition-shadow hover:shadow-md ${hasErrors ? 'border-amber/30' : 'border-hairline'}`}
             >
               <button
                 onClick={() => {
@@ -276,16 +276,16 @@ export default function IntegrationHealthPage() {
                 <div className="flex items-center gap-3 min-w-0">
                   {isOpen ? <ChevronDown className="h-4 w-4 text-ink-4 shrink-0" /> : <ChevronRight className="h-4 w-4 text-ink-4 shrink-0" />}
                   {hasErrors ? (
-                    <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
+                    <AlertTriangle className="h-5 w-5 text-amber-ink shrink-0" />
                   ) : (
-                    <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                    <CheckCircle2 className="h-5 w-5 text-emerald-ink shrink-0" />
                   )}
                   <div className="min-w-0 text-left">
                     <div className="font-semibold text-ink">{p.label}</div>
                     <div className="text-xs text-ink-3 truncate">{PROVIDER_DESCRIPTIONS[p.id] || ''}</div>
                   </div>
                 </div>
-                <div className={`text-sm font-semibold shrink-0 ${hasErrors ? 'text-amber-700' : 'text-green-700'}`}>
+                <div className={`text-sm font-semibold shrink-0 ${hasErrors ? 'text-amber-ink' : 'text-emerald-ink'}`}>
                   {p.totalErrors === 0 ? 'All clear' : `${p.totalErrors} failure${p.totalErrors === 1 ? '' : 's'}`}
                 </div>
               </button>
@@ -299,14 +299,14 @@ export default function IntegrationHealthPage() {
                       <div key={i} className="border border-hairline rounded-lg overflow-hidden bg-paper-2/40">
                         <div className="px-4 py-3 border-b border-hairline bg-paper">
                           <div className="flex items-start justify-between gap-3 flex-wrap">
-                            <div className="text-[10px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
+                            <div className="text-[10px] font-semibold uppercase tracking-wide text-amber-ink bg-amber-soft px-2 py-0.5 rounded">
                               {pattern.count} occurrence{pattern.count === 1 ? '' : 's'}
                             </div>
                             <div className="text-[11px] text-ink-3">
                               First: {formatIndianDateTime(pattern.firstSeen)} · Last: {formatIndianDateTime(pattern.lastSeen)}
                             </div>
                           </div>
-                          <pre className="mt-2 text-xs text-red-800 font-mono whitespace-pre-wrap break-words">
+                          <pre className="mt-2 text-xs text-rose-ink font-mono whitespace-pre-wrap break-words">
                             {pattern.exemplarMessage}
                           </pre>
                         </div>

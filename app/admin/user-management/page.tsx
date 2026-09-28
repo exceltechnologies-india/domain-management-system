@@ -510,7 +510,7 @@ export default function AdminUsers() {
             {row.isActive ? 'active' : 'inactive'}
           </span>
           {row.totpEnabled && (
-            <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium rounded-full w-fit bg-purple-100 text-purple-800 flex items-center gap-1">
+            <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium rounded-full w-fit bg-indigo-soft text-indigo-ink flex items-center gap-1">
               <Shield className="h-2.5 w-2.5" />
               2FA on
             </span>
@@ -668,7 +668,7 @@ export default function AdminUsers() {
           )}
           {row.hosting && row.hosting.length > 0 && (
             <div className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo"></span>
               <span className="text-xs text-ink-2">
                 {row.hosting.length} Hosting
               </span>
@@ -746,7 +746,7 @@ export default function AdminUsers() {
       render: (_value: unknown, row: User) => {
         const wa = (row as User & { whatsappNumber?: string }).whatsappNumber;
         return wa
-          ? <span className="text-xs sm:text-sm text-green-700">{wa}</span>
+          ? <span className="text-xs sm:text-sm text-emerald-ink">{wa}</span>
           : <span className="text-xs sm:text-sm text-ink-4">-</span>;
       }
     },
@@ -825,7 +825,7 @@ export default function AdminUsers() {
               className={`bg-paper border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${activeTab === 'active' ? 'border-amber ring-2 ring-amber/25' : 'border-hairline hover:border-hairline-strong hover:shadow-md'}`}
             >
               <div className="p-2 bg-emerald-soft rounded-xl">
-                <UserCheck className="h-4 w-4 text-green-600" />
+                <UserCheck className="h-4 w-4 text-emerald-ink" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-ink-3">Active Users</p>
@@ -837,7 +837,7 @@ export default function AdminUsers() {
               className={`bg-paper border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${activeTab === 'deactivated' ? 'border-amber ring-2 ring-amber/25' : 'border-hairline hover:border-hairline-strong hover:shadow-md'}`}
             >
               <div className="p-2 bg-rose-soft rounded-xl">
-                <UserX className="h-4 w-4 text-red-600" />
+                <UserX className="h-4 w-4 text-rose-ink" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-ink-3">Deactivated</p>
@@ -848,8 +848,8 @@ export default function AdminUsers() {
               onClick={() => setActiveTab('services')}
               className={`bg-paper border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${activeTab === 'services' ? 'border-amber ring-2 ring-amber/25' : 'border-hairline hover:border-hairline-strong hover:shadow-md'}`}
             >
-              <div className="p-2 bg-purple-50 rounded-xl">
-                <Cog className="h-4 w-4 text-purple-600" />
+              <div className="p-2 bg-indigo-soft rounded-xl">
+                <Cog className="h-4 w-4 text-indigo-ink" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-ink-3">Service Users</p>
@@ -860,8 +860,8 @@ export default function AdminUsers() {
               onClick={() => setActiveTab('noservices')}
               className={`bg-paper border rounded-2xl shadow-sm px-5 py-4 flex items-center gap-3 text-left transition-all ${activeTab === 'noservices' ? 'border-amber ring-2 ring-amber/25' : 'border-hairline hover:border-hairline-strong hover:shadow-md'}`}
             >
-              <div className="p-2 bg-amber-50 rounded-xl">
-                <UserX className="h-4 w-4 text-amber-600" />
+              <div className="p-2 bg-amber-soft rounded-xl">
+                <UserX className="h-4 w-4 text-amber-ink" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-ink-3">No Services</p>
@@ -913,10 +913,10 @@ export default function AdminUsers() {
                     onClick={handleExportCsv}
                     disabled={isExporting || isEmpty}
                     title={isEmpty ? 'Nothing to export in this tab' : "Export the current tab's users as a CSV file"}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber text-white hover:brightness-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:brightness-100"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber text-paper hover:brightness-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:brightness-100"
                   >
                     {isExporting ? (
-                      <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" />
+                      <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-paper" />
                     ) : (
                       <Download className="h-3.5 w-3.5" />
                     )}
@@ -1069,7 +1069,7 @@ export default function AdminUsers() {
                   <h3 className="text-sm font-medium text-amber-ink">
                     Reset Password for {passwordResetUser.firstName} {passwordResetUser.lastName}
                   </h3>
-                  <p className="text-sm text-yellow-700 mt-1">
+                  <p className="text-sm text-amber-ink mt-1">
                     This will change the user's password and optionally send them an email notification.
                   </p>
                 </div>
@@ -1175,7 +1175,7 @@ export default function AdminUsers() {
                   <button
                     type="submit"
                     disabled={isResettingPassword}
-                    className="px-4 py-2 text-sm font-medium text-white bg-amber border border-transparent rounded-md hover:brightness-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                    className="px-4 py-2 text-sm font-medium text-paper bg-amber border border-transparent rounded-md hover:brightness-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                   >
                     {isResettingPassword ? (
                       'Resetting...'
@@ -1198,12 +1198,12 @@ export default function AdminUsers() {
       {/* Deactivate User Confirmation Modal */}
       {
         isDeactivateModalOpen && userToDeactivate && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-ink bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-paper rounded-xl shadow-xl max-w-md w-full">
               <div className="p-6">
                 <div className="flex items-center mb-4">
                   <div className="flex-shrink-0">
-                    <XCircle className="h-6 w-6 text-red-600" />
+                    <XCircle className="h-6 w-6 text-rose-ink" />
                   </div>
                   <div className="ml-3">
                     <h3 className="text-lg font-medium text-ink">
@@ -1242,11 +1242,11 @@ export default function AdminUsers() {
                   <button
                     onClick={confirmDeactivateUser}
                     disabled={isDeactivating}
-                    className="px-4 py-2 bg-rose hover:bg-rose-ink text-white rounded-lg transition-colors disabled:opacity-50 flex items-center"
+                    className="px-4 py-2 bg-rose hover:bg-rose-ink text-paper rounded-lg transition-colors disabled:opacity-50 flex items-center"
                   >
                     {isDeactivating ? (
                       <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-paper mr-2"></div>
                         Deactivating...
                       </>
                     ) : (
@@ -1266,12 +1266,12 @@ export default function AdminUsers() {
       {/* Reactivate User Confirmation Modal */}
       {
         isReactivateModalOpen && userToReactivate && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-ink bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-paper rounded-xl shadow-xl max-w-md w-full">
               <div className="p-6">
                 <div className="flex items-center mb-4">
                   <div className="flex-shrink-0">
-                    <CheckCircle className="h-6 w-6 text-green-600" />
+                    <CheckCircle className="h-6 w-6 text-emerald-ink" />
                   </div>
                   <div className="ml-3">
                     <h3 className="text-lg font-medium text-ink">
@@ -1310,11 +1310,11 @@ export default function AdminUsers() {
                   <button
                     onClick={confirmReactivateUser}
                     disabled={isReactivating}
-                    className="px-4 py-2 bg-emerald hover:bg-emerald-ink text-white rounded-lg transition-colors disabled:opacity-50 flex items-center"
+                    className="px-4 py-2 bg-emerald hover:bg-emerald-ink text-paper rounded-lg transition-colors disabled:opacity-50 flex items-center"
                   >
                     {isReactivating ? (
                       <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-paper mr-2"></div>
                         Reactivating...
                       </>
                     ) : (
@@ -1334,12 +1334,12 @@ export default function AdminUsers() {
       {/* Permanent Delete User Confirmation Modal */}
       {
         isPermanentDeleteModalOpen && userToPermanentlyDelete && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-ink bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-paper rounded-xl shadow-xl max-w-md w-full">
               <div className="p-6">
                 <div className="flex items-center mb-4">
                   <div className="flex-shrink-0">
-                    <Trash2 className="h-6 w-6 text-red-600" />
+                    <Trash2 className="h-6 w-6 text-rose-ink" />
                   </div>
                   <div className="ml-3">
                     <h3 className="text-lg font-medium text-ink">
@@ -1349,11 +1349,11 @@ export default function AdminUsers() {
                 </div>
 
                 <div className="mb-6">
-                  <div className="bg-rose-soft border border-red-200 rounded-lg p-4 mb-4">
+                  <div className="bg-rose-soft border border-rose/30 rounded-lg p-4 mb-4">
                     <p className="text-rose-ink text-sm font-medium">
                       Warning: This action is irreversible!
                     </p>
-                    <p className="text-red-700 text-sm mt-1">
+                    <p className="text-rose-ink text-sm mt-1">
                       All user data, including services and history, will be permanently removed.
                     </p>
                   </div>
@@ -1386,11 +1386,11 @@ export default function AdminUsers() {
                   <button
                     onClick={confirmPermanentDeleteUser}
                     disabled={isPermanentlyDeleting}
-                    className="px-4 py-2 bg-rose hover:bg-rose-ink text-white rounded-lg transition-colors disabled:opacity-50 flex items-center"
+                    className="px-4 py-2 bg-rose hover:bg-rose-ink text-paper rounded-lg transition-colors disabled:opacity-50 flex items-center"
                   >
                     {isPermanentlyDeleting ? (
                       <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-paper mr-2"></div>
                         Deleting...
                       </>
                     ) : (
@@ -1435,7 +1435,7 @@ export default function AdminUsers() {
             {/* Hosting Section */}
             <div>
               <h4 className="flex items-center gap-2 text-sm font-bold text-ink uppercase tracking-wider mb-3">
-                <Server className="h-4 w-4 text-purple-600" /> Hosting Services
+                <Server className="h-4 w-4 text-indigo-ink" /> Hosting Services
               </h4>
               {selectedServiceUser.hosting && selectedServiceUser.hosting.length > 0 ? (
                 <div className="bg-paper border border-hairline rounded-lg overflow-hidden">
@@ -1457,7 +1457,7 @@ export default function AdminUsers() {
                           <td className="px-4 py-3 text-sm text-ink-3">{host.domainName}</td>
                           <td className="px-4 py-3">
                             <span className={`px-2 py-1 text-xs font-medium rounded-full ${host.status === 'active' ? 'bg-emerald-soft text-emerald-ink' :
-                              host.status === 'suspended' ? 'bg-orange-100 text-orange-800' :
+                              host.status === 'suspended' ? 'bg-amber-soft text-amber-ink' :
                                 host.status === 'terminated' || host.status === 'expired' ? 'bg-rose-soft text-rose-ink' :
                                   'bg-paper-2 text-ink'
                               }`}>
@@ -1479,7 +1479,7 @@ export default function AdminUsers() {
                             {host.domainName ? (
                               <Link
                                 href={`/admin/hosting?q=${encodeURIComponent(host.domainName)}`}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-md transition-colors"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-indigo-ink bg-indigo-soft hover:bg-indigo/15 border border-indigo/30 rounded-md transition-colors"
                                 title={`Open ${host.domainName} in the hosting admin`}
                               >
                                 Open
@@ -1503,7 +1503,7 @@ export default function AdminUsers() {
             {/* Domains Section */}
             <div>
               <h4 className="flex items-center gap-2 text-sm font-bold text-ink uppercase tracking-wider mb-3">
-                <div className="h-4 w-4 bg-indigo rounded-full flex items-center justify-center text-[8px] text-white">D</div> Domains
+                <div className="h-4 w-4 bg-indigo rounded-full flex items-center justify-center text-[8px] text-paper">D</div> Domains
               </h4>
               {selectedServiceUser.domains && selectedServiceUser.domains.length > 0 ? (
                 <div className="bg-paper border border-hairline rounded-lg overflow-hidden">
@@ -1541,7 +1541,7 @@ export default function AdminUsers() {
                             {domain.domainName ? (
                               <Link
                                 href={`/admin/domains?q=${encodeURIComponent(domain.domainName)}`}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-md transition-colors"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-indigo-ink bg-indigo-soft hover:bg-indigo/15 border border-indigo/30 rounded-md transition-colors"
                                 title={`Open ${domain.domainName} in the domains admin`}
                               >
                                 Open
@@ -1568,11 +1568,11 @@ export default function AdminUsers() {
 
       {/* 2FA Reset Confirmation Modal */}
       {is2FAResetModalOpen && userToReset2FA && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink bg-opacity-50">
           <div className="bg-paper rounded-xl shadow-xl max-w-md w-full p-6">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
-                <ShieldOff className="h-5 w-5 text-orange-600" />
+              <div className="w-10 h-10 bg-amber-soft rounded-full flex items-center justify-center flex-shrink-0">
+                <ShieldOff className="h-5 w-5 text-amber-ink" />
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-ink">Reset 2FA</h3>
@@ -1600,7 +1600,7 @@ export default function AdminUsers() {
               <button
                 onClick={confirm2FAReset}
                 disabled={isResetting2FA}
-                className="px-4 py-2 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                className="px-4 py-2 text-sm font-medium text-paper bg-amber hover:bg-amber/90 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
               >
                 {isResetting2FA ? (
                   <RefreshCw className="h-4 w-4 animate-spin" />

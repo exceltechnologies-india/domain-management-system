@@ -188,7 +188,7 @@ export default function AdminLayout({ children, user, onLogout }: AdminLayoutPro
                 {onLogout && (
                   <button
                     onClick={onLogout}
-                    className="p-1.5 text-ink-3 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
+                    className="p-1.5 text-ink-3 hover:text-rose-ink hover:bg-rose/15 rounded-md transition-colors"
                     title="Logout"
                   >
                     <LogOut className="h-4 w-4" />

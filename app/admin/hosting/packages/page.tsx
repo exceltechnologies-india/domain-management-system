@@ -164,12 +164,12 @@ export default function AdminPackagesPage() {
         </div>
 
         {isServerDown && (
-          <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg shadow-sm">
+          <div className="bg-rose-soft border-l-4 border-rose p-4 rounded-r-lg shadow-sm">
             <div className="flex items-center">
-              <AlertTriangle className="h-5 w-5 text-red-500 mr-3" />
+              <AlertTriangle className="h-5 w-5 text-rose mr-3" />
               <div>
-                <p className="text-sm text-red-700 font-medium text-bold">DirectAdmin Server Offline</p>
-                <p className="text-sm text-red-600">Plan details are using cached database values.</p>
+                <p className="text-sm text-rose-ink font-medium text-bold">DirectAdmin Server Offline</p>
+                <p className="text-sm text-rose-ink">Plan details are using cached database values.</p>
               </div>
             </div>
           </div>
@@ -205,7 +205,7 @@ export default function AdminPackagesPage() {
                     <tr key={pkg._id} className="hover:bg-paper-2">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
-                          <Package className="h-5 w-5 text-indigo-500 mr-3" />
+                          <Package className="h-5 w-5 text-indigo mr-3" />
                           <div>
                             <div className="font-medium text-ink">{pkg.name}</div>
                             <div className="text-xs text-ink-3 font-mono">{pkg.directAdminPackage}</div>
@@ -244,7 +244,7 @@ export default function AdminPackagesPage() {
 
       {/* Edit Modal */}
       {isEditModalOpen && editingPkg && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 backdrop-blur-sm p-4">
           <div className="bg-paper rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="p-6 border-b border-hairline bg-paper-2/60 flex justify-between items-center">
               <div>
@@ -304,7 +304,7 @@ export default function AdminPackagesPage() {
                 <button
                   type="submit"
                   disabled={isUpdating}
-                  className="flex-1 py-2 bg-amber text-white rounded-lg hover:brightness-90 font-medium flex items-center justify-center gap-2"
+                  className="flex-1 py-2 bg-amber text-paper rounded-lg hover:brightness-90 font-medium flex items-center justify-center gap-2"
                 >
                   {isUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save Changes'}
                 </button>
@@ -316,7 +316,7 @@ export default function AdminPackagesPage() {
 
       {/* Details Modal */}
       {selectedPkg && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 backdrop-blur-sm p-4">
           <div className="bg-paper rounded-xl shadow-xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col">
             <div className="p-6 border-b border-hairline flex justify-between items-center bg-paper-2/60">
               <div>

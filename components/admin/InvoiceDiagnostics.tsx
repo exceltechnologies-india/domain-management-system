@@ -65,7 +65,7 @@ export default function InvoiceDiagnostics() {
 
   if (isLoading && !data) {
     return (
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm px-5 py-3 flex items-center gap-3 text-sm text-gray-500">
+      <div className="bg-paper border border-hairline rounded-2xl shadow-sm px-5 py-3 flex items-center gap-3 text-sm text-ink-3">
         <RefreshCw className="h-4 w-4 animate-spin" />
         Checking invoice diagnostics…
       </div>
@@ -74,8 +74,8 @@ export default function InvoiceDiagnostics() {
 
   return (
     <div
-      className={`bg-white border rounded-2xl shadow-sm overflow-hidden ${
-        hasIssues ? 'border-amber-200' : 'border-gray-200'
+      className={`bg-paper border rounded-2xl shadow-sm overflow-hidden ${
+        hasIssues ? 'border-amber/30' : 'border-hairline'
       }`}
     >
       <DiagnosticsHeader
@@ -88,7 +88,7 @@ export default function InvoiceDiagnostics() {
       />
 
       {isOpen && (
-        <div className="border-t border-gray-100 px-5 py-4 space-y-5">
+        <div className="border-t border-hairline px-5 py-4 space-y-5">
           <ConflictsTable
             conflicts={data?.conflicts || []}
             pendingId={pendingId}
@@ -98,8 +98,8 @@ export default function InvoiceDiagnostics() {
           <StuckOrdersTable stuckOrders={data?.stuckOrders || []} />
 
           {!hasIssues && (
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <div className="flex items-center gap-2 text-sm text-ink-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-ink" />
               All invoice numbers are unique and no paid order is waiting for a bill.
             </div>
           )}
