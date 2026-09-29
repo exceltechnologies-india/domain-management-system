@@ -62,6 +62,17 @@ function parseDemoAccounts(raw: string | undefined) {
 
 const DEMO_USERS = parseDemoAccounts(process.env.NEXT_PUBLIC_DEMO_ACCOUNTS);
 
+/**
+ * With the demo panel on, the browser must not fill this form by itself.
+ * Measured 29 Sep 2026: Chrome had saved the ADMIN password for localhost:4310,
+ * so choosing the customer's email from Chrome's own drop-down refilled the
+ * password with DemoAdmin@2026 and sign-in said "Invalid email or password" —
+ * the account and its hash were fine. "off" / "new-password" stop the saved
+ * credential being dropped in; the panel rows fill both fields themselves.
+ * Only when the panel is shown, so a real sign-in page keeps its autofill.
+ */
+const DEMO_PANEL = process.env.NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS === 'true';
+
 export default function LoginForm({ className = '' }: LoginFormProps) {
   const [formData, setFormData] = useState({
     email: '',
@@ -336,7 +347,7 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
               Both accounts already own seeded data, so each lands on a
               dashboard with something on it. Set up by
               scratchpad/seed-demo-passwords.js against the local Mongo. */}
-          {process.env.NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS === 'true' && (
+          {DEMO_PANEL && (
             <div className="mb-6 p-3 bg-indigo-soft border border-indigo-soft rounded-md text-xs">
               <div className="flex items-start gap-2 mb-2">
                 <ShieldCheck className="h-3.5 w-3.5 text-indigo-ink flex-shrink-0 mt-0.5" />
@@ -436,7 +447,7 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
               onChange={handleChange}
               required
               fullWidth
-              autoComplete="email"
+              autoComplete={DEMO_PANEL ? 'off' : 'email'}
               icon={<Mail className="h-4 w-4 text-ink-4" />}
             />
 
@@ -450,7 +461,7 @@ export default function LoginForm({ className = '' }: LoginFormProps) {
                 onChange={handleChange}
                 required
                 fullWidth
-                autoComplete="current-password"
+                autoComplete={DEMO_PANEL ? 'new-password' : 'current-password'}
                 icon={<Lock className="h-4 w-4 text-ink-4" />}
                 rightIcon={
                   <button

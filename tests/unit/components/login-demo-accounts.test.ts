@@ -100,3 +100,22 @@ describe("the component uses this parser, not a second copy", () => {
     expect(code).toContain("parseDemoAccounts");
   });
 });
+
+describe("with the demo panel on, the browser does not fill the form by itself", () => {
+  // 29 Sep 2026: Chrome's saved ADMIN password was dropped in after the customer's
+  // email was picked from Chrome's own list, and sign-in said "Invalid email or
+  // password" about an account that was fine.
+  const code = readFileSync("components/LoginForm.tsx", "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
+  it("the panel and the autofill switch read the same flag", () => {
+    expect(code).toContain("const DEMO_PANEL = process.env.NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS === 'true'");
+    expect(code).toContain("{DEMO_PANEL && (");
+  });
+
+  it("email and password opt out of autofill only while the panel is shown", () => {
+    expect(code).toContain("autoComplete={DEMO_PANEL ? 'off' : 'email'}");
+    expect(code).toContain("autoComplete={DEMO_PANEL ? 'new-password' : 'current-password'}");
+    expect(code).not.toMatch(/autoComplete="current-password"/);
+  });
+});
