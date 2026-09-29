@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 import validator from "validator";
 import { serverLogger } from "@/lib/server-logger";
+import { recipientAllowed } from "@/lib/email/recipient-allowlist";
 
 export const SMTP_HOST = process.env.SMTP_HOST;
 export const SMTP_PORT = process.env.SMTP_PORT;
@@ -68,6 +69,13 @@ export interface EmailOptions {
 export async function sendEmail(options: EmailOptions): Promise<boolean> {
   if (!validator.isEmail(options.to)) {
     serverLogger.error(`[Email] Invalid recipient address: "${options.to}"`);
+    return false;
+  }
+  // Before the transporter: a filtered message must not even open an SMTP session.
+  // Returns false (not sent) rather than true, so no caller records it as delivered.
+  const gate = recipientAllowed(options.to, process.env.EMAIL_RECIPIENT_ALLOWLIST);
+  if (!gate.allowed) {
+    serverLogger.warn(`[Email] ${gate.reason} (subject: "${options.subject}")`);
     return false;
   }
   try {
