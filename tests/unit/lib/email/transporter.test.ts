@@ -18,6 +18,10 @@ vi.mock("nodemailer", () => ({
   default: { createTransport: createTransportMock },
 }));
 
+// IPv4 resolution (30 Sep 2026): the transport connects to the resolved IPv4 address.
+const lookupMock = vi.hoisted(() => vi.fn(async () => ({ address: "203.0.113.25", family: 4 })));
+vi.mock("node:dns/promises", () => ({ lookup: lookupMock, default: { lookup: lookupMock } }));
+
 const loggerError = vi.hoisted(() => vi.fn());
 const loggerWarn = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/server-logger", () => ({
@@ -92,13 +96,25 @@ describe("getTransporter", () => {
     createTransportMock.mockReturnValue({ verify: verifyMock });
     const { getTransporter } = await import("@/lib/email/transporter");
     await getTransporter();
+    // Connects to the IPv4 address, and checks the certificate against the real name.
+    expect(lookupMock).toHaveBeenCalledWith("smtp.example.com", { family: 4 });
     expect(createTransportMock).toHaveBeenCalledWith({
-      host: "smtp.example.com",
+      host: "203.0.113.25",
+      tls: { servername: "smtp.example.com" },
       port: 587,
       secure: false,
       auth: { user: "noreply@example.com", pass: "secret" },
     });
     expect(verifyMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("an IPv4 lookup that fails falls back to the host name", async () => {
+    stubEmailEnv();
+    lookupMock.mockRejectedValueOnce(new Error("ENOTFOUND"));
+    createTransportMock.mockReturnValue({ verify: vi.fn().mockResolvedValue(true) });
+    const { getTransporter } = await import("@/lib/email/transporter");
+    await getTransporter();
+    expect(createTransportMock.mock.calls[0][0]).toMatchObject({ host: "smtp.example.com", tls: { servername: "smtp.example.com" } });
   });
 
   it("caches the transporter — second call does not re-create", async () => {

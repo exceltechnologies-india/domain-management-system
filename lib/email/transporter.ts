@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { lookup } from "node:dns/promises";
 import validator from "validator";
 import { serverLogger } from "@/lib/server-logger";
 
@@ -33,8 +34,15 @@ let cachedTransporter: nodemailer.Transporter | null = null;
 export async function getTransporter() {
   if (cachedTransporter) return cachedTransporter;
   try {
+    /* Connect over IPv4 (30 Sep 2026). smtp.gmail.com resolves to IPv6 first, which a
+       host without IPv6 egress (this machine, Cloud Run by default) cannot reach: the
+       first send hung 21 s on the TCP timeout before falling back. The certificate is
+       still checked against the real name via servername. Same fix as ResellerOS
+       lib/email/smtp-transport.ts. */
+    const ipv4 = await lookup(SMTP_HOST!, { family: 4 }).then((a) => a.address).catch(() => null);
     const transporter = nodemailer.createTransport({
-      host: SMTP_HOST,
+      host: ipv4 ?? SMTP_HOST,
+      tls: { servername: SMTP_HOST },
       port: parseInt(SMTP_PORT || "587"),
       secure: SMTP_SECURE,
       auth: {

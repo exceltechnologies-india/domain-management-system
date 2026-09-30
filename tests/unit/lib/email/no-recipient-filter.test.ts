@@ -14,3 +14,12 @@ describe("no recipient filter", () => {
     expect(code).not.toMatch(/EMAIL_RECIPIENT_ALLOWLIST|recipientAllowed/);
   });
 });
+
+describe("SMTP connects over IPv4 (30 Sep 2026)", () => {
+  it("resolves the host to IPv4 and keeps the real name for TLS", () => {
+    const code = readFileSync("lib/email/transporter.ts", "utf8");
+    expect(code).toMatch(/lookup\(SMTP_HOST!, \{ family: 4 \}\)/);
+    expect(code).toMatch(/host: ipv4 \?\? SMTP_HOST/);
+    expect(code).toMatch(/tls: \{ servername: SMTP_HOST \}/);
+  });
+});
