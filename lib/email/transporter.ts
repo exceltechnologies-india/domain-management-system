@@ -1,7 +1,6 @@
 import nodemailer from "nodemailer";
 import validator from "validator";
 import { serverLogger } from "@/lib/server-logger";
-import { recipientAllowed } from "@/lib/email/recipient-allowlist";
 
 export const SMTP_HOST = process.env.SMTP_HOST;
 export const SMTP_PORT = process.env.SMTP_PORT;
@@ -71,13 +70,8 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
     serverLogger.error(`[Email] Invalid recipient address: "${options.to}"`);
     return false;
   }
-  // Before the transporter: a filtered message must not even open an SMTP session.
-  // Returns false (not sent) rather than true, so no caller records it as delivered.
-  const gate = recipientAllowed(options.to, process.env.EMAIL_RECIPIENT_ALLOWLIST);
-  if (!gate.allowed) {
-    serverLogger.warn(`[Email] ${gate.reason} (subject: "${options.subject}")`);
-    return false;
-  }
+  // No recipient filter (owner, 30 Sep 2026): the EMAIL_RECIPIENT_ALLOWLIST of 29 Sep was
+  // removed from the code so every recipient is mailed, locally too.
   try {
     const transporter = await getTransporter();
     const mailOptions: nodemailer.SendMailOptions = {
