@@ -53,7 +53,7 @@ describe("publicPageHref", () => {
     expect(publicPageHref("/privacy")).toBe("https://app.example.com/privacy");
     // Not every path keeps its name across the two apps — this is why the
     // links cannot simply be prefixed with the origin by hand.
-    expect(publicPageHref("/terms-and-conditions")).toBe("https://app.example.com/terms");
+    expect(publicPageHref("/terms-and-conditions")).toBe("https://app.example.com/terms-and-conditions");
     expect(publicPageHref("/cancellation-refund")).toBe("https://app.example.com/refund");
     expect(publicPageHref("/contact")).toBe("https://app.example.com/enquiry");
     expect(publicPageHref("/about")).toBe("https://app.example.com/about");

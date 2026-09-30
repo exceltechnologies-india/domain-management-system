@@ -617,7 +617,7 @@ describe("Front door — `/` when ResellerOS owns the public site", () => {
 describe("DMS's deleted public pages — everyone is redirected to ResellerOS", () => {
   const OWNED: Array<[string, string]> = [
     ["/privacy", "https://app.example.com/privacy"],
-    ["/terms-and-conditions", "https://app.example.com/terms"],
+    ["/terms-and-conditions", "https://app.example.com/terms-and-conditions"],
     ["/cancellation-refund", "https://app.example.com/refund"],
     ["/contact", "https://app.example.com/enquiry"],
     ["/about", "https://app.example.com/about"],

@@ -107,7 +107,7 @@ export function frontpageIsDelegated(): boolean {
  */
 const RESELLEROS_OWNED_PAGES: Readonly<Record<string, string>> = Object.freeze({
   "/privacy": "/privacy",
-  "/terms-and-conditions": "/terms",
+  "/terms-and-conditions": "/terms-and-conditions",
   "/cancellation-refund": "/refund",
   "/contact": "/enquiry",
   "/about": "/about",

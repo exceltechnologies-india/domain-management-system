@@ -128,7 +128,7 @@ describe("resellerOsOwnedUrl — pages ResellerOS takes over", () => {
   it("maps each DMS path to its ResellerOS equivalent", () => {
     set("https://app.example.com");
     expect(resellerOsOwnedUrl("/privacy")).toBe("https://app.example.com/privacy");
-    expect(resellerOsOwnedUrl("/terms-and-conditions")).toBe("https://app.example.com/terms");
+    expect(resellerOsOwnedUrl("/terms-and-conditions")).toBe("https://app.example.com/terms-and-conditions");
     expect(resellerOsOwnedUrl("/cancellation-refund")).toBe("https://app.example.com/refund");
     expect(resellerOsOwnedUrl("/contact")).toBe("https://app.example.com/enquiry");
     expect(resellerOsOwnedUrl("/about")).toBe("https://app.example.com/about");
