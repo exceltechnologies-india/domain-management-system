@@ -616,7 +616,7 @@ describe("Front door — `/` when ResellerOS owns the public site", () => {
  */
 describe("DMS's deleted public pages — everyone is redirected to ResellerOS", () => {
   const OWNED: Array<[string, string]> = [
-    ["/privacy", "https://app.example.com/privacy"],
+    ["/privacy", "https://app.example.com/privacy-policy"],
     ["/terms-and-conditions", "https://app.example.com/terms-and-conditions"],
     ["/cancellation-refund", "https://app.example.com/refund"],
     ["/contact", "https://app.example.com/enquiry"],
@@ -625,7 +625,7 @@ describe("DMS's deleted public pages — everyone is redirected to ResellerOS", 
     ["/domains-home", "https://app.example.com/domains"],
     ["/domains/search", "https://app.example.com/domains"],
     ["/domains/bulk-search", "https://app.example.com/domains"],
-    ["/data-deletion", "https://app.example.com/privacy"],
+    ["/data-deletion", "https://app.example.com/privacy-policy"],
   ];
 
   it.each(OWNED)("signed-out visitor on %s → 307 to %s", async (path, target) => {

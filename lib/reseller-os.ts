@@ -106,7 +106,7 @@ export function frontpageIsDelegated(): boolean {
  * marketing. Matching is by exact path, so it is unaffected.
  */
 const RESELLEROS_OWNED_PAGES: Readonly<Record<string, string>> = Object.freeze({
-  "/privacy": "/privacy",
+  "/privacy": "/privacy-policy",
   "/terms-and-conditions": "/terms-and-conditions",
   "/cancellation-refund": "/refund",
   "/contact": "/enquiry",
@@ -115,7 +115,7 @@ const RESELLEROS_OWNED_PAGES: Readonly<Record<string, string>> = Object.freeze({
   "/domains-home": "/domains",
   "/domains/search": "/domains",
   "/domains/bulk-search": "/domains",
-  "/data-deletion": "/privacy",
+  "/data-deletion": "/privacy-policy",
 });
 
 /**

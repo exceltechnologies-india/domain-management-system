@@ -127,7 +127,7 @@ describe("resellerOsOwnedUrl — pages ResellerOS takes over", () => {
 
   it("maps each DMS path to its ResellerOS equivalent", () => {
     set("https://app.example.com");
-    expect(resellerOsOwnedUrl("/privacy")).toBe("https://app.example.com/privacy");
+    expect(resellerOsOwnedUrl("/privacy")).toBe("https://app.example.com/privacy-policy");
     expect(resellerOsOwnedUrl("/terms-and-conditions")).toBe("https://app.example.com/terms-and-conditions");
     expect(resellerOsOwnedUrl("/cancellation-refund")).toBe("https://app.example.com/refund");
     expect(resellerOsOwnedUrl("/contact")).toBe("https://app.example.com/enquiry");
@@ -151,7 +151,7 @@ describe("resellerOsOwnedUrl — pages ResellerOS takes over", () => {
     expect(resellerOsOwnedUrl("/domains-home")).toBe("https://app.example.com/domains");
     expect(resellerOsOwnedUrl("/domains/search")).toBe("https://app.example.com/domains");
     expect(resellerOsOwnedUrl("/domains/bulk-search")).toBe("https://app.example.com/domains");
-    expect(resellerOsOwnedUrl("/data-deletion")).toBe("https://app.example.com/privacy");
+    expect(resellerOsOwnedUrl("/data-deletion")).toBe("https://app.example.com/privacy-policy");
   });
 
   it("does NOT take over the cart, checkout, the panels or the SSO error page", () => {

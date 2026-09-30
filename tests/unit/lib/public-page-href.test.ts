@@ -50,7 +50,7 @@ describe("publicPageHref", () => {
 
   it("with a front door, points at the SAME url the middleware would redirect to", () => {
     set("https://app.example.com");
-    expect(publicPageHref("/privacy")).toBe("https://app.example.com/privacy");
+    expect(publicPageHref("/privacy")).toBe("https://app.example.com/privacy-policy");
     // Not every path keeps its name across the two apps — this is why the
     // links cannot simply be prefixed with the origin by hand.
     expect(publicPageHref("/terms-and-conditions")).toBe("https://app.example.com/terms-and-conditions");
