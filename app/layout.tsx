@@ -40,8 +40,11 @@ const inter = localFont({
 export const metadata: Metadata = {
   title: 'Anutech Digital Private Limited - Domain Management System',
   description: 'Anutech Digital Private Limited - Professional domain management and digital solutions',
+  /* One icon design with ResellerOS (owner, 30 Sep 2026): the blue Anutech "A" mark, cut
+     from the full-size logo. The same favicon.ico ships in ResellerOS's src/app/. */
   icons: {
     icon: '/favicon.ico',
+    apple: '/apple-touch-icon.png',
   },
 };
 
