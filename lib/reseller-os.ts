@@ -109,7 +109,7 @@ const RESELLEROS_OWNED_PAGES: Readonly<Record<string, string>> = Object.freeze({
   "/privacy": "/privacy-policy",
   "/terms-and-conditions": "/terms-and-conditions",
   "/cancellation-refund": "/refund",
-  "/contact": "/enquiry",
+  "/contact": "/contact",
   "/about": "/about",
   "/hosting": "/hosting",
   "/domains-home": "/domains",

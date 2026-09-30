@@ -130,7 +130,7 @@ describe("resellerOsOwnedUrl — pages ResellerOS takes over", () => {
     expect(resellerOsOwnedUrl("/privacy")).toBe("https://app.example.com/privacy-policy");
     expect(resellerOsOwnedUrl("/terms-and-conditions")).toBe("https://app.example.com/terms-and-conditions");
     expect(resellerOsOwnedUrl("/cancellation-refund")).toBe("https://app.example.com/refund");
-    expect(resellerOsOwnedUrl("/contact")).toBe("https://app.example.com/enquiry");
+    expect(resellerOsOwnedUrl("/contact")).toBe("https://app.example.com/contact");
     expect(resellerOsOwnedUrl("/about")).toBe("https://app.example.com/about");
   });
 

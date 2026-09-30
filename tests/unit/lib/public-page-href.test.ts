@@ -55,7 +55,7 @@ describe("publicPageHref", () => {
     // links cannot simply be prefixed with the origin by hand.
     expect(publicPageHref("/terms-and-conditions")).toBe("https://app.example.com/terms-and-conditions");
     expect(publicPageHref("/cancellation-refund")).toBe("https://app.example.com/refund");
-    expect(publicPageHref("/contact")).toBe("https://app.example.com/enquiry");
+    expect(publicPageHref("/contact")).toBe("https://app.example.com/contact");
     expect(publicPageHref("/about")).toBe("https://app.example.com/about");
   });
 
