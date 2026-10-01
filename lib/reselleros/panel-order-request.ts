@@ -15,6 +15,7 @@ import { z } from "zod";
 import { isProvisionableDomain } from "@/lib/validation/hosting-domain";
 import type { PanelOrderLine, PanelOrderRequest } from "./panel-order";
 import { mapCartToPanelOrder } from "./cart-lines";
+import { normaliseIndianState } from "@/lib/constants";
 
 /** A DMS cart line as the browser holds it. Only its meaning is read; prices are ignored. */
 const cartLineSchema = z
@@ -65,6 +66,8 @@ export const panelPurchaseSchema = z.object({
   companyName: z.string().trim().min(2).max(200),
   gstin: z.string().trim().max(20).optional(),
   address: addressSchema.optional(),
+  /** The buyer's state, required (R-092): it decides the GST on the invoice. */
+  state: z.string().trim().max(80).optional(),
 });
 
 export type PanelPurchase = z.infer<typeof panelPurchaseSchema>;
@@ -80,7 +83,7 @@ export interface PanelBuyer {
 
 export type BuildResult =
   | { ok: true; request: PanelOrderRequest }
-  | { ok: false; message: string; field: "name" | "phone" | "email" | "domain" | "address" | "account" | "cart" };
+  | { ok: false; message: string; field: "name" | "phone" | "email" | "domain" | "address" | "account" | "cart" | "state" };
 
 const SETTINGS = "Settings (Dashboard → Settings)";
 
@@ -138,6 +141,18 @@ export function buildPanelOrderRequest(buyer: PanelBuyer, body: PanelPurchase): 
     };
   }
 
+  /* R-092 (1 Oct 2026): ResellerOS issues the GST invoice from the buyer's state, and a
+     hosting order from the panel used to send none — so it paid and got no invoice. Checked
+     here, before ResellerOS creates anything. */
+  const state = normaliseIndianState(body.state ?? body.address?.state ?? "");
+  if (!state) {
+    return {
+      ok: false,
+      field: "state",
+      message: "Please choose your state. It decides whether your GST invoice shows CGST + SGST or IGST, and the invoice cannot be issued without it. Nothing was charged.",
+    };
+  }
+
   const gstin = body.gstin?.trim().toUpperCase();
   const request: PanelOrderRequest = {
     dmsUserId,
@@ -148,7 +163,8 @@ export function buildPanelOrderRequest(buyer: PanelBuyer, body: PanelPurchase): 
     ...(gstin ? { gstin } : {}),
     ...(hostingDomain ? { domain: hostingDomain } : {}),
     lines,
-    ...(body.address ? { address: { ...body.address, country: (body.address.country ?? "IN").toUpperCase() } } : {}),
+    ...(body.address ? { address: { ...body.address, state, country: (body.address.country ?? "IN").toUpperCase() } } : {}),
+    stateCode: state,
   };
   return { ok: true, request };
 }

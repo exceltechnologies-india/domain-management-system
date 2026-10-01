@@ -56,6 +56,7 @@ function post(body: unknown) {
 const HOSTING = {
   purchase: { kind: "hosting", planId: "starter", cycle: "yearly", domain: "rao.in" },
   companyName: "Rao Traders",
+  state: "Delhi", // R-092: every paid order says the buyer's state
 };
 
 beforeEach(() => {

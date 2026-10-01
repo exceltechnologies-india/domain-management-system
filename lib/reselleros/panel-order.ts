@@ -72,6 +72,12 @@ export interface PanelOrderRequest {
   lines: PanelOrderLine[];
   /** Required when any domain line is present: the registrant's address. */
   address?: PanelOrderAddress;
+  /**
+   * The buyer's state (a state name, e.g. "Maharashtra" — ResellerOS takes a GST code or a
+   * name). Every paid order (R-092, 1 Oct 2026): GST picks CGST+SGST or IGST from it, and
+   * ResellerOS cannot issue the invoice without it.
+   */
+  stateCode?: string;
   coupon?: string;
 }
 

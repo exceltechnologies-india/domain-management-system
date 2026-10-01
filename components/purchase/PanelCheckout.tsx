@@ -22,6 +22,7 @@ import { apiClient } from '@/lib/api-client';
 import { useRazorpayCheckout } from '@/components/RazorpayCheckoutFrame';
 import { razorpayThemeColor } from '@/lib/theme-color';
 import { mapCartToPanelOrder, type CartLineLike } from '@/lib/reselleros/cart-lines';
+import { INDIAN_STATES, normaliseIndianState } from '@/lib/constants';
 
 export type PanelPurchaseChoice =
   | { kind: 'hosting'; planId: 'starter' | 'standard' | 'plus'; cycle: 'monthly' | 'yearly'; label: string }
@@ -105,7 +106,7 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
       if (res.data.address) {
         setLine1(res.data.address.line1 ?? '');
         setCity(res.data.address.city ?? '');
-        setState(res.data.address.state ?? '');
+        setState(normaliseIndianState(res.data.address.state));
         setZipcode(res.data.address.zipcode ?? '');
       }
     })();
@@ -128,6 +129,7 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
       companyName: companyName.trim(),
       ...(gstin.trim() ? { gstin: gstin.trim() } : {}),
       ...(needsAddress ? { address: { line1, city, state, zipcode, country: 'IN' } } : {}),
+      state,
     });
     if (!res.ok) {
       // The route writes every refusal for the customer: what happened, why,
@@ -207,8 +209,9 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
   const missingRequired =
     !!cartRefusal ||
     companyName.trim().length < 2 ||
+    !state ||
     (choice.kind === 'hosting' && hostingDomain.trim().length < 3) ||
-    (needsAddress && (!line1.trim() || !city.trim() || !state.trim() || zipcode.trim().length < 3));
+    (needsAddress && (!line1.trim() || !city.trim() || zipcode.trim().length < 3));
 
   return (
     <form
@@ -277,6 +280,22 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
         </div>
       </div>
 
+      {/* Every paid order (R-092): ResellerOS issues the GST invoice from the buyer's state —
+          CGST + SGST or IGST — and cannot issue it without one. It is also the registrant
+          address's state, so it is asked once. */}
+      <div>
+        <label htmlFor="panel-state" className="block text-xs font-medium text-ink-2 mb-1">
+          State — decides the GST on your invoice
+        </label>
+        <select id="panel-state" className={inputCls} value={state} onChange={(e) => setState(e.target.value)} required>
+          <option value="">Choose your state</option>
+          {INDIAN_STATES.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+        {!state && <p className="mt-1 text-xs text-ink-3">Needed for the GST invoice.</p>}
+      </div>
+
       {needsAddress && (
         <fieldset className="space-y-3">
           <legend className="text-xs font-medium text-ink-2">
@@ -286,14 +305,10 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
             <label htmlFor="panel-line1" className="sr-only">Address</label>
             <input id="panel-line1" className={inputCls} value={line1} onChange={(e) => setLine1(e.target.value)} placeholder="Street address" required />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label htmlFor="panel-city" className="sr-only">City</label>
               <input id="panel-city" className={inputCls} value={city} onChange={(e) => setCity(e.target.value)} placeholder="City" required />
-            </div>
-            <div>
-              <label htmlFor="panel-state" className="sr-only">State</label>
-              <input id="panel-state" className={inputCls} value={state} onChange={(e) => setState(e.target.value)} placeholder="State" required />
             </div>
             <div>
               <label htmlFor="panel-zip" className="sr-only">PIN code</label>

@@ -13,6 +13,7 @@ describe("buildPanelOrderRequest", () => {
     const r = buildPanelOrderRequest(BUYER, {
       purchase: { kind: "hosting", planId: "standard", cycle: "monthly", domain: "Rao.IN" },
       companyName: "Rao Traders",
+      state: "Maharashtra",
     });
     expect(r).toEqual({
       ok: true,
@@ -24,6 +25,7 @@ describe("buildPanelOrderRequest", () => {
         phone: "9876543210",
         domain: "rao.in",
         lines: [{ sku: "hosting:standard", qty: 1, cycle: "monthly" }],
+        stateCode: "Maharashtra",
       },
     });
   });
@@ -32,6 +34,7 @@ describe("buildPanelOrderRequest", () => {
     const r = buildPanelOrderRequest(BUYER, {
       purchase: { kind: "domain", domain: "rao.co.in" },
       companyName: "Rao Traders",
+      state: "Delhi",
       gstin: "07aabcr1234a1z5",
       address: ADDRESS,
     });
@@ -45,6 +48,7 @@ describe("buildPanelOrderRequest", () => {
     const body = panelPurchaseSchema.parse({
       purchase: { kind: "hosting", planId: "starter", cycle: "yearly", domain: "rao.in" },
       companyName: "Rao Traders",
+      state: "Maharashtra",
       email: "attacker@example.test",
       dmsUserId: "someone-else",
       fullName: "Mallory",
@@ -56,7 +60,7 @@ describe("buildPanelOrderRequest", () => {
   });
 
   it("a domain with no address is refused before ResellerOS is asked", () => {
-    const r = buildPanelOrderRequest(BUYER, { purchase: { kind: "domain", domain: "rao.in" }, companyName: "Rao Traders" });
+    const r = buildPanelOrderRequest(BUYER, { purchase: { kind: "domain", domain: "rao.in" }, companyName: "Rao Traders", state: "Maharashtra" });
     expect(r).toMatchObject({ ok: false, field: "address" });
   });
 
@@ -64,6 +68,7 @@ describe("buildPanelOrderRequest", () => {
     const r = buildPanelOrderRequest({ ...BUYER, phone: undefined }, {
       purchase: { kind: "hosting", planId: "starter", cycle: "yearly", domain: "rao.in" },
       companyName: "Rao Traders",
+      state: "Maharashtra",
     });
     expect(r).toMatchObject({ ok: false, field: "phone" });
     expect(!r.ok && r.message).toMatch(/Settings/);
@@ -73,6 +78,7 @@ describe("buildPanelOrderRequest", () => {
     const r = buildPanelOrderRequest({ ...BUYER, firstName: "", lastName: "" }, {
       purchase: { kind: "hosting", planId: "starter", cycle: "yearly", domain: "rao.in" },
       companyName: "Rao Traders",
+      state: "Maharashtra",
     });
     expect(r).toMatchObject({ ok: false, field: "name" });
   });
@@ -81,6 +87,7 @@ describe("buildPanelOrderRequest", () => {
     const r = buildPanelOrderRequest(BUYER, {
       purchase: { kind: "hosting", planId: "starter", cycle: "yearly", domain: "hosting-starter-1700" },
       companyName: "Rao Traders",
+      state: "Maharashtra",
     });
     expect(r).toMatchObject({ ok: false, field: "domain" });
   });
@@ -103,6 +110,7 @@ describe("buildPanelOrderRequest — the DMS cart (owner, 25 Sep 2026)", () => {
         ],
       },
       companyName: "Rao Traders",
+      state: "Maharashtra",
       address: ADDRESS,
     });
     const r = buildPanelOrderRequest(BUYER, body);
@@ -126,6 +134,7 @@ describe("buildPanelOrderRequest — the DMS cart (owner, 25 Sep 2026)", () => {
     const r = buildPanelOrderRequest(BUYER, {
       purchase: { kind: "cart", items: [{ domainName: "rao.in", itemType: "domain", registrationPeriod: 1 }] },
       companyName: "Rao Traders",
+      state: "Maharashtra",
     });
     expect(r).toMatchObject({ ok: false, field: "address" });
   });
@@ -134,9 +143,26 @@ describe("buildPanelOrderRequest — the DMS cart (owner, 25 Sep 2026)", () => {
     const r = buildPanelOrderRequest(BUYER, {
       purchase: { kind: "cart", items: [{ domainName: "rao.in", itemType: "domain", registrationPeriod: 2 }] },
       companyName: "Rao Traders",
+      state: "Maharashtra",
       address: ADDRESS,
     });
     expect(r).toMatchObject({ ok: false, field: "cart" });
     expect(!r.ok && r.message).toMatch(/rao\.in is set to 2 years/);
+  });
+});
+
+describe("R-092: the buyer's state, for the GST invoice", () => {
+  it("a purchase with no state is refused before ResellerOS is asked — nothing charged", () => {
+    const r = buildPanelOrderRequest(BUYER, { purchase: { kind: "hosting", planId: "starter", cycle: "yearly", domain: "rao.in" }, companyName: "Rao Traders" });
+    expect(r).toMatchObject({ ok: false, field: "state", message: expect.stringMatching(/choose your state.*Nothing was charged/) });
+  });
+  it("the chosen state goes to ResellerOS as stateCode, normalised to a state name", () => {
+    const r = buildPanelOrderRequest(BUYER, { purchase: { kind: "hosting", planId: "starter", cycle: "yearly", domain: "rao.in" }, companyName: "Rao Traders", state: "nct of delhi" });
+    expect(r.ok && r.request.stateCode).toBe("Delhi");
+  });
+  it("a domain purchase's address state is the same field", () => {
+    const r = buildPanelOrderRequest(BUYER, { purchase: { kind: "domain", domain: "rao.in" }, companyName: "Rao Traders", state: "Maharashtra", address: { line1: "1 MG Road", city: "Pune", state: "", zipcode: "411001" } });
+    expect(r.ok && r.request.address?.state).toBe("Maharashtra");
+    expect(r.ok && r.request.stateCode).toBe("Maharashtra");
   });
 });
