@@ -27,7 +27,7 @@ vi.mock("@/lib/server-logger", () => ({ serverLogger: { info: vi.fn(), warn: vi.
 const email = vi.hoisted(() => ({ sendPasswordResetEmail: vi.fn(async () => true) }));
 vi.mock("@/lib/email", () => ({ EmailService: email }));
 
-import { daUsernameFor, provisionHostingCommand, reconcileProvision, parseProvision } from "@/lib/integrations/engine-handlers-provision";
+import { daUsernameFor, provisionHostingCommand, reconcileProvision, parseProvision, testPaymentProvisionAllowed } from "@/lib/integrations/engine-handlers-provision";
 import { transportOf } from "@/lib/integrations/engine-attempt";
 import { HOLD_PREFIX } from "@/lib/integrations/engine-register-policy";
 
@@ -77,6 +77,16 @@ describe("refusals write nothing", () => {
     await expect(provisionHostingCommand(ctx("live", { paymentMode: "test" }))).rejects.toThrow(HOLD_PREFIX);
     noWrites();
   });
+  it("…even with the local switch, when ResellerOS is not on this machine", async () => {
+    vi.stubEnv("ENGINE_ALLOW_TEST_PAYMENT_PROVISION", "1");
+    vi.stubEnv("RESELLEROS_SERVER_URL", "https://reselleros.anutech.in");
+    try {
+      await expect(provisionHostingCommand(ctx("live", { paymentMode: "test" }))).rejects.toThrow(HOLD_PREFIX);
+      noWrites();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
   it("an unknown or inactive plan is held — the package comes from the catalogue", async () => {
     plans.getPlanByPlanId.mockResolvedValue(null);
     await expect(provisionHostingCommand(ctx("live"))).rejects.toThrow(/not an active plan/);
@@ -95,6 +105,28 @@ describe("refusals write nothing", () => {
   it("missing customer details are refused", () => {
     expect(() => parseProvision(payload({ customer: { firstName: "A" } }))).toThrow(/last name, a valid email/);
     expect(() => parseProvision(payload({ months: 6 }))).toThrow(/months/);
+  });
+});
+
+describe("test-mode payments on a local machine (Pawan, 3 Oct 2026)", () => {
+  it("the switch opens only with ResellerOS on this machine", () => {
+    expect(testPaymentProvisionAllowed({ ENGINE_ALLOW_TEST_PAYMENT_PROVISION: "1", RESELLEROS_SERVER_URL: "http://host.docker.internal:4320" })).toBe(true);
+    expect(testPaymentProvisionAllowed({ ENGINE_ALLOW_TEST_PAYMENT_PROVISION: "1", RESELLEROS_SERVER_URL: "http://localhost:4320" })).toBe(true);
+    expect(testPaymentProvisionAllowed({ ENGINE_ALLOW_TEST_PAYMENT_PROVISION: "1", RESELLEROS_SERVER_URL: "https://reselleros.anutech.in" })).toBe(false);
+    expect(testPaymentProvisionAllowed({ ENGINE_ALLOW_TEST_PAYMENT_PROVISION: "1" })).toBe(false);
+    expect(testPaymentProvisionAllowed({ ENGINE_ALLOW_TEST_PAYMENT_PROVISION: "true", RESELLEROS_SERVER_URL: "http://localhost:4320" })).toBe(false);
+    expect(testPaymentProvisionAllowed({ RESELLEROS_SERVER_URL: "http://localhost:4320" })).toBe(false);
+  });
+  it("with it open, a test-mode payment creates the account", async () => {
+    vi.stubEnv("ENGINE_ALLOW_TEST_PAYMENT_PROVISION", "1");
+    vi.stubEnv("RESELLEROS_SERVER_URL", "http://host.docker.internal:4320");
+    try {
+      const { result } = await provisionHostingCommand(ctx("live", { paymentMode: "test" }));
+      expect(result).toMatchObject({ ok: true, daUsername: u0 });
+      expect(svc.createUser).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
 

@@ -63,6 +63,23 @@ export const TRIAL_FIRST_REMINDER_LEAD_DAYS = 2;
 export const USERNAME_CANDIDATES = 3;
 
 /**
+ * Local testing only (Pawan, 3 Oct 2026: "even in test mode allow me to create hosting —
+ * otherwise how will I test"). A TEST-mode payment may create the account only when
+ * ENGINE_ALLOW_TEST_PAYMENT_PROVISION=1 AND the ResellerOS this engine serves is on this
+ * machine. The docker image is a production build and the live site still takes test-key
+ * payments, so neither NODE_ENV nor the key prefix can be the guard — where ResellerOS lives is.
+ */
+export function testPaymentProvisionAllowed(env: Record<string, string | undefined> = process.env): boolean {
+  if (env.ENGINE_ALLOW_TEST_PAYMENT_PROVISION?.trim() !== "1") return false;
+  try {
+    const host = new URL(env.RESELLEROS_SERVER_URL ?? "").hostname;
+    return host === "localhost" || host === "127.0.0.1" || host === "host.docker.internal";
+  } catch {
+    return false;
+  }
+}
+
+/**
  * DirectAdmin username for a domain, attempt `i`. Same shape as DMS's existing
  * usernames (5 letters from the domain + 5 hex = 10, DirectAdmin's default
  * limit) — but derived from the domain instead of random, so every retry asks
@@ -252,6 +269,7 @@ export const provisionHostingCommand: CommandHandler = async (ctx): Promise<Hand
     throw new Error(`${HOLD_PREFIX} all ${USERNAME_CANDIDATES} DirectAdmin usernames for ${domain} belong to other domains. Create this account by hand.`);
   }
 
+  const paymentOk = req.trial || req.paymentMode === "live" || testPaymentProvisionAllowed();
   if (ctx.mode === "test") {
     return {
       result: {
@@ -261,8 +279,8 @@ export const provisionHostingCommand: CommandHandler = async (ctx): Promise<Hand
         dmsAccount: existingUser ? "exists" : "would_be_created",
         trial: req.trial,
         ...(req.trial ? { cycle: req.cycle, trialDays: TRIAL_DAYS } : {}),
-        wouldProvision: req.trial || req.paymentMode === "live",
-        hold: req.trial || req.paymentMode === "live" ? null : `${HOLD_PREFIX} test-mode payment`,
+        wouldProvision: paymentOk,
+        hold: paymentOk ? null : `${HOLD_PREFIX} test-mode payment`,
         note: "Test mode: DirectAdmin and DMS were READ and nothing was created.",
       },
     };
@@ -270,7 +288,8 @@ export const provisionHostingCommand: CommandHandler = async (ctx): Promise<Hand
 
   // Invariant 10: a test-mode payment never reaches a live command. A trial has
   // no payment at all; parseProvision guarantees its paymentMode is "trial".
-  if (!req.trial && req.paymentMode !== "live") {
+  // The one exception is a local machine with testPaymentProvisionAllowed() (above).
+  if (!paymentOk) {
     throw new Error(`${HOLD_PREFIX} ${domain} was paid through a TEST-mode Razorpay key, so no money settled. No account is created automatically at any setting.`);
   }
 
