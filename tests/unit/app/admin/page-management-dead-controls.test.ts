@@ -46,11 +46,22 @@ describe("the dead page-management controls stay removed", () => {
   });
 
   it("the controls that still style live pages survive", () => {
-    // Footer (cart / checkout / error pages) and the login/cart colour theme are real.
+    // Footer (cart / checkout / error pages) is real.
     const src = code("app/admin/page-management/page.tsx");
     expect(src).toMatch(/footerVariant/);
-    expect(src).toMatch(/frontendTheme/);
     expect(code("app/api/admin/appearance/route.ts")).toMatch(/footerVariant/);
+  });
+
+  /* 3 Oct 2026 (Pawan): customers see the ResellerOS storefront brand on every DMS screen,
+     so no admin switch may turn pages another colour — the violet "frontend colour theme"
+     is removed end to end. */
+  it("the frontend colour theme (violet) switch is gone everywhere", () => {
+    expect(code("app/admin/page-management/page.tsx")).not.toMatch(/frontendTheme|violet/i);
+    expect(code("app/api/admin/appearance/route.ts")).not.toMatch(/frontendTheme|FrontendTheme/);
+    expect(code("lib/services/appearance.ts")).not.toMatch(/FrontendTheme|frontend_theme/);
+    expect(code("app/layout.tsx")).not.toMatch(/data-theme|getFrontendTheme/);
+    expect(read("app/globals.css")).not.toMatch(/data-theme="landing"/);
+    expect(code("lib/theme-color.ts")).toMatch(/#1668E3/);
   });
 
   it("the nav entry names what is left on the screen", () => {

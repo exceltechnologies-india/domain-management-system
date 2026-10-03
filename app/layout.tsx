@@ -13,12 +13,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import TrackingScripts from '@/components/TrackingScripts';
 import AttributionCapture from '@/components/AttributionCapture';
 import { headers } from 'next/headers';
-import { getFrontendTheme } from '@/lib/services/appearance';
 
-// Paths that keep the default azure brand even when the landing is the
-// homepage — the logged-in dashboard and the admin panel are out of scope
-// for the frontend violet theme.
-const NON_FRONTEND_PREFIXES = ['/dashboard', '/admin'];
 
 // Self-hosted Inter variable font — previously `Inter({ subsets: ['latin'] })`
 // from `next/font/google`. Switched to local because Google Fonts is
@@ -74,18 +69,9 @@ export default async function RootLayout({
   // nonce to all its generated inline RSC scripts, satisfying the nonce-based CSP.
   const h = await headers();
 
-  // Public frontend colour scheme is an admin toggle (Admin →
-  // Appearance). When set to violet, frontend pages follow the landing's
-  // scheme. Scoped to frontend paths (dashboard + admin stay azure). Degrades
-  // to azure on any error so the app never renders unthemed.
-  let frontendTheme = false;
-  try {
-    const pathname = h.get('x-pathname') || '';
-    const isFrontend = !NON_FRONTEND_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'));
-    frontendTheme = isFrontend && (await getFrontendTheme()) === 'violet';
-  } catch {
-    frontendTheme = false;
-  }
+  void h;
+  // There is no per-page colour theme any more (3 Oct 2026): every DMS screen wears the
+  // ResellerOS storefront brand. The admin "frontend colour theme" (violet) switch is removed.
 
   // data-scroll-behavior: app/globals.css sets `scroll-behavior: smooth` on
   // <html>. Next.js currently disables that during route transitions so
@@ -98,7 +84,6 @@ export default async function RootLayout({
       lang="en"
       data-scroll-behavior="smooth"
       suppressHydrationWarning
-      {...(frontendTheme ? { 'data-theme': 'landing' } : {})}
     >
       <body className={`${archivo.className} ${archivo.variable} ${plexMono.variable} ${inter.variable}`} suppressHydrationWarning>
         {/* Admin-managed analytics / marketing tags (GA4 / GTM / Meta Pixel /
