@@ -52,6 +52,9 @@ const sendEmail = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/email", () => ({
   EmailService: { sendEmail },
 }));
+vi.mock("@/lib/email/transporter", () => ({ SUPPORT_EMAIL: "support@anutech.in" }));
+vi.stubEnv("FROM_NAME", "Anutech Digital");
+vi.stubEnv("NEXTAUTH_URL", "https://app.test");
 
 const validateAttachments = vi.hoisted(() => vi.fn());
 const sumExistingAttachmentBytes = vi.hoisted(() => vi.fn());
@@ -403,14 +406,31 @@ describe("POST reply — XSS-escaped email", () => {
     expect(html).toContain("&quot;quotes&quot;");
   });
 
-  it("newlines in message → <br> in HTML", async () => {
+  it("multi-line reply is quoted back line by line, indented, in text and HTML", async () => {
     setupHostile("Customer", "Line1\nLine2");
     await POST(
       makeReq("POST", { message: "Line1\nLine2" }),
       params
     );
-    const html = sendEmail.mock.calls[0][0].html;
-    expect(html).toContain("Line1<br>Line2");
+    const { text, html } = sendEmail.mock.calls[0][0];
+    expect(text).toContain("\n  Line1\n  Line2\n");
+    expect(html).toContain("  Line1\n  Line2");
+  });
+
+  it("plain ResellerOS pattern: Hi <first name>, ticket number, link, help line, signed", async () => {
+    setupHostile("Ada Lovelace", "We fixed it.");
+    await POST(makeReq("POST", { message: "We fixed it." }), params);
+    const { to, text, html } = sendEmail.mock.calls[0][0];
+    expect(to).toBe("customer@example.com");
+    expect(text.startsWith("Hi Ada,\n\n")).toBe(true);
+    expect(text).toContain("replied to your ticket T-001");
+    expect(text).toContain("  We fixed it.");
+    expect(text).toContain(`  https://app.test/dashboard/support/${TICKET_ID}`);
+    expect(text).toContain("Questions? Reply to this email or write to support@anutech.in.");
+    expect(text.endsWith("\n\n— Anutech Digital")).toBe(true);
+    expect(html).toContain(`<a href="https://app.test/dashboard/support/${TICKET_ID}">`);
+    expect(html).not.toContain("gradient");
+    expect(html).not.toContain("blockquote");
   });
 
   it("email subject includes ticketNumber + subject", async () => {

@@ -5,7 +5,8 @@ import {
   findUserByPendingEmailToken,
 } from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
-import { sendEmail } from "@/lib/email/transporter";
+import { sendEmail, SUPPORT_EMAIL } from "@/lib/email/transporter";
+import { brandName, firstName, plainEmailHtml } from "@/lib/email/plain";
 
 export const dynamic = "force-dynamic";
 
@@ -60,7 +61,8 @@ export async function GET(request: NextRequest) {
     }
 
     const oldEmail = user.email;
-    const userName = `${user.firstName || ""} ${user.lastName || ""}`.trim() || oldEmail;
+    // "Hi <first name>," — firstName() falls back to "there" when the account has no name.
+    const userName = `${user.firstName || ""} ${user.lastName || ""}`.trim();
 
     // Apply the change
     user.email = newEmail;
@@ -73,17 +75,26 @@ export async function GET(request: NextRequest) {
 
     serverLogger.info(`[EMAIL-CHANGE] Email updated for user ...${String(user._id).slice(-6)} (old domain: ...${oldEmail.split("@")[1]})`);
 
-    // Notify old address that the change completed
+    // Notify old address that the change completed — ResellerOS plain-text pattern
+    // (lib/email/plain.ts; owner, 3 Oct 2026).
+    const changedText =
+`Hi ${firstName(userName)},
+
+The email address on your ${brandName()} account has been changed to ${newEmail}.
+
+You have been signed out on all devices. Please sign in again with your new address.
+
+If you did NOT make this change, reset your password straight away and contact us:
+  ${appUrl}/reset-password
+
+Questions? Reply to this email or write to ${SUPPORT_EMAIL}.
+
+— ${brandName()}`;
     await sendEmail({
       to: oldEmail,
-      subject: "Your email address has been changed – Anutech Digital",
-      html: `
-        <p>Hi ${userName},</p>
-        <p>The email address on your Anutech Digital account has been successfully changed to <strong>${newEmail}</strong>.</p>
-        <p>You have been signed out of all devices. Please sign in again using your new address.</p>
-        <p>If you did <strong>not</strong> make this change, please <a href="${appUrl}/reset-password">reset your password immediately</a> and contact support.</p>
-        <p>– Anutech Digital Team</p>
-      `,
+      subject: "Your email address has been changed",
+      text: changedText,
+      html: plainEmailHtml(changedText),
     }).catch((err) => {
       serverLogger.error("[EMAIL-CHANGE] Failed to send old-address notification:", err.message);
     });

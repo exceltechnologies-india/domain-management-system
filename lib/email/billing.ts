@@ -1,5 +1,28 @@
 import { sendEmail, SUPPORT_EMAIL } from "./transporter";
 import { formatIndianDateTime } from "../dateUtils";
+import { brandName, firstName, plainEmailHtml } from "./plain";
+
+/*
+ * Order emails to the customer, in the ResellerOS pattern (lib/email/plain.ts; Pawan,
+ * 3 Oct 2026). Rewritten from the earlier banner-and-table layout so a customer gets the
+ * same plain, signed email from DMS as from ResellerOS. What each one SAYS is unchanged:
+ * the order, PO, invoice and payment ids, the date, every line with its price and period,
+ * the subtotal / GST / total, the refund promise when registration failed, and where to get
+ * help. The two staff emails further down (admin notification, low balance) are not
+ * customer-facing and keep their own layout.
+ */
+
+function send(to: string, subject: string, text: string): Promise<boolean> {
+  return sendEmail({ to, subject, text, html: plainEmailHtml(text) });
+}
+
+function helpLines(): string {
+  return `Questions? Reply to this email or write to ${SUPPORT_EMAIL}.\n\n— ${brandName()}`;
+}
+
+function periodLabel(n: number, unit: string = "year"): string {
+  return `${n} ${unit}${n !== 1 ? "s" : ""}`;
+}
 
 export async function sendPurchaseOrderEmail(
   userEmail: string,
@@ -25,44 +48,35 @@ export async function sendPurchaseOrderEmail(
     }>;
   }
 ): Promise<boolean> {
-  let subject: string;
-  let headerColor: string;
-  let headerTitle: string;
-  let statusMessage: string;
+  const po = orderData.purchaseOrderNumber;
+  const paid = orderData.paymentStatus === "success";
+  const registrationFailed = paid && orderData.registrationFailed === true;
 
-  if (orderData.registrationFailed && orderData.paymentStatus === "success") {
-    subject = `Purchase Order - ${orderData.purchaseOrderNumber} (Registration Failed)`;
-    headerColor = "#F59E0B";
-    headerTitle = "Purchase Order - Registration Failed";
-    statusMessage = `Your payment has been received successfully! However, domain registration failed due to technical reasons. Purchase Order ${orderData.purchaseOrderNumber} has been generated. A refund will be initiated within 2-10 business days.`;
-  } else if (orderData.paymentStatus === "success") {
-    subject = `Purchase Order - ${orderData.purchaseOrderNumber}`;
-    headerColor = "#1A73E8";
-    headerTitle = "Purchase Order";
-    statusMessage = `Your payment has been received successfully! Purchase Order ${orderData.purchaseOrderNumber} has been generated. Your domain registration is being processed.`;
+  let subject: string;
+  let opening: string;
+  let nextStep: string;
+
+  if (registrationFailed) {
+    subject = `Payment received, but registration failed — purchase order ${po}`;
+    opening = `We received your payment, but the domain registration failed for technical reasons. Purchase order ${po} has been generated, and a refund to your original payment method will be initiated within 2-10 business days.`;
+    nextStep = "Nothing more is needed from you — the refund is processed automatically.";
+  } else if (paid) {
+    subject = `Payment received — purchase order ${po}`;
+    opening = `Thank you for your purchase. We received your payment and generated purchase order ${po}. Your domain registration is being processed.`;
+    nextStep = "You'll get another email once your domains are registered.";
   } else {
-    subject = `Purchase Order - ${orderData.purchaseOrderNumber} (Payment Failed)`;
-    headerColor = "#EA4335";
-    headerTitle = "Purchase Order - Payment Failed";
-    statusMessage = `Your payment has failed. However, Purchase Order ${orderData.purchaseOrderNumber} has been generated. Please contact support to complete your payment.`;
+    subject = `Your payment didn't go through — purchase order ${po}`;
+    opening = `Your payment didn't go through. Purchase order ${po} has been generated, but the order can't go ahead until it is paid.`;
+    nextStep = `To complete your payment and go ahead with the registration, reply to this email or write to ${SUPPORT_EMAIL}.`;
   }
 
-  const domainsList = orderData.domains
-    .map((domain) => {
-      let displayName = domain.domainName;
-      if (domain.itemType === "hosting" || domain.planName) {
-        displayName += ` <br><span style="font-size: 12px; color: #666;">(${domain.planName || "Hosting Plan"})</span>`;
-      }
-      return `
-      <tr>
-        <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${displayName}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: center;">${domain.registrationPeriod} ${domain.periodUnit || "year"}${domain.registrationPeriod !== 1 ? "s" : ""}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: right;">₹${domain.price.toFixed(2)}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: right;">₹${(domain.price * domain.registrationPeriod).toFixed(2)}</td>
-      </tr>
-    `;
+  const lines = orderData.domains
+    .map((d) => {
+      const unit = d.periodUnit || "year";
+      const plan = d.itemType === "hosting" || d.planName ? ` (${d.planName || "Hosting Plan"})` : "";
+      return `  ${d.domainName}${plan} — ${periodLabel(d.registrationPeriod, unit)} at ₹${d.price.toFixed(2)}/${unit} — ₹${(d.price * d.registrationPeriod).toFixed(2)}`;
     })
-    .join("");
+    .join("\n");
 
   const gstAmount = orderData.amount - orderData.subtotal;
   const gstPercent =
@@ -70,157 +84,33 @@ export async function sendPurchaseOrderEmail(
       ? ((gstAmount / orderData.subtotal) * 100).toFixed(0)
       : "18";
 
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; background-color: #ffffff;">
-      <div style="background: linear-gradient(135deg, ${headerColor}, ${headerColor}dd); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
-        <h1 style="margin: 0; font-size: 28px;">${headerTitle}</h1>
-        <p style="margin: 10px 0 0 0; opacity: 0.9;">${orderData.paymentStatus === "success" ? "Thank you for your purchase!" : "Please contact support"}</p>
-      </div>
+  const details = [
+    `  Purchase order: ${po}`,
+    `  Order ID: ${orderData.orderId}`,
+    `  Invoice number: ${orderData.invoiceNumber}`,
+    `  Payment: ${paid ? "successful" : "failed"}`,
+    ...(paid ? [`  Payment ID: ${orderData.paymentId}`] : []),
+    `  Date: ${formatIndianDateTime(orderData.createdAt)}`,
+  ].join("\n");
 
-      <div style="padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
-        <p style="font-size: 16px; color: #374151; margin-bottom: 20px;">Hello ${userName},</p>
-        <p style="font-size: 16px; color: #374151; margin-bottom: 30px;">${statusMessage}</p>
+  const text =
+`Hi ${firstName(userName)},
 
-        <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
-          <h3 style="color: #1f2937; margin: 0 0 15px 0;">Purchase Order Details</h3>
-          <table style="width: 100%; border-collapse: collapse;">
-            <tr>
-              <td style="padding: 8px 0; color: #6b7280; width: 180px;">Purchase Order Number:</td>
-              <td style="padding: 8px 0; font-weight: 700; color: #1A73E8; font-size: 16px;">${orderData.purchaseOrderNumber}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0; color: #6b7280;">Order ID:</td>
-              <td style="padding: 8px 0; font-weight: 600; color: #1f2937;">${orderData.orderId}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0; color: #6b7280;">Invoice Number:</td>
-              <td style="padding: 8px 0; font-weight: 600; color: #1f2937;">${orderData.invoiceNumber}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0; color: #6b7280;">Payment Status:</td>
-              <td style="padding: 8px 0; font-weight: 600; color: ${orderData.paymentStatus === "success" ? "#34A853" : "#EA4335"};">
-                ${orderData.paymentStatus === "success" ? "✅ Successful" : "❌ Failed"}
-              </td>
-            </tr>
-            ${
-              orderData.paymentStatus === "success"
-                ? `
-            <tr>
-              <td style="padding: 8px 0; color: #6b7280;">Payment ID:</td>
-              <td style="padding: 8px 0; font-weight: 600; color: #1f2937;">${orderData.paymentId}</td>
-            </tr>
-            `
-                : ""
-            }
-            <tr>
-              <td style="padding: 8px 0; color: #6b7280;">Date:</td>
-              <td style="padding: 8px 0; font-weight: 600; color: #1f2937;">${formatIndianDateTime(orderData.createdAt)}</td>
-            </tr>
-          </table>
-        </div>
+${opening}
 
-        <div style="margin-bottom: 30px;">
-          <h3 style="color: #1f2937; margin: 0 0 15px 0;">Domain Details</h3>
-          <table style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb;">
-            <thead>
-              <tr style="background-color: #f8fafc;">
-                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; color: #374151; font-weight: 600;">Domain Name</th>
-                <th style="padding: 12px; text-align: center; border-bottom: 2px solid #e5e7eb; color: #374151; font-weight: 600;">Period</th>
-                <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e5e7eb; color: #374151; font-weight: 600;">Price/Year</th>
-                <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e5e7eb; color: #374151; font-weight: 600;">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${domainsList}
-            </tbody>
-          </table>
-        </div>
+${lines}
 
-        <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
-          <h3 style="color: #1f2937; margin: 0 0 15px 0;">Payment Summary</h3>
-          <table style="width: 100%; border-collapse: collapse;">
-            <tr>
-              <td style="padding: 8px 0; color: #6b7280;">Subtotal:</td>
-              <td style="padding: 8px 0; text-align: right; font-weight: 600; color: #1f2937;">₹${orderData.subtotal.toFixed(2)}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0; color: #6b7280;">GST (${gstPercent}%):</td>
-              <td style="padding: 8px 0; text-align: right; font-weight: 600; color: #1f2937;">₹${gstAmount.toFixed(2)}</td>
-            </tr>
-            <tr style="border-top: 2px solid #e5e7eb;">
-              <td style="padding: 12px 0; font-weight: 700; color: #1f2937; font-size: 16px;">Total Amount:</td>
-              <td style="padding: 12px 0; text-align: right; font-weight: 700; color: #1A73E8; font-size: 18px;">₹${orderData.amount.toFixed(2)} ${orderData.currency}</td>
-            </tr>
-          </table>
-          <p style="font-size: 12px; color: #6b7280; margin-top: 10px; margin-bottom: 0;">*GST (${gstPercent}%) is included in the total amount</p>
-        </div>
+  Subtotal: ₹${orderData.subtotal.toFixed(2)}
+  GST (${gstPercent}%): ₹${gstAmount.toFixed(2)}
+  Total: ₹${orderData.amount.toFixed(2)} ${orderData.currency} (GST included)
 
-        ${
-          orderData.paymentStatus === "failed"
-            ? `
-        <div style="background-color: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
-          <h3 style="color: #DC2626; margin: 0 0 10px 0;">⚠️ Payment Failed</h3>
-          <p style="color: #991B1B; margin: 0; font-size: 14px;">
-            Your payment could not be processed. Please contact our support team at <a href="mailto:${SUPPORT_EMAIL}" style="color: #DC2626; text-decoration: underline;">${SUPPORT_EMAIL}</a> to complete your payment and proceed with domain registration.
-          </p>
-        </div>
-        `
-            : ""
-        }
+${details}
 
-        ${
-          orderData.registrationFailed && orderData.paymentStatus === "success"
-            ? `
-        <div style="background-color: #FFFBEB; border: 1px solid #FCD34D; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
-          <h3 style="color: #92400E; margin: 0 0 10px 0;">⚠️ Registration Failed</h3>
-          <p style="color: #78350F; margin: 0 0 10px 0; font-size: 14px;">
-            <strong>Payment Status:</strong> ✅ Your payment was successful.
-          </p>
-          <p style="color: #78350F; margin: 0 0 10px 0; font-size: 14px;">
-            <strong>Registration Status:</strong> ❌ Domain registration failed due to technical reasons.
-          </p>
-          <p style="color: #78350F; margin: 0; font-size: 14px; font-weight: 600;">
-            💰 <strong>Refund:</strong> A refund will be initiated within 2-10 business days to your original payment method.
-          </p>
-        </div>
-        `
-            : ""
-        }
+${nextStep}
 
-        <div style="background-color: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
-          <h3 style="color: #1E40AF; margin: 0 0 10px 0;">📋 Next Steps</h3>
-          <p style="color: #1E3A8A; margin: 0; font-size: 14px;">
-            ${
-              orderData.registrationFailed && orderData.paymentStatus === "success"
-                ? `Your refund will be processed automatically within 2-10 business days. If you have any questions, please contact our support team at ${SUPPORT_EMAIL}.`
-                : orderData.paymentStatus === "success"
-                  ? "Your domain registration is being processed. You will receive a confirmation email once your domains are successfully registered."
-                  : `Please contact our support team at ${SUPPORT_EMAIL} to resolve the payment issue and complete your order.`
-            }
-          </p>
-        </div>
+${helpLines()}`;
 
-        <div style="text-align: center; padding: 20px; border-top: 1px solid #e5e7eb; margin-top: 30px;">
-          <p style="color: #6b7280; font-size: 14px; margin: 0 0 10px 0;">
-            Need help? Contact our support team
-          </p>
-          <p style="margin: 0;">
-            <a href="mailto:${SUPPORT_EMAIL}" style="color: #1A73E8; text-decoration: none; font-weight: 600;">
-              ${SUPPORT_EMAIL}
-            </a>
-          </p>
-        </div>
-      </div>
-
-      <div style="background-color: #f8fafc; padding: 20px; text-align: center; border-radius: 0 0 8px 8px; border: 1px solid #e5e7eb; border-top: none;">
-        <p style="color: #6b7280; font-size: 12px; margin: 0;">
-          © ${new Date().getFullYear()} Anutech Digital Private Limited. All rights reserved.
-        </p>
-      </div>
-    </div>
-  `;
-
-  return sendEmail({ to: userEmail, subject, html });
+  return send(userEmail, subject, text);
 }
 
 export async function sendOrderConfirmationEmail(
@@ -256,176 +146,63 @@ export async function sendOrderConfirmationEmail(
   const hasOnlyPendingOrSuccessful = orderData.allDomains.every(
     (d) => d.status === "pending" || d.status === "registered"
   );
+  const inv = orderData.invoiceNumber;
 
   let subject: string;
-  let statusMessage: string;
-  let headerColor: string;
-  let headerTitle: string;
+  let opening: string;
 
   if (hasSuccessfulDomains && !hasPendingDomains) {
-    subject = `Order Confirmation - ${orderData.invoiceNumber}`;
-    statusMessage =
-      "Your order has been processed successfully. All domains have been registered.";
-    headerColor = "#34A853";
-    headerTitle = "Order Confirmation";
+    subject = `Your order is confirmed — invoice ${inv}`;
+    opening = "Thank you for your purchase. Your order has been processed and all your domains are registered.";
   } else if (hasPendingDomains && hasOnlyPendingOrSuccessful) {
-    subject = `Payment Successful - ${orderData.invoiceNumber}`;
-    statusMessage =
-      "Your payment has been received successfully! Your domain registration is being processed and will be completed shortly.";
-    headerColor = "#1A73E8";
-    headerTitle = "Payment Successful";
+    subject = `Payment received — invoice ${inv}`;
+    opening = "Thank you for your purchase. We received your payment, and your domain registration is being processed — it will be completed shortly.";
   } else if (hasSuccessfulDomains && hasPendingDomains) {
-    subject = `Payment Successful - ${orderData.invoiceNumber}`;
-    statusMessage =
-      "Your payment has been received successfully! Some domains have been registered, while others are being processed.";
-    headerColor = "#1A73E8";
-    headerTitle = "Payment Successful";
+    subject = `Payment received — invoice ${inv}`;
+    opening = "Thank you for your purchase. We received your payment. Some of your domains are registered, and the others are still being processed.";
   } else {
-    subject = `Payment Received - ${orderData.invoiceNumber}`;
-    statusMessage =
-      "Your payment has been received. We encountered issues with domain registration. Our team will contact you shortly.";
-    headerColor = "#F59E0B";
-    headerTitle = "Payment Received";
+    subject = `Payment received — we're looking into your order, invoice ${inv}`;
+    opening = "We received your payment, but ran into a problem registering your domains. Our team will contact you shortly — we're sorry for the trouble.";
   }
 
-  const allDomainsList = orderData.allDomains
-    .map((domain) => {
-      let statusColor: string;
-      let statusText: string;
-
-      if (domain.status === "registered") {
-        statusColor = "#34A853";
-        statusText = "✅ Registered";
-      } else if (domain.status === "pending") {
-        statusColor = "#1A73E8";
-        statusText = "🔄 Processing";
-      } else {
-        statusColor = "#EA4335";
-        statusText = "⚠️ Contact Support";
-      }
-
-      return `
-      <tr>
-        <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">
-          ${domain.domainName}
-          ${domain.planName ? `<br><span style="font-size: 12px; color: #666;">(${domain.planName})</span>` : ""}
-          <br>
-          <span style="font-size: 12px; color: ${statusColor}; font-weight: 600;">${statusText}</span>
-        </td>
-        <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: center;">${domain.registrationPeriod} year${domain.registrationPeriod !== 1 ? "s" : ""}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: center;">1</td>
-        <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: right;">₹${domain.price.toFixed(2)}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: right;">₹${(domain.price * domain.registrationPeriod).toFixed(2)}</td>
-      </tr>
-    `;
+  const lines = orderData.allDomains
+    .map((d) => {
+      const status =
+        d.status === "registered" ? "registered" : d.status === "pending" ? "processing" : "contact support";
+      const plan = d.planName ? ` (${d.planName})` : "";
+      return `  ${d.domainName}${plan} — ${periodLabel(d.registrationPeriod)} at ₹${d.price.toFixed(2)} — ₹${(d.price * d.registrationPeriod).toFixed(2)} — ${status}`;
     })
-    .join("");
+    .join("\n");
 
   const total = orderData.amount;
+  const registeredLine = hasSuccessfulDomains
+    ? `\n\n${orderData.successfulDomains.length} domain(s) registered successfully.`
+    : "";
+  const dashboardUrl = `${(process.env.NEXTAUTH_URL ?? "").replace(/\/+$/, "")}/dashboard`;
 
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; background-color: #ffffff;">
-      <div style="background: linear-gradient(135deg, ${headerColor}, ${headerColor}dd); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
-        <h1 style="margin: 0; font-size: 28px;">${headerTitle}</h1>
-        <p style="margin: 10px 0 0 0; opacity: 0.9;">${hasSuccessfulDomains || hasPendingDomains ? "Thank you for your purchase!" : "We apologize for the inconvenience."}</p>
-      </div>
+  const text =
+`Hi ${firstName(userName)},
 
-      <div style="padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
-        <p style="font-size: 16px; color: #374151; margin-bottom: 20px;">Hello ${userName},</p>
-        <p style="font-size: 16px; color: #374151; margin-bottom: 30px;">${statusMessage}</p>
+${opening}${registeredLine}
 
-        <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
-          <h3 style="color: #1f2937; margin: 0 0 15px 0;">Order Information</h3>
-          <table style="width: 100%; border-collapse: collapse;">
-            <tr>
-              <td style="padding: 8px 0; color: #6b7280; width: 150px;">Purchase Order:</td>
-              <td style="padding: 8px 0; font-weight: 700; color: #1A73E8; font-size: 15px;">${orderData.purchaseOrderNumber}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0; color: #6b7280;">Order ID:</td>
-              <td style="padding: 8px 0; font-weight: 600; color: #1f2937;">${orderData.orderId}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0; color: #6b7280;">Invoice Number:</td>
-              <td style="padding: 8px 0; font-weight: 600; color: #1f2937;">${orderData.invoiceNumber}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0; color: #6b7280;">Payment ID:</td>
-              <td style="padding: 8px 0; font-weight: 600; color: #1f2937;">${orderData.paymentId}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0; color: #6b7280;">Order Date:</td>
-              <td style="padding: 8px 0; font-weight: 600; color: #1f2937;">${formatIndianDateTime(orderData.createdAt)}</td>
-            </tr>
-          </table>
-        </div>
+${lines}
 
-        <div style="margin-bottom: 30px;">
-          <h3 style="color: #1f2937; margin: 0 0 15px 0;">Domain Details</h3>
-          <table style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-            <thead>
-              <tr style="background-color: #f8fafc;">
-                <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151; border-bottom: 1px solid #e5e7eb;">Domain Name</th>
-                <th style="padding: 12px; text-align: center; font-weight: 600; color: #374151; border-bottom: 1px solid #e5e7eb;">Period</th>
-                <th style="padding: 12px; text-align: center; font-weight: 600; color: #374151; border-bottom: 1px solid #e5e7eb;">Qty</th>
-                <th style="padding: 12px; text-align: right; font-weight: 600; color: #374151; border-bottom: 1px solid #e5e7eb;">Unit Price</th>
-                <th style="padding: 12px; text-align: right; font-weight: 600; color: #374151; border-bottom: 1px solid #e5e7eb;">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${allDomainsList}
-            </tbody>
-          </table>
-        </div>
+  Subtotal: ₹${(total / 1.18).toFixed(2)}
+  GST (18%): ₹${(total - total / 1.18).toFixed(2)}
+  Total: ₹${total.toFixed(2)} ${orderData.currency} (GST included)
 
-        <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
-          <h3 style="color: #1f2937; margin: 0 0 15px 0;">Order Summary</h3>
-          <table style="width: 100%; border-collapse: collapse;">
-            <tr>
-              <td style="padding: 8px 0; color: #6b7280;">Subtotal:</td>
-              <td style="padding: 8px 0; text-align: right; color: #1f2937; font-weight: 500;">₹${(total / 1.18).toFixed(2)}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0; color: #6b7280;">GST (18%):</td>
-              <td style="padding: 8px 0; text-align: right; color: #1f2937; font-weight: 500;">₹${(total - total / 1.18).toFixed(2)}</td>
-            </tr>
-            <tr style="border-top: 2px solid #e5e7eb;">
-              <td style="padding: 12px 0; font-size: 18px; font-weight: 700; color: #1f2937;">Total (incl. GST):</td>
-              <td style="padding: 12px 0; text-align: right; font-size: 18px; font-weight: 700; color: #1A73E8;">₹${total.toFixed(2)} ${orderData.currency}</td>
-            </tr>
-          </table>
-          <p style="margin: 10px 0 0 0; color: #9ca3af; font-size: 12px; text-align: right;">*GST (18%) is included in the total amount</p>
-        </div>
+  Purchase order: ${orderData.purchaseOrderNumber}
+  Order ID: ${orderData.orderId}
+  Invoice number: ${inv}
+  Payment ID: ${orderData.paymentId}
+  Order date: ${formatIndianDateTime(orderData.createdAt)}
 
-        ${
-          orderData.successfulDomains.length > 0
-            ? `
-        <div style="background-color: #D1FAE5; border: 1px solid #34A853; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
-          <p style="margin: 0; color: #065F46; font-weight: 600;">✅ ${orderData.successfulDomains.length} domain(s) registered successfully!</p>
-        </div>
-        `
-            : ""
-        }
+See your domains and order in your dashboard:
+  ${dashboardUrl}
 
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${process.env.NEXTAUTH_URL}/dashboard" style="display: inline-block; background: linear-gradient(135deg, #1A73E8, #1557B0); color: #ffffff; padding: 16px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(26, 115, 232, 0.3); margin: 0 10px;">View Dashboard</a>
-          <a href="${process.env.NEXTAUTH_URL}/" style="background-color: #6b7280; color: white; padding: 16px 32px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 0 10px; font-weight: 600;">Visit Homepage</a>
-        </div>
+${helpLines()}`;
 
-        <div style="border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 30px; text-align: center;">
-          <p style="color: #6b7280; font-size: 14px; margin: 0 0 10px 0;">Need help? Contact our support team:</p>
-          <p style="color: #6b7280; font-size: 14px; margin: 0;">Email: <a href="mailto:${SUPPORT_EMAIL}" style="color: #1A73E8;">${SUPPORT_EMAIL}</a></p>
-        </div>
-      </div>
-
-      <div style="background-color: #f8fafc; padding: 20px; text-align: center; border-radius: 0 0 8px 8px; border: 1px solid #e5e7eb; border-top: none;">
-        <p style="margin: 0; color: #6b7280; font-size: 14px;">Thank you for choosing Anutech Digital Private Limited!</p>
-        <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 12px;">This is an automated email. Please do not reply to this message.</p>
-      </div>
-    </div>
-  `;
-
-  return sendEmail({ to: userEmail, subject, html });
+  return send(userEmail, subject, text);
 }
 
 export async function sendAdminNotification(

@@ -1,7 +1,7 @@
 /**
  * Tests for lib/email/notifications.ts — the non-essential email path.
  * Suppresses when the recipient opted out; otherwise adds the unsubscribe
- * footer + List-Unsubscribe header.
+ * line (plain, after the sign-off) + List-Unsubscribe header.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -37,14 +37,31 @@ describe("sendNotificationEmail", () => {
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
-  it("sends with an unsubscribe footer + List-Unsubscribe URL when not opted out", async () => {
+  it("legacy HTML caller: plain unsubscribe line appended + List-Unsubscribe URL when not opted out", async () => {
     getUserByEmail.mockResolvedValueOnce({ emailOptOut: false });
     await sendNotificationEmail({ to: "a@x.com", subject: "S", html: "<p>Body</p>" });
     expect(sendEmail).toHaveBeenCalledTimes(1);
     const [opts] = sendEmail.mock.calls[0];
     expect(opts.html).toContain("<p>Body</p>");
-    expect(opts.html).toContain("Unsubscribe from these notifications");
+    expect(opts.html).toContain(
+      `Don't want these emails? Unsubscribe: <a href="https://app.test/api/notifications/unsubscribe?token=TOK-a@x.com">`
+    );
+    expect(opts.html).not.toContain("color: #9ca3af");
     expect(opts.listUnsubscribeUrl).toBe("https://app.test/api/notifications/unsubscribe?token=TOK-a@x.com");
+  });
+
+  it("plain-text caller (ResellerOS pattern): unsubscribe line after the sign-off, html built from that text", async () => {
+    getUserByEmail.mockResolvedValueOnce({ emailOptOut: false });
+    const body = "Hi Ada,\n\nYour domain renews soon.\n\n— Anutech Digital";
+    await sendNotificationEmail({ to: "a@x.com", subject: "S", text: body, html: "<p>ignored</p>" });
+    const [opts] = sendEmail.mock.calls[0];
+    const url = "https://app.test/api/notifications/unsubscribe?token=TOK-a@x.com";
+    expect(opts.text).toBe(`${body}\n\nDon't want these emails? Unsubscribe: ${url}`);
+    expect(opts.html).toContain("— Anutech Digital\n\nDon't want these emails? Unsubscribe: ");
+    expect(opts.html).toContain(`<a href="${url}">`);
+    expect(opts.html).not.toContain("ignored");
+    expect(opts.html).not.toContain("gradient");
+    expect(opts.listUnsubscribeUrl).toBe(url);
   });
 
   it("sends when the user is unknown (lookup miss → not suppressed)", async () => {

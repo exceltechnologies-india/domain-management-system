@@ -53,7 +53,9 @@ vi.mock("@/lib/services/users", () => ({
 }));
 
 const sendEmail = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/email/transporter", () => ({ sendEmail }));
+vi.mock("@/lib/email/transporter", () => ({ sendEmail, SUPPORT_EMAIL: "support@anutech.in" }));
+vi.stubEnv("FROM_NAME", "Anutech Digital");
+vi.stubEnv("NEXTAUTH_URL", "https://app.test");
 
 vi.mock("@/lib/server-logger", () => ({
   serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -360,6 +362,45 @@ describe("Happy path — token issuance + two emails", () => {
     expect(oldAddrCall).toBeTruthy();
     const html = oldAddrCall![0].html as string;
     expect(html).toContain("new@example.com");
+  });
+
+  it("verification email: plain ResellerOS pattern with the link and its 1-hour expiry", async () => {
+    getUserWithPassword.mockResolvedValueOnce(userWithPwd());
+    await POST(makeReq({ newEmail: "new@example.com", currentPassword: "p" }));
+
+    const { subject, text, html } = sendEmail.mock.calls.find((c) => c[0].to === "new@example.com")![0];
+    expect(subject).toBe("Confirm your new email address");
+    expect(text.startsWith("Hi Alice,\n\n")).toBe(true);
+    expect(text).toContain("expires in 1 hour");
+    expect(text).toMatch(/\n {2}https:\/\/app\.test\/api\/v1\/user\/settings\/verify-email-change\?token=[a-f0-9]{64}\n/);
+    expect(text).toContain("Your current address stays active.");
+    expect(text).toContain("Questions? Reply to this email or write to support@anutech.in.");
+    expect(text.endsWith("\n\n— Anutech Digital")).toBe(true);
+    expect(html).toMatch(/<a href="https:\/\/app\.test\/api\/v1\/user\/settings\/verify-email-change\?token=[a-f0-9]{64}">/);
+    expect(html).not.toContain("gradient");
+    expect(html).not.toContain("Team");
+  });
+
+  it("security alert: plain ResellerOS pattern with the new address and the reset-password link", async () => {
+    getUserWithPassword.mockResolvedValueOnce(userWithPwd());
+    await POST(makeReq({ newEmail: "new@example.com", currentPassword: "p" }));
+
+    const { subject, text, html } = sendEmail.mock.calls.find((c) => c[0].to === "alice@example.com")![0];
+    expect(subject).toBe("Security alert: email change requested");
+    expect(text.startsWith("Hi Alice,\n\n")).toBe(true);
+    expect(text).toContain("to new@example.com.");
+    expect(text).toContain("\n  https://app.test/reset-password\n");
+    expect(text.endsWith("\n\n— Anutech Digital")).toBe(true);
+    expect(html).toContain('<a href="https://app.test/reset-password">');
+    expect(html).not.toContain("gradient");
+  });
+
+  it("an account without a name is greeted \"Hi there,\" (never by email address)", async () => {
+    getUserWithPassword.mockResolvedValueOnce(userWithPwd({ firstName: "", lastName: "" }));
+    await POST(makeReq({ newEmail: "new@example.com", currentPassword: "p" }));
+    for (const [opts] of sendEmail.mock.calls) {
+      expect(opts.text.startsWith("Hi there,\n\n")).toBe(true);
+    }
   });
 });
 

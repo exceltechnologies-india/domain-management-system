@@ -4,7 +4,8 @@ import { getUserByEmail, getUserWithPassword } from "@/lib/services/users";
 import { AuthService } from "@/lib/auth";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
-import { sendEmail } from "@/lib/email/transporter";
+import { sendEmail, SUPPORT_EMAIL } from "@/lib/email/transporter";
+import { brandName, firstName, plainEmailHtml } from "@/lib/email/plain";
 import { validatedBody, z } from "@/lib/api-validation";
 import { Schemas } from "@/lib/validation";
 
@@ -87,33 +88,46 @@ export async function POST(request: NextRequest) {
 
     const appUrl = process.env.NEXTAUTH_URL ?? "https://app.anutech.in";
     const verifyUrl = `${appUrl}/api/v1/user/settings/verify-email-change?token=${rawToken}`;
-    const userName = `${userWithPassword.firstName || ""} ${userWithPassword.lastName || ""}`.trim() || userWithPassword.email;
+    // "Hi <first name>," — firstName() falls back to "there" when the account has no name.
+    const userName = `${userWithPassword.firstName || ""} ${userWithPassword.lastName || ""}`.trim();
+
+    // Both in the ResellerOS plain-text pattern (lib/email/plain.ts; owner, 3 Oct 2026).
+    const signOff = `Questions? Reply to this email or write to ${SUPPORT_EMAIL}.\n\n— ${brandName()}`;
 
     // 1. Verification link → new address
+    const verifyText =
+`Hi ${firstName(userName)},
+
+You asked to change the email address on your ${brandName()} account to this one. Confirm it here — the link expires in 1 hour:
+  ${verifyUrl}
+
+If you didn't ask for this change, you can safely ignore this email. Your current address stays active.
+
+${signOff}`;
     await sendEmail({
       to: normalizedEmail,
-      subject: "Confirm your new email address – Anutech Digital",
-      html: `
-        <p>Hi ${userName},</p>
-        <p>You requested to change your email address on Anutech Digital.</p>
-        <p>Click the button below to confirm this new address. The link expires in <strong>1 hour</strong>.</p>
-        <p><a href="${verifyUrl}" style="display:inline-block;padding:12px 24px;background:#1d4ed8;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Confirm new email</a></p>
-        <p>If you didn't request this change, you can safely ignore this email. Your current address remains active.</p>
-        <p>– Anutech Digital Team</p>
-      `,
+      subject: "Confirm your new email address",
+      text: verifyText,
+      html: plainEmailHtml(verifyText),
     });
 
     // 2. Security alert → current (old) address
+    const alertText =
+`Hi ${firstName(userName)},
+
+Someone asked to change the email address on your ${brandName()} account to ${normalizedEmail}.
+
+If this was you, open your new inbox and click the confirmation link we sent there.
+
+If it was NOT you, your account may be at risk. Reset your password straight away and contact us:
+  ${appUrl}/reset-password
+
+${signOff}`;
     await sendEmail({
       to: userWithPassword.email,
-      subject: "Security alert: Email change requested – Anutech Digital",
-      html: `
-        <p>Hi ${userName},</p>
-        <p>A request was made to change the email address on your Anutech Digital account to <strong>${normalizedEmail}</strong>.</p>
-        <p>If this was you, please check your new inbox and click the confirmation link we sent there.</p>
-        <p>If you did <strong>not</strong> make this request, your account may be compromised. Please <a href="${appUrl}/reset-password">reset your password immediately</a> and contact support.</p>
-        <p>– Anutech Digital Team</p>
-      `,
+      subject: "Security alert: email change requested",
+      text: alertText,
+      html: plainEmailHtml(alertText),
     });
 
     serverLogger.info(`[EMAIL-CHANGE] Verification email sent for user ...${String(userWithPassword._id).slice(-6)}`);

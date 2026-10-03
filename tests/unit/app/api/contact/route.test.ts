@@ -5,9 +5,9 @@
  *
  * Threat model pinned:
  *  - Bot submissions: reCAPTCHA was removed 2026-06-17; rate limit + zod stay
- *  - XSS in admin inbox or in user's confirmation email → every
- *    user-supplied string is run through InputValidator.sanitizeHtml
- *    before being interpolated into the HTML body
+ *  - XSS in the user's confirmation email → it is plain text (ResellerOS
+ *    pattern, 3 Oct 2026); user-supplied strings only reach HTML through
+ *    plainEmailHtml, which escapes them
  *  - Email-server exfil / spoofing → InputValidator chain rejects
  *    header-injection patterns, oversize inputs, malformed emails
  *  - Server errors → generic 500, no internals leaked
@@ -22,8 +22,8 @@
  *    returns false → 500 'Failed to send message' (admin must
  *    actually receive the lead — don't 200 if mail is silently
  *    dropped)
- *  - **User-confirmation email sent SECOND** with sanitizeHtml
- *    applied to name / subject / message before HTML interpolation
+ *  - **User-confirmation email sent SECOND**, plain text + escaped
+ *    plainEmailHtml rendering of the same text
  *  - Confirmation email failure is NOT surfaced as 500 — admin
  *    already has the lead; user just doesn't get a thank-you
  *  - Outer catch → 500 'Internal server error' (generic, no
@@ -55,6 +55,9 @@ const sendEmail = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/email", () => ({
   EmailService: { sendAdminNotification, sendEmail },
 }));
+
+vi.mock("@/lib/email/transporter", () => ({ SUPPORT_EMAIL: "support@anutech.in" }));
+vi.stubEnv("FROM_NAME", "Anutech Digital");
 
 vi.mock("@/lib/server-logger", () => ({
   serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -228,18 +231,28 @@ describe("Admin notification", () => {
   });
 });
 
-// ─── User confirmation (XSS guard via sanitizeHtml) ───────────────
-describe("User confirmation email — XSS guard via sanitizeHtml", () => {
-  it("sanitizeHtml called on name + subject + message before HTML render", async () => {
+// ─── User confirmation (plain ResellerOS pattern, escaped HTML) ────
+describe("User confirmation email — plain text, escaped HTML", () => {
+  it("plain ResellerOS pattern: Hi <first name>, subject + message quoted back, phone, help line, signed", async () => {
     passingValidators();
     await POST(makeReq(validBody));
 
-    expect(sanitizeHtml).toHaveBeenCalledWith("Bob User");
-    expect(sanitizeHtml).toHaveBeenCalledWith("Need help");
-    expect(sanitizeHtml).toHaveBeenCalledWith("Hello, this is my message");
+    const { subject, text, html } = sendEmail.mock.calls[0][0];
+    expect(subject).toBe("Thank you for contacting Anutech Digital");
+    expect(text.startsWith("Hi Bob,\n\n")).toBe(true);
+    expect(text).toContain('your message about "Need help"');
+    expect(text).toContain("within 24 hours");
+    expect(text).toContain("\n  Hello, this is my message\n");
+    expect(text).toContain("+91-777-888-9674");
+    expect(text).toContain("Questions? Reply to this email or write to support@anutech.in.");
+    expect(text.endsWith("\n\n— Anutech Digital")).toBe(true);
+    expect(text).not.toContain("Private Limited");
+    expect(html).toContain("Hello, this is my message");
+    expect(html).not.toContain("gradient");
+    expect(html).not.toContain("<h2");
   });
 
-  it("if sanitizeHtml strips a tag, the stripped value appears in the rendered HTML (not the raw tag)", async () => {
+  it("markup in the name or message is escaped in the HTML (never rendered)", async () => {
     validateName.mockReturnValue({
       isValid: true,
       errors: [],
@@ -257,16 +270,13 @@ describe("User confirmation email — XSS guard via sanitizeHtml", () => {
         errors: [],
         sanitized: "<img onerror=alert(1)>msg",
       });
-    sanitizeHtml.mockImplementation((s: string) =>
-      s.replace(/<[^>]*>/g, "")
-    );
-
     await POST(makeReq(validBody));
 
     const userCall = sendEmail.mock.calls[0][0];
     expect(userCall.html).not.toContain("<script>");
-    expect(userCall.html).not.toContain("onerror");
-    expect(userCall.html).toContain("alert(1)Bob"); // sanitized form
+    expect(userCall.html).not.toContain("<img");
+    expect(userCall.html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;Bob");
+    expect(userCall.html).toContain("&lt;img onerror=alert(1)&gt;msg");
   });
 
   it("user-confirmation email sent to the user's email address", async () => {

@@ -1,7 +1,8 @@
 /**
  * Tests for `@/lib/email/auth` (rescan-4 slice 7el).
- * Auth-related email templates. These are mostly HTML-construction
- * wrappers around sendEmail(), so we pin:
+ * Auth-related email templates, written as plain text in the ResellerOS
+ * pattern (lib/email/plain.ts; owner, 3 Oct 2026) and sent via sendEmail()
+ * with html = plainEmailHtml(text). We pin:
  *  - The subject line (drives the user's inbox preview — copy changes
  *    here have UX-visible consequences)
  *  - The recipient = userEmail param (no silent CC/BCC)
@@ -10,12 +11,14 @@
  *    activation — the activation flow has a different fallback chain
  *    to accommodate marketing-site activations)
  *  - **isSetup branch on sendPasswordResetEmail** flips the subject +
- *    button label + adds `&setup=1` query param to the URL (the
+ *    wording + adds `&setup=1` query param to the URL (the
  *    guest→full-account flow distinct from password recovery)
  *  - sendEmail return propagates (true on success, false on failure
  *    — callers can decide whether to surface the failure)
  *  - User-supplied params (firstName/userName/resetToken/activationToken)
- *    appear in the HTML body
+ *    appear in the body
+ *  - The shared pattern on every one: "Hi <first name>," ... support address
+ *    ... "— <brand>", no gradients or emoji
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
@@ -53,6 +56,7 @@ beforeEach(() => {
   sendEmailMock.mockResolvedValue(true);
   vi.stubEnv("NEXTAUTH_URL", "https://app.test.example");
   vi.stubEnv("APP_URL", "https://marketing.test.example");
+  vi.stubEnv("FROM_NAME", "Anutech Digital");
 });
 
 afterEach(() => {
@@ -65,9 +69,10 @@ describe("sendWelcomeEmail", () => {
     expect(result).toBe(true);
     const [opts] = sendEmailMock.mock.calls[0];
     expect(opts.to).toBe("user@x.test");
-    expect(opts.subject).toMatch(/Welcome.*Domain Management/);
-    expect(opts.html).toContain("Alice");
-    expect(opts.html).toContain("https://app.test.example/dashboard");
+    expect(opts.subject).toBe("Welcome to Anutech Digital");
+    expect(opts.text).toContain("Alice");
+    expect(opts.text).toContain("https://app.test.example/dashboard");
+    expect(opts.html).toContain('href="https://app.test.example/dashboard"');
   });
 
   it("sendEmail returns false → propagates false", async () => {
@@ -76,78 +81,96 @@ describe("sendWelcomeEmail", () => {
   });
 });
 
-describe("sendPasswordResetEmail — isSetup branch flips subject + URL + button", () => {
-  it("default (recovery flow): subject 'Password Reset Request' + URL has no setup flag", async () => {
+describe("sendPasswordResetEmail — isSetup branch flips subject + URL + wording", () => {
+  it("default (recovery flow): subject 'Password reset request' + URL has no setup flag", async () => {
     await sendPasswordResetEmail("user@x.test", "Alice", "TOKEN_42");
     const [opts] = sendEmailMock.mock.calls[0];
-    expect(opts.subject).toBe("Password Reset Request");
-    expect(opts.html).toContain(
-      "https://app.test.example/reset-password?token=TOKEN_42"
+    expect(opts.subject).toBe("Password reset request");
+    expect(opts.text).toContain(
+      "  https://app.test.example/reset-password?token=TOKEN_42\n"
     );
-    expect(opts.html).not.toContain("setup=1");
-    expect(opts.html).toMatch(/Reset Password/);
+    expect(opts.text).not.toContain("setup=1");
+    expect(opts.text).toMatch(/reset your password/);
+    expect(opts.text).toContain("expires in 1 hour");
+    expect(opts.text).toContain("If you didn't ask for a password reset, please ignore this email");
   });
 
-  it("isSetup:true → subject 'Set up your account password' + URL has &setup=1 + button label changes", async () => {
+  it("isSetup:true → subject 'Set up your account password' + URL has &setup=1 + setup wording", async () => {
     await sendPasswordResetEmail("user@x.test", "Alice", "TOKEN_42", true);
     const [opts] = sendEmailMock.mock.calls[0];
     expect(opts.subject).toBe("Set up your account password");
-    expect(opts.html).toContain(
-      "https://app.test.example/reset-password?token=TOKEN_42&setup=1"
+    expect(opts.text).toContain(
+      "  https://app.test.example/reset-password?token=TOKEN_42&setup=1\n"
     );
-    expect(opts.html).toMatch(/Set Password/);
+    // The & is escaped in the HTML part, and the link stays clickable.
+    expect(opts.html).toContain(
+      'href="https://app.test.example/reset-password?token=TOKEN_42&amp;setup=1"'
+    );
+    expect(opts.text).toMatch(/set your password/);
+    expect(opts.text).toContain("expires in 1 hour");
+    expect(opts.text).toContain("If you didn't sign up, you can safely ignore this email.");
   });
 });
 
 describe("sendPasswordResetNotificationEmail", () => {
-  it("subject 'Your Password Has Been Reset' + sends to recipient", async () => {
+  it("subject 'Your password has been reset' + recipient + new password + login link", async () => {
     await sendPasswordResetNotificationEmail("user@x.test", "Alice", "newPass123");
     const [opts] = sendEmailMock.mock.calls[0];
     expect(opts.to).toBe("user@x.test");
-    expect(opts.subject).toBe("Your Password Has Been Reset");
-    expect(opts.html).toContain("Alice");
+    expect(opts.subject).toBe("Your password has been reset");
+    expect(opts.text).toContain("Alice");
+    expect(opts.text).toContain("reset by an administrator");
+    expect(opts.text).toContain("  newPass123\n");
+    expect(opts.text).toContain("https://app.test.example/login");
+    expect(opts.text).toContain("Do not share this password");
   });
 });
 
 describe("sendPasswordChangeNotificationEmail", () => {
-  it("default branch: 'Password Changed Successfully'", async () => {
+  it("default branch: 'Password changed successfully'", async () => {
     await sendPasswordChangeNotificationEmail("user@x.test", "Alice");
-    expect(sendEmailMock.mock.calls[0][0].subject).toBe(
-      "Password Changed Successfully"
-    );
+    const [opts] = sendEmailMock.mock.calls[0];
+    expect(opts.subject).toBe("Password changed successfully");
+    expect(opts.text).toContain("Your password has been changed successfully.");
+    expect(opts.text).toContain("If you did not change your password yourself");
+    expect(opts.text).not.toContain("social login");
+    expect(opts.text).toContain("https://app.test.example/dashboard");
   });
 
-  it("isFirstTimeSet:true → 'Password Set Successfully'", async () => {
-    await sendPasswordChangeNotificationEmail("user@x.test", "Alice", true);
-    expect(sendEmailMock.mock.calls[0][0].subject).toBe(
-      "Password Set Successfully"
-    );
+  it("isFirstTimeSet:true → 'Password set successfully' + login options with the provider", async () => {
+    await sendPasswordChangeNotificationEmail("user@x.test", "Alice", true, "google");
+    const [opts] = sendEmailMock.mock.calls[0];
+    expect(opts.subject).toBe("Password set successfully");
+    expect(opts.text).toContain("Your password has been set successfully.");
+    expect(opts.text).toContain("social login account (Google)");
+    expect(opts.text).toContain("If you did not set your password yourself");
   });
 });
 
 describe("sendProfileUpdateEmail", () => {
-  it("subject 'Profile Updated Successfully' + recipient", async () => {
+  it("subject 'Profile updated successfully' + recipient", async () => {
     await sendProfileUpdateEmail("user@x.test", "Alice");
     const [opts] = sendEmailMock.mock.calls[0];
     expect(opts.to).toBe("user@x.test");
-    expect(opts.subject).toBe("Profile Updated Successfully");
+    expect(opts.subject).toBe("Profile updated successfully");
+    expect(opts.text).toContain("If you did not make these changes");
   });
 
-  it("renders a 'What changed' list with the supplied field labels", async () => {
+  it("lists the supplied field labels that changed", async () => {
     await sendProfileUpdateEmail("user@x.test", "Alice", [
       "Phone number",
       "WhatsApp number",
     ]);
     const [opts] = sendEmailMock.mock.calls[0];
-    expect(opts.html).toContain("What changed:");
-    expect(opts.html).toContain("<li>Phone number</li>");
-    expect(opts.html).toContain("<li>WhatsApp number</li>");
+    expect(opts.text).toContain("These details on your profile were updated:");
+    expect(opts.text).toContain("  - Phone number\n  - WhatsApp number");
   });
 
-  it("omits the 'What changed' list when no fields are supplied (generic copy)", async () => {
+  it("omits the changed-fields list when no fields are supplied (generic copy)", async () => {
     await sendProfileUpdateEmail("user@x.test", "Alice");
     const [opts] = sendEmailMock.mock.calls[0];
-    expect(opts.html).not.toContain("What changed:");
+    expect(opts.text).not.toContain("These details on your profile were updated");
+    expect(opts.text).toContain("Your profile information has been updated.");
   });
 
   it("escapes HTML in field labels (defensive)", async () => {
@@ -159,13 +182,17 @@ describe("sendProfileUpdateEmail", () => {
 });
 
 describe("sendProfileCompletionEmail", () => {
-  it("subject mentions 'Complete Your Profile' + URL goes to dashboard/settings", async () => {
+  it("subject 'Complete your profile' + URL goes to dashboard/settings + keeps the unsubscribe link", async () => {
     await sendProfileCompletionEmail("user@x.test", "Alice");
     const [opts] = sendEmailMock.mock.calls[0];
-    expect(opts.subject).toMatch(/Complete Your Profile/);
-    expect(opts.html).toContain(
-      "https://app.test.example/dashboard/settings"
+    expect(opts.subject).toBe("Complete your profile");
+    expect(opts.text).toContain(
+      "  https://app.test.example/dashboard/settings\n"
     );
+    expect(opts.html).toContain(
+      'href="https://app.test.example/dashboard/settings"'
+    );
+    expect(opts.listUnsubscribeUrl).toBe("https://app.test/api/notifications/unsubscribe?token=T");
   });
 });
 
@@ -173,14 +200,14 @@ describe("sendActivationEmail — fallback chain APP_URL > NEXTAUTH_URL > litera
   it("APP_URL wins when set", async () => {
     await sendActivationEmail("user@x.test", "Alice", "TOK");
     const [opts] = sendEmailMock.mock.calls[0];
-    expect(opts.html).toContain("https://marketing.test.example/activate?token=TOK");
+    expect(opts.text).toContain("https://marketing.test.example/activate?token=TOK");
   });
 
   it("APP_URL unset → falls back to NEXTAUTH_URL", async () => {
     vi.stubEnv("APP_URL", "");
     await sendActivationEmail("user@x.test", "Alice", "TOK");
     const [opts] = sendEmailMock.mock.calls[0];
-    expect(opts.html).toContain("https://app.test.example/activate?token=TOK");
+    expect(opts.text).toContain("https://app.test.example/activate?token=TOK");
   });
 
   it("both unset → literal fallback 'https://app.anutech.in'", async () => {
@@ -188,13 +215,46 @@ describe("sendActivationEmail — fallback chain APP_URL > NEXTAUTH_URL > litera
     vi.stubEnv("NEXTAUTH_URL", "");
     await sendActivationEmail("user@x.test", "Alice", "TOK");
     const [opts] = sendEmailMock.mock.calls[0];
-    expect(opts.html).toContain("https://app.anutech.in/activate?token=TOK");
+    expect(opts.text).toContain("https://app.anutech.in/activate?token=TOK");
   });
 
-  it("token + userName both rendered into the HTML body", async () => {
+  it("token + userName + 24-hour expiry rendered into the body", async () => {
     await sendActivationEmail("user@x.test", "Alice", "TOK_ABC");
     const [opts] = sendEmailMock.mock.calls[0];
-    expect(opts.html).toContain("Alice");
+    expect(opts.subject).toBe("Activate your account");
+    expect(opts.text).toContain("Alice");
+    expect(opts.text).toContain("TOK_ABC");
     expect(opts.html).toContain("TOK_ABC");
+    expect(opts.text).toContain("expires in 24 hours");
+    expect(opts.text).toContain("If you didn't create an account, please ignore it.");
+  });
+});
+
+describe("every auth email follows the shared ResellerOS pattern", () => {
+  const EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
+  const cases: Array<[string, () => Promise<boolean>]> = [
+    ["sendWelcomeEmail", () => sendWelcomeEmail("user@x.test", "Alice Smith")],
+    ["sendPasswordResetEmail", () => sendPasswordResetEmail("user@x.test", "Alice Smith", "T")],
+    ["sendPasswordResetEmail (setup)", () => sendPasswordResetEmail("user@x.test", "Alice Smith", "T", true)],
+    ["sendPasswordResetNotificationEmail", () => sendPasswordResetNotificationEmail("user@x.test", "Alice Smith", "pw")],
+    ["sendPasswordChangeNotificationEmail", () => sendPasswordChangeNotificationEmail("user@x.test", "Alice Smith", true, "google")],
+    ["sendProfileUpdateEmail", () => sendProfileUpdateEmail("user@x.test", "Alice Smith", ["Phone number"])],
+    ["sendProfileCompletionEmail", () => sendProfileCompletionEmail("user@x.test", "Alice Smith")],
+    ["sendActivationEmail", () => sendActivationEmail("user@x.test", "Alice Smith", "T")],
+  ];
+
+  it.each(cases)("%s: Hi <first name>, ... support ... — brand; plain html", async (_name, run) => {
+    expect(await run()).toBe(true);
+    const [opts] = sendEmailMock.mock.calls[0];
+    expect(opts.text.startsWith("Hi Alice,\n\n")).toBe(true);
+    // sendProfileCompletionEmail is non-essential: sendNotificationEmail may add its plain
+    // unsubscribe line after the sign-off, so the closing is checked before that line.
+    const body = opts.text.replace(/\n\nDon't want these emails\? Unsubscribe: \S+$/, "");
+    expect(body.endsWith("Questions? Reply to this email or write to support@anutech.in.\n\n— Anutech Digital")).toBe(true);
+    expect(opts.text).not.toMatch(/Private Limited|Domain Management/);
+    expect(opts.subject).not.toMatch(EMOJI);
+    expect(opts.text).not.toMatch(EMOJI);
+    expect(opts.html).not.toMatch(/gradient/i);
+    expect(opts.html).not.toMatch(EMOJI);
   });
 });

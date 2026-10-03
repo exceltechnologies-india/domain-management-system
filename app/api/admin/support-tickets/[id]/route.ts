@@ -7,6 +7,8 @@ import {
   updateTicketByIdAsAdmin,
 } from "@/lib/services/support-tickets";
 import { EmailService } from "@/lib/email";
+import { SUPPORT_EMAIL } from "@/lib/email/transporter";
+import { brandName, firstName, plainEmailHtml } from "@/lib/email/plain";
 import {
   validateAttachments,
   sumExistingAttachmentBytes,
@@ -30,14 +32,6 @@ const replyTicketAdminSchema = z.object({
   message: z.string().trim().min(1, "Message is required").max(5000, "Message too long"),
   attachments: z.array(ATTACHMENT_SHAPE).optional(),
 });
-
-const escapeHtml = (s: string) =>
-  s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 
 export const dynamic = "force-dynamic";
 
@@ -145,19 +139,28 @@ export async function POST(
     }
     await ticket.save();
 
-    // Notify user by email — escape user-controlled fields (their name + the
-    // ticket subject they originally chose); the admin's message is rendered
-    // as escaped HTML too.
-    const safeUserName = escapeHtml(ticket.userName);
-    const safeMessageHtml = escapeHtml(message.trim()).replace(/\n/g, "<br>");
+    // Notify the customer in the ResellerOS plain-text pattern (lib/email/plain.ts; owner,
+    // 3 Oct 2026). Their name and the reply only reach HTML through plainEmailHtml, which
+    // escapes them.
+    const quoted = message.trim().split(/\r?\n/).map((l) => `  ${l}`).join("\n");
+    const text =
+`Hi ${firstName(ticket.userName)},
+
+Our support team has replied to your ticket ${ticket.ticketNumber}:
+
+${quoted}
+
+See the whole conversation and reply here:
+  ${process.env.NEXTAUTH_URL}/dashboard/support/${id}
+
+Questions? Reply to this email or write to ${SUPPORT_EMAIL}.
+
+— ${brandName()}`;
     EmailService.sendEmail({
       to: ticket.userEmail,
       subject: `Re: [${ticket.ticketNumber}] ${ticket.subject}`,
-      html: `<p>Hi ${safeUserName},</p>
-<p>Our support team has replied to your ticket <strong>${ticket.ticketNumber}</strong>.</p>
-<blockquote style="border-left:4px solid #e5e7eb;padding-left:12px;color:#374151;">${safeMessageHtml}</blockquote>
-<p><a href="${process.env.NEXTAUTH_URL}/dashboard/support/${id}">View your ticket</a></p>
-<p>— Anutech Digital Support</p>`,
+      text,
+      html: plainEmailHtml(text),
     }).catch(() => {});
 
     return secureJsonResponse({ ticket });

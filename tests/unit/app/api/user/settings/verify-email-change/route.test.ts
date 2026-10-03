@@ -48,7 +48,8 @@ vi.mock("@/lib/services/users", () => ({
 }));
 
 const sendEmail = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/email/transporter", () => ({ sendEmail }));
+vi.mock("@/lib/email/transporter", () => ({ sendEmail, SUPPORT_EMAIL: "support@anutech.in" }));
+vi.stubEnv("FROM_NAME", "Anutech Digital");
 
 vi.mock("@/lib/server-logger", () => ({
   serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -197,6 +198,23 @@ describe("Happy path — atomic swap + session invalidation", () => {
     expect(sendEmail.mock.calls[0][0].to).toBe("alice@example.com");
     // body mentions new address
     expect(sendEmail.mock.calls[0][0].html).toContain("new@example.com");
+  });
+
+  it("old-address notification: plain ResellerOS pattern with the new address, sign-out note and reset link", async () => {
+    findUserByPendingEmailToken.mockResolvedValueOnce(userRec());
+    await GET(makeReq(`token=${VALID_RAW}`));
+
+    const { subject, text, html } = sendEmail.mock.calls[0][0];
+    expect(subject).toBe("Your email address has been changed");
+    expect(text.startsWith("Hi Alice,\n\n")).toBe(true);
+    expect(text).toContain("has been changed to new@example.com.");
+    expect(text).toContain("signed out on all devices");
+    expect(text).toMatch(/\n {2}https?:\/\/\S+\/reset-password\n/);
+    expect(text).toContain("Questions? Reply to this email or write to support@anutech.in.");
+    expect(text.endsWith("\n\n— Anutech Digital")).toBe(true);
+    expect(html).toMatch(/<a href="https?:\/\/\S+\/reset-password">/);
+    expect(html).not.toContain("gradient");
+    expect(html).not.toContain("Team");
   });
 
   it("old-address notification failure SWALLOWED — change still succeeds", async () => {

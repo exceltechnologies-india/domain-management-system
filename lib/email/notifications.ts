@@ -1,5 +1,5 @@
 import { sendEmail } from "./transporter";
-import { SUPPORT_EMAIL } from "./transporter";
+import { plainEmailHtml } from "./plain";
 import { unsubscribeUrl } from "@/lib/unsubscribe-token";
 import { getUserByEmail } from "@/lib/services/users";
 import { serverLogger } from "@/lib/server-logger";
@@ -10,7 +10,8 @@ import { serverLogger } from "@/lib/server-logger";
  * Unlike transactional/legal/security mail (password reset, invoices,
  * activation, "profile changed" alerts) — which always send — these emails:
  *   1. are SUPPRESSED when the recipient has unsubscribed (`emailOptOut`);
- *   2. carry a visible unsubscribe footer; and
+ *   2. end with a plain "Don't want these emails? Unsubscribe: <url>" line
+ *      after the sign-off (the ResellerOS pattern, lib/email/plain.ts); and
  *   3. set RFC 8058 one-click `List-Unsubscribe` headers.
  *
  * Route the 5 non-essential senders through this instead of `sendEmail`.
@@ -20,8 +21,12 @@ import { serverLogger } from "@/lib/server-logger";
 export async function sendNotificationEmail(opts: {
   to: string;
   subject: string;
-  html: string;
+  /** The plain-text body in the ResellerOS pattern (lib/email/plain.ts). When given, the
+   *  email is sent as that text + its plainEmailHtml rendering, with the unsubscribe link
+   *  as a plain last line after the sign-off — any `html` passed alongside is ignored. */
   text?: string;
+  /** Only for a caller not yet moved to `text`: its HTML gets the plain unsubscribe line. */
+  html?: string;
 }): Promise<boolean> {
   // Respect the opt-out. A lookup miss (guest / not-yet-created user) falls
   // through to sending — we only suppress when we positively know they opted
@@ -42,28 +47,32 @@ export async function sendNotificationEmail(opts: {
   }
 
   const url = unsubscribeUrl(opts.to);
-  const html = `${opts.html}${unsubscribeFooterHtml(url)}`;
+
+  if (opts.text) {
+    const text = `${opts.text}\n\n${unsubscribeLine(url)}`;
+    return sendEmail({
+      to: opts.to,
+      subject: opts.subject,
+      text,
+      html: plainEmailHtml(text),
+      listUnsubscribeUrl: url,
+    });
+  }
 
   return sendEmail({
     to: opts.to,
     subject: opts.subject,
-    html,
-    text: opts.text,
+    html: `${opts.html ?? ""}${unsubscribeFooterHtml(url)}`,
     listUnsubscribeUrl: url,
   });
 }
 
-/** Footer appended to non-essential emails with the unsubscribe link. */
+/** The unsubscribe link as one plain line, placed after the sign-off (ResellerOS pattern). */
+export function unsubscribeLine(url: string): string {
+  return `Don't want these emails? Unsubscribe: ${url}`;
+}
+
+/** The same line as HTML, for a caller that still sends its own HTML body. No styling. */
 export function unsubscribeFooterHtml(url: string): string {
-  return `
-    <div style="max-width: 600px; margin: 0 auto; padding: 16px 24px; text-align: center;">
-      <p style="margin: 0; font-size: 12px; color: #9ca3af; line-height: 1.5;">
-        You're receiving this because you have an account with Anutech Digital.
-        This is an optional notification — you'll still receive important account,
-        billing, and security emails.<br>
-        <a href="${url}" style="color: #6b7280; text-decoration: underline;">Unsubscribe from these notifications</a>
-        &nbsp;·&nbsp;
-        <a href="mailto:${SUPPORT_EMAIL}" style="color: #6b7280; text-decoration: underline;">Contact support</a>
-      </p>
-    </div>`;
+  return plainEmailHtml(`\n\n${unsubscribeLine(url)}`);
 }

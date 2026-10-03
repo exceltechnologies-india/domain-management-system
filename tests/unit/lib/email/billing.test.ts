@@ -4,15 +4,19 @@
  * surface — they appear in the user's inbox preview. Pins:
  *  - **sendPurchaseOrderEmail subject 3-way branch**:
  *    - paymentStatus:'success' + registrationFailed:true →
- *      "Purchase Order - PO123 (Registration Failed)"
- *    - paymentStatus:'success' + registrationFailed:false → "Purchase Order - PO123"
- *    - paymentStatus:'failed' → "Purchase Order - PO123 (Payment Failed)"
+ *      "Payment received, but registration failed — purchase order PO123"
+ *    - paymentStatus:'success' + registrationFailed:false → "Payment received — purchase order PO123"
+ *    - paymentStatus:'failed' → "Your payment didn't go through — purchase order PO123"
  *  - **sendOrderConfirmationEmail subject 4-way branch** based on
  *    successful + pending domain mix:
- *    - all successful → "Order Confirmation - INV"
- *    - all pending or all-pending-OR-successful → "Payment Successful - INV"
- *    - both successful + pending → "Payment Successful - INV"
- *    - neither pure successful nor pending-only → "Payment Received - INV"
+ *    - all successful → "Your order is confirmed — invoice INV"
+ *    - all pending or all-pending-OR-successful → "Payment received — invoice INV"
+ *    - both successful + pending → "Payment received — invoice INV"
+ *    - neither pure successful nor pending-only →
+ *      "Payment received — we're looking into your order, invoice INV"
+ *  - Both customer emails are in the ResellerOS plain pattern (lib/email/plain.ts;
+ *    Pawan, 3 Oct 2026): "Hi <first name>,", the order facts as indented text lines,
+ *    the support address, signed "— <brand>"; no banners, tables or emoji.
  *  - sendAdminNotification prepends "[Admin] " to subject (so admin
  *    inbox filters can route)
  *  - sendLowBalanceAlert:
@@ -85,32 +89,32 @@ function ocData(
 }
 
 describe("sendPurchaseOrderEmail — 3-way subject branch", () => {
-  it("payment success + registration FAILED → '(Registration Failed)' suffix", async () => {
+  it("payment success + registration FAILED → 'registration failed' subject", async () => {
     await sendPurchaseOrderEmail("user@x.test", "Alice", poData({
       paymentStatus: "success",
       registrationFailed: true,
     }));
     expect(sendEmailMock.mock.calls[0][0].subject).toBe(
-      "Purchase Order - PO_123 (Registration Failed)"
+      "Payment received, but registration failed — purchase order PO_123"
     );
   });
 
-  it("payment success + registration OK → bare 'Purchase Order' subject", async () => {
+  it("payment success + registration OK → 'Payment received — purchase order' subject", async () => {
     await sendPurchaseOrderEmail("user@x.test", "Alice", poData({
       paymentStatus: "success",
       registrationFailed: false,
     }));
     expect(sendEmailMock.mock.calls[0][0].subject).toBe(
-      "Purchase Order - PO_123"
+      "Payment received — purchase order PO_123"
     );
   });
 
-  it("payment FAILED → '(Payment Failed)' suffix", async () => {
+  it("payment FAILED → 'didn’t go through' subject", async () => {
     await sendPurchaseOrderEmail("user@x.test", "Alice", poData({
       paymentStatus: "failed",
     }));
     expect(sendEmailMock.mock.calls[0][0].subject).toBe(
-      "Purchase Order - PO_123 (Payment Failed)"
+      "Your payment didn't go through — purchase order PO_123"
     );
   });
 
@@ -127,7 +131,7 @@ describe("sendPurchaseOrderEmail — 3-way subject branch", () => {
 });
 
 describe("sendOrderConfirmationEmail — 4-way subject branch on domain mix", () => {
-  it("ALL successful (no pending) → 'Order Confirmation - INV'", async () => {
+  it("ALL successful (no pending) → 'Your order is confirmed — invoice INV'", async () => {
     await sendOrderConfirmationEmail(
       "user@x.test",
       "Alice",
@@ -137,11 +141,11 @@ describe("sendOrderConfirmationEmail — 4-way subject branch on domain mix", ()
       )
     );
     expect(sendEmailMock.mock.calls[0][0].subject).toBe(
-      "Order Confirmation - INV-1"
+      "Your order is confirmed — invoice INV-1"
     );
   });
 
-  it("all pending (only-pending-or-successful) → 'Payment Successful - INV'", async () => {
+  it("all pending (only-pending-or-successful) → 'Payment received — invoice INV'", async () => {
     await sendOrderConfirmationEmail(
       "user@x.test",
       "Alice",
@@ -151,11 +155,11 @@ describe("sendOrderConfirmationEmail — 4-way subject branch on domain mix", ()
       )
     );
     expect(sendEmailMock.mock.calls[0][0].subject).toBe(
-      "Payment Successful - INV-1"
+      "Payment received — invoice INV-1"
     );
   });
 
-  it("BOTH successful + pending → 'Payment Successful - INV'", async () => {
+  it("BOTH successful + pending → 'Payment received — invoice INV'", async () => {
     await sendOrderConfirmationEmail(
       "user@x.test",
       "Alice",
@@ -168,11 +172,11 @@ describe("sendOrderConfirmationEmail — 4-way subject branch on domain mix", ()
       )
     );
     expect(sendEmailMock.mock.calls[0][0].subject).toBe(
-      "Payment Successful - INV-1"
+      "Payment received — invoice INV-1"
     );
   });
 
-  it("a mix that includes 'failed' → fallback 'Payment Received - INV'", async () => {
+  it("a mix that includes 'failed' → fallback 'looking into your order' subject", async () => {
     await sendOrderConfirmationEmail(
       "user@x.test",
       "Alice",
@@ -182,8 +186,107 @@ describe("sendOrderConfirmationEmail — 4-way subject branch on domain mix", ()
       )
     );
     expect(sendEmailMock.mock.calls[0][0].subject).toBe(
-      "Payment Received - INV-1"
+      "Payment received — we're looking into your order, invoice INV-1"
     );
+  });
+});
+
+describe("customer order emails — the ResellerOS plain pattern", () => {
+  beforeEach(() => {
+    vi.stubEnv("FROM_NAME", "Anutech Digital");
+    vi.stubEnv("NEXTAUTH_URL", "https://app.example.com/");
+  });
+
+  const sent = (i = 0) =>
+    sendEmailMock.mock.calls[i][0] as { to: string; subject: string; text: string; html: string };
+
+  it("both emails: 'Hi <first name>,', support address, signed by the brand, no banners/tables/emoji", async () => {
+    await sendPurchaseOrderEmail("ada@x.test", "Ada Lovelace", poData({ registrationFailed: true }));
+    await sendPurchaseOrderEmail("ada@x.test", "Ada Lovelace", poData({ paymentStatus: "failed" }));
+    await sendOrderConfirmationEmail(
+      "ada@x.test",
+      "Ada Lovelace",
+      ocData(
+        [{ domainName: "x.com", price: 500, registrationPeriod: 1 }],
+        [
+          { domainName: "x.com", price: 500, registrationPeriod: 1, status: "registered" },
+          { domainName: "y.com", price: 500, registrationPeriod: 1, status: "failed" },
+        ]
+      )
+    );
+    expect(sendEmailMock).toHaveBeenCalledTimes(3);
+    for (const [m] of sendEmailMock.mock.calls) {
+      expect(m.text).toMatch(/^Hi Ada,\n/);
+      expect(m.text).toMatch(/— Anutech Digital$/);
+      expect(m.text).toContain("Questions? Reply to this email or write to support@anutech.in.");
+      expect(m.html).toContain('href="mailto:support@anutech.in"');
+      expect(m.html).not.toMatch(/gradient|<table|<h1|<h3/i);
+      expect(`${m.subject}\n${m.text}`).not.toMatch(/\p{Extended_Pictographic}/u);
+      expect(m.text).not.toMatch(/Private Limited|Domain Management|do not reply/i);
+    }
+  });
+
+  it("purchase order: every fact the old email showed, as text lines", async () => {
+    await sendPurchaseOrderEmail(
+      "ada@x.test",
+      "Ada",
+      poData({
+        amount: 1416,
+        subtotal: 1200,
+        domains: [
+          { domainName: "x.com", price: 500, registrationPeriod: 2 },
+          { domainName: "x.com", price: 200, registrationPeriod: 1, itemType: "hosting", planName: "Starter" },
+        ],
+      })
+    );
+    const { text } = sent();
+    expect(text).toContain("  x.com — 2 years at ₹500.00/year — ₹1000.00");
+    expect(text).toContain("  x.com (Starter) — 1 year at ₹200.00/year — ₹200.00");
+    expect(text).toContain("  Subtotal: ₹1200.00");
+    expect(text).toContain("  GST (18%): ₹216.00");
+    expect(text).toContain("  Total: ₹1416.00 INR (GST included)");
+    expect(text).toContain("  Purchase order: PO_123");
+    expect(text).toContain("  Order ID: ORD_42");
+    expect(text).toContain("  Invoice number: INV-1");
+    expect(text).toContain("  Payment: successful");
+    expect(text).toContain("  Payment ID: pay_xyz");
+    expect(text).toContain("  Date: 2026-06-01T00:00:00.000Z");
+  });
+
+  it("purchase order: registration failed promises the 2-10 day refund; payment failed hides the payment id", async () => {
+    await sendPurchaseOrderEmail("ada@x.test", "Ada", poData({ registrationFailed: true }));
+    expect(sent(0).text).toContain("refund to your original payment method will be initiated within 2-10 business days");
+    await sendPurchaseOrderEmail("ada@x.test", "Ada", poData({ paymentStatus: "failed" }));
+    expect(sent(1).text).toContain("  Payment: failed");
+    expect(sent(1).text).not.toContain("pay_xyz");
+  });
+
+  it("order confirmation: lines with status, 18% GST split, ids, and the dashboard link", async () => {
+    await sendOrderConfirmationEmail(
+      "ada@x.test",
+      "Ada",
+      ocData(
+        [{ domainName: "x.com", price: 500, registrationPeriod: 1 }],
+        [
+          { domainName: "x.com", price: 500, registrationPeriod: 1, status: "registered" },
+          { domainName: "y.com", price: 250, registrationPeriod: 2, status: "pending" },
+        ]
+      )
+    );
+    const { text, html } = sent();
+    expect(text).toContain("1 domain(s) registered successfully.");
+    expect(text).toContain("  x.com — 1 year at ₹500.00 — ₹500.00 — registered");
+    expect(text).toContain("  y.com — 2 years at ₹250.00 — ₹500.00 — processing");
+    expect(text).toContain("  Subtotal: ₹847.46");
+    expect(text).toContain("  GST (18%): ₹152.54");
+    expect(text).toContain("  Total: ₹1000.00 INR (GST included)");
+    expect(text).toContain("  Purchase order: PO_123");
+    expect(text).toContain("  Order ID: ORD_42");
+    expect(text).toContain("  Invoice number: INV-1");
+    expect(text).toContain("  Payment ID: pay_xyz");
+    expect(text).toContain("  Order date: 2026-06-01T00:00:00.000Z");
+    expect(text).toContain("  https://app.example.com/dashboard\n");
+    expect(html).toContain('<a href="https://app.example.com/dashboard">');
   });
 });
 

@@ -5,6 +5,8 @@ import { RecaptchaServer } from "@/lib/recaptcha";
 import { serverLogger } from "@/lib/server-logger";
 import { validatedBody, z } from "@/lib/api-validation";
 import { COMPANY_PHONE_DISPLAY } from "@/config/company";
+import { SUPPORT_EMAIL } from "@/lib/email/transporter";
+import { brandName, firstName, plainEmailHtml } from "@/lib/email/plain";
 
 // Zod gates the structural shape (every field present + string + bounded);
 // the existing InputValidator below still runs content-safety + sanitization
@@ -99,23 +101,28 @@ export async function POST(request: NextRequest) {
     const safeEmail = String(emailValidation.sanitized || email);
     const safeSubject = String(subjectValidation.sanitized || subject);
     const safeMessage = String(messageValidation.sanitized || message);
-    const confirmationEmailSent = await EmailService.sendEmail({
+    // In the ResellerOS plain-text pattern (lib/email/plain.ts; owner, 3 Oct 2026). Their
+    // name, subject and message only reach HTML through plainEmailHtml, which escapes them.
+    const quoted = safeMessage.trim().split(/\r?\n/).map((l) => `  ${l}`).join("\n");
+    const confirmationText =
+`Hi ${firstName(safeName)},
+
+Thank you for contacting us. We have received your message about "${safeSubject}" and will get back to you within 24 hours.
+
+Your message:
+
+${quoted}
+
+Anything urgent? Call us on ${COMPANY_PHONE_DISPLAY}.
+
+Questions? Reply to this email or write to ${SUPPORT_EMAIL}.
+
+— ${brandName()}`;
+    await EmailService.sendEmail({
       to: safeEmail,
-      subject: "Thank you for contacting Anutech Digital Private Limited",
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #3b82f6;">Thank you for contacting us!</h2>
-          <p>Hello ${InputValidator.sanitizeHtml(safeName)},</p>
-          <p>We have received your message regarding "${InputValidator.sanitizeHtml(safeSubject)}" and will get back to you within 24 hours.</p>
-          <p>Your message:</p>
-          <div style="background-color: #f3f4f6; padding: 15px; border-radius: 6px; margin: 20px 0;">
-            ${InputValidator.sanitizeHtml(safeMessage)}
-          </div>
-          <p>If you have any urgent questions, please call us at ${COMPANY_PHONE_DISPLAY} or email us at <a href="mailto:${process.env.SUPPORT_EMAIL || 'support@anutech.in'}" style="color: #3b82f6;">${process.env.SUPPORT_EMAIL || 'support@anutech.in'}</a>.</p>
-          <br>
-          <p>Best regards,<br>Anutech Digital Private Limited Team</p>
-        </div>
-      `,
+      subject: `Thank you for contacting ${brandName()}`,
+      text: confirmationText,
+      html: plainEmailHtml(confirmationText),
     });
 
     return NextResponse.json({
