@@ -143,7 +143,7 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
             <div className="w-9 h-9 rounded-md bg-ink text-paper grid place-items-center">
               <User className="h-5 w-5" />
             </div>
-            <span className="text-sm font-semibold text-ink">User Panel</span>
+            <span className="text-sm font-semibold text-ink">Customer Portal</span>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}

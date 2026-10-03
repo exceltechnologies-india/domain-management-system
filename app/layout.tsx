@@ -37,9 +37,26 @@ const inter = localFont({
   variable: '--font-inter',
 });
 
+/* The ResellerOS storefront's fonts (3 Oct 2026), self-hosted like Inter above. */
+const archivo = localFont({
+  src: [{ path: '../public/fonts/ArchivoVariable.woff2', weight: '100 900', style: 'normal' }],
+  display: 'swap',
+  variable: '--font-archivo',
+});
+const plexMono = localFont({
+  src: [
+    { path: '../public/fonts/IBMPlexMono-400.woff2', weight: '400', style: 'normal' },
+    { path: '../public/fonts/IBMPlexMono-500.woff2', weight: '500', style: 'normal' },
+  ],
+  display: 'swap',
+  variable: '--font-plex-mono',
+});
+
+/* What the customer sees in the browser tab — the ResellerOS brand, not "Domain Management
+   System" (3 Oct 2026: DMS is a backend service for ResellerOS). */
 export const metadata: Metadata = {
-  title: 'Anutech Digital Private Limited - Domain Management System',
-  description: 'Anutech Digital Private Limited - Professional domain management and digital solutions',
+  title: 'Customer Portal | Anutech Digital',
+  description: 'Manage your hosting, domains and email with Anutech Digital.',
   /* One icon design with ResellerOS (owner, 30 Sep 2026): the blue Anutech "A" mark, cut
      from the full-size logo. The same favicon.ico ships in ResellerOS's src/app/. */
   icons: {
@@ -83,7 +100,7 @@ export default async function RootLayout({
       suppressHydrationWarning
       {...(frontendTheme ? { 'data-theme': 'landing' } : {})}
     >
-      <body className={inter.className} suppressHydrationWarning>
+      <body className={`${archivo.className} ${archivo.variable} ${plexMono.variable} ${inter.variable}`} suppressHydrationWarning>
         {/* Admin-managed analytics / marketing tags (GA4 / GTM / Meta Pixel /
             Google Ads). Renders first-party nonce'd snippets keyed on
             validated IDs; no-ops when disabled. See components/TrackingScripts. */}

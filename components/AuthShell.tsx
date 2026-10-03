@@ -70,7 +70,7 @@ export default function AuthShell({
       </main>
 
       <footer className="p-6 text-center text-xs text-ink-3">
-        © {new Date().getFullYear()} Anutech Digital Private Limited
+        © {new Date().getFullYear()} Anutech Digital Pvt Ltd
       </footer>
     </div>
   );

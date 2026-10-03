@@ -146,7 +146,7 @@ export default function FooterModern({ className = '' }: FooterProps) {
         <div className="border-t border-paper/10 pt-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-3 text-center md:text-left">
             <p className="text-ink-3 text-sm">
-              © {new Date().getFullYear()} Anutech Digital Private Limited. All rights reserved.
+              © {new Date().getFullYear()} Anutech Digital Pvt Ltd. All rights reserved.
             </p>
             <div className="flex flex-wrap gap-4 md:gap-6 justify-center md:justify-end">
               <Link href={publicPageHref('/privacy')} className="text-ink-3 hover:text-paper text-sm transition-colors">Privacy Policy</Link>

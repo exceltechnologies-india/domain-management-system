@@ -46,7 +46,7 @@ describe("<Footer>", () => {
     render(<Footer />);
     const year = new Date().getFullYear();
     expect(
-      screen.getByText(new RegExp(`© ${year} Anutech Digital Private Limited`))
+      screen.getByText(new RegExp(`© ${year} Anutech Digital Pvt Ltd`))
     ).toBeInTheDocument();
   });
 

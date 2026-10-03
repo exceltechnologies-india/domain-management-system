@@ -131,7 +131,7 @@ export default function FooterClassic({ className = '' }: FooterProps) {
         <div className="border-t border-ink-2 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center text-center md:text-left">
             <p className="text-ink-4 text-sm">
-              © {new Date().getFullYear()} Anutech Digital Private Limited. All rights reserved.
+              © {new Date().getFullYear()} Anutech Digital Pvt Ltd. All rights reserved.
             </p>
             <div className="flex flex-wrap gap-4 md:gap-6 mt-4 md:mt-0 justify-center md:justify-end">
               <Link href={publicPageHref('/privacy')} className="text-ink-4 hover:text-paper text-sm transition-colors">

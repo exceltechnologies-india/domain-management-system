@@ -4,6 +4,10 @@ import { homeUrl } from '@/lib/reseller-os';
 
 interface LogoProps {
   className?: string;
+  /**
+   * Kept so existing call sites compile; the wordmark now always shows, because the
+   * ResellerOS storefront mark is the round "A" PLUS the name (3 Oct 2026).
+   */
   showText?: boolean;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   /**
@@ -15,9 +19,14 @@ interface LogoProps {
   variant?: 'light' | 'dark';
 }
 
+/**
+ * The brand mark — the SAME one the ResellerOS storefront shows (site Header/Chrome:
+ * /anutech-digital-logo.png + "Anutech Digital", bold). Pawan, 3 Oct 2026: DMS is purely a
+ * backend service for ResellerOS, so a customer must see ResellerOS branding wherever they
+ * are; the old full "ANUTECH DIGITAL PVT LTD" image is no longer used here.
+ */
 export default function Logo({
   className = '',
-  showText = false,
   size = 'md',
   // Not a literal '/'. This same mark sits on the login, register,
   // forgot-password, reset-password and activate screens, and in the
@@ -27,55 +36,30 @@ export default function Logo({
   href = homeUrl(),
   variant = 'light'
 }: LogoProps) {
-  const sizeClasses = {
-    sm: 'h-7 md:h-8 w-auto',
-    md: 'h-10 md:h-11 w-auto',
-    lg: 'h-12 md:h-14 w-auto',
-    // xl — used in the nav, which now has a fixed bar height so this larger
-    // mark centers within the bar without changing the navbar height.
-    xl: 'h-12 md:h-16 w-auto'
-  };
-
-  const textSizeClasses = {
-    sm: 'text-lg',
-    md: 'text-xl',
-    lg: 'text-2xl',
-    xl: 'text-2xl'
-  };
+  /* The storefront header uses a 34px mark with 16–18px bold text; the sizes stay
+     close to that so the panel and the shop read as one product. */
+  const markPx = { sm: 26, md: 30, lg: 34, xl: 36 }[size];
+  const textClass = { sm: 'text-[15px]', md: 'text-base', lg: 'text-lg', xl: 'text-lg' }[size];
 
   const logoElement = (
-    <div className={`flex items-center ${className}`}>
+    <div className={`flex items-center gap-2.5 ${className}`}>
       <Image
-        // Single source of truth for the brand mark. On dark surfaces we
-        // render the SAME logo turned pure-white via a CSS filter
-        // (brightness(0) makes every pixel black, invert(1) flips it to
-        // white) — a clean white silhouette on the dark login panel / footer,
-        // no separate white asset to keep in sync.
-        //
-        // width/height are the asset's intrinsic dimensions (aspect ratio
-        // only); the ACTUAL rendered size comes from the `h-* w-auto` classes
-        // in sizeClasses. NOTE: do NOT re-add an inline `style` height/width —
-        // inline styles override the Tailwind height classes and pin the logo
-        // to the intrinsic size (that bug made every "bigger logo" change a
-        // no-op).
-        src="/black-logo.png"
-        alt="Anutech Digital Private Limited"
-        width={364}
-        height={93}
-        className={`${sizeClasses[size]} ${variant === 'dark' ? 'brightness-0 invert' : ''}`}
+        src="/anutech-digital-logo.png"
+        alt=""
+        width={markPx}
+        height={markPx}
+        className="shrink-0 rounded-full object-contain"
         priority
       />
-      {showText && (
-        <span className={`ml-2 font-bold ${variant === 'dark' ? 'text-paper' : 'text-ink'} ${textSizeClasses[size]}`}>
-          Anutech Digital Private Limited
-        </span>
-      )}
+      <span className={`font-bold tracking-tight ${variant === 'dark' ? 'text-white' : 'text-ink'} ${textClass}`}>
+        Anutech Digital
+      </span>
     </div>
   );
 
   if (href) {
     return (
-      <Link href={href}>
+      <Link href={href} aria-label="Anutech Digital">
         {logoElement}
       </Link>
     );

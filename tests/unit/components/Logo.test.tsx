@@ -15,7 +15,7 @@ describe("<Logo>", () => {
     render(<Logo />);
     const link = screen.getByRole("link");
     expect(link).toHaveAttribute("href", "/");
-    expect(screen.getByAltText(/anutech digital/i)).toBeInTheDocument();
+    expect(link).toHaveAttribute("aria-label", "Anutech Digital");
   });
 
   it("honours a custom `href` prop", () => {
@@ -61,45 +61,38 @@ describe("<Logo>", () => {
   it("renders without a Link wrapper when href is falsy", () => {
     render(<Logo href="" />);
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
-    expect(screen.getByAltText(/anutech digital/i)).toBeInTheDocument();
+    expect(screen.getByText("Anutech Digital")).toBeInTheDocument();
   });
 
-  it("hides the company-name label by default", () => {
+  /* 3 Oct 2026 (Pawan): DMS is a backend for ResellerOS, so the mark is the ResellerOS
+     storefront's — the round "A" plus "Anutech Digital" — never the old "ANUTECH DIGITAL PVT
+     LTD" image or "Private Limited" wording. */
+  it("always shows the storefront wordmark, whatever showText says", () => {
+    for (const showText of [undefined, false, true]) {
+      const { unmount } = render(<Logo showText={showText} />);
+      expect(screen.getByText("Anutech Digital")).toBeInTheDocument();
+      expect(screen.queryByText(/private limited/i)).not.toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it("uses the storefront mark, not the old full logo image", () => {
+    const { container } = render(<Logo />);
+    const img = container.querySelector("img") as HTMLImageElement;
+    expect(img.src).toMatch(/anutech-digital-logo\.png/);
+    expect(img.src).not.toMatch(/black-logo/);
+  });
+
+  it("variant='dark' → white wordmark; 'light' (default) → ink", () => {
+    const dark = render(<Logo variant="dark" />);
+    expect(screen.getByText("Anutech Digital").className).toMatch(/text-white/);
+    dark.unmount();
     render(<Logo />);
-    expect(screen.queryByText(/anutech digital private limited$/i)).not.toBeInTheDocument();
+    expect(screen.getByText("Anutech Digital").className).toMatch(/text-ink/);
   });
 
-  it("renders the company-name label under showText={true}", () => {
-    render(<Logo showText />);
-    // The alt and the label both contain the company name; queryAllByText
-    // returns at least one match (the label) plus the alt isn't a text node.
-    expect(screen.getAllByText(/anutech digital private limited/i).length).toBeGreaterThan(0);
-  });
-
-  it("variant='dark' renders the same logo turned white via CSS filter + white text label", () => {
-    render(<Logo variant="dark" showText />);
-    const img = screen.getByAltText(/anutech digital/i) as HTMLImageElement;
-    // Single asset for both variants; dark is whitened with a CSS filter.
-    expect(img.src).toMatch(/black-logo\.png/);
-    expect(img.className).toMatch(/brightness-0/);
-    expect(img.className).toMatch(/invert/);
-    // The label gets the text-paper class
-    const label = screen.getByText(/anutech digital private limited/i);
-    expect(label.className).toMatch(/text-paper/);
-  });
-
-  it("variant='light' (default) uses the black-logo asset and applies dark text", () => {
-    render(<Logo showText />);
-    const img = screen.getByAltText(/anutech digital/i) as HTMLImageElement;
-    expect(img.src).toMatch(/black-logo\.png/);
-    const label = screen.getByText(/anutech digital private limited/i);
-    expect(label.className).toMatch(/text-ink/);
-  });
-
-  it("maps size='lg' to the h-12 md:h-14 class set on the img", () => {
-    render(<Logo size="lg" />);
-    const img = screen.getByAltText(/anutech digital/i);
-    expect(img.className).toMatch(/h-12/);
-    expect(img.className).toMatch(/md:h-14/);
+  it("size sets the mark close to the storefront header's 34px", () => {
+    const { container } = render(<Logo size="lg" />);
+    expect(container.querySelector("img")).toHaveAttribute("width", "34");
   });
 });

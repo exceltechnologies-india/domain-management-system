@@ -21,7 +21,13 @@ module.exports = {
            (see app/layout.tsx). Reaching for a Google-hosted DM Serif Display
            here would walk straight back into that. A system serif stack costs
            one download less and cannot fail a build. */
-        serif: ['Georgia', 'Cambria', '"Times New Roman"', 'serif'],
+        /* 3 Oct 2026: the customer sees the ResellerOS storefront's type everywhere — Archivo
+           for text AND headings (the storefront has no serif), IBM Plex Mono for labels and ids.
+           `font-serif` is kept as a name so no screen changes a class; it now draws Archivo.
+           Self-hosted in app/layout.tsx, for the same build-network reason as Inter. */
+        sans: ['var(--font-archivo)', 'Archivo', 'system-ui', 'sans-serif'],
+        serif: ['var(--font-archivo)', 'Archivo', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-plex-mono)', '"IBM Plex Mono"', 'ui-monospace', 'monospace'],
       },
       colors: {
         /* ─── ResellerOS tokens — see :root in app/globals.css ───────────────
