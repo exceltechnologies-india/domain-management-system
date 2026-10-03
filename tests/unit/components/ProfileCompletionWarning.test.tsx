@@ -11,11 +11,13 @@ import { render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-const { mockRouter, mockUseSession, mockLocalStorage } = vi.hoisted(() => ({
+const { mockRouter, mockUseSession, mockLocalStorage, mockApiGet } = vi.hoisted(() => ({
   mockRouter: { push: vi.fn() },
   mockUseSession: vi.fn(),
   mockLocalStorage: { getItem: vi.fn(), setItem: vi.fn(), removeItem: vi.fn() },
+  mockApiGet: vi.fn(),
 }));
+vi.mock("@/lib/api-client", () => ({ apiClient: { get: mockApiGet } }));
 
 vi.mock("next/navigation", () => ({ useRouter: () => mockRouter }));
 vi.mock("next-auth/react", () => ({ useSession: mockUseSession }));
@@ -40,6 +42,35 @@ beforeEach(() => {
   mockUseSession.mockReset();
   mockLocalStorage.getItem.mockReset();
   mockLocalStorage.getItem.mockReturnValue(null);
+  // Default: the account lookup is unavailable, so the session + browser copy decide (as before).
+  mockApiGet.mockReset().mockResolvedValue({ ok: false, error: { status: 0, message: "offline" } });
+});
+
+/* 3 Oct 2026: a buyer created from a ResellerOS order has a saved mobile but no address. The
+   session carries profileCompleted=false and no phone, so the banner used to say "phone number
+   and address are missing". It now asks the account what it really holds. */
+describe("the banner believes the saved account, not the session", () => {
+  it("phone saved, address not → only the address is reported missing", async () => {
+    mockUseSession.mockReturnValue(sessionUser({ profileCompleted: false }));
+    mockApiGet.mockResolvedValue({ ok: true, data: { user: { phone: "9864971612", phoneCc: "91", profileCompleted: false } } });
+    render(<ProfileCompletionWarning />);
+    expect(mockApiGet).toHaveBeenCalledWith("/api/v1/auth/me");
+    await vi.waitFor(() => expect(screen.queryByText(/phone/i)).not.toBeInTheDocument());
+    expect(screen.getByText(/address/i)).toBeInTheDocument();
+  });
+
+  it("phone and address both saved → no banner, even with profileCompleted=false in the session", async () => {
+    mockUseSession.mockReturnValue(sessionUser({ profileCompleted: false }));
+    mockApiGet.mockResolvedValue({ ok: true, data: { user: { ...completeUser, profileCompleted: false } } });
+    const { container } = render(<ProfileCompletionWarning />);
+    await vi.waitFor(() => expect(container.firstChild).toBeNull());
+  });
+
+  it("a complete profile in the session is not asked about again", () => {
+    mockUseSession.mockReturnValue(sessionUser(completeUser));
+    render(<ProfileCompletionWarning />);
+    expect(mockApiGet).not.toHaveBeenCalled();
+  });
 });
 
 describe("<ProfileCompletionWarning>", () => {

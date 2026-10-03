@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { AlertTriangle, X } from "lucide-react";
 import { safeLocalStorage } from '@/lib/storage';
+import { apiClient } from '@/lib/api-client';
 
 interface ProfileCompletionWarningProps {
   className?: string;
@@ -50,6 +51,24 @@ export default function ProfileCompletionWarning({ className = "", returnUrl }: 
   const [showWarning, setShowWarning] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
   const [missingFields, setMissingFields] = useState<MissingFields>({ phone: false, address: false });
+  /* What the account REALLY holds (3 Oct 2026). The login session carries `profileCompleted` but
+     not the phone or address, so for a buyer whose profile is not complete — e.g. one created
+     from a ResellerOS order, which sends a mobile but no address for hosting — the banner said
+     "phone number missing" while the number was saved. Asked once, only when needed. */
+  const [server, setServer] = useState<User | null>(null);
+  const needsServer = Boolean(session?.user) && (session?.user as { profileCompleted?: boolean } | undefined)?.profileCompleted !== true;
+
+  useEffect(() => {
+    if (!needsServer || server) return;
+    let cancelled = false;
+    void apiClient.get<{ user?: User }>('/api/v1/auth/me').then((res) => {
+      if (!cancelled && res.ok && res.data.user) {
+        const u = res.data.user;
+        setServer({ phone: u.phone, phoneCc: u.phoneCc, address: u.address, profileCompleted: u.profileCompleted });
+      }
+    }).catch(() => { /* keep what the session and the browser copy say */ });
+    return () => { cancelled = true; };
+  }, [needsServer, server]);
 
   useEffect(() => {
     const checkUserProfile = () => {
@@ -61,7 +80,8 @@ export default function ProfileCompletionWarning({ className = "", returnUrl }: 
       }
 
       if (session?.user) {
-        userData = { ...(session.user as unknown as User), ...(local ?? {}) };
+        // The saved account wins over the session and the browser copy.
+        userData = { ...(session.user as unknown as User), ...(local ?? {}), ...(server ?? {}) };
       } else if (local) {
         userData = local;
       }
@@ -91,7 +111,7 @@ export default function ProfileCompletionWarning({ className = "", returnUrl }: 
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('profileUpdated', handleProfileUpdate);
     };
-  }, [session, isDismissed]);
+  }, [session, isDismissed, server]);
 
   const handleCompleteProfile = () => {
     const url = returnUrl
