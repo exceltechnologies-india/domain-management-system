@@ -299,7 +299,7 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
             transition={{ duration: 0.3 }}
             className="h-full pb-20 sm:pb-8"
           >
-            <ProfileCompletionWarning />
+            <ProfileCompletionWarning onlyWithDomains />
             {isLoading ? (
               <div className="p-6">
                 <DataLoading type="card" count={3} />

@@ -157,7 +157,7 @@ export default function CartPage() {
       setUser((prev) => prev ? { ...prev, ...fresh, profileCompleted: latestProfileCompleted } : fresh);
     }
 
-    if (latestProfileCompleted !== true) {
+    if (latestProfileCompleted !== true && cartItems.some((i) => i.itemType !== 'hosting')) {
       // Send the customer to the profile/settings page with a returnUrl so
       // the page can bounce them back to the cart after a successful save.
       // The toast is still shown to explain *why* they're being redirected.
@@ -203,6 +203,11 @@ export default function CartPage() {
     return <CartPageSkeleton />;
   }
 
+  /* Phone and address are needed only to register a domain (3 Oct 2026), so the profile is
+     asked for — banner, button and checkout gate — only when the cart holds one. A hosting-only
+     order is still asked for its state at payment (PanelCheckout). */
+  const cartHasDomain = cartItems.some((i) => i.itemType !== 'hosting');
+
   const pendingHostingItems = cartItems.filter(
     (i) => i.itemType === 'hosting' && elementIsPending(i)
   );
@@ -213,7 +218,7 @@ export default function CartPage() {
 
       <div className="flex-1 w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-8 pt-24">
         <ErrorBoundary label="CartPage">
-        <ProfileCompletionWarning returnUrl="/cart" />
+        {cartHasDomain && <ProfileCompletionWarning returnUrl="/cart" />}
 
         {/* ── Header strip ── */}
         {cartItems.length > 0 ? (
@@ -348,7 +353,7 @@ export default function CartPage() {
               <CartOrderSummary
                 isLoggedIn={!!user}
                 hasSession={!!session?.user}
-                profileCompleted={user?.profileCompleted}
+                profileCompleted={cartHasDomain ? user?.profileCompleted : true}
                 itemCount={getItemCount()}
                 totalPrice={getTotalPrice()}
                 onCheckout={handleCheckout}

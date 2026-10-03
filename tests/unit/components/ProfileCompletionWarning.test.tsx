@@ -66,6 +66,32 @@ describe("the banner believes the saved account, not the session", () => {
     await vi.waitFor(() => expect(container.firstChild).toBeNull());
   });
 
+  /* 3 Oct 2026 (Pawan): "hide the banner for customers who have no domains; when they try to buy a
+     domain, prompt them". The panel passes onlyWithDomains; the domain checkout asks instead. */
+  it("onlyWithDomains + no domains → no banner, even with phone and address missing", async () => {
+    mockUseSession.mockReturnValue(sessionUser({ profileCompleted: false }));
+    mockApiGet.mockImplementation(async (url: string) =>
+      url.startsWith("/api/v1/user/domains") ? { ok: true, data: { domains: [], total: 0 } } : { ok: true, data: { user: { profileCompleted: false } } });
+    const { container } = render(<ProfileCompletionWarning onlyWithDomains />);
+    await vi.waitFor(() => expect(mockApiGet).toHaveBeenCalledWith("/api/v1/user/domains?limit=1"));
+    expect(container.firstChild).toBeNull();
+  });
+
+  it("onlyWithDomains + a domain → the banner shows what is missing", async () => {
+    mockUseSession.mockReturnValue(sessionUser({ profileCompleted: false }));
+    mockApiGet.mockImplementation(async (url: string) =>
+      url.startsWith("/api/v1/user/domains") ? { ok: true, data: { domains: [{}], total: 1 } } : { ok: true, data: { user: { phone: "9864971612", phoneCc: "91", profileCompleted: false } } });
+    render(<ProfileCompletionWarning onlyWithDomains />);
+    expect(await screen.findByText(/address/i)).toBeInTheDocument();
+  });
+
+  it("onlyWithDomains + the domain list cannot be read → stays quiet (checkout still asks)", async () => {
+    mockUseSession.mockReturnValue(sessionUser({ profileCompleted: false }));
+    const { container } = render(<ProfileCompletionWarning onlyWithDomains />);
+    await vi.waitFor(() => expect(mockApiGet).toHaveBeenCalledWith("/api/v1/user/domains?limit=1"));
+    expect(container.firstChild).toBeNull();
+  });
+
   it("a complete profile in the session is not asked about again", () => {
     mockUseSession.mockReturnValue(sessionUser(completeUser));
     render(<ProfileCompletionWarning />);

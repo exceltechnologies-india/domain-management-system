@@ -51,14 +51,14 @@ export default function PricingCard({
 
   const isPurple = highlightColor === 'purple';
   const popularBorderCls = isPurple
-    ? 'border-2 border-[#7C3AED] shadow-[0_0_25px_-5px_rgba(124,58,237,0.25)] md:scale-105 z-10'
+    ? 'border-2 border-[#1668E3] shadow-[0_0_25px_-5px_rgba(22,104,227,0.25)] md:scale-105 z-10'
     : 'border-2 border-primary-600 shadow-[0_0_25px_-5px_rgba(1,119,225,0.25)] md:scale-105 z-10';
-  const ribbonCls = isPurple ? 'bg-[#7C3AED]' : 'bg-primary-600';
+  const ribbonCls = isPurple ? 'bg-[#1668E3]' : 'bg-primary-600';
   const buttonPopularCls = isPurple
-    ? 'bg-[#7C3AED] text-white hover:bg-[#6D28D9] shadow-md hover:shadow-lg'
+    ? 'bg-[#1668E3] text-white hover:bg-[#0A47A0] shadow-md hover:shadow-lg'
     : 'bg-primary-600 text-white hover:bg-primary-800 shadow-md hover:shadow-lg';
   const buttonPlainCls = isPurple
-    ? 'bg-white text-[#7C3AED] border-2 border-[#7C3AED] hover:bg-[#7C3AED]/5'
+    ? 'bg-white text-[#1668E3] border-2 border-[#1668E3] hover:bg-[#1668E3]/5'
     : 'bg-white text-primary-600 border-2 border-primary-600 hover:bg-primary-500/5';
 
   return (

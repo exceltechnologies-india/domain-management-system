@@ -296,7 +296,7 @@ export default function Navigation({
 
             <Link
               href={hostingHref}
-              className="hidden sm:inline-flex items-center px-4 py-2 rounded-lg font-semibold text-paper shadow-sm hover:shadow-md transition-all bg-gradient-to-r from-[#7C3AED] to-[#6D28D9] hover:from-[#6D28D9] hover:to-[#5B21B6]"
+              className="hidden sm:inline-flex items-center px-4 py-2 rounded-lg font-semibold text-paper shadow-sm hover:shadow-md transition-all bg-gradient-to-r from-[#1668E3] to-[#0A47A0] hover:from-[#0A47A0] hover:to-[#5B21B6]"
               style={{ fontFamily: 'Google Sans, system-ui, sans-serif' }}
             >
               Start Free Trial

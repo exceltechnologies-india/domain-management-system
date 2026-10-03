@@ -11,6 +11,13 @@ interface ProfileCompletionWarningProps {
   className?: string;
   /** After completing profile, user is redirected here. Defaults to staying on settings. */
   returnUrl?: string;
+  /**
+   * Show only to a customer who has at least one domain (Pawan, 3 Oct 2026: "hide the banner for
+   * customers who have no domains; when they try to buy a domain, prompt them"). Phone and address
+   * are needed only to register a domain, so a hosting-only customer is not nagged; buying a
+   * domain asks for them at checkout instead. Used by the panel shell.
+   */
+  onlyWithDomains?: boolean;
 }
 
 interface User {
@@ -44,7 +51,7 @@ function isProfileComplete(userData: User): boolean {
   return !missing.phone && !missing.address;
 }
 
-export default function ProfileCompletionWarning({ className = "", returnUrl }: ProfileCompletionWarningProps) {
+export default function ProfileCompletionWarning({ className = "", returnUrl, onlyWithDomains = false }: ProfileCompletionWarningProps) {
   const sessionResult = useSession();
   const session = sessionResult?.data;
   const router = useRouter();
@@ -57,6 +64,19 @@ export default function ProfileCompletionWarning({ className = "", returnUrl }: 
      "phone number missing" while the number was saved. Asked once, only when needed. */
   const [server, setServer] = useState<User | null>(null);
   const needsServer = Boolean(session?.user) && (session?.user as { profileCompleted?: boolean } | undefined)?.profileCompleted !== true;
+
+  /* null = not known yet. Asked once, and only when the banner might show. */
+  const [hasDomains, setHasDomains] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!onlyWithDomains || !needsServer || hasDomains !== null) return;
+    let cancelled = false;
+    void apiClient.get<{ total?: number; domains?: unknown[] }>('/api/v1/user/domains?limit=1').then((res) => {
+      if (cancelled) return;
+      // Unknown (request failed) → stay quiet: the domain checkout still asks for the address.
+      setHasDomains(res.ok ? (res.data.total ?? res.data.domains?.length ?? 0) > 0 : false);
+    }).catch(() => { if (!cancelled) setHasDomains(false); });
+    return () => { cancelled = true; };
+  }, [onlyWithDomains, needsServer, hasDomains]);
 
   useEffect(() => {
     if (!needsServer || server) return;
@@ -91,6 +111,11 @@ export default function ProfileCompletionWarning({ className = "", returnUrl }: 
         return;
       }
 
+      if (onlyWithDomains && hasDomains !== true) {
+        setShowWarning(false);
+        return;
+      }
+
       if (!isProfileComplete(userData) && !isDismissed) {
         setMissingFields(getMissingFields(userData));
         setShowWarning(true);
@@ -111,7 +136,7 @@ export default function ProfileCompletionWarning({ className = "", returnUrl }: 
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('profileUpdated', handleProfileUpdate);
     };
-  }, [session, isDismissed, server]);
+  }, [session, isDismissed, server, onlyWithDomains, hasDomains]);
 
   const handleCompleteProfile = () => {
     const url = returnUrl
