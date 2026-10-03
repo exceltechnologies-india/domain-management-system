@@ -1,4 +1,21 @@
 import { sendEmail, SUPPORT_EMAIL } from "./transporter";
+import { brandName, firstName, plainEmailHtml, portalLoginUrl } from "./plain";
+
+/*
+ * Hosting emails to the customer, in the ResellerOS pattern (lib/email/plain.ts; Pawan,
+ * 3 Oct 2026). Rewritten from the earlier banner-and-gradient layout so a customer gets the
+ * same plain, signed email whether they bought on the ResellerOS site or in the panel. What
+ * each one SAYS is unchanged: the trial line, the Tokens-flow renewal warning (paid only, never
+ * on a ₹0 trial), the nameservers and server IP, and where to get help.
+ */
+
+function send(to: string, subject: string, text: string): Promise<boolean> {
+  return sendEmail({ to, subject, text, html: plainEmailHtml(text) });
+}
+
+function helpLines(): string {
+  return `Questions? Reply to this email or write to ${SUPPORT_EMAIL}.\n\n— ${brandName()}`;
+}
 
 export async function sendHostingProvisionedEmail(
   userEmail: string,
@@ -10,161 +27,56 @@ export async function sendHostingProvisionedEmail(
     serverIp: string;
     nameservers: string[];
     // Tokens-flow customers face a strict 1-attempt recurring-charge
-    // policy (d4b6a64). They get an extra callout in the welcome email
-    // setting that expectation up front. Subscriptions-flow + manual
-    // customers default to undefined here → no callout.
+    // policy (d4b6a64), so their (paid) email says so up front.
+    // Subscriptions-flow + manual customers default to undefined → nothing extra.
     mandateMode?: "tokens" | "subscriptions" | "manual";
-    // Trial signals — added 2026-07-03 so trials receive trial-specific
-    // messaging (subject + header + banner + day-15 explanation) rather
-    // than the generic "provisioned" copy. isTrial gate + optional
-    // trialEndsAt used to compute the exact expiry date shown in the
-    // email. Callers that don't pass isTrial fall through to the
-    // unchanged paid-account flow.
+    // A trial says it is a trial, and until when (added 2026-07-03).
     isTrial?: boolean;
     trialEndsAt?: Date | string | null;
   }
 ): Promise<boolean> {
   const isTrial = hostingDetails.isTrial === true;
-  const trialEnds = isTrial && hostingDetails.trialEndsAt
-    ? new Date(hostingDetails.trialEndsAt)
-    : null;
-  const trialEndsLabel = trialEnds && !isNaN(trialEnds.getTime())
-    ? trialEnds.toLocaleDateString("en-IN", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      })
-    : null;
-  const planLabel = hostingDetails.planName || hostingDetails.packageName;
+  const trialEnds = isTrial && hostingDetails.trialEndsAt ? new Date(hostingDetails.trialEndsAt) : null;
+  const trialEndsLabel =
+    trialEnds && !isNaN(trialEnds.getTime())
+      ? trialEnds.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
+      : null;
+  const plan = hostingDetails.planName || hostingDetails.packageName;
+  const domain = hostingDetails.domainName;
 
   const subject = isTrial
-    ? `Your 15-Day Free Trial is Active — ${hostingDetails.domainName}`
-    : "Hosting Account Provisioned Successfully";
-  const nameserversList = hostingDetails.nameservers
-    .map((ns) => `<li>${ns}</li>`)
-    .join("");
+    ? `Your 15-day ${plan} hosting trial is live — ${domain}`
+    : `Your ${plan} hosting is live — ${domain}`;
 
-  // Trial-specific banner. Replaces the generic "Service Activated" green
-  // box when isTrial=true. Copy sets the expectation that no charge happens
-  // today + gives the customer a direct link back to convert. The detailed
-  // "what happens at day 15" billing explainer was removed per operator
-  // request (2026-07-27) — kept the celebratory activation message only; the
-  // day-15 reminder email (2 days before expiry) carries the conversion +
-  // suspension details when they're actually relevant.
-  const trialBanner = isTrial
-    ? `
-        <div style="background-color: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 24px; margin: 20px 0;">
-          <h3 style="color: #92400E; margin: 0 0 12px 0; font-size: 18px;">🎉 Your 15-Day Free Trial is Active</h3>
-          <p style="color: #78350F; margin: 0; font-size: 14px; line-height: 1.6;">
-            Your <strong>${planLabel}</strong> hosting for <strong>${hostingDetails.domainName}</strong> is now live${trialEndsLabel ? ` — free until <strong>${trialEndsLabel}</strong>` : ""}.
-            Explore every feature: upload your site, create email accounts, install WordPress, set up databases — no charges today.
-          </p>
-        </div>
-      `
-    : `
-        <div style="background-color: #D1FAE5; border: 1px solid #10B981; border-radius: 8px; padding: 20px; margin: 20px 0;">
-          <h3 style="color: #065F46; margin: 0 0 10px 0; font-size: 18px;">✅ Service Activated</h3>
-          <p style="color: #065F46; margin: 0; font-size: 14px;">
-            Your web hosting for <strong>${hostingDetails.domainName}</strong> has been successfully provisioned and is ready to use.
-          </p>
-        </div>
-      `;
+  const opening = isTrial
+    ? `Your 15-day ${plan} hosting trial for ${domain} is ready${trialEndsLabel ? ` — free until ${trialEndsLabel}` : ""}. No credit card, nothing charged.`
+    : `Your ${plan} hosting for ${domain} is ready.`;
 
-  // Tokens-flow-specific payment-method-validity callout. Shown only on the
-  // NON-trial (paid) activation email, where an auto-renewal charge is
-  // imminent. Deliberately NOT shown on the "Your Free Trial is Live" email:
-  // the trial banner above already explains the day-15 billing + suspension
-  // policy, nothing has been charged yet, and a second scary "keep your card
-  // valid or you'll be suspended" box reads as alarming on a ₹0 free trial
-  // (operator request 2026-07-27).
-  const tokensFlowCallout =
+  /* Paid Tokens-flow only. Not on a trial: nothing has been charged, and a second
+     "or you'll be suspended" line reads as alarming on a ₹0 trial (operator, 2026-07-27). */
+  const renewal =
     hostingDetails.mandateMode === "tokens" && !isTrial
-      ? `
-        <div style="background-color: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 20px; margin: 20px 0;">
-          <h3 style="color: #92400E; margin: 0 0 10px 0; font-size: 16px;">⚠️ Important: Keep Your Payment Method Valid</h3>
-          <p style="color: #78350F; margin: 0 0 8px 0; font-size: 14px;">
-            Your hosting renews automatically. We will charge your saved payment method once when your billing cycle is due.
-          </p>
-          <p style="color: #78350F; margin: 0; font-size: 14px;">
-            <strong>If that single charge fails</strong> (declined card, insufficient balance, revoked mandate), your service will be suspended and you'll need to re-subscribe with a new payment method to restore it. Please ensure the card or UPI ID on file stays valid — especially when it's close to expiry or you've recently changed banks.
-          </p>
-        </div>
-      `
+      ? `\n\nYour hosting renews automatically: we charge the card or UPI ID you saved once, when the next term is due. If that single charge fails, the hosting is suspended and you would need to subscribe again with a new payment method — so please keep it valid.`
       : "";
 
-  const headerTitle = isTrial ? "Your Free Trial is Live!" : "Hosting Account Active";
-  const headerGradient = isTrial
-    ? "linear-gradient(135deg, #F59E0B, #D97706)"
-    : "linear-gradient(135deg, #1A73E8, #1557B0)";
+  const pointing = hostingDetails.nameservers.length
+    ? `\n\nTo put your website on it, point ${domain} to these nameservers at your domain registrar (already done if you bought the domain from us):\n${hostingDetails.nameservers.map((ns) => `  ${ns}`).join("\n")}\nServer IP: ${hostingDetails.serverIp}`
+    : `\n\nServer IP: ${hostingDetails.serverIp}`;
 
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
-      <div style="background: ${headerGradient}; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
-        <h1 style="margin: 0; font-size: 24px; font-weight: bold;">${headerTitle}</h1>
-      </div>
+  const text =
+`Hi ${firstName(userName)},
 
-      <div style="padding: 30px; background-color: #ffffff;">
-        <p style="font-size: 16px; color: #374151; margin-bottom: 20px;">Hello ${userName},</p>
+${opening}
 
-        ${trialBanner}
+Manage it — control panel, email, WordPress — from your Customer Portal:
+  ${portalLoginUrl()}
+First time there? Use the "set your password" email we sent you to sign in.${pointing}${renewal}
 
-        ${tokensFlowCallout}
+Moving from another host? Reply to this email with your current login and we'll migrate you for free — your old site stays live until you approve the switch.
 
-        <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
-          <h3 style="color: #1f2937; margin: 0 0 15px 0; font-size: 16px;">Account Details</h3>
-          <table style="width: 100%; border-collapse: collapse;">
-            <tr>
-              <td style="padding: 8px 0; color: #6b7280; width: 140px;">Domain:</td>
-              <td style="padding: 8px 0; font-weight: 600; color: #1f2937;">${hostingDetails.domainName}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0; color: #6b7280;">Package:</td>
-              <td style="padding: 8px 0; font-weight: 600; color: #1f2937;">${hostingDetails.planName || hostingDetails.packageName}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0; color: #6b7280;">Server IP:</td>
-              <td style="padding: 8px 0; font-weight: 600; color: #1f2937;">${hostingDetails.serverIp}</td>
-            </tr>
-          </table>
-        </div>
+${helpLines()}`;
 
-        <h3 style="color: #1f2937; margin: 25px 0 15px 0; font-size: 18px;">How to Manage Your Hosting</h3>
-
-        <div style="margin-bottom: 20px;">
-          <p style="font-size: 14px; color: #374151; margin-bottom: 10px;"><strong>1. Access Control Panel</strong></p>
-          <p style="font-size: 14px; color: #6b7280; margin-bottom: 0;">
-            You can log in to your hosting control panel directly from your dashboard without needing separate credentials.
-          </p>
-        </div>
-
-        <div style="text-align: center; margin: 20px 0;">
-          <a href="${process.env.NEXTAUTH_URL}/dashboard/hosting" style="display: inline-block; background: ${headerGradient}; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px;">${isTrial ? "Start Using Your Trial" : "Go to Hosting Dashboard"}</a>
-        </div>
-
-        <div style="margin-bottom: 20px;">
-          <p style="font-size: 14px; color: #374151; margin-bottom: 10px;"><strong>2. Update Nameservers</strong></p>
-          <p style="font-size: 14px; color: #6b7280; margin-bottom: 10px;">
-            If you purchased your domain from us, these nameservers are automatically configured. If your domain is with another registrar, update your nameservers to:
-          </p>
-          <ul style="background-color: #f8fafc; padding: 15px 15px 15px 35px; border-radius: 6px; color: #4b5563; font-family: monospace; font-size: 13px;">
-            ${nameserversList}
-          </ul>
-        </div>
-
-        <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">
-          If you have any questions, please contact our support team at <a href="mailto:${SUPPORT_EMAIL}" style="color: #1A73E8;">${SUPPORT_EMAIL}</a>.
-        </p>
-      </div>
-
-      <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
-        <p style="margin: 0; font-size: 14px; color: #6b7280;">
-          Best regards,<br>
-          <strong>Anutech Digital Private Limited Team</strong>
-        </p>
-      </div>
-    </div>
-  `;
-  return sendEmail({ to: userEmail, subject, html });
+  return send(userEmail, subject, text);
 }
 
 /**
@@ -179,39 +91,37 @@ export async function sendHostingTrialCancelledEmail(
   details: { domainName: string }
 ): Promise<boolean> {
   const subject = `Your free trial has been cancelled — ${details.domainName}`;
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
-      <div style="background: linear-gradient(135deg, #6b7280, #4b5563); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
-        <h1 style="margin: 0; font-size: 22px; font-weight: bold;">Free Trial Cancelled</h1>
-      </div>
+  const text =
+`Hi ${firstName(userName)},
 
-      <div style="padding: 30px; background-color: #ffffff;">
-        <p style="font-size: 16px; color: #374151; margin-bottom: 20px;">Hello ${userName},</p>
+Your 15-day free trial for ${details.domainName} has been cancelled and the hosting has been switched off. You have not been charged, and no payment will be taken later — your saved payment mandate has been cancelled.
 
-        <p style="font-size: 14px; color: #374151; line-height: 1.6; margin: 0 0 16px 0;">
-          Your 15-day free trial for <strong>${details.domainName}</strong> has been cancelled and the hosting has been terminated. <strong>You have not been charged</strong>, and no future payment will be taken — your saved payment mandate has been cancelled.
-        </p>
+The hosting account won't renew, and if you had put a website on it, its files are no longer served. Nothing more is needed from you.
 
-        <div style="background-color: #f3f4f6; border-radius: 8px; padding: 16px 20px; margin: 20px 0;">
-          <p style="color: #4b5563; margin: 0; font-size: 14px; line-height: 1.6;">
-            <strong>What this means:</strong> the hosting account is now suspended and won't renew. If you signed up a website, its files are no longer served. Nothing further is required from you.
-          </p>
-        </div>
+Changed your mind, or cancelled by accident? Reply to this email and we'll set you up again.
 
-        <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin: 16px 0 0 0;">
-          Changed your mind or cancelled by accident? Reach out to us at
-          <a href="mailto:${SUPPORT_EMAIL}" style="color: #1A73E8;">${SUPPORT_EMAIL}</a> and we'll help you get set up again.
-        </p>
-      </div>
+${helpLines()}`;
+  return send(userEmail, subject, text);
+}
 
-      <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
-        <p style="margin: 0; font-size: 14px; color: #6b7280;">
-          Best regards,<br>
-          <strong>Anutech Digital Private Limited Team</strong>
-        </p>
-        <p style="color: #9ca3af; margin: 8px 0 0 0; font-size: 11px;">© ${new Date().getFullYear()} Anutech Digital Private Limited. All rights reserved.</p>
-      </div>
-    </div>
-  `;
-  return sendEmail({ to: userEmail, subject, html });
+/**
+ * The hosting account was terminated by our team (admin → Hosting → Terminate; Pawan,
+ * 3 Oct 2026: "when hosting is removed, send an email like the DMS panel does"). Sent
+ * after the account is gone, so it states what was removed rather than what will be.
+ */
+export async function sendHostingTerminatedEmail(
+  userEmail: string,
+  userName: string,
+  details: { domainName: string }
+): Promise<boolean> {
+  const subject = `Your hosting for ${details.domainName} has been removed`;
+  const text =
+`Hi ${firstName(userName)},
+
+The hosting account for ${details.domainName} has been removed from our servers. Its website files, databases and email accounts have been deleted, and it will not be billed again.
+
+If you weren't expecting this, or you'd like the hosting back, reply to this email and we'll help straight away.
+
+${helpLines()}`;
+  return send(userEmail, subject, text);
 }

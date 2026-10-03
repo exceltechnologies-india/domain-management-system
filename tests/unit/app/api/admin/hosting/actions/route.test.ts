@@ -57,7 +57,11 @@ vi.mock("@/lib/integrations/directadmin", () => ({
 }));
 
 const clearDirectAdminUsernameForAll = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/services/users", () => ({ clearDirectAdminUsernameForAll }));
+const getUserById = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/services/users", () => ({ clearDirectAdminUsernameForAll, getUserById }));
+
+const sendHostingTerminatedEmail = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/email", () => ({ EmailService: { sendHostingTerminatedEmail } }));
 
 const deleteHostingsByIdOrUsername = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/services/hostings", () => ({
@@ -109,6 +113,41 @@ beforeEach(() => {
   });
   deletePendingHostingsByUsername.mockReset().mockResolvedValue(0);
   cancelSubscription.mockReset().mockResolvedValue(undefined);
+  getUserById.mockReset().mockResolvedValue({ email: "asha@example.invalid", firstName: "Asha", lastName: "Verma" });
+  sendHostingTerminatedEmail.mockReset().mockResolvedValue(true);
+});
+
+describe("the customer is told their hosting was removed (3 Oct 2026)", () => {
+  const row = { domainName: "acme.in", userId: "U1", directAdminUsername: "acmei12345" };
+  it("server account deleted → one 'hosting removed' email to the hosting's owner", async () => {
+    deleteHostingsByIdOrUsername.mockResolvedValueOnce({ deletedCount: 1, matchedHostings: [row] });
+    daDeleteUser.mockResolvedValueOnce({ kind: "deleted" });
+    const res = await POST(makeReq({ action: "delete", username: "acmei12345" }));
+    expect(res.status).toBe(200);
+    expect(getUserById).toHaveBeenCalledWith("U1");
+    expect(sendHostingTerminatedEmail).toHaveBeenCalledTimes(1);
+    expect(sendHostingTerminatedEmail).toHaveBeenCalledWith("asha@example.invalid", "Asha Verma", { domainName: "acme.in" });
+  });
+  it("already gone on the server (user_not_found) → still told", async () => {
+    deleteHostingsByIdOrUsername.mockResolvedValueOnce({ deletedCount: 1, matchedHostings: [row] });
+    daDeleteUser.mockResolvedValueOnce({ kind: "user_not_found" });
+    await POST(makeReq({ action: "delete", username: "acmei12345" }));
+    expect(sendHostingTerminatedEmail).toHaveBeenCalledTimes(1);
+  });
+  it("the server REFUSED the delete → no email: the account is still running", async () => {
+    deleteHostingsByIdOrUsername.mockResolvedValueOnce({ deletedCount: 1, matchedHostings: [row] });
+    daDeleteUser.mockResolvedValueOnce({ kind: "da_unreachable", reason: "timeout" });
+    await POST(makeReq({ action: "delete", username: "acmei12345" }));
+    expect(sendHostingTerminatedEmail).not.toHaveBeenCalled();
+  });
+  it("a hosting row with no owner is skipped quietly", async () => {
+    getUserById.mockResolvedValueOnce(null);
+    deleteHostingsByIdOrUsername.mockResolvedValueOnce({ deletedCount: 1, matchedHostings: [row] });
+    daDeleteUser.mockResolvedValueOnce({ kind: "deleted" });
+    const res = await POST(makeReq({ action: "delete", username: "acmei12345" }));
+    expect(res.status).toBe(200);
+    expect(sendHostingTerminatedEmail).not.toHaveBeenCalled();
+  });
 });
 
 describe("Admin gate", () => {

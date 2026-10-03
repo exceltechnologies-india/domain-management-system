@@ -30,7 +30,7 @@ import {
   sendDomainAvailableEmail,
 } from "./domain";
 
-import { sendHostingProvisionedEmail, sendHostingTrialCancelledEmail } from "./hosting";
+import { sendHostingProvisionedEmail, sendHostingTrialCancelledEmail, sendHostingTerminatedEmail } from "./hosting";
 
 export type { EmailOptions };
 export { sendEmail };
@@ -63,4 +63,5 @@ export class EmailService {
 
   static sendHostingProvisionedEmail = sendHostingProvisionedEmail;
   static sendHostingTrialCancelledEmail = sendHostingTrialCancelledEmail;
+  static sendHostingTerminatedEmail = sendHostingTerminatedEmail;
 }

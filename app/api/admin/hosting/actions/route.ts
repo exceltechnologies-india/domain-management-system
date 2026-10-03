@@ -7,7 +7,7 @@ import {
 } from "@/lib/integrations/directadmin";
 import { secureJsonResponse, secureErrorResponse } from "@/lib/api-response-wrapper";
 import { serverLogger } from "@/lib/server-logger";
-import { clearDirectAdminUsernameForAll } from "@/lib/services/users";
+import { clearDirectAdminUsernameForAll, getUserById } from "@/lib/services/users";
 import { deleteHostingsByIdOrUsername } from "@/lib/services/hostings";
 import { RazorpayService } from "@/lib/razorpay";
 import { validatedBody, z } from "@/lib/api-validation";
@@ -168,6 +168,24 @@ export async function POST(request: NextRequest) {
         if (username && username !== 'N/A') {
           await clearDirectAdminUsernameForAll(username);
           serverLogger.info(`Removed DA mapping for user ${username} from all local User records`);
+        }
+
+        // 6. Tell the customer (Pawan, 3 Oct 2026: removing hosting sent nothing). Only when
+        // the server account is really gone — a refused DirectAdmin delete leaves it running,
+        // and "it has been removed" would then be untrue. Best-effort: the removal stands.
+        {
+          const serverGone =
+            !username || username === 'N/A' || result?.outcome === "deleted" || result?.outcome === "user_not_found";
+          if (serverGone) {
+            const { EmailService } = await import("@/lib/email");
+            for (const record of matchedHostings) {
+              const owner = record.userId ? await getUserById(String(record.userId)).catch(() => null) : null;
+              if (!owner?.email) continue;
+              const name = `${owner.firstName ?? ""} ${owner.lastName ?? ""}`.trim();
+              void EmailService.sendHostingTerminatedEmail(owner.email, name, { domainName: record.domainName })
+                .catch((err: unknown) => serverLogger.error(`Hosting-removed email failed for ${owner.email}:`, err));
+            }
+          }
         }
         break;
 

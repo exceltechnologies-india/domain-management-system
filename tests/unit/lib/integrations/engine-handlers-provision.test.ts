@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const da = vi.hoisted(() => ({ getUserConfig: vi.fn() }));
 vi.mock("@/lib/integrations/directadmin", () => da);
-const svc = vi.hoisted(() => ({ createUser: vi.fn() }));
+const svc = vi.hoisted(() => ({ createUser: vi.fn(), NAMESERVERS: ["ns1.example.invalid", "ns2.example.invalid"] }));
 vi.mock("@/lib/directadmin", () => ({ DirectAdminService: svc, DA_SERVER_IP: "10.0.0.1" }));
 const plans = vi.hoisted(() => ({ getPlanByPlanId: vi.fn() }));
 vi.mock("@/lib/services/hosting-plans", () => plans);
@@ -24,7 +24,7 @@ const hostingModel = vi.hoisted(() => ({ findOne: vi.fn(), create: vi.fn() }));
 vi.mock("@/models/Hosting", () => ({ default: hostingModel }));
 vi.mock("@/lib/mongodb", () => ({ default: async () => undefined }));
 vi.mock("@/lib/server-logger", () => ({ serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
-const email = vi.hoisted(() => ({ sendPasswordResetEmail: vi.fn(async () => true) }));
+const email = vi.hoisted(() => ({ sendPasswordResetEmail: vi.fn(async () => true), sendHostingProvisionedEmail: vi.fn(async () => true) }));
 vi.mock("@/lib/email", () => ({ EmailService: email }));
 
 import { daUsernameFor, provisionHostingCommand, reconcileProvision, parseProvision, testPaymentProvisionAllowed } from "@/lib/integrations/engine-handlers-provision";
@@ -41,6 +41,7 @@ let created: Record<string, unknown>;
 
 beforeEach(() => {
   email.sendPasswordResetEmail.mockClear();
+  email.sendHostingProvisionedEmail.mockClear();
   for (const f of [da.getUserConfig, svc.createUser, plans.getPlanByPlanId, users.getUserByEmail, users.createUser, users.setUserDirectAdminUsername, hostingModel.findOne, hostingModel.create]) f.mockReset();
   plans.getPlanByPlanId.mockResolvedValue({ planId: "Starter", name: "Starter", directAdminPackage: "Starter" });
   users.getUserByEmail.mockResolvedValue(null);
@@ -105,6 +106,22 @@ describe("refusals write nothing", () => {
   it("missing customer details are refused", () => {
     expect(() => parseProvision(payload({ customer: { firstName: "A" } }))).toThrow(/last name, a valid email/);
     expect(() => parseProvision(payload({ months: 6 }))).toThrow(/months/);
+  });
+});
+
+describe("the customer is told the hosting is live (3 Oct 2026)", () => {
+  it("a created paid account sends the 'hosting is live' email once, with plan, server IP and nameservers", async () => {
+    await provisionHostingCommand(ctx("live"));
+    expect(email.sendHostingProvisionedEmail).toHaveBeenCalledTimes(1);
+    const [to, name, details] = email.sendHostingProvisionedEmail.mock.calls[0] as unknown as [string, string, Record<string, unknown>];
+    expect(to).toBe("asha@example.invalid");
+    expect(name).toBe("Asha Verma");
+    expect(details).toMatchObject({ domainName: "acme.in", planName: "Starter", serverIp: "10.0.0.1", nameservers: ["ns1.example.invalid", "ns2.example.invalid"], isTrial: false });
+  });
+  it("test mode and refusals send nothing", async () => {
+    await provisionHostingCommand(ctx("test"));
+    await expect(provisionHostingCommand(ctx("live", { paymentMode: "test" }))).rejects.toThrow(HOLD_PREFIX);
+    expect(email.sendHostingProvisionedEmail).not.toHaveBeenCalled();
   });
 });
 

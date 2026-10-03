@@ -1,8 +1,8 @@
 /**
- * Tests for `@/lib/email/hosting` (rescan-4 slice 7dr).
- * sendHostingProvisionedEmail composes the hosting-active welcome
- * email. Tests focus on the assembled HTML — the actual mail-delivery
- * is mocked at the `sendEmail` boundary.
+ * Hosting emails to the customer — in the ResellerOS pattern (Pawan, 3 Oct 2026: the two apps'
+ * emails must be identical; DMS is a backend for ResellerOS). Plain sentences, the Customer
+ * Portal link, a signed close — no banners, gradients or emoji. What each email SAYS is pinned
+ * here; delivery is mocked at the `sendEmail` boundary.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -12,7 +12,7 @@ vi.mock("@/lib/email/transporter", () => ({
   SUPPORT_EMAIL: "support@anutech.test",
 }));
 
-import { sendHostingProvisionedEmail } from "@/lib/email/hosting";
+import { sendHostingProvisionedEmail, sendHostingTrialCancelledEmail, sendHostingTerminatedEmail } from "@/lib/email/hosting";
 
 const DETAILS = {
   domainName: "example.com",
@@ -21,223 +21,120 @@ const DETAILS = {
   serverIp: "203.0.113.42",
   nameservers: ["ns1.anutech.in", "ns2.anutech.in", "ns3.anutech.in"],
 };
+const sent = () => sendEmailMock.mock.calls[0][0] as { to: string; subject: string; text: string; html: string };
 
 beforeEach(() => {
   sendEmailMock.mockReset();
   sendEmailMock.mockResolvedValue(true);
   vi.stubEnv("NEXTAUTH_URL", "https://app.example.com");
+  vi.stubEnv("FROM_NAME", "Anutech Digital");
 });
 
-describe("sendHostingProvisionedEmail", () => {
-  it("calls sendEmail with the recipient + subject and returns its boolean result", async () => {
-    const ok = await sendHostingProvisionedEmail("ada@example.test", "Ada", DETAILS);
-    expect(ok).toBe(true);
-    expect(sendEmailMock).toHaveBeenCalledTimes(1);
-    const [opts] = sendEmailMock.mock.calls[0];
-    expect(opts.to).toBe("ada@example.test");
-    expect(opts.subject).toBe("Hosting Account Provisioned Successfully");
+describe("the shared pattern", () => {
+  it("every hosting email: 'Hi <first name>', the support address, signed by the brand, no banners or emoji", async () => {
+    await sendHostingProvisionedEmail("ada@example.test", "Ada Lovelace", DETAILS);
+    await sendHostingTrialCancelledEmail("ada@example.test", "Ada Lovelace", { domainName: "example.com" });
+    await sendHostingTerminatedEmail("ada@example.test", "Ada Lovelace", { domainName: "example.com" });
+    for (const [m] of sendEmailMock.mock.calls) {
+      expect(m.to).toBe("ada@example.test");
+      expect(m.text).toMatch(/^Hi Ada,\n/);
+      expect(m.text).toContain("support@anutech.test");
+      expect(m.text).toMatch(/— Anutech Digital$/);
+      expect(m.text).not.toMatch(/[🎉✅⚠️]/u);
+      expect(m.html).not.toMatch(/gradient|#F59E0B|<h1|<table/i);
+      expect(m.html).toContain('href="mailto:support@anutech.test"');
+      expect(m.text).not.toMatch(/Anutech Digital Private Limited Team|Domain Management/i);
+    }
   });
 
-  it("embeds the userName as the greeting", async () => {
-    await sendHostingProvisionedEmail("u@e.test", "Ada Lovelace", DETAILS);
-    expect(sendEmailMock.mock.calls[0][0].html).toContain("Hello Ada Lovelace");
+  it("the HTML part carries the same words as the text part", async () => {
+    await sendHostingTerminatedEmail("u@e.test", "Ada", { domainName: "example.com" });
+    const m = sent();
+    for (const line of m.text.split("\n").filter(Boolean)) expect(m.html).toContain(line.replace(/&/g, "&amp;").split("support@")[0].slice(0, 30));
   });
 
-  it("renders domain + packageName/planName + serverIp in the account details table", async () => {
-    await sendHostingProvisionedEmail("u@e.test", "Ada", DETAILS);
-    const html = sendEmailMock.mock.calls[0][0].html;
-    expect(html).toContain("example.com");
-    // planName preferred over packageName when both supplied.
-    expect(html).toContain("Starter");
-    expect(html).not.toContain(">basic<");
-    expect(html).toContain("203.0.113.42");
-  });
-
-  it("falls back to packageName when planName is absent", async () => {
-    await sendHostingProvisionedEmail("u@e.test", "Ada", {
-      ...DETAILS,
-      planName: undefined,
-    });
-    const html = sendEmailMock.mock.calls[0][0].html;
-    expect(html).toContain(">basic<");
-  });
-
-  it("renders each nameserver as an <li>", async () => {
-    await sendHostingProvisionedEmail("u@e.test", "Ada", DETAILS);
-    const html = sendEmailMock.mock.calls[0][0].html;
-    expect(html).toContain("<li>ns1.anutech.in</li>");
-    expect(html).toContain("<li>ns2.anutech.in</li>");
-    expect(html).toContain("<li>ns3.anutech.in</li>");
-  });
-
-  it("links to /dashboard/hosting on NEXTAUTH_URL", async () => {
-    await sendHostingProvisionedEmail("u@e.test", "Ada", DETAILS);
-    const html = sendEmailMock.mock.calls[0][0].html;
-    expect(html).toContain("https://app.example.com/dashboard/hosting");
-  });
-
-  it("renders the SUPPORT_EMAIL mailto link", async () => {
-    await sendHostingProvisionedEmail("u@e.test", "Ada", DETAILS);
-    const html = sendEmailMock.mock.calls[0][0].html;
-    expect(html).toContain(`mailto:support@anutech.test`);
+  it("no name → 'Hi there'", async () => {
+    await sendHostingTerminatedEmail("u@e.test", "", { domainName: "example.com" });
+    expect(sent().text).toMatch(/^Hi there,/);
   });
 
   it("propagates sendEmail false (delivery failure surfaces to caller)", async () => {
     sendEmailMock.mockResolvedValueOnce(false);
-    const result = await sendHostingProvisionedEmail("u@e.test", "Ada", DETAILS);
-    expect(result).toBe(false);
+    expect(await sendHostingProvisionedEmail("u@e.test", "Ada", DETAILS)).toBe(false);
+  });
+});
+
+describe("sendHostingProvisionedEmail", () => {
+  it("paid: subject names plan and domain; body has the portal link, nameservers and server IP", async () => {
+    await sendHostingProvisionedEmail("u@e.test", "Ada", DETAILS);
+    const m = sent();
+    expect(m.subject).toBe("Your Starter hosting is live — example.com");
+    expect(m.text).toContain("Your Starter hosting for example.com is ready.");
+    expect(m.text).toContain("https://app.example.com/login");
+    expect(m.text).toContain("Customer Portal");
+    for (const ns of DETAILS.nameservers) expect(m.text).toContain(`  ${ns}`);
+    expect(m.text).toContain("Server IP: 203.0.113.42");
+    expect(m.html).toContain('<a href="https://app.example.com/login">');
   });
 
-  it("empty nameservers array → empty ul (graceful — no crash)", async () => {
-    await sendHostingProvisionedEmail("u@e.test", "Ada", {
-      ...DETAILS,
-      nameservers: [],
-    });
-    const html = sendEmailMock.mock.calls[0][0].html;
-    expect(html).not.toContain("<li>ns");
+  it("planName preferred; packageName when it is missing", async () => {
+    await sendHostingProvisionedEmail("u@e.test", "Ada", { ...DETAILS, planName: undefined });
+    expect(sent().subject).toBe("Your basic hosting is live — example.com");
   });
 
-  // Pins the Tokens-flow payment-validity callout introduced for the
-  // unified hard 1-attempt MIT policy (d4b6a64). The callout MUST
-  // appear ONLY when mandateMode='tokens' — Subscriptions-flow customers
-  // (whose retries are still managed by Razorpay's Subscriptions API
-  // server-side) would be misled by the strict-suspension language.
-  describe("Tokens-flow payment-validity callout (d4b6a64)", () => {
-    it("mandateMode='tokens' → renders the payment-validity callout block", async () => {
-      await sendHostingProvisionedEmail("u@e.test", "Ada", {
-        ...DETAILS,
-        mandateMode: "tokens",
-      });
-      const html = sendEmailMock.mock.calls[0][0].html;
-      expect(html).toContain("Keep Your Payment Method Valid");
-      expect(html).toMatch(/single charge fails/i);
-      expect(html).toMatch(/suspended/i);
-      expect(html).toMatch(/re-subscribe/i);
-    });
-
-    it("mandateMode='tokens' + isTrial=true → payment-validity callout ABSENT (no scary warning on a ₹0 trial)", async () => {
-      await sendHostingProvisionedEmail("u@e.test", "Ada", {
-        ...DETAILS,
-        mandateMode: "tokens",
-        isTrial: true,
-      });
-      const html = sendEmailMock.mock.calls[0][0].html;
-      expect(html).not.toContain("Keep Your Payment Method Valid");
-      expect(html).not.toContain("single charge fails");
-      // The celebratory trial banner still renders.
-      expect(html).toMatch(/15-Day Free Trial is Active/i);
-    });
-
-    it("mandateMode='subscriptions' → callout block ABSENT (anti-misinform existing subscription-mode customers)", async () => {
-      await sendHostingProvisionedEmail("u@e.test", "Ada", {
-        ...DETAILS,
-        mandateMode: "subscriptions",
-      });
-      const html = sendEmailMock.mock.calls[0][0].html;
-      expect(html).not.toContain("Keep Your Payment Method Valid");
-      expect(html).not.toContain("single charge fails");
-    });
-
-    it("mandateMode='manual' → callout block ABSENT (manual billing means no auto-renewal at all)", async () => {
-      await sendHostingProvisionedEmail("u@e.test", "Ada", {
-        ...DETAILS,
-        mandateMode: "manual",
-      });
-      const html = sendEmailMock.mock.calls[0][0].html;
-      expect(html).not.toContain("Keep Your Payment Method Valid");
-    });
-
-    it("mandateMode UNSET (legacy callers + back-compat) → callout ABSENT", async () => {
-      // The 4 non-Tokens call sites (provisioner-hosting, renewal,
-      // pending-hostings, admin/hosting/provision) don't pass the field
-      // — they should continue to render the original email shape.
-      await sendHostingProvisionedEmail("u@e.test", "Ada", DETAILS);
-      const html = sendEmailMock.mock.calls[0][0].html;
-      expect(html).not.toContain("Keep Your Payment Method Valid");
-    });
+  it("no nameservers → still the server IP, no empty list", async () => {
+    await sendHostingProvisionedEmail("u@e.test", "Ada", { ...DETAILS, nameservers: [] });
+    expect(sent().text).toContain("Server IP: 203.0.113.42");
+    expect(sent().text).not.toContain("nameservers");
   });
 
-  // Trial-specific messaging — added 2026-07-03 so trial signups get
-  // trial-aware copy (subject + header + banner + day-15 explainer +
-  // CTA text) instead of the generic "provisioned" language operators
-  // saw in the karmaastar test signup. Pins the new isTrial gate +
-  // trialEndsAt formatting + defaults.
-  describe("Trial-specific messaging (2026-07-03)", () => {
-    const TRIAL_ENDS = new Date("2026-07-18T11:43:00.000Z");
+  it("trial: says trial, until when, and that nothing is charged", async () => {
+    await sendHostingProvisionedEmail("u@e.test", "Ada", { ...DETAILS, isTrial: true, trialEndsAt: new Date("2026-07-18T11:43:00.000Z") });
+    const m = sent();
+    expect(m.subject).toBe("Your 15-day Starter hosting trial is live — example.com");
+    expect(m.text).toMatch(/free until 18 July 2026/);
+    expect(m.text).toContain("nothing charged");
+  });
 
-    it("isTrial=true → subject uses trial-specific line naming the domain", async () => {
-      await sendHostingProvisionedEmail("u@e.test", "Ada", {
-        ...DETAILS,
-        isTrial: true,
-        trialEndsAt: TRIAL_ENDS,
+  it("trial with no end date → no 'free until' fragment, no 'undefined'", async () => {
+    await sendHostingProvisionedEmail("u@e.test", "Ada", { ...DETAILS, isTrial: true });
+    expect(sent().text).not.toContain("free until");
+    expect(sent().text).not.toContain("undefined");
+  });
+
+  describe("Tokens-flow renewal warning (d4b6a64)", () => {
+    it("paid + tokens → the single-charge warning", async () => {
+      await sendHostingProvisionedEmail("u@e.test", "Ada", { ...DETAILS, mandateMode: "tokens" });
+      expect(sent().text).toMatch(/single charge fails/);
+      expect(sent().text).toMatch(/suspended/);
+    });
+    it("trial + tokens → no warning on a ₹0 trial (operator, 2026-07-27)", async () => {
+      await sendHostingProvisionedEmail("u@e.test", "Ada", { ...DETAILS, mandateMode: "tokens", isTrial: true });
+      expect(sent().text).not.toMatch(/single charge fails/);
+    });
+    for (const mode of ["subscriptions", "manual", undefined] as const) {
+      it(`mandateMode ${String(mode)} → no warning`, async () => {
+        await sendHostingProvisionedEmail("u@e.test", "Ada", { ...DETAILS, mandateMode: mode });
+        expect(sent().text).not.toMatch(/single charge fails/);
       });
-      const [opts] = sendEmailMock.mock.calls[0];
-      expect(opts.subject).toBe("Your 15-Day Free Trial is Active — example.com");
-    });
+    }
+  });
+});
 
-    it("isTrial=false / unset → subject uses the paid-account line (back-compat)", async () => {
-      await sendHostingProvisionedEmail("u@e.test", "Ada", DETAILS);
-      const [opts] = sendEmailMock.mock.calls[0];
-      expect(opts.subject).toBe("Hosting Account Provisioned Successfully");
-    });
+describe("sendHostingTrialCancelledEmail", () => {
+  it("names the domain and says nothing was charged", async () => {
+    await sendHostingTrialCancelledEmail("u@e.test", "Ada", { domainName: "example.com" });
+    expect(sent().subject).toBe("Your free trial has been cancelled — example.com");
+    expect(sent().text).toContain("You have not been charged");
+  });
+});
 
-    it("isTrial=true → header + banner + amber gradient present; day-15 billing explainer REMOVED (operator request 2026-07-27)", async () => {
-      await sendHostingProvisionedEmail("u@e.test", "Ada", {
-        ...DETAILS,
-        isTrial: true,
-        trialEndsAt: TRIAL_ENDS,
-      });
-      const html = sendEmailMock.mock.calls[0][0].html;
-      expect(html).toContain("Your Free Trial is Live!");
-      expect(html).toContain("Your 15-Day Free Trial is Active");
-      expect(html).toMatch(/free until.*18 July 2026/);
-      // Day-15 billing/suspension explainer intentionally dropped — the
-      // pre-expiry reminder email carries those details when relevant.
-      expect(html).not.toMatch(/What happens at day 15/i);
-      expect(html).not.toMatch(/hosting will be suspended/i);
-      expect(html).toContain("Start Using Your Trial");
-      // Amber gradient signals trial branch — non-trial uses blue.
-      expect(html).toContain("#F59E0B");
-      expect(html).not.toContain("Service Activated");
-    });
-
-    it("isTrial=true + missing trialEndsAt → banner still renders WITHOUT the 'free until' date line", async () => {
-      await sendHostingProvisionedEmail("u@e.test", "Ada", {
-        ...DETAILS,
-        isTrial: true,
-      });
-      const html = sendEmailMock.mock.calls[0][0].html;
-      expect(html).toContain("Your Free Trial is Live!");
-      expect(html).toContain("Your 15-Day Free Trial is Active");
-      // The "free until <date>" fragment must be omitted rather than
-      // rendering "free until undefined" or a Date-toString leak.
-      expect(html).not.toMatch(/free until.*<strong>[<]/);
-      expect(html).not.toContain("undefined");
-    });
-
-    it("isTrial=false → paid-account header + green banner (back-compat)", async () => {
-      await sendHostingProvisionedEmail("u@e.test", "Ada", {
-        ...DETAILS,
-        isTrial: false,
-      });
-      const html = sendEmailMock.mock.calls[0][0].html;
-      expect(html).toContain("Hosting Account Active");
-      expect(html).toContain("Service Activated");
-      expect(html).toContain("Go to Hosting Dashboard");
-      expect(html).not.toContain("Your Free Trial is Live!");
-      expect(html).not.toContain("What happens at day 15");
-    });
-
-    it("isTrial=true + mandateMode='tokens' → trial banner renders, Tokens payment-validity callout SUPPRESSED (operator request 2026-07-27: no scary second warning on a ₹0 trial)", async () => {
-      await sendHostingProvisionedEmail("u@e.test", "Ada", {
-        ...DETAILS,
-        isTrial: true,
-        trialEndsAt: TRIAL_ENDS,
-        mandateMode: "tokens",
-      });
-      const html = sendEmailMock.mock.calls[0][0].html;
-      expect(html).toContain("Your 15-Day Free Trial is Active");
-      expect(html).not.toContain("Keep Your Payment Method Valid");
-    });
+describe("sendHostingTerminatedEmail", () => {
+  it("names the domain and what was removed, and how to get it back", async () => {
+    await sendHostingTerminatedEmail("u@e.test", "Ada", { domainName: "example.com" });
+    const m = sent();
+    expect(m.subject).toBe("Your hosting for example.com has been removed");
+    expect(m.text).toContain("website files, databases and email accounts have been deleted");
+    expect(m.text).toMatch(/reply to this email/i);
   });
 });

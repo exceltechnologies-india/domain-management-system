@@ -363,6 +363,26 @@ export const provisionHostingCommand: CommandHandler = async (ctx): Promise<Hand
   }
 
   serverLogger.warn(`[engine] PROVISIONED ${req.trial ? "TRIAL " : ""}hosting ${domain} as ${slot.username} (${pkg}) for ${user.email}`);
+
+  /* "Your hosting is live" — the same email a panel purchase sends (Pawan, 3 Oct 2026: a
+     ResellerOS buyer got none). Once per account: an already-provisioned replay returns
+     above before reaching here. Best-effort, like the set-your-password mail: a mail
+     failure must not undo a created account. */
+  try {
+    const { EmailService } = await import("@/lib/email");
+    void EmailService.sendHostingProvisionedEmail(user.email, `${req.customer.firstName} ${req.customer.lastName}`.trim(), {
+      domainName: domain,
+      packageName: pkg,
+      planName: plan.name,
+      serverIp: d.DA_SERVER_IP,
+      nameservers: d.DirectAdminService.NAMESERVERS,
+      isTrial: req.trial,
+      ...(req.trial ? { trialEndsAt: expiryDate } : {}),
+    }).catch((err: unknown) => serverLogger.error(`[engine] hosting-live email failed for ${user.email}:`, err));
+  } catch (err) {
+    serverLogger.error(`[engine] could not prepare the hosting-live email for ${user.email}:`, err);
+  }
+
   return {
     result: {
       ok: true, domain, changed: slot.kind === "create", adopted: slot.kind === "adopt",
