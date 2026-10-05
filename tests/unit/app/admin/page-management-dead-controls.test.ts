@@ -64,6 +64,35 @@ describe("the dead page-management controls stay removed", () => {
     expect(code("lib/theme-color.ts")).toMatch(/#1668E3/);
   });
 
+  /* 5 Oct 2026 (Pawan, "Remove both"): the Support widget (chatbot / WhatsApp + number) and the
+     "Phone number (Call Us)" toggle changed nothing — no DMS page rendered SupportWidget or
+     ContactInfo after the marketing pages went. Removed end to end, like the switches above. */
+  it.each([
+    "components/SupportWidget.tsx",
+    "components/WhatsAppWidget.tsx",
+    "components/ContactInfo.tsx",
+    "app/api/settings/support-widget",
+  ])("%s does not exist", (p) => {
+    expect(existsSync(join(ROOT, p))).toBe(false);
+  });
+
+  it("the support widget and Call Us phone switches are gone from the screen, API, service and middleware", () => {
+    expect(code("app/admin/page-management/page.tsx")).not.toMatch(/supportVariant|whatsapp|showPhone|Call Us/i);
+    expect(code("app/api/admin/appearance/route.ts")).not.toMatch(/SupportWidget|supportWidget|Whatsapp|showPhone|ShowPhone/);
+    expect(code("lib/services/appearance.ts")).not.toMatch(/SupportWidget|SUPPORT_WIDGET|SUPPORT_WHATSAPP|ShowPhone|SHOW_PHONE/);
+    expect(code("app/api/settings/visibility/route.ts")).not.toMatch(/showPhone|ShowPhone/);
+    expect(code("components/hooks/useSiteVisibility.ts")).not.toMatch(/showPhone/);
+    expect(code("middleware.ts")).not.toMatch(/support-widget/);
+  });
+
+  it("the GSTIN toggle and social links that still style the footer survive", () => {
+    const src = code("app/admin/page-management/page.tsx");
+    expect(src).toMatch(/GSTIN \(footer\)/);
+    expect(src).toMatch(/saveSocial/);
+    expect(code("app/api/admin/appearance/route.ts")).toMatch(/showGstin/);
+    expect(code("components/hooks/useSiteVisibility.ts")).toMatch(/showGstin/);
+  });
+
   it("the nav entry names what is left on the screen", () => {
     const nav = read("components/admin/AdminLayout.tsx");
     expect(nav).toMatch(/name: 'Appearance', href: '\/admin\/page-management'/);

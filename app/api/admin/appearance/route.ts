@@ -4,10 +4,7 @@ import { connectToDatabase } from "@/lib/mongoose";
 import {
   getFooterVariant, setFooterVariant,
   getShowGstin, setShowGstin,
-  getShowPhone, setShowPhone,
   getSocialLinks, setSocialLinks,
-  getSupportWidgetVariant, setSupportWidgetVariant,
-  getSupportWhatsappNumber, setSupportWhatsappNumber,
 } from "@/lib/services/appearance";
 import { validatedBody, z } from "@/lib/api-validation";
 import { serverLogger } from "@/lib/server-logger";
@@ -17,10 +14,10 @@ export async function GET(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     await connectToDatabase();
-    const [footerVariant, showGstin, showPhone, socialLinks, supportWidgetVariant, supportWhatsappNumber] = await Promise.all([
-      getFooterVariant(), getShowGstin(), getShowPhone(), getSocialLinks(), getSupportWidgetVariant(), getSupportWhatsappNumber(),
+    const [footerVariant, showGstin, socialLinks] = await Promise.all([
+      getFooterVariant(), getShowGstin(), getSocialLinks(),
     ]);
-    return NextResponse.json({ success: true, footerVariant, showGstin, showPhone, socialLinks, supportWidgetVariant, supportWhatsappNumber });
+    return NextResponse.json({ success: true, footerVariant, showGstin, socialLinks });
   } catch (error) {
     serverLogger.error("Appearance fetch error:", error);
     return NextResponse.json({ error: "Failed to load appearance settings" }, { status: 500 });
@@ -30,14 +27,11 @@ export async function GET(request: NextRequest) {
 const patchSchema = z.object({
   footerVariant: z.enum(["classic", "modern"]).optional(),
   showGstin: z.boolean().optional(),
-  showPhone: z.boolean().optional(),
   socialLinks: z.object({
     linkedin: z.object({ url: z.string().max(400), enabled: z.boolean() }).partial().optional(),
     facebook: z.object({ url: z.string().max(400), enabled: z.boolean() }).partial().optional(),
     instagram: z.object({ url: z.string().max(400), enabled: z.boolean() }).partial().optional(),
   }).partial().optional(),
-  supportWidgetVariant: z.enum(["chatbot", "whatsapp"]).optional(),
-  supportWhatsappNumber: z.string().max(20).optional(),
 });
 
 export async function PATCH(request: NextRequest) {
@@ -52,14 +46,11 @@ export async function PATCH(request: NextRequest) {
     const by = String(user._id ?? user.id ?? "admin");
     if (validation.data.footerVariant) await setFooterVariant(validation.data.footerVariant, by);
     if (validation.data.showGstin !== undefined) await setShowGstin(validation.data.showGstin, by);
-    if (validation.data.showPhone !== undefined) await setShowPhone(validation.data.showPhone, by);
     if (validation.data.socialLinks) await setSocialLinks(validation.data.socialLinks, by);
-    if (validation.data.supportWidgetVariant) await setSupportWidgetVariant(validation.data.supportWidgetVariant, by);
-    if (validation.data.supportWhatsappNumber !== undefined) await setSupportWhatsappNumber(validation.data.supportWhatsappNumber, by);
-    const [footerVariant, showGstin, showPhone, socialLinks, supportWidgetVariant, supportWhatsappNumber] = await Promise.all([
-      getFooterVariant(), getShowGstin(), getShowPhone(), getSocialLinks(), getSupportWidgetVariant(), getSupportWhatsappNumber(),
+    const [footerVariant, showGstin, socialLinks] = await Promise.all([
+      getFooterVariant(), getShowGstin(), getSocialLinks(),
     ]);
-    return NextResponse.json({ success: true, footerVariant, showGstin, showPhone, socialLinks, supportWidgetVariant, supportWhatsappNumber });
+    return NextResponse.json({ success: true, footerVariant, showGstin, socialLinks });
   } catch (error) {
     serverLogger.error("Appearance update error:", error);
     return NextResponse.json({ error: "Failed to update appearance settings" }, { status: 500 });

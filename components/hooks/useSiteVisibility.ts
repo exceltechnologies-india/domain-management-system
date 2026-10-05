@@ -14,29 +14,27 @@ const DEFAULT_SOCIAL: SocialLinks = {
 
 export interface SiteVisibility {
   showGstin: boolean;
-  showPhone: boolean;
   social: SocialLinks;
 }
 
 /**
  * Reads the admin-controlled public contact-detail visibility toggles
- * (GSTIN + phone number) from the public settings endpoint at runtime, so
+ * (GSTIN + social links) from the public settings endpoint at runtime, so
  * they flip without a redeploy. Defaults to shown so content never flashes
  * hidden while loading.
  */
 export function useSiteVisibility(): SiteVisibility {
-  const [vis, setVis] = useState<SiteVisibility>({ showGstin: true, showPhone: true, social: DEFAULT_SOCIAL });
+  const [vis, setVis] = useState<SiteVisibility>({ showGstin: true, social: DEFAULT_SOCIAL });
 
   useEffect(() => {
     let active = true;
     (async () => {
-      const res = await apiClient.get<{ showGstin?: boolean; showPhone?: boolean; social?: SocialLinks }>(
+      const res = await apiClient.get<{ showGstin?: boolean; social?: SocialLinks }>(
         '/api/v1/settings/visibility',
       );
       if (active && res.ok) {
         setVis({
           showGstin: res.data.showGstin !== false,
-          showPhone: res.data.showPhone !== false,
           social: res.data.social ?? DEFAULT_SOCIAL,
         });
       }

@@ -24,7 +24,6 @@ export { default as ContactForm } from "./ContactForm";
 // Content Components
 export { default as Logo } from "./Logo";
 export { default as FAQItem } from "./FAQItem";
-export { default as ContactInfo } from "./ContactInfo";
 export { default as DomainSearch } from "./DomainSearch";
 export { default as LoadingSpinner } from "./LoadingSpinner";
 export { default as EmptyState } from "./EmptyState";

@@ -5,7 +5,6 @@
  */
 
 import { getSettingValue, upsertSetting } from "@/lib/services/settings";
-import { COMPANY_WHATSAPP_DIGITS } from "@/config/company";
 
 export type FooterVariant = "classic" | "modern";
 
@@ -27,10 +26,10 @@ export async function setFooterVariant(variant: FooterVariant, updatedBy = "syst
 
 
 // ── Contact detail visibility ──────────────────────────────────────────────
-// Operator toggles for whether the public GSTIN (footer) and phone number
-// ("Call Us" card) are shown. Default: shown.
+// Operator toggle for whether the public GSTIN (footer) is shown. Default: shown.
+// (The "Call Us" phone toggle and the support-widget switch were removed on
+// 5 Oct 2026 — no DMS page rendered either.)
 export const SHOW_GSTIN_KEY = "show_gstin";
-export const SHOW_PHONE_KEY = "show_phone";
 
 function coerceBool(v: unknown, fallback: boolean): boolean {
   if (v === true || v === "true") return true;
@@ -46,18 +45,6 @@ export async function setShowGstin(show: boolean, updatedBy = "system"): Promise
   await upsertSetting(SHOW_GSTIN_KEY, show, {
     category: "appearance",
     description: "Whether the public GSTIN is shown in the footer.",
-    updatedBy,
-  });
-}
-
-export async function getShowPhone(): Promise<boolean> {
-  return coerceBool(await getSettingValue<unknown>(SHOW_PHONE_KEY, true), true);
-}
-
-export async function setShowPhone(show: boolean, updatedBy = "system"): Promise<void> {
-  await upsertSetting(SHOW_PHONE_KEY, show, {
-    category: "appearance",
-    description: "Whether the company phone number is shown publicly (Call Us card).",
     updatedBy,
   });
 }
@@ -104,47 +91,6 @@ export async function setSocialLinks(links: Partial<Record<SocialPlatform, Parti
   await upsertSetting(SOCIAL_LINKS_KEY, merged, {
     category: "appearance",
     description: "Social profile URLs + per-platform visibility (linkedin/facebook/instagram).",
-    updatedBy,
-  });
-}
-
-// ── Support widget ─────────────────────────────────────────────────────────
-// 'chatbot' = the AI chat widget (blue bubble); 'whatsapp' = a floating
-// WhatsApp button that opens a chat with the company number directly.
-export type SupportWidgetVariant = "chatbot" | "whatsapp";
-
-export const SUPPORT_WIDGET_VARIANT_KEY = "support_widget_variant";
-export const DEFAULT_SUPPORT_WIDGET_VARIANT: SupportWidgetVariant = "chatbot";
-export const SUPPORT_WHATSAPP_NUMBER_KEY = "support_whatsapp_number";
-
-export async function getSupportWidgetVariant(): Promise<SupportWidgetVariant> {
-  const v = await getSettingValue<string>(SUPPORT_WIDGET_VARIANT_KEY, DEFAULT_SUPPORT_WIDGET_VARIANT);
-  return v === "whatsapp" ? "whatsapp" : "chatbot";
-}
-
-export async function setSupportWidgetVariant(variant: SupportWidgetVariant, updatedBy = "system"): Promise<void> {
-  await upsertSetting(SUPPORT_WIDGET_VARIANT_KEY, variant, {
-    category: "appearance",
-    description: "Which support widget renders on the public site (chatbot | whatsapp).",
-    updatedBy,
-  });
-}
-
-/**
- * Company WhatsApp number in international digits only, e.g. "919876543210".
- * Defaults to the company number from config so the WhatsApp widget works
- * out of the box; an admin can override it in Admin → Appearance.
- */
-export async function getSupportWhatsappNumber(): Promise<string> {
-  const v = await getSettingValue<string>(SUPPORT_WHATSAPP_NUMBER_KEY, COMPANY_WHATSAPP_DIGITS);
-  const digits = typeof v === "string" ? v.replace(/[^0-9]/g, "") : "";
-  return digits || COMPANY_WHATSAPP_DIGITS;
-}
-
-export async function setSupportWhatsappNumber(num: string, updatedBy = "system"): Promise<void> {
-  await upsertSetting(SUPPORT_WHATSAPP_NUMBER_KEY, (num || "").replace(/[^0-9]/g, ""), {
-    category: "appearance",
-    description: "Company WhatsApp number (digits only) the WhatsApp support widget opens a chat with.",
     updatedBy,
   });
 }

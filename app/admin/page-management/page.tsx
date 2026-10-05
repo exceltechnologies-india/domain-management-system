@@ -18,8 +18,12 @@ import { performLogout } from '@/lib/logout';
  * pages and a "Homepage design" switch. DMS's public pages were deleted on
  * 24 Sep 2026 and every one of those URLs is a 307 to ResellerOS, so those
  * controls changed nothing; the owner chose to remove them (decision 15). What
- * is left styles pages DMS still serves: the footer on cart / checkout / error
- * pages, and the colour theme of login / cart / checkout.
+ * is left styles pages DMS still serves: the footer, GSTIN and social links on
+ * the cart / checkout / error pages.
+ *
+ * 5 Oct 2026 (Pawan): the "Support widget" (chatbot / WhatsApp button + number)
+ * and "Phone number (Call Us)" switches were removed too — no DMS page renders
+ * either widget, so both changed nothing.
  */
 
 interface AdminUser {
@@ -38,9 +42,7 @@ export default function PageManagementPage() {
   const [footerVariant, setFooterVariant] = useState<'classic' | 'modern'>('modern');
   const [savingFooter, setSavingFooter] = useState(false);
   const [showGstin, setShowGstin] = useState(true);
-  const [showPhone, setShowPhone] = useState(true);
   const [savingGstin, setSavingGstin] = useState(false);
-  const [savingPhone, setSavingPhone] = useState(false);
   type SocialRow = { url: string; enabled: boolean };
   const [social, setSocial] = useState<{ linkedin: SocialRow; facebook: SocialRow; instagram: SocialRow }>({
     linkedin: { url: '', enabled: true },
@@ -48,15 +50,10 @@ export default function PageManagementPage() {
     instagram: { url: '', enabled: true },
   });
   const [savingSocial, setSavingSocial] = useState(false);
-  const [supportVariant, setSupportVariant] = useState<'chatbot' | 'whatsapp'>('chatbot');
-  const [savingSupport, setSavingSupport] = useState(false);
-  const [whatsappNumber, setWhatsappNumber] = useState('');
-  const [whatsappInput, setWhatsappInput] = useState('');
-  const [savingNumber, setSavingNumber] = useState(false);
 
   const loadAppearance = useCallback(async () => {
     setIsRefreshing(true);
-    const appearanceRes = await apiClient.get<{ success?: boolean; footerVariant?: 'classic' | 'modern'; showGstin?: boolean; showPhone?: boolean; socialLinks?: { linkedin: SocialRow; facebook: SocialRow; instagram: SocialRow }; supportWidgetVariant?: 'chatbot' | 'whatsapp'; supportWhatsappNumber?: string }>('/api/v1/admin/appearance');
+    const appearanceRes = await apiClient.get<{ success?: boolean; footerVariant?: 'classic' | 'modern'; showGstin?: boolean; socialLinks?: { linkedin: SocialRow; facebook: SocialRow; instagram: SocialRow } }>('/api/v1/admin/appearance');
     if (!appearanceRes.ok || !appearanceRes.data.success) {
       showErrorToast(
         appearanceRes.ok
@@ -70,18 +67,8 @@ export default function PageManagementPage() {
     if (appearanceRes.ok && typeof appearanceRes.data.showGstin === 'boolean') {
       setShowGstin(appearanceRes.data.showGstin);
     }
-    if (appearanceRes.ok && typeof appearanceRes.data.showPhone === 'boolean') {
-      setShowPhone(appearanceRes.data.showPhone);
-    }
     if (appearanceRes.ok && appearanceRes.data.socialLinks) {
       setSocial(appearanceRes.data.socialLinks);
-    }
-    if (appearanceRes.ok && appearanceRes.data.supportWidgetVariant) {
-      setSupportVariant(appearanceRes.data.supportWidgetVariant);
-    }
-    if (appearanceRes.ok && typeof appearanceRes.data.supportWhatsappNumber === 'string') {
-      setWhatsappNumber(appearanceRes.data.supportWhatsappNumber);
-      setWhatsappInput(appearanceRes.data.supportWhatsappNumber);
     }
     setIsLoading(false);
     setIsRefreshing(false);
@@ -119,22 +106,6 @@ export default function PageManagementPage() {
     setSavingGstin(false);
   };
 
-  const togglePhone = async (next: boolean) => {
-    if (savingPhone) return;
-    setSavingPhone(true);
-    const res = await apiClient.patch<{ success?: boolean; showPhone?: boolean }>(
-      '/api/v1/admin/appearance',
-      { showPhone: next },
-    );
-    if (res.ok && res.data.success) {
-      setShowPhone(res.data.showPhone ?? next);
-      showSuccessToast(`Phone number is now ${next ? 'shown' : 'hidden'}.`);
-    } else {
-      showErrorToast(res.ok ? 'Update failed' : res.error.message || 'Update failed');
-    }
-    setSavingPhone(false);
-  };
-
   const saveSocial = async () => {
     if (savingSocial) return;
     setSavingSocial(true);
@@ -149,45 +120,6 @@ export default function PageManagementPage() {
       showErrorToast(res.ok ? 'Update failed' : res.error.message || 'Update failed');
     }
     setSavingSocial(false);
-  };
-
-  const changeSupport = async (variant: 'chatbot' | 'whatsapp') => {
-    if (variant === supportVariant || savingSupport) return;
-    if (variant === 'whatsapp' && !whatsappNumber.trim()) {
-      showErrorToast('Add a WhatsApp number below before switching to the WhatsApp widget.');
-      return;
-    }
-    setSavingSupport(true);
-    const res = await apiClient.patch<{ success?: boolean; supportWidgetVariant?: 'chatbot' | 'whatsapp' }>(
-      '/api/v1/admin/appearance',
-      { supportWidgetVariant: variant },
-    );
-    if (res.ok && res.data.success) {
-      setSupportVariant(res.data.supportWidgetVariant || variant);
-      showSuccessToast(`Support widget set to ${variant === 'whatsapp' ? 'WhatsApp' : 'Chatbot'}.`);
-    } else {
-      showErrorToast(res.ok ? 'Update failed' : res.error.message || 'Update failed');
-    }
-    setSavingSupport(false);
-  };
-
-  const saveWhatsappNumber = async () => {
-    const digits = whatsappInput.replace(/[^0-9]/g, '');
-    if (digits === whatsappNumber || savingNumber) return;
-    setSavingNumber(true);
-    const res = await apiClient.patch<{ success?: boolean; supportWhatsappNumber?: string }>(
-      '/api/v1/admin/appearance',
-      { supportWhatsappNumber: digits },
-    );
-    if (res.ok && res.data.success) {
-      const saved = res.data.supportWhatsappNumber ?? digits;
-      setWhatsappNumber(saved);
-      setWhatsappInput(saved);
-      showSuccessToast(saved ? 'WhatsApp number saved.' : 'WhatsApp number cleared.');
-    } else {
-      showErrorToast(res.ok ? 'Update failed' : res.error.message || 'Update failed');
-    }
-    setSavingNumber(false);
   };
 
   useEffect(() => {
@@ -276,11 +208,10 @@ export default function PageManagementPage() {
             <div className="bg-paper rounded-2xl border border-hairline shadow-sm p-4 sm:p-5">
               <h3 className="text-base font-bold text-ink">Contact details visibility</h3>
               <p className="text-sm text-ink-3 mt-0.5 mb-4">
-                Show or hide the public <strong>GSTIN</strong> (footer) and <strong>phone number</strong> ("Call Us" card). Takes effect immediately (no redeploy).
+                Show or hide the public <strong>GSTIN</strong> in the footer. Takes effect immediately (no redeploy).
               </p>
               {([
                 { label: 'GSTIN (footer)', on: showGstin, saving: savingGstin, toggle: toggleGstin },
-                { label: 'Phone number (Call Us)', on: showPhone, saving: savingPhone, toggle: togglePhone },
               ] as const).map((row) => (
                 <div key={row.label} className="flex items-center justify-between py-2 border-t border-hairline first:border-t-0">
                   <span className="text-sm font-medium text-ink">{row.label}</span>
@@ -354,66 +285,6 @@ export default function PageManagementPage() {
                     </div>
                   </div>
                 ))}
-              </div>
-            </div>
-
-            {/* Support widget */}
-            <div className="bg-paper rounded-2xl border border-hairline shadow-sm p-4 sm:p-5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <h3 className="text-base font-bold text-ink">Support widget</h3>
-                  <p className="text-sm text-ink-3 mt-0.5">
-                    Choose the floating support button on the public site: the AI <strong>Chatbot</strong> or a
-                    <strong> WhatsApp</strong> button that opens a chat with your company number directly. Takes effect immediately (no redeploy).
-                  </p>
-                </div>
-                <div className="shrink-0 flex items-center gap-2">
-                  {savingSupport && <Loader2 className="h-4 w-4 text-ink-4 animate-spin" />}
-                  <div className="inline-flex items-center gap-1 bg-paper-2 rounded-full p-1">
-                    {(['chatbot', 'whatsapp'] as const).map((v) => (
-                      <button
-                        key={v}
-                        type="button"
-                        onClick={() => changeSupport(v)}
-                        disabled={savingSupport}
-                        aria-pressed={supportVariant === v}
-                        className={`px-4 py-1.5 rounded-full text-sm font-semibold capitalize transition-all disabled:opacity-60 ${
-                          supportVariant === v ? 'bg-paper text-ink shadow-sm' : 'text-ink-3 hover:text-ink-2'
-                        }`}
-                      >
-                        {v === 'whatsapp' ? 'WhatsApp' : 'Chatbot'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* WhatsApp number */}
-              <div className="mt-4 pt-4 border-t border-hairline">
-                <label className="block text-sm font-semibold text-ink mb-1.5">Company WhatsApp number</label>
-                <p className="text-xs text-ink-3 mb-2">
-                  International format, digits only — country code + number (e.g. <code>919876543210</code> for +91 98765 43210). Required for the WhatsApp widget.
-                </p>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="tel"
-                    inputMode="numeric"
-                    value={whatsappInput}
-                    onChange={(e) => setWhatsappInput(e.target.value.replace(/[^0-9]/g, ''))}
-                    placeholder="919876543210"
-                    maxLength={20}
-                    className="w-full max-w-xs rounded-xl border border-hairline px-3 py-2 text-sm focus:border-amber focus:ring-2 focus:ring-amber/30 outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={saveWhatsappNumber}
-                    disabled={savingNumber || whatsappInput.replace(/[^0-9]/g, '') === whatsappNumber}
-                    className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-amber px-4 py-2 text-sm font-semibold text-paper hover:brightness-90 disabled:opacity-50 transition-colors"
-                  >
-                    {savingNumber && <Loader2 className="h-4 w-4 animate-spin" />}
-                    Save
-                  </button>
-                </div>
               </div>
             </div>
           </div>
