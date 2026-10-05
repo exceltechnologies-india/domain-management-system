@@ -30,7 +30,7 @@ describe("mapCartToPanelOrder", () => {
       ok: true,
       lines: [
         { sku: "domain:in", qty: 1, domain: "rao.in" },
-        { sku: "hosting:starter", qty: 1, cycle: "yearly" },
+        { sku: "hosting:starter", qty: 1, cycle: "yearly", hostingDomain: "rao.in" },
       ],
       hostingDomain: "rao.in",
       needsAddress: true,
@@ -59,7 +59,7 @@ describe("mapCartToPanelOrder", () => {
     ["an unsellable plan", [hosting({ hostingPlan: { id: "25GB-wp", name: "25GB WP" } })], /"25GB WP" can't be bought online/],
     ["hosting with no domain", [hosting({ linkedDomain: undefined, domainName: "hosting-starter-1" })], /isn't linked to a domain yet/],
     ["an unknown cycle", [hosting({ billingCycle: undefined, registrationPeriod: 6 })], /monthly or yearly/],
-    ["two hosting plans", [hosting(), hosting({ hostingPlan: { id: "plus", name: "Plus Hosting" } })], /more than one hosting plan.*"Plus Hosting"/],
+    ["two hosting plans on one domain", [hosting(), hosting({ hostingPlan: { id: "plus", name: "Plus Hosting" } })], /"Plus Hosting" and "Starter Hosting" are both linked to rao\.in/],
     ["a multi-year domain", [domain("rao.in", { registrationPeriod: 3 })], /rao\.in is set to 3 years/],
     ["a restricted TLD needing registry details", [domain("rao.us", { tldAttributes: { nexus: "C11" } })], /rao\.us needs extra registry details/],
     ["an unknown item type", [{ domainName: "ssl-cert", itemType: "ssl" }], /"ssl-cert" is not something online checkout can sell/],
@@ -70,6 +70,24 @@ describe("mapCartToPanelOrder", () => {
     if (m.ok) return;
     expect(m.message).toMatch(pattern);
     if (!/free trial/.test(m.message)) expect(m.message).toMatch(/Nothing was charged/);
+  });
+
+  /* 5 Oct 2026: ResellerOS takes several hosting plans in one order, each on its own domain
+     (its R-032), so the DMS cart no longer refuses a second plan. */
+  it("two hosting plans on two domains → two hosting lines, each with its own domain", () => {
+    const m = mapCartToPanelOrder([
+      hosting(),
+      hosting({ linkedDomain: "shop.in", hostingPlan: { id: "plus", name: "Plus Hosting" }, billingCycle: "monthly", registrationPeriod: 1 }),
+    ]);
+    expect(m).toMatchObject({
+      ok: true,
+      hostingDomain: "rao.in",
+      lines: [
+        { sku: "hosting:starter", cycle: "yearly", hostingDomain: "rao.in" },
+        { sku: "hosting:plus", cycle: "monthly", hostingDomain: "shop.in" },
+      ],
+      summary: ["Starter Hosting for rao.in (1 year)", "Plus Hosting for shop.in (1 month)"],
+    });
   });
 
   it("an empty cart is refused", () => {

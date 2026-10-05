@@ -49,6 +49,12 @@ export interface PanelOrderLine {
   cycle?: "monthly" | "yearly";
   /** Required on a domain line: the full name being registered. */
   domain?: string;
+  /**
+   * Hosting lines: the domain THIS plan is set up on. ResellerOS takes several hosting plans in
+   * one order, each on its own domain (its R-032, 1 Oct 2026). Never `domain`, which ResellerOS
+   * reads as a name to register.
+   */
+  hostingDomain?: string;
 }
 
 export interface PanelOrderAddress {

@@ -14,8 +14,9 @@
  *              what ResellerOS sells; a multi-year line is refused)
  *   mailbox  → `mailbox:anutech` (the DMS cart has no such line today)
  *
- * ResellerOS's contract has ONE `domain` for hosting, so a cart may hold at
- * most one hosting line, and it must be linked to a real domain.
+ * Several hosting plans may be checked out together (5 Oct 2026, after ResellerOS's R-032):
+ * each hosting line carries its own `hostingDomain`, and each must be linked to a real domain
+ * that no other plan in the cart uses. The request's top-level `domain` stays the first plan's.
  *
  * A ₹0 trial line is not a paid line and never goes to ResellerOS (its
  * panel-order refuses trials); a cart holding a trial and paid lines together
@@ -66,6 +67,7 @@ export function mapCartToPanelOrder(items: readonly CartLineLike[]): CartMapping
   const lines: PanelOrderLine[] = [];
   const summary: string[] = [];
   let hostingDomain: string | null = null;
+  const planDomains = new Map<string, string>(); // domain → plan name, so two plans never share one
   let needsAddress = false;
 
   for (const item of items) {
@@ -73,12 +75,6 @@ export function mapCartToPanelOrder(items: readonly CartLineLike[]): CartMapping
 
     if (kind === "hosting") {
       const name = item.hostingPlan?.name ?? "Hosting";
-      if (hostingDomain !== null) {
-        return {
-          ok: false,
-          message: `Your cart has more than one hosting plan. Nothing was charged. Check out one hosting plan at a time — remove "${name}" and buy it separately.`,
-        };
-      }
       const planId = (item.hostingPlan?.id ?? item.hostingPlan?.planId ?? "").toLowerCase();
       if (!SELLABLE_HOSTING.has(planId)) {
         return {
@@ -100,8 +96,16 @@ export function mapCartToPanelOrder(items: readonly CartLineLike[]): CartMapping
           message: `"${name}" isn't linked to a domain yet. Nothing was charged. Choose the domain it's for in your cart, then check out.`,
         };
       }
-      hostingDomain = domain;
-      lines.push({ sku: `hosting:${planId}` as PanelOrderLine["sku"], qty: 1, cycle });
+      const taken = planDomains.get(domain);
+      if (taken !== undefined) {
+        return {
+          ok: false,
+          message: `"${name}" and "${taken}" are both linked to ${domain}. Nothing was charged. One website has one hosting plan — choose a different domain for one of them in your cart.`,
+        };
+      }
+      planDomains.set(domain, name);
+      hostingDomain = hostingDomain ?? domain;
+      lines.push({ sku: `hosting:${planId}` as PanelOrderLine["sku"], qty: 1, cycle, hostingDomain: domain });
       summary.push(`${name} for ${domain} (${cycle === "yearly" ? "1 year" : "1 month"})`);
       continue;
     }
