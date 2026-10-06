@@ -6,7 +6,8 @@ export interface IHosting extends Document {
   planId: string; // The package name in DirectAdmin/Pricing
   name: string; // Display name (e.g., "Basic Plan")
   serverPackage: string; // The actual package name on DA server
-  status: "active" | "expired" | "pending" | "failed" | "terminated";
+  /** `suspended`: the expiry worker suspended it on DirectAdmin; a paid renewal restores it (6 Oct 2026). */
+  status: "active" | "expired" | "pending" | "failed" | "terminated" | "suspended";
   startDate: Date;
   expiryDate: Date;
   next_action_at?: Date;
@@ -75,7 +76,7 @@ const HostingSchema = new Schema<IHosting>(
     },
     status: {
       type: String,
-      enum: ["active", "expired", "pending", "failed", "terminated"],
+      enum: ["active", "expired", "pending", "failed", "terminated", "suspended"],
       default: "pending",
       index: true,
     },

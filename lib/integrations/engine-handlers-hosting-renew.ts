@@ -61,6 +61,7 @@ import type { Reconciler, ReconcileVerdict } from "./engine-reconcile";
 import { attemptProviderWrite } from "./engine-attempt";
 import { HOLD_PREFIX } from "./engine-register-policy";
 import { unsuspendHosting } from "./engine-handlers-hosting";
+import { testPaymentProvisionAllowed } from "./engine-handlers-provision";
 
 /**
  * Loaded lazily, for the reason the other handlers give: `lib/mongodb.ts`
@@ -227,7 +228,9 @@ export const renewHostingCommand: CommandHandler = async (ctx): Promise<HandlerR
   const hostingId = String(row._id);
 
   // ── 3. A test-mode payment settled no money: never renewed live. ──────────
-  if (ctx.mode === "live" && req.paymentMode === "test") {
+  // The one exception is the same local-only switch that lets a test payment create an account
+  // (testPaymentProvisionAllowed: ResellerOS on this machine), so a renewal can be tested end to end.
+  if (ctx.mode === "live" && req.paymentMode === "test" && !testPaymentProvisionAllowed()) {
     throw new Error(
       `${HOLD_PREFIX} the renewal of ${domain} was paid through a TEST-mode Razorpay key, so no ` +
         `money settled. The expiry was not moved at any setting. Nothing was changed.`

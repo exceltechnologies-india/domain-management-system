@@ -167,6 +167,19 @@ describe("a test-mode payment", () => {
     expect(unsuspendUser).not.toHaveBeenCalled();
   });
 
+  /* 6 Oct 2026: the same local-only switch that lets a test payment create an account lets a
+     test renewal through, so renewals can be tested end to end on a laptop — never elsewhere. */
+  it("is renewed only under the local test switch with ResellerOS on this machine", async () => {
+    vi.stubEnv("ENGINE_ALLOW_TEST_PAYMENT_PROVISION", "1");
+    vi.stubEnv("RESELLEROS_SERVER_URL", "http://host.docker.internal:4320");
+    const ok = await renewHostingCommand(ctx("live", payload({ paymentMode: "test" }))).then(() => null, (e) => e);
+    expect(ok === null || !String(ok.message).startsWith(HOLD_PREFIX)).toBe(true);
+    vi.stubEnv("RESELLEROS_SERVER_URL", "https://reselleros.anutech.in");
+    const held = await renewHostingCommand(ctx("live", payload({ paymentMode: "test" }))).catch((e) => e);
+    expect(String(held.message)).toMatch(/TEST-mode Razorpay key/);
+    vi.unstubAllEnvs();
+  });
+
   it("in a dry run is reported, not thrown", async () => {
     const { result } = await renewHostingCommand(ctx("test", payload({ paymentMode: "test" })));
     expect(result.wouldRenew).toBe(false);

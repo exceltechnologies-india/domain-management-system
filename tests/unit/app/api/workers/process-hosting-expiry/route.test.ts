@@ -270,6 +270,34 @@ describe("Telling the customer", () => {
     expect(sendServiceSuspended).toHaveBeenCalledWith("9876543210", { serviceName: "example.com", serviceType: "hosting" });
   });
 
+  /* 6 Oct 2026, found end to end: "suspended" was not an allowed status, so the real save threw
+     AFTER the email — 500, Cloud Tasks retried, the customer was emailed on every retry and DMS
+     kept showing "active". These mocks never validated the enum, which is why it stayed hidden. */
+  it("the status is saved BEFORE the customer is told", async () => {
+    const h = makeHosting();
+    getHostingById.mockResolvedValueOnce(h);
+    getUserById.mockResolvedValueOnce(user);
+    await POST(makeReq());
+    expect(h.save.mock.invocationCallOrder[0]).toBeLessThan(sendServiceSuspensionEmail.mock.invocationCallOrder[0]);
+  });
+
+  it("a save that fails sends no email, so a retry cannot repeat it", async () => {
+    const h = makeHosting();
+    h.save.mockRejectedValueOnce(new Error("validation failed"));
+    getHostingById.mockResolvedValueOnce(h);
+    getUserById.mockResolvedValueOnce(user);
+    const res = await POST(makeReq());
+    expect(res.status).toBe(500);
+    expect(sendServiceSuspensionEmail).not.toHaveBeenCalled();
+  });
+
+  it("the Hosting schema allows 'suspended' (model and type)", async () => {
+    const { readFileSync } = await vi.importActual<typeof import("node:fs")>("node:fs");
+    const model = readFileSync("models/Hosting.ts", "utf8");
+    expect(model).toMatch(/enum: \[[^\]]*"suspended"[^\]]*\]/);
+    expect(model).toMatch(/status: "active" \| [^;]*"suspended";/);
+  });
+
   it("a failing email does not stop the suspension", async () => {
     const h = makeHosting();
     getHostingById.mockResolvedValueOnce(h);

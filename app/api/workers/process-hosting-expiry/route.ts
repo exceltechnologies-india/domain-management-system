@@ -55,6 +55,14 @@ export async function POST(request: NextRequest) {
                 await DirectAdminService.suspendUser(hosting.directAdminUsername, "Expired Subscription (Auto-Suspend)");
         }
 
+        // B. Record it BEFORE telling anyone (6 Oct 2026). "suspended" was not an allowed
+        // status, so this save threw AFTER the suspension email: the worker answered 500,
+        // Cloud Tasks retried, and every retry emailed the customer again while DMS still
+        // showed the hosting as active. The status is in the schema now, and it is saved
+        // first, so a failed save can never repeat the email.
+        hosting.status = 'suspended';
+        await hosting.save();
+
         // B. Tell the customer — and raise NO renewal order.
         //
         // Renewals are ResellerOS's (owner decisions, 24-25 Sep 2026). This
@@ -96,13 +104,6 @@ export async function POST(request: NextRequest) {
             serverLogger.warn(`[Worker] ${hosting.domainName} suspended, but its user was not found — nobody was told.`);
         }
 
-        // C. Update Local DB
-        // "suspended" isn't in the IHosting status enum yet, but is the
-        // runtime value the worker uses. Cast through unknown to bypass
-        // strict TS until the schema is widened.
-        (hosting as unknown as { status: string }).status = 'suspended';
-        await hosting.save();
-        
         serverLogger.info(`[Worker] Suspended ${hosting.domainName}; no DMS renewal order raised (renewals are ResellerOS's)`);
         return secureJsonResponse({ success: true, hostingId });
 
