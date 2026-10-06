@@ -164,6 +164,34 @@ describe("startCommand", () => {
       expect(r.command).toBe(stored);
     }
   });
+
+  /* 6 Oct 2026: a paid hosting order's "does this account exist?" READ timed out (not_sent —
+     nothing changed); the next run reused the commandId, got the failure replayed, and the
+     order was marked failed for good. A not-sent failure now runs again. */
+  it("a repeat of a failure that never reached a provider is reclaimed and runs again", async () => {
+    commandCreate.mockRejectedValueOnce(dupKey());
+    const reclaimed = { commandId: "cmd-1", status: "received", attempts: 2 };
+    commandFindOneAndUpdate.mockResolvedValueOnce(reclaimed);
+    const r = await startCommand({ commandId: "cmd-1", command: "hosting.provision", subject: "a.com", request: { planId: "starter" } });
+    expect(r).toEqual({ ok: true, command: reclaimed });
+    const [filter, update] = commandFindOneAndUpdate.mock.calls[0];
+    // Only a failed, not_sent row — one atomic update, so two retries cannot both win.
+    expect(filter).toEqual({ commandId: "cmd-1", status: "failed", transport: "not_sent" });
+    expect(update).toMatchObject({ $set: { status: "received" }, $inc: { attempts: 1 } });
+  });
+
+  it.each([
+    ["succeeded", { status: "succeeded" }],
+    ["refused by the provider", { status: "failed", transport: "responded" }],
+    ["needs reconciliation", { status: "needs_reconciliation", transport: "sent_unknown" }],
+  ])("a repeat of %s still replays — it is not run again", async (_label, prior) => {
+    commandCreate.mockRejectedValueOnce(dupKey());
+    commandFindOneAndUpdate.mockResolvedValueOnce(null); // the filter does not match these
+    const stored = { commandId: "cmd-1", ...prior };
+    commandFindOne.mockResolvedValueOnce(stored);
+    const r = await startCommand({ commandId: "cmd-1", command: "hosting.provision", subject: "a.com" });
+    expect(r).toEqual({ ok: false, reason: "duplicate", command: stored });
+  });
 });
 
 describe("completeCommand — the claim is released, except when it must not be", () => {

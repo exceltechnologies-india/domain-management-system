@@ -165,6 +165,19 @@ export async function startCommand(input: {
     return { ok: true, command: doc };
   } catch (err) {
     if (!isDuplicateKey(err)) throw err;
+    /* A repeat of a command that FAILED BEFORE REACHING ANY PROVIDER runs again (6 Oct 2026).
+       `not_sent` means nothing was changed — a validation stop, a hold, or a READ that timed
+       out — so replaying that failure only turned a passing blip into a permanent one: a paid
+       hosting order whose "does this account exist?" check hit a DirectAdmin timeout was
+       replayed as failed on the next run and never set up. The reclaim is one atomic update,
+       so of two copies of the same retry only one gets to run. Every other outcome — done,
+       refused by the provider, needs reconciliation — still replays. */
+    const rerun = await EngineCommand.findOneAndUpdate(
+      { commandId: input.commandId, status: "failed", transport: "not_sent" },
+      { $set: { status: "received", request: input.request }, $unset: { error: 1, result: 1 }, $inc: { attempts: 1 } },
+      { new: true },
+    );
+    if (rerun) return { ok: true, command: rerun };
     const existing = await EngineCommand.findOne({ commandId: input.commandId });
     if (!existing) throw err; // vanished between insert and read — nothing sane to say
     return { ok: false, reason: "duplicate", command: existing };
