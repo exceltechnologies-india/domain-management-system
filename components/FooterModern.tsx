@@ -71,11 +71,11 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
   },
 ];
 
+// Only what checkout takes: Razorpay (cards, UPI). PayPal was listed and is not offered (6 Oct 2026).
 const PAYMENTS: { label: string; color: string }[] = [
   { label: 'VISA', color: 'text-[#1A1F71]' },
   { label: 'Mastercard', color: 'text-[#EB001B]' },
   { label: 'UPI', color: 'text-[#097939]' },
-  { label: 'PayPal', color: 'text-[#003087]' },
 ];
 
 export default function FooterModern({ className = '' }: FooterProps) {
