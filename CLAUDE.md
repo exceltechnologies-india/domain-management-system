@@ -460,10 +460,16 @@ Owner: *"Renewals subscription will be handled by ResellerOS. Period."*
 Owner: "Route through ResellerOS". The cart stays (HostingUpsell, DomainCrossSell, saved carts, several items).
 `/checkout` hands a PAID cart to `components/purchase/PanelCheckout.tsx` (`{ kind: "cart" }`) → `/api/user/panel-order`
 → ResellerOS `/api/dms/panel-order`. `lib/reselleros/cart-lines.ts` maps each line: hosting → `hosting:<plan>` +
-cycle (one hosting line per cart, linked to a real domain); domain → `domain:<tld>`, qty 1, the exact name (a
+cycle, linked to a real domain — **several hosting lines since 5 Oct 2026** (`b14c10b3`), each sent with its own
+`hostingDomain`, two plans on one domain refused by name; domain → `domain:<tld>`, qty 1, the exact name (a
 multi-year line or a TLD needing registry details is refused); anything else is refused BY NAME. The same mapper
 runs in the browser (to show the refusal first) and on the server (the authority). Razorpay opens with
 ResellerOS's key; on success the page shows "Payment received" and empties the cart; nothing is recorded in DMS.
+**`/checkout` after paying (6 Oct 2026, `28c109fa`):** the page keeps its OWN "Payment received" screen (bill number,
+Go to Invoices / Go to your hosting) once paid — emptying the cart used to render the loading skeleton, which hid
+PanelCheckout's message and left the customer on grey boxes. And it asks for the full profile only when the cart
+holds a DOMAIN, like the cart page; it used to send a hosting-only cart back to the cart, which let it through — a
+loop. Pinned by `tests/unit/app/checkout/checkout-after-pay.test.ts` and `CheckoutRedirect.test.tsx`.
 
 ~~The ₹0 trial is the only purchase DMS still starts itself~~ **Since 26 Sep 2026 the panel trial starts IN
 RESELLEROS** (owner: "Move it to ResellerOS"): `api/user/hosting/start-trial` keeps the lone-trial / Starter /
@@ -518,6 +524,16 @@ Identity from the session; the server's prorated figure (ResellerOS prices, incl
 `estimateRupees` and is shown to the customer as an ESTIMATE. Nothing is created in DMS and no payment is
 taken; staff send a quote and change the plan once it is paid. A timeout is not retried: the customer is
 told it may have been recorded. `upgrade-info` still only computes the estimate.
+
+## Engine: a command that failed BEFORE reaching a provider runs again on resend (6 Oct 2026, `1c6180bf`)
+
+`startCommand` (`lib/services/engine-commands.ts`) replays a repeated `commandId` — EXCEPT a stored outcome of
+`failed` + `transport: "not_sent"`, which is reclaimed (one atomic `findOneAndUpdate`, so two copies of a retry
+cannot both run) and run again. `not_sent` means nothing changed: a validation stop, a `[held]` hold, or a READ that
+timed out. Found end to end: a paid hosting order's "does this account exist?" DirectAdmin read timed out;
+ResellerOS held it, its next run reused the day's commandId (`rsos-hostprov-<row>-<date>`), DMS replayed the
+failure, ResellerOS read the replay as a refusal and marked the PAID order failed for good. Done, refused-by-provider
+(`responded`) and `needs_reconciliation` still replay. Do not "simplify" this back to replay-everything.
 
 ## Other persistent conventions
 
