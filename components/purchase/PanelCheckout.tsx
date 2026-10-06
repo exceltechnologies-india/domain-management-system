@@ -62,7 +62,8 @@ interface PanelCheckoutProps {
   onBack: () => void;
   onClose: () => void;
   /** Called once Razorpay reports the payment (e.g. to empty the cart). */
-  onPaid?: () => void;
+  /** Called once Razorpay reports the payment, with the bill's quote number when known. */
+  onPaid?: (quoteId?: string | null) => void;
 }
 
 const inputCls = 'w-full rounded-lg border border-hairline bg-paper px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-amber';
@@ -155,7 +156,7 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
         theme: { color: razorpayThemeColor() },
       });
       setPhase({ step: 'paid', quoteId: order.quoteId });
-      onPaid?.();
+      onPaid?.(order.quoteId);
     } catch {
       setPhase({ step: 'dismissed', quoteId: order.quoteId });
     }

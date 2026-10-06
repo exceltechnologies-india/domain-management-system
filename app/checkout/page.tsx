@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { trackInitiateCheckout } from '@/lib/journey';
@@ -40,9 +40,16 @@ export default function CheckoutPage() {
   const [isPaymentInProgress, setIsPaymentInProgress] = useState(false);
   const [paymentCompleted, setPaymentCompleted] = useState(false);
   const [trialStartedMessage, setTrialStartedMessage] = useState<string | null>(null);
+  /* A paid cart's own success screen (6 Oct 2026). Paying empties the cart, and an empty cart
+     renders the loading skeleton — which hid PanelCheckout's "Payment received" for good, so the
+     customer was left looking at grey boxes after paying. `undefined` = not paid yet. */
+  const [paidQuoteId, setPaidQuoteId] = useState<string | null | undefined>(undefined);
   const router = useRouter();
   const { data: session, status } = useSession();
   const { items: cartItems, getTotalPrice, getSubtotalPrice, getItemCount, clearCart, syncWithServer, isLoading, hasDomainItems, hasHostingItems } = useCartStore();
+  // Read by the profile check below without re-running it on every cart change.
+  const cartItemsRef = useRef<CartItem[]>(cartItems);
+  cartItemsRef.current = cartItems;
   const hasTrial = cartItems.some((i: CartItem) => i.isTrial === true);
   const trialItem = cartItems.find((i: CartItem) => i.isTrial === true);
   // What the trial converts to: ResellerOS's price incl. GST for the trial's
@@ -102,9 +109,12 @@ export default function CheckoutPage() {
             return;
           }
 
-          // Check if user has completed profile (required for checkout)
-          // Use strict check: profileCompleted must be explicitly true
-          if (profileCompleted !== true) {
+          // The full profile (phone + address) is needed only to register a domain (3 Oct 2026),
+          // the same rule as the cart page. A hosting-only cart goes on: sending it back to the
+          // cart, which lets it through, left the customer in a loop.
+          const cartNow = cartItemsRef.current;
+          const needsProfile = cartNow.some((i: CartItem) => i.itemType !== 'hosting');
+          if (needsProfile && profileCompleted !== true) {
             toast.error('Please complete your profile before checkout');
             router.push('/cart');
             return;
@@ -201,6 +211,40 @@ export default function CheckoutPage() {
           >
             Go to your hosting
           </button>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (paidQuoteId !== undefined) {
+    return (
+      <div className="min-h-screen bg-paper-2 flex flex-col">
+        <Navigation user={user ?? undefined} onLogout={user ? handleLogout : undefined} />
+        <div className="flex-1 max-w-xl mx-auto w-full px-4 py-24 text-center">
+          <Check className="h-12 w-12 text-emerald-ink mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-ink mb-2">Payment received</h1>
+          <p className="text-ink-2 mb-8">
+            Your order is being set up — this usually takes a few minutes, and it will appear in your
+            panel when it&apos;s ready. Your bill{paidQuoteId ? ` (${paidQuoteId})` : ''} is emailed to you and
+            will be on the Invoices page.
+          </p>
+          <div className="flex justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => router.push('/dashboard/invoices')}
+              className="px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-paper font-semibold rounded-lg"
+            >
+              Go to Invoices
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/dashboard/hosting')}
+              className="px-5 py-2.5 text-ink-2 border border-hairline rounded-lg hover:bg-paper"
+            >
+              Go to your hosting
+            </button>
+          </div>
         </div>
         <Footer />
       </div>
@@ -507,8 +551,9 @@ export default function CheckoutPage() {
                       choice={{ kind: 'cart', items: cartItems, label: `${cartItems.length} item${cartItems.length === 1 ? '' : 's'} in your cart` }}
                       onBack={() => router.push('/cart')}
                       onClose={() => router.push('/dashboard')}
-                      onPaid={() => {
+                      onPaid={(quoteId) => {
                         setPaymentCompleted(true);
+                        setPaidQuoteId(quoteId ?? null);
                         clearCart();
                       }}
                     />

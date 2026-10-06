@@ -144,6 +144,20 @@ describe("CheckoutPage redirect gating (first useEffect)", () => {
     await waitFor(() => expect(mockRouter.push).toHaveBeenCalledWith("/cart"));
   });
 
+  it("a hosting-only cart is NOT sent back for an incomplete profile (6 Oct 2026: profile only for domains)", async () => {
+    mockUseCartStore.mockReturnValue(buildCartStore({
+      items: [{ domainName: "hosting-starter-1", price: 600, currency: "INR", registrationPeriod: 12, itemType: "hosting" as const }] as unknown as CartStoreState["items"],
+      hasDomainItems: () => false,
+      hasHostingItems: () => true,
+    }));
+    mockFetch.mockResolvedValue(jsonResponse({ user: { role: "user", profileCompleted: false, whatsappNumber: "9811122233" } }));
+    render(<CheckoutPage />);
+    await waitFor(() => expect(mockFetch).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 20));
+    expect(mockRouter.push).not.toHaveBeenCalledWith("/cart");
+    expect(mockToast.error).not.toHaveBeenCalledWith(expect.stringMatching(/complete your profile/i));
+  });
+
   it("routes to /login when /auth/me returns non-ok", async () => {
     mockFetch.mockResolvedValue(jsonResponse({ error: "unauthorized" }, { ok: false, status: 401 }));
     render(<CheckoutPage />);
