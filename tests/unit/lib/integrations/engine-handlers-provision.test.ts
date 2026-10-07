@@ -24,7 +24,7 @@ const hostingModel = vi.hoisted(() => ({ findOne: vi.fn(), create: vi.fn() }));
 vi.mock("@/models/Hosting", () => ({ default: hostingModel }));
 vi.mock("@/lib/mongodb", () => ({ default: async () => undefined }));
 vi.mock("@/lib/server-logger", () => ({ serverLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
-const email = vi.hoisted(() => ({ sendPasswordResetEmail: vi.fn(async () => true), sendHostingProvisionedEmail: vi.fn(async () => true) }));
+const email = vi.hoisted(() => ({ sendPasswordResetEmail: vi.fn(async () => true), sendAccountCreatedEmail: vi.fn(async () => true), sendHostingProvisionedEmail: vi.fn(async () => true) }));
 vi.mock("@/lib/email", () => ({ EmailService: email }));
 
 import { daUsernameFor, provisionHostingCommand, reconcileProvision, parseProvision, testPaymentProvisionAllowed } from "@/lib/integrations/engine-handlers-provision";
@@ -41,6 +41,7 @@ let created: Record<string, unknown>;
 
 beforeEach(() => {
   email.sendPasswordResetEmail.mockClear();
+  email.sendAccountCreatedEmail.mockClear();
   email.sendHostingProvisionedEmail.mockClear();
   for (const f of [da.getUserConfig, svc.createUser, plans.getPlanByPlanId, users.getUserByEmail, users.createUser, users.setUserDirectAdminUsername, hostingModel.findOne, hostingModel.create]) f.mockReset();
   plans.getPlanByPlanId.mockResolvedValue({ planId: "Starter", name: "Starter", directAdminPackage: "Starter" });
@@ -200,20 +201,24 @@ describe("the path that creates", () => {
 });
 
 describe("a new DMS account gets a way in", () => {
-  it("sets a setup token and sends the 'set your password' email — ResellerOS has no customer portal to hand off from", async () => {
-    const saved = vi.fn(async () => undefined);
-    const user: Record<string, unknown> = { _id: "U1", email: "asha@example.invalid", save: saved };
+  /* 7 Oct 2026 (Pawan): a one-time password to sign in straight away, then the portal asks for
+     their own (mustChangePassword) — instead of a "set your password" link. */
+  it("is created with a one-time password, marked to choose its own, and emailed that password", async () => {
+    const user: Record<string, unknown> = { _id: "U1", email: "asha@example.invalid", save: vi.fn(async () => undefined) };
     users.createUser.mockResolvedValue(user);
     await provisionHostingCommand(ctx("live"));
-    expect(typeof user.resetToken).toBe("string");
-    expect((user.resetToken as string).length).toBe(64);
-    expect(saved).toHaveBeenCalled();
-    expect(email.sendPasswordResetEmail).toHaveBeenCalledWith("asha@example.invalid", "Asha Verma", user.resetToken, true);
+    const created = users.createUser.mock.calls[0][0] as { password: string; mustChangePassword: boolean };
+    expect(created.mustChangePassword).toBe(true);
+    expect(created.password).toMatch(/^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}$/);
+    expect(email.sendAccountCreatedEmail).toHaveBeenCalledWith("asha@example.invalid", "Asha Verma", created.password);
+    expect(email.sendPasswordResetEmail).not.toHaveBeenCalled();
+    expect(user.resetToken).toBeUndefined();
   });
   it("an existing account gets no email", async () => {
     users.getUserByEmail.mockResolvedValue({ _id: "U1", email: "asha@example.invalid" });
     await provisionHostingCommand(ctx("live"));
     expect(email.sendPasswordResetEmail).not.toHaveBeenCalled();
+    expect(email.sendAccountCreatedEmail).not.toHaveBeenCalled();
   });
 });
 

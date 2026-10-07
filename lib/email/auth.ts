@@ -1,6 +1,6 @@
 import { sendEmail, SUPPORT_EMAIL } from "./transporter";
 import { sendNotificationEmail } from "./notifications";
-import { brandName, firstName, plainEmailHtml } from "./plain";
+import { brandName, firstName, plainEmailHtml, portalLoginUrl } from "./plain";
 
 /*
  * Account emails to the customer, in the ResellerOS pattern (lib/email/plain.ts; owner,
@@ -63,6 +63,32 @@ ${intro}
   ${resetUrl}
 
 This link expires in 1 hour for security reasons. ${ignore}
+
+${helpLines()}`;
+  return send(userEmail, subject, text);
+}
+
+/**
+ * A new Customer Portal account, with a one-time password to sign in straight away (Pawan,
+ * 7 Oct 2026: "send the one time generated password for direct login, then let the user
+ * generate their own password"). The portal asks for their own password at the first sign-in.
+ */
+export async function sendAccountCreatedEmail(
+  userEmail: string,
+  userName: string,
+  tempPassword: string
+): Promise<boolean> {
+  const subject = "Your Customer Portal is ready";
+  const text =
+`Hi ${firstName(userName)},
+
+Thanks for your purchase! Your Customer Portal is ready — sign in to manage your hosting, domains and invoices:
+  ${portalLoginUrl()}
+
+  Email: ${userEmail}
+  One-time password: ${tempPassword}
+
+When you sign in, we ask you to choose your own password; this one stops working then. Please don't share it with anyone. If you didn't buy anything from us, write to us and we will close the account.
 
 ${helpLines()}`;
   return send(userEmail, subject, text);

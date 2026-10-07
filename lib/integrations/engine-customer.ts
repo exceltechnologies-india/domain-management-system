@@ -5,9 +5,11 @@
  * account, because DMS is where a customer manages what they bought (DNS,
  * control-panel SSO, renewals view).
  *
- * HOW THE CUSTOMER GETS IN. The account is created with an unusable random
- * password and a "set your password" email is sent at once — the same thing
- * DMS's guest checkout did (removed 25 Sep 2026). ResellerOS has no
+ * HOW THE CUSTOMER GETS IN (since 7 Oct 2026). The account is created with a
+ * one-time password, which is emailed at once ("Your Customer Portal is ready");
+ * the first sign-in goes to /choose-password (mustChangePassword) before anything
+ * else. Until then it was an unusable random password plus a "set your password"
+ * link, as DMS's guest checkout did (removed 25 Sep 2026). ResellerOS has no
  * customer portal (AGENTS.md §0), so there is no hand-off for a customer to
  * start: this email is their way in. (A first draft said "they arrive by the
  * engine-sso hand-off"; that is how STAFF reach a customer's panel, not how a
@@ -54,11 +56,14 @@ export async function ensureDmsUser(customer: EngineCustomer) {
   const users = await import("@/lib/services/users");
   const existing = await users.getUserByEmail(customer.email);
   if (existing) return { user: existing, created: false };
-  const { randomBytes } = await import("node:crypto");
+  /* A one-time password the customer can sign in with straight away (7 Oct 2026, Pawan); the
+     portal makes them choose their own at the first sign-in (mustChangePassword). It replaced a
+     "set your password" link, which made a new customer jump through a reset page first. */
+  const { generateTempPassword } = await import("@/lib/auth/temp-password");
+  const tempPassword = generateTempPassword();
   const user = await users.createUser({
     email: customer.email,
-    // Unusable: never shown or stored anywhere else. The setup email below is the way in.
-    password: randomBytes(32).toString("hex"),
+    password: tempPassword,
     firstName: customer.firstName,
     lastName: customer.lastName,
     phone: customer.phone,
@@ -67,24 +72,21 @@ export async function ensureDmsUser(customer: EngineCustomer) {
     ...(customer.address ? { address: customer.address } : {}),
     isActivated: true,
     profileCompleted: Boolean(customer.address),
+    mustChangePassword: true,
   });
   serverLogger.info(`[engine] created DMS account for ${customer.email}`);
 
-  // "Set your password" — sent at creation (as the removed guest checkout did), so the customer
-  // can always reach what they paid for whatever happens after this point.
-  // Best-effort: a mail failure must not undo a sale.
+  // "Your Customer Portal is ready" with the one-time password — sent at creation, so the
+  // customer can always reach what they paid for whatever happens after this point.
+  // Best-effort: a mail failure must not undo a sale ("Forgot password" still works).
   try {
-    const setupToken = randomBytes(32).toString("hex");
-    user.resetToken = setupToken;
-    user.resetTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days: they did not ask for this mail
-    await user.save();
     const { EmailService } = await import("@/lib/email");
     const name = `${customer.firstName} ${customer.lastName}`.trim() || "there";
-    void EmailService.sendPasswordResetEmail(customer.email, name, setupToken, true).catch((err: unknown) =>
-      serverLogger.error(`[engine] setup email failed for ${customer.email}:`, err)
+    void EmailService.sendAccountCreatedEmail(customer.email, name, tempPassword).catch((err: unknown) =>
+      serverLogger.error(`[engine] portal-ready email failed for ${customer.email}:`, err)
     );
   } catch (err) {
-    serverLogger.error(`[engine] could not prepare the setup email for ${customer.email}:`, err);
+    serverLogger.error(`[engine] could not send the portal-ready email for ${customer.email}:`, err);
   }
   return { user, created: true };
 }

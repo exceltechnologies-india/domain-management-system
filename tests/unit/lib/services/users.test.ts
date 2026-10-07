@@ -808,12 +808,12 @@ describe("getUserWithPassword + userHasPassword", () => {
 });
 
 describe("getUserForTokenRefresh + getUserForSessionCheck — hot-path projections", () => {
-  it("getUserForTokenRefresh: exact 5-field projection", async () => {
+  it("getUserForTokenRefresh: exact 6-field projection (mustChangePassword since 7 Oct 2026)", async () => {
     const q = { select: vi.fn().mockResolvedValueOnce(null) };
     User.findById.mockReturnValueOnce(q);
     await getUserForTokenRefresh("U1");
     expect(q.select).toHaveBeenCalledWith(
-      "isActive role sessionInvalidatedAt passwordChangedAt profileCompleted"
+      "isActive role sessionInvalidatedAt passwordChangedAt profileCompleted mustChangePassword"
     );
   });
 

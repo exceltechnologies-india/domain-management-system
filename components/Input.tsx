@@ -1,6 +1,6 @@
 'use client';
 
-import { InputHTMLAttributes, forwardRef, useState } from 'react';
+import { InputHTMLAttributes, forwardRef, useId, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -32,9 +32,14 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
   type,
   name,
   placeholder,
+  id,
   ...props
 }, ref) => {
   const [isFocused, setIsFocused] = useState(false);
+  /* The label names its box (7 Oct 2026): it had no htmlFor, so a screen reader read every field
+     as just "edit text" and a test could not find a field by its label. */
+  const generatedId = useId();
+  const inputId = id ?? generatedId;
 
   const baseClasses = 'block w-full px-3 py-2 border border-hairline rounded-md shadow-sm placeholder-ink-4 focus:outline-none focus:ring-primary-500 focus:border-primary-500 disabled:bg-paper-2 disabled:text-ink-3 text-ink transition-all duration-200';
   const errorClasses = error ? 'border-rose/30 focus:ring-rose focus:border-rose' : '';
@@ -65,7 +70,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
   return (
     <div className={fullWidth ? 'w-full' : ''}>
       {label && (
-        <label className="block text-sm font-medium text-ink-2 mb-1">
+        <label htmlFor={inputId} className="block text-sm font-medium text-ink-2 mb-1">
           {label}
         </label>
       )}
@@ -80,6 +85,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
 
         <input
           ref={ref}
+          id={inputId}
           type={type}
           name={name}
           placeholder={placeholder}

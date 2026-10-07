@@ -70,7 +70,7 @@ ${opening}
 
 Manage it — control panel, email, WordPress — from your Customer Portal:
   ${portalLoginUrl()}
-First time there? Use the "set your password" email we sent you to sign in.${pointing}${renewal}
+First time there? Sign in with the one-time password in the "Your Customer Portal is ready" email, then choose your own.${pointing}${renewal}
 
 Moving from another host? Reply to this email with your current login and we'll migrate you for free — your old site stays live until you approve the switch.
 

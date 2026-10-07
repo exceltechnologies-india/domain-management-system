@@ -116,6 +116,9 @@ export interface IUser extends Document {
   totpSecretPending?: string;
   totpBackupCodes?: string[];
   passwordChangedAt?: Date;
+  /** Signed in with the one-time password from the "portal is ready" email; must choose their own
+   *  before anything else (7 Oct 2026). Cleared by /api/user/choose-password. */
+  mustChangePassword?: boolean;
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -354,6 +357,10 @@ const UserSchema = new Schema<IUser>(
     passwordChangedAt: {
       type: Date,
       default: null,
+    },
+    mustChangePassword: {
+      type: Boolean,
+      default: false,
     },
     cart: [
       {

@@ -49,8 +49,11 @@ export default function FloatingCart() {
   // Don't render on server, if user is admin, if on admin routes, or on invoice view pages
   const isAdminRoute = pathname?.startsWith('/admin');
   const isInvoiceView = pathname?.includes('/dashboard/invoices/') && pathname?.includes('/view');
+  // The first-sign-in "Choose your password" page has nothing to buy, and on a phone the button
+  // sat on top of its Save button (7 Oct 2026).
+  const isChoosePassword = pathname?.startsWith('/choose-password');
 
-  if (!isMounted || isAdmin || isAdminRoute || isInvoiceView) {
+  if (!isMounted || isAdmin || isAdminRoute || isInvoiceView || isChoosePassword) {
     return null;
   }
 

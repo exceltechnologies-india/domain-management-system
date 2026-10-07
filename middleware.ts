@@ -441,6 +441,14 @@ async function handleMiddleware(request: NextRequest, nonce: string, requestId: 
       return addSecurityHeaders(NextResponse.redirect(loginUrl), { nonce, strictCSP: isStrictCSPRoute });
     }
 
+    // Signed in with the one-time password from the "portal is ready" email: choose your own
+    // password first (7 Oct 2026). Cleared by /api/user/choose-password + a session update().
+    if (token.mustChangePassword === true) {
+      const choose = new URL("/choose-password", request.url);
+      choose.searchParams.set("returnUrl", pathname.startsWith("/") && !pathname.startsWith("//") ? pathname : "/dashboard");
+      return addSecurityHeaders(NextResponse.redirect(choose), { nonce, strictCSP: isStrictCSPRoute });
+    }
+
     // Safety: prevent admins from accessing regular dashboards
     if (token.role === "admin" && pathname.startsWith("/dashboard")) {
       return addSecurityHeaders(NextResponse.redirect(new URL("/admin/dashboard", request.url)), { nonce, strictCSP: isStrictCSPRoute });

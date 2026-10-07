@@ -152,6 +152,8 @@ export const callbacks = {
         // Update token with latest user data
         token.role = dbUser.role;
         token.profileCompleted = dbUser.profileCompleted === true;
+        // Re-read on every refresh, so choosing a password clears the gate at once (session update()).
+        token.mustChangePassword = dbUser.mustChangePassword === true;
       } catch (error) {
         serverLogger.error(
           "[JWT CALLBACK] ❌ Error checking user status on refresh:",
@@ -383,6 +385,8 @@ export const callbacks = {
           const dbUser = await getUserProfileCompleted(user.id);
           if (dbUser) {
             token.profileCompleted = dbUser.profileCompleted === true;
+            // Signed in with the one-time password from the "portal is ready" email (7 Oct 2026).
+            token.mustChangePassword = dbUser.mustChangePassword === true;
           }
         } catch (err) {
           serverLogger.error(
@@ -475,6 +479,7 @@ export const callbacks = {
       if (token.passwordExpired !== undefined) {
         session.user.passwordExpired = token.passwordExpired;
       }
+      session.user.mustChangePassword = token.mustChangePassword === true;
 
       serverLogger.log(
         "[SESSION CALLBACK] ✅ Session created for:",

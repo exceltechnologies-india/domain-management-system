@@ -12,6 +12,7 @@ declare module "next-auth" {
       profileCompleted?: boolean;
       provider?: string;
       passwordExpired?: boolean;
+      mustChangePassword?: boolean;
     };
   }
 
@@ -29,5 +30,7 @@ declare module "next-auth/jwt" {
     profileCompleted?: boolean;
     provider?: string;
     passwordExpired?: boolean;
+    /** Signed in with a one-time password; must choose their own first (7 Oct 2026). */
+    mustChangePassword?: boolean;
   }
 }

@@ -4,6 +4,7 @@ import type { EmailOptions } from "./transporter";
 import {
   sendWelcomeEmail,
   sendPasswordResetEmail,
+  sendAccountCreatedEmail,
   sendPasswordResetNotificationEmail,
   sendPasswordChangeNotificationEmail,
   sendProfileUpdateEmail,
@@ -40,6 +41,7 @@ export class EmailService {
 
   static sendWelcomeEmail = sendWelcomeEmail;
   static sendPasswordResetEmail = sendPasswordResetEmail;
+  static sendAccountCreatedEmail = sendAccountCreatedEmail;
   static sendPasswordResetNotificationEmail = sendPasswordResetNotificationEmail;
   static sendPasswordChangeNotificationEmail = sendPasswordChangeNotificationEmail;
   static sendProfileUpdateEmail = sendProfileUpdateEmail;

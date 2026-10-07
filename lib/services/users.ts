@@ -787,13 +787,13 @@ export async function userHasPassword(userId: unknown): Promise<boolean> {
 export async function getUserForTokenRefresh(userId: string): Promise<
   | (Pick<
       IUser,
-      "isActive" | "role" | "sessionInvalidatedAt" | "passwordChangedAt" | "profileCompleted"
+      "isActive" | "role" | "sessionInvalidatedAt" | "passwordChangedAt" | "profileCompleted" | "mustChangePassword"
     >)
   | null
 > {
   await connectDB();
   return User.findById(userId).select(
-    "isActive role sessionInvalidatedAt passwordChangedAt profileCompleted"
+    "isActive role sessionInvalidatedAt passwordChangedAt profileCompleted mustChangePassword"
   );
 }
 
@@ -816,9 +816,9 @@ export async function getUserForSessionCheck(userId: string): Promise<
  */
 export async function getUserProfileCompleted(
   userId: unknown
-): Promise<{ profileCompleted?: boolean } | null> {
+): Promise<{ profileCompleted?: boolean; mustChangePassword?: boolean } | null> {
   await connectDB();
-  return User.findById(userId).select("profileCompleted");
+  return User.findById(userId).select("profileCompleted mustChangePassword");
 }
 
 /**
