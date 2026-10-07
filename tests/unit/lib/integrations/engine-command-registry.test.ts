@@ -55,7 +55,10 @@ describe("what can actually be performed", () => {
     //   engine-register-policy.ts. This tripwire is why that was a deliberate edit.
     // 25 Sep 2026: hosting.renew — records a renewal ResellerOS was paid for.
     //   Spends nothing; live only behind ENGINE_HOSTING_RENEW_LIVE=1.
+    // 7 Oct 2026: customer.ensure — the Customer Portal account the moment a customer has
+    //   paid. Spends nothing, touches no provider; live only behind ENGINE_CUSTOMER_ACCOUNT_LIVE=1.
     expect(Object.keys(HANDLERS).sort()).toEqual([
+      "customer.ensure",
       "dns.record.upsert",
       "domain.register",
       "domain.renew",

@@ -32,6 +32,7 @@ import { renewDomainCommand } from "./engine-handlers-domain";
 import { registerDomainCommand } from "./engine-handlers-register";
 import { provisionHostingCommand } from "./engine-handlers-provision";
 import { renewHostingCommand } from "./engine-handlers-hosting-renew";
+import { ensureCustomerCommand } from "./engine-handlers-customer";
 
 /** Every command the contract names, whether or not it is implemented. */
 export const KNOWN_COMMANDS = [
@@ -45,6 +46,8 @@ export const KNOWN_COMMANDS = [
   "hosting.renew",
   "domain.renew",
   "domain.register",
+  /** The Customer Portal account at payment time (7 Oct 2026). engine-handlers-customer.ts */
+  "customer.ensure",
 ] as const;
 
 export type KnownCommand = (typeof KNOWN_COMMANDS)[number];
@@ -128,6 +131,8 @@ export const HANDLERS: Partial<Record<KnownCommand, CommandHandler>> = {
      the expiry worker stops suspending paid accounts. Spends nothing; guarded
      by expiryBefore like domain.renew. Live only behind ENGINE_HOSTING_RENEW_LIVE=1. */
   "hosting.renew": renewHostingCommand,
+  /* 7 Oct 2026 — the portal account the moment the customer has paid; spends nothing. */
+  "customer.ensure": ensureCustomerCommand,
 };
 
 export function handlerFor(command: KnownCommand): CommandHandler | null {

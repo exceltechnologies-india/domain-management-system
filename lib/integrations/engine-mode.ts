@@ -143,6 +143,10 @@ export const OWN_LIVE_GATES: Readonly<Record<string, string>> = {
      domain.renew. Its own gate rather than the shared list, so opening it puts
      nothing else live and nothing else opens it. */
   "hosting.renew": "ENGINE_HOSTING_RENEW_LIVE",
+  /* 7 Oct 2026. Creates (or finds) the customer's Customer Portal account the moment they
+     have paid, and sends its one-time-password email (engine-handlers-customer.ts). Spends
+     nothing and touches no provider; its own gate so opening it puts nothing else live. */
+  "customer.ensure": "ENGINE_CUSTOMER_ACCOUNT_LIVE",
 };
 
 /** True only when the command's own gate is set to exactly "1". */

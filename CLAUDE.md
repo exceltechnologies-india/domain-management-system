@@ -535,6 +535,20 @@ ResellerOS held it, its next run reused the day's commandId (`rsos-hostprov-<row
 failure, ResellerOS read the replay as a refusal and marked the PAID order failed for good. Done, refused-by-provider
 (`responded`) and `needs_reconciliation` still replay. Do not "simplify" this back to replay-everything.
 
+## Customer Portal login at payment time; one-time password (7 Oct 2026)
+
+- **`customer.ensure`** (engine-handlers-customer.ts): ResellerOS's payment webhook sends it the moment a
+  hosting/domain order is paid, so the customer's portal account exists — and its email went out —
+  within seconds, not when provisioning runs. hosting.provision / domain.register later find the same
+  account by email (ensureDmsUser) and send nothing twice. Spends nothing, no provider. Own live gate
+  **`ENGINE_CUSTOMER_ACCOUNT_LIVE=1`** — must be set on the live DMS for it to work there.
+- **New accounts get a one-time password** (lib/auth/temp-password.ts) and `mustChangePassword`; the email
+  is "Your Customer Portal is ready". The middleware sends dashboard/checkout to **/choose-password**
+  until `/api/user/choose-password` clears the flag; the page calls session `update()` so the gate lifts
+  at once. Never a "set your password" link for these accounts any more.
+- **Every send is logged** in `emaillogs` (models/EmailLog.ts; sent / failed / skipped, mail-server reply,
+  never the body; 180-day TTL). Check it before concluding an email "did not send".
+
 ## Other persistent conventions
 
 - Do not surface credential/key rotation as a next step — the user has opted out for this project (see auto-memory `feedback_key_rotation_skip`). **Exception**: active leaks discovered via security review override this preference; rotate immediately, don't ask twice.
