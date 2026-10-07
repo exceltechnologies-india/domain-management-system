@@ -73,9 +73,32 @@ export interface EmailOptions {
   replyTo?: string;
 }
 
+/**
+ * Record one send attempt (models/EmailLog.ts, 7 Oct 2026). Best-effort: a log that cannot be
+ * written must never stop or fail the email itself, so every error here is swallowed.
+ */
+async function recordEmail(row: { to: string; subject: string; status: "sent" | "failed" | "skipped"; messageId?: string; response?: string; error?: string }): Promise<void> {
+  try {
+    const [{ default: connectDB }, { default: EmailLog }] = await Promise.all([
+      import("@/lib/mongodb"),
+      import("@/models/EmailLog"),
+    ]);
+    await connectDB();
+    await EmailLog.create({
+      ...row,
+      subject: row.subject.slice(0, 300),
+      ...(row.response ? { response: row.response.slice(0, 300) } : {}),
+      ...(row.error ? { error: row.error.slice(0, 500) } : {}),
+    });
+  } catch (err) {
+    serverLogger.warn("[Email] could not record the send:", err);
+  }
+}
+
 export async function sendEmail(options: EmailOptions): Promise<boolean> {
   if (!validator.isEmail(options.to)) {
     serverLogger.error(`[Email] Invalid recipient address: "${options.to}"`);
+    void recordEmail({ to: String(options.to).slice(0, 200), subject: options.subject, status: "skipped", error: "invalid recipient address" });
     return false;
   }
   // No recipient filter (owner, 30 Sep 2026): the EMAIL_RECIPIENT_ALLOWLIST of 29 Sep was
@@ -99,10 +122,12 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
       };
     }
-    await transporter.sendMail(mailOptions);
+    const info = await transporter.sendMail(mailOptions);
+    void recordEmail({ to: options.to, subject: options.subject, status: "sent", messageId: info?.messageId, response: info?.response });
     return true;
   } catch (error) {
     serverLogger.error("Email sending error:", error);
+    void recordEmail({ to: options.to, subject: options.subject, status: "failed", error: error instanceof Error ? error.message : String(error) });
     return false;
   }
 }
