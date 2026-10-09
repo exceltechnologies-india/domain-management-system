@@ -10,8 +10,9 @@
  * A line is mapped only when its meaning is certain. Anything else is refused
  * with a message naming the line — never guessed (AGENTS.md §2):
  *   hosting  → `hosting:<starter|standard|plus>` + cycle (yearly/monthly)
- *   domain   → `domain:<tld>`, qty 1, the exact `domain` (one year: that is
- *              what ResellerOS sells; a multi-year line is refused)
+ *   domain   → `domain:<tld>`, qty 1, the exact `domain`, and `years` (1–10) —
+ *              ResellerOS sells 1/2/3/5-year terms since its R-156 and prices the
+ *              term itself; a multi-year line used to be refused here (9 Oct 2026)
  *   mailbox  → `mailbox:anutech` (the DMS cart has no such line today)
  *
  * Several hosting plans may be checked out together (5 Oct 2026, after ResellerOS's R-032):
@@ -115,11 +116,15 @@ export function mapCartToPanelOrder(items: readonly CartLineLike[]): CartMapping
       if (!isProvisionableDomain(domain)) {
         return { ok: false, message: `"${item.domainName}" isn't a domain name we can register. Nothing was charged. Remove it from your cart.` };
       }
-      const years = item.registrationPeriod ?? 1;
-      if (years !== 1) {
+      /* The chosen term goes to ResellerOS, which prices it from the registry (its R-156) and
+         refuses, by name, a term the registry does not price. Until 9 Oct 2026 anything but
+         1 year was refused here, after ResellerOS had started selling 2, 3 and 5 years. */
+      const period = item.registrationPeriod ?? 1;
+      const years = item.periodUnit === "months" ? period / 12 : period;
+      if (!Number.isInteger(years) || years < 1 || years > 10) {
         return {
           ok: false,
-          message: `${domain} is set to ${years} years, and online registration is for 1 year at a time. Nothing was charged. Set it to 1 year in your cart, or contact support for a longer term.`,
+          message: `${domain} is set to ${item.periodUnit === "months" ? `${period} months` : `${period} years`}, and a domain is registered for whole years, 1 to 10. Nothing was charged. Choose a number of years for it in your cart.`,
         };
       }
       if (item.tldAttributes && Object.keys(item.tldAttributes).length > 0) {
@@ -128,8 +133,8 @@ export function mapCartToPanelOrder(items: readonly CartLineLike[]): CartMapping
           message: `${domain} needs extra registry details that online checkout can't pass on. Nothing was charged. Remove it from your cart and contact support to register it.`,
         };
       }
-      lines.push({ sku: `domain:${domain.slice(domain.indexOf(".") + 1)}`, qty: 1, domain });
-      summary.push(`${domain} (1 year)`);
+      lines.push({ sku: `domain:${domain.slice(domain.indexOf(".") + 1)}`, qty: 1, domain, ...(years > 1 ? { years } : {}) });
+      summary.push(`${domain} (${years} year${years === 1 ? "" : "s"})`);
       needsAddress = true;
       continue;
     }

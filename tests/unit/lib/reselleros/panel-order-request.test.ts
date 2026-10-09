@@ -141,13 +141,23 @@ describe("buildPanelOrderRequest — the DMS cart (owner, 25 Sep 2026)", () => {
 
   it("an unmappable line is refused with the mapper's message", () => {
     const r = buildPanelOrderRequest(BUYER, {
-      purchase: { kind: "cart", items: [{ domainName: "rao.in", itemType: "domain", registrationPeriod: 2 }] },
+      purchase: { kind: "cart", items: [{ domainName: "rao.in", itemType: "domain", registrationPeriod: 11 }] },
       companyName: "Rao Traders",
       state: "Maharashtra",
       address: ADDRESS,
     });
     expect(r).toMatchObject({ ok: false, field: "cart" });
-    expect(!r.ok && r.message).toMatch(/rao\.in is set to 2 years/);
+    expect(!r.ok && r.message).toMatch(/rao\.in is set to 11 years/);
+  });
+
+  it("a 2-year domain reaches ResellerOS with its years (9 Oct 2026; ResellerOS R-156 prices it)", () => {
+    const r = buildPanelOrderRequest(BUYER, {
+      purchase: { kind: "cart", items: [{ domainName: "rao.in", itemType: "domain", registrationPeriod: 2 }] },
+      companyName: "Rao Traders",
+      state: "Maharashtra",
+      address: ADDRESS,
+    });
+    expect(r.ok && r.request.lines).toEqual([{ sku: "domain:in", qty: 1, domain: "rao.in", years: 2 }]);
   });
 });
 

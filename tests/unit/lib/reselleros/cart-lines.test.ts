@@ -60,7 +60,8 @@ describe("mapCartToPanelOrder", () => {
     ["hosting with no domain", [hosting({ linkedDomain: undefined, domainName: "hosting-starter-1" })], /isn't linked to a domain yet/],
     ["an unknown cycle", [hosting({ billingCycle: undefined, registrationPeriod: 6 })], /monthly or yearly/],
     ["two hosting plans on one domain", [hosting(), hosting({ hostingPlan: { id: "plus", name: "Plus Hosting" } })], /"Plus Hosting" and "Starter Hosting" are both linked to rao\.in/],
-    ["a multi-year domain", [domain("rao.in", { registrationPeriod: 3 })], /rao\.in is set to 3 years/],
+    ["a domain set to more than 10 years", [domain("rao.in", { registrationPeriod: 11 })], /rao\.in is set to 11 years, and a domain is registered for whole years, 1 to 10/],
+    ["a domain set to a part year", [domain("rao.in", { registrationPeriod: 18, periodUnit: "months" })], /rao\.in is set to 18 months/],
     ["a restricted TLD needing registry details", [domain("rao.us", { tldAttributes: { nexus: "C11" } })], /rao\.us needs extra registry details/],
     ["an unknown item type", [{ domainName: "ssl-cert", itemType: "ssl" }], /"ssl-cert" is not something online checkout can sell/],
     ["a trial with paid items", [hosting({ isTrial: true }), domain("rao.in")], /free trial together with paid items/],
@@ -88,6 +89,19 @@ describe("mapCartToPanelOrder", () => {
       ],
       summary: ["Starter Hosting for rao.in (1 year)", "Plus Hosting for shop.in (1 month)"],
     });
+  });
+
+  /* 9 Oct 2026: ResellerOS sells 2, 3 and 5-year terms (its R-156) and prices them itself, so
+     the panel cart passes the chosen years on instead of refusing them. */
+  it("a multi-year domain goes to ResellerOS with its years", () => {
+    const m = mapCartToPanelOrder([domain("rao.in", { registrationPeriod: 3 })]);
+    expect(m).toMatchObject({ ok: true, lines: [{ sku: "domain:in", qty: 1, domain: "rao.in", years: 3 }], summary: ["rao.in (3 years)"] });
+  });
+  it("a term kept in months becomes years, and 1 year carries no years field", () => {
+    const m = mapCartToPanelOrder([domain("rao.in", { registrationPeriod: 24, periodUnit: "months" })]);
+    expect(m.ok && m.lines[0]).toEqual({ sku: "domain:in", qty: 1, domain: "rao.in", years: 2 });
+    const one = mapCartToPanelOrder([domain("rao.in")]);
+    expect(one.ok && one.lines[0]).toEqual({ sku: "domain:in", qty: 1, domain: "rao.in" });
   });
 
   it("an empty cart is refused", () => {

@@ -62,12 +62,13 @@ describe("<PanelCheckout> for the DMS cart", () => {
   it("a cart line that can't be mapped is shown by name and blocks the submit", async () => {
     render(
       <PanelCheckout
-        choice={{ kind: "cart", items: [{ ...CART_DOMAIN, registrationPeriod: 3 }], label: "1 item" }}
+        choice={{ kind: "cart", items: [{ ...CART_DOMAIN, registrationPeriod: 11 }], label: "1 item" }}
         onBack={vi.fn()}
         onClose={vi.fn()}
       />
     );
-    expect(await screen.findByText(/rao\.in is set to 3 years/)).toBeInTheDocument();
+    // 9 Oct 2026: 2–10 years now go to ResellerOS (its R-156); more than 10 still cannot be mapped.
+    expect(await screen.findByText(/rao\.in is set to 11 years/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /continue to payment/i })).toBeDisabled();
   });
 

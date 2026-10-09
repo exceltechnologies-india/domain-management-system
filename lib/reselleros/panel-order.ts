@@ -55,6 +55,11 @@ export interface PanelOrderLine {
    * reads as a name to register.
    */
   hostingDomain?: string;
+  /**
+   * Domain lines: years to register for (1–10; absent = 1). ResellerOS prices the term from
+   * the registry's own N-year total and refuses a term the registry does not price (its R-156).
+   */
+  years?: number;
 }
 
 export interface PanelOrderAddress {
