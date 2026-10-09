@@ -22,6 +22,7 @@ import { CartPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import { getMinRegistrationPeriod } from '@/lib/tld-min-periods';
 import { domainYearsOf, nearestDomainTerm } from '@/lib/reselleros/domain-terms';
 import { useDomainTermPrices } from '@/hooks/useDomainTermPrices';
+import { cartHasYearlyHosting } from '@/lib/reselleros/cart-lines';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { homeUrl } from '@/lib/reseller-os';
 
@@ -294,6 +295,7 @@ export default function CartPage() {
                         onRemove={removeItem}
                         onPeriodChange={handleRegistrationPeriodChange}
                         termTotals={termTotals[item.domainName.toLowerCase()]}
+                        bundled={cartHasYearlyHosting(cartItems)}
                       />
                     ))}
                   </div>

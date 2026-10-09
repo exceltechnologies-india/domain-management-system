@@ -218,7 +218,7 @@ export function CompactResultCard({ result, onAdd, onShowRequirements, onWatch }
                 <span className="text-base sm:text-xl font-bold text-ink leading-none">
                   {formatPrice(result.price, result.currency)}
                 </span>
-                <span className="text-[8px] sm:text-[9px] text-ink-4 font-bold uppercase">/yr</span>
+                <span className="text-[8px] sm:text-[9px] text-ink-4 font-bold uppercase">/yr + GST</span>
               </>
             ) : (
               <span className="text-[9px] sm:text-[10px] font-bold text-ink-4 uppercase tracking-tight">
@@ -339,7 +339,7 @@ export function DomainResultCard({
                     <span className="text-xl sm:text-2xl font-black text-ink leading-none">
                       {formatPrice(result.price, result.currency)}
                     </span>
-                    <span className="text-[9px] sm:text-[10px] text-ink-3 font-bold uppercase">/yr</span>
+                    <span className="text-[9px] sm:text-[10px] text-ink-3 font-bold uppercase">/yr + GST</span>
                   </div>
                 </div>
                 <button

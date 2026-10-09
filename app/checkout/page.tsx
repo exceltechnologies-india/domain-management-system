@@ -22,6 +22,7 @@ import { logger } from '@/lib/logger';
 import PanelCheckout from '@/components/purchase/PanelCheckout';
 import { domainLineTotal, domainYearsOf } from '@/lib/reselleros/domain-terms';
 import { useDomainTermPrices } from '@/hooks/useDomainTermPrices';
+import { cartHasYearlyHosting } from '@/lib/reselleros/cart-lines';
 
 const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@anutech.in';
 
@@ -371,12 +372,12 @@ export default function CheckoutPage() {
                                     ? (1).toFixed(2)
                                     : item.itemType === 'hosting'
                                     ? (item.price * (item.registrationPeriod || 1)).toFixed(2)
-                                    : domainLineTotal(item, termTotals[item.domainName.toLowerCase()]).toFixed(2)}
+                                    : domainLineTotal(item, termTotals[item.domainName.toLowerCase()], cartHasYearlyHosting(cartItems)).toFixed(2)}
                                 </p>
                                 <p className="text-sm text-ink-2">
                                   {item.itemType === 'hosting'
                                     ? `₹${item.periodUnit === 'days' ? (item.registrationPeriod === 8 ? '1.00' : item.price) : item.price} per ${item.periodUnit === 'days' ? 'day' : 'month'}`
-                                    : `${domainYearsOf(item) > 1 ? `${domainYearsOf(item)} years` : '1 year'} · incl. 18% GST`}
+                                    : `${domainYearsOf(item) > 1 ? `${domainYearsOf(item)} years` : '1 year'} · incl. 18% GST${cartHasYearlyHosting(cartItems) ? ' · first year free with yearly hosting' : ''}`}
                                 </p>
                               </>
                             )}

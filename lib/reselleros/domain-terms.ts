@@ -48,9 +48,13 @@ export const DOMAIN_GST_RATE = 0.18;
 export function domainLineTotal(
   item: { price: number; registrationPeriod?: number; periodUnit?: string },
   termTotals?: Record<string, number> | null,
+  /** A yearly hosting plan is in the order: the first year is free, later years are charged. */
+  bundled = false,
 ): number {
   const years = domainYearsOf(item);
-  const exGst = termTotals?.[String(years)] ?? item.price * years;
+  const term = termTotals?.[String(years)] ?? item.price * years;
+  // ResellerOS's bundledDomainRate: the term's total less the 1-year price, never below ₹0.
+  const exGst = bundled ? Math.max(0, Math.round(term - (termTotals?.["1"] ?? item.price))) : term;
   return Math.round(exGst * (1 + DOMAIN_GST_RATE) * 100) / 100;
 }
 

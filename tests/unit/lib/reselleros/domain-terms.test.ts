@@ -67,3 +67,15 @@ describe("a domain line's total (9 Oct 2026)", () => {
     expect(pricedDomainTermOptions(1, {})).toEqual([1, 2, 3, 5]);
   });
 });
+
+describe("the free first year with yearly hosting (9 Oct 2026)", () => {
+  const totals = { "1": 863, "2": 1726, "3": 2588, "5": 4314 };
+  it("a bundled domain pays years 2..N, as ResellerOS's bundledDomainRate charges", () => {
+    expect(domainLineTotal({ price: 862.8, registrationPeriod: 1, periodUnit: "years" }, totals, true)).toBe(0);
+    expect(domainLineTotal({ price: 862.8, registrationPeriod: 3, periodUnit: "years" }, totals, true)).toBe(2035.5); // 1725 + GST
+    expect(domainLineTotal({ price: 862.8, registrationPeriod: 5, periodUnit: "years" }, totals, true)).toBe(4072.18); // 3451 + GST
+  });
+  it("before ResellerOS answers, the search's 1-year price stands in for the free year", () => {
+    expect(domainLineTotal({ price: 1000, registrationPeriod: 2, periodUnit: "years" }, null, true)).toBe(1180);
+  });
+});

@@ -46,7 +46,16 @@ export type CartMapping =
 
 const SELLABLE_HOSTING = new Set(["starter", "standard", "plus"]);
 
-function hostingCycle(line: CartLineLike): "monthly" | "yearly" | null {
+/**
+ * ResellerOS's bundle trigger, read from the portal cart: a paid (not trial) hosting plan billed
+ * yearly. With one in the order, ResellerOS makes every domain's FIRST year free
+ * (lib/checkout/cart-checkout.ts, "THE bundle rule") — the same cart-checkout prices panel orders.
+ */
+export function cartHasYearlyHosting(items: readonly CartLineLike[]): boolean {
+  return items.some((i) => i.itemType === "hosting" && i.isTrial !== true && hostingCycle(i) === "yearly");
+}
+
+export function hostingCycle(line: CartLineLike): "monthly" | "yearly" | null {
   if (line.billingCycle === "monthly" || line.billingCycle === "yearly") return line.billingCycle;
   if (line.periodUnit === "months" || line.periodUnit === undefined) {
     if (line.registrationPeriod === 12) return "yearly";

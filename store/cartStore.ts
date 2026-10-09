@@ -10,6 +10,7 @@ import {
   clampRegistrationPeriod,
 } from "./cart-validation";
 import { domainLineTotal } from "@/lib/reselleros/domain-terms";
+import { cartHasYearlyHosting } from "@/lib/reselleros/cart-lines";
 import { termTotalsFor } from "./domainTermPriceStore";
 
 // Debounce timer — batches rapid cart mutations into a single server sync
@@ -154,14 +155,17 @@ export const useCartStore = create<CartStore>()(
       },
 
       getSubtotalPrice: () => {
-        return get().items.reduce(
+        const items = get().items;
+        // With a yearly hosting plan in the order, ResellerOS makes each domain's first year free.
+        const bundled = cartHasYearlyHosting(items);
+        return items.reduce(
           // Every line GST-inclusive: hosting prices already are; a domain line is ResellerOS's
           // price for its term plus 18% (lib/reselleros/domain-terms.ts, 9 Oct 2026).
           (total, item) =>
             total +
             (item.itemType === "hosting" || item.isTrial
               ? item.price * item.registrationPeriod
-              : domainLineTotal(item, termTotalsFor(item.domainName))),
+              : domainLineTotal(item, termTotalsFor(item.domainName), bundled)),
           0
         );
       },

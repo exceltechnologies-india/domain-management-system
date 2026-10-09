@@ -11,6 +11,11 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 import CartItemCard from "@/components/cart/CartItemCard";
 import type { CartItem } from "@/lib/types";
+import { PRICE_TABLE } from "../../../fixtures/hosting-price-table";
+
+// ResellerOS's hosting prices, as the panel reads them (the savings badge uses the real monthly price).
+const hostingPrices = vi.hoisted(() => ({ value: { state: "loading" } as unknown }));
+vi.mock("@/hooks/useHostingPrices", () => ({ useHostingPrices: () => hostingPrices.value }));
 
 function domainItem(overrides: Partial<CartItem> = {}): CartItem {
   return {
@@ -113,11 +118,19 @@ describe("<CartItemCard>", () => {
     expect(screen.getByText(/no renewal needed until/i)).toBeInTheDocument();
   });
 
-  it("shows the 'Save N%' annual-hosting savings badge when period is 12 months", () => {
-    renderCard(hostingItem({ price: 125, registrationPeriod: 12, billingCycle: undefined }));
-    // monthlyEquivalentYearly = 125 * 2 * 12 = 3000; yearly = 125 * 12 = 1500; saved = 1500; percent = 50
+  it("shows the 'Save N%' badge against ResellerOS's real monthly price (9 Oct 2026)", () => {
+    hostingPrices.value = { state: "ok", table: PRICE_TABLE };
+    // Plus yearly: 2650 incl. GST = 220.8333/mo. Monthly: 441 × 12 = 5292 — not 2 × the yearly rate (5300).
+    renderCard(hostingItem({ price: 2650 / 12, registrationPeriod: 12, billingCycle: undefined, hostingPlan: { id: "plus", name: "Plus" } }));
+    expect(screen.getByText(/₹2642 off vs monthly billing/)).toBeInTheDocument();
     expect(screen.getByText("Save 50%")).toBeInTheDocument();
-    expect(screen.getByText(/₹1500 off vs monthly billing/)).toBeInTheDocument();
+    expect(screen.getByText(/₹5292 if paid monthly/)).toBeInTheDocument();
+    hostingPrices.value = { state: "loading" };
+  });
+
+  it("shows no savings badge while ResellerOS's prices are unknown — never a guessed figure", () => {
+    renderCard(hostingItem({ price: 125, registrationPeriod: 12, billingCycle: undefined }));
+    expect(screen.queryByText(/off vs monthly billing/)).not.toBeInTheDocument();
   });
 
   it("annotates the minimum-period option and shows the min-period notice for .ai-style TLDs", () => {

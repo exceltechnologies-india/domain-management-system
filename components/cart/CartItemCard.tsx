@@ -4,6 +4,8 @@ import { Globe, Trash2, CheckCircle, AlertTriangle, Server } from 'lucide-react'
 import { CartItem } from '@/lib/types';
 import { getMinRegistrationPeriod } from '@/lib/tld-min-periods';
 import { domainLineTotal, domainYearsOf, pricedDomainTermOptions } from '@/lib/reselleros/domain-terms';
+import { useHostingPrices } from '@/hooks/useHostingPrices';
+import { planPrice } from '@/lib/pricing/hosting-price';
 
 interface CartItemCardProps {
   item: CartItem;
@@ -16,9 +18,20 @@ interface CartItemCardProps {
   ) => void;
   /** What ResellerOS charges for this domain per term, before GST; null/absent while unknown. */
   termTotals?: Record<string, number> | null;
+  /** A yearly hosting plan is in the cart, so ResellerOS makes this domain's first year free. */
+  bundled?: boolean;
 }
 
-export default function CartItemCard({ item, onRemove, onPeriodChange, termTotals }: CartItemCardProps) {
+export default function CartItemCard({ item, onRemove, onPeriodChange, termTotals, bundled = false }: CartItemCardProps) {
+  const hostingPrices = useHostingPrices();
+  /* What 12 months of this plan cost billed monthly, GST included — ResellerOS's real monthly
+     price, for the "Save N%" badge. It used to assume monthly = 2 × the yearly rate, which is
+     only true for some plans (Plus: ₹5,300 shown, ₹5,292 real). Null while unknown → no badge. */
+  const monthlyForAYear = (() => {
+    if (item.itemType !== 'hosting' || hostingPrices.state !== 'ok') return null;
+    const plan = planPrice(hostingPrices.table, item.hostingPlan?.id ?? item.hostingPlan?.name);
+    return plan ? Math.round(plan.monthly.inclGst * 12 * 100) / 100 : null;
+  })();
   const minPeriod = getMinRegistrationPeriod(item.domainName);
   const tldLabel = item.domainName.split('.').pop()?.toUpperCase();
   const isHostingPlaceholder =
@@ -155,7 +168,7 @@ export default function CartItemCard({ item, onRemove, onPeriodChange, termTotal
                 ? '₹0.00'
                 : item.itemType === 'hosting'
                   ? `₹${(item.price * item.registrationPeriod).toFixed(2)}`
-                  : `₹${domainLineTotal(item, termTotals).toFixed(2)}`}
+                  : `₹${domainLineTotal(item, termTotals, bundled).toFixed(2)}`}
             </p>
             <p className="text-sm text-ink-2">
               {item.isTrial ? (
@@ -169,6 +182,7 @@ export default function CartItemCard({ item, onRemove, onPeriodChange, termTotal
                 // ResellerOS's price for this term, plus 18% GST — what the payment window charges.
                 <>
                   {domainYearsOf(item) > 1 ? `${domainYearsOf(item)} years` : '1 year'} · incl. 18% GST
+                  {bundled && <span className="block text-emerald-ink">First year free with yearly hosting</span>}
                 </>
               )}
             </p>
@@ -192,13 +206,12 @@ export default function CartItemCard({ item, onRemove, onPeriodChange, termTotal
                 </div>
               );
             })()}
-            {item.itemType === 'hosting' && item.registrationPeriod === 12 && (() => {
-              // Annual hosting is half the monthly rate (₹125/mo vs ₹250/mo
-              // billed monthly). Surface the concrete saving so the user
-              // understands what "Annual Savings Applied" actually means.
-              const monthlyEquivalentYearly = item.price * 2 * 12;
+            {item.itemType === 'hosting' && item.registrationPeriod === 12 && monthlyForAYear !== null && (() => {
+              // The concrete saving of paying yearly, against ResellerOS's real monthly price.
+              const monthlyEquivalentYearly = monthlyForAYear;
               const yearlyTotal = item.price * 12;
               const saved = monthlyEquivalentYearly - yearlyTotal;
+              if (saved <= 0) return null;
               const percent = Math.round((saved / monthlyEquivalentYearly) * 100);
               return (
                 <div className="mt-1.5 flex flex-col items-end gap-0.5">
