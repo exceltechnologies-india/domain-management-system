@@ -96,6 +96,12 @@ export async function fetchDomainTermPrices(
     ? (rows as { domain?: unknown; available?: unknown; priceKnown?: unknown; prices?: unknown }[]).find((r) => r?.domain === full)
     : undefined;
   if (!row) return { ok: false, detail: `ResellerOS returned no row for ${full}` };
+  // Already registered: say so (the hosting pop-up then sets hosting up on it). No price to give.
+  if (row.available === false) {
+    const taken = { ok: true as const, domain: full, available: false, totals: {} };
+    cache.set(key, { at: now, out: taken });
+    return taken;
+  }
   const totals = row.priceKnown === true ? cleanTermTotals(row.prices) : {};
   if (!totals["1"]) return { ok: false, detail: `ResellerOS has no price for ${full}` };
   const out = { ok: true as const, domain: full, available: row.available === true, totals };

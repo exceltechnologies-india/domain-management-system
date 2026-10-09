@@ -82,3 +82,10 @@ describe("helpers", () => {
     expect(cleanTermTotals(null)).toEqual({});
   });
 });
+
+describe("an already-registered name (9 Oct 2026)", () => {
+  it("answers available: false with no prices, instead of 'unavailable'", async () => {
+    const f = reply(200, { domains: [{ ...ROW, available: false, priceKnown: false, prices: {} }] });
+    expect(await fetchDomainTermPrices("shop.in", { env: ENV, fetchImpl: f })).toEqual({ ok: true, domain: "shop.in", available: false, totals: {} });
+  });
+});

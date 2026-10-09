@@ -23,6 +23,17 @@ import { useRazorpayCheckout } from '@/components/RazorpayCheckoutFrame';
 import { razorpayThemeColor } from '@/lib/theme-color';
 import { mapCartToPanelOrder, type CartLineLike } from '@/lib/reselleros/cart-lines';
 import { INDIAN_STATES, normaliseIndianState } from '@/lib/constants';
+import { useHostingPrices } from '@/hooks/useHostingPrices';
+import { planPrice } from '@/lib/pricing/hosting-price';
+import { domainLineTotal, pricedDomainTermOptions } from '@/lib/reselleros/domain-terms';
+import { getMinRegistrationPeriod } from '@/lib/tld-min-periods';
+
+/** What ResellerOS says about one domain: free to register or not, and its price per term. */
+type DomainCheck =
+  | { state: 'idle' | 'checking' | 'unknown' }
+  | { state: 'ok'; domain: string; available: boolean; totals: Record<string, number> };
+
+const rupees = (n: number) => `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
 export type PanelPurchaseChoice =
   | { kind: 'hosting'; planId: 'starter' | 'standard' | 'plus'; cycle: 'monthly' | 'yearly'; label: string }
@@ -76,6 +87,13 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
   const [error, setError] = useState<string | null>(null);
 
   const [hostingDomain, setHostingDomain] = useState('');
+  /* 9 Oct 2026: the pop-ups showed no price at this step ("shown in the payment window"), a
+     domain was always 1 year, and the hosting pop-up sent a customer without a domain away to
+     buy one first. Now: the price before paying, a years choice, and "register it in this order". */
+  const [years, setYears] = useState(1);
+  const [registerDomain, setRegisterDomain] = useState(false);
+  const [check, setCheck] = useState<DomainCheck>({ state: 'idle' });
+  const hostingPrices = useHostingPrices();
   const [companyName, setCompanyName] = useState('');
   const [gstin, setGstin] = useState('');
   const [line1, setLine1] = useState('');
@@ -86,7 +104,72 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
   // For a cart, the same mapper the server uses decides; if it refuses, the
   // server will too, and its message is shown before anything is sent.
   const cartMapping = choice.kind === 'cart' ? mapCartToPanelOrder(choice.items) : null;
-  const needsAddress = choice.kind === 'domain' || (cartMapping?.ok === true && cartMapping.needsAddress);
+  const needsAddress =
+    choice.kind === 'domain' ||
+    (choice.kind === 'hosting' && registerDomain) ||
+    (cartMapping?.ok === true && cartMapping.needsAddress);
+
+  // The domain being priced: the one chosen in the domain pop-up, or the one typed for hosting.
+  const checkDomain = (choice.kind === 'domain' ? choice.domain : choice.kind === 'hosting' ? hostingDomain : '').trim().toLowerCase();
+  useEffect(() => {
+    if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(checkDomain)) {
+      setCheck({ state: 'idle' });
+      return;
+    }
+    let cancelled = false;
+    setCheck({ state: 'checking' });
+    const t = window.setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/public/domain-term-prices?domain=${encodeURIComponent(checkDomain)}`, { cache: 'no-store' });
+        const body = (await res.json().catch(() => null)) as { state?: string; available?: boolean; totals?: Record<string, number> } | null;
+        if (cancelled) return;
+        if (res.ok && body?.state === 'ok' && body.totals) {
+          setCheck({ state: 'ok', domain: checkDomain, available: body.available === true, totals: body.totals });
+          // A free name typed for hosting: offer to register it here, ticked.
+          if (choice.kind === 'hosting') setRegisterDomain(body.available === true);
+        } else {
+          setCheck({ state: 'unknown' });
+          if (choice.kind === 'hosting') setRegisterDomain(false);
+        }
+      } catch {
+        if (!cancelled) setCheck({ state: 'unknown' });
+      }
+    }, choice.kind === 'hosting' ? 700 : 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [checkDomain, choice.kind]);
+
+  const totals = check.state === 'ok' ? check.totals : null;
+  const minYears = checkDomain ? getMinRegistrationPeriod(checkDomain) : 1;
+  const yearOptions = pricedDomainTermOptions(minYears, totals);
+  const yearKey = yearOptions.join(',');
+  useEffect(() => {
+    if (!yearOptions.includes(years)) setYears(yearOptions[0]);
+  }, [yearKey, years]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The price before paying, GST included; the payment window still shows ResellerOS's exact figure.
+  const hostingCharge = (() => {
+    if (choice.kind !== 'hosting' || hostingPrices.state !== 'ok') return null;
+    const plan = planPrice(hostingPrices.table, choice.planId);
+    return plan ? (choice.cycle === 'yearly' ? plan.yearly.inclGst : plan.monthly.inclGst) : null;
+  })();
+  const domainCharge =
+    totals && (choice.kind === 'domain' || (choice.kind === 'hosting' && registerDomain))
+      ? domainLineTotal(
+          { price: totals['1'] ?? 0, registrationPeriod: choice.kind === 'domain' ? years : 1, periodUnit: 'years' },
+          totals,
+          choice.kind === 'hosting' && choice.cycle === 'yearly',
+        )
+      : null;
+  const priceKnown =
+    choice.kind === 'hosting'
+      ? hostingCharge !== null && (!registerDomain || domainCharge !== null)
+      : choice.kind === 'domain'
+        ? domainCharge !== null
+        : false;
+  const totalCharge = (hostingCharge ?? 0) + (domainCharge ?? 0);
 
   useEffect(() => {
     let cancelled = false;
@@ -121,10 +204,10 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
     setPhase({ step: 'working' });
     const purchase =
       choice.kind === 'hosting'
-        ? { kind: 'hosting' as const, planId: choice.planId, cycle: choice.cycle, domain: hostingDomain.trim() }
+        ? { kind: 'hosting' as const, planId: choice.planId, cycle: choice.cycle, domain: hostingDomain.trim(), ...(registerDomain ? { registerDomain: true } : {}) }
         : choice.kind === 'cart'
           ? { kind: 'cart' as const, items: choice.items }
-          : { kind: 'domain' as const, domain: choice.domain };
+          : { kind: 'domain' as const, domain: choice.domain, ...(years > 1 ? { years } : {}) };
     const res = await apiClient.post<OrderResponse>('/api/v1/user/panel-order', {
       purchase,
       companyName: companyName.trim(),
@@ -151,7 +234,12 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
         amount: order.amount,
         currency: order.currency,
         name: 'Anutech',
-        description: choice.label,
+        description:
+          choice.kind === 'domain' && years > 1
+            ? `${choice.label}, ${years} years`
+            : choice.kind === 'hosting' && registerDomain
+              ? `${choice.label} + ${hostingDomain.trim()}`
+              : choice.label,
         prefill: order.prefill,
         theme: { color: razorpayThemeColor() },
       });
@@ -207,12 +295,14 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
 
   const working = phase.step === 'working';
   const cartRefusal = cartMapping && !cartMapping.ok ? cartMapping.message : null;
-  const missingRequired =
-    !!cartRefusal ||
-    companyName.trim().length < 2 ||
-    !state ||
-    (choice.kind === 'hosting' && hostingDomain.trim().length < 3) ||
-    (needsAddress && (!line1.trim() || !city.trim() || zipcode.trim().length < 3));
+  // What is still missing, said beside the button instead of a silently greyed-out press.
+  const stillNeeded = [
+    choice.kind === 'hosting' && hostingDomain.trim().length < 3 ? 'the domain for the hosting' : null,
+    companyName.trim().length < 2 ? 'a company name (or your name)' : null,
+    !state ? 'your state' : null,
+    needsAddress && (!line1.trim() || !city.trim() || zipcode.trim().length < 3) ? 'the registrant address' : null,
+  ].filter((x): x is string => x !== null);
+  const missingRequired = !!cartRefusal || stillNeeded.length > 0;
 
   return (
     <form
@@ -223,9 +313,26 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
       }}
     >
       <p className="text-sm text-ink-2">
-        You're buying <span className="font-semibold text-ink">{choice.label}</span>. The exact price, including GST, is shown
-        in the payment window before you pay.
+        You're buying <span className="font-semibold text-ink">{choice.label}</span>
+        {choice.kind === 'domain' && years > 1 ? <> for <span className="font-semibold text-ink">{years} years</span></> : null}
+        {choice.kind === 'hosting' && registerDomain ? <> and registering <span className="font-semibold text-ink">{hostingDomain.trim()}</span></> : null}.
       </p>
+
+      {choice.kind === 'domain' && (
+        <div>
+          <label htmlFor="panel-years" className="block text-xs font-medium text-ink-2 mb-1">
+            Register for
+          </label>
+          <select id="panel-years" className={inputCls} value={years} onChange={(e) => setYears(Number(e.target.value))}>
+            {yearOptions.map((t) => (
+              <option key={t} value={t}>
+                {t} year{t === 1 ? '' : 's'}
+                {totals?.[String(t)] ? ` — ${rupees(Math.round(totals[String(t)] * 1.18 * 100) / 100)} incl. GST` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {cartMapping?.ok === true && (
         <ul className="text-sm text-ink-2 list-disc pl-5">
@@ -262,7 +369,31 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
             autoComplete="off"
             required
           />
-          <p className="mt-1 text-xs text-ink-3">A domain you already own. Need a new one? Register it first from Buy a domain.</p>
+          {check.state === 'checking' && <p className="mt-1 text-xs text-ink-3">Checking {checkDomain}…</p>}
+          {check.state === 'ok' && check.available && (
+            <label className="mt-2 flex items-start gap-2 rounded-lg border border-hairline bg-paper-2 px-3 py-2 text-sm text-ink-2">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4"
+                checked={registerDomain}
+                onChange={(e) => setRegisterDomain(e.target.checked)}
+              />
+              <span>
+                <span className="font-semibold text-ink">{checkDomain} is available.</span> Register it in this order
+                {choice.cycle === 'yearly'
+                  ? ' — the first year is free with yearly hosting.'
+                  : domainCharge !== null
+                    ? ` — ${rupees(domainCharge)} incl. GST for a year.`
+                    : '.'}
+              </span>
+            </label>
+          )}
+          {check.state === 'ok' && !check.available && (
+            <p className="mt-1 text-xs text-ink-3">{checkDomain} is already registered — we&apos;ll set the hosting up on it. Make sure it&apos;s yours.</p>
+          )}
+          {(check.state === 'idle' || check.state === 'unknown') && (
+            <p className="mt-1 text-xs text-ink-3">A domain you own, or a new one — we check it and can register it in this order.</p>
+          )}
         </div>
       )}
 
@@ -319,10 +450,44 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
         </fieldset>
       )}
 
+      {(choice.kind === 'hosting' || choice.kind === 'domain') && (
+        <div className="rounded-lg border border-hairline bg-paper-2 px-3 py-2 text-sm" aria-live="polite">
+          {priceKnown ? (
+            <>
+              {hostingCharge !== null && (
+                <div className="flex justify-between text-ink-2">
+                  <span>{choice.label}</span>
+                  <span className="font-mono">{rupees(hostingCharge)}</span>
+                </div>
+              )}
+              {domainCharge !== null && (
+                <div className="flex justify-between text-ink-2">
+                  <span>
+                    {checkDomain}, {choice.kind === 'domain' ? `${years} year${years === 1 ? '' : 's'}` : '1 year'}
+                    {choice.kind === 'hosting' && choice.cycle === 'yearly' ? ' — free with the plan' : ''}
+                  </span>
+                  <span className="font-mono">{rupees(domainCharge)}</span>
+                </div>
+              )}
+              <div className="mt-1 flex justify-between border-t border-hairline pt-1 font-semibold text-ink">
+                <span>Total, incl. 18% GST</span>
+                <span className="font-mono">{rupees(Math.round(totalCharge * 100) / 100)}</span>
+              </div>
+              <p className="mt-1 text-xs text-ink-3">The payment window shows the exact amount before you pay.</p>
+            </>
+          ) : (
+            <p className="text-ink-3">The exact price, including GST, is shown in the payment window before you pay.</p>
+          )}
+        </div>
+      )}
+
       {error && (
         <div role="alert" className="rounded-lg border border-rose/30 bg-rose-soft px-3 py-2 text-sm text-rose-ink">
           {error}
         </div>
+      )}
+      {!working && !cartRefusal && stillNeeded.length > 0 && (
+        <p className="text-xs text-ink-3">Still needed: {stillNeeded.join(', ')}.</p>
       )}
 
       <div className="flex justify-between gap-3 pt-2">

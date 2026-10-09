@@ -15,6 +15,7 @@ import { z } from "zod";
 import { isProvisionableDomain } from "@/lib/validation/hosting-domain";
 import type { PanelOrderLine, PanelOrderRequest } from "./panel-order";
 import { mapCartToPanelOrder } from "./cart-lines";
+import { RESELLEROS_DOMAIN_TERMS } from "./domain-terms";
 import { normaliseIndianState } from "@/lib/constants";
 
 /** A DMS cart line as the browser holds it. Only its meaning is read; prices are ignored. */
@@ -51,11 +52,19 @@ export const panelPurchaseSchema = z.object({
       cycle: z.enum(["monthly", "yearly"]),
       /** The domain the hosting is set up on. */
       domain: z.string().trim().min(3).max(253),
+      /**
+       * Register that domain in the same order (9 Oct 2026). The hosting pop-up used to send a
+       * customer without a domain away to buy one first — a second payment, and no free first year
+       * (ResellerOS makes it free when a yearly plan rides along).
+       */
+      registerDomain: z.boolean().optional(),
     }),
     z.object({
       kind: z.literal("domain"),
       /** The full name to register, e.g. example.in. */
       domain: z.string().trim().min(3).max(253),
+      /** The term, in years — one ResellerOS sells (1, 2, 3 or 5). Absent = 1. */
+      years: z.number().int().min(1).max(10).optional(),
     }),
     z.object({
       /** The DMS /cart (owner, 25 Sep 2026: "Route through ResellerOS"). */
@@ -123,13 +132,25 @@ export function buildPanelOrderRequest(buyer: PanelBuyer, body: PanelPurchase): 
         message: `"${body.purchase.domain}" isn't a domain name we can use. Nothing was charged. Enter the full name, for example yourbusiness.in.`,
       };
     }
+    const tld = domain.slice(domain.indexOf(".") + 1);
     if (body.purchase.kind === "hosting") {
       lines.push({ sku: `hosting:${body.purchase.planId}`, qty: 1, cycle: body.purchase.cycle });
       hostingDomain = domain;
+      if (body.purchase.registerDomain === true) {
+        // One year with the plan; ResellerOS makes it free when the plan is yearly.
+        lines.push({ sku: `domain:${tld}`, qty: 1, domain });
+        needsAddress = true;
+      }
     } else {
-      const tld = domain.slice(domain.indexOf(".") + 1);
-      // One year, quantity 1: ResellerOS's contract for a domain line.
-      lines.push({ sku: `domain:${tld}`, qty: 1, domain });
+      const years = body.purchase.years ?? 1;
+      if (!RESELLEROS_DOMAIN_TERMS.includes(years)) {
+        return {
+          ok: false,
+          field: "domain",
+          message: `A domain can be bought for 1, 2, 3 or 5 years, not ${years}. Nothing was charged. Choose one of those and try again.`,
+        };
+      }
+      lines.push({ sku: `domain:${tld}`, qty: 1, domain, ...(years > 1 ? { years } : {}) });
       needsAddress = true;
     }
   }

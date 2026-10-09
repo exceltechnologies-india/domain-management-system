@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     return secureJsonResponse({ state: "invalid", message: "Give one domain name, like example.in." }, 400);
   }
   const out = await fetchDomainTermPrices(domain);
-  if (out.ok) return secureJsonResponse({ state: "ok", domain: out.domain, totals: out.totals, gstRate: 0.18 });
+  if (out.ok) return secureJsonResponse({ state: "ok", domain: out.domain, available: out.available, totals: out.totals, gstRate: 0.18 });
   serverLogger.error(`[domain-term-prices] ${out.detail}. The cart shows an estimate for ${domain}.`);
   return secureJsonResponse({ state: "unavailable", message: DOMAIN_PRICE_UNAVAILABLE }, 503);
 }

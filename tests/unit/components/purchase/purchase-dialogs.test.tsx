@@ -91,7 +91,7 @@ describe("which dialog opens", () => {
 
   it("closing removes buy and q, keeps anything else, and does not push history", () => {
     open("buy=domain&q=example&tab=active");
-    fireEvent.click(screen.getByRole("button", { name: "" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close dialog" }));
     expect(replaceMock).toHaveBeenCalledWith("/dashboard/hosting?tab=active", { scroll: false });
   });
 });

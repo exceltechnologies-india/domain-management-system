@@ -176,3 +176,44 @@ describe("R-092: the buyer's state, for the GST invoice", () => {
     expect(r.ok && r.request.stateCode).toBe("Maharashtra");
   });
 });
+
+describe("the in-panel buy pop-ups (9 Oct 2026)", () => {
+  it("hosting with registerDomain: the plan AND that domain in one order, address required", () => {
+    const noAddress = buildPanelOrderRequest(BUYER, {
+      purchase: { kind: "hosting", planId: "starter", cycle: "yearly", domain: "newshop.in", registerDomain: true },
+      companyName: "Rao Traders",
+      state: "Delhi",
+    });
+    expect(noAddress).toMatchObject({ ok: false, field: "address" });
+    const r = buildPanelOrderRequest(BUYER, {
+      purchase: { kind: "hosting", planId: "starter", cycle: "yearly", domain: "newshop.in", registerDomain: true },
+      companyName: "Rao Traders",
+      state: "Delhi",
+      address: ADDRESS,
+    });
+    expect(r.ok && r.request.lines).toEqual([
+      { sku: "hosting:starter", qty: 1, cycle: "yearly" },
+      { sku: "domain:in", qty: 1, domain: "newshop.in" },
+    ]);
+    expect(r.ok && r.request.domain).toBe("newshop.in");
+  });
+
+  it("hosting without registerDomain is unchanged: no domain line", () => {
+    const r = buildPanelOrderRequest(BUYER, { purchase: { kind: "hosting", planId: "starter", cycle: "yearly", domain: "mine.in" }, companyName: "Rao Traders", state: "Delhi" });
+    expect(r.ok && r.request.lines).toEqual([{ sku: "hosting:starter", qty: 1, cycle: "yearly" }]);
+  });
+
+  it("a domain for 3 years sends years: 3; 1 year sends none", () => {
+    const three = buildPanelOrderRequest(BUYER, { purchase: { kind: "domain", domain: "rao.in", years: 3 }, companyName: "Rao Traders", state: "Delhi", address: ADDRESS });
+    expect(three.ok && three.request.lines).toEqual([{ sku: "domain:in", qty: 1, domain: "rao.in", years: 3 }]);
+    const one = buildPanelOrderRequest(BUYER, { purchase: { kind: "domain", domain: "rao.in", years: 1 }, companyName: "Rao Traders", state: "Delhi", address: ADDRESS });
+    expect(one.ok && one.request.lines).toEqual([{ sku: "domain:in", qty: 1, domain: "rao.in" }]);
+  });
+
+  it("refuses a term ResellerOS does not sell, saying nothing was charged", () => {
+    const r = buildPanelOrderRequest(BUYER, { purchase: { kind: "domain", domain: "rao.in", years: 4 }, companyName: "Rao Traders", state: "Delhi", address: ADDRESS });
+    expect(r).toMatchObject({ ok: false, field: "domain" });
+    expect(!r.ok && r.message).toMatch(/1, 2, 3 or 5 years.*Nothing was charged/);
+    expect(panelPurchaseSchema.safeParse({ purchase: { kind: "domain", domain: "rao.in", years: 3 }, companyName: "Rao" }).success).toBe(true);
+  });
+});
