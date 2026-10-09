@@ -95,6 +95,7 @@ export default function DomainSetup({ hostingItem, onUpdateDomain, onAddDomainTo
         price: searchResult.price,
         currency: searchResult.currency || 'INR',
         registrationPeriod: 1, // Default 1 year
+        periodUnit: 'years',
         itemType: 'domain',
       };
 

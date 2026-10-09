@@ -117,9 +117,11 @@ describe("CheckoutPage redirect gating (first useEffect)", () => {
   it("does nothing while NextAuth status is 'loading'", async () => {
     mockUseSession.mockReturnValue({ data: null, status: "loading" });
     render(<CheckoutPage />);
-    // Give microtasks a tick — the effect should bail before fetch
+    // Give microtasks a tick — the redirect effect should bail before its profile fetch. (The
+    // cart's domain price lookup, /api/public/domain-term-prices, is not part of the gate.)
     await new Promise((r) => setTimeout(r, 10));
-    expect(mockFetch).not.toHaveBeenCalled();
+    const gateCalls = mockFetch.mock.calls.filter((c) => !String(c[0]).startsWith("/api/public/domain-term-prices"));
+    expect(gateCalls).toHaveLength(0);
     expect(mockRouter.push).not.toHaveBeenCalled();
   });
 

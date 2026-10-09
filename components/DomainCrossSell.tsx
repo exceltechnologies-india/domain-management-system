@@ -62,7 +62,9 @@ export default function DomainCrossSell() {
         domainName: result.domainName,
         price: result.price,
         currency: result.currency || 'INR',
-        registrationPeriod: 12, // Default to 1 year
+        // One year, in years: "12" with no unit read as 12 years, which the cart then moved to 5.
+        registrationPeriod: 1,
+        periodUnit: 'years',
         itemType: 'domain'
       });
       toast.success(`${result.domainName} added to cart!`);

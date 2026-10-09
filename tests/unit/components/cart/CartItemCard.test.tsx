@@ -87,9 +87,24 @@ describe("<CartItemCard>", () => {
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
-  it("renders price as price × registrationPeriod (domain, 3-year)", () => {
-    renderCard(domainItem({ price: 999, registrationPeriod: 3 }));
-    expect(screen.getByText("₹2997.00")).toBeInTheDocument();
+  it("a domain line: the search price × years plus 18% GST until ResellerOS answers", () => {
+    renderCard(domainItem({ price: 999, registrationPeriod: 3, periodUnit: "years" }));
+    expect(screen.getByText("₹3536.46")).toBeInTheDocument();
+    expect(screen.getByText(/3 years · incl\. 18% GST/)).toBeInTheDocument();
+  });
+
+  it("a domain line: ResellerOS's own price for the term, plus GST, once it has answered", () => {
+    render(
+      <CartItemCard
+        item={domainItem({ price: 999, registrationPeriod: 3, periodUnit: "years" })}
+        onRemove={vi.fn()}
+        onPeriodChange={vi.fn()}
+        termTotals={{ "1": 999, "2": 1990, "3": 2900 }}
+      />,
+    );
+    expect(screen.getByText("₹3422.00")).toBeInTheDocument();
+    // Only the priced terms are offered.
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["1 Year", "2 Years", "3 Years"]);
   });
 
   it("shows the multi-year price-lock badge for a domain registered for >1 year", () => {

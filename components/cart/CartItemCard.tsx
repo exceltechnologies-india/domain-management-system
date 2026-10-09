@@ -3,7 +3,7 @@
 import { Globe, Trash2, CheckCircle, AlertTriangle, Server } from 'lucide-react';
 import { CartItem } from '@/lib/types';
 import { getMinRegistrationPeriod } from '@/lib/tld-min-periods';
-import { domainTermOptions, domainYearsOf } from '@/lib/reselleros/domain-terms';
+import { domainLineTotal, domainYearsOf, pricedDomainTermOptions } from '@/lib/reselleros/domain-terms';
 
 interface CartItemCardProps {
   item: CartItem;
@@ -14,9 +14,11 @@ interface CartItemCardProps {
     itemType?: string,
     unit?: 'months' | 'minutes' | 'years' | 'days'
   ) => void;
+  /** What ResellerOS charges for this domain per term, before GST; null/absent while unknown. */
+  termTotals?: Record<string, number> | null;
 }
 
-export default function CartItemCard({ item, onRemove, onPeriodChange }: CartItemCardProps) {
+export default function CartItemCard({ item, onRemove, onPeriodChange, termTotals }: CartItemCardProps) {
   const minPeriod = getMinRegistrationPeriod(item.domainName);
   const tldLabel = item.domainName.split('.').pop()?.toUpperCase();
   const isHostingPlaceholder =
@@ -43,7 +45,13 @@ export default function CartItemCard({ item, onRemove, onPeriodChange }: CartIte
 
   const periodOptions = (() => {
     // A domain: only the terms ResellerOS sells (1, 2, 3, 5 years — lib/reselleros/domain-terms.ts).
-    if (item.itemType !== 'hosting') return domainTermOptions(minPeriod);
+    if (item.itemType !== 'hosting') {
+      // Narrowed to the terms ResellerOS has a price for, keeping the chosen one so the box never
+      // shows a term the customer did not pick.
+      const options = pricedDomainTermOptions(minPeriod, termTotals);
+      const chosen = domainYearsOf(item);
+      return options.includes(chosen) ? options : [...options, chosen].sort((a, b) => a - b);
+    }
     const start = 1;
     return Array.from({ length: 11 - start }, (_, i) => start + i);
   })();
@@ -143,7 +151,11 @@ export default function CartItemCard({ item, onRemove, onPeriodChange }: CartIte
           {/* Price */}
           <div className="text-right">
             <p className="text-xl font-bold text-ink">
-              {item.isTrial ? '₹0.00' : `₹${(item.price * item.registrationPeriod).toFixed(2)}`}
+              {item.isTrial
+                ? '₹0.00'
+                : item.itemType === 'hosting'
+                  ? `₹${(item.price * item.registrationPeriod).toFixed(2)}`
+                  : `₹${domainLineTotal(item, termTotals).toFixed(2)}`}
             </p>
             <p className="text-sm text-ink-2">
               {item.isTrial ? (
@@ -153,12 +165,11 @@ export default function CartItemCard({ item, onRemove, onPeriodChange }: CartIte
                   ₹{item.price}
                   {item.registrationPeriod === 12 ? '/mo (Annually)' : '/mo'}
                 </>
-              ) : item.registrationPeriod > 1 ? (
-                <>
-                  ₹{item.price} × {item.registrationPeriod} years
-                </>
               ) : (
-                <>₹{item.price} per year</>
+                // ResellerOS's price for this term, plus 18% GST — what the payment window charges.
+                <>
+                  {domainYearsOf(item) > 1 ? `${domainYearsOf(item)} years` : '1 year'} · incl. 18% GST
+                </>
               )}
             </p>
             {/* Domain: multi-year benefit ── rate-lock & expiry */}

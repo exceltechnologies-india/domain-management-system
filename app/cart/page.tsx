@@ -21,6 +21,7 @@ import toast from 'react-hot-toast';
 import { CartPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import { getMinRegistrationPeriod } from '@/lib/tld-min-periods';
 import { domainYearsOf, nearestDomainTerm } from '@/lib/reselleros/domain-terms';
+import { useDomainTermPrices } from '@/hooks/useDomainTermPrices';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { homeUrl } from '@/lib/reseller-os';
 
@@ -49,6 +50,8 @@ export default function CartPage() {
     hasDomainItems,
     hasHostingItems,
   } = useCartStore();
+  // ResellerOS's price per term for each domain line — the line totals and the summary use it.
+  const termTotals = useDomainTermPrices(cartItems);
 
   const [isClient, setIsClient] = useState(false);
   const [user, setUser] = useState<User | null>(null);
@@ -290,6 +293,7 @@ export default function CartPage() {
                         item={item}
                         onRemove={removeItem}
                         onPeriodChange={handleRegistrationPeriodChange}
+                        termTotals={termTotals[item.domainName.toLowerCase()]}
                       />
                     ))}
                   </div>

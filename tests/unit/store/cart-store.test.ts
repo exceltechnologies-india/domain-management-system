@@ -184,20 +184,21 @@ describe("cartStore.removeItem", () => {
 });
 
 describe("cartStore getters", () => {
-  it("getSubtotalPrice multiplies price × registrationPeriod across items", () => {
+  it("getSubtotalPrice: hosting price × period (GST-inclusive already), a domain plus 18% GST", () => {
+    // Before 9 Oct 2026 a domain line had no GST but the cart labelled the total "incl. 18% GST".
     useCartStore.setState({
       items: [
-        baseDomain({ price: 100, registrationPeriod: 2 }),  // 200
-        baseDomain({ domainName: "x.com", price: 50, registrationPeriod: 3 }), // 150
+        baseDomain({ price: 100, registrationPeriod: 2 }),  // 200 + GST = 236
+        baseDomain({ domainName: "x.com", price: 50, registrationPeriod: 3 }), // 150 + GST = 177
         baseHosting({ domainName: "y.com", price: 200, registrationPeriod: 12 }), // 2400
       ],
     });
-    expect(useCartStore.getState().getSubtotalPrice()).toBe(2750);
+    expect(useCartStore.getState().getSubtotalPrice()).toBe(2813);
   });
 
   it("getTotalPrice rounds the subtotal to 2 decimal places", () => {
     useCartStore.setState({
-      items: [baseDomain({ price: 33.333, registrationPeriod: 1 })],
+      items: [baseHosting({ domainName: "y.com", price: 33.333, registrationPeriod: 1 })],
     });
     expect(useCartStore.getState().getTotalPrice()).toBe(33.33);
   });

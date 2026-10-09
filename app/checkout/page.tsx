@@ -20,6 +20,8 @@ import { useHostingPrices } from '@/hooks/useHostingPrices';
 import type { CartItem } from '@/lib/types';
 import { logger } from '@/lib/logger';
 import PanelCheckout from '@/components/purchase/PanelCheckout';
+import { domainLineTotal, domainYearsOf } from '@/lib/reselleros/domain-terms';
+import { useDomainTermPrices } from '@/hooks/useDomainTermPrices';
 
 const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@anutech.in';
 
@@ -47,6 +49,8 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
   const { items: cartItems, getTotalPrice, getSubtotalPrice, getItemCount, clearCart, syncWithServer, isLoading, hasDomainItems, hasHostingItems } = useCartStore();
+  // ResellerOS's price per term for each domain line (the line totals and the summary use it).
+  const termTotals = useDomainTermPrices(cartItems);
   // Read by the profile check below without re-running it on every cart change.
   const cartItemsRef = useRef<CartItem[]>(cartItems);
   cartItemsRef.current = cartItems;
@@ -324,7 +328,9 @@ export default function CheckoutPage() {
                                   ? `${item.registrationPeriod} day subscription`
                                   : item.itemType === 'hosting' && item.registrationPeriod === 12
                                   ? '1 year subscription'
-                                  : `${item.registrationPeriod || 1} ${item.itemType === 'hosting' ? (item.periodUnit === 'days' ? 'day(s)' : 'month(s)') : 'year(s)'} ${item.itemType === 'hosting' ? 'subscription' : 'registration'}`
+                                  : item.itemType === 'hosting'
+                                  ? `${item.registrationPeriod || 1} ${item.periodUnit === 'days' ? 'day(s)' : 'month(s)'} subscription`
+                                  : `${domainYearsOf(item)} year(s) registration`
                                 }
                                 {getMinRegistrationPeriod(item.domainName) > 1 && (
                                   <span className="ml-2 text-xs text-amber-ink">
@@ -363,10 +369,14 @@ export default function CheckoutPage() {
                                 <p className="text-xl font-bold text-ink">
                                   ₹{item.itemType === 'hosting' && item.periodUnit === 'days'
                                     ? (1).toFixed(2)
-                                    : (item.price * (item.registrationPeriod || 1)).toFixed(2)}
+                                    : item.itemType === 'hosting'
+                                    ? (item.price * (item.registrationPeriod || 1)).toFixed(2)
+                                    : domainLineTotal(item, termTotals[item.domainName.toLowerCase()]).toFixed(2)}
                                 </p>
                                 <p className="text-sm text-ink-2">
-                                  ₹{item.itemType === 'hosting' && item.periodUnit === 'days' ? (item.registrationPeriod === 8 ? '1.00' : item.price) : item.price} per {item.itemType === 'hosting' && item.periodUnit === 'days' ? 'day' : (item.itemType === 'hosting' ? 'month' : 'year')}
+                                  {item.itemType === 'hosting'
+                                    ? `₹${item.periodUnit === 'days' ? (item.registrationPeriod === 8 ? '1.00' : item.price) : item.price} per ${item.periodUnit === 'days' ? 'day' : 'month'}`
+                                    : `${domainYearsOf(item) > 1 ? `${domainYearsOf(item)} years` : '1 year'} · incl. 18% GST`}
                                 </p>
                               </>
                             )}

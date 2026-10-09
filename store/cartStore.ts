@@ -9,6 +9,8 @@ import {
   validateAndCorrectCartItems,
   clampRegistrationPeriod,
 } from "./cart-validation";
+import { domainLineTotal } from "@/lib/reselleros/domain-terms";
+import { termTotalsFor } from "./domainTermPriceStore";
 
 // Debounce timer — batches rapid cart mutations into a single server sync
 let saveDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -153,7 +155,13 @@ export const useCartStore = create<CartStore>()(
 
       getSubtotalPrice: () => {
         return get().items.reduce(
-          (total, item) => total + item.price * item.registrationPeriod,
+          // Every line GST-inclusive: hosting prices already are; a domain line is ResellerOS's
+          // price for its term plus 18% (lib/reselleros/domain-terms.ts, 9 Oct 2026).
+          (total, item) =>
+            total +
+            (item.itemType === "hosting" || item.isTrial
+              ? item.price * item.registrationPeriod
+              : domainLineTotal(item, termTotalsFor(item.domainName))),
           0
         );
       },

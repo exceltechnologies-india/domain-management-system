@@ -168,7 +168,9 @@ describe("<DomainCrossSell>", () => {
       domainName: "buy.me",
       price: 1499,
       currency: "INR",
-      registrationPeriod: 12,
+      // One year, in years — "12" with no unit read as 12 years and became 5 in the cart (9 Oct 2026).
+      registrationPeriod: 1,
+      periodUnit: "years",
       itemType: "domain",
     });
     expect(mockToast.success).toHaveBeenCalledWith(expect.stringMatching(/added to cart/i));

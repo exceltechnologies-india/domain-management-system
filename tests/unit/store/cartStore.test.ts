@@ -75,7 +75,8 @@ describe("cartStore", () => {
     store.addItem({ domainName: "a.com", price: 500, registrationPeriod: 2, itemType: "domain" } as any);
     store.addItem({ domainName: "b.com", price: 300, registrationPeriod: 1, itemType: "domain" } as any);
 
-    expect(useCartStore.getState().getTotalPrice()).toBe(1300);
+    // Domain lines carry 18% GST (9 Oct 2026): (1000 + 300) × 1.18.
+    expect(useCartStore.getState().getTotalPrice()).toBe(1534);
   });
 
   it("enforces .ai minimum 2-year registration period", async () => {

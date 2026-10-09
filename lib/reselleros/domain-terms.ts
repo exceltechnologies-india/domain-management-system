@@ -32,3 +32,35 @@ export function domainYearsOf(item: { registrationPeriod?: number; periodUnit?: 
   if (item.periodUnit === "months" && period >= 12 && period % 12 === 0) return period / 12;
   return period;
 }
+
+/** GST on a domain registration, as ResellerOS charges it. */
+export const DOMAIN_GST_RATE = 0.18;
+
+/**
+ * A domain line's total INCLUDING GST — the same basis as a hosting line, because the cart
+ * and checkout read every line as GST-inclusive (total ÷ 1.18 = taxable).
+ *
+ * `termTotals` is what ResellerOS charges per term, before GST (lib/reselleros/
+ * domain-term-prices.ts). Until it has answered, the search's 1-year price × years stands in;
+ * checkout calls the total an estimate and the payment window shows the exact amount.
+ * Before 9 Oct 2026 the line was the 1-year price × years with NO GST, labelled as including it.
+ */
+export function domainLineTotal(
+  item: { price: number; registrationPeriod?: number; periodUnit?: string },
+  termTotals?: Record<string, number> | null,
+): number {
+  const years = domainYearsOf(item);
+  const exGst = termTotals?.[String(years)] ?? item.price * years;
+  return Math.round(exGst * (1 + DOMAIN_GST_RATE) * 100) / 100;
+}
+
+/**
+ * The offered terms, narrowed to those ResellerOS has a price for once it has answered (a TLD
+ * the registry prices only for some terms). Falls back to the plain list while unknown.
+ */
+export function pricedDomainTermOptions(minYears = 1, termTotals?: Record<string, number> | null): number[] {
+  const options = domainTermOptions(minYears);
+  if (!termTotals) return options;
+  const priced = options.filter((t) => termTotals[String(t)] > 0);
+  return priced.length ? priced : options;
+}
