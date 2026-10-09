@@ -3,6 +3,7 @@
 import { Globe, Trash2, CheckCircle, AlertTriangle, Server } from 'lucide-react';
 import { CartItem } from '@/lib/types';
 import { getMinRegistrationPeriod } from '@/lib/tld-min-periods';
+import { domainTermOptions, domainYearsOf } from '@/lib/reselleros/domain-terms';
 
 interface CartItemCardProps {
   item: CartItem;
@@ -41,7 +42,9 @@ export default function CartItemCard({ item, onRemove, onPeriodChange }: CartIte
         }`;
 
   const periodOptions = (() => {
-    const start = item.itemType === 'hosting' ? 1 : minPeriod;
+    // A domain: only the terms ResellerOS sells (1, 2, 3, 5 years — lib/reselleros/domain-terms.ts).
+    if (item.itemType !== 'hosting') return domainTermOptions(minPeriod);
+    const start = 1;
     return Array.from({ length: 11 - start }, (_, i) => start + i);
   })();
 
@@ -109,13 +112,15 @@ export default function CartItemCard({ item, onRemove, onPeriodChange }: CartIte
               </div>
             ) : (
               <select
-                value={item.registrationPeriod}
+                value={item.itemType === 'hosting' ? item.registrationPeriod : domainYearsOf(item)}
                 onChange={(e) =>
                   onPeriodChange(
                     item.domainName,
                     parseInt(e.target.value),
                     item.itemType,
-                    'months'
+                    // A domain's options are years; saving them as "months" made 3 years read as
+                    // 3 months once the term was sent to ResellerOS (9 Oct 2026).
+                    item.itemType === 'hosting' ? 'months' : 'years'
                   )
                 }
                 className="px-3 py-2 border border-hairline rounded-md text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-paper"

@@ -20,6 +20,7 @@ import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { CartPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import { getMinRegistrationPeriod } from '@/lib/tld-min-periods';
+import { domainYearsOf, nearestDomainTerm } from '@/lib/reselleros/domain-terms';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { homeUrl } from '@/lib/reseller-os';
 
@@ -122,8 +123,12 @@ export default function CartPage() {
     cartItems.forEach((item) => {
       if (item.itemType === 'hosting') return;
       const min = getMinRegistrationPeriod(item.domainName);
-      if (item.registrationPeriod < min) {
-        updateItem(item.domainName, { registrationPeriod: min }, item.itemType);
+      // Onto a term ResellerOS sells (1, 2, 3, 5 years), in years — a stored 4 becomes 3, and a
+      // term the old picker saved as "months" is put back as years (9 Oct 2026).
+      const years = domainYearsOf(item);
+      const term = nearestDomainTerm(Math.max(years, min), min);
+      if (term !== item.registrationPeriod || item.periodUnit !== 'years') {
+        updateItem(item.domainName, { registrationPeriod: term, periodUnit: 'years' }, item.itemType);
       }
     });
   }, [cartItems, isLoading, updateItem]);

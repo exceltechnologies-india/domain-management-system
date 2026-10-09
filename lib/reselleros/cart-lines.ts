@@ -25,6 +25,7 @@
  */
 import type { PanelOrderLine } from "./panel-order";
 import { isProvisionableDomain, hostingItemDomain } from "@/lib/validation/hosting-domain";
+import { RESELLEROS_DOMAIN_TERMS, domainYearsOf } from "./domain-terms";
 
 /** The fields of a cart line this reads — narrow, so a test needs no store. */
 export interface CartLineLike {
@@ -119,12 +120,11 @@ export function mapCartToPanelOrder(items: readonly CartLineLike[]): CartMapping
       /* The chosen term goes to ResellerOS, which prices it from the registry (its R-156) and
          refuses, by name, a term the registry does not price. Until 9 Oct 2026 anything but
          1 year was refused here, after ResellerOS had started selling 2, 3 and 5 years. */
-      const period = item.registrationPeriod ?? 1;
-      const years = item.periodUnit === "months" ? period / 12 : period;
-      if (!Number.isInteger(years) || years < 1 || years > 10) {
+      const years = domainYearsOf(item);
+      if (!RESELLEROS_DOMAIN_TERMS.includes(years)) {
         return {
           ok: false,
-          message: `${domain} is set to ${item.periodUnit === "months" ? `${period} months` : `${period} years`}, and a domain is registered for whole years, 1 to 10. Nothing was charged. Choose a number of years for it in your cart.`,
+          message: `${domain} is set to ${years} years, and a domain can be bought for ${RESELLEROS_DOMAIN_TERMS.join(", ").replace(/, (\d+)$/, " or $1")} years. Nothing was charged. Choose one of those for it in your cart.`,
         };
       }
       if (item.tldAttributes && Object.keys(item.tldAttributes).length > 0) {

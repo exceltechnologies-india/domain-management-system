@@ -114,11 +114,19 @@ describe("<CartItemCard>", () => {
     expect(screen.getByText(/\.AI requires min 2 year registration/i)).toBeInTheDocument();
   });
 
-  it("fires onPeriodChange with (domainName, parsedYear, itemType, 'months') when the select changes", async () => {
+  // 9 Oct 2026: a domain's options are years and are saved as years ("months" made 3 years
+  // read as 3 months once the term went to ResellerOS), and only 1, 2, 3, 5 are offered.
+  it("fires onPeriodChange with (domainName, parsedYear, itemType, 'years') when the select changes", async () => {
     const user = userEvent.setup();
     const { onPeriodChange } = renderCard(domainItem({ registrationPeriod: 1 }));
     await user.selectOptions(screen.getByRole("combobox"), "3");
-    expect(onPeriodChange).toHaveBeenCalledWith("example.com", 3, "domain", "months");
+    expect(onPeriodChange).toHaveBeenCalledWith("example.com", 3, "domain", "years");
+  });
+
+  it("offers a domain only the terms ResellerOS sells: 1, 2, 3, 5 years", () => {
+    renderCard(domainItem({ registrationPeriod: 1 }));
+    const values = Array.from((screen.getByRole("combobox") as HTMLSelectElement).options).map((o) => o.value);
+    expect(values).toEqual(["1", "2", "3", "5"]);
   });
 
   it("fires onRemove with (domainName, itemType) when the trash button is clicked", async () => {
