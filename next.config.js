@@ -10,10 +10,12 @@ const nextConfig = {
 
   // Production optimizations for security
   compiler: {
-    // Strips console.* calls from the CLIENT bundle only (browser JS).
-    // Server-side code (API routes, middleware, server components) is NOT affected —
-    // those logs still reach Cloud Logging. Use serverLogger for structured server logs.
-    removeConsole: process.env.NODE_ENV === "production",
+    // Strips console.* calls in production — from the SERVER bundle as well as the browser's.
+    // The old comment here said "client bundle only"; measured 9 Oct 2026 on the production-built
+    // local container, a serverLogger.error() printed nothing, so a failure on the live site left
+    // no trace. console.error and console.warn are kept (serverLogger writes errors and warnings
+    // through them); everyday console.log/info noise is still removed.
+    removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error", "warn"] } : false,
   },
 
   // Disable source maps in production (prevent code inspection)

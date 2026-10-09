@@ -234,7 +234,7 @@ export default function CartPage() {
           <div className="mb-6">
             <Link
               href={homeUrl()}
-              className="inline-flex items-center gap-1.5 text-sm text-ink-3 hover:text-ink transition-colors mb-3"
+              className="inline-flex items-center gap-1.5 min-h-[44px] text-sm text-ink-3 hover:text-ink transition-colors mb-1"
             >
               <ArrowLeft className="h-4 w-4" /> Continue shopping
             </Link>
