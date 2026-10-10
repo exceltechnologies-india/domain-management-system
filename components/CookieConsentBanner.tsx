@@ -62,14 +62,14 @@ export default function CookieConsentBanner() {
           <div className="flex shrink-0 items-center gap-3 sm:ml-4">
             <button
               onClick={accept}
-              className="rounded-lg bg-primary-600 px-5 py-2 text-sm font-medium text-paper hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+              className="min-h-[44px] rounded-lg bg-primary-600 px-5 py-2 text-sm font-medium text-paper hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
             >
               Accept &amp; Continue
             </button>
             <button
               onClick={accept}
               aria-label="Dismiss cookie notice"
-              className="rounded-lg p-1.5 text-ink-4 hover:bg-hairline/50 hover:text-ink-2 focus:outline-none focus:ring-2 focus:ring-hairline-strong"
+              className="min-h-[44px] min-w-[44px] grid place-items-center rounded-lg p-1.5 text-ink-4 hover:bg-hairline/50 hover:text-ink-2 focus:outline-none focus:ring-2 focus:ring-hairline-strong"
             >
               <X className="h-4 w-4" />
             </button>

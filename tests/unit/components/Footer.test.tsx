@@ -14,16 +14,24 @@ describe("<Footer>", () => {
     render(<Footer />);
     // FooterModern (default variant) — brand tagline replaces the old prose.
     expect(screen.getByText(/Empowering Businesses Online/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /^about us$/i })).toHaveAttribute("href", "/about");
+    expect(screen.getByRole("link", { name: /^about anutech$/i })).toHaveAttribute("href", "/about");
     expect(screen.getByRole("link", { name: /^contact us$/i })).toHaveAttribute("href", "/contact");
-    expect(screen.getByRole("link", { name: /^help center$/i })).toHaveAttribute("href", "/contact");
+    expect(screen.getByRole("link", { name: /^support$/i })).toHaveAttribute("href", "/dashboard/support");
   });
 
-  it("renders the Hosting + Domain columns with Web Hosting linked to /hosting", () => {
+  it("renders the Hosting + Domains columns, mirroring the ResellerOS footer", () => {
     render(<Footer />);
-    expect(screen.getByRole("link", { name: /^web hosting$/i })).toHaveAttribute("href", "/hosting");
-    expect(screen.getByRole("link", { name: /^domain search$/i })).toHaveAttribute("href", "/domains-home");
-    expect(screen.getByRole("link", { name: /^transfer domain$/i })).toHaveAttribute("href", "/domains-home");
+    expect(screen.getByRole("link", { name: /^shared hosting$/i })).toHaveAttribute("href", "/hosting");
+    expect(screen.getByRole("link", { name: /^search a domain$/i })).toHaveAttribute("href", "/domains");
+    expect(screen.getByRole("link", { name: /^transfer in$/i })).toHaveAttribute("href", "/domains");
+  });
+
+  it("lists only what is sold and links nowhere dead (10 Oct 2026)", () => {
+    render(<Footer />);
+    for (const gone of [/vps hosting/i, /reseller hosting/i, /whois/i, /^blog$/i, /^careers$/i, /knowledge base/i, /system status/i]) {
+      expect(screen.queryByRole("link", { name: gone })).toBeNull();
+    }
+    for (const a of screen.getAllByRole("link")) expect(a.getAttribute("href")).not.toBe("#");
   });
 
   it("renders the three policy links in the bottom strip, and no data-deletion link", () => {

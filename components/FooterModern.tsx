@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Logo from './Logo';
 import { useSiteVisibility } from './hooks/useSiteVisibility';
-import { publicPageHref } from '@/lib/reseller-os';
+import { publicPageHref, resellerOsUrl } from '@/lib/reseller-os';
 
 // Social icons — minimal inline SVGs (lucide dropped brand marks).
 const FacebookIcon = ({ className }: { className?: string }) => (
@@ -33,40 +33,46 @@ const SOCIAL_META = [
   { key: 'instagram' as const, Icon: InstagramIcon, label: 'Instagram' },
 ];
 
+/** A page on the ResellerOS site (it owns every public page), or DMS's own path when standalone. */
+const ros = (path: string): string => {
+  const base = resellerOsUrl();
+  return base ? `${base.replace(/\/+$/, '')}${path}` : publicPageHref(path);
+};
+
+/* The ResellerOS site footer's columns (src/site/components/chrome/Chrome.tsx FOOTER_COLS there),
+   10 Oct 2026. This list had "VPS Hosting" and "Reseller Hosting" (not sold), "WHOIS Lookup" (opened
+   domain search), and Blog, Careers, Knowledge Base and System Status linking to "#". */
 const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
   {
-    title: 'Hosting',
+    title: 'Domains',
     links: [
-      { label: 'Web Hosting', href: publicPageHref('/hosting') },
-      { label: 'Business Hosting', href: publicPageHref('/hosting') },
-      { label: 'Reseller Hosting', href: publicPageHref('/hosting') },
-      { label: 'VPS Hosting', href: publicPageHref('/hosting') },
+      { label: 'Search a domain', href: ros('/domains') },
+      { label: 'Rate card', href: ros('/domains#rates') },
+      { label: 'Transfer in', href: ros('/domains') },
+      { label: 'All prices', href: ros('/rates') },
     ],
   },
   {
-    title: 'Domain',
+    title: 'Hosting',
     links: [
-      { label: 'Domain Search', href: publicPageHref('/domains-home') },
-      { label: 'Transfer Domain', href: publicPageHref('/domains-home') },
-      { label: 'WHOIS Lookup', href: publicPageHref('/domains-home') },
+      { label: 'Shared hosting', href: ros('/hosting') },
+      { label: 'Full specification', href: ros('/hosting#specs') },
+      { label: 'Customer Portal', href: '/dashboard' },
     ],
   },
   {
     title: 'Company',
     links: [
-      { label: 'About Us', href: publicPageHref('/about') },
-      { label: 'Why Choose Us', href: publicPageHref('/hosting') },
-      { label: 'Blog', href: '#' },
-      { label: 'Careers', href: '#' },
+      { label: 'About Anutech', href: ros('/about') },
+      { label: 'Why us', href: ros('/why-us') },
+      { label: 'Get a quote', href: ros('/quote') },
     ],
   },
   {
     title: 'Support',
     links: [
-      { label: 'Help Center', href: publicPageHref('/contact') },
-      { label: 'Contact Us', href: publicPageHref('/contact') },
-      { label: 'Knowledge Base', href: '#' },
-      { label: 'System Status', href: '#' },
+      { label: 'Contact us', href: ros('/contact') },
+      { label: 'Support', href: '/dashboard/support' },
     ],
   },
 ];
@@ -81,7 +87,7 @@ const PAYMENTS: { label: string; color: string }[] = [
 export default function FooterModern({ className = '' }: FooterProps) {
   const { showGstin, social } = useSiteVisibility();
   return (
-    <footer className={`bg-[#0f172a] text-paper ${className}`}>
+    <footer data-touch-nav className={`bg-[#0f172a] text-paper ${className}`}>
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         <div className="grid grid-cols-2 lg:grid-cols-12 gap-x-6 gap-y-8 mb-8 text-center lg:text-left">
           {/* Brand */}
@@ -101,7 +107,7 @@ export default function FooterModern({ className = '' }: FooterProps) {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={label}
-                  className="h-8 w-8 flex items-center justify-center rounded-lg bg-paper/5 text-ink-4 hover:bg-indigo hover:text-paper transition-colors"
+                  className="h-11 w-11 flex items-center justify-center rounded-lg bg-paper/5 text-ink-4 hover:bg-indigo hover:text-paper transition-colors"
                 >
                   <Icon className="h-3.5 w-3.5" />
                 </a>

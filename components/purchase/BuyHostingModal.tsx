@@ -121,7 +121,7 @@ export default function BuyHostingModal({ isOpen, onClose }: BuyHostingModalProp
               type="button"
               aria-pressed={cycle === c}
               onClick={() => setCycle(c)}
-              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+              className={`min-h-[44px] px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
                 cycle === c ? 'bg-paper text-ink shadow-sm' : 'text-ink-3 hover:text-ink'
               }`}
             >
@@ -148,7 +148,7 @@ export default function BuyHostingModal({ isOpen, onClose }: BuyHostingModalProp
               <div className="flex items-baseline justify-between gap-2">
                 <h4 className="font-serif text-lg text-ink">{plan.name}</h4>
                 {plan.isPopular && (
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-ink bg-amber-soft px-2 py-0.5 rounded-full">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-ink bg-amber-soft px-2 py-0.5 rounded-full">
                     Popular
                   </span>
                 )}
@@ -181,7 +181,7 @@ export default function BuyHostingModal({ isOpen, onClose }: BuyHostingModalProp
                 type="button"
                 onClick={() => choose(plan)}
                 disabled={!charge}
-                className="w-full disabled:opacity-50 px-4 py-2 text-sm font-semibold text-paper bg-amber rounded-lg hover:brightness-90 transition-colors"
+                className="min-h-[44px] w-full disabled:opacity-50 px-4 py-2 text-sm font-semibold text-paper bg-amber rounded-lg hover:brightness-90 transition-colors"
               >
                 Buy {plan.name}
               </button>
@@ -192,7 +192,7 @@ export default function BuyHostingModal({ isOpen, onClose }: BuyHostingModalProp
                   type="button"
                   disabled={checkingTrial || !charge}
                   onClick={() => void startTrial(plan)}
-                  className="mt-2 w-full px-4 py-2 text-sm font-medium text-ink-2 border border-hairline rounded-lg hover:bg-paper-2 disabled:opacity-50 transition-colors"
+                  className="min-h-[44px] mt-2 w-full px-4 py-2 text-sm font-medium text-ink-2 border border-hairline rounded-lg hover:bg-paper-2 disabled:opacity-50 transition-colors"
                 >
                   {checkingTrial ? 'Checking…' : 'Start 15-day free trial'}
                 </button>

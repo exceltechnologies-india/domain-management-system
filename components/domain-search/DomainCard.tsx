@@ -46,22 +46,26 @@ export function HeroResultCard({ result, onAdd, onShowRequirements, onWatch }: H
           <div className="flex-1 min-w-0 w-full">
             <div className="flex flex-wrap items-center gap-2 mb-1.5 sm:mb-3">
               <span
-                className={`px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-bold tracking-widest uppercase shadow-sm ${
+                className={`px-1.5 py-0.5 rounded text-[11px] sm:text-[11px] font-bold tracking-widest uppercase shadow-sm ${
                   isAvailable ? 'bg-primary-600 text-paper' : 'bg-rose text-paper'
                 }`}
               >
                 {isAvailable ? 'EXACT MATCH' : 'TAKEN'}
               </span>
               {isAvailable && (
-                <span className="bg-primary-50 text-primary-700 px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-bold tracking-widest uppercase flex items-center gap-1 border border-primary-100">
+                <span className="bg-primary-50 text-primary-700 px-1.5 py-0.5 rounded text-[11px] sm:text-[11px] font-bold tracking-widest uppercase flex items-center gap-1 border border-primary-100">
                   <Zap className="h-2.5 w-2.5 fill-current" />
                   BEST VALUE
                 </span>
               )}
             </div>
 
-            <h3 className="text-xl sm:text-2xl font-bold text-ink mb-1 sm:mb-2 tracking-tight break-all">
-              {result.domainName}
+            {/* On a phone a long name wraps before its extension ("acmeresponsive / .com"), not
+                mid-word (".co / m"), as it did with break-all (10 Oct 2026). */}
+            <h3 className="text-lg sm:text-2xl font-bold text-ink mb-1 sm:mb-2 tracking-tight [overflow-wrap:anywhere]">
+              {result.domainName.includes('.')
+                ? <>{result.domainName.slice(0, result.domainName.indexOf('.'))}<wbr />{result.domainName.slice(result.domainName.indexOf('.'))}</>
+                : result.domainName}
             </h3>
 
             {isAvailable ? (
@@ -91,19 +95,19 @@ export function HeroResultCard({ result, onAdd, onShowRequirements, onWatch }: H
             {isAvailable && result.price ? (
               <>
                 <div className="text-center md:text-right w-full sm:w-auto">
-                  <div className="text-[9px] sm:text-[10px] text-ink-4 font-bold uppercase mb-0.5 tracking-widest line-through leading-none">
+                  <div className="text-[11px] sm:text-[11px] text-ink-4 font-bold uppercase mb-0.5 tracking-widest line-through leading-none">
                     {formatPrice(result.price * 1.5, result.currency)}
                   </div>
                   <div className="flex items-baseline gap-1 justify-center md:justify-end">
                     <span className="text-2xl sm:text-4xl font-black text-ink tracking-tight leading-none">
                       {formatPrice(result.price, result.currency)}
                     </span>
-                    <span className="text-[10px] text-ink-3 font-bold uppercase">/1st yr + GST</span>
+                    <span className="text-[11px] text-ink-3 font-bold uppercase">/1st yr + GST</span>
                   </div>
                 </div>
                 <button
                   onClick={onAdd}
-                  className="w-full md:w-auto px-6 py-2.5 sm:py-2 bg-primary-600 hover:bg-primary-700 text-paper font-bold text-xs rounded-lg transition-all duration-300 shadow-sm hover:shadow-primary-500/20 active:scale-95 flex items-center justify-center gap-2 uppercase tracking-wider"
+                  className="min-h-[44px] w-full md:w-auto whitespace-nowrap px-4 sm:px-6 py-2.5 sm:py-2 bg-primary-600 hover:bg-primary-700 text-paper font-bold text-xs rounded-lg transition-all duration-300 shadow-sm hover:shadow-primary-500/20 active:scale-95 flex items-center justify-center gap-2 uppercase tracking-wider"
                 >
                   <ShoppingCart className="h-3.5 w-3.5" />
                   MAKE IT YOURS
@@ -113,7 +117,7 @@ export function HeroResultCard({ result, onAdd, onShowRequirements, onWatch }: H
               <div className="w-full text-center md:text-right space-y-2">
                 <button
                   disabled
-                  className="w-full md:w-auto px-6 py-1.5 sm:py-2 bg-paper-2 text-ink-4 font-bold text-[10px] sm:text-xs rounded-lg uppercase tracking-wider border border-hairline opacity-60"
+                  className="min-h-[44px] w-full md:w-auto px-6 py-1.5 sm:py-2 bg-paper-2 text-ink-4 font-bold text-[11px] sm:text-xs rounded-lg uppercase tracking-wider border border-hairline opacity-60"
                 >
                   NOT AVAILABLE
                 </button>
@@ -121,7 +125,7 @@ export function HeroResultCard({ result, onAdd, onShowRequirements, onWatch }: H
                   <button
                     onClick={() => onWatch(result.domainName)}
                     title="We'll email you when this domain becomes available for registration"
-                    className="w-full md:w-auto px-6 py-1.5 sm:py-2 bg-amber-soft hover:bg-amber/15 text-amber-ink font-bold text-[10px] sm:text-xs rounded-lg uppercase tracking-wider border border-amber/30 transition-colors flex items-center justify-center gap-1.5"
+                    className="min-h-[44px] w-full md:w-auto px-6 py-1.5 sm:py-2 bg-amber-soft hover:bg-amber/15 text-amber-ink font-bold text-[11px] sm:text-xs rounded-lg uppercase tracking-wider border border-amber/30 transition-colors flex items-center justify-center gap-1.5"
                   >
                     <Bell className="h-3 w-3" />
                     NOTIFY ME
@@ -181,21 +185,21 @@ export function CompactResultCard({ result, onAdd, onShowRequirements, onWatch }
               {result.domainName}
             </h4>
             {savings > 0 && (
-              <span className="bg-rose-soft text-rose-ink px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider border border-rose/30">
+              <span className="bg-rose-soft text-rose-ink px-1.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider border border-rose/30">
                 SAVE {savings}%
               </span>
             )}
           </div>
           <div className="flex items-center gap-2.5">
             <span
-              className={`text-[9px] font-bold uppercase tracking-widest ${
+              className={`text-[11px] font-bold uppercase tracking-widest ${
                 isAvailable ? 'text-primary-600' : 'text-rose'
               }`}
             >
               {isAvailable ? 'Available' : 'Taken'}
             </span>
             {isAvailable && result.pricingSource === 'live' && (
-              <span className="flex items-center gap-1 text-primary-500 text-[8px] font-bold uppercase tracking-widest bg-primary-50/50 px-1 rounded">
+              <span className="flex items-center gap-1 text-primary-500 text-[11px] font-bold uppercase tracking-widest bg-primary-50/50 px-1 rounded">
                 <Zap className="h-2 w-2 fill-current" />
                 Live Price
               </span>
@@ -208,7 +212,7 @@ export function CompactResultCard({ result, onAdd, onShowRequirements, onWatch }
       <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 pt-2.5 sm:pt-0 border-hairline">
         <div className="text-left sm:text-right">
           {result.originalPrice && isAvailable && (
-            <div className="text-[8px] sm:text-[10px] text-ink-4 line-through font-bold leading-none mb-0.5">
+            <div className="text-[11px] sm:text-[11px] text-ink-4 line-through font-bold leading-none mb-0.5">
               {formatPrice(result.originalPrice, result.currency)}
             </div>
           )}
@@ -218,10 +222,10 @@ export function CompactResultCard({ result, onAdd, onShowRequirements, onWatch }
                 <span className="text-base sm:text-xl font-bold text-ink leading-none">
                   {formatPrice(result.price, result.currency)}
                 </span>
-                <span className="text-[8px] sm:text-[9px] text-ink-4 font-bold uppercase">/yr + GST</span>
+                <span className="text-[11px] sm:text-[11px] text-ink-4 font-bold uppercase">/yr + GST</span>
               </>
             ) : (
-              <span className="text-[9px] sm:text-[10px] font-bold text-ink-4 uppercase tracking-tight">
+              <span className="text-[11px] sm:text-[11px] font-bold text-ink-4 uppercase tracking-tight">
                 Unavailable
               </span>
             )}
@@ -231,14 +235,14 @@ export function CompactResultCard({ result, onAdd, onShowRequirements, onWatch }
         {isAvailable && result.price ? (
           <button
             onClick={onAdd}
-            className="px-4 sm:px-4 py-2 sm:py-1.5 font-bold text-[9px] sm:text-[10px] rounded-lg transition-all duration-300 active:scale-95 uppercase tracking-wider bg-primary-50 border border-primary-200 text-primary-600 hover:bg-primary-600 hover:text-paper"
+            className="min-h-[44px] px-4 sm:px-4 py-2 sm:py-1.5 font-bold text-[11px] sm:text-[11px] rounded-lg transition-all duration-300 active:scale-95 uppercase tracking-wider bg-primary-50 border border-primary-200 text-primary-600 hover:bg-primary-600 hover:text-paper"
           >
             BUY NOW
           </button>
         ) : onWatch ? (
           <button
             onClick={() => onWatch(result.domainName)}
-            className="px-4 sm:px-4 py-2 sm:py-1.5 font-bold text-[9px] sm:text-[10px] rounded-lg transition-all duration-300 active:scale-95 uppercase tracking-wider bg-amber-soft border border-amber/30 text-amber-ink hover:bg-amber/15 flex items-center gap-1"
+            className="min-h-[44px] px-4 sm:px-4 py-2 sm:py-1.5 font-bold text-[11px] sm:text-[11px] rounded-lg transition-all duration-300 active:scale-95 uppercase tracking-wider bg-amber-soft border border-amber/30 text-amber-ink hover:bg-amber/15 flex items-center gap-1"
           >
             <Bell className="h-2.5 w-2.5" />
             WATCH
@@ -246,7 +250,7 @@ export function CompactResultCard({ result, onAdd, onShowRequirements, onWatch }
         ) : (
           <button
             disabled
-            className="px-4 sm:px-4 py-2 sm:py-1.5 font-bold text-[9px] sm:text-[10px] rounded-lg uppercase tracking-wider bg-paper-2 border border-hairline text-ink-4 cursor-not-allowed opacity-50"
+            className="min-h-[44px] px-4 sm:px-4 py-2 sm:py-1.5 font-bold text-[11px] sm:text-[11px] rounded-lg uppercase tracking-wider bg-paper-2 border border-hairline text-ink-4 cursor-not-allowed opacity-50"
           >
             N/A
           </button>
@@ -306,7 +310,7 @@ export function DomainResultCard({
                 {requiresAdditionalDetails(result.domainName) && (
                   <button
                     onClick={() => onShowRequirements?.(result.domainName)}
-                    className="p-1 bg-amber-soft text-amber-ink rounded-lg hover:bg-amber/15 transition-colors flex-shrink-0"
+                    className="min-h-[44px] p-1 bg-amber-soft text-amber-ink rounded-lg hover:bg-amber/15 transition-colors flex-shrink-0"
                     title="Additional details required"
                   >
                     <AlertTriangle className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -315,14 +319,14 @@ export function DomainResultCard({
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <span
-                  className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[8px] sm:text-[10px] font-bold uppercase tracking-widest ${
+                  className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[11px] sm:text-[11px] font-bold uppercase tracking-widest ${
                     result.available ? 'bg-emerald-soft text-emerald-ink' : 'bg-rose-soft text-rose-ink'
                   }`}
                 >
                   {result.available ? 'AVAILABLE' : 'TAKEN'}
                 </span>
                 {result.available && result.pricingSource === 'live' && (
-                  <span className="flex items-center gap-1 bg-primary-100 text-primary-700 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[8px] sm:text-[10px] font-bold uppercase tracking-widest">
+                  <span className="flex items-center gap-1 bg-primary-100 text-primary-700 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[11px] sm:text-[11px] font-bold uppercase tracking-widest">
                     <Zap className="h-2 w-2 sm:h-3 sm:w-3 fill-current" />
                     LIVE PRICE
                   </span>
@@ -339,19 +343,19 @@ export function DomainResultCard({
                     <span className="text-xl sm:text-2xl font-black text-ink leading-none">
                       {formatPrice(result.price, result.currency)}
                     </span>
-                    <span className="text-[9px] sm:text-[10px] text-ink-3 font-bold uppercase">/yr + GST</span>
+                    <span className="text-[11px] sm:text-[11px] text-ink-3 font-bold uppercase">/yr + GST</span>
                   </div>
                 </div>
                 <button
                   onClick={onAdd}
-                  className="px-4 py-2 sm:px-6 sm:py-2.5 bg-ink hover:bg-primary-600 text-paper font-black text-xs sm:text-sm rounded-lg sm:rounded-xl transition-all duration-300 flex items-center justify-center gap-2 sm:gap-2.5 shadow-md shadow-gray-200 hover:shadow-primary-500/20 group/btn active:scale-95 flex-1 sm:flex-none"
+                  className="min-h-[44px] px-4 py-2 sm:px-6 sm:py-2.5 bg-ink hover:bg-primary-600 text-paper font-black text-xs sm:text-sm rounded-lg sm:rounded-xl transition-all duration-300 flex items-center justify-center gap-2 sm:gap-2.5 shadow-md shadow-gray-200 hover:shadow-primary-500/20 group/btn active:scale-95 flex-1 sm:flex-none"
                 >
                   <ShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4 group-hover/btn:scale-110 transition-transform" />
                   <span className="whitespace-nowrap">ADD TO CART</span>
                 </button>
               </>
             ) : (
-              <div className="px-5 py-2 bg-paper-2 text-ink-3 font-bold text-[10px] uppercase rounded-xl tracking-widest">
+              <div className="px-5 py-2 bg-paper-2 text-ink-3 font-bold text-[11px] uppercase rounded-xl tracking-widest">
                 {result.available ? 'Contact for pricing' : 'NOT AVAILABLE'}
               </div>
             )}

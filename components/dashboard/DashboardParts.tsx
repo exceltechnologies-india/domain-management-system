@@ -112,7 +112,7 @@ export function Panel({ title, subtitle, action, children }: { title: string; su
 
 export function PanelLink({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <Link href={href} className="inline-flex min-h-[32px] flex-none items-center gap-1 text-xs font-medium text-amber-ink hover:underline">
+    <Link href={href} className="inline-flex min-h-[32px] min-w-[44px] flex-none items-center justify-end gap-1 text-xs font-medium text-amber-ink hover:underline">
       {children}
       <ChevronRight className="h-3.5 w-3.5" aria-hidden />
     </Link>

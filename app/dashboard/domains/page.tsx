@@ -192,7 +192,67 @@ export default function UserDomains() {
                   )}
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <>
+                {/* Phones: one card per domain (10 Oct 2026). The table hid Expiry, Manage DNS and
+                    Renew behind a sideways scroll inside the card. */}
+                <ul className="divide-y divide-hairline md:hidden">
+                  {filteredDomains.map((domain) => {
+                    const inactive = ['pending', 'processing', 'failed'].includes(domain.status);
+                    const canRenew = !inactive && isWithinRenewalWindow(domain.expiryDate);
+                    return (
+                      <li key={domain.id} className="space-y-3 px-4 py-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <span className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-amber-soft" aria-hidden>
+                              <Globe className="h-4 w-4 text-amber" />
+                            </span>
+                            <p className="min-w-0 break-words text-base font-semibold text-ink [overflow-wrap:anywhere]">{domain.name}</p>
+                          </div>
+                          <span className={`inline-flex flex-none items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getStatusColor(domain.status)}`}>
+                            {getStatusIcon(domain.status)}
+                            <span className="capitalize">{domain.status}</span>
+                          </span>
+                        </div>
+                        <dl className="grid grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <dt className="text-xs text-ink-3">Registered</dt>
+                            <dd className="text-ink-2">{domain.status === 'pending' ? 'Pending' : formatIndianDateTime(domain.registrationDate).split(',')[0]}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-ink-3">Expires</dt>
+                            <dd className="text-ink-2">
+                              {domain.status === 'pending' || domain.status === 'processing' ? 'Pending'
+                                : domain.status === 'failed' || !domain.expiryDate ? 'N/A'
+                                : <ExpiryBadge expiryDate={domain.expiryDate} />}
+                            </dd>
+                          </div>
+                        </dl>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => { if (!inactive) router.push(`/dashboard/dns-management?domainId=${domain.id}`); }}
+                            disabled={inactive}
+                            className={`inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-semibold ${
+                              inactive ? 'cursor-not-allowed bg-paper-2/60 text-ink-4' : 'border border-amber/25 bg-amber-soft text-amber-ink'
+                            }`}
+                          >
+                            <Network className="h-4 w-4" />
+                            {inactive ? 'DNS after setup' : 'Manage DNS'}
+                          </button>
+                          {canRenew && (
+                            <button
+                              onClick={() => { setSelectedDomainName(domain.name); setIsRenewalModalOpen(true); }}
+                              className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-lg border border-emerald/30 bg-emerald-soft px-3 text-sm font-semibold text-emerald-ink"
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                              Renew
+                            </button>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <div className="hidden overflow-x-auto md:block">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-paper-2/60 border-b border-hairline">
@@ -290,6 +350,7 @@ export default function UserDomains() {
                     </tbody>
                   </table>
                 </div>
+                </>
               )}
             </div>
           )}

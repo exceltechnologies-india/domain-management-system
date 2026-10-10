@@ -59,7 +59,7 @@ export default function Logo({
 
   if (href) {
     return (
-      <Link href={href} aria-label="Anutech Digital">
+      <Link href={href} aria-label="Anutech Digital" className="inline-flex min-h-[44px] items-center">
         {logoElement}
       </Link>
     );

@@ -58,7 +58,7 @@ const SearchResults = React.memo(function SearchResults({
           exit={{ opacity: 0, y: 20 }}
           className="mt-4 bg-paper/95 backdrop-blur-3xl rounded-[1.5rem] shadow-[0_30px_70px_rgba(0,0,0,0.15)] border border-paper/40 overflow-hidden"
         >
-          <div className="p-4 sm:p-6">
+          <div className="p-3 sm:p-6">
             {isSearching && (
               <motion.div
                 key="loading"
@@ -89,13 +89,13 @@ const SearchResults = React.memo(function SearchResults({
                 {/* Primary Results */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between border-b border-hairline pb-3">
-                    <h2 className="text-xl font-bold text-ink flex items-center gap-2">
+                    <h2 className="text-lg sm:text-xl font-bold text-ink flex items-center gap-2">
                       <Zap className="h-5 w-5 text-amber fill-amber" />
                       Exact Match Results
                     </h2>
                     <button
                       onClick={onClearSearch}
-                      className="text-xs font-semibold text-ink-3 hover:text-ink flex items-center gap-1 transition-colors"
+                      className="min-h-[44px] text-xs font-semibold text-ink-3 hover:text-ink flex items-center gap-1 transition-colors"
                     >
                       <XCircle className="h-3.5 w-3.5" />
                       Clear Search
@@ -181,7 +181,7 @@ const SearchResults = React.memo(function SearchResults({
                           <Sparkles className="h-4 w-4 text-paper" />
                         </div>
                         <div>
-                          <h2 className="text-xl font-bold text-ink">More domain options</h2>
+                          <h2 className="text-lg sm:text-xl font-bold text-ink">More domain options</h2>
                           <p className="text-xs text-ink-3">Choose from brandable alternatives</p>
                         </div>
                       </div>
@@ -193,7 +193,7 @@ const SearchResults = React.memo(function SearchResults({
                             <button
                               key={cat}
                               onClick={() => setActiveTab(cat)}
-                              className={`px-4 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${
+                              className={`min-h-[44px] px-4 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all ${
                                 activeTab === cat
                                   ? 'bg-paper text-primary-600 shadow-sm'
                                   : 'text-ink-3 hover:text-ink'
@@ -234,7 +234,7 @@ const SearchResults = React.memo(function SearchResults({
                     <button
                       onClick={onLoadMore}
                       disabled={isLoadingMore}
-                      className="group relative px-6 py-3 sm:px-12 sm:py-5 bg-primary-600 hover:bg-primary-700 rounded-xl sm:rounded-2xl font-black text-paper transition-all duration-300 shadow-xl hover:shadow-primary-500/40 active:scale-95 overflow-hidden"
+                      className="min-h-[44px] group relative px-6 py-3 sm:px-12 sm:py-5 bg-primary-600 hover:bg-primary-700 rounded-xl sm:rounded-2xl font-black text-paper transition-all duration-300 shadow-xl hover:shadow-primary-500/40 active:scale-95 overflow-hidden"
                     >
                       <span className="relative z-10 flex items-center gap-2">
                         {isLoadingMore ? (

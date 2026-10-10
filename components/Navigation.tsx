@@ -201,7 +201,7 @@ export default function Navigation({
           <Logo size="xl" />
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center space-x-4 lg:space-x-6">
+          <nav data-touch-nav className="hidden md:flex items-center space-x-4 lg:space-x-6">
             <Link
               href={homeUrl()}
               className={`font-medium transition-colors duration-200 relative group ${isActive('/')
@@ -261,7 +261,7 @@ export default function Navigation({
             {/* Cart Icon - Hidden on mobile, shown in menu instead */}
             <Link
               href="/cart"
-              className="hidden md:flex relative p-1.5 text-[var(--google-text-secondary)] hover:text-[var(--google-blue)] transition-colors duration-200"
+              className="hidden md:flex relative min-h-[44px] min-w-[44px] items-center justify-center p-1.5 text-[var(--google-text-secondary)] hover:text-[var(--google-blue)] transition-colors duration-200"
               title="Shopping Cart"
             >
               <ShoppingCart className="h-6 w-6" />

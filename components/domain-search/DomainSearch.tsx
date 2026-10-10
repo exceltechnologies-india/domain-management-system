@@ -158,7 +158,7 @@ export default function DomainSearch({
   };
 
   return (
-    <div className={`w-full max-w-screen-2xl mx-auto px-4 py-1 sm:py-3 ${className}`}>
+    <div className={`w-full max-w-screen-2xl mx-auto ${compact ? 'px-0 sm:px-4' : 'px-4'} py-1 sm:py-3 ${className}`}>
       {/* Hero Search Section */}
       {showHeroText && (
         <section className={`relative text-center ${compact ? 'mb-2 sm:mb-4' : 'mb-3 sm:mb-6'}`}>
