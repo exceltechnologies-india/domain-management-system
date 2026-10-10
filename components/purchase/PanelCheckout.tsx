@@ -27,6 +27,7 @@ import { useHostingPrices } from '@/hooks/useHostingPrices';
 import { planPrice } from '@/lib/pricing/hosting-price';
 import { domainLineTotal, pricedDomainTermOptions } from '@/lib/reselleros/domain-terms';
 import { getMinRegistrationPeriod } from '@/lib/tld-min-periods';
+import { checkoutNeeds } from '@/lib/purchase/catalog';
 
 /** What ResellerOS says about one domain: free to register or not, and its price per term. */
 type DomainCheck =
@@ -77,7 +78,7 @@ interface PanelCheckoutProps {
   onPaid?: (quoteId?: string | null) => void;
 }
 
-const inputCls = 'w-full rounded-lg border border-hairline bg-paper px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-amber';
+const inputCls = 'w-full min-h-[44px] rounded-lg border border-hairline bg-paper px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-amber';
 
 export default function PanelCheckout({ choice, onBack, onClose, onPaid }: PanelCheckoutProps) {
   const razorpay = useRazorpayCheckout();
@@ -100,14 +101,21 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [zipcode, setZipcode] = useState('');
+  /* Saved details are shown as a summary with "Change" (10 Oct 2026: a paying customer's details
+     should be reused). The form opens when they choose to edit, or when something is missing. */
+  const [editing, setEditing] = useState(false);
+  const [saveDetails, setSaveDetails] = useState(true);
 
   // For a cart, the same mapper the server uses decides; if it refuses, the
   // server will too, and its message is shown before anything is sent.
   const cartMapping = choice.kind === 'cart' ? mapCartToPanelOrder(choice.items) : null;
+  // What this checkout must collect comes from the product catalogue (lib/purchase/catalog.ts).
   const needsAddress =
-    choice.kind === 'domain' ||
-    (choice.kind === 'hosting' && registerDomain) ||
-    (cartMapping?.ok === true && cartMapping.needsAddress);
+    (choice.kind === 'cart'
+      ? cartMapping?.ok === true && cartMapping.needsAddress
+      : checkoutNeeds(choice.kind, { registerDomain }).registrantAddress) === true;
+  const detailsComplete = !!state && (!needsAddress || (!!line1.trim() && !!city.trim() && zipcode.trim().length >= 3));
+  const showDetailsForm = editing || !detailsComplete;
 
   // The domain being priced: the one chosen in the domain pop-up, or the one typed for hosting.
   const checkDomain = (choice.kind === 'domain' ? choice.domain : choice.kind === 'hosting' ? hostingDomain : '').trim().toLowerCase();
@@ -214,6 +222,8 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
       ...(gstin.trim() ? { gstin: gstin.trim() } : {}),
       ...(needsAddress ? { address: { line1, city, state, zipcode, country: 'IN' } } : {}),
       state,
+      // Only what the customer typed or changed is saved back; an untouched summary changes nothing.
+      ...(showDetailsForm && saveDetails ? { saveDetails: true } : {}),
     });
     if (!res.ok) {
       // The route writes every refusal for the customer: what happened, why,
@@ -264,7 +274,7 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
           <Link href="/dashboard/invoices" className="px-4 py-2 text-sm font-semibold text-paper bg-amber rounded-lg hover:brightness-90">
             Go to Invoices
           </Link>
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-ink-2 border border-hairline rounded-lg hover:bg-paper-2">
+          <button type="button" onClick={onClose} className="min-h-[44px] px-4 py-2 text-sm text-ink-2 border border-hairline rounded-lg hover:bg-paper-2">
             Close
           </button>
         </div>
@@ -282,7 +292,7 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
           {phase.quoteId ? ` (${phase.quoteId})` : ''} is still unpaid. You can pay it from the Invoices page, or start again.
         </p>
         <div className="mt-5 flex justify-center gap-3">
-          <button type="button" onClick={() => setPhase({ step: 'form' })} className="px-4 py-2 text-sm font-semibold text-paper bg-amber rounded-lg hover:brightness-90">
+          <button type="button" onClick={() => setPhase({ step: 'form' })} className="min-h-[44px] px-4 py-2 text-sm font-semibold text-paper bg-amber rounded-lg hover:brightness-90">
             Try again
           </button>
           <Link href="/dashboard/invoices" className="px-4 py-2 text-sm text-ink-2 border border-hairline rounded-lg hover:bg-paper-2">
@@ -396,6 +406,32 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
         </div>
       )}
 
+      {!showDetailsForm ? (
+        <div className="rounded-lg border border-hairline bg-paper px-3 py-3 text-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-ink-3">Billed to</p>
+              <p className="mt-0.5 font-medium text-ink">
+                {prefill?.name || 'You'}{companyName.trim() && companyName.trim().toLowerCase() !== (prefill?.name ?? '').trim().toLowerCase() ? ` · ${companyName.trim()}` : ''}
+              </p>
+              <p className="text-ink-2">
+                {gstin.trim() ? `GSTIN ${gstin.trim().toUpperCase()} · ` : 'No GSTIN · '}{state}
+              </p>
+              {needsAddress && (
+                <p className="text-ink-2 [overflow-wrap:anywhere]">{line1}, {city} {zipcode}</p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="min-h-[44px] flex-none rounded-lg border border-hairline px-3 text-sm font-medium text-ink-2 hover:bg-paper-2"
+            >
+              Change
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label htmlFor="panel-company" className="block text-xs font-medium text-ink-2 mb-1">
@@ -455,6 +491,13 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
           </div>
         </fieldset>
       )}
+          {/* Saved to the account, so the next purchase starts from the summary. */}
+          <label className="flex min-h-[44px] items-center gap-2 text-sm text-ink-2">
+            <input type="checkbox" className="h-4 w-4" checked={saveDetails} onChange={(e) => setSaveDetails(e.target.checked)} />
+            Save these details to my account for next time
+          </label>
+        </div>
+      )}
 
       {(choice.kind === 'hosting' || choice.kind === 'domain') && (
         <div className="rounded-lg border border-hairline bg-paper-2 px-3 py-2 text-sm" aria-live="polite">
@@ -497,13 +540,13 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
       )}
 
       <div className="flex justify-between gap-3 pt-2">
-        <button type="button" onClick={onBack} disabled={working} className="px-4 py-2 text-sm text-ink-2 border border-hairline rounded-lg hover:bg-paper-2 disabled:opacity-50">
+        <button type="button" onClick={onBack} disabled={working} className="min-h-[44px] px-4 py-2 text-sm text-ink-2 border border-hairline rounded-lg hover:bg-paper-2 disabled:opacity-50">
           Back
         </button>
         <button
           type="submit"
           disabled={working || missingRequired}
-          className="px-5 py-2 text-sm font-semibold text-paper bg-amber rounded-lg hover:brightness-90 disabled:opacity-50"
+          className="min-h-[44px] px-5 py-2 text-sm font-semibold text-paper bg-amber rounded-lg hover:brightness-90 disabled:opacity-50"
         >
           {working ? 'Starting payment…' : 'Continue to payment'}
         </button>

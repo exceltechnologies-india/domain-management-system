@@ -78,6 +78,8 @@ export const panelPurchaseSchema = z.object({
   address: addressSchema.optional(),
   /** The buyer's state, required (R-092): it decides the GST on the invoice. */
   state: z.string().trim().max(80).optional(),
+  /** "Save for next time" (10 Oct 2026): store these billing details on the account once the order is created. */
+  saveDetails: z.boolean().optional(),
 });
 
 export type PanelPurchase = z.infer<typeof panelPurchaseSchema>;

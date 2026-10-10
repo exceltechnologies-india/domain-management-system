@@ -18,6 +18,8 @@
  * a 401 — `lib/api-client.ts` treats a 401 as "signed out" and would log the
  * customer out for a configuration problem on our side.
  */
+import { billingDetailsOf, mergeBillingDetails, parseBillingDetails } from "@/lib/users/billing-details";
+import { getUserByEmail } from "@/lib/services/users";
 import { NextRequest } from "next/server";
 import { AuthService } from "@/lib/auth";
 import { secureJsonResponse } from "@/lib/api-response-wrapper";
@@ -43,6 +45,7 @@ export async function GET(request: NextRequest) {
   const user = await AuthService.getUserFromRequest(request);
   if (!user) return secureJsonResponse(SIGN_IN, 401);
   const a = user.address;
+  const saved = billingDetailsOf(user);
   return secureJsonResponse({
     name: `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim(),
     email: user.email,
@@ -52,6 +55,8 @@ export async function GET(request: NextRequest) {
     address: a
       ? { line1: a.line1 ?? "", city: a.city ?? "", state: a.state ?? "", zipcode: a.zipcode ?? "" }
       : null,
+    /** Whether the saved details are enough to check out without asking (10 Oct 2026). */
+    complete: saved.complete,
   });
 }
 
@@ -80,6 +85,18 @@ export async function POST(request: NextRequest) {
   const outcome = await createPanelOrder(built.request);
 
   if (outcome.kind === "ok") {
+    /* "Save for next time": the details this order used become the account's. After the order is
+       created, so a refused order never changes the account. Best-effort — the order stands. */
+    if (validation.data.saveDetails) {
+      try {
+        const d = validation.data;
+        const doc = await getUserByEmail(user.email);
+        const details = parseBillingDetails({ companyName: d.companyName, gstin: d.gstin, state: d.state ?? d.address?.state, address: d.address });
+        if (doc && mergeBillingDetails(doc, details, "replace").length > 0) await doc.save();
+      } catch (err) {
+        serverLogger.error(`[panel-order] could not save billing details for DMS user ${built.request.dmsUserId}:`, err);
+      }
+    }
     serverLogger.info(
       `[panel-order] ResellerOS order ${outcome.order.orderId} (quote ${outcome.order.quoteId ?? "?"}) for DMS user ${built.request.dmsUserId}`,
     );

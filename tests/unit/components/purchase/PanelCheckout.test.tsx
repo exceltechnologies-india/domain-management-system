@@ -49,7 +49,10 @@ describe("<PanelCheckout> for the DMS cart", () => {
     const onPaid = vi.fn();
     const user = userEvent.setup();
     render(<PanelCheckout choice={{ kind: "cart", items: [CART_DOMAIN], label: "1 item" }} onBack={vi.fn()} onClose={vi.fn()} onPaid={onPaid} />);
-    await waitFor(() => expect(screen.getByDisplayValue("1 MG Road")).toBeInTheDocument());
+    // Saved details show as a summary, not a form (10 Oct 2026).
+    await waitFor(() => expect(screen.getByText("Billed to")).toBeInTheDocument());
+    expect(screen.getByText("1 MG Road, Delhi 110001")).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("1 MG Road")).toBeNull();
     await user.click(screen.getByRole("button", { name: /continue to payment/i }));
     await waitFor(() => expect(screen.getByText("Payment received")).toBeInTheDocument());
     expect(postMock).toHaveBeenCalledTimes(1);
@@ -57,6 +60,35 @@ describe("<PanelCheckout> for the DMS cart", () => {
     expect(postMock.mock.calls[0][1]).toMatchObject({ purchase: { kind: "cart", items: [CART_DOMAIN] }, address: { line1: "1 MG Road" } });
     expect(openMock.mock.calls[0][0]).toMatchObject({ key: "rzp_ros", order_id: "order_R" });
     expect(onPaid).toHaveBeenCalledTimes(1);
+  });
+
+  it("Change opens the form; what the customer edits is saved to the account for next time", async () => {
+    postMock.mockResolvedValue({
+      ok: true,
+      data: { success: true, orderId: "order_R", amount: 70800, currency: "INR", razorpayKeyId: "rzp_ros", quoteId: "Q-1", totalRupees: 708, prefill: { name: "A", email: "a@x", contact: "9" } },
+    });
+    openMock.mockResolvedValue({ razorpay_payment_id: "pay_1", razorpay_signature: "s" });
+    const user = userEvent.setup();
+    render(<PanelCheckout choice={{ kind: "cart", items: [CART_DOMAIN], label: "1 item" }} onBack={vi.fn()} onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText("Billed to")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Change" }));
+    const line1 = screen.getByDisplayValue("1 MG Road");
+    await user.clear(line1);
+    await user.type(line1, "9 Park Street");
+    expect(screen.getByRole("checkbox", { name: /save these details/i })).toBeChecked();
+    await user.click(screen.getByRole("button", { name: /continue to payment/i }));
+    await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
+    expect(postMock.mock.calls[0][1]).toMatchObject({ address: { line1: "9 Park Street" }, saveDetails: true });
+  });
+
+  it("an untouched summary sends no saveDetails — nothing about the account changes", async () => {
+    postMock.mockResolvedValue({ ok: false, error: { status: 400, message: "x" } });
+    const user = userEvent.setup();
+    render(<PanelCheckout choice={{ kind: "cart", items: [CART_DOMAIN], label: "1 item" }} onBack={vi.fn()} onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText("Billed to")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: /continue to payment/i }));
+    await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
+    expect(postMock.mock.calls[0][1].saveDetails).toBeUndefined();
   });
 
   it("a cart line that can't be mapped is shown by name and blocks the submit", async () => {
