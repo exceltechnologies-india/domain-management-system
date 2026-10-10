@@ -31,11 +31,16 @@ describe("<SearchInput>", () => {
     expect(screen.getByRole("button", { name: /search/i })).toBeInTheDocument();
   });
 
-  it("disables the button while the search term is empty and re-enables once a value is present", () => {
-    const { rerender } = render(<SearchInput {...defaults({ searchTerm: "" })} />);
-    expect(screen.getByRole("button", { name: /search/i })).toBeDisabled();
-    rerender(<SearchInput {...defaults({ searchTerm: "abc" })} />);
-    expect(screen.getByRole("button", { name: /search/i })).not.toBeDisabled();
+  it("an empty press asks for a name instead of a silently disabled button (9 Oct 2026)", async () => {
+    const user = userEvent.setup();
+    const onSearch = vi.fn();
+    render(<SearchInput {...defaults({ searchTerm: "", onSearch })} />);
+    const button = screen.getByRole("button", { name: /search/i });
+    expect(button).not.toBeDisabled();
+    await user.click(button);
+    expect(onSearch).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(/Type a name to search/);
+    expect(screen.getByRole("textbox", { name: "Domain name" })).toHaveFocus();
   });
 
   it("fires onChange for each keystroke", async () => {

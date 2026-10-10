@@ -43,6 +43,8 @@ export interface DomainSearchProps {
    * ordered through ResellerOS (owner decision 30), not DMS's cart.
    */
   onSelectDomain?: (domainName: string) => void;
+  /** Told when results appear or are cleared, so a host can show or hide its own guide. */
+  onSearchedChange?: (searched: boolean) => void;
 }
 
 export default function DomainSearch({
@@ -56,6 +58,7 @@ export default function DomainSearch({
   showHeroText = true,
   compact = false,
   onSelectDomain,
+  onSearchedChange,
 }: DomainSearchProps) {
   const [showRequirementsModal, setShowRequirementsModal] = React.useState(false);
   const [selectedDomainForRequirements, setSelectedDomainForRequirements] = React.useState('');
@@ -81,6 +84,9 @@ export default function DomainSearch({
     handleInputChange,
     clearSearch,
   } = useDomainSearch({ redirectOnSearch, autoSearch, initialSearchTerm });
+  React.useEffect(() => {
+    onSearchedChange?.(hasSearched || isSearching);
+  }, [hasSearched, isSearching, onSearchedChange]);
 
   const handleAddToCart = (result: SearchResult) => {
     // The panel's ResellerOS checkout prices the name itself, so a missing

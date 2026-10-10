@@ -98,7 +98,7 @@ export function HeroResultCard({ result, onAdd, onShowRequirements, onWatch }: H
                     <span className="text-2xl sm:text-4xl font-black text-ink tracking-tight leading-none">
                       {formatPrice(result.price, result.currency)}
                     </span>
-                    <span className="text-[10px] text-ink-3 font-bold uppercase">/1st yr</span>
+                    <span className="text-[10px] text-ink-3 font-bold uppercase">/1st yr + GST</span>
                   </div>
                 </div>
                 <button

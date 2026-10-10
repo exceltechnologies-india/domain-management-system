@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { Search, Loader2, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -27,6 +27,19 @@ export default function SearchInput({
   onChange,
   onSearch,
 }: SearchInputProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  /* An empty press used to do nothing behind a faded-out button, which read as broken
+     (9 Oct 2026). The button now stays live and asks for a name instead. */
+  const [needName, setNeedName] = useState(false);
+  const search = (e?: React.FormEvent) => {
+    if (!searchTerm.trim()) {
+      setNeedName(true);
+      inputRef.current?.focus();
+      return;
+    }
+    setNeedName(false);
+    onSearch(e);
+  };
   return (
     <motion.div
       className={`relative mx-auto ${compact ? 'max-w-4xl' : 'max-w-5xl'}`}
@@ -41,7 +54,7 @@ export default function SearchInput({
       <div
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.shiftKey) {
-            onSearch(e as unknown as React.FormEvent);
+            search(e as unknown as React.FormEvent);
           }
         }}
         className="relative flex flex-row items-stretch gap-2 sm:gap-2.5"
@@ -57,10 +70,16 @@ export default function SearchInput({
           }`}
         >
           <input
+            ref={inputRef}
             type="text"
             value={searchTerm}
-            onChange={onChange}
-            placeholder="Register a domain name to start"
+            onChange={(e) => {
+              if (needName && e.target.value.trim()) setNeedName(false);
+              onChange(e);
+            }}
+            aria-label="Domain name"
+            aria-describedby={needName ? 'domain-search-need-name' : undefined}
+            placeholder="Type a name, e.g. yourbusiness"
             className={`w-full px-4 sm:px-5 bg-transparent border-0 focus:ring-0 focus:outline-none font-medium text-ink placeholder-ink-4 ${
               compact ? 'py-3 sm:py-3.5 text-sm sm:text-base' : 'py-3.5 sm:py-4 text-sm sm:text-lg'
             }`}
@@ -72,8 +91,8 @@ export default function SearchInput({
             mobile only the icon is shown so the button stays compact. */}
         <button
           type="button"
-          onClick={() => onSearch()}
-          disabled={isSearching || !searchTerm.trim()}
+          onClick={() => search()}
+          disabled={isSearching}
           aria-label="Search domains"
           className={`flex-shrink-0 bg-gradient-to-b from-[#1668E3] to-[#0A47A0] hover:from-[#2975E6] hover:to-[#1668E3] text-paper font-bold rounded-xl sm:rounded-2xl ring-1 ring-paper/30 transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 shadow-[0_8px_22px_rgba(109,40,217,0.5)] hover:shadow-[0_10px_30px_rgba(22,104,227,0.6)] disabled:opacity-60 disabled:saturate-50 active:scale-95 ${
             compact
@@ -109,6 +128,12 @@ export default function SearchInput({
         </button>
       </div>
 
+      {needName && (
+        <p id="domain-search-need-name" role="alert" className="mt-2 text-sm text-rose-ink">
+          Type a name to search, for example yourbusiness.
+        </p>
+      )}
+
       {/* Prompt Message */}
       <AnimatePresence>
         {searchMode === 'multiple' && baseDomain && !hasSearched && (
@@ -116,7 +141,7 @@ export default function SearchInput({
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="mt-6 flex items-center justify-center gap-3 text-indigo-ink font-semibold"
+            className={`${compact ? 'mt-3' : 'mt-6'} flex items-center justify-center gap-3 text-indigo-ink font-semibold`}
           >
             {/* The prompt sits OUTSIDE the white search card and directly on
                 the page's blue hero background in both hosted usages
@@ -129,7 +154,8 @@ export default function SearchInput({
             <Sparkles
               className="h-5 w-5 animate-pulse text-amber transition-colors duration-300"
             />
-            <span className="text-sm sm:text-base text-paper/90 transition-colors duration-300">
+            {/* White on the blue hero; ink on a white surface (the panel's pop-up), where white was invisible. */}
+            <span className={`text-sm sm:text-base transition-colors duration-300 ${theme === 'light' ? 'text-ink-2' : 'text-paper/90'}`}>
               We'll check .com, .net, .in and more for "{baseDomain}"
             </span>
           </motion.div>
