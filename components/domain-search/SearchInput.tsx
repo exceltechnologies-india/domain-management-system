@@ -94,7 +94,7 @@ export default function SearchInput({
           onClick={() => search()}
           disabled={isSearching}
           aria-label="Search domains"
-          className={`flex-shrink-0 bg-gradient-to-b from-[#1668E3] to-[#0A47A0] hover:from-[#2975E6] hover:to-[#1668E3] text-paper font-bold rounded-xl sm:rounded-2xl ring-1 ring-paper/30 transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm hover:shadow-md disabled:opacity-60 disabled:saturate-50 active:scale-95 ${
+          className={`flex-shrink-0 bg-amber hover:brightness-95 text-paper font-bold rounded-xl sm:rounded-2xl ring-1 ring-paper/30 transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm hover:shadow-md disabled:opacity-60 disabled:saturate-50 active:scale-95 ${
             compact
               ? 'w-12 sm:w-auto sm:px-5 py-3 sm:py-3.5 text-sm'
               : 'w-14 sm:w-auto sm:px-6 py-3.5 sm:py-4 text-base'

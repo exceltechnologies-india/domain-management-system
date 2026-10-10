@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import localFont from 'next/font/local';
+import PortalThemeStyle from '@/components/theme/PortalThemeStyle';
 import './globals.css';
 import { Toaster } from 'react-hot-toast';
 import ClientOnly from '@/components/ClientOnly';
@@ -47,6 +48,20 @@ const plexMono = localFont({
   variable: '--font-plex-mono',
 });
 
+/* The ResellerOS app's own fonts, for the Customer Portal (10 Oct 2026: "colour combo and UI does
+   not match the ResellerOS one"). The same files ResellerOS bundles from @fontsource (SIL OFL),
+   self-hosted like the others so the Docker build needs no network. Used by `.ros-theme`. */
+const rosSans = localFont({
+  src: [{ path: '../public/fonts/PlusJakartaSans-Variable.woff2', weight: '200 800', style: 'normal' }],
+  display: 'swap',
+  variable: '--font-ros-sans',
+});
+const rosSerif = localFont({
+  src: [{ path: '../public/fonts/DMSerifDisplay-400.woff2', weight: '400', style: 'normal' }],
+  display: 'swap',
+  variable: '--font-ros-serif',
+});
+
 /* What the customer sees in the browser tab — the ResellerOS brand, not "Domain Management
    System" (3 Oct 2026: DMS is a backend service for ResellerOS). */
 export const metadata: Metadata = {
@@ -85,7 +100,9 @@ export default async function RootLayout({
       data-scroll-behavior="smooth"
       suppressHydrationWarning
     >
-      <body className={`${archivo.className} ${archivo.variable} ${plexMono.variable} ${inter.variable}`} suppressHydrationWarning>
+      <body className={`${archivo.className} ${archivo.variable} ${plexMono.variable} ${inter.variable} ${rosSans.variable} ${rosSerif.variable}`} suppressHydrationWarning>
+        {/* The Customer Portal's colours, read from ResellerOS (lib/theme). */}
+        <PortalThemeStyle />
         {/* Admin-managed analytics / marketing tags (GA4 / GTM / Meta Pixel /
             Google Ads). Renders first-party nonce'd snippets keyed on
             validated IDs; no-ops when disabled. See components/TrackingScripts. */}

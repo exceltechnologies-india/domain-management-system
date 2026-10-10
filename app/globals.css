@@ -487,3 +487,53 @@ body {
   animation: skeleton-shimmer 1.4s ease infinite;
   border-radius: 4px;
 }
+
+
+/* ── The Customer Portal in the ResellerOS app's look (10 Oct 2026) ─────────────────────────
+   The COLOURS are not here: they come from ResellerOS at runtime (GET /api/public/theme, rendered by
+   components/theme/PortalThemeStyle on `.ros-theme`, with a bundled fallback in lib/theme/theme.ts),
+   so a ResellerOS brand change reaches the portal without a DMS change. This block only sets the
+   fonts, which are files shipped with DMS. The public cart and checkout keep the storefront's blue. */
+.ros-theme {
+  /* Text in Plus Jakarta Sans: `font-sans` reads --font-archivo, so point it at the ResellerOS face. */
+  --font-archivo: var(--font-ros-sans);
+  font-family: var(--font-ros-sans), system-ui, sans-serif;
+  background-color: hsl(var(--paper));
+  color: hsl(var(--ink));
+}
+/* Headings in DM Serif Display at its one weight, as ResellerOS sets them (a synthetic bold smears it). */
+.ros-theme .font-serif {
+  font-family: var(--font-ros-serif), Georgia, serif;
+  font-weight: 400 !important;
+  letter-spacing: -0.01em;
+}
+
+/* Phones (10 Oct 2026): iOS Safari zooms the page into any input under 16px and does not zoom back,
+   so every text field, select and textarea on a phone uses at least 16px. */
+/* Tablets and any touch screen too (an upright iPad is 768px). */
+@media (max-width: 1023px), (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea {
+    font-size: max(16px, 1em) !important;
+  }
+}
+
+/* Phones, inside the Customer Portal (10 Oct 2026): every control is a 44px touch target (Apple HIG /
+   CLAUDE.md §20) — buttons, fields, selects and button-styled links. One rule here instead of a
+   min-height on each screen, so a new portal screen is covered too. Inline text links inside a
+   sentence are display:inline, which min-height does not touch. */
+@media (max-width: 1023px), (pointer: coarse) {
+  .ros-theme button,
+  .ros-theme select,
+  .ros-theme input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]),
+  .ros-theme a[class*="inline-flex"],
+  .ros-theme a[class*="flex "],
+  .ros-theme [role="button"] {
+    min-height: 44px;
+  }
+  /* The public pages' top menu (Navigation's desktop links, shown from 768px). */
+  [data-touch-nav] a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}

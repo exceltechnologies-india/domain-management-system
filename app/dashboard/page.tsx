@@ -233,7 +233,8 @@ export default function UserDashboard() {
     return <DashboardLayoutSkeleton><DashboardHomeSkeleton /></DashboardLayoutSkeleton>;
   }
 
-  // ── The ResellerOS dashboard pattern (Pawan, 10 Oct 2026) ──────────────────────────────
+  // ── The ResellerOS dashboard pattern (Pawan, 10 Oct 2026). As there, each attention card keeps its
+  // colour by slot: accent (orange in the portal theme) for renewals, indigo for bills, green for services.
   const now = new Date();
   const eyebrow = now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });
   const hour = Number(now.toLocaleString('en-GB', { hour: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' }));
@@ -266,11 +267,11 @@ export default function UserDashboard() {
               {renewals.length > 0 ? `${plural(renewals.length, 'renewal')} in 30 days` : 'nothing to renew this month'}
             </p>
           </div>
-          <div className="flex flex-none gap-2">
-            <Link href={buyHref('domain')} className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-hairline bg-paper px-3 text-sm font-medium text-ink-2 hover:bg-paper-2">
+          <div className="flex w-full flex-col gap-2 min-[400px]:w-auto min-[400px]:flex-row sm:flex-none">
+            <Link href={buyHref('domain')} className="inline-flex min-h-[40px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-hairline bg-paper px-3 text-sm font-medium text-ink-2 hover:bg-paper-2">
               <Search className="h-4 w-4" aria-hidden /> Register domain
             </Link>
-            <Link href={buyHref('hosting')} className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg bg-amber px-3 text-sm font-semibold text-paper hover:brightness-95">
+            <Link href={buyHref('hosting')} className="inline-flex min-h-[40px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-amber px-3 text-sm font-semibold text-paper hover:brightness-95">
               <Plus className="h-4 w-4" aria-hidden /> Buy hosting
             </Link>
           </div>
@@ -300,8 +301,8 @@ export default function UserDashboard() {
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               {renewals.length > 0 ? (
                 <AttentionCard
-                  tone="rose"
-                  tag="Renewal due"
+                  tone="blue"
+                  tag="Attention needed"
                   title={`${plural(renewals.length, 'service')} renew in the next 30 days`}
                   text="Pay the renewal bill before the date so nothing stops working."
                   icon={<Clock className="h-5 w-5" />}
@@ -310,7 +311,7 @@ export default function UserDashboard() {
                 />
               ) : (
                 <AttentionCard
-                  tone="emerald"
+                  tone="blue"
                   tag="Renewals"
                   title="Nothing to renew this month"
                   text="We email you, and the bill appears here, before anything is due."
@@ -341,7 +342,7 @@ export default function UserDashboard() {
                 />
               )}
               <AttentionCard
-                tone="blue"
+                tone="emerald"
                 tag={settingUp > 0 ? 'Being set up' : 'Services'}
                 title={settingUp > 0 ? `${plural(settingUp, 'service')} being set up` : hostings.length + domainsCount > 0 ? 'Everything is live' : 'No services yet'}
                 text={

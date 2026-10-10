@@ -123,16 +123,16 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
   const pageName = navigation.find((item) => isActive(item.href))?.name || 'Dashboard';
   const initial = (user?.firstName || user?.email || '?').trim().charAt(0).toUpperCase();
   const navLink = (active: boolean) =>
-    `flex items-center gap-2.5 px-3 py-2 lg:py-1.5 text-[13px] rounded-md transition-colors group ${
+    `flex items-center gap-2.5 px-3 py-3 lg:py-1.5 text-[15px] lg:text-[13px] rounded-md transition-colors group ${
       active ? 'bg-amber-soft text-amber-ink font-medium' : 'text-ink-2 hover:bg-paper-2 hover:text-ink'
     }`;
 
   return (
-    <div className="min-h-screen bg-paper-2/40 flex">
+    <div className="ros-theme min-h-screen bg-paper flex">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-ink/30 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-[105] bg-ink/30 backdrop-blur-sm lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -140,11 +140,13 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
       {/* Sidebar, in the ResellerOS shell pattern (10 Oct 2026): the brand at the top, the
           sections, and the signed-in account at the bottom. */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 w-60 bg-paper border-r border-hairline flex flex-col transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        /* Phones (10 Oct 2026): above the top bar (z-[100]) so the menu's own header and close
+           button show, and `invisible` while closed so its links can't be reached off-screen. */
+        className={`fixed inset-y-0 left-0 z-[110] w-72 max-w-[85vw] lg:w-60 bg-paper border-r border-hairline flex flex-col transform transition-[transform,visibility] duration-300 ease-in-out lg:visible lg:translate-x-0 lg:static lg:inset-0 lg:z-auto ${sidebarOpen ? 'translate-x-0 visible' : '-translate-x-full invisible'
           }`}
       >
         <div className="flex items-center justify-between h-14 px-3 border-b border-hairline">
-          <Link href={homeUrl()} className="flex min-w-0 items-center gap-2.5" title="Go back to homepage">
+          <Link href={homeUrl()} className="flex min-h-[44px] min-w-0 items-center gap-2.5" title="Go back to homepage">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/anutech-digital-logo.png" alt="" width={30} height={30} className="h-[30px] w-[30px] flex-none" />
             <span className="min-w-0">
@@ -155,7 +157,7 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
           <button
             onClick={() => setSidebarOpen(false)}
             aria-label="Close navigation menu"
-            className="lg:hidden rounded-md p-1.5 text-ink-3 hover:bg-paper-2 hover:text-ink transition-colors"
+            className="lg:hidden grid h-11 w-11 place-items-center rounded-md text-ink-3 hover:bg-paper-2 hover:text-ink transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
@@ -225,12 +227,12 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
               <button
                 onClick={() => setSidebarOpen(true)}
                 aria-label="Open navigation menu"
-                className="lg:hidden rounded-md p-1.5 text-ink-3 hover:bg-paper-2 hover:text-ink transition-colors"
+                className="lg:hidden grid h-11 w-11 place-items-center rounded-md text-ink-3 hover:bg-paper-2 hover:text-ink transition-colors"
               >
                 <Menu className="h-5 w-5" />
               </button>
               <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-sm">
-                <Link href={homeUrl()} className="hidden py-1 text-ink-3 hover:text-ink sm:inline-block">Home</Link>
+                <Link href={homeUrl()} className="hidden min-h-[44px] items-center text-ink-3 hover:text-ink sm:inline-flex lg:min-h-0">Home</Link>
                 <ChevronRight className="hidden h-3.5 w-3.5 flex-none text-ink-4 sm:inline" aria-hidden />
                 <h1 className="truncate font-medium text-ink">{pageName}</h1>
               </nav>
@@ -262,7 +264,7 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
               <Link
                 href="/cart"
                 aria-label={cartCount > 0 ? `Cart, ${cartCount} item${cartCount === 1 ? '' : 's'}` : 'Cart'}
-                className="relative grid h-9 w-9 place-items-center rounded-md text-ink-3 hover:bg-paper-2 hover:text-ink"
+                className="relative grid h-11 w-11 lg:h-9 lg:w-9 place-items-center rounded-md text-ink-3 hover:bg-paper-2 hover:text-ink"
               >
                 <ShoppingCart className="h-4 w-4" />
                 {cartCount > 0 && (
@@ -277,7 +279,7 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
                   onClick={handleLogoutClick}
                   type="button"
                   disabled={!user}
-                  className={`relative z-50 pointer-events-auto flex items-center h-9 px-2.5 text-sm font-medium rounded-md border transition-colors ${user
+                  className={`relative z-50 pointer-events-auto flex items-center h-11 min-w-[44px] justify-center lg:h-9 px-2.5 text-sm font-medium rounded-md border transition-colors ${user
                     ? 'text-ink-2 border-hairline bg-paper hover:bg-rose/10 hover:text-rose-ink hover:border-rose/30 cursor-pointer'
                     : 'text-ink-4 border-hairline cursor-not-allowed'
                     }`}
