@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useLogout } from '@/lib/logout';
 import { safeLocalStorage } from '@/lib/storage';
-import { Award, Globe, ArrowLeft, ShoppingCart } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { useCartStore } from '@/store/cartStore';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
@@ -238,37 +238,14 @@ export default function CartPage() {
             >
               <ArrowLeft className="h-4 w-4" /> Continue shopping
             </Link>
-            <div className="bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden">
-              <div className="px-5 sm:px-6 py-4 sm:py-5 flex items-start gap-4">
-                <div className="p-2.5 bg-primary-50 rounded-xl shrink-0">
-                  <ShoppingCart className="h-5 w-5 text-primary-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h1 className="text-xl sm:text-2xl font-bold text-ink">Shopping Cart</h1>
-                  <p className="text-xs sm:text-sm text-ink-3 mt-1">
-                    {getItemCount()} item{getItemCount() !== 1 ? 's' : ''} ready for checkout
-                  </p>
-                </div>
-                <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-medium text-ink-2 bg-paper-2 border border-hairline px-2.5 py-1 rounded-full shrink-0">
-                  {getItemCount()} item{getItemCount() !== 1 ? 's' : ''}
-                </span>
-              </div>
-            </div>
+            {/* One plain title (9 Oct 2026): a "Shopping Cart" card, a "Cart Items" card and the
+                summary each carried their own "2 items" badge. */}
+            <h1 className="text-2xl sm:text-3xl font-bold text-ink">Your cart</h1>
+            <p className="text-sm text-ink-3 mt-1">
+              {getItemCount()} item{getItemCount() !== 1 ? 's' : ''} · prices include 18% GST
+            </p>
           </div>
-        ) : (
-          <div className="flex flex-col items-center text-center mb-6 sm:mb-8">
-            <Link
-              href={homeUrl()}
-              className="p-2 text-ink-2 hover:text-primary-600 transition-colors duration-200 bg-paper shadow-sm rounded-full mb-3"
-              title="Return to Home"
-            >
-              <ArrowLeft className="h-5 w-5 sm:h-6 sm:w-6" />
-            </Link>
-            <h1 className="text-xl sm:text-2xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-500">
-              Shopping Cart
-            </h1>
-          </div>
-        )}
+        ) : null /* The empty cart's own heading is the page title ("Your cart is empty"). */}
 
         {cartItems.length === 0 ? (
           <EmptyCart />
@@ -277,15 +254,6 @@ export default function CartPage() {
             {/* Cart items list */}
             <div className="order-1 lg:col-start-1 lg:row-start-1 lg:col-span-4 xl:col-span-5 2xl:col-span-5">
               <div className="bg-paper rounded-2xl shadow-sm border border-hairline overflow-hidden">
-                <div className="px-5 py-3 border-b border-hairline bg-paper-2/60 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <ShoppingCart className="h-4 w-4 text-ink-3" />
-                    <h2 className="text-sm font-semibold text-ink">Cart Items</h2>
-                  </div>
-                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-3 bg-paper border border-hairline px-2.5 py-1 rounded-full">
-                    {cartItems.length} item{cartItems.length !== 1 ? 's' : ''}
-                  </span>
-                </div>
                 <div className="p-4 sm:p-6">
                   <div className="space-y-4">
                     {cartItems.map((item) => (
@@ -319,43 +287,7 @@ export default function CartPage() {
 
                 {!hasHostingItems() && !hasDomainItems() && <DomainCrossSell />}
 
-                {/* Features */}
-                <div className="bg-paper rounded-2xl shadow-sm border border-hairline overflow-hidden">
-                  <div className="px-5 py-3 border-b border-hairline bg-paper-2/60 flex items-center gap-2">
-                    <Award className="h-4 w-4 text-ink-3" />
-                    <h3 className="text-sm font-semibold text-ink">Features</h3>
-                  </div>
-                  <div className="p-4 sm:p-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                      <div className="flex items-center gap-3 p-3 sm:p-4 border border-hairline rounded-xl hover:border-primary-300 hover:shadow-sm transition-all">
-                        <div className="bg-primary-50 p-2 rounded-lg flex-shrink-0">
-                          <Globe className="h-4 w-4 sm:h-5 sm:w-5 text-primary-600" />
-                        </div>
-                        <div className="min-w-0">
-                          <h4 className="text-sm sm:text-base font-medium text-ink truncate">
-                            Simple Dashboard
-                          </h4>
-                          <p className="text-xs sm:text-sm text-ink-2">
-                            Easy domain management interface
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3 p-3 sm:p-4 border border-hairline rounded-xl hover:border-primary-300 hover:shadow-sm transition-all">
-                        <div className="bg-indigo-soft p-2 rounded-lg flex-shrink-0">
-                          <Award className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-ink" />
-                        </div>
-                        <div className="min-w-0">
-                          <h4 className="text-sm sm:text-base font-medium text-ink truncate">
-                            Hosting Control Panel
-                          </h4>
-                          <p className="text-xs sm:text-sm text-ink-2">
-                            Powerful control panel for your hosting
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+
               </div>
             </div>
 

@@ -6,6 +6,7 @@ import { getMinRegistrationPeriod } from '@/lib/tld-min-periods';
 import { domainLineTotal, domainYearsOf, pricedDomainTermOptions } from '@/lib/reselleros/domain-terms';
 import { useHostingPrices } from '@/hooks/useHostingPrices';
 import { planPrice } from '@/lib/pricing/hosting-price';
+import { formatINR } from '@/lib/format-inr';
 
 interface CartItemCardProps {
   item: CartItem;
@@ -99,10 +100,13 @@ export default function CartItemCard({ item, onRemove, onPeriodChange, termTotal
                 </p>
               )}
             <div className="flex flex-wrap gap-2 mt-2">
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary-50 text-primary-700 border border-primary-100">
-                <CheckCircle className="h-3 w-3 mr-1" />
-                Available
-              </span>
+              {/* "Available" is a domain's state; a hosting plan carried it too (9 Oct 2026). */}
+              {!isHostingItem && (
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary-50 text-primary-700 border border-primary-100">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  Available
+                </span>
+              )}
               {isHostingPlaceholder && (
                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-rose-soft text-rose-ink animate-pulse">
                   <AlertTriangle className="h-3 w-3 mr-1" />
@@ -114,14 +118,14 @@ export default function CartItemCard({ item, onRemove, onPeriodChange, termTotal
         </div>
 
         {/* Right: period selector + price + remove */}
-        <div className="flex items-end justify-between lg:items-center gap-4 sm:gap-6 border-t lg:border-t-0 pt-4 lg:pt-0 flex-shrink-0">
+        <div className="flex flex-wrap sm:flex-nowrap items-end justify-between lg:items-center gap-4 sm:gap-6 border-t lg:border-t-0 pt-4 lg:pt-0 flex-shrink-0">
           {/* Period selector */}
           <div className="flex flex-col gap-1">
             {/* The period control is conditional (static div for trial/locked,
                 select otherwise) — use a span so the label isn't tied to a
                 sometimes-absent control. */}
             <span className="text-xs sm:text-sm font-medium text-ink-2">
-              Registration Period:
+              {isHostingItem ? 'Billed' : 'Register for'}
             </span>
             {item.isTrial ? (
               <div className="px-4 py-2 border border-hairline rounded-md text-sm bg-amber-soft text-amber-ink font-medium sm:min-w-[100px] text-center">
@@ -161,14 +165,14 @@ export default function CartItemCard({ item, onRemove, onPeriodChange, termTotal
             )}
           </div>
 
-          {/* Price */}
-          <div className="text-right">
+          {/* Price — takes the row's spare width, so on a phone its lines don't wrap word by word. */}
+          <div className="order-first basis-full text-right sm:order-none sm:basis-auto sm:flex-1 sm:min-w-0 lg:flex-none">
             <p className="text-xl font-bold text-ink">
               {item.isTrial
                 ? '₹0.00'
                 : item.itemType === 'hosting'
-                  ? `₹${(item.price * item.registrationPeriod).toFixed(2)}`
-                  : `₹${domainLineTotal(item, termTotals, bundled).toFixed(2)}`}
+                  ? formatINR(item.price * item.registrationPeriod)
+                  : formatINR(domainLineTotal(item, termTotals, bundled))}
             </p>
             <p className="text-sm text-ink-2">
               {item.isTrial ? (
@@ -182,7 +186,15 @@ export default function CartItemCard({ item, onRemove, onPeriodChange, termTotal
                 // ResellerOS's price for this term, plus 18% GST — what the payment window charges.
                 <>
                   {domainYearsOf(item) > 1 ? `${domainYearsOf(item)} years` : '1 year'} · incl. 18% GST
-                  {bundled && <span className="block text-emerald-ink">First year free with yearly hosting</span>}
+                  {/* Say which years are being paid for, not just "first year free" beside a price. */}
+                  {bundled && (
+                    <span className="block text-emerald-ink">
+                      Year 1 free with yearly hosting
+                      {domainYearsOf(item) > 1
+                        ? ` — this pays for year${domainYearsOf(item) > 2 ? 's' : ''} 2${domainYearsOf(item) > 2 ? `–${domainYearsOf(item)}` : ''}`
+                        : ''}
+                    </span>
+                  )}
                 </>
               )}
             </p>
@@ -232,7 +244,8 @@ export default function CartItemCard({ item, onRemove, onPeriodChange, termTotal
           {/* Remove */}
           <button
             onClick={() => onRemove(item.domainName, item.itemType)}
-            className="p-2 text-rose-ink hover:text-rose-ink hover:bg-rose/15 rounded-lg transition-colors flex-shrink-0"
+            aria-label={`Remove ${displayName}`}
+            className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] text-rose-ink hover:text-rose-ink hover:bg-rose/15 rounded-lg transition-colors flex-shrink-0"
             title="Remove item"
           >
             <Trash2 className="h-4 w-4" />

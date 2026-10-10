@@ -16,7 +16,7 @@
  */
 import { useCallback, useState } from 'react';
 import Link from 'next/link';
-import { BadgeCheck, CalendarRange, ReceiptText, Server } from 'lucide-react';
+import { Check } from 'lucide-react';
 import Modal from '@/components/Modal';
 import { buyHref } from '@/lib/purchase/buy-dialog';
 import DomainSearch from '@/components/DomainSearch';
@@ -70,40 +70,25 @@ export default function BuyDomainModal({ isOpen, onClose, initialQuery = '' }: B
           setCheckout({ kind: 'domain', domain: domainName, label: domainName })
         }
       />
+      {/* A quiet checklist, not cards (9 Oct 2026: four bordered boxes read as options to pick and
+          drowned the search). Every point is true of every domain bought here. */}
       {!searched && (
-        <ul className="mx-auto mt-5 grid max-w-4xl grid-cols-1 gap-3 px-4 sm:grid-cols-2">
-          <li className="flex items-start gap-3 rounded-xl border border-hairline bg-paper-2 p-3">
-            <BadgeCheck className="mt-0.5 h-5 w-5 flex-none text-emerald-ink" aria-hidden />
-            <span className="text-sm text-ink-2">
-              <span className="block font-semibold text-ink">Registered in your name</span>
-              You own it — your details go on the registration.
-            </span>
-          </li>
-          <li className="flex items-start gap-3 rounded-xl border border-hairline bg-paper-2 p-3">
-            <CalendarRange className="mt-0.5 h-5 w-5 flex-none text-primary-600" aria-hidden />
-            <span className="text-sm text-ink-2">
-              <span className="block font-semibold text-ink">1, 2, 3 or 5 years</span>
-              Choose the term at checkout, with the price for each.
-            </span>
-          </li>
-          <li className="flex items-start gap-3 rounded-xl border border-hairline bg-paper-2 p-3">
-            <ReceiptText className="mt-0.5 h-5 w-5 flex-none text-indigo-ink" aria-hidden />
-            <span className="text-sm text-ink-2">
-              <span className="block font-semibold text-ink">GST invoice on every order</span>
-              Emailed to you and kept on the Invoices page.
-            </span>
-          </li>
-          <li className="flex items-start gap-3 rounded-xl border border-hairline bg-paper-2 p-3">
-            <Server className="mt-0.5 h-5 w-5 flex-none text-amber-ink" aria-hidden />
-            <span className="text-sm text-ink-2">
-              <span className="block font-semibold text-ink">Need a website too?</span>
-              The first year is free with yearly hosting.{' '}
-              <Link href={buyHref('hosting')} className="font-semibold text-primary-600 underline-offset-2 hover:underline">
-                Buy hosting
-              </Link>
-            </span>
-          </li>
-        </ul>
+        <div className="mx-auto mt-4 max-w-4xl px-4">
+          <ul className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-ink-2">
+            {['Registered in your name', '1, 2, 3 or 5 years', 'GST invoice on every order'].map((t) => (
+              <li key={t} className="inline-flex items-center gap-1.5">
+                <Check className="h-4 w-4 flex-none text-emerald-ink" aria-hidden />
+                {t}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-4 border-t border-hairline pt-4 text-sm text-ink-3">
+            Need a website too? The first year of the domain is free with yearly hosting.{' '}
+            <Link href={buyHref('hosting')} className="font-semibold text-primary-600 underline-offset-2 hover:underline">
+              Buy hosting
+            </Link>
+          </p>
+        </div>
       )}
     </Modal>
   );

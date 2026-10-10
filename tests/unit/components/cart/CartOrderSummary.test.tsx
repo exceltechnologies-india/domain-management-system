@@ -51,9 +51,9 @@ describe("<CartOrderSummary>", () => {
   it("derives subtotal and GST from the GST-inclusive total", () => {
     // totalPrice is GST-inclusive: subtotal = total / 1.18, gst = total - subtotal
     renderSummary({ totalPrice: 1180 });
-    expect(screen.getByText("₹1000.00")).toBeInTheDocument(); // subtotal
-    expect(screen.getByText("₹180.00")).toBeInTheDocument();  // gst
-    expect(screen.getByText("₹1180.00")).toBeInTheDocument(); // total
+    expect(screen.getByText("₹1,000")).toBeInTheDocument(); // subtotal, Indian format (9 Oct 2026)
+    expect(screen.getByText("₹180")).toBeInTheDocument();  // gst
+    expect(screen.getByText("₹1,180")).toBeInTheDocument(); // total
   });
 
   it("shows 'Login to Checkout' when not logged in", () => {

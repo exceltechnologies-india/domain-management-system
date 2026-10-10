@@ -52,8 +52,11 @@ export default function FloatingCart() {
   // The first-sign-in "Choose your password" page has nothing to buy, and on a phone the button
   // sat on top of its Save button (7 Oct 2026).
   const isChoosePassword = pathname?.startsWith('/choose-password');
+  // On the cart and checkout pages it is a button to the page you are on, and on a phone it sat
+  // over the cart's own lines (9 Oct 2026).
+  const isCartPage = pathname === '/cart' || pathname?.startsWith('/checkout');
 
-  if (!isMounted || isAdmin || isAdminRoute || isInvoiceView || isChoosePassword) {
+  if (!isMounted || isAdmin || isAdminRoute || isInvoiceView || isChoosePassword || isCartPage) {
     return null;
   }
 

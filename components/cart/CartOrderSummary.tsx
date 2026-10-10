@@ -2,6 +2,7 @@
 
 import { CreditCard, Shield, Receipt } from 'lucide-react';
 import Link from 'next/link';
+import { formatINR } from '@/lib/format-inr';
 
 interface CartOrderSummaryProps {
   isLoggedIn: boolean;
@@ -49,7 +50,7 @@ export default function CartOrderSummary({
           <Receipt className="h-4 w-4 text-ink-3" />
           <h2 className="text-sm font-semibold text-ink">Order Summary</h2>
         </div>
-        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-3 bg-paper border border-hairline px-2.5 py-1 rounded-full">
+        <span className="text-xs text-ink-3">
           {itemCount} item{itemCount !== 1 ? 's' : ''}
         </span>
       </div>
@@ -60,16 +61,16 @@ export default function CartOrderSummary({
           <div className="space-y-2.5 text-sm">
             <div className="flex justify-between">
               <span className="text-ink-2">Subtotal</span>
-              <span className="text-ink font-medium font-mono">₹{subtotal.toFixed(2)}</span>
+              <span className="text-ink font-medium font-mono">{formatINR(subtotal)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-ink-2">GST (18%)</span>
-              <span className="text-ink font-medium font-mono">₹{gst.toFixed(2)}</span>
+              <span className="text-ink font-medium font-mono">{formatINR(gst)}</span>
             </div>
             <div className="border-t border-primary-200/60 pt-2.5 mt-2.5 flex justify-between items-baseline">
               <span className="text-ink font-semibold text-base">Total</span>
               <span className="text-2xl sm:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-indigo-600 font-mono">
-                ₹{totalPrice.toFixed(2)}
+                {formatINR(totalPrice)}
               </span>
             </div>
             <p className="text-[11px] text-ink-3 text-right">

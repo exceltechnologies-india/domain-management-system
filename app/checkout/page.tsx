@@ -22,6 +22,7 @@ import { logger } from '@/lib/logger';
 import PanelCheckout from '@/components/purchase/PanelCheckout';
 import { domainLineTotal, domainYearsOf } from '@/lib/reselleros/domain-terms';
 import { useDomainTermPrices } from '@/hooks/useDomainTermPrices';
+import { formatINR } from '@/lib/format-inr';
 import { cartHasYearlyHosting } from '@/lib/reselleros/cart-lines';
 
 const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@anutech.in';
@@ -72,7 +73,7 @@ export default function CheckoutPage() {
   })();
   const trialAfterLabel = trialAfterPrice === null
     ? (hostingPrices.state === 'loading' ? 'price loading…' : 'price not available right now')
-    : `₹${trialAfterPrice.toFixed(2)}`;
+    : formatINR(trialAfterPrice);
 
   // Fire InitiateCheckout (Pixel) + internal checkout_started once on mount.
   useEffect(() => {
@@ -368,11 +369,11 @@ export default function CheckoutPage() {
                             ) : (
                               <>
                                 <p className="text-xl font-bold text-ink">
-                                  ₹{item.itemType === 'hosting' && item.periodUnit === 'days'
-                                    ? (1).toFixed(2)
+                                  {formatINR(item.itemType === 'hosting' && item.periodUnit === 'days'
+                                    ? 1
                                     : item.itemType === 'hosting'
-                                    ? (item.price * (item.registrationPeriod || 1)).toFixed(2)
-                                    : domainLineTotal(item, termTotals[item.domainName.toLowerCase()], cartHasYearlyHosting(cartItems)).toFixed(2)}
+                                    ? item.price * (item.registrationPeriod || 1)
+                                    : domainLineTotal(item, termTotals[item.domainName.toLowerCase()], cartHasYearlyHosting(cartItems)))}
                                 </p>
                                 <p className="text-sm text-ink-2">
                                   {item.itemType === 'hosting'
@@ -492,11 +493,11 @@ export default function CheckoutPage() {
                       <>
                         <div className="flex justify-between text-sm">
                           <span className="text-ink-2">Subtotal ({getItemCount()} items)</span>
-                          <span className="text-ink font-medium font-mono">₹{(getTotalPrice() / 1.18).toFixed(2)}</span>
+                          <span className="text-ink font-medium font-mono">{formatINR(getTotalPrice() / 1.18)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-ink-2">GST (18%)</span>
-                          <span className="text-ink font-medium font-mono">₹{(getTotalPrice() - (getTotalPrice() / 1.18)).toFixed(2)}</span>
+                          <span className="text-ink font-medium font-mono">{formatINR(getTotalPrice() - getTotalPrice() / 1.18)}</span>
                         </div>
                       </>
                     )}
@@ -504,7 +505,7 @@ export default function CheckoutPage() {
                       <span className="text-base font-bold text-ink">{hasTrial ? 'Due Today' : 'Estimated total'}</span>
                       <div className="text-right">
                         <span className={`text-3xl font-black font-mono tracking-tight ${hasTrial ? 'text-emerald-ink' : 'text-primary-600'}`}>
-                          ₹{getTotalPrice().toFixed(2)}
+                          {formatINR(getTotalPrice())}
                         </span>
                         <p className="text-[10px] text-ink-3 font-medium uppercase tracking-wider mt-1">
                           {hasTrial ? 'Free trial period' : 'Incl. 18% GST — the payment window shows the exact amount'}

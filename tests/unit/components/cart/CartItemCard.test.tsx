@@ -94,7 +94,7 @@ describe("<CartItemCard>", () => {
 
   it("a domain line: the search price × years plus 18% GST until ResellerOS answers", () => {
     renderCard(domainItem({ price: 999, registrationPeriod: 3, periodUnit: "years" }));
-    expect(screen.getByText("₹3536.46")).toBeInTheDocument();
+    expect(screen.getByText("₹3,536.46")).toBeInTheDocument();
     expect(screen.getByText(/3 years · incl\. 18% GST/)).toBeInTheDocument();
   });
 
@@ -107,7 +107,7 @@ describe("<CartItemCard>", () => {
         termTotals={{ "1": 999, "2": 1990, "3": 2900 }}
       />,
     );
-    expect(screen.getByText("₹3422.00")).toBeInTheDocument();
+    expect(screen.getByText("₹3,422")).toBeInTheDocument();
     // Only the priced terms are offered.
     expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["1 Year", "2 Years", "3 Years"]);
   });
@@ -160,7 +160,7 @@ describe("<CartItemCard>", () => {
   it("fires onRemove with (domainName, itemType) when the trash button is clicked", async () => {
     const user = userEvent.setup();
     const { onRemove } = renderCard(domainItem());
-    await user.click(screen.getByRole("button", { name: /remove item/i }));
+    await user.click(screen.getByRole("button", { name: "Remove example.com" }));
     expect(onRemove).toHaveBeenCalledWith("example.com", "domain");
   });
 });
