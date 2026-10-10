@@ -210,7 +210,7 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
           : { kind: 'domain' as const, domain: choice.domain, ...(years > 1 ? { years } : {}) };
     const res = await apiClient.post<OrderResponse>('/api/v1/user/panel-order', {
       purchase,
-      companyName: companyName.trim(),
+      ...(companyName.trim() ? { companyName: companyName.trim() } : {}),
       ...(gstin.trim() ? { gstin: gstin.trim() } : {}),
       ...(needsAddress ? { address: { line1, city, state, zipcode, country: 'IN' } } : {}),
       state,
@@ -298,7 +298,6 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
   // What is still missing, said beside the button instead of a silently greyed-out press.
   const stillNeeded = [
     choice.kind === 'hosting' && hostingDomain.trim().length < 3 ? 'the domain for the hosting' : null,
-    companyName.trim().length < 2 ? 'a company name (or your name)' : null,
     !state ? 'your state' : null,
     needsAddress && (!line1.trim() || !city.trim() || zipcode.trim().length < 3) ? 'the registrant address' : null,
   ].filter((x): x is string => x !== null);
@@ -400,9 +399,16 @@ export default function PanelCheckout({ choice, onBack, onClose, onPaid }: Panel
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label htmlFor="panel-company" className="block text-xs font-medium text-ink-2 mb-1">
-            Company name (or your name)
+            Company name (optional)
           </label>
-          <input id="panel-company" className={inputCls} value={companyName} onChange={(e) => setCompanyName(e.target.value)} required />
+          <input
+            id="panel-company"
+            className={inputCls}
+            value={companyName}
+            onChange={(e) => setCompanyName(e.target.value)}
+            placeholder="Leave blank to bill in your own name"
+            autoComplete="organization"
+          />
         </div>
         <div>
           <label htmlFor="panel-gstin" className="block text-xs font-medium text-ink-2 mb-1">

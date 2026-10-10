@@ -72,7 +72,8 @@ export const panelPurchaseSchema = z.object({
       items: z.array(cartLineSchema).min(1).max(50),
     }),
   ]),
-  companyName: z.string().trim().min(2).max(200),
+  /** Optional (9 Oct 2026): an individual has no company; the bill then carries their name. */
+  companyName: z.string().trim().max(200).optional(),
   gstin: z.string().trim().max(20).optional(),
   address: addressSchema.optional(),
   /** The buyer's state, required (R-092): it decides the GST on the invoice. */
@@ -178,7 +179,7 @@ export function buildPanelOrderRequest(buyer: PanelBuyer, body: PanelPurchase): 
   const request: PanelOrderRequest = {
     dmsUserId,
     fullName,
-    companyName: body.companyName.trim(),
+    ...(body.companyName?.trim() ? { companyName: body.companyName.trim() } : {}),
     email,
     phone,
     ...(gstin ? { gstin } : {}),

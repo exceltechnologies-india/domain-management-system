@@ -217,3 +217,12 @@ describe("the in-panel buy pop-ups (9 Oct 2026)", () => {
     expect(panelPurchaseSchema.safeParse({ purchase: { kind: "domain", domain: "rao.in", years: 3 }, companyName: "Rao" }).success).toBe(true);
   });
 });
+
+describe("company name is optional (9 Oct 2026)", () => {
+  it("left blank, the request carries no companyName and ResellerOS bills the buyer's name", () => {
+    expect(panelPurchaseSchema.safeParse({ purchase: { kind: "hosting", planId: "starter", cycle: "yearly", domain: "rao.in" }, state: "Delhi" }).success).toBe(true);
+    const r = buildPanelOrderRequest(BUYER, { purchase: { kind: "hosting", planId: "starter", cycle: "yearly", domain: "rao.in" }, companyName: "  ", state: "Delhi" });
+    expect(r.ok && "companyName" in r.request).toBe(false);
+    expect(r.ok && r.request.fullName).toBe("Asha Rao");
+  });
+});

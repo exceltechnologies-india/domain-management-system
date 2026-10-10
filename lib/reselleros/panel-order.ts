@@ -74,7 +74,8 @@ export interface PanelOrderAddress {
 export interface PanelOrderRequest {
   dmsUserId: string;
   fullName: string;
-  companyName: string;
+  /** Optional: ResellerOS bills the buyer's own name when it is absent (9 Oct 2026). */
+  companyName?: string;
   email: string;
   phone: string;
   gstin?: string;
