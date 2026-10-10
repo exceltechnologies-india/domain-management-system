@@ -55,8 +55,10 @@ export default function FloatingCart() {
   // On the cart and checkout pages it is a button to the page you are on, and on a phone it sat
   // over the cart's own lines (9 Oct 2026).
   const isCartPage = pathname === '/cart' || pathname?.startsWith('/checkout');
+  // The portal's top bar carries the cart since 10 Oct 2026; the floating one sat over its cards.
+  const isPortal = pathname?.startsWith('/dashboard');
 
-  if (!isMounted || isAdmin || isAdminRoute || isInvoiceView || isChoosePassword || isCartPage) {
+  if (!isMounted || isAdmin || isAdminRoute || isInvoiceView || isChoosePassword || isCartPage || isPortal) {
     return null;
   }
 

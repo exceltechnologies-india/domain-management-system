@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -20,6 +20,7 @@ import {
   Server,
   Network, // Importing Network instead of Share2 as it's more appropriate for DNS
   MessageCircle,
+  ChevronRight,
 } from 'lucide-react';
 import RupeeIcon from '@/components/icons/RupeeIcon';
 import ProfileCompletionWarning from '@/components/ProfileCompletionWarning';
@@ -45,6 +46,7 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   const logoutButtonRef = useRef<HTMLButtonElement>(null);
   const { getItemCount } = useCartStore();
   const [cartCount, setCartCount] = useState(0);
@@ -118,6 +120,13 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
     return pathname.startsWith(href);
   };
 
+  const pageName = navigation.find((item) => isActive(item.href))?.name || 'Dashboard';
+  const initial = (user?.firstName || user?.email || '?').trim().charAt(0).toUpperCase();
+  const navLink = (active: boolean) =>
+    `flex items-center gap-2.5 px-3 py-2 lg:py-1.5 text-[13px] rounded-md transition-colors group ${
+      active ? 'bg-amber-soft text-amber-ink font-medium' : 'text-ink-2 hover:bg-paper-2 hover:text-ink'
+    }`;
+
   return (
     <div className="min-h-screen bg-paper-2/40 flex">
       {/* Mobile sidebar backdrop */}
@@ -128,23 +137,21 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
         />
       )}
 
-      {/* Sidebar.
-          The white fill and the divider used to be inline `style` rules. Inline
-          styles beat utility classes, so leaving them would have kept this panel
-          plain white against the warm paper chrome. They are classes now for
-          that reason alone — nothing reads them. */}
+      {/* Sidebar, in the ResellerOS shell pattern (10 Oct 2026): the brand at the top, the
+          sections, and the signed-in account at the bottom. */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 w-60 bg-paper border-r border-hairline transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed inset-y-0 left-0 z-50 w-60 bg-paper border-r border-hairline flex flex-col transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
       >
-        {/* Sidebar Header */}
         <div className="flex items-center justify-between h-14 px-3 border-b border-hairline">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-md bg-ink text-paper grid place-items-center">
-              <User className="h-5 w-5" />
-            </div>
-            <span className="text-sm font-semibold text-ink">Customer Portal</span>
-          </div>
+          <Link href={homeUrl()} className="flex min-w-0 items-center gap-2.5" title="Go back to homepage">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/anutech-digital-logo.png" alt="" width={30} height={30} className="h-[30px] w-[30px] flex-none" />
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold text-ink">Anutech Digital</span>
+              <span className="block truncate text-[11px] text-ink-3">Customer Portal</span>
+            </span>
+          </Link>
           <button
             onClick={() => setSidebarOpen(false)}
             aria-label="Close navigation menu"
@@ -154,21 +161,48 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
           </button>
         </div>
 
-        {/* User Info */}
-        <div className="px-3 py-3 border-b border-hairline">
+        <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="Customer Portal">
+          <div className="space-y-0.5">
+            {navigation.map((item) => {
+              const Icon = item.icon;
+              const active = isActive(item.href);
+              return (
+                <Link key={item.name} href={item.href} className={navLink(active)} aria-current={active ? 'page' : undefined} onClick={() => setSidebarOpen(false)}>
+                  <Icon className={`h-4 w-4 flex-shrink-0 transition-colors ${active ? 'text-amber' : 'text-ink-3 group-hover:text-ink-2'}`} />
+                  {item.name}
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* In-panel purchase. DMS has no public shop any more (owner decision, 24 Sep 2026), so
+              these dialogs are the only way a signed-in customer adds hosting or a domain here. */}
+          <div className="mt-4 pt-3 border-t border-hairline space-y-0.5">
+            <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-4">Buy</p>
+            <Link href={buyHref('hosting')} onClick={() => setSidebarOpen(false)} className={navLink(false)}>
+              <Server className="h-4 w-4 flex-shrink-0 text-ink-3" />
+              Buy hosting
+            </Link>
+            <Link href={buyHref('domain')} onClick={() => setSidebarOpen(false)} className={navLink(false)}>
+              <Search className="h-4 w-4 flex-shrink-0 text-ink-3" />
+              Register domain
+            </Link>
+          </div>
+        </nav>
+
+        {/* The signed-in account, at the foot like ResellerOS. */}
+        <div className="border-t border-hairline px-3 py-3">
           <div className="flex items-center gap-2.5">
-            <div className="flex-shrink-0">
-              <div className="h-9 w-9 rounded-full bg-amber-soft flex items-center justify-center">
-                <User className="h-4 w-4 text-amber" />
-              </div>
-            </div>
+            <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-ink text-sm font-semibold text-paper" aria-hidden>
+              {user && !isLoading ? initial : <User className="h-4 w-4" />}
+            </span>
             <div className="min-w-0">
               {user && !isLoading ? (
                 <>
-                  <p className="text-sm font-medium text-ink break-words">
+                  <p className="truncate text-sm font-medium text-ink">
                     {user.firstName} {user.lastName}
                   </p>
-                  <p className="text-xs text-ink-3 break-words">{user.email}</p>
+                  <p className="truncate text-xs text-ink-3" title={user.email}>{user.email}</p>
                 </>
               ) : (
                 <>
@@ -179,69 +213,15 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
             </div>
           </div>
         </div>
-
-        {/* Navigation */}
-        <nav className="px-2 py-3">
-          <div className="space-y-0.5">
-            {navigation.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={`flex items-center gap-2.5 px-3 py-2 lg:py-1.5 text-sm rounded-md transition-colors group ${isActive(item.href)
-                    ? 'bg-amber-soft text-amber-ink font-medium'
-                    : 'text-ink-2 hover:bg-paper-2 hover:text-ink'
-                    }`}
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  <Icon
-                    className={`h-4 w-4 flex-shrink-0 transition-colors ${isActive(item.href)
-                      ? 'text-amber'
-                      : 'text-ink-3 group-hover:text-ink-2'
-                      }`}
-                  />
-                  {item.name}
-                </Link>
-              );
-            })}
-          </div>
-
-          {/* In-panel purchase. DMS has no public shop any more (owner
-              decision, 24 Sep 2026), so these dialogs are the only way a
-              signed-in customer adds hosting or a domain from here. */}
-          <div className="mt-4 pt-3 border-t border-hairline space-y-0.5">
-            <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-ink-4">Buy</p>
-            <Link
-              href={buyHref('hosting')}
-              onClick={() => setSidebarOpen(false)}
-              className="flex items-center gap-2.5 px-3 py-2 lg:py-1.5 text-sm rounded-md text-ink-2 hover:bg-paper-2 hover:text-ink transition-colors"
-            >
-              <Server className="h-4 w-4 flex-shrink-0 text-ink-3" />
-              Buy hosting
-            </Link>
-            <Link
-              href={buyHref('domain')}
-              onClick={() => setSidebarOpen(false)}
-              className="flex items-center gap-2.5 px-3 py-2 lg:py-1.5 text-sm rounded-md text-ink-2 hover:bg-paper-2 hover:text-ink transition-colors"
-            >
-              <Search className="h-4 w-4 flex-shrink-0 text-ink-3" />
-              Register domain
-            </Link>
-          </div>
-        </nav>
-
       </div>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Bar.
-            z-[100] predates this restyle and is kept: menus inside page content
-            sit at z-50, so dropping the header to the design system's z-30 would
-            let them cover it. Colour and height are the only changes here. */}
+        {/* Top bar: breadcrumb, a domain search and the cart, as in ResellerOS. z-[100] predates the
+            restyle and is kept: menus inside page content sit at z-50. */}
         <div className="sticky top-0 z-[100] border-b border-hairline bg-paper/95 backdrop-blur-sm">
           <div className="flex items-center justify-between gap-2 h-14 px-3 md:px-4">
-            <div className="flex items-center min-w-0">
+            <div className="flex items-center min-w-0 gap-2">
               <button
                 onClick={() => setSidebarOpen(true)}
                 aria-label="Open navigation menu"
@@ -249,33 +229,67 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
               >
                 <Menu className="h-5 w-5" />
               </button>
-              <h1 className="ml-3 lg:ml-0 font-serif text-lg text-ink truncate">
-                {navigation.find(item => isActive(item.href))?.name || 'Dashboard'}
-              </h1>
+              <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-sm">
+                <Link href={homeUrl()} className="hidden py-1 text-ink-3 hover:text-ink sm:inline-block">Home</Link>
+                <ChevronRight className="hidden h-3.5 w-3.5 flex-none text-ink-4 sm:inline" aria-hidden />
+                <h1 className="truncate font-medium text-ink">{pageName}</h1>
+              </nav>
             </div>
 
             <div className="flex items-center gap-2 flex-shrink-0 relative z-50">
+              {/* Find a domain from any page: opens the Register a domain pop-up with the name. */}
+              <form
+                role="search"
+                className="hidden md:block"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const q = String(new FormData(e.currentTarget).get('q') ?? '').trim();
+                  router.push(buyHref('domain', q) as never);
+                }}
+              >
+                <label className="relative block">
+                  <span className="sr-only">Find a domain</span>
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-4" aria-hidden />
+                  <input
+                    name="q"
+                    type="search"
+                    placeholder="Find a domain…"
+                    autoComplete="off"
+                    className="h-9 w-56 rounded-md border border-hairline bg-paper-2/60 pl-8 pr-3 text-sm text-ink placeholder:text-ink-4 focus:border-amber/40 focus:bg-paper focus:outline-none focus:ring-2 focus:ring-amber/20"
+                  />
+                </label>
+              </form>
+              <Link
+                href="/cart"
+                aria-label={cartCount > 0 ? `Cart, ${cartCount} item${cartCount === 1 ? '' : 's'}` : 'Cart'}
+                className="relative grid h-9 w-9 place-items-center rounded-md text-ink-3 hover:bg-paper-2 hover:text-ink"
+              >
+                <ShoppingCart className="h-4 w-4" />
+                {cartCount > 0 && (
+                  <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-[16px] place-items-center rounded-full bg-amber px-1 text-[10px] font-semibold text-paper">
+                    {cartCount}
+                  </span>
+                )}
+              </Link>
               {onLogout ? (
                 <button
                   ref={logoutButtonRef}
                   onClick={handleLogoutClick}
                   type="button"
                   disabled={!user}
-                  className={`relative z-50 pointer-events-auto flex items-center px-2.5 py-1.5 text-sm font-medium rounded-md border transition-colors ${user
-                    ? 'text-rose-ink border-rose/30 bg-paper hover:bg-rose/15 hover:text-rose-ink cursor-pointer'
+                  className={`relative z-50 pointer-events-auto flex items-center h-9 px-2.5 text-sm font-medium rounded-md border transition-colors ${user
+                    ? 'text-ink-2 border-hairline bg-paper hover:bg-rose/10 hover:text-rose-ink hover:border-rose/30 cursor-pointer'
                     : 'text-ink-4 border-hairline cursor-not-allowed'
                     }`}
-                  data-testid={user ? "logout-button-active" : "logout-button-disabled"}
-                  title={!user ? 'Please wait for user data to load' : 'Click to logout'}
+                  data-testid={user ? 'logout-button-active' : 'logout-button-disabled'}
+                  title={!user ? 'Please wait for user data to load' : 'Sign out'}
+                  aria-label={!user ? 'Loading' : 'Logout'}
                 >
-                  <LogOut className="h-4 w-4 mr-2" />
-                  {!user ? 'Loading...' : 'Logout'}
+                  <LogOut className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">{!user ? 'Loading...' : 'Logout'}</span>
                 </button>
               ) : (
-                <div
-                  className="flex items-center px-2.5 py-1.5 text-sm font-medium text-ink-4"
-                  data-testid="logout-button-inactive"
-                >
+                <div className="flex items-center px-2.5 py-1.5 text-sm font-medium text-ink-4" data-testid="logout-button-inactive">
                   <LogOut className="h-4 w-4 mr-2" />
                   <span className="text-xs">No logout handler</span>
                 </div>
@@ -286,12 +300,9 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
 
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto">
-          {/* `key={pathname}` for the same reason AdminLayout has one:
-              framer-motion's `initial` applies on MOUNT, and without a key
-              React keeps this wrapper across a client-side navigation — so the
-              entrance played once on first load and every page change after
-              that was an instant swap. The two shells are kept in step
-              deliberately; a fix to one that skips the other is how they drift. */}
+          {/* `key={pathname}`: framer-motion's `initial` applies on MOUNT, so without a key the
+              entrance played once and every later page change was an instant swap. Kept in step
+              with AdminLayout deliberately. */}
           <motion.div
             key={pathname}
             initial={{ opacity: 0, y: 20 }}
@@ -310,31 +321,14 @@ function UserLayout({ children, user, onLogout, isLoading = false, hideFloatingB
           </motion.div>
         </main>
 
-        {/* PurchaseDialogs reads useSearchParams, which Next requires to sit
-            under a Suspense boundary on a statically rendered page. */}
+        {/* PurchaseDialogs reads useSearchParams, which Next requires under a Suspense boundary. */}
         <Suspense fallback={null}>
           <PurchaseDialogs />
         </Suspense>
 
-        {/* Floating Home Button — the customer panel's only way "out", so it
-            follows the front door: ResellerOS when it owns it, DMS's own `/`
-            when DMS is running standalone. */}
-        {!hideFloatingButtons && (
-          <Link
-            href={homeUrl()}
-            className="fixed bottom-6 left-6 z-50 bg-amber hover:brightness-90 text-paper p-3.5 rounded-full shadow-[0_2px_8px_rgba(0,0,0,0.10)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.14)] transition-all duration-200 group"
-            title="Go back to homepage"
-          >
-            <Home className="h-5 w-5" />
-            {/* Enhanced Tooltip */}
-            <div className="absolute bottom-full left-0 mb-2 px-2.5 py-1.5 bg-ink text-paper text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none">
-              Back to Homepage
-              <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-ink"></div>
-            </div>
-          </Link>
-        )}
-
-
+        {/* The floating Home button is gone (10 Oct 2026): "Home" is in the breadcrumb and the logo,
+            as in ResellerOS. `hideFloatingButtons` is still accepted so callers need not change. */}
+        {hideFloatingButtons ? null : null}
       </div>
     </div>
   );

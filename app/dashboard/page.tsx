@@ -1,20 +1,18 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import toast from 'react-hot-toast';
-import { motion } from 'framer-motion';
 import useSWR from 'swr';
+import Link from 'next/link';
 import {
-  Globe, ShoppingCart, TrendingUp, Clock, CheckCircle,
-  AlertTriangle, Calendar, ArrowRight, Plus, RefreshCw, Server, FileText, HardDrive,
-  LayoutDashboard, Sparkles, Settings as SettingsIcon, Inbox, Search,
+  Globe, Clock, CheckCircle, ArrowRight, Plus, Server, FileText, HardDrive,
+  Settings as SettingsIcon, Inbox, Search, MessageCircle,
 } from 'lucide-react';
-import RupeeIcon from '@/components/icons/RupeeIcon';
-import { useCartStore } from '@/store/cartStore';
+import { SectionLabel, Tile, AttentionCard, Panel, PanelLink, EmptyRow } from '@/components/dashboard/DashboardParts';
+import { formatINR } from '@/lib/format-inr';
+import type { BillsResponse } from '@/components/billing/ResellerOsBills';
 import { safeLocalStorage, safeSessionStorage } from '@/lib/storage';
-import { performLogout } from '@/lib/logout';
 import { logger } from '@/lib/logger';
 import { fetcher } from '@/lib/fetcher';
 import { apiClient } from '@/lib/api-client';
@@ -61,7 +59,8 @@ interface UpcomingRenewal {
   domainName?: string;
   type: 'Domain' | 'Hosting';
   expiryDate?: string;
-  daysUntilExpiry?: number;
+  /** Days until it renews, from /api/user/dashboard. */
+  daysLeft?: number;
   [k: string]: unknown;
 }
 
@@ -94,8 +93,6 @@ interface ServiceStatus {
 export default function UserDashboard() {
   const { user, isLoading: isAuthLoading } = useUser();
   const [isSyncing, setIsSyncing] = useState(false);
-  const router = useRouter();
-  const { items: cartItems } = useCartStore();
   const hasAutoSynced = useRef(false);
 
   const {
@@ -108,8 +105,10 @@ export default function UserDashboard() {
     { revalidateOnFocus: false }
   );
 
+  // The same request the Invoices page makes (one SWR key, so it is shared): bills to pay and recent invoices.
+  const { data: bills } = useSWR<BillsResponse>(user ? '/api/v1/user/billing' : null, fetcher, { revalidateOnFocus: false });
+
   const stats = dashboardData?.stats ?? null;
-  const serviceStatus = dashboardData?.serviceStatus ?? { hasDomains: true, hasHosting: true };
 
   // Clear any stale logout flags on mount (only once)
   useEffect(() => {
@@ -234,23 +233,46 @@ export default function UserDashboard() {
     return <DashboardLayoutSkeleton><DashboardHomeSkeleton /></DashboardLayoutSkeleton>;
   }
 
-  return (
-    <UserLayout
-      user={user}
-      onLogout={handleLogout}
-    >
-      <div className="p-6 space-y-6">
+  // ── The ResellerOS dashboard pattern (Pawan, 10 Oct 2026) ──────────────────────────────
+  const now = new Date();
+  const eyebrow = now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });
+  const hour = Number(now.toLocaleString('en-GB', { hour: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' }));
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const domainsCount = stats?.activeDomains ?? 0;
+  const hostings = stats?.activeHostings ?? [];
+  const renewals = stats?.upcomingRenewals ?? [];
+  const pendingDomains = stats?.pendingDomains ?? 0;
+  const services = stats?.recentDomains ?? [];
+  const settingUp = services.filter((s) => s.status === 'pending' || s.status === 'processing').length;
+  const billsOk = bills?.state === 'ok' ? bills : null;
+  const toPay = billsOk ? billsOk.quotes.filter((q) => q.status === 'pending') : [];
+  const toPayTotal = toPay.reduce((n, q) => n + q.amount, 0);
+  const recentInvoices = billsOk ? billsOk.invoices.slice(0, 4) : [];
+  const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+  const soonest = renewals[0];
 
-        {/* ── Welcome ── */}
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-amber-soft rounded-xl">
-            <LayoutDashboard className="h-5 w-5 text-amber" />
-          </div>
-          <div>
-            <h1 className="font-serif text-2xl font-bold text-ink">
-              Welcome back, {user?.firstName || 'User'}!
+  return (
+    <UserLayout user={user} onLogout={handleLogout}>
+      <div className="mx-auto max-w-[1240px] space-y-6 p-4 sm:p-6 lg:p-8">
+        {/* ── Greeting ── */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">{eyebrow}</p>
+            <h1 className="mt-1 font-serif text-3xl font-semibold text-ink">
+              {greeting}{user?.firstName ? `, ${user.firstName}` : ''}.
             </h1>
-            <p className="text-sm text-ink-3 mt-0.5">Here's an overview of your services.</p>
+            <p className="mt-1 text-sm text-ink-2">
+              {plural(domainsCount, 'domain')} · {plural(hostings.length, 'hosting account')} ·{' '}
+              {renewals.length > 0 ? `${plural(renewals.length, 'renewal')} in 30 days` : 'nothing to renew this month'}
+            </p>
+          </div>
+          <div className="flex flex-none gap-2">
+            <Link href={buyHref('domain')} className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-hairline bg-paper px-3 text-sm font-medium text-ink-2 hover:bg-paper-2">
+              <Search className="h-4 w-4" aria-hidden /> Register domain
+            </Link>
+            <Link href={buyHref('hosting')} className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg bg-amber px-3 text-sm font-semibold text-paper hover:brightness-95">
+              <Plus className="h-4 w-4" aria-hidden /> Buy hosting
+            </Link>
           </div>
         </div>
 
@@ -258,249 +280,199 @@ export default function UserDashboard() {
           <DashboardHomeSkeleton />
         ) : (
           <>
-            {/* ── Overview stat cards ── */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              {/* Domains */}
-              <motion.div
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.05 }}
-                className="bg-paper border border-hairline rounded-2xl shadow-sm p-5 hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="p-2 bg-amber-soft rounded-xl">
-                    <Globe className="h-5 w-5 text-amber" />
-                  </div>
-                  <span className="text-xs font-semibold text-amber-ink bg-amber-soft border border-amber/25 px-2.5 py-0.5 rounded-full">
-                    Domains
-                  </span>
-                </div>
-                <p className="text-3xl font-bold text-ink">{stats?.activeDomains || 0}</p>
-                <div className="flex items-center justify-between mt-2">
-                  <div className="flex items-center gap-2">
-                    <p className="text-xs font-medium text-ink-3">Active Domains</p>
-                    {stats?.pendingDomains && stats.pendingDomains > 0 && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-soft text-amber-ink border border-amber/30 uppercase tracking-wider">
-                        {stats.pendingDomains} Pending
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => router.push('/dashboard/domains')}
-                    className="text-xs font-semibold text-amber-ink hover:text-amber inline-flex items-center gap-1"
-                  >
-                    View
-                    <ArrowRight className="h-3 w-3" />
-                  </button>
-                </div>
-              </motion.div>
-
-              {/* Hosting */}
-              <motion.div
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="bg-paper border border-hairline rounded-2xl shadow-sm p-5 hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="p-2 bg-amber-soft rounded-xl">
-                    <HardDrive className="h-5 w-5 text-amber-ink" />
-                  </div>
-                  <span className="text-xs font-semibold text-amber-ink bg-amber-soft border border-amber/30 px-2.5 py-0.5 rounded-full">
-                    Hosting
-                  </span>
-                </div>
-                <p className="text-3xl font-bold text-ink">{stats?.activeHostings?.length || 0}</p>
-                <div className="flex items-center justify-between mt-2">
-                  <p className="text-xs font-medium text-ink-3">Active Hosting</p>
-                  <button
-                    onClick={() => router.push('/dashboard/hosting')}
-                    className="text-xs font-semibold text-amber-ink hover:text-amber-ink inline-flex items-center gap-1"
-                  >
-                    View
-                    <ArrowRight className="h-3 w-3" />
-                  </button>
-                </div>
-              </motion.div>
-
-              {/* Renewals */}
-              <motion.div
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.15 }}
-                className="bg-paper border border-hairline rounded-2xl shadow-sm p-5 hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="p-2 bg-indigo-soft rounded-xl">
-                    <Clock className="h-5 w-5 text-indigo-ink" />
-                  </div>
-                  {stats?.upcomingRenewals && stats.upcomingRenewals.length > 0 ? (
-                    <span className="text-xs font-semibold text-rose-ink bg-rose-soft border border-rose/30 px-2.5 py-0.5 rounded-full">
-                      Action needed
-                    </span>
-                  ) : (
-                    <span className="text-xs font-semibold text-indigo-ink bg-indigo-soft border border-indigo/30 px-2.5 py-0.5 rounded-full">
-                      Renewals
-                    </span>
-                  )}
-                </div>
-                <p className="text-3xl font-bold text-ink">{stats?.upcomingRenewals?.length || 0}</p>
-                <p className="text-xs font-medium text-ink-3 mt-2">Upcoming (30 days)</p>
-
-                {stats?.upcomingRenewals && stats.upcomingRenewals.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-hairline space-y-2">
-                    {stats.upcomingRenewals.slice(0, 2).map((renewal: UpcomingRenewal, idx: number) => (
-                      <div key={idx} className="flex items-center gap-2 min-w-0">
-                        {renewal.type === 'Hosting'
-                          ? <HardDrive className="h-3.5 w-3.5 text-amber flex-shrink-0" />
-                          : <Globe className="h-3.5 w-3.5 text-amber flex-shrink-0" />}
-                        <p className="text-xs text-ink-2 truncate flex-1"><span className="font-medium">{renewal.domain}</span> · {renewal.expiryDate}</p>
-                      </div>
-                    ))}
-                    {stats.upcomingRenewals.length > 2 && (
-                      <p className="text-[11px] text-ink-4">+ {stats.upcomingRenewals.length - 2} more</p>
-                    )}
-                  </div>
-                )}
-              </motion.div>
+            {/* ── Numbers ── */}
+            <div className="space-y-3">
+              <SectionLabel>Your services</SectionLabel>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <Tile label="Domains" value={domainsCount} href="/dashboard/domains" note={pendingDomains > 0 ? `${pendingDomains} being registered` : 'Active'} />
+                <Tile label="Hosting" value={hostings.length} href="/dashboard/hosting" note="Active accounts" />
+                <Tile label="Renewals · 30 days" value={renewals.length} href="/dashboard/domains" note={soonest ? `Next: ${soonest.expiryDate}` : 'None due'} />
+                <Tile
+                  label="Bills to pay"
+                  value={billsOk ? toPay.length : '—'}
+                  href="/dashboard/invoices"
+                  note={billsOk ? (toPay.length > 0 ? `${formatINR(toPayTotal)} in total` : 'All paid') : bills?.state === 'no_bills' ? 'No bills yet' : 'Couldn’t load bills'}
+                />
+              </div>
             </div>
 
-            {/* ── Main grid ── */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-              {/* Your Services */}
-              <motion.div
-                initial={{ opacity: 0, x: -16 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.2 }}
-                className="lg:col-span-2 bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden"
-              >
-                <div className="px-6 py-4 border-b border-hairline bg-paper-2/60 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <Server className="h-4 w-4 text-ink-3" />
-                    <div>
-                      <h3 className="text-sm font-semibold text-ink">Your Services</h3>
-                      <p className="text-xs text-ink-3 mt-0.5">Recent domains and hosting</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => router.push('/dashboard/domains')}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-amber-ink hover:text-amber"
-                  >
-                    View All
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+            {/* ── What needs attention ── */}
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              {renewals.length > 0 ? (
+                <AttentionCard
+                  tone="rose"
+                  tag="Renewal due"
+                  title={`${plural(renewals.length, 'service')} renew in the next 30 days`}
+                  text="Pay the renewal bill before the date so nothing stops working."
+                  icon={<Clock className="h-5 w-5" />}
+                  footer={soonest ? `${soonest.domain} · ${soonest.expiryDate}` : ''}
+                  action={{ label: 'Renewal bills', href: '/dashboard/invoices' }}
+                />
+              ) : (
+                <AttentionCard
+                  tone="emerald"
+                  tag="Renewals"
+                  title="Nothing to renew this month"
+                  text="We email you, and the bill appears here, before anything is due."
+                  icon={<CheckCircle className="h-5 w-5" />}
+                  footer="Next 30 days"
+                  action={{ label: 'View domains', href: '/dashboard/domains' }}
+                />
+              )}
+              {billsOk && toPay.length > 0 ? (
+                <AttentionCard
+                  tone="indigo"
+                  tag="Awaiting payment"
+                  title={`${plural(toPay.length, 'bill')} to pay`}
+                  text={`${formatINR(toPayTotal)} in total, GST included.`}
+                  icon={<FileText className="h-5 w-5" />}
+                  footer="Invoices"
+                  action={{ label: 'Pay now', href: '/dashboard/invoices' }}
+                />
+              ) : (
+                <AttentionCard
+                  tone="indigo"
+                  tag="Bills"
+                  title={billsOk ? 'All bills paid' : bills?.state === 'no_bills' ? 'No bills yet' : 'Bills couldn’t be loaded'}
+                  text={billsOk || bills?.state === 'no_bills' ? 'Every bill and GST invoice is kept on the Invoices page and emailed to you.' : 'This does not mean you have none — they are also in your email. Try again in a minute.'}
+                  icon={<FileText className="h-5 w-5" />}
+                  footer="Invoices"
+                  action={{ label: 'Open invoices', href: '/dashboard/invoices' }}
+                />
+              )}
+              <AttentionCard
+                tone="blue"
+                tag={settingUp > 0 ? 'Being set up' : 'Services'}
+                title={settingUp > 0 ? `${plural(settingUp, 'service')} being set up` : hostings.length + domainsCount > 0 ? 'Everything is live' : 'No services yet'}
+                text={
+                  settingUp > 0
+                    ? 'This usually takes a few minutes. It appears here when it is ready.'
+                    : hostings.length + domainsCount > 0
+                      ? 'Manage DNS, email and your hosting control panel from here.'
+                      : 'Register a domain or buy hosting to get started.'
+                }
+                icon={<Server className="h-5 w-5" />}
+                footer="Hosting"
+                action={hostings.length + domainsCount > 0 ? { label: 'Manage hosting', href: '/dashboard/hosting' } : { label: 'Buy hosting', href: buyHref('hosting') }}
+              />
+            </div>
 
-                <div className="divide-y divide-hairline">
-                  {stats?.recentDomains && stats.recentDomains.length > 0 ? (
-                    stats.recentDomains.slice(0, 4).map((service, index) => {
-                      const isHost = service.itemType === 'hosting';
-                      const status = service.status;
-                      const statusCfg = (status === 'active' || status === 'registered' || status === 'provisioned')
-                        ? 'bg-emerald-soft text-emerald-ink border-emerald/30'
-                        : (status === 'pending' || status === 'processing')
-                          ? 'bg-amber-soft text-amber-ink border-amber/30'
-                          : 'bg-paper-2 text-ink-3 border-hairline';
-                      return (
-                        <div key={index} className="px-6 py-3.5 hover:bg-paper-2/60 transition-colors flex items-center justify-between group">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className={`flex-shrink-0 h-9 w-9 rounded-xl flex items-center justify-center ${isHost ? 'bg-amber-soft' : 'bg-amber-soft'}`}>
-                              {isHost
-                                ? <HardDrive className="h-4 w-4 text-amber-ink" />
-                                : <Globe className="h-4 w-4 text-amber" />}
+            {/* ── Lists ── */}
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+              <div className="space-y-4 lg:col-span-2">
+                <Panel title="Your services" subtitle="Domains and hosting, newest first" action={<PanelLink href="/dashboard/domains">All</PanelLink>}>
+                  {services.length > 0 ? (
+                    <ul className="divide-y divide-hairline">
+                      {services.slice(0, 6).map((service, index) => {
+                        const isHost = service.itemType === 'hosting';
+                        const status = service.status;
+                        const live = status === 'active' || status === 'registered' || status === 'provisioned';
+                        const pill = live
+                          ? 'bg-emerald-soft text-emerald-ink border-emerald/30'
+                          : status === 'pending' || status === 'processing'
+                            ? 'bg-amber-soft text-amber-ink border-amber/30'
+                            : 'bg-paper-2 text-ink-3 border-hairline';
+                        return (
+                          <li key={index} className="flex items-center justify-between gap-3 px-4 py-3">
+                            <div className="flex min-w-0 items-center gap-3">
+                              <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-paper-2 text-ink-3" aria-hidden>
+                                {isHost ? <HardDrive className="h-4 w-4" /> : <Globe className="h-4 w-4" />}
+                              </span>
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium text-ink">{service.name}</p>
+                                <p className="text-xs text-ink-3">
+                                  {isHost ? 'Hosting' : 'Domain'}
+                                  {service.expiryDate && service.expiryDate !== 'N/A' ? ` · renews ${service.expiryDate}` : ''}
+                                </p>
+                              </div>
                             </div>
-                            <div className="min-w-0">
-                              <p className="text-sm font-semibold text-ink truncate">{service.name}</p>
-                              <p className="text-xs text-ink-4 mt-0.5 capitalize">
-                                {service.itemType} · {service.registeredDate}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="text-right shrink-0 ml-3">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border capitalize ${statusCfg}`}>
-                              {status}
-                            </span>
-                            {service.expiryDate !== 'N/A' && (
-                              <p className="text-xs text-ink-4 mt-1">
-                                Expires {service.expiryDate}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })
+                            <span className={`flex-none rounded-full border px-2 py-0.5 text-[11px] font-medium capitalize ${pill}`}>{status}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
                   ) : (
-                    <div className="py-12 px-6 text-center">
-                      <div className="w-14 h-14 bg-paper-2 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                        <Inbox className="h-7 w-7 text-ink-4" />
+                    <div className="px-4 py-10 text-center">
+                      <Inbox className="mx-auto h-6 w-6 text-ink-4" aria-hidden />
+                      <p className="mt-2 text-sm font-medium text-ink">No services yet</p>
+                      <p className="mt-1 text-sm text-ink-3">Register a domain or buy hosting — it appears here once it is set up.</p>
+                      <div className="mt-4 flex justify-center gap-2">
+                        <Link href={buyHref('domain')} className="inline-flex min-h-[40px] items-center rounded-lg border border-hairline px-3 text-sm font-medium text-ink-2 hover:bg-paper-2">Register domain</Link>
+                        <Link href={buyHref('hosting')} className="inline-flex min-h-[40px] items-center rounded-lg bg-amber px-3 text-sm font-semibold text-paper hover:brightness-95">Buy hosting</Link>
                       </div>
-                      <h3 className="text-sm font-semibold text-ink mb-1.5">No services yet</h3>
-                      <p className="text-sm text-ink-3 mb-5">Get started by registering a domain.</p>
-                      <button
-                        onClick={() => router.push(buyHref('domain'))}
-                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber text-paper text-sm font-semibold rounded-xl hover:brightness-90 transition-colors shadow-sm"
-                      >
-                        <Search className="h-4 w-4" />
-                        Find a Domain
-                      </button>
                     </div>
                   )}
-                </div>
-              </motion.div>
+                </Panel>
 
-              {/* Side column */}
-              <motion.div
-                initial={{ opacity: 0, x: 16 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.25 }}
-                className="space-y-5"
-              >
-                {/* Need a new domain CTA */}
-                <div className="relative overflow-hidden bg-gradient-to-br from-amber via-amber to-amber-ink rounded-2xl p-6 text-paper shadow-md">
-                  <div className="absolute -top-6 -right-6 w-24 h-24 bg-paper/10 rounded-full blur-xl" />
-                  <div className="absolute -bottom-8 -left-4 w-20 h-20 bg-paper/5 rounded-full blur-xl" />
-                  <div className="relative">
-                    <div className="inline-flex p-2 bg-paper/20 backdrop-blur-sm rounded-xl mb-3">
-                      <Sparkles className="h-4 w-4 text-paper" />
-                    </div>
-                    <h3 className="font-bold text-lg mb-1">Need a new domain?</h3>
-                    <p className="text-paper/85 text-sm mb-4">Search and register your perfect domain name.</p>
-                    <button
-                      onClick={() => router.push(buyHref('domain'))}
-                      className="w-full inline-flex items-center justify-center gap-2 bg-paper text-amber-ink font-semibold text-sm py-2.5 rounded-xl hover:bg-paper-2 transition-colors shadow-sm"
-                    >
-                      <Search className="h-4 w-4" />
-                      Search Domains
-                    </button>
-                  </div>
-                </div>
+                <Panel title="Recent invoices" subtitle="GST invoices from your orders" action={<PanelLink href="/dashboard/invoices">Invoices</PanelLink>}>
+                  {recentInvoices.length > 0 ? (
+                    <ul className="divide-y divide-hairline">
+                      {recentInvoices.map((inv) => (
+                        <li key={inv.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                          <div className="min-w-0">
+                            <p className="truncate font-mono text-sm text-ink">{inv.number}</p>
+                            <p className="text-xs text-ink-3">{inv.issueDate ? new Date(inv.issueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</p>
+                          </div>
+                          <div className="flex flex-none items-center gap-3">
+                            <span className="text-sm font-medium text-ink tabular-nums">{formatINR(inv.amount)}</span>
+                            <span className="rounded-full border border-hairline bg-paper-2 px-2 py-0.5 text-[11px] font-medium capitalize text-ink-2">{inv.status}</span>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <EmptyRow>
+                      {bills && bills.state === 'unavailable' ? 'We couldn’t load your invoices just now. They are also in your email.' : 'Invoices appear here after your first order.'}
+                    </EmptyRow>
+                  )}
+                </Panel>
+              </div>
 
-                {/* Quick Management */}
-                <div className="bg-paper border border-hairline rounded-2xl shadow-sm overflow-hidden">
-                  <div className="px-5 py-3.5 border-b border-hairline bg-paper-2/60">
-                    <h3 className="text-sm font-semibold text-ink">Quick Management</h3>
-                  </div>
-                  <div className="p-2">
+              <div className="space-y-4">
+                <Panel title="Renewals coming up" subtitle="Next 30 days">
+                  {renewals.length > 0 ? (
+                    <ul className="divide-y divide-hairline">
+                      {renewals.map((r, idx) => (
+                        <li key={idx} className="flex items-center justify-between gap-3 px-4 py-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-ink">{r.domain}</p>
+                            <p className="text-xs text-ink-3">{r.type} · {r.expiryDate}</p>
+                          </div>
+                          {typeof r.daysLeft === 'number' && (
+                            <span className={`flex-none text-xs font-medium ${r.daysLeft <= 7 ? 'text-rose-ink' : 'text-ink-2'}`}>
+                              {r.daysLeft} day{r.daysLeft === 1 ? '' : 's'}
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <EmptyRow>Nothing renews in the next 30 days.</EmptyRow>
+                  )}
+                </Panel>
+
+                <Panel title="Quick links">
+                  <ul className="divide-y divide-hairline">
                     {[
-                      { href: '/dashboard/hosting',  icon: HardDrive,    label: 'Manage Hosting',  cls: 'bg-amber-soft text-amber-ink' },
-                      { href: '/dashboard/invoices', icon: FileText,     label: 'Invoices',        cls: 'bg-indigo-soft text-indigo-ink' },
-                      { href: '/dashboard/settings', icon: SettingsIcon, label: 'Account Settings',cls: 'bg-indigo-soft text-indigo-ink' },
-                    ].map(({ href, icon: Icon, label, cls }) => (
-                      <button
-                        key={href}
-                        onClick={() => router.push(href)}
-                        className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-paper-2 transition-colors text-left group"
-                      >
-                        <div className={`p-2 rounded-lg ${cls} group-hover:scale-110 transition-transform`}>
-                          <Icon className="h-4 w-4" />
-                        </div>
-                        <span className="text-sm font-semibold text-ink-2 flex-1">{label}</span>
-                        <ArrowRight className="h-3.5 w-3.5 text-ink-4 group-hover:text-amber group-hover:translate-x-0.5 transition-all" />
-                      </button>
+                      { href: buyHref('hosting'), icon: Server, label: 'Buy hosting', note: 'First year of a domain free with yearly hosting' },
+                      { href: buyHref('domain'), icon: Search, label: 'Register a domain', note: '1, 2, 3 or 5 years' },
+                      { href: '/dashboard/support', icon: MessageCircle, label: 'Support', note: 'Raise a ticket' },
+                      { href: '/dashboard/settings', icon: SettingsIcon, label: 'Account settings', note: 'Profile, password, GSTIN' },
+                    ].map(({ href, icon: Icon, label, note }) => (
+                      <li key={label}>
+                        <Link href={href} className="flex min-h-[44px] items-center gap-3 px-4 py-2.5 hover:bg-paper-2">
+                          <Icon className="h-4 w-4 flex-none text-ink-3" aria-hidden />
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-sm font-medium text-ink">{label}</span>
+                            <span className="block truncate text-xs text-ink-3">{note}</span>
+                          </span>
+                          <ArrowRight className="h-3.5 w-3.5 flex-none text-ink-4" aria-hidden />
+                        </Link>
+                      </li>
                     ))}
-                  </div>
-                </div>
-              </motion.div>
+                  </ul>
+                </Panel>
+              </div>
             </div>
           </>
         )}

@@ -20,7 +20,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const pathnameMock = vi.hoisted(() => vi.fn(() => "/dashboard"));
-vi.mock("next/navigation", () => ({ usePathname: pathnameMock }));
+vi.mock("next/navigation", () => ({ usePathname: pathnameMock, useRouter: () => ({ push: vi.fn() }) }));
 
 const itemCountMock = vi.hoisted(() => vi.fn(() => 0));
 const subscribeMock = vi.hoisted(() => vi.fn((_cb: unknown) => () => {}));
@@ -205,21 +205,15 @@ describe("<UserLayout>", () => {
     expect(screen.queryByTestId("kid")).not.toBeInTheDocument();
   });
 
-  it("hideFloatingButtons=true removes the floating Home link", () => {
-    render(
-      <UserLayout user={USER} hideFloatingButtons>
-        <div />
-      </UserLayout>
-    );
-    expect(screen.queryByTitle(/go back to homepage/i)).not.toBeInTheDocument();
-  });
-
-  it("default render includes the floating Home link", () => {
+  it("the way home is the logo and the breadcrumb's Home, not a floating button (10 Oct 2026)", () => {
     render(
       <UserLayout user={USER}>
         <div />
       </UserLayout>
     );
-    expect(screen.getByTitle(/go back to homepage/i)).toBeInTheDocument();
+    expect(screen.getByTitle(/go back to homepage/i).tagName).toBe("A"); // the sidebar logo
+    expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toHaveTextContent(/Home/);
+    expect(screen.getByRole("search")).toBeInTheDocument(); // "Find a domain…" in the top bar
+    expect(screen.getByRole("link", { name: /^cart/i })).toHaveAttribute("href", "/cart");
   });
 });
