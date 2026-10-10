@@ -549,6 +549,33 @@ failure, ResellerOS read the replay as a refusal and marked the PAID order faile
 - **Every send is logged** in `emaillogs` (models/EmailLog.ts; sent / failed / skipped, mail-server reply,
   never the body; 180-day TTL). Check it before concluding an email "did not send".
 
+## The Customer Portal: ResellerOS's look, saved details, a product catalogue, touch rules (10 Oct 2026)
+
+- **Theme comes from ResellerOS at runtime.** `UserLayout`'s root has class `ros-theme`.
+  `components/theme/PortalThemeStyle` (root layout, server-side) renders the theme fetched by
+  `lib/theme/fetch-theme.ts` from `GET <RESELLEROS_SERVER_URL>/api/public/theme` (5 min cache,
+  failures remembered 1 min, never throws). `lib/theme/theme.ts` validates every value as a plain
+  colour triplet before it reaches the `<style>` tag, and holds `DEFAULT_THEME`, the bundled
+  fallback that a test pins to ResellerOS's `src/lib/theme/tokens.ts`. **Do not hardcode portal
+  colours or put token values in globals.css** — change them in ResellerOS and the portal follows.
+  Fonts (Plus Jakarta Sans, DM Serif Display) are files in `public/fonts`; `.ros-theme .font-serif`
+  draws headings in DM Serif at weight 400. The public cart/checkout keep the storefront blue.
+- **Billing details are one module** — `lib/users/billing-details.ts` (`parseBillingDetails`,
+  `mergeBillingDetails`, `billingDetailsOf`). An order from ResellerOS (`customer.ensure` →
+  `ensureDmsUser`) only **fills empty** fields (GSTIN, state, address); the customer's "Save these
+  details to my account for next time" at checkout **replaces** them, and only after the order is
+  created. Checkout shows "Billed to … [Change]" instead of the form when the saved details are
+  complete for the product.
+- **Products are declared in `lib/purchase/catalog.ts`** (what checkout needs: site domain,
+  registrant address, term). Hosting and domains are live; business email (Google Workspace, M365,
+  Zoho Mail) and standalone SSL are planned entries. Add a product there + its ResellerOS SKU —
+  never a new checkout branch — and reuse the billing-details block.
+- **Touch rules live in `app/globals.css`:** on screens ≤1023px or any touch device, form fields
+  are ≥16px (iOS zooms otherwise) and every portal control (`.ros-theme` buttons, fields, selects,
+  button-styled links) is ≥44px. Phone tables become card lists (see `dashboard/domains`).
+- **Dashboard + shell** follow the ResellerOS dashboard pattern: `components/dashboard/DashboardParts.tsx`
+  (`PageHeader`, `SectionLabel`, `Tile`, `AttentionCard`, `Panel`). Use them for new portal pages.
+
 ## Other persistent conventions
 
 - Do not surface credential/key rotation as a next step — the user has opted out for this project (see auto-memory `feedback_key_rotation_skip`). **Exception**: active leaks discovered via security review override this preference; rotate immediately, don't ask twice.

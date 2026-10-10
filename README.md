@@ -283,11 +283,26 @@ one of the three is wired to anything today:
 | Key | Blast radius | Status |
 |---|---|---|
 | `ENGINE_READ_API_KEY` | Reads. Cannot change anything, cannot spend. | **In use** by both routes above. |
-| `BILLING_COMMAND_API_KEY` | Register / renew / suspend / delete. Treat it like a production password. | Checked by `authorizeEngineCommandRequest`, but **no command route exists yet**. |
+| `BILLING_COMMAND_API_KEY` | Register / renew / suspend / delete. Treat it like a production password. | **In use** by `POST /api/integrations/engine/commands` (hosting.provision, domain.register, renewals, customer.ensure — each behind its own `ENGINE_*_LIVE` gate). |
 | `BILLING_PROVISION_API_KEY` | Creates a login account here. | **Name only.** Nothing reads it — it appears in one comment and in `.env.example`. |
 
 Setting a key that nothing reads grants nothing; the point of listing them is
 that a reader should not mistake a reserved name for a working capability.
+
+### What DMS reads from ResellerOS
+
+ResellerOS is the single source of truth for what the customer sees; DMS reads it at runtime
+(server-side, cached, validated, with a fallback) instead of keeping copies:
+
+| ResellerOS endpoint | Read by | For |
+|---|---|---|
+| `GET /api/public/hosting-prices` | `lib/reselleros/hosting-prices.ts` | Hosting plan prices incl. GST |
+| `GET /api/domains/availability` | `lib/reselleros/domain-term-prices.ts` | A domain's price per term (1/2/3/5 years) |
+| `GET /api/public/theme` | `lib/theme/fetch-theme.ts` | The Customer Portal's colours (falls back to `DEFAULT_THEME`) |
+| `POST /api/dms/panel-order` (panel key) | `lib/reselleros/panel-order.ts` | Every portal purchase; ResellerOS prices and bills it |
+
+All need `RESELLEROS_SERVER_URL`. When an order is paid, ResellerOS sends `customer.ensure`
+with the order's GSTIN, state and address, so the portal's checkout reuses them.
 
 ### SSO hand-off
 

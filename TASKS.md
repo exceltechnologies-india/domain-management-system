@@ -41,6 +41,15 @@ Eight days of focused safety-check additions are complete. Every production-faci
 
 ## In Flight
 
+### ✅ Customer Portal redesign + reuse of details (10 Oct 2026, Pawan — DMS `938b3b77`, `1cc0af80`, `6d7090c3`)
+
+- [x] Dashboard and shell in the ResellerOS dashboard pattern; every portal page uses `PageHeader`.
+- [x] ResellerOS's look; colours read at runtime from ResellerOS `GET /api/public/theme` (fallback bundled, drift-tested).
+- [x] Mobile: 88/88 screen-widths pass (320/360/390/768) — Domains cards, phone menu, 16px fields, 44px controls; footer without dead links.
+- [x] Checkout reuses saved billing details ("Billed to … Change", "Save for next time"); `customer.ensure` stores the order's GSTIN/state/address.
+- [x] `lib/purchase/catalog.ts` — hosting, domains live; business email + standalone SSL planned.
+- [ ] Live: needs `RESELLEROS_SERVER_URL` and `ENGINE_CUSTOMER_ACCOUNT_LIVE=1` on DMS (Abhishek's deploy).
+
 ### 🆕 Round 5 — owner answers, 26 Sep 2026
 
 - [x] **Step 1 — the trial pre-check asks ResellerOS** ("Ask ResellerOS instead").
