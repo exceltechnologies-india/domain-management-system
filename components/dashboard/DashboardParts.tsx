@@ -8,6 +8,22 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { ChevronRight } from 'lucide-react';
 
+/**
+ * A portal page's heading, in the dashboard's style (10 Oct 2026): a serif title, one line on what
+ * the page is for, and the page's actions on the right. The top bar carries the page name as the h1.
+ */
+export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="min-w-0">
+        <h2 className="font-serif text-3xl font-semibold text-ink">{title}</h2>
+        {subtitle && <p className="mt-1 text-sm text-ink-2">{subtitle}</p>}
+      </div>
+      {actions && <div className="flex flex-none flex-wrap gap-2">{actions}</div>}
+    </div>
+  );
+}
+
 export function SectionLabel({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3">

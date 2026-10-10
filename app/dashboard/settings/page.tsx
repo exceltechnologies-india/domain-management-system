@@ -16,6 +16,7 @@ import { INDIAN_STATES, normaliseIndianState } from '@/lib/constants';
 import { InputValidator } from '@/lib/validation';
 import { apiClient } from '@/lib/api-client';
 import UserLayout from '@/components/user/UserLayout';
+import { PageHeader } from '@/components/dashboard/DashboardParts';
 import { DashboardLayoutSkeleton, SettingsPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import ClientOnly from '@/components/ClientOnly';
 
@@ -526,13 +527,10 @@ export default function UserSettings() {
   return (
     <ClientOnly>
       <UserLayout user={user} onLogout={performLogout} isLoading={isLoading}>
-        <div className="p-6 space-y-6">
+        <div className="mx-auto max-w-[1240px] space-y-6 p-4 sm:p-6 lg:p-8">
 
           {/* ── Page header ── */}
-          <div>
-            <h1 className="text-2xl font-bold text-ink">Account Settings</h1>
-            <p className="text-sm text-ink-3 mt-1">Manage your profile, billing details and security</p>
-          </div>
+          <PageHeader title="Account settings" subtitle="Your profile, billing details and password." />
 
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
 

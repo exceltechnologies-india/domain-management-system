@@ -194,7 +194,23 @@ export function getCurrentDate(): Date {
  * Format a date to Indian date format (DD/MM/YYYY)
  * Alias for formatIndianDate
  */
-export const formatDateIN = formatIndianDate;
+const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/**
+ * "22 Oct 2026" in IST — the project's DD MMM YYYY (10 Oct 2026). Month names are fixed here
+ * because the en-IN locale writes September as "Sept" on current Node.
+ */
+export function formatIndianShortDate(date: string | Date | null | undefined): string {
+  if (!date) return "-";
+  const dateObj = typeof date === "string" ? new Date(date) : date;
+  if (isNaN(dateObj.getTime())) return "-";
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: INDIAN_TIMEZONE, day: "numeric", month: "numeric", year: "numeric" }).formatToParts(dateObj);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+  return `${get("day")} ${SHORT_MONTHS[get("month") - 1]} ${get("year")}`;
+}
+
+/** The customer dashboard's dates (its only caller): "22 Oct 2026", not "22/10/2026" (10 Oct 2026). */
+export const formatDateIN = formatIndianShortDate;
 
 /**
  * Format a date to Indian date and time format with seconds (DD/MM/YYYY, HH:MM:SS AM/PM)

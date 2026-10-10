@@ -2,15 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  FileText, Download, AlertCircle, Eye, CheckCircle2,
-  Clock, Inbox, Receipt,
-} from 'lucide-react';
+import { FileText, Download, AlertCircle, Eye, CheckCircle2, Clock, Inbox } from 'lucide-react';
 import useSWR from 'swr';
 import { fetcher } from '@/lib/fetcher';
 import { useUser } from '@/hooks/useUser';
 import { showSuccessToast, showErrorToast } from '@/lib/toast';
 import UserLayout from '@/components/user/UserLayout';
+import { PageHeader } from '@/components/dashboard/DashboardParts';
 import { performLogout } from '@/lib/logout';
 import { DashboardLayoutSkeleton, InvoicesPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import { formatIndianDate, formatIndianDateTime } from '@/lib/dateUtils';
@@ -112,21 +110,14 @@ export default function InvoicesPage() {
 
   return (
     <UserLayout user={user} onLogout={performLogout}>
-      <div className="p-6 space-y-6">
+      <div className="mx-auto max-w-[1240px] space-y-6 p-4 sm:p-6 lg:p-8">
 
         {/* ── Page header ── */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-soft rounded-xl">
-              <Receipt className="h-5 w-5 text-amber-ink" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-ink">Invoices</h1>
-              <p className="text-sm text-ink-3 mt-0.5">Your bills, orders and renewals</p>
-            </div>
-          </div>
-          <RefreshButton onClick={() => mutate()} isLoading={isValidating} />
-        </div>
+        <PageHeader
+          title="Invoices"
+          subtitle="Your bills, GST invoices and renewals. Each is also emailed to you."
+          actions={<RefreshButton onClick={() => mutate()} isLoading={isValidating} />}
+        />
 
         {/* ── ResellerOS's bills — every bill since 25 Sep 2026 ── */}
         <ResellerOsBills />

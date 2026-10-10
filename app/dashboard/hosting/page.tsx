@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/useUser';
 import { confirmDialog } from '@/lib/confirm-dialog';
 import UserLayout from '@/components/user/UserLayout';
+import { PageHeader } from '@/components/dashboard/DashboardParts';
 import { performLogout } from '@/lib/logout';
 import { DashboardLayoutSkeleton, HostingPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import RefreshButton from '@/components/dashboard/RefreshButton';
@@ -463,23 +464,14 @@ export default function HostingPage() {
 
   return (
     <UserLayout user={user} onLogout={performLogout}>
-      <div className="p-6 space-y-6">
+      <div className="mx-auto max-w-[1240px] space-y-6 p-4 sm:p-6 lg:p-8">
 
         {/* ── Page header ── */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-soft rounded-xl">
-              <Server className="h-5 w-5 text-amber-ink" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-ink">My Hosting</h1>
-              <p className="text-sm text-ink-3 mt-0.5">Manage your web hosting packages and servers</p>
-            </div>
-          </div>
-          <div className="flex gap-3">
-            <RefreshButton onClick={() => mutate()} isLoading={refreshing} />
-          </div>
-        </div>
+        <PageHeader
+          title="Your hosting"
+          subtitle="Open the control panel, check usage, renew or upgrade a plan."
+          actions={<RefreshButton onClick={() => mutate()} isLoading={refreshing} />}
+        />
 
         {isLoadingStats ? (
           <HostingPageSkeleton />

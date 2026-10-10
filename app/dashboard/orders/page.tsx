@@ -15,6 +15,7 @@ import { fetcher } from '@/lib/fetcher';
 import { useUser } from '@/hooks/useUser';
 import { formatIndianDateTime } from '@/lib/dateUtils';
 import UserLayout from '@/components/user/UserLayout';
+import { PageHeader } from '@/components/dashboard/DashboardParts';
 import { DashboardLayoutSkeleton, OrdersPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import ClientOnly from '@/components/ClientOnly';
 import RefreshButton from '@/components/dashboard/RefreshButton';
@@ -161,20 +162,14 @@ export default function UserOrders() {
   return (
     <ClientOnly>
       <UserLayout user={user} onLogout={performLogout}>
-        <div className="p-6">
+        <div className="mx-auto max-w-[1240px] p-4 sm:p-6 lg:p-8">
           {/* Header */}
           <div className="mb-8">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-ink mb-2">Order History</h1>
-                <p className="text-ink-2">
-                  View and manage your domain registration orders
-                </p>
-              </div>
-              <div className="flex space-x-3">
-                <RefreshButton onClick={() => mutate()} isLoading={isValidating} />
-              </div>
-            </div>
+            <PageHeader
+              title="Order history"
+              subtitle="Domain orders placed from this panel before 25 Sep 2026."
+              actions={<RefreshButton onClick={() => mutate()} isLoading={isValidating} />}
+            />
           </div>
 
           {/* Filters */}

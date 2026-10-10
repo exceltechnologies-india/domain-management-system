@@ -13,6 +13,7 @@ import { fetcher } from '@/lib/fetcher';
 import { useUser } from '@/hooks/useUser';
 import { formatIndianDateTime, isWithinRenewalWindow } from '@/lib/dateUtils';
 import UserLayout from '@/components/user/UserLayout';
+import { PageHeader } from '@/components/dashboard/DashboardParts';
 import { DashboardLayoutSkeleton, DomainsPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import ClientOnly from '@/components/ClientOnly';
 import RefreshButton from '@/components/dashboard/RefreshButton';
@@ -114,20 +115,13 @@ export default function UserDomains() {
   return (
     <ClientOnly>
       <UserLayout user={user} onLogout={performLogout}>
-        <div className="p-6 space-y-6">
+        <div className="mx-auto max-w-[1240px] space-y-6 p-4 sm:p-6 lg:p-8">
 
           {/* ── Page header ── */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-amber-soft rounded-xl">
-                <Globe className="h-5 w-5 text-amber" />
-              </div>
-              <div>
-                <h1 className="font-serif text-2xl font-bold text-ink">My Domains</h1>
-                <p className="text-sm text-ink-3 mt-0.5">Manage your domain portfolio and settings</p>
-              </div>
-            </div>
-            <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-2">
+          <PageHeader
+            title="Your domains"
+            subtitle="Renew, manage DNS, or transfer a domain in."
+            actions={<>
               <button
                 onClick={() => router.push('/dashboard/domains/transfer')}
                 className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-ink-2 bg-paper border border-hairline rounded-xl hover:bg-paper-2 transition-colors shadow-sm"
@@ -140,10 +134,10 @@ export default function UserDomains() {
                 className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-paper bg-amber rounded-xl hover:brightness-90 transition-colors shadow-sm"
               >
                 <Plus className="h-4 w-4" />
-                Search Domains
+                Register domain
               </button>
-            </div>
-          </div>
+            </>}
+          />
 
           {/* ── Domains card ── */}
           {isLoadingDomains ? (

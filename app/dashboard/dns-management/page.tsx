@@ -7,13 +7,10 @@ import { motion } from 'framer-motion';
 import { formatIndianDateTime } from '@/lib/dateUtils';
 import { performLogout } from '@/lib/logout';
 import { confirmDialog } from '@/lib/confirm-dialog';
-import {
-  Globe, Plus, Edit3, Trash2, Save, X, RefreshCw, Server,
-  AlertCircle, Clock, Settings, ExternalLink,
-  Database, Copy, Network, CheckCircle2, Sparkles, ArrowRight,
-} from 'lucide-react';
+import { Globe, Plus, Edit3, Trash2, Save, X, RefreshCw, Server, AlertCircle, Clock, Settings, ExternalLink, Database, Copy, CheckCircle2, Sparkles, ArrowRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import UserLayout from '@/components/user/UserLayout';
+import { PageHeader } from '@/components/dashboard/DashboardParts';
 import { DashboardLayoutSkeleton, DNSPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import ClientOnly from '@/components/ClientOnly';
 import RefreshButton from '@/components/dashboard/RefreshButton';
@@ -542,21 +539,14 @@ export default function DNSManagementPage() {
         ) : isLoadingDomains ? (
           <DNSPageSkeleton />
         ) : (
-          <div className="p-6 space-y-6">
+          <div className="mx-auto max-w-[1240px] space-y-6 p-4 sm:p-6 lg:p-8">
 
             {/* ── Page header ── */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-indigo-soft rounded-xl">
-                  <Network className="h-5 w-5 text-amber-ink" />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold text-ink">DNS Management</h1>
-                  <p className="text-sm text-ink-3 mt-0.5">Manage nameservers and DNS records for your domains</p>
-                </div>
-              </div>
-              <RefreshButton onClick={() => loadDomains()} isLoading={isLoadingDomains} />
-            </div>
+            <PageHeader
+              title="DNS"
+              subtitle="Nameservers and DNS records for your domains."
+              actions={<RefreshButton onClick={() => loadDomains()} isLoading={isLoadingDomains} />}
+            />
 
             {/* ── Select Domain card ── */}
             <motion.div

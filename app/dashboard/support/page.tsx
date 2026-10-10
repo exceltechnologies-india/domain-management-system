@@ -16,6 +16,7 @@ import { useUser } from '@/hooks/useUser';
 import { performLogout } from '@/lib/logout';
 import { formatIndianDateTime } from '@/lib/dateUtils';
 import UserLayout from '@/components/user/UserLayout';
+import { PageHeader, Tile } from '@/components/dashboard/DashboardParts';
 import { DashboardLayoutSkeleton, SupportPageSkeleton } from '@/components/skeletons/PageSkeletons';
 import ClientOnly from '@/components/ClientOnly';
 import AttachmentPicker, { PickedAttachment } from '@/components/support/AttachmentPicker';
@@ -214,44 +215,29 @@ export default function SupportPage() {
   return (
     <ClientOnly>
       <UserLayout user={user} onLogout={performLogout}>
-        <div className="space-y-6 p-6">
+        <div className="mx-auto max-w-[1240px] space-y-6 p-4 sm:p-6 lg:p-8">
 
-          {/* Header */}
-          <div className="bg-ink rounded-2xl p-6 text-paper shadow-lg">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-paper/20 rounded-xl backdrop-blur-sm">
-                  <MessageCircle className="h-6 w-6 text-paper" />
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold">Support</h1>
-                  <p className="text-paper-2/80 text-sm">We typically reply within 24 hours</p>
-                </div>
-              </div>
+          {/* Header: the dashboard's heading and tiles instead of a dark banner (10 Oct 2026). */}
+          <PageHeader
+            title="Support"
+            subtitle="We typically reply within 24 hours."
+            actions={
               <button
                 onClick={() => setShowForm((v) => !v)}
-                className="flex items-center gap-2 px-4 py-2 bg-paper text-amber-ink text-sm font-bold rounded-xl hover:bg-amber-soft transition-colors shadow-sm"
+                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg bg-amber px-3 text-sm font-semibold text-paper hover:brightness-95"
               >
                 <Plus className="h-4 w-4" />
-                New Ticket
+                New ticket
               </button>
+            }
+          />
+          {tickets.length > 0 && (
+            <div className="grid grid-cols-3 gap-3">
+              <Tile label="Open" value={openCount} />
+              <Tile label="Awaiting reply" value={awaitingReply} />
+              <Tile label="Resolved" value={resolvedCount} />
             </div>
-
-            {tickets.length > 0 && (
-              <div className="mt-5 grid grid-cols-3 gap-3">
-                {[
-                  { label: 'Active', value: openCount, color: 'bg-paper/20' },
-                  { label: 'Awaiting Reply', value: awaitingReply, color: 'bg-amber/30' },
-                  { label: 'Resolved', value: resolvedCount, color: 'bg-emerald/20' },
-                ].map(({ label, value, color }) => (
-                  <div key={label} className={`${color} rounded-xl px-3 py-2.5 text-center backdrop-blur-sm`}>
-                    <p className="text-2xl font-bold text-paper">{value}</p>
-                    <p className="text-xs text-paper-2/80 mt-0.5">{label}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          )}
 
           {/* New ticket form */}
           <AnimatePresence>
